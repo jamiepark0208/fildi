@@ -1,23 +1,35 @@
 #!/usr/bin/env python3
-"""S086 — strategy board: 8 long-call / long-put angles, top 10 each for TODAY, overlap (A244, Jamie 10-22).
+"""S086 — strategy board: 11 long-call / long-put angles, top 10 each for TODAY, overlap (A244, Jamie 10-22).
 
 Jamie 10-22: "test multiple different angles and strategies, top 10 per strategy, see if tickers overlap. No
-results = exclusion error, fix it." Reuses the S085 engine unchanged (panel, analog weeks, S081 option pricer).
+results = exclusion error, fix it." Reuses the S085 engine (panel, pick_analogs, select_factors, S081 pricer).
 
 Judged RELATIVELY (memory relative-not-absolute): per week, top-10 picks' rel_21 minus the week's mean rel_21
 (calls) or the week's mean minus the picks' (puts) → positive = picks beat the cross-section. Plus option pnl of
 the picks vs buying every name the same weeks (S081 engine, hold to expiry). Analog weeks = S085's 15 % nearest.
 
-Exclusion fix vs S085: S085 printed "no list" because lab_tech / lab_fund stop at 2026-10-05 and today (10-21)
-had no row. Here today's row carries the latest score forward (≤ 21 days, age printed); price/IV factors are fresh.
+No look-ahead in the analog numbers: the revisions factor set is re-selected per leave-one-analog-cluster-out fold
+(S085 rule), so the weeks that score an angle never chose its factors. All-weeks numbers for revision angles are
+in-sample (labelled). Today's factor set = the full analog selection, re-run every day (learns as weeks accrue).
 
-Run: cd scripts/watchlist_sync && .venv/bin/python analysis/s086_strategy_board.py
+Freshness (10-22 exclusion bugs): tech = newest `-ivhist` digest spanning ≥ 300 weeks, refreshed here
+(lab-replay-technicals, 7-day top-up, full replay ≈ 35 s when the engine digest changes); IBES (monthly) carried
+per field ≤ 45 days; tech ≤ 14 days. Stale beyond that → the name has no score that day (printed, not silent).
+
+Reflection loop: picks go to forecast_ledger weekly (same cadence as the backtest), plus a `S086:buy-all` baseline
+arm on every name. Once an arm has ≥ 30 graded forward trades and its forward mean return per $ is below the
+baseline's, it stops being logged and the tab shows it as failing forward.
+
+Run: cd scripts/watchlist_sync && .venv/bin/python analysis/s086_strategy_board.py [--no-refresh] [--force-log]
 """
 from __future__ import annotations
 
 import json
 import math
+import os
+import re
 import statistics
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from datetime import timedelta
@@ -34,13 +46,41 @@ from build_plan import connect  # noqa: E402
 
 OUT = HERE.parent / "out" / "opt" / "S086.md"
 FLAGS = HERE.parent / "out" / "opt" / "S086_flags.json"
+API = HERE.parent.parent.parent / "artifacts" / "api-server"
 TOPN = 10
-CARRY_DAYS = 21
-BUY_ALL, ANALOG_N = [None], [None]   # set in main(), read by write_flags()
+CARRY_TECH, CARRY_FUND = 14, 45     # days; lab_tech is weekly, lab_fund (IBES) monthly
+MIN_WEEKS = 300                     # a tech digest must span the panel to be backtestable
+LOG_EVERY = 7                       # days between ledger entries (the backtest is weekly)
+DEMOTE_N = 30                       # graded forward trades before an arm can be demoted
+BASE_ARM = "S086:buy-all"
 
-# S085 full-sample selection (its LOCO backtest: calls +67 % vs +33 % buy-all, t 3.7)
-REVISIONS = {"ibes_breadth": 1, "ibes_drift": 1, "ibes_drift_3m": 1,
-             "tech_v4call_relativePressure": 1, "tech_v4put_relativePressure": -1}
+
+def refresh_tech(conn):
+    """Top up the -ivhist tech panel for the current engine; full replay if the engine digest is new."""
+    def run(frm):
+        cmd = ["pnpm", "exec", "tsx", "src/scripts/lab-replay-technicals.ts", "--variant=ivhist", "--freq=week",
+               f"--from={frm}"]
+        env = {**os.environ, "PATH": f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"}
+        out = subprocess.run(cmd, cwd=API, env=env, capture_output=True, text=True, timeout=900).stdout
+        m = re.search(r"engine (\S+-ivhist)", out)
+        return m.group(1) if m else None
+    from datetime import date
+    dg = run((date.today() - timedelta(days=10)).isoformat())
+    if dg:
+        n = conn.execute("SELECT count(DISTINCT as_of) FROM watchlist_sync.lab_tech WHERE engine_digest = %s",
+                         (dg,)).fetchone()[0]
+        if n < MIN_WEEKS:
+            print(f"tech engine {dg} has {n} weeks → full replay", flush=True)
+            run("2020-02-01")
+    return dg
+
+
+def pick_digest(conn):
+    """Newest -ivhist digest spanning the panel (S085 pinned one that froze at 10-05 when the engine changed)."""
+    row = conn.execute("""SELECT engine_digest FROM watchlist_sync.lab_tech WHERE engine_digest LIKE '%%-ivhist'
+                          GROUP BY 1 HAVING count(DISTINCT as_of) >= %s ORDER BY max(as_of) DESC, max(computed_at) DESC
+                          LIMIT 1""", (MIN_WEEKS,)).fetchone()
+    return row[0] if row else e.DIGEST
 
 
 def extras(rows, i):
@@ -59,47 +99,46 @@ def extras(rows, i):
             "iv_chg5": (iv_now - iv5) if (iv_now and iv5) else float("nan")}
 
 
-def zmap(row, f, sgn=1.0):
-    tick = sorted(row)
-    z = e.zscore([row[t].get(f, float("nan")) for t in tick])
-    return {t: sgn * v for t, v in zip(tick, z)}
-
-
 def combo(row, parts):
-    """Mean of sign-weighted z over parts; name needs ≥ 60 % coverage."""
-    zs = [zmap(row, f, s) for f, s in parts.items()]
+    """Mean of sign-weighted cross-sectional z over parts; a name needs ≥ 60 % coverage."""
+    tick = sorted(row)
+    zs = [dict(zip(tick, s * e.zscore([row[t].get(f, float("nan")) for t in tick]))) for f, s in parts.items()]
     need = max(1, math.ceil(0.6 * len(parts)))
     out = {}
-    for t in row:
-        vs = [z[t] for z in zs if z.get(t) == z.get(t) and z.get(t) is not None]
+    for t in tick:
+        vs = [z[t] for z in zs if z[t] == z[t]]
         if len(vs) >= need:
             out[t] = float(np.mean(vs))
     return out
 
 
-# name → (call_parts, put_parts); put_parts None = mirror of calls
-STRATS = {
-    "Estimate revisions (S085)": (REVISIONS, None),
-    "Fildi tech call score": ({"tech_v4call_total": 1}, None),
-    "12-1 momentum": ({"mom_12_1": 1}, None),
-    "52-week-high proximity": ({"prox_52w": 1}, None),
-    "1-week reversal": ({"rev_5d": 1}, None),
-    "Earnings surprise (SUE)": ({"ibes_sue": 1}, None),
-    # S083 Part A winner states (calls: cheap IV near highs after a dip; puts: IV below RV and falling, above 50d)
-    "Cheap-vol winner state (S083)": ({"prox_52w": 1, "iv_rank252": -1, "ret60": -1},
-                                      {"iv_rv20": -1, "iv_chg5": -1, "ext50": 1}),
-    # S082 swing extrema (calls: 2-day RSI washed out in a drawdown; puts: RSI pinned, stretched above 50d)
-    "Swing low / high (S082)": ({"rsi2": -1, "dd60": -1}, {"rsi2": 1, "ext50": 1}),
-    # Jamie 10-22: are the worst names (put lists) actually the best calls? Laggards bounced in every all-week test.
-    "Laggard calls: weakest 12-1": ({"mom_12_1": -1}, {"mom_12_1": 1}),
-    "Laggard calls: furthest below 52w high": ({"prox_52w": -1}, {"prox_52w": 1}),
-    "Laggard + revisions up": ({"mom_12_1": -1, **REVISIONS}, None),
-}
+def make_strats(rev):
+    """name → (call_parts, put_parts); put_parts None = mirror of calls. `rev` = selected revision factors."""
+    return {
+        "Estimate revisions (S085)": (rev, None),
+        "Fildi tech call score": ({"tech_v4call_total": 1}, None),
+        "12-1 momentum": ({"mom_12_1": 1}, None),
+        "52-week-high proximity": ({"prox_52w": 1}, None),
+        "1-week reversal": ({"rev_5d": 1}, None),
+        "Earnings surprise (SUE)": ({"ibes_sue": 1}, None),
+        # S083 Part A winner states (calls: cheap IV near highs after a dip; puts: IV below RV, falling, above 50d)
+        "Cheap-vol winner state (S083)": ({"prox_52w": 1, "iv_rank252": -1, "ret60": -1},
+                                          {"iv_rv20": -1, "iv_chg5": -1, "ext50": 1}),
+        # S082 swing extrema (calls: 2-day RSI washed out in a drawdown; puts: RSI pinned, stretched above 50d)
+        "Swing low / high (S082)": ({"rsi2": -1, "dd60": -1}, {"rsi2": 1, "ext50": 1}),
+        # Jamie 10-22: are the worst names (put lists) actually the best calls?
+        "Laggard calls: weakest 12-1": ({"mom_12_1": -1}, {"mom_12_1": 1}),
+        "Laggard calls: furthest below 52w high": ({"prox_52w": -1}, {"prox_52w": 1}),
+        "Laggard + revisions up": ({"mom_12_1": -1, **rev}, None) if rev else ({"mom_12_1": -1}, None),
+    }
 
 
-def scores(row, name):
-    cp, pp = STRATS[name]
-    call = combo(row, cp)
+REV_ANGLES = {"Estimate revisions (S085)", "Laggard + revisions up"}
+
+
+def scores(row, parts):
+    cp, pp = parts
+    call = combo(row, cp) if cp else {}
     put = combo(row, pp) if pp else {t: -v for t, v in call.items()}
     return call, put
 
@@ -108,44 +147,63 @@ def picks(sc, n=TOPN):
     return [t for t, _ in sorted(sc.items(), key=lambda z: -z[1])[:n]]
 
 
+def forward_record(conn):
+    """Forward trades per S086 arm: open, graded n, wins, mean return per $ debit (pnl_per_share ÷ debit)."""
+    rows = conn.execute("""SELECT forecaster, outcome, (meta->>'pnl_per_share')::float, -(meta->>'credit')::float
+                           FROM watchlist_sync.forecast_ledger
+                           WHERE qtype = 'sim_structure' AND forecaster LIKE 'S086:%%'""")
+    by, open_ = defaultdict(list), Counter()
+    for arm, win, pnl, debit in rows:
+        if win is None:
+            open_[arm] += 1
+        elif pnl is not None and debit and debit > 0:
+            by[arm].append((bool(win), pnl / debit))
+    return {a: {"open": open_[a], "n": len(by[a]), "wins": sum(w for w, _ in by[a]),
+                "mean": float(np.mean([r for _, r in by[a]])) if by[a] else None}
+            for a in set(by) | set(open_)}
+
+
 def main():
+    args = sys.argv[1:]
     conn = connect()
+    dg = None if "--no-refresh" in args else refresh_tech(conn)
+    e.DIGEST = pick_digest(conn)
+    print(f"tech digest {e.DIGEST} (replay engine {dg or 'not refreshed'})", flush=True)
+
     px = e.load_prices(conn)
     universe = sorted(t for t in px if t not in e.BENCH)
     tech, fund, tgt, _ = e.load_lab(conn, set(universe))
     weeks = sorted(set(tech) | set(fund))
     macro = e.macro_state(px, universe, weeks)
     today = max(px["SPY"])[0]
-    mt = e.macro_state(px, universe, [today])[today]
-
-    # analog weeks — same rule as S085 main()
-    mw = [d for d in weeks if d in macro and all(macro[d][v] == macro[d][v] for v in e.MACRO_VARS)]
-    M = np.array([[macro[d][v] for v in e.MACRO_VARS] for d in mw], float)
-    mu, sd = M.mean(0), M.std(0, ddof=1)
-    sd[sd == 0] = 1
-    dist = np.linalg.norm((M - mu) / sd - (np.array([mt[v] for v in e.MACRO_VARS]) - mu) / sd, axis=1)
-    cutoff = mw[-1]
-    for _ in range(e.EXCLUDE_RECENT):
-        cutoff = max([d for d in mw if d < cutoff], default=cutoff)
-    elig = sorted(((d, x) for d, x in zip(mw, dist) if d <= cutoff and tgt.get(d)), key=lambda z: z[1])
-    analog = sorted(d for d, _ in elig[: max(8, round(e.ANALOG_FRAC * len(elig)))])
-    all_weeks = sorted(d for d, _ in elig)
+    analog, _, all_weeks, _ = e.pick_analogs(macro, weeks, tgt, e.macro_state(px, universe, [today])[today])
     print(f"{len(universe)} names · {len(all_weeks)} weeks · {len(analog)} analogs · today {today}", flush=True)
 
-    # exclusion fix: carry each field forward from its latest non-empty week (10-05 lab_fund holds ibes_sue only)
-    def carry(src):
+    # carry each field forward from its latest non-empty week (10-05 lab_fund held ibes_sue only)
+    def carry(src, days):
         merged = defaultdict(dict)
-        for d in sorted(d for d in src if 0 <= (today - d).days <= CARRY_DAYS):
+        for d in sorted(d for d in src if 0 <= (today - d).days <= days):
             for t, rec in src[d].items():
                 merged[t].update(rec)
         return dict(merged), max(d for d in src if d <= today)
-    tech[today], tw = carry(tech)
-    fund[today], fw = carry(fund)
+    tech[today], tw = carry(tech, CARRY_TECH)
+    fund[today], fw = carry(fund, CARRY_FUND)
     panel = e.build_panel(px, universe, all_weeks + [today], tech, fund)
-    for d, row in panel.items():
+    for row in panel.values():
         for t, f in row.items():
             f.update(extras(px[t], f["_i"]))
-    print(f"today row: {len(panel[today])} names; tech from {tw}, fund from {fw}", flush=True)
+    print(f"today row: {len(panel[today])} names; tech {len(tech[today])} from {tw}, "
+          f"IBES {sum('ibes_drift' in r for r in fund[today].values())} from {fw}", flush=True)
+
+    # revision factors: full analog selection for today; leave-one-cluster-out for each analog week
+    ibes_tech = [f for f in e.factor_names(panel) if f.startswith(("ibes_", "tech_v4"))]
+    rev_full = e.select_factors(panel, tgt, ibes_tech, analog, all_weeks)
+    strats_full = make_strats(rev_full)
+    strats_wk = {}
+    for held in e.clusters(analog):
+        s = make_strats(e.select_factors(panel, tgt, ibes_tech, [d for d in analog if d not in set(held)], all_weeks))
+        strats_wk.update({d: s for d in held})
+    print(f"revision factors today: {rev_full}", flush=True)
 
     pricer, tb = e.Pricer(conn), e.tbill_map(conn)
     cache = {}
@@ -157,88 +215,106 @@ def main():
             cache[k] = tr["expiry"] if tr else None
         return cache[k]
 
-    # buy-everything comparator on the analog weeks
     base = {s: [v for d in analog for t in panel.get(d, {}) if (v := opt(t, d, s)) is not None]
             for s in ("call", "put")}
-    print(f"buy-all analog: call {np.mean(base['call']):+.1%} put {np.mean(base['put']):+.1%}", flush=True)
-    BUY_ALL[0] = {s: round(float(np.mean(v)), 5) for s, v in base.items()}
-    ANALOG_N[0] = len(analog)
+    buy_all = {s: float(np.mean(v)) for s, v in base.items()}
+    print(f"buy-all analog: call {buy_all['call']:+.1%} put {buy_all['put']:+.1%}", flush=True)
 
     res, today_picks = [], {}
-    for name in STRATS:
-        r = {"name": name}
-        for side in ("call", "put"):
+    for name in strats_full:
+        r = {"name": name, "insample_all": name in REV_ANGLES}
+        for si, side in enumerate(("call", "put")):
             for label, wk in (("an", analog), ("all", all_weeks)):
                 ex = []
                 for d in wk:
                     row, tg = panel.get(d, {}), tgt.get(d, {})
                     if len(row) < 40:
                         continue
-                    sc = scores(row, name)[0 if side == "call" else 1]
-                    p = [t for t in picks(sc) if t in tg]
+                    parts = (strats_wk.get(d, strats_full) if label == "an" else strats_full)[name]
+                    p = [t for t in picks(scores(row, parts)[si]) if t in tg]
                     if len(p) < 5:
                         continue
-                    wmean = statistics.mean(tg.values())
-                    pm = statistics.mean(tg[t] for t in p)
+                    wmean, pm = statistics.mean(tg.values()), statistics.mean(tg[t] for t in p)
                     ex.append((d, (pm - wmean) if side == "call" else (wmean - pm)))
-                t_, _, _ = e.month_block_t(ex) if len(ex) >= 6 else (float("nan"), 0, 0)
+                t_ = e.month_block_t(ex)[0] if len(ex) >= 6 else float("nan")
                 r[f"{side}_{label}"] = (statistics.mean(v for _, v in ex) if ex else float("nan"), t_,
                                         sum(v > 0 for _, v in ex) / len(ex) if ex else float("nan"))
-            pnl = []
-            for d in analog:
-                row = panel.get(d, {})
-                if len(row) < 40:
-                    continue
-                for t in picks(scores(row, name)[0 if side == "call" else 1]):
-                    v = opt(t, d, side)
-                    if v is not None:
-                        pnl.append(v)
-            r[f"{side}_opt"] = (np.mean(pnl) if pnl else float("nan"), len(pnl))
-        c, p = scores(panel[today], name)
+            pnl = [v for d in analog if len(panel.get(d, {})) >= 40
+                   for t in picks(scores(panel[d], strats_wk.get(d, strats_full)[name])[si])
+                   if (v := opt(t, d, side)) is not None]
+            r[f"{side}_opt"] = (float(np.mean(pnl)) if pnl else float("nan"), len(pnl))
+        c, p = scores(panel[today], strats_full[name])
         today_picks[name] = {"call": picks(c), "put": picks(p)}
         res.append(r)
         print(f"{name}: call an {r['call_an'][0]:+.2%} t{r['call_an'][1]:.1f} opt {r['call_opt'][0]:+.1%} | "
               f"put an {r['put_an'][0]:+.2%} t{r['put_an'][1]:.1f} opt {r['put_opt'][0]:+.1%}", flush=True)
 
-    write(res, today_picks, base, analog, today, tw, fw, panel[today], px)
-    write_flags(res, today_picks, panel[today], px, pricer, today)
+    fwd = forward_record(conn)
+    publish(conn, res, today_picks, buy_all, analog, today, tw, fw, panel[today], px, pricer, fwd, rev_full,
+            force_log="--force-log" in args)
+    write_md(res, today_picks, buy_all, analog, today, tw, fw, panel[today], px, rev_full)
     print(f"wrote {OUT}")
 
 
-def write_flags(res, tp, row, px, pricer, today):
-    """Forward paper ledger (long_option_ledger.py reads this, S083 format): call picks of every angle whose
-    analog-week stock edge has t ≥ 2 AND whose options beat buy-all. Graded at expiry, no product claim."""
+def publish(conn, res, tp, buy_all, analog, today, tw, fw, row, px, pricer, fwd, rev, force_log=False):
+    """Ledger flags (weekly) + the Rankings › Long options board row."""
     from s076_structures_backtest import fill, strike_for
-    ok = [r["name"] for r in res if r["call_an"][1] >= 2 and r["call_opt"][0] > 0]
     exp = today + timedelta(days=e.DTE)
     exp += timedelta(days=(4 - exp.weekday()) % 7)        # next Friday
     days = (exp - today).days
+    every = {t for n in tp for s in tp[n] for t in tp[n][s]} | set(row)
+    schwab = e.today_costs(conn, every)
 
     def quote(t, side):
-        S, iv = row[t]["_spot"], px[t][row[t]["_i"]][4 if side == "call" else 3] or px[t][row[t]["_i"]][2]
-        if not iv:
-            return None
-        K = strike_for(S, iv, days / 365, e.DELTA, side)
-        m, sp = pricer.mid(side, S, K, iv, days, today)
-        debit = fill(m, sp, 1)
+        c = schwab.get((t, side))
+        S = row[t]["_spot"]
+        if c and abs(c["K"] / S - 1) <= 0.05:              # real Schwab ask near the money
+            K, debit, ex, dte, src = c["K"], float(c["ask"]), c["expiry"], c["dte"], "schwab ask"
+            iv = c["iv"] or px[t][row[t]["_i"]][2]
+        else:
+            iv = px[t][row[t]["_i"]][4 if side == "call" else 3] or px[t][row[t]["_i"]][2]
+            if not iv:
+                return None
+            K = strike_for(S, iv, days / 365, e.DELTA, side)
+            m, sp = pricer.mid(side, S, K, iv, days, today)
+            debit, ex, dte, src = fill(m, sp, 1), exp, days, "model"
+        iv = iv / 100 if iv and iv > 3 else iv
         be = (K + debit) / S - 1 if side == "call" else 1 - (K - debit) / S
-        return {"spot": S, "strike": K, "debit": debit, "iv30": iv, "breakeven": be}
+        return {"spot": S, "strike": K, "debit": debit, "iv30": iv, "breakeven": be, "expiry": str(ex),
+                "dte": int(dte), "src": src}
 
+    def beats(r):
+        return r["call_an"][1] >= 2 and r["call_opt"][0] > buy_all["call"]
+
+    base_fwd = fwd.get(BASE_ARM)
+    status = {}
+    for r in res:
+        f = fwd.get(f"S086:{r['name']}")
+        failing = bool(f and base_fwd and f["n"] >= DEMOTE_N and base_fwd["mean"] is not None
+                       and f["mean"] < base_fwd["mean"])
+        status[r["name"]] = "failing forward" if failing else ("ledger" if beats(r) else "")
+    ok = [n for n, s in status.items() if s == "ledger"]
+
+    last = conn.execute("""SELECT max(made_on) FROM watchlist_sync.forecast_ledger
+                           WHERE forecaster LIKE 'S086:%%'""").fetchone()[0]
+    due = force_log or last is None or (today - last).days >= LOG_EVERY
     entries = []
-    for name in ok:
-        for t in tp[name]["call"]:
-            q = quote(t, "call")
-            if q:
-                entries.append({"arm": f"S086:{name}", "ticker": t, "date": str(today), "side": "call",
-                                "spot": q["spot"], "strike": q["strike"], "expiry": str(exp), "dte": days,
-                                "model_debit": q["debit"], "iv30": q["iv30"]})
-    FLAGS.write_text(json.dumps({"as_of": str(today), "arms": ok, "entries": entries}, indent=1))
-    print(f"flags: {len(entries)} entries from {ok}")
+    if due:
+        arms = [(f"S086:{n}", tp[n]["call"]) for n in ok] + [(BASE_ARM, sorted(row))]
+        for arm, names in arms:
+            for t in names:
+                q = quote(t, "call")
+                if q and q["debit"] > 0.05:
+                    entries.append({"arm": arm, "ticker": t, "date": str(today), "side": "call", "spot": q["spot"],
+                                    "strike": q["strike"], "expiry": q["expiry"], "dte": q["dte"],
+                                    "model_debit": q["debit"], "iv30": q["iv30"]})
+    FLAGS.write_text(json.dumps({"as_of": str(today), "arms": ok, "entries": entries}, indent=1, default=str))
+    print(f"flags: {len(entries)} entries ({'due' if due else f'next log {last + timedelta(days=LOG_EVERY)}'}) "
+          f"arms {ok}", flush=True)
 
-    # Rankings › Long options tab (GET /api/options/long-board)
-    sec = e.sectors(connect())
+    sec = e.sectors(conn)
     cnt = {s: Counter(t for n in tp for t in tp[n][s]) for s in ("call", "put")}
-    nn = lambda x: None if x != x else round(float(x), 5)  # noqa: E731
+    nn = lambda x: None if x is None or x != x else round(float(x), 5)  # noqa: E731
     strategies = []
     for r in res:
         n = r["name"]
@@ -248,39 +324,46 @@ def write_flags(res, tp, row, px, pricer, today):
             for t in tp[n][s]:
                 q = quote(t, s) or {}
                 names.append({"ticker": t, "sector": sec.get(t), "beta": nn(e.beta_at(px, t, today)),
-                              "overlap": cnt[s][t], "strike": nn(q.get("strike", float("nan"))),
-                              "debit": nn(q.get("debit", float("nan"))),
-                              "breakeven": nn(q.get("breakeven", float("nan"))), "spot": nn(row[t]["_spot"])})
+                              "overlap": cnt[s][t], "strike": nn(q.get("strike")), "debit": nn(q.get("debit")),
+                              "breakeven": nn(q.get("breakeven")), "spot": nn(row[t]["_spot"]),
+                              "src": q.get("src")})
             sides[s] = {"edgeAnalog": [nn(v) for v in r[f"{s}_an"]], "edgeAll": [nn(v) for v in r[f"{s}_all"]],
                         "option": [nn(r[f"{s}_opt"][0]), r[f"{s}_opt"][1]], "names": names}
-        strategies.append({"name": n, "ledger": n in ok, **sides})
-    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": ANALOG_N[0], "buyAll": BUY_ALL[0],
-               "strategies": strategies,
+        f = fwd.get(f"S086:{n}")
+        strategies.append({"name": n, "status": status[n], "insampleAll": r["insample_all"],
+                           "forward": f, **sides})
+    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": len(analog),
+               "buyAll": {s: nn(v) for s, v in buy_all.items()}, "forwardBuyAll": base_fwd,
+               "techAsOf": str(tw), "ibesAsOf": str(fw), "revisionFactors": rev, "strategies": strategies,
                "overlap": {s: [[t, k] for t, k in cnt[s].most_common() if k > 1] for s in cnt}}
-    with connect() as c:
-        c.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.long_option_board
-                     (as_of date PRIMARY KEY, payload jsonb NOT NULL, computed_at timestamptz DEFAULT now())""")
-        c.execute("""INSERT INTO watchlist_sync.long_option_board (as_of, payload) VALUES (%s, %s)
-                     ON CONFLICT (as_of) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()""",
-                  (today, json.dumps(payload)))
-    print("board → watchlist_sync.long_option_board")
+    conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.long_option_board
+                    (as_of date PRIMARY KEY, payload jsonb NOT NULL, computed_at timestamptz DEFAULT now())""")
+    conn.execute("""INSERT INTO watchlist_sync.long_option_board (as_of, payload) VALUES (%s, %s)
+                    ON CONFLICT (as_of) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()""",
+                 (today, json.dumps(payload, default=str)))
+    conn.commit()
+    print("board → watchlist_sync.long_option_board", flush=True)
 
 
-def write(res, tp, base, analog, today, tw, fw, row_today, px):
+def write_md(res, tp, buy_all, analog, today, tw, fw, row_today, px, rev):
     sec = e.sectors(connect())
     L = [f"# S086 — strategy board, top {TOPN} long calls / long puts ({today})", "",
-         f"Universe {len(row_today)} names. Analog weeks {len(analog)} (S085 rule). Tech scores carried from {tw}, "
-         f"IBES from {fw}; price/IV fresh {today}. Edge = picks' 21-day peer-relative return vs the week's average "
-         f"(calls: picks − avg; puts: avg − picks; + = good). Option = S081 engine, 0.50Δ ~45 DTE, held to expiry, "
-         f"per $ debit, analog weeks. Buy-all same weeks: call {np.mean(base['call']):+.1%}, "
-         f"put {np.mean(base['put']):+.1%}.", "",
+         f"Universe {len(row_today)} names. Analog weeks {len(analog)} (S085 rule). Tech digest `{e.DIGEST}` "
+         f"carried from {tw}, IBES from {fw}; price/IV fresh {today}. Revision factors today: {rev}. "
+         f"Edge = picks' 21-day peer-relative return vs the week's average (calls: picks − avg; puts: avg − picks; "
+         f"+ = good). Analog numbers are out-of-sample (revision factors re-selected per left-out cluster); "
+         f"all-weeks numbers for revision angles (†) are in-sample. Option = S081 engine, 0.50Δ ~45 DTE, held to "
+         f"expiry, per $ debit, analog weeks. Buy-all same weeks: call {buy_all['call']:+.1%}, "
+         f"put {buy_all['put']:+.1%}.", "",
          "| strategy | call edge analog (t, hit) | call edge all wks (t) | call option | "
          "put edge analog (t, hit) | put edge all wks (t) | put option |", "|---|---|---|---|---|---|---|"]
     f = lambda x: f"{x[0]:+.2%} ({x[1]:.1f}, {x[2]:.0%})"  # noqa: E731
     g = lambda x: f"{x[0]:+.2%} ({x[1]:.1f})"  # noqa: E731
     for r in res:
-        L.append(f"| {r['name']} | {f(r['call_an'])} | {g(r['call_all'])} | {r['call_opt'][0]:+.1%} (n {r['call_opt'][1]}) | "
-                 f"{f(r['put_an'])} | {g(r['put_all'])} | {r['put_opt'][0]:+.1%} (n {r['put_opt'][1]}) |")
+        dag = " †" if r["insample_all"] else ""
+        L.append(f"| {r['name']} | {f(r['call_an'])} | {g(r['call_all'])}{dag} | {r['call_opt'][0]:+.1%} "
+                 f"(n {r['call_opt'][1]}) | {f(r['put_an'])} | {g(r['put_all'])}{dag} | {r['put_opt'][0]:+.1%} "
+                 f"(n {r['put_opt'][1]}) |")
     for side in ("call", "put"):
         cnt = Counter(t for n in tp for t in tp[n][side])
         L += ["", f"## Top {TOPN} long {side}s per strategy", ""]

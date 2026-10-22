@@ -267,6 +267,31 @@ def macro_state(px, names, dates):
     return out
 
 
+def pick_analogs(macro, weeks, tgt, macro_today):
+    """Step 1 (shared with S086): the ANALOG_FRAC weeks nearest today's standardised macro state, last EXCLUDE_RECENT
+    weeks excluded. Returns (analog weeks, {week: distance}, all eligible weeks, cutoff)."""
+    mw = [d for d in weeks if d in macro and all(macro[d][v] == macro[d][v] for v in MACRO_VARS)]
+    if len(mw) < 30:
+        raise SystemExit(f"only {len(mw)} weeks have a complete macro state — cannot pick analogs")
+    M = np.array([[macro[d][v] for v in MACRO_VARS] for d in mw], float)
+    mu, sd = M.mean(axis=0), M.std(axis=0, ddof=1)
+    sd[sd == 0] = 1.0
+    Z = (M - mu) / sd
+    z_today = (np.array([macro_today[v] for v in MACRO_VARS], float) - mu) / sd
+    dist = np.linalg.norm(Z - z_today, axis=1)
+
+    cutoff = mw[-1]
+    for _ in range(EXCLUDE_RECENT):
+        cutoff = max([d for d in mw if d < cutoff], default=cutoff)
+    eligible = [(d, float(x)) for d, x in zip(mw, dist) if d <= cutoff and tgt.get(d)]
+    eligible.sort(key=lambda z: z[1])
+    k = max(8, int(round(ANALOG_FRAC * len(eligible))))
+    analog = sorted(d for d, _ in eligible[:k])
+    analog_dist = dict(eligible[:k])
+    all_weeks = sorted(d for d, _ in eligible)
+    return analog, analog_dist, all_weeks, cutoff
+
+
 def load_lab(conn, names):
     """Point-in-time weekly panel: lab_tech scores (one digest only), lab_fund IBES, lab_outcomes rel_21."""
     tech = defaultdict(dict)
@@ -601,26 +626,8 @@ def main():
         raise SystemExit("cannot build today's macro state")
 
     # ---- step 1: analogs
-    mw = [d for d in weeks if d in macro and all(macro[d][v] == macro[d][v] for v in MACRO_VARS)]
-    if len(mw) < 30:
-        raise SystemExit(f"only {len(mw)} weeks have a complete macro state — cannot pick analogs")
-    M = np.array([[macro[d][v] for v in MACRO_VARS] for d in mw], float)
-    mu, sd = M.mean(axis=0), M.std(axis=0, ddof=1)
-    sd[sd == 0] = 1.0
-    Z = (M - mu) / sd
-    z_today = (np.array([macro_today[v] for v in MACRO_VARS], float) - mu) / sd
-    dist = np.linalg.norm(Z - z_today, axis=1)
-
-    cutoff = mw[-1]
-    for _ in range(EXCLUDE_RECENT):
-        cutoff = max([d for d in mw if d < cutoff], default=cutoff)
-    eligible = [(d, float(x)) for d, x in zip(mw, dist) if d <= cutoff and tgt.get(d)]
-    eligible.sort(key=lambda z: z[1])
-    k = max(8, int(round(ANALOG_FRAC * len(eligible))))
-    analog = sorted(d for d, _ in eligible[:k])
-    analog_dist = dict(eligible[:k])
-    all_weeks = sorted(d for d, _ in eligible)
-    print(f"analogs {len(analog)} of {len(eligible)} eligible weeks (cutoff {cutoff})", flush=True)
+    analog, analog_dist, all_weeks, cutoff = pick_analogs(macro, weeks, tgt, macro_today)
+    print(f"analogs {len(analog)} of {len(all_weeks)} eligible weeks (cutoff {cutoff})", flush=True)
 
     panel = build_panel(px, names, all_weeks + [today], tech, fund)
     facs = [f for f in factor_names(panel)]
