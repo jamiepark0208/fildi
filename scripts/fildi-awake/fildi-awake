@@ -1,0 +1,37 @@
+#!/bin/bash
+# Lid-closed awake window for agent runs (Jamie 10-22). Installed root-owned at /usr/local/sbin/fildi-awake;
+# sudoers lets jamiepark run only this file. Hard cap 60 min; the timer always turns sleep back on.
+#   fildi-awake on <minutes>   allow lid-closed running for ≤ 60 min (re-calling extends, still capped)
+#   fildi-awake off            sleep back to normal now
+#   fildi-awake check          reset if the window expired or the Mac rebooted mid-window (maintain runs this)
+set -euo pipefail
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+EXP=/var/run/fildi-awake.expiry   # /var/run is wiped at boot → a reboot always ends the window
+MAX=60
+
+off() { pmset -a disablesleep 0; rm -f "$EXP"; }
+
+case "${1:-}" in
+  on)
+    m="${2:-60}"
+    [[ "$m" =~ ^[0-9]+$ ]] || { echo "minutes must be a number" >&2; exit 2; }
+    (( m > MAX )) && m=$MAX
+    (( m < 1 )) && m=1
+    end=$(( $(date +%s) + m * 60 ))
+    echo "$end" > "$EXP"
+    pmset -a disablesleep 1
+    # detached timer: turns sleep back on at expiry unless a later `on` pushed the expiry out
+    nohup bash -c "sleep $(( m * 60 )); [[ -f $EXP && \$(cat $EXP) -le \$(date +%s) ]] && { pmset -a disablesleep 0; rm -f $EXP; }" >/dev/null 2>&1 &
+    echo "fildi-awake: on for $m min (until $(date -r "$end" +%H:%M))"
+    ;;
+  off) off; echo "fildi-awake: off" ;;
+  check)
+    cur=$(pmset -g | awk '/SleepDisabled/ {print $2}')
+    if [[ "$cur" == "1" ]] && { [[ ! -f "$EXP" ]] || (( $(cat "$EXP") <= $(date +%s) )); }; then
+      off; echo "fildi-awake: expired window reset"
+    else
+      echo "fildi-awake: ok (SleepDisabled=${cur:-0})"
+    fi
+    ;;
+  *) echo "usage: fildi-awake on <min≤60> | off | check" >&2; exit 2 ;;
+esac
