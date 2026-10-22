@@ -10,5 +10,7 @@ export const queryKeys = {
   /** Side-aware V2 totals from API (put|call) — avoids shipping full rows to score. */
   technicalsRankings: (side: "put" | "call") => ["technicals", "rankings", side] as const,
   optionsRankings: (side: "put" | "call") => ["options-rankings", side] as const,
+  /** Live top-strikes: DB snapshots only (no live price fan-out). */
+  optionsRankingsLite: (side: "put" | "call") => ["options-rankings", side, "lite"] as const,
   optionsBatch: (tickersKey: string) => ["options-batch", tickersKey] as const,
 };
