@@ -24,6 +24,9 @@ const DELISTED = [
   "IOND", // invalid / micro
   "SKHY", // insufficient history / invalid
   "CHX", // ChampionX — acquired by SLB (A87)
+  // 10-22: no bar since ≥ the date shown; Yahoo "may be delisted" or last trade frozen
+  "HBI", "CYBR", "CTRA", "WBD", "EQR", "AVB", "ADYEN", "DISH", "JNPR", "K", "CMA", "BITF", "HOLX",
+  "SQ", "MMC", "PSTG", "BK", // renamed → XYZ, MRSH, P, BNY
 ] as const;
 
 const dry = process.argv.includes("--dry-run");
