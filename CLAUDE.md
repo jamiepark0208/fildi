@@ -61,6 +61,7 @@ Subagents: verifier (tsc + tests) · data-agent (fetch/cache) · ui-agent (React
 - Batch independent calls. Edit with Edit, not whole-file rewrites.
 - ASKS.md is a one-line index: open `asks/A##.md` only for rows you act on; closed rows → ASKS-archive.md.
 - **Subagents (Jamie 10-16, 7 forks burned the plan):** never `fork`. Default inline. A big build (> ~30 min inline) → ONE fresh agent at a time, `model: sonnet` for mechanical work, short prompt (spec path + acceptance), never parallel.
+- **Heavy work → Cursor (Jamie 10-21, A238):** backtests, studies, data fetches, commit-review evidence go to Cursor via ASKS with a pass/fail bar + ≤ 20-line packet format. Claude writes specs/bars, verdicts from packets, spot-checks one number. Cursor's tokens lapse 12-11.
 - **No background waits on external deps (Jamie 10-21):** dependency down (LSEG port 9000, Schwab auth, a login) → probe once, write `blocked: <dep> → run <cmd>` in state.md, tell Jamie in one line, move on. Background only for jobs that finish on their own (build/test/fetch), ≤ 30 min.
 
 ## Compact instructions

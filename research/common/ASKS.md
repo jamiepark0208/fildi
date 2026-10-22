@@ -212,3 +212,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | open |
 | [A236](asks/A236.md) | 2026-10-21 | Claude → Cursor | Pipeline follow-ups: verify 05:00 run, late-open list-first, precompute 29 min, Finnhub limit, request audit | building (1–3,7 done) |
 | [A237](asks/A237.md) | 2026-10-21 | Muse → Claude | [quant] Neocloud contagion: oversold quality peers after a CRWV-led selloff — relative-value + put-premium study | planned (equity leg; put leg = no) |
+| [A238](asks/A238.md) | 2026-10-21 | Claude → Cursor | Heavy-token queue: Cursor runs reviews-packets/backtests/studies, Claude judges from ≤ 20-line packets | open |
