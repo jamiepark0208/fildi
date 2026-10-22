@@ -255,7 +255,7 @@ function shouldRunSchwabHealthNow(): boolean {
   return Date.now() - lastSchwabHealthRun.getTime() >= 6 * 60 * 60 * 1000;
 }
 
-/** Local WRDS/LSEG cache + LSEG :9000 probe. Never syncs vendors (lane contract). */
+/** Local WRDS/LSEG cache + LSEG desktop-proxy probe (.portInUse / :9000/:9001). Never syncs vendors (lane contract). */
 function shouldRunResearchOpsNow(): boolean {
   if (researchOpsRunning) return false;
   if (!lastResearchOpsRun) return true;

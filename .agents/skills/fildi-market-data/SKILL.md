@@ -22,7 +22,7 @@ Router only. The how-to for each source stays in its playbook; this page says wh
 
 ## Budgets and guards
 - **LSEG: 10k requests/day across all apps, ≤ 5/s.** `research/lseg/_session.py` refuses to *start* above 80 % of today's use (production keeps the last 20 %). It does **not** stop a long run mid-way, so research scripts must set their own cap (`REQ_CAP`, see `analysis/s064_buy_zone.py`). Today's use: `SELECT calls_made FROM api_usage WHERE source = 'lseg' AND date = current_date`.
-- LSEG needs the Workspace desktop app running and logged in (proxy 127.0.0.1:9000). Run LSEG scripts with `research/lseg/.venv/bin/python` from `research/lseg/`.
+- LSEG needs the Workspace desktop app running and logged in (proxy 127.0.0.1 — port from `Data API Proxy/.portInUse`, usually 9000 or 9001; health probes both). Run LSEG scripts with `research/lseg/.venv/bin/python` from `research/lseg/`.
 - Python: `scripts/watchlist_sync/.venv` (numpy, no scipy) for lab work; `research/wrds/.venv` (csv/gzip; pandas datetime ops segfault on 3.14).
 - DB: `from build_plan import connect` (scripts/watchlist_sync). Escape `%` as `%%` in LIKE patterns.
 - `prices_historical` only starts 2025-04 → never backtest on it.

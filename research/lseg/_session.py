@@ -1,6 +1,7 @@
 """LSEG Workspace desktop session + shared research imports.
 
-Requires the Refinitiv/LSEG Workspace app running and logged in (API proxy on 127.0.0.1:9000)
+Requires the Refinitiv/LSEG Workspace app running and logged in (API proxy on 127.0.0.1 —
+port from ~/Library/Application Support/Data API Proxy/.portInUse, usually 9000 or 9001)
 and LSEG_APP_KEY in repo-root .env.local (Workspace search: APPKEY).
 """
 from __future__ import annotations
@@ -157,7 +158,8 @@ def lseg_session() -> Iterator[Any]:
     except Exception as e:
         raise RuntimeError(
             "Could not open LSEG Workspace session. Is Refinitiv/LSEG Workspace running and logged in "
-            f"(API proxy on 127.0.0.1:9000)? Underlying error: {str(e)[:200]}"
+            "(proxy port in Data API Proxy/.portInUse, usually :9000 or :9001)? "
+            f"Underlying error: {str(e)[:200]}"
         ) from e
     if str(ld.session.get_default().open_state).split(".")[-1] != "Opened":
         ld.close_session()

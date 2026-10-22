@@ -500,7 +500,7 @@ export function detectOpsAlerts(opts: {
         title: "LSEG research cache down",
         detail: hints || `lseg overall=${research.lsegOverall}`,
         taskIds: ["research-ops-health", "lseg-daily-sync"],
-        fix: "Open Workspace (:9000) → cd research/lseg && sync_signals.py && sync_events.py",
+        fix: "Open Workspace (proxy up) → cd research/lseg && sync_signals.py && sync_events.py",
       });
     } else if (research.lsegOverall === "warn" || research.lsegOverall === "missing") {
       alerts.push({
@@ -522,7 +522,7 @@ export function detectOpsAlerts(opts: {
         title: "LSEG Workspace closed (weekday)",
         detail: "Caches may still be fresh — reopen Workspace before the next supervised sync.",
         taskIds: ["research-ops-health", "lseg-daily-sync"],
-        fix: "Launch Refinitiv Workspace and confirm :9000",
+        fix: "Launch Refinitiv Workspace and confirm desktop proxy (.portInUse / :9000/:9001)",
       });
     }
   }

@@ -73,6 +73,25 @@ function portOpen(port) {
   return spawnSync("/usr/bin/nc", ["-z", "-w", "2", "127.0.0.1", String(port)]).status === 0;
 }
 
+/** Workspace writes the live API proxy port here; often 9001 when 9000 is taken (lseg-data reads the same file). */
+function lsegDesktopUp() {
+  const home = process.env.HOME || "";
+  const candidates = [
+    join(home, "Library/Application Support/Data API Proxy/.portInUse"),
+    join(home, "Library/Application Support/Eikon API proxy/.portInUse"),
+    join(home, "Library/Application Support/Eikon Scripting Proxy/.portInUse"),
+  ];
+  const ports = [];
+  for (const f of candidates) {
+    try {
+      const n = Number(String(readFileSync(f, "utf8")).trim().split(/\s+/)[0]);
+      if (Number.isInteger(n) && n > 0 && n < 65536) ports.push(n);
+    } catch { /* missing */ }
+  }
+  for (const p of [9000, 9001, 9060]) if (!ports.includes(p)) ports.push(p);
+  return ports.some(portOpen);
+}
+
 function etDay(d = new Date()) {
   return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
@@ -842,7 +861,7 @@ async function main() {
     //     Only after today's list is final: a pre-open skip also exits 0 and must not hold the lock past 06:30 PT.
     if (args.has("--research") && modelListDoneToday(modelList)) {
       for (const [name, rel, extra, needsLseg] of RESEARCH_QUEUE) {
-        if (needsLseg && !portOpen(9000)) { actions.push(`research_${name}_skipped_no_lseg`); continue; }
+        if (needsLseg && !lsegDesktopUp()) { actions.push(`research_${name}_skipped_no_lseg`); continue; }
         const t0 = Date.now();
         const dir = join(ROOT, "scripts/watchlist_sync");
         const py = needsLseg ? join(ROOT, "research/lseg/.venv/bin/python") : join(dir, ".venv/bin/python");

@@ -30,7 +30,7 @@ Both agents append to the [Changelog](#11-changelog) when they change a shared c
 | Role | **History** — what happened | **Now / forward** — what is happening |
 | Strength | Long, clean, point-in-time panels (IBES history, CRSP returns, Compustat) | Proprietary live signals (StarMine), current consensus, short interest, CDS, forward events |
 | Weakness | Lagged (CRSP thru 2024-12-31), session-limited, semester lockouts | No deep history pulls (Datastream ~10M pts/mo), requires desktop app running |
-| Access | WRDS Postgres, `research/wrds/` | Workspace desktop API on `127.0.0.1:9000`, `lseg-data` 2.1.1 |
+| Access | WRDS Postgres, `research/wrds/` | Workspace desktop API on `127.0.0.1` (`.portInUse`, usually :9000/:9001), `lseg-data` 2.1.1 |
 | Local schema | `wrds_research.*` | `lseg_research.*` |
 
 Rule of thumb: **if it needs more than ~1 year of history → WRDS. If it's a current value or a StarMine model → LSEG.**
@@ -374,9 +374,9 @@ flowchart LR
 
 | Layer | Behavior |
 |---|---|
-| **Running TradeDash app** | Keeps working. Scores / options use **local Postgres** (`wrds_research` IBES extras + soft LSEG chips from last `lseg_research` snapshot). No live call to `:9000`. |
+| **Running TradeDash app** | Keeps working. Scores / options use **local Postgres** (`wrds_research` IBES extras + soft LSEG chips from last `lseg_research` snapshot). No live call to the desktop proxy. |
 | **LSEG UI panels** | Show last cached signals; banner: Workspace offline. |
-| **LSEG sync scripts** | Fail until Workspace is open + logged in (proxy `127.0.0.1:9000`). **Cannot auto-start the GUI** from API/LaunchAgent — you must open Workspace. |
+| **LSEG sync scripts** | Fail until Workspace is open + logged in (proxy port in `Data API Proxy/.portInUse`). **Cannot auto-start the GUI** from API/LaunchAgent — you must open Workspace. |
 | **WRDS lane** | Unaffected (separate vendor). |
 
 ### 13.2 Safeguarding WRDS connection success

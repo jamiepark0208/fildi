@@ -3,7 +3,7 @@
 **Lane owner:** Claude Code · **Contract:** [`../LSEG_WRDS_SYNC.md`](../LSEG_WRDS_SYNC.md) · research-only, never `fund_score` / FIELD_DEFS / hot path.
 
 ## Prereqs
-1. Refinitiv/LSEG Workspace app (`/Applications/Refinitiv Workspace.app`) **running and logged in**. The API proxy listens on `127.0.0.1:9000`.
+1. Refinitiv/LSEG Workspace app (`/Applications/Refinitiv Workspace.app`) **running and logged in**. The API proxy listens on `127.0.0.1` at the port in `~/Library/Application Support/Data API Proxy/.portInUse` (usually **9000 or 9001** — do not assume 9000 alone).
 2. `LSEG_APP_KEY=…` in repo-root `.env.local` (Workspace search → `APPKEY` → tick *Eikon Data API* only).
 3. Venv: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
 

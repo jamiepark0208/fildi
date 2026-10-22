@@ -3,15 +3,20 @@
  *
  * Contract: API never calls WRDS Cloud or LSEG Workspace live for scoring.
  * This module only probes local Postgres caches + optional TCP to LSEG desktop
- * proxy (127.0.0.1:9000). Auto-heal is limited to what we can fix without a GUI:
- * warn on staleness; never start Workspace or burn WRDS quota from the scheduler.
+ * proxy (127.0.0.1 — port from Workspace `.portInUse`, else 9000/9001/9060).
+ * Auto-heal is limited to what we can fix without a GUI: warn on staleness;
+ * never start Workspace or burn WRDS quota from the scheduler.
  */
+import fs from "fs";
 import net from "net";
+import os from "os";
+import path from "path";
 import { pool } from "@workspace/db";
 import { logger } from "./logger.js";
 
 const LSEG_HOST = "127.0.0.1";
-const LSEG_PORT = 9000;
+/** SDK default + common fallbacks when `.portInUse` is missing (Workspace may bind 9001). */
+const LSEG_PROXY_PORTS = [9000, 9001, 9060] as const;
 const STALE_MS = {
   // WRDS — monthly / infrequent pulls (false-stale at default 7d was noisy in API Monitor)
   ibes_statsum: 40 * 24 * 60 * 60 * 1000,
@@ -106,6 +111,39 @@ export function probeTcp(host: string, port: number, timeoutMs = 800): Promise<b
     socket.once("error", () => done(false));
     socket.connect(port, host);
   });
+}
+
+/** Same discovery as lseg-data DesktopSession: `.portInUse`, then 9000/9001/9060. */
+export function readLsegPortInUse(): number | null {
+  const candidates = [
+    path.join(os.homedir(), "Library/Application Support/Data API Proxy/.portInUse"),
+    path.join(os.homedir(), "Library/Application Support/Eikon API proxy/.portInUse"),
+    path.join(os.homedir(), "Library/Application Support/Eikon Scripting Proxy/.portInUse"),
+  ];
+  for (const file of candidates) {
+    try {
+      const raw = fs.readFileSync(file, "utf8").trim().split(/\s+/)[0];
+      const n = Number(raw);
+      if (Number.isInteger(n) && n > 0 && n < 65536) return n;
+    } catch {
+      /* missing / unreadable */
+    }
+  }
+  return null;
+}
+
+export async function probeLsegDesktopProxy(
+  host = LSEG_HOST,
+): Promise<{ reachable: boolean; port: number | null }> {
+  const fromFile = readLsegPortInUse();
+  const tryPorts = [
+    ...(fromFile != null ? [fromFile] : []),
+    ...LSEG_PROXY_PORTS.filter((p) => p !== fromFile),
+  ];
+  for (const port of tryPorts) {
+    if (await probeTcp(host, port)) return { reachable: true, port };
+  }
+  return { reachable: false, port: fromFile };
 }
 
 async function schemaExists(name: string): Promise<boolean> {
@@ -223,10 +261,10 @@ export async function getResearchOpsReport(): Promise<ResearchOpsReport> {
     logger.warn({ err: localDbErr }, "research-ops: local db probe failed");
   }
 
-  const desktopUp = await probeTcp(LSEG_HOST, LSEG_PORT);
-  if (!desktopUp) {
+  const desktop = await probeLsegDesktopProxy(LSEG_HOST);
+  if (!desktop.reachable) {
     fixHints.push(
-      "LSEG Workspace desktop not reachable on 127.0.0.1:9000 — open Workspace + stay logged in before any LSEG sync. App still serves last lseg_research snapshot.",
+      "LSEG Workspace desktop proxy not reachable (checks .portInUse then :9000/:9001/:9060) — open Workspace + stay logged in before any LSEG sync. App still serves last lseg_research snapshot.",
     );
   }
 
@@ -243,7 +281,7 @@ export async function getResearchOpsReport(): Promise<ResearchOpsReport> {
   }
 
   const wrdsOverall = rollup(wrdsSchema, wrdsDatasets);
-  const lsegOverall = rollup(lsegSchema, lsegDatasets, !desktopUp);
+  const lsegOverall = rollup(lsegSchema, lsegDatasets, !desktop.reachable);
 
   return {
     checkedAt: new Date().toISOString(),
@@ -264,10 +302,10 @@ export async function getResearchOpsReport(): Promise<ResearchOpsReport> {
     lseg: {
       schema: lsegSchema,
       desktopProxy: {
-        reachable: desktopUp,
+        reachable: desktop.reachable,
         host: LSEG_HOST,
-        port: LSEG_PORT,
-        hint: desktopUp
+        port: desktop.port ?? LSEG_PROXY_PORTS[0],
+        hint: desktop.reachable
           ? null
           : "Start LSEG Workspace (desktop API). Sync scripts cannot auto-launch the GUI.",
       },

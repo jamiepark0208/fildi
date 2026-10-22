@@ -1,15 +1,24 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-21
+**Last updated:** 2026-10-22 (end of S081/S082 session)
 
 ## Next build
-1. Claude Ready studies (A195/A186/A219…) only if Jamie wants Cursor on quant — else leave Claude
-2. Open Cursor rows: A200/A202/A210/A211/A214/A235/A238 as they hit planned
-3. Smoke A239: Claude runs `scripts/agent-dispatch.sh cursor … --ask` once after pull
+1. **Blocked on Claude:** A244 product (S081 FAIL → no buy list; S082 PASS freeze may feed entry overlay — Claude verdict)
+2. When LSEG Workspace up (proxy via `.portInUse`, often :9001) — optional A243 RIC expand (`sync_ids` + `sync_daily_history`)
+3. A235 P1/P2 — not until invite
+4. Muse/Grok rows A200/A202/A211/A241 — still `open`, not `planned`
 
 ## Phase
-**ops** — Took Claude Ready non-quant (A239 Cursor-owned, A145 CI, A156 kiro). Claude idle (waiting). Quant planned rows stay Claude unless asked.
+**idle / waiting** — Cursor-needed planned work cleared.
 
 ## Shipped this session
-A239 dispatch beams · A145 CI gates 5–8 · A156 kiro forward redact · earlier A209/A215/A216/A236 batch.
+- A243 carry-forward + freshness + cash (`519024f6`)
+- A242 CI green (prior)
+- A244 S081 hold-to-expiry Direction×Price **FAIL** (`6e62802e` / packet) — no Model List buy_calls/puts
+- A245 S082 swing-extrema **PASS** both sides (`23d92bab`) — freeze for A244 overlay pending Claude
+- S079 INDEX Status/paths restore (`77004157`) — ui-crash-guards green
+
+## Diagnosed
+- fair_value_jumps_195 = yield-unit recovery (not anomaly); live rf ~5.12%
+- COOKIE/S079 advisory ≠ product bugs

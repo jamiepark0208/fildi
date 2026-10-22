@@ -26,7 +26,14 @@ for p in (ROOT / ".env.local", ROOT / ".env"):
     if p.is_file():
         load_dotenv(p, override=False)
 
-LSEG_HOST, LSEG_PORT = "127.0.0.1", 9000
+LSEG_HOST = "127.0.0.1"
+# Workspace writes the live port to .portInUse; SDK also tries 9000/9060. 9001 is common when 9000 is taken.
+LSEG_PROXY_PORTS = (9000, 9001, 9060)
+LSEG_PORT_FILES = (
+    Path.home() / "Library/Application Support/Data API Proxy/.portInUse",
+    Path.home() / "Library/Application Support/Eikon API proxy/.portInUse",
+    Path.home() / "Library/Application Support/Eikon Scripting Proxy/.portInUse",
+)
 STALE_HOURS = {
     "ibes_statsum": 40 * 24,
     "ibes_surpsum": 40 * 24,
@@ -44,6 +51,33 @@ def _tcp(host: str, port: int, timeout: float = 0.8) -> bool:
             return True
     except OSError:
         return False
+
+
+def _port_in_use() -> int | None:
+    for p in LSEG_PORT_FILES:
+        try:
+            raw = p.read_text().strip().split()[0]
+            n = int(raw)
+            if 0 < n < 65536:
+                return n
+        except (OSError, ValueError, IndexError):
+            continue
+    return None
+
+
+def _probe_lseg_desktop(host: str = LSEG_HOST) -> tuple[bool, int | None]:
+    """Match lseg-data DesktopSession discovery: .portInUse, then 9000/9001/9060."""
+    from_file = _port_in_use()
+    tried: list[int] = []
+    if from_file is not None:
+        tried.append(from_file)
+    for port in LSEG_PROXY_PORTS:
+        if port not in tried:
+            tried.append(port)
+    for port in tried:
+        if _tcp(host, port):
+            return True, port
+    return False, from_file
 
 
 def _age_status(dataset: str, last_ok) -> str:
@@ -90,7 +124,7 @@ def main() -> int:
         "wrds": {"schema": False, "datasets": []},
         "lseg": {
             "schema": False,
-            "desktop_proxy": {"reachable": _tcp(LSEG_HOST, LSEG_PORT), "host": LSEG_HOST, "port": LSEG_PORT},
+            "desktop_proxy": {"reachable": False, "host": LSEG_HOST, "port": None},
             "datasets": [],
         },
         "hints": [],
@@ -98,6 +132,12 @@ def main() -> int:
             "TradeDash scores use local Postgres caches only. "
             "Vendor down = no refresh; last snapshot still serves."
         ),
+    }
+    up, port = _probe_lseg_desktop()
+    report["lseg"]["desktop_proxy"] = {
+        "reachable": up,
+        "host": LSEG_HOST,
+        "port": port if port is not None else LSEG_PROXY_PORTS[0],
     }
 
     if not url:
@@ -131,8 +171,8 @@ def main() -> int:
 
     if not report["lseg"]["desktop_proxy"]["reachable"]:
         report["hints"].append(
-            "LSEG Workspace not on 127.0.0.1:9000 — open desktop app before sync_*.py. "
-            "App UI still shows last lseg_research rows."
+            "LSEG Workspace proxy not reachable (.portInUse then :9000/:9001/:9060) — "
+            "open desktop app before sync_*.py. App UI still shows last lseg_research rows."
         )
 
     for ds in report["wrds"]["datasets"]:

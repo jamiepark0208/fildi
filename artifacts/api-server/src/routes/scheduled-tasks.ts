@@ -928,9 +928,9 @@ function buildTasks(
       return withToday({
         id: "research-ops-health",
         name: "Research Ops Health",
-        summary: "WRDS/LSEG cache freshness + LSEG desktop :9000 (no vendor sync)",
+        summary: "WRDS/LSEG cache freshness + LSEG desktop proxy (no vendor sync)",
         purpose:
-          "Every ~6h: probe local wrds_research/lseg_research.sync_state age and TCP to LSEG Workspace (127.0.0.1:9000). Never calls WRDS Cloud or opens an LSEG session — refreshes stay manual (lane contract). Analog of Schwab Auth Health. CLI: python research/common/health.py",
+          "Every ~6h: probe local wrds_research/lseg_research.sync_state age and TCP to LSEG Workspace (.portInUse, else :9000/:9001/:9060). Never calls WRDS Cloud or opens an LSEG session — refreshes stay manual (lane contract). Analog of Schwab Auth Health. CLI: python research/common/health.py",
         schedule: "Every ~6h (api-scheduler)",
         frequencyRank: 27,
         frequency: "every 6h",
@@ -1018,7 +1018,7 @@ function buildTasks(
           name: "LSEG Daily Sync",
           summary: "signals + events (Workspace GUI · supervised)",
           purpose:
-            "Weekday refresh of lseg_research.signals_daily + events. Requires Workspace logged in on :9000. Not LaunchAgent — lane contract forbids vendor cron.",
+            "Weekday refresh of lseg_research.signals_daily + events. Requires Workspace logged in (desktop proxy). Not LaunchAgent — lane contract forbids vendor cron.",
           schedule: "Weekdays after open (supervised)",
           frequencyRank: 28,
           frequency: "weekdays",
