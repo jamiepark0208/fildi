@@ -94,7 +94,7 @@ def main() -> int:
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--reuse-last", action="store_true", help="parse ~/.fildi/plan-review-last.out instead of a new run")
     ap.add_argument("--max", type=int, default=6)
-    ap.add_argument("--model", default="claude-opus-5-thinking-high")
+    ap.add_argument("--model", default="grok-4.7-high")   # Cursor Opus/Sonnet quota spent until 11-11 (10-22)
     a = ap.parse_args()
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
     rows = pick(state, a.max)
