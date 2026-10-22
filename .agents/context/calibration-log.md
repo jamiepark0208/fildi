@@ -14,6 +14,9 @@
 - 10-21 · Vendor fields: confirm units per source before ranking (Yahoo D/E is always percent; a "> 20 → /100" guess made low-debt names 100× too levered).
 - 10-21 · Shared tree: the IDE Cursor may be editing too → don't touch files listed under "Busy files" in your prompt.
 
+- 10-22 · A244 review said call/put history was 'forward-only, needs a purchase' — Polygon already serves ~2 y of option closes. Never write 'no data / must buy' without a live vendor probe (one curl) cited in the packet.
+- 10-22 · Plans written before a data inventory drew 11 review findings (A244). Order now: read-only inventory (data + INDEX overlap + existing code) → plan → review.
+
 ## Review stats
 - 2026-10-21 · auto · 1 reviewed · planned 0 / revise 1 / declined 0 / needs Jamie 0
 - 2026-10-21 · auto · 6 reviewed · planned 1 / revise 5 / declined 0 / needs Jamie 0
