@@ -738,6 +738,23 @@ def main():
                  f"{'✓' if bs else '✗'} |")
     L.append("")
 
+    # regime slices — Jamie 10-22 (memory: cross-sectional-not-own-history): nothing may be judged on the bull tape alone
+    L += ["### Regime slices (descriptive — 'tested outside the bull tape')", "",
+          "Jamie 10-22: a candidate screen must hold up outside 2021 and 2023-25, so every arm is cut by era and by the "
+          "2022 bear year on its own. No arm is selected on these; they exist so a positive pooled mean cannot hide a "
+          "one-regime bet. **No list ships from S083, so the cross-sectional / beta-residual guard on candidate lists is "
+          "not reached** — but the gap is real and is named under Known weaknesses.", "",
+          "| arm | 2021-23 | 2022 only | 2024-25 |", "|---|---|---|---|"]
+    era_w = {"2021-23": FIT, "2022 only": (date(2022, 1, 1), date(2022, 12, 31)), "2024-25": TEST}
+    for k, v in list(b_sets.items()) + [("Part A top decile, calls", A["call"]["top"] or []),
+                                        ("Part A top decile, puts", A["put"]["top"] or [])]:
+        cells = []
+        for lab, w in era_w.items():
+            s = stats([x for x in v if w[0] <= x["d"] <= w[1]])
+            cells.append(f"{s['mean']:+.1%} (n {s['n']:,}, t {s['t']:.2f})" if s else "—")
+        L.append(f"| {k} | " + " | ".join(cells) + " |")
+    L.append("")
+
     b_pass = {}
     L += ["### Verdict per arm, against the pre-registered bar", ""]
     for k, v in b_sets.items():
@@ -824,7 +841,13 @@ def main():
           "- The restricted features cannot be fitted on 2021-23 at all (see above) — they are descriptive only.",
           "- B3's universe is 59 names from 2024-11; its n is small by construction, not by selection.",
           "- Expiry intrinsic assumes settlement at no spread; B3 exits at the model mid − fill.",
-          "- Continuous Δ-strikes; real chains round to listed strikes."]
+          "- Continuous Δ-strikes; real chains round to listed strikes.",
+          "- **No beta residualisation and no sector cap** (Jamie 10-22, memory `cross-sectional-not-own-history`). Every "
+          "return here is raw, not forward-return-minus-β×SPY, and B1/B2 are momentum arms that would load on high-beta "
+          "names. It does not change a FAIL — an unadjusted arm that already fails cannot pass once its beta is removed — "
+          "but any future long-option row must be beta-residual, cross-sectional and sector-capped before it may show a "
+          "candidate list. Part A's features are each name's own history by construction (that is what 'reverse-engineer "
+          "the winners' asks for); only B1's momentum cut is cross-sectional."]
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(L) + "\n")
