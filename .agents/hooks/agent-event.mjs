@@ -48,6 +48,8 @@ try {
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
     sig = (h >>> 0).toString(36);
   }
+  // A239: child runs launched via scripts/agent-dispatch.sh carry FILDI_PARENT=<from>:<id>
+  const parent = process.env.FILDI_PARENT || undefined;
   const row = {
     t: new Date().toISOString(), agent, event, kind: event === "fail" ? kind ?? "other" : kind,
     tool: p.tool_name ?? p.hook_event_name ?? undefined,
@@ -55,6 +57,7 @@ try {
     // background agents (Claude Code subagents/forks): their own tool events carry agent_id/agent_type
     sub: p.agent_id ?? undefined, subType: p.agent_type || undefined, sig,
     git: git.length ? [...new Set(git)] : undefined, gitMsg,
+    parent,
     detail: detail ? String(detail).replace(/\s+/g, " ").slice(0, 100) : undefined,
     transcript: event === "stop" || event === "session-start" ? p.transcript_path : undefined,
   };

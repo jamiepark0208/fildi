@@ -390,7 +390,41 @@ async function claudeTokens(): Promise<{ day: string; input: number; cacheRead: 
   return [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, d]) => ({ day, ...d }));
 }
 
-type LiveEv = { t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string; sub?: string; subType?: string; sig?: string; caller?: string };
+	type LiveEv = {
+		t: string; agent: string; event: string; kind?: string; tool?: string; session?: string; detail?: string;
+		sub?: string; subType?: string; sig?: string; caller?: string;
+		/** A239: FILDI_PARENT from agent-dispatch.sh → "<from>:<childId>" on child hook events */
+		parent?: string; target?: string; model?: string; child?: string; exit?: number;
+	};
+
+	/** A239: agent→agent launches (dispatch … dispatch-end). Beam while running, or ≤60s after end. */
+	function dispatches(live: LiveEv[], nowMs: number) {
+		const ends = new Map<string, LiveEv>();
+		for (const e of live) if (e.event === "dispatch-end" && e.child) ends.set(e.child, e);
+		const out: { from: string; to: string; model: string | null; task: string; startedAt: string; running: boolean; actions: number; child: string }[] = [];
+		for (const e of live) {
+			if (e.event !== "dispatch" || !e.child) continue;
+			const to = e.target === "grokbot" ? "grok" : (e.target ?? "cursor");
+			const end = ends.get(e.child);
+			const parentTag = `${e.agent}:${e.child}`;
+			const childEvs = live.filter((x) => x.parent === parentTag);
+			const actions = childEvs.filter((x) => x.event === "tool" || x.event === "fail" || x.event === "edit").length;
+			const lastChild = childEvs[childEvs.length - 1];
+			let running = false;
+			if (!end) {
+				const lastT = lastChild ? Date.parse(lastChild.t) : Date.parse(e.t);
+				running = nowMs - lastT < 10 * 60_000;
+			}
+			const endedRecently = !!end && nowMs - Date.parse(end.t) < 60_000;
+			if (!running && !endedRecently) continue;
+			out.push({
+				from: e.agent, to, model: e.model ?? null,
+				task: (e.detail ?? "dispatch").slice(0, 80),
+				startedAt: e.t, running, actions, child: e.child,
+			});
+		}
+		return out;
+	}
 
 /** Background agents (Claude Code subagents/forks): events carry `sub` (agent_id). Description = the parent session's latest
  *  Agent-tool call before the subagent's first event. Running until SubagentStop, or idle > 10 min without one. */
@@ -881,6 +915,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
   try { flushTurnsFromLive(live); } catch { /* learn log best-effort */ }
   const nowMs = Date.now();
   const ended = new Set(live.filter((e) => e.event === "session-end" && e.session).map((e) => e.session));
+  const dispList = dispatches(live, nowMs);
   const status = (agent: string) => {
     const mine = live.filter((e) => e.agent === agent);
     const last = mine[mine.length - 1];
@@ -905,9 +940,12 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     const loopTool = loopSample?.tool ?? null;
     const loopDetail = loopSample?.detail ?? null;
     const subs = subagents(mine, nowMs).filter((s) => s.running);
-    const working = mainWorking || subs.length > 0;
+    const fromDisp = dispList.find((d) => d.to === agent);
+    const working = mainWorking || subs.length > 0 || !!fromDisp?.running;
     const prompt = [...mine].reverse().find((e) => e.event === "prompt" && !e.sub && nowMs - Date.parse(e.t) < 12 * 36e5);
-    const doing = subs[0]?.task ? `background: ${subs[0].task}` : prompt?.detail ? prompt.detail.slice(0, 60) : last?.detail ?? null;
+    const doing = fromDisp
+      ? `from ${fromDisp.from}: ${fromDisp.task}`.slice(0, 60)
+      : subs[0]?.task ? `background: ${subs[0].task}` : prompt?.detail ? prompt.detail.slice(0, 60) : last?.detail ?? null;
     return { working, waiting, looping, loopCount: looping ? loopCount : 0, loopTool, loopDetail,
       errors1h, errors, recentErrors, doing, lastKind, lastEvent: last ?? null, ...timeSplit(mine, nowMs),
       sessions10m: new Set(recent.map((e) => e.session).filter(Boolean)).size,
@@ -923,6 +961,7 @@ router.get("/agents/overview", requireAdmin, async (_req, res) => {
     live: live.filter((e) => !(e.session && ended.has(e.session)) || e.event !== "tool").slice(-300),
     endedSessions: [...ended],
     subagents: subagents(live, nowMs),
+    dispatches: dispList,
     // Grok has no local hooks → status.working stays false; commit attribution (Agent: grokbot) drives lastActive.
     status: { codex: status("codex"), claude: status("claude"), cursor: status("cursor"), grok: status("grok") },
     activity1h, kinds: KINDS,

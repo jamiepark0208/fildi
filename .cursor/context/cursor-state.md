@@ -1,15 +1,15 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-20
+**Last updated:** 2026-10-21
 
 ## Next build
-1. A172 [quant] options shadow scores (planned)
-2. A191 [quant] S059 put edge into TS option score (planned)
-3. A168 CI video-lab test — file missing locally; re-check CI
+1. Claude Ready studies (A195/A186/A219…) only if Jamie wants Cursor on quant — else leave Claude
+2. Open Cursor rows: A200/A202/A210/A211/A214/A235/A238 as they hit planned
+3. Smoke A239: Claude runs `scripts/agent-dispatch.sh cursor … --ask` once after pull
 
 ## Phase
-**ops** — A194/A189/A190/A185 + crash/Reset Stats shipped. Poller armed. Codex A205/A206 no overlap.
+**ops** — Took Claude Ready non-quant (A239 Cursor-owned, A145 CI, A156 kiro). Claude idle (waiting). Quant planned rows stay Claude unless asked.
 
 ## Shipped this session
-A194 Schwab 1m · Settings crash/Reset Stats · A189 panic signals · A190 house view · A185 Polygon shared gate.
+A239 dispatch beams · A145 CI gates 5–8 · A156 kiro forward redact · earlier A209/A215/A216/A236 batch.

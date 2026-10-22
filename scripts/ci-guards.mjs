@@ -74,6 +74,40 @@ export function schemaWithoutMigration(files) {
   return schema;
 }
 
+/** A145 gate 7 — scoring path tripwire (no score writes; approval via trailer or needs-jamie). */
+export const SCORE_PATHS = [
+  "artifacts/api-server/src/lib/technical-scorer-v2.ts",
+  "lib/option-scoring/src/technical-rankings.ts",
+  "artifacts/api-server/src/lib/scorecard-params.ts",
+  "artifacts/api-server/src/lib/fund-score-engine.ts",
+];
+
+export function scoringPathHits(files) {
+  const set = new Set(SCORE_PATHS.map(normalizePath));
+  return files.map(normalizePath).filter((f) => set.has(f));
+}
+
+/** True when range is approved for a score-path change. */
+export function scoreChangeApproved({ messages = [], prBody = "" } = {}) {
+  const blob = [...messages, prBody].join("\n");
+  return /Approved-score-change:\s*\S+/i.test(blob) || /\bneeds-jamie\b/i.test(blob);
+}
+
+/** A145 gate 8 — new UI component files under components/ capped at 150 lines (tests excluded). */
+export const COMPONENT_LINE_CAP = 150;
+const COMPONENT_RE = /^artifacts\/stock-compare\/src\/components\/.+\.(tsx|ts|jsx|js)$/;
+const COMPONENT_TEST_RE = /\.test\.(tsx|ts|jsx|js)$/;
+
+export function newComponentOverLimit(addedFiles, lineCount) {
+  const bad = [];
+  for (const f of addedFiles.map(normalizePath)) {
+    if (!COMPONENT_RE.test(f) || COMPONENT_TEST_RE.test(f)) continue;
+    const n = lineCount(f);
+    if (n > COMPONENT_LINE_CAP) bad.push({ file: f, lines: n });
+  }
+  return bad;
+}
+
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
@@ -128,7 +162,30 @@ if (runningAsCli()) {
     console.log("ci-guards: no base commit (new branch or missing before sha) — skip");
     process.exit(0);
   }
-  const errors = guardRange({ files: rangeFiles(base, head), commits: rangeCommits(base, head) });
+  const files = rangeFiles(base, head);
+  const commits = rangeCommits(base, head);
+  const errors = guardRange({ files, commits });
+  // A145 gate 7: scoring path change needs Approved-score-change trailer or needs-jamie in PR body
+  const scoreHits = scoringPathHits(files);
+  if (scoreHits.length) {
+    const messages = commits.map((c) => c.message);
+    const prBody = process.env.PR_BODY || "";
+    if (!scoreChangeApproved({ messages, prBody })) {
+      errors.push(`scoring paths changed without approval (${scoreHits.join(", ")}); add Approved-score-change: <reason> trailer or needs-jamie in PR body`);
+    }
+  }
+  // A145 gate 8: new component files > 150 lines
+  const added = git(["diff", "--name-only", "--diff-filter=A", base, head]).split("\n").filter(Boolean);
+  const over = newComponentOverLimit(added, (f) => {
+    try {
+      return git(["show", `${head}:${f}`]).split("\n").length;
+    } catch {
+      return 0;
+    }
+  });
+  if (over.length) {
+    errors.push(`new component file(s) over ${COMPONENT_LINE_CAP} lines: ${over.map((o) => `${o.file} (${o.lines})`).join(", ")}`);
+  }
   if (errors.length) {
     for (const e of errors) console.error(`ci-guards: ${e}`);
     process.exit(1);

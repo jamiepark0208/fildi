@@ -5,8 +5,11 @@ import {
   hasAgentTrailer,
   isCommentaryOnly,
   isMergeCommit,
+  newComponentOverLimit,
   protectedHits,
   schemaWithoutMigration,
+  scoreChangeApproved,
+  scoringPathHits,
 } from "./ci-guards.mjs";
 
 test("protected paths", () => {
@@ -67,4 +70,25 @@ test("schema change needs a drizzle sql file in the same range", () => {
   );
   assert.deepEqual(schemaWithoutMigration(["lib/db/sql/app_config.sql"]), []);
   assert.deepEqual(schemaWithoutMigration(["lib/db/drizzle/meta/_journal.json"]), []);
+});
+
+test("A145: scoring path tripwire needs approval", () => {
+  assert.deepEqual(
+    scoringPathHits(["artifacts/api-server/src/lib/technical-scorer-v2.ts", "README.md"]),
+    ["artifacts/api-server/src/lib/technical-scorer-v2.ts"],
+  );
+  assert.equal(scoreChangeApproved({ messages: ["fix\n\nApproved-score-change: retune W_rsi\n"] }), true);
+  assert.equal(scoreChangeApproved({ prBody: "Please add needs-jamie label" }), true);
+  assert.equal(scoreChangeApproved({ messages: ["docs only\n"] }), false);
+});
+
+test("A145: new component line cap is 150", () => {
+  const counts = {
+    "artifacts/stock-compare/src/components/Foo.tsx": 151,
+    "artifacts/stock-compare/src/components/Bar.tsx": 150,
+    "artifacts/stock-compare/src/components/Foo.test.tsx": 200,
+    "scripts/long.py": 400,
+  };
+  const bad = newComponentOverLimit(Object.keys(counts), (f) => counts[f] ?? 0);
+  assert.deepEqual(bad, [{ file: "artifacts/stock-compare/src/components/Foo.tsx", lines: 151 }]);
 });

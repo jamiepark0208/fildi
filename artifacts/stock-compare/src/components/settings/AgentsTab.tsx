@@ -83,6 +83,8 @@ type Data = {
   muse?: { running: boolean; live?: { working: boolean; detail: string | null; t: string | null; source: "hooks" | "file" | null; ageMin: number | null } };
   openjev?: OpenJev;
   subagents?: Sub[]; jobs?: Jobs; procs?: Proc[]; gitHour?: { t: string; agent: string; text: string }[];
+  /** A239: Claude/Cursor → Cursor/Grok launches via agent-dispatch.sh */
+  dispatches?: { from: string; to: string; model: string | null; task: string; startedAt: string; running: boolean; actions: number; child: string }[];
 };
 /** Where an agent's work goes on the Stage map, and the ring colour it gives the agent while working. */
 const KIND: Record<string, { label: string; color: string; node?: string }> = {
@@ -723,6 +725,14 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
       if (!(c.who in META)) continue;
       const alpha = Math.max(0.25, 1 - (Date.now() - Date.parse(c.at)) / 30_000);
       pulseLink(pos(c.who as Id), OJP, META[c.who as Id].color, alpha, { title: `${META[c.who as Id].label} → OpenJev`, what: c.what ?? "typed question", etaS: null, etaMethod: "unknown" });
+    }
+    // A239: agent → agent dispatch (scripts/agent-dispatch.sh): beam while running, ~1 min after end
+    for (const dsp of d.dispatches ?? []) {
+      if (!(dsp.from in META) || !(dsp.to in META)) continue;
+      const fromL = META[dsp.from as Id].label, toL = META[dsp.to as Id].label;
+      pulseLink(pos(dsp.from as Id), pos(dsp.to as Id), META[dsp.from as Id].color, dsp.running ? 1 : 0.45, {
+        title: `${fromL} → ${toL}`, what: dsp.task, startedAt: dsp.startedAt, etaS: null, etaMethod: "unknown",
+      });
     }
     if (flash > 0 && !reduce) {
       ctx.globalAlpha = flash; ctx.strokeStyle = OJ_COLOR; ctx.lineWidth = 3; ctx.shadowColor = OJ_COLOR; ctx.shadowBlur = 16;

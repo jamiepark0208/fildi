@@ -44,7 +44,9 @@ jobs:
             echo "secret scan: no base sha, tree scan only"
           fi
 
-      - name: Protected files, Agent trailer, schema migration
+      - name: Protected files, Agent trailer, schema migration, A145 gates 7–8
+        env:
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
         run: node --test scripts/ci-guards.test.mjs && node scripts/ci-guards.mjs
 
       - run: pnpm install --frozen-lockfile
@@ -57,6 +59,36 @@ jobs:
 
       - name: Test stock-compare (unit)
         run: pnpm --filter @workspace/stock-compare test
+
+      - name: Detect path filters (A145)
+        id: paths
+        run: |
+          if [ -z "$BASE_SHA" ] || printf '%s' "$BASE_SHA" | grep -Eq '^0+$'; then
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "ui=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" || true)
+          echo "$files" | grep -qE '^(artifacts/api-server/|lib/)' && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
+          echo "$files" | grep -qE '^artifacts/stock-compare/' && echo "ui=true" >> "$GITHUB_OUTPUT" || echo "ui=false" >> "$GITHUB_OUTPUT"
+
+      - name: Build api-server (A145 gate 6)
+        if: steps.paths.outputs.api == 'true'
+        run: pnpm --filter @workspace/api-server build
+
+      - name: Build stock-compare (A145 gate 6)
+        if: steps.paths.outputs.ui == 'true'
+        run: pnpm --filter @workspace/stock-compare build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python watchlist_sync tests (A145 gate 5)
+        working-directory: scripts/watchlist_sync
+        run: |
+          pip install -r requirements.txt
+          python -m unittest tests.test_forecast_ledger tests.test_dealer_gamma tests.test_openjev_local
 
       - name: NEEDS YOU inbox delivery
         run: node --test .agents/hooks/needs-inbox.test.mjs
