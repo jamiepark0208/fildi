@@ -78,6 +78,9 @@ jobs:
 
       - name: Build stock-compare (A145 gate 6)
         if: steps.paths.outputs.ui == 'true'
+        env:
+          PORT: "8081"
+          BASE_PATH: "/"
         run: pnpm --filter @workspace/stock-compare build
 
       - uses: actions/setup-python@v5
