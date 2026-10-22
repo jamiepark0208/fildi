@@ -1,7 +1,7 @@
 /**
  * Breakdown › Sentiment — desk/media lean, NOT Yahoo analyst recs (those live in Analyst Ratings).
- * Sources today: recent headlines (keyword lean) + latest earnings-call tone.
- * Next wire: StockTwits → X / Reddit → OpenJev (ASKS A214).
+ * Sources: StockTwits + earnings-call tone (A214 media_sentiment_daily) + headline keyword lean (weak).
+ * Display only — never feeds scores until a study row exists.
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -9,13 +9,14 @@ import { cn } from "@/lib/utils";
 import type { NewsItem } from "./news-card";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 
-type CallSummary = {
-  tone_prepared?: number;
-  tone_qa?: number;
-  tone?: number;
-  guidance?: string;
+type MediaSource = {
+  as_of: string;
+  source: string;
+  score: number | null;
+  n: number | null;
+  sample: { bull?: number; bear?: number; quarter?: string; guidance?: string | null } | null;
+  fetched_at: string;
 };
-type Call = { quarter: string; summary: CallSummary; av_sentiment: number | null };
 
 const BULL =
   /\b(beat|beats|surge|surges|rally|rallies|upgrade|upgrades|raised|raises|record|outperform|bullish|soar|soars|jump|jumps|strong\s+demand)\b/i;
@@ -44,11 +45,20 @@ function headlineLean(news: NewsItem[]): { bull: number; bear: number; n: number
   return { bull, bear, n, label };
 }
 
-function toneLabel(v: number | null | undefined): { text: string; cls: string } {
-  if (v == null || !Number.isFinite(v)) return { text: "—", cls: "text-white/50" };
-  if (v > 0.3) return { text: `+${v.toFixed(1)}`, cls: "text-emerald-300" };
-  if (v < -0.3) return { text: v.toFixed(1), cls: "text-red-300" };
-  return { text: v.toFixed(1), cls: "text-amber-100" };
+function scoreLabel(score: number | null | undefined): { text: string; cls: string } {
+  if (score == null || !Number.isFinite(score)) return { text: "no tagged lean", cls: "text-white/50" };
+  if (score > 0.25) return { text: `bullish ${score.toFixed(2)}`, cls: "text-emerald-300" };
+  if (score < -0.25) return { text: `cautious ${score.toFixed(2)}`, cls: "text-red-300" };
+  return { text: `mixed ${score.toFixed(2)}`, cls: "text-amber-100" };
+}
+
+function asOfLabel(asOf: string | undefined, fetchedAt: string | undefined): string {
+  const day = (asOf ?? fetchedAt ?? "").slice(0, 10);
+  if (!day) return "as-of —";
+  const ageDays = Math.max(0, Math.floor((Date.now() - Date.parse(`${day}T12:00:00Z`)) / 86_400_000));
+  if (ageDays === 0) return `as-of ${day} · today`;
+  if (ageDays === 1) return `as-of ${day} · 1d stale`;
+  return `as-of ${day} · ${ageDays}d stale`;
 }
 
 export function DeskSentimentSection({
@@ -58,47 +68,39 @@ export function DeskSentimentSection({
   ticker: string;
   news: NewsItem[] | undefined;
 }) {
-  const { data: callData, isLoading } = useQuery({
-    queryKey: ["earnings-call", ticker],
-    queryFn: async (): Promise<{ calls: Call[] }> => {
-      const r = await fetch(`/api/stocks/${encodeURIComponent(ticker)}/earnings-call`, {
+  const { data: media, isLoading } = useQuery({
+    queryKey: ["media-sentiment", ticker],
+    queryFn: async (): Promise<{ sources: MediaSource[]; note?: string }> => {
+      const r = await fetch(`/api/stocks/${encodeURIComponent(ticker)}/media-sentiment`, {
         credentials: "include",
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    staleTime: 60 * 60_000,
+    staleTime: 5 * 60_000,
     enabled: !!ticker,
   });
 
   const lean = useMemo(() => headlineLean(news ?? []), [news]);
-  const call = callData?.calls?.[0];
-  const prep = call?.summary?.tone_prepared ?? call?.summary?.tone ?? null;
-  const qa = call?.summary?.tone_qa ?? null;
-  const av = call?.av_sentiment ?? null;
-  const prepT = toneLabel(prep);
-  const qaT = toneLabel(qa);
-  const avT = toneLabel(av);
+  const bySource = useMemo(() => {
+    const m = new Map<string, MediaSource>();
+    for (const s of media?.sources ?? []) m.set(s.source, s);
+    return m;
+  }, [media?.sources]);
 
-  const guide = call?.summary?.guidance;
-  const guideCls =
-    guide === "raised" || guide === "initiated"
-      ? "text-emerald-300"
-      : guide === "lowered" || guide === "withdrawn"
-        ? "text-red-300"
-        : "text-amber-100";
+  const st = bySource.get("stocktwits");
+  const call = bySource.get("call_tone");
+  const stL = scoreLabel(st?.score);
+  const callL = scoreLabel(call?.score);
 
-  const callLine = !call
-    ? "No call summary queued yet"
-    : [
-        call.quarter,
-        `script ${prepT.text}`,
-        `Q&A ${qaT.text}`,
-        av != null ? `AV ${avT.text}` : null,
-        guide ? `guide ${guide}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
+  const compositeParts: number[] = [];
+  if (st?.score != null) compositeParts.push(st.score);
+  if (call?.score != null) compositeParts.push(call.score);
+  const composite =
+    compositeParts.length > 0
+      ? compositeParts.reduce((a, b) => a + b, 0) / compositeParts.length
+      : null;
+  const compL = scoreLabel(composite);
 
   return (
     <div className="space-y-2 text-[11px]">
@@ -114,53 +116,77 @@ export function DeskSentimentSection({
             <tr className={gridRow(0)}>
               <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Desk lean</td>
               <td className={cn(GRID_TD, "text-white text-left whitespace-normal leading-snug")}>
-                {lean.label}
-                <span className="block text-[10px] text-amber-50/80 mt-0.5">
-                  {lean.n > 0
-                    ? `${lean.bull} bull / ${lean.bear} bear · last ${Math.min(12, news?.length ?? 0)} headlines`
-                    : "No scored headlines yet"}
-                </span>
+                {isLoading ? (
+                  <span className="text-white/70">Loading…</span>
+                ) : compositeParts.length > 0 ? (
+                  <>
+                    <span className={cn("font-mono font-semibold", compL.cls)}>{compL.text}</span>
+                    <span className="block text-[10px] text-amber-50/80 mt-0.5">
+                      StockTwits + call tone average · display only (A214)
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white/70 italic">No media source yet for {ticker}</span>
+                    <span className="block text-[10px] text-amber-50/70 mt-0.5">
+                      Keyword headlines below are weak — not a substitute
+                    </span>
+                  </>
+                )}
               </td>
             </tr>
             <tr className={gridRow(1)}>
-              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Last call</td>
+              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>StockTwits</td>
               <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
-                {isLoading ? (
-                  <span className="text-white/70">Loading…</span>
-                ) : call ? (
-                  <span className="text-white font-mono">
-                    <span className="text-amber-50">{call.quarter}</span>
-                    {" · "}
-                    <span className={prepT.cls}>script {prepT.text}</span>
-                    {" · "}
-                    <span className={qaT.cls}>Q&A {qaT.text}</span>
-                    {av != null && (
-                      <>
-                        {" · "}
-                        <span className={avT.cls}>AV {avT.text}</span>
-                      </>
-                    )}
-                    {guide && (
-                      <>
-                        {" · "}
-                        <span className={cn("font-sans font-semibold", guideCls)}>guide {guide}</span>
-                      </>
-                    )}
+                {st ? (
+                  <span className="font-mono">
+                    <span className={stL.cls}>{stL.text}</span>
+                    <span className="block text-[10px] text-amber-50/80 mt-0.5">
+                      {st.sample?.bull ?? 0} bull / {st.sample?.bear ?? 0} bear · n={st.n ?? 0} ·{" "}
+                      {asOfLabel(st.as_of, st.fetched_at)}
+                    </span>
                   </span>
                 ) : (
-                  <span className="text-white/70 italic">{callLine}</span>
+                  <span className="text-white/60 italic">No StockTwits row yet</span>
                 )}
               </td>
             </tr>
             <tr className={gridRow(2)}>
-              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Next</td>
-              <td className={cn(GRID_TD, "text-amber-50 text-left whitespace-normal leading-snug")}>
-                StockTwits stream first (A214), then X / Reddit + OpenJev classify. Not Yahoo recs.
+              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Last call</td>
+              <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
+                {call ? (
+                  <span className="font-mono">
+                    <span className={callL.cls}>{callL.text}</span>
+                    <span className="block text-[10px] text-amber-50/80 mt-0.5">
+                      {call.sample?.quarter ?? "—"}
+                      {call.sample?.guidance ? ` · guide ${call.sample.guidance}` : ""} ·{" "}
+                      {asOfLabel(call.as_of, call.fetched_at)}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-white/60 italic">No call-tone row yet</span>
+                )}
+              </td>
+            </tr>
+            <tr className={gridRow(3)}>
+              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Headlines</td>
+              <td className={cn(GRID_TD, "text-white text-left whitespace-normal leading-snug")}>
+                {lean.label}
+                <span className="block text-[10px] text-amber-50/70 mt-0.5">
+                  Keyword heuristic ·{" "}
+                  {lean.n > 0
+                    ? `${lean.bull} bull / ${lean.bear} bear · last ${Math.min(12, news?.length ?? 0)}`
+                    : "unvalidated"}{" "}
+                  · not a score input
+                </span>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="text-[9px] text-amber-200/35">
+        Never Yahoo rec %. OpenJev headline classify = Live strip only (tier B). X/Reddit later.
+      </p>
     </div>
   );
 }

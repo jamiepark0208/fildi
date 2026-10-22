@@ -3,6 +3,7 @@
  * GET /api/stocks/:ticker/short-interest → history (Polygon, FINRA twice-monthly) + current % float (LSEG)
  * GET /api/stocks/:ticker/earnings-call  → stored earnings-call summaries (scripts/watchlist_sync/transcripts.py) + Street consensus
  * GET /api/stocks/:ticker/session-flow   → A126 Phase 1a Yahoo 5m VWAP + volume profile + estimated delta
+ * GET /api/stocks/:ticker/media-sentiment → desk media rows (A214: stocktwits + call_tone; display only)
  */
 import { Router } from "express";
 import { sql } from "drizzle-orm";
@@ -64,6 +65,43 @@ router.get("/stocks/:ticker/session-flow", async (req, res, next) => {
       return;
     }
     res.json(flow);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Latest per-source desk media lean (A214). Never Yahoo rec %. Display only — not a score input. */
+router.get("/stocks/:ticker/media-sentiment", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) {
+    res.status(400).json({ error: "bad ticker" });
+    return;
+  }
+  try {
+    const ok = rowsOf<{ ok: boolean }>(await db.execute(sql`
+      SELECT to_regclass('watchlist_sync.media_sentiment_daily') IS NOT NULL AS ok`) as SqlRows<{ ok: boolean }>)[0]?.ok;
+    if (!ok) {
+      res.json({ ticker: t, sources: [], note: "media_sentiment_daily not created yet" });
+      return;
+    }
+    const sources = rowsOf<{
+      as_of: string;
+      source: string;
+      score: number | null;
+      n: number | null;
+      sample: unknown;
+      fetched_at: string;
+    }>(await db.execute(sql`
+      SELECT DISTINCT ON (source)
+        as_of::text, source, score::float8 AS score, n, sample, fetched_at::text
+      FROM watchlist_sync.media_sentiment_daily
+      WHERE ticker = ${t} AND source IN ('stocktwits', 'call_tone')
+      ORDER BY source, as_of DESC`) as SqlRows<never>);
+    res.json({
+      ticker: t,
+      sources,
+      note: "Desk/media lean — display only; not a Model List input (A214)",
+    });
   } catch (err) {
     next(err);
   }
