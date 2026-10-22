@@ -2,6 +2,8 @@
 # Model List rebuild in one command, quiet (W04, Claude 10-20): build_plan (L1) → verify_plan evaluate (L2) → publish → funnel summary.
 # Full output goes to a log (path printed); the terminal gets ~6 lines. Same steps/order as daily.py's plan/verify/publish stages.
 #   scripts/watchlist_sync/rebuild.sh [--side calls] [--publish]
+# A243: build_plan carry-forwards yesterday's published puts (re-strike, not drift-drop). daily.py --if-needed still owns
+# the once-per-day full lseg+model lock — this script is plan/verify/publish only and is safe to re-run for re-validation.
 set -e
 cd "$(dirname "$0")"
 LOG="${TMPDIR:-/tmp}/fildi-rebuild-$(date +%Y%m%d-%H%M%S).log"

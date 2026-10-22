@@ -119,6 +119,9 @@ def load_context(conn) -> dict:
     ctx["edge_demoted"] = put_edge.is_demoted(conn)
     ctx["edge"] = {} if ctx["edge_demoted"] else put_edge.scores(conn)
     ctx["edge_min_q"] = put_edge.MIN_QUINTILE
+    # A243: yesterday's published puts re-enter the pool and get chain re-struck (after edge is loaded for the weekly gate).
+    if carry_forward_puts(conn, ctx):
+        restrike_puts(conn, ctx)
     return ctx
 
 
@@ -239,9 +242,66 @@ def reprice_from_chains(conn, ctx: dict) -> None:
     ctx["snapshot_date"] = as_of
 
 
+def prior_published_puts(conn) -> list[dict]:
+    """Sell-puts (ok/unfunded) from the latest *prior* ET day — any run that day, prefer newer runs.
+    A single late run can be warn-only; earlier same-day runs still hold the published ideas to carry."""
+    return rows(conn, """
+        WITH prior_day AS (
+          SELECT MAX((created_at AT TIME ZONE 'America/New_York')::date) AS d
+          FROM watchlist_sync.model_runs
+          WHERE (created_at AT TIME ZONE 'America/New_York')::date
+                < (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
+        )
+        SELECT DISTINCT ON (i.ticker) i.ticker, (i.contract->>'expiry')::date AS expiry,
+               NULLIF(i.contract->>'strike', '')::float8 AS strike,
+               NULLIF(i.contract->>'delta', '')::float8 AS delta,
+               NULLIF(i.contract->>'premium', '')::float8 AS premium, i.status
+        FROM watchlist_sync.model_items i
+        JOIN watchlist_sync.model_runs r ON r.id = i.run_id
+        CROSS JOIN prior_day
+        WHERE (r.created_at AT TIME ZONE 'America/New_York')::date = prior_day.d
+          AND i.folder_key = 'sell_puts' AND i.status IN ('ok', 'unfunded')
+          AND NULLIF(i.contract->>'expiry', '') IS NOT NULL
+        ORDER BY i.ticker, r.created_at DESC, i.rank NULLS LAST""")
+
+
+def carry_forward_puts(conn, ctx: dict) -> int:
+    """A243: re-introduce yesterday's published puts missing from today's score pool, then restrike_puts refreshes them.
+    Drop only later via real L1 exits (edge gone, earnings, no chain strike) — not spot_drift alone."""
+    prior = prior_published_puts(conn)
+    if not prior:
+        return 0
+    have = {r["ticker"] for r in ctx["recs"] if r["side"] == "put"}
+    for r in ctx["recs"]:
+        if r["side"] == "put" and r["ticker"] in {p["ticker"] for p in prior}:
+            r["carried"] = True
+    as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
+    if not as_of:
+        return 0
+    added = 0
+    for p in prior:
+        if p["ticker"] in have or p["expiry"] <= date.today():
+            continue
+        cl = ctx.get("close", {}).get(p["ticker"])
+        spot = cl["close"] if cl else None
+        ctx["recs"].append({
+            "ticker": p["ticker"], "side": "put", "expiry": p["expiry"], "strike": p["strike"],
+            "spot": spot or p["strike"], "premium": p["premium"] or 0.01, "bid_is_live": False,
+            "weekly_income_pct": 0.0, "delta": p["delta"] or -R.PUT_TARGET_ABS_DELTA,
+            "strike_iv": None, "dte": float((p["expiry"] - date.today()).days), "option_score": None,
+            "macro_regime": None, "vol_regime": None, "carried": True,
+            "repriced": f"carried from prior Model List ({p['status']}); awaiting chain re-strike",
+        })
+        have.add(p["ticker"])
+        added += 1
+    if added:
+        print(f"  carry-forward: +{added} prior sell_puts into today's pool (will re-strike)")
+    return added
+
+
 def restrike_puts(conn, ctx: dict) -> None:
-    """Puts above the Δ cap move to the listed strike nearest PUT_TARGET_ABS_DELTA on the same expiry (latest saved chain, no API
-    calls; premium = bid, as everywhere in L1). No chain strike in the band → the pick keeps its Δ and delta_band blocks it."""
+    """Puts above the Δ cap (or A243 carried ideas) move to the listed strike nearest PUT_TARGET_ABS_DELTA on the same
+    expiry (latest saved chain, no API). Carried picks always refresh so spot_drift measures the chain, not a stale model spot."""
     def why_far(r):  # Jamie 10-20: a riskier put gets a farther strike, not a smaller size
         t = r["ticker"]
         er = ctx.get("earnings", {}).get(t)
@@ -255,10 +315,12 @@ def restrike_puts(conn, ctx: dict) -> None:
     def caps(r):  # (cap, target): risky → farther strike instead of a block / half size (rules.PUT_EARNINGS_ABS_DELTA)
         r["far_why"] = why_far(r)
         return R.PUT_EARNINGS_ABS_DELTA if r["far_why"] else (-R.PUT_DELTA[0], R.PUT_TARGET_ABS_DELTA)
-    hot = [r for r in ctx["recs"] if r["side"] == "put" and r["delta"] is not None and -r["delta"] > caps(r)[0]]
+    hot = [r for r in ctx["recs"] if r["side"] == "put" and (
+        r.get("carried") or (r["delta"] is not None and -r["delta"] > caps(r)[0]))]
     if not hot:
         return
-    as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history WHERE as_of <= %s", (ctx["snapshot_date"],)).fetchone()[0]
+    # Carried ideas need the newest chain even when snapshot_date is an older model Friday.
+    as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
     if not as_of:
         return
     cs = rows(conn, """SELECT ticker, expiry, strike::float8, dte::float8, spot::float8, bid::float8, iv::float8, delta::float8
@@ -266,14 +328,22 @@ def restrike_puts(conn, ctx: dict) -> None:
               (as_of, sorted({r["ticker"] for r in hot})))
     for r in hot:
         cap, target = caps(r)
-        band = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and 0.04 <= -c["delta"] <= cap]
+        # Prefer same expiry; else nearest listed expiry still ≥ DTE min (carried names may have rolled)
+        same = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and 0.04 <= -c["delta"] <= cap]
+        band = same or [c for c in cs if c["ticker"] == r["ticker"] and c["dte"] >= R.DTE[0] and 0.04 <= -c["delta"] <= cap]
+        if not same and band:
+            exp = min({c["expiry"] for c in band}, key=lambda e: abs((e - r["expiry"]).days) if r.get("expiry") else 0)
+            band = [c for c in band if c["expiry"] == exp]
         pick = min(band, key=lambda c: abs(-c["delta"] - target), default=None)
         if not pick:
+            if r.get("carried"):
+                r["carry_no_strike"] = True
             continue
-        why = r["far_why"] or "rules.PUT_DELTA"
-        note = f"re-struck {r['delta']:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
+        why = r["far_why"] or ("carry-forward" if r.get("carried") else "rules.PUT_DELTA")
+        note = f"re-struck {r.get('delta') or 0:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
         r.update(strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"], strike_iv=pick["iv"],
-                 dte=pick["dte"], weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
+                 expiry=pick["expiry"], dte=pick["dte"],
+                 weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
                  repriced=f"{r['repriced']}; {note}" if r.get("repriced") else note)
 
 
@@ -302,10 +372,14 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     cl = ctx["close"].get(t)
     if cl:
         drift = 100 * (cl["close"] / rec["spot"] - 1)
+        # A243: carried ideas were re-struck to today's chain — drift vs a stale model spot is not an exit.
+        # Drop only when edge/earnings/strike fail. Strategy picks are live-priced (same warn).
         c.append(chk("spot_drift", abs(drift) <= R.MAX_SPOT_DRIFT_PCT, f"latest close {cl['close']:.2f} ({cl['date']}) vs model spot {rec['spot']:.2f}: {drift:+.1f}%",
-                     "warn" if rec.get("strategy") else "block"))   # strategy picks are priced live; L2 re-checks OTM at the live price
+                     "warn" if rec.get("strategy") or rec.get("carried") else "block"))
     else:
         c.append(chk("spot_drift", True, "no close in prices_historical", "warn"))
+    if rec.get("carried") and rec.get("carry_no_strike"):
+        c.append(chk("carry_restrike", False, "carried from prior list but no listed strike in delta band on today's chain", "block"))
     # Stale-spot bug (found 2026-10-04): 64/97 model_recs on 10/02 used the 10/01 close as spot.
     # L2 recomputes OTM/delta from the live Robinhood price, so this is a warning here, not a block.
     snap = ctx["snapshot_date"]
@@ -420,8 +494,8 @@ def build(show_rejected: bool) -> int:
             for rec in sorted((r for r in ctx["recs"] if r["side"] == side), key=lambda r: (not r.get("strategy"), -_edge_q(ctx, r), -(r["option_score"] or 0))):
                 # A243: weekly put lane needs put_edge (LSEG daily_history + lab_tech). ~66/180 candidates had no RIC in
                 # research_common.security_map → always "no put-edge inputs" and polluted the missing-input health check.
-                # Panic/strategy puts keep their own lane. When LSEG Workspace is up, expand RICs via sync_ids + sync_daily_history.
-                if (side == "put" and not rec.get("strategy") and not ctx.get("edge_demoted")
+                # Panic/strategy puts keep their own lane. Carried names stay for an explicit edge/exit check.
+                if (side == "put" and not rec.get("strategy") and not rec.get("carried") and not ctx.get("edge_demoted")
                         and rec["ticker"] not in ctx.get("edge", {})):
                     continue
                 checks, account = option_checks(rec, ctx)
