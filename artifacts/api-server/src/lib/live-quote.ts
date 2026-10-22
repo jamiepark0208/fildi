@@ -12,6 +12,10 @@ export interface LivePrice {
   change?: number | null;
   /** Today's regular-session open — lets intraday consumers measure direction since the open instead of vs. prior close (gap days poison the latter). */
   open: number | null;
+  /** Vendor that filled the cache entry (provenance for hover tips). */
+  source?: "schwab" | "yahoo";
+  /** When this cache entry was written (ISO). */
+  asOf?: string;
 }
 
 /**
@@ -52,6 +56,8 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
             changePercent: q.changePercent,
             change: q.change ?? null,
             open: q.open,
+            source: "schwab",
+            asOf: new Date().toISOString(),
           };
           livePriceCache.set(key, entry);
           result.set(key, entry);
@@ -88,6 +94,8 @@ export async function getLivePrices(tickers: string[]): Promise<Map<string, Live
         changePercent: q?.regularMarketChangePercent ?? null,
         change: q?.regularMarketChange ?? null,
         open: q?.regularMarketOpen ?? null,
+        source: "yahoo",
+        asOf: new Date().toISOString(),
       };
       if (entry.price != null) livePriceCache.set(key, entry);
       result.set(key, entry);

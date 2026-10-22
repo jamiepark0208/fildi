@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DataTip } from "./data-tip";
 
 interface FundMetricBreakdown {
   label: string;
@@ -42,7 +43,7 @@ interface CompetitorsSectionProps {
   compact?: boolean;
 }
 
-function useCompetitors(ticker: string) {
+export function useCompetitors(ticker: string) {
   return useQuery<CompetitorsResponse>({
     queryKey: ["stocks", "competitors", ticker],
     queryFn: async () => {
@@ -76,8 +77,9 @@ function metricValueStr(val: number): string {
   return val.toFixed(2);
 }
 
-function fmt(score: number | null | undefined): string {
-  return score != null ? score.toFixed(0) : "—";
+function fmt(score: number | null | undefined, pending?: boolean): string {
+  if (score != null) return score.toFixed(0);
+  return pending ? "…" : "—";
 }
 
 /** Ticker · Tot · Fnd · Tch — pillars V/G/Q/S live in the hover tooltip. */
@@ -94,10 +96,13 @@ function CompetitorRow({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
+        {/* Never `disabled` — disabled buttons drop pointer events → tip never opens. */}
         <button
           type="button"
-          disabled={!clickable}
-          onClick={() => clickable && onSelectTicker?.(row.ticker)}
+          aria-disabled={!clickable}
+          onClick={() => {
+            if (clickable) onSelectTicker?.(row.ticker);
+          }}
           className={cn(
             "grid w-full items-center gap-1 py-0.5 px-1 rounded text-left transition-colors h-6",
             COLS,
@@ -117,21 +122,24 @@ function CompetitorRow({
             {row.isSubject ? " · you" : ""}
           </span>
           <span className={cn("text-right font-mono text-[11px] font-bold", scoreColor(row.combinedScore))}>
-            {fmt(row.combinedScore)}
+            {fmt(row.combinedScore, row.pendingBackfill || row.fundScore == null)}
           </span>
           <span className={cn("text-right font-mono text-[11px]", scoreColor(row.fundScore))}>
-            {fmt(row.fundScore)}
+            {fmt(row.fundScore, row.fundScore == null)}
           </span>
           <span className={cn("text-right font-mono text-[11px]", scoreColor(row.techScore))}>
             {fmt(row.techScore)}
           </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="left" className="max-w-[280px]">
+      <TooltipContent side="left" className="z-[100] max-w-[280px] bg-zinc-950 text-amber-50 border border-[#d4af37]/35">
         <p className="text-[10px] font-semibold text-[#d4af37] mb-1">
           {row.ticker}
           {" · "}
           V {fmt(row.fundValue)} · G {fmt(row.fundGrowth)} · Q {fmt(row.fundQuality)} · S {fmt(row.fundSafety)}
+        </p>
+        <p className="text-[10px] text-amber-100/60 mb-1">
+          Tot = fund+tech blend · Fnd = peer-relative fund · Tch = technicals
         </p>
         {row.breakdown.length === 0 ? (
           <p className="text-xs">No metric breakdown.</p>
@@ -150,18 +158,21 @@ function CompetitorRow({
             </tbody>
           </table>
         )}
-        {row.pendingBackfill && (
-          <p className="text-[10px] text-white/40 mt-1">Some data is stale — score may update soon.</p>
+        {(row.fundScore == null || row.pendingBackfill) && (
+          <p className="text-[10px] text-white/40 mt-1">
+            {row.fundScore == null
+              ? "Unscored — fundamentals not in universe yet (or enrichment running)."
+              : "Some data is stale — score may update soon."}
+          </p>
         )}
       </TooltipContent>
     </Tooltip>
   );
 }
 
-/** Peer cohort ranked by Tot (tech+fund) — relative comparison table. */
+/** Peer cohort ranked by Tot (tech+fund) — relative comparison table. Group name lives in panel header tag. */
 export function CompetitorsSection({ ticker, onSelectTicker, compact }: CompetitorsSectionProps) {
   const { data, isLoading } = useCompetitors(ticker);
-  const subtitle = data?.groupName ?? [data?.industry, data?.sector].filter(Boolean).join(" · ");
 
   // Client-side Tot sort as belt-and-suspenders (API also sorts by Tot).
   const ranked = useMemo(() => {
@@ -185,19 +196,20 @@ export function CompetitorsSection({ ticker, onSelectTicker, compact }: Competit
 
   return (
     <div className={cn(!compact && "space-y-1")}>
-      {subtitle && (
-        <p className="text-[10px] text-zinc-500 truncate mb-1">
-          {subtitle}
-          <span className="text-zinc-600"> · {ranked.length} names · by Tot</span>
-        </p>
-      )}
       <div className={cn("grid gap-1 px-1 pb-0.5 border-b border-[#d4af37]/20", COLS)}>
         <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide truncate">Ticker</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right" title="Combined tech + fund">Tot</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right" title="Fundamentals">Fnd</span>
-        <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right" title="Technicals">Tch</span>
+        <DataTip tip="Tot · derived · fund + tech blend">
+          <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tot</span>
+        </DataTip>
+        <DataTip tip="Fnd · computed · peer-relative fund model">
+          <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Fnd</span>
+        </DataTip>
+        <DataTip tip="Tch · computed · ticker_technicals">
+          <span className="text-[9px] font-semibold text-[#d4af37]/70 uppercase tracking-wide text-right">Tch</span>
+        </DataTip>
       </div>
-      <div className={cn(compact ? "max-h-[320px] overflow-y-auto" : "max-h-[280px] overflow-y-auto")}>
+      {/* Grow with roster; scroll only past ~12 rows — no fixed empty black box */}
+      <div className={cn(compact ? "max-h-[288px] overflow-y-auto" : "max-h-[280px] overflow-y-auto")}>
         {ranked.map((row) => (
           <CompetitorRow key={row.ticker} row={row} onSelectTicker={onSelectTicker} />
         ))}

@@ -25,6 +25,20 @@ export function formatPercent(value?: number | null) {
   }).format(value);
 }
 
+/**
+ * YoY growth stored as fraction (0.15 = 15%, 49.6 = ≈50×).
+ * Avoids "4,962%" on tiny-base names.
+ */
+export function formatGrowthYoY(value?: number | null) {
+  if (value === null || value === undefined) return "-";
+  if (!Number.isFinite(value)) return "-";
+  if (Math.abs(value) >= 2) {
+    const x = Math.abs(value);
+    return `${value < 0 ? "−" : ""}≈${x.toFixed(x >= 10 ? 0 : 1)}×`;
+  }
+  return formatPercent(value);
+}
+
 export function formatLargeNumber(value?: number | null) {
   if (value === null || value === undefined) return "-";
   const abs = Math.abs(value);
@@ -55,6 +69,19 @@ export function formatCompactCurrencyInt(value?: number | null) {
   if (abs >= 1e6) return `${sign}$${Math.round(abs / 1e6)}M`;
   if (abs >= 1e3) return `${sign}$${Math.round(abs / 1e3)}K`;
   return `${sign}$${Math.round(abs)}`;
+}
+
+/** Option expiry / near-term dates — m/d (no year). */
+export function formatMd(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const s = String(iso).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const [, m, d] = s.slice(0, 10).split("-");
+    return `${Number(m)}/${Number(d)}`;
+  }
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 /**
