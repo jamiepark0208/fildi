@@ -76,7 +76,16 @@ ARGS=(-p --trust --model "$MODEL")
 if [[ "$ASK" == "1" ]]; then ARGS+=(--mode ask); else ARGS+=(--force); fi   # headless -p without --force rejects every shell command
 
 OUT="$(mktemp -t agent-dispatch)"
+# Claim the first ASKS row the prompt names (.agents/claims/ convention) so the IDE Cursor doesn't run it too (10-22: S081/A245 ran twice).
+ASK_ID=$(grep -oE '\bA[0-9]{3}\b' "$PROMPT_FILE" | head -1 || true)
+CLAIM=""
+if [[ -n "$ASK_ID" ]]; then
+  CLAIM="$(cd "$(dirname "$0")/.." && pwd)/.agents/claims/dispatch-$ASK_ID.json"
+  NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  printf '{"agent": "cursor←%s", "task": "%s (agent-dispatch pid %s)", "claimed_at": "%s", "heartbeat_at": "%s"}\n' "$FROM" "$ASK_ID" "$$" "$NOW" "$NOW" > "$CLAIM"
+fi
 end_event() {   # dispatch-end + Cursor-side token usage (from --output-format json) → Stage + token ledger
+  [[ -n "$CLAIM" ]] && rm -f "$CLAIM"
 FROM="$FROM" TARGET="$TARGET" CHILD="$CHILD" EC="$1" EVENTS="$EVENTS" OUT="$OUT" \
   node -e '
 const fs = require("fs");

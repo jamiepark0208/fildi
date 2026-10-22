@@ -16,3 +16,4 @@ Follow **CURSOR.md** (repo root). Shared ToC: **AGENTS.md** + **`.agents/context
 
 ## Shared-tree collision guard (Claude 10-21, A238)
 Before editing a file, run `node scripts/busy-files.mjs` (files other agents edited in the last 30 min; `cursor←claude` = a headless run Claude launched). If your file is listed by another agent, pick another task or wait — never overwrite. Lessons from past reviews: `.agents/context/calibration-log.md`.
+**Before starting any ASKS row** (Claude 10-22: S081 and A245 each ran twice — IDE session + headless dispatch): `ls .agents/claims/`. A `dispatch-A###.json` (or any claim with heartbeat < 2 h) for that row = a headless run already owns it → skip the row, don't duplicate its study/packet/INDEX row. Starting a row yourself → write your own claim file first, delete it when you ship.
