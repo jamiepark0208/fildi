@@ -5,11 +5,13 @@ title = "fildi"
 useDefault = true
 
 [allowlist]
-description = "Verified false positives (2026-10-17 tree scan). Source identifiers, not credentials. Lines: populate-source-fundamentals.ts:112, lseg-street-panel.tsx:397, stock-db-columns.ts:120, stock-db-columns.ts:121."
+description = "Verified false positives. Column/field identifiers + app_config key names (not credentials). Convention: app_config keys named *_KEY / aNNN_*_attempts trip generic-api-key — allowlist the key string, do not invent a new secret."
 regexTarget = "line"
 regexes = [
   '''epsDrift30dPct''',
   '''priceVsMa20Atr''',
   '''priceVsMa50Atr''',
   '''finnhubLongTermDebtToEquity''',
+  # app_config keys (earnings-history.ts, ASKS A242) — not API credentials
+  '''a240_missing_upcoming_empty_attempts''',
 ]
