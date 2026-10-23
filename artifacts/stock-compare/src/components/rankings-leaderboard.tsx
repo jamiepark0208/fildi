@@ -12,6 +12,7 @@ import {
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, zScoreColor, percentileColor, percentileBadge, highlightBullet, FAMILY_BAR_COLOR } from "@/lib/score-explain-format";
 import { formatMdYy } from "@/lib/format";
 import { TickerLink } from "@/components/ticker-link";
+import { DataTip } from "@/components/data-tip";
 
 interface RankingsLeaderboardProps {
   scores: StockScore[];
@@ -276,7 +277,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
           return (
             <td key={fam} className={cn(GRID_TD, "text-right whitespace-nowrap")}>
               {r ? (
-                <span className={cn("font-mono font-semibold", percentileColor(r.score))}>{r.score.toFixed(0)}</span>
+                <DataTip tip={`${fam} family · peer-relative fund score · ${score.ticker} · computed from ticker_fundamentals`}>
+                  <span className={cn("font-mono font-semibold", percentileColor(r.score))}>{r.score.toFixed(0)}</span>
+                </DataTip>
               ) : (
                 <span className="text-white/20">—</span>
               )}
@@ -285,7 +288,9 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
         })}
 
         <td className={cn(GRID_TD, "text-right whitespace-nowrap")}>
-          <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
+          <DataTip tip={`Total fund score · ${score.ticker} · ≈90% company + 10% sector opportunity · style ${score.styleBucket?.replace(/_/g, " ") ?? "—"}`}>
+            <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
+          </DataTip>
         </td>
 
         <td

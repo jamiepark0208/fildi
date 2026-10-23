@@ -864,6 +864,8 @@ type BreakdownPayload = {
   priceTargetRange: unknown;
   bullBullets: string[];
   bearBullets: string[];
+  /** When event-bullets last wrote a trigger row for this ticker (null = metric-only cases). */
+  eventBulletsGeneratedAt?: string | null;
   news: Array<{ title: string; link?: string; publisher?: string; publishedAt: string | null; source?: "desk" | "yahoo" }>;
   /** @deprecated legacy 1–5 snowflake — prefer scoreEvidence */
   snowflake?: unknown;
@@ -911,7 +913,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 17; // 17: ETF profile + gold needs PE+depth (not PE-only)
+const BREAKDOWN_CACHE_VER = 18; // 18: eventBulletsGeneratedAt on bull/bear cases
 
 // Overlays golden-source live last + day% onto cached breakdown metrics (list/header parity).
 async function overlayBreakdownPrice(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
@@ -1144,8 +1146,14 @@ router.get("/stocks/breakdown", async (req, res) => {
     // (event-bullets.ts) prepended so timely info wins the capped slots over static ratios.
     const eventBulletsRow = (await db.select().from(tickerEventBullets)
       .where(eq(tickerEventBullets.ticker, upperTicker)).limit(1))[0];
-    const bullBullets = [...(eventBulletsRow?.bullBullets as string[] ?? []), ...buildBullBullets(metrics)].slice(0, 4);
-    const bearBullets = [...(eventBulletsRow?.bearBullets as string[] ?? []), ...buildBearBullets(metrics)].slice(0, 4);
+    const eventBull = (eventBulletsRow?.bullBullets as string[] | undefined) ?? [];
+    const eventBear = (eventBulletsRow?.bearBullets as string[] | undefined) ?? [];
+    const bullBullets = [...eventBull, ...buildBullBullets(metrics)].slice(0, 4);
+    const bearBullets = [...eventBear, ...buildBearBullets(metrics)].slice(0, 4);
+    const eventBulletsGeneratedAt =
+      eventBull.length + eventBear.length > 0 && eventBulletsRow?.generatedAt
+        ? new Date(eventBulletsRow.generatedAt).toISOString()
+        : null;
 
     const news = ((newsRes as any).news ?? []).slice(0, 6).map((n: any) => ({
       title: n.title ?? "",
@@ -1180,6 +1188,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       priceTargetRange,
       bullBullets,
       bearBullets,
+      eventBulletsGeneratedAt,
       news,
       scoreEvidence,
       scoreHistory,

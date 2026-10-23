@@ -1,6 +1,7 @@
-// Global/sector movers sections (extracted from live.tsx). A81 facts on |move|≥5% → row tooltip.
+// Global/sector movers sections (extracted from live.tsx). A81 facts on |move|≥5% → DataTip.
 import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, gridRow } from "@/lib/score-explain-format";
+import { DataTip } from "@/components/data-tip";
 import { pct, formatVolume } from "./live-format";
 
 export interface ScreenerMover {
@@ -27,11 +28,14 @@ export function MoverHeatmapGrid({
   movers,
   showVolume,
   facts,
+  onTickerClick,
 }: {
   title: string;
   movers: ScreenerMover[];
   showVolume?: boolean;
   facts?: Record<string, MoverFactLine>;
+  /** Click row → parent Live session chart. */
+  onTickerClick?: (ticker: string) => void;
 }) {
   const rows = movers.slice(0, 8);
   return (
@@ -56,23 +60,33 @@ export function MoverHeatmapGrid({
               const up = (m.changePercent ?? 0) >= 0;
               const fact = facts?.[m.ticker.toUpperCase()] ?? facts?.[m.ticker];
               const tip = [
+                "Live movers · Yahoo screener (session)",
                 m.ticker,
                 m.price != null ? `$${m.price.toFixed(2)}` : null,
                 pct(m.changePercent),
                 showVolume && m.volume != null ? `vol ${formatVolume(m.volume)}` : null,
                 fact?.line || null,
+                onTickerClick ? "click → session chart" : null,
               ].filter(Boolean).join(" · ");
               return (
                 <tr
                   key={m.ticker}
-                  className={cn(gridRow(i), "h-6")}
-                  title={tip}
+                  className={cn(
+                    gridRow(i),
+                    "h-6",
+                    onTickerClick && "cursor-pointer hover:bg-amber-500/15",
+                  )}
+                  onClick={onTickerClick ? () => onTickerClick(m.ticker.toUpperCase()) : undefined}
                 >
                   <td className="py-0 px-2 font-mono font-bold text-white whitespace-nowrap leading-6">
-                    {m.ticker}
+                    <DataTip tip={tip}>{m.ticker}</DataTip>
                   </td>
                   <td className="py-0 px-2 text-right font-mono text-sky-300/80 tabular-nums whitespace-nowrap leading-6">
-                    {m.price != null ? `$${m.price.toFixed(2)}` : "—"}
+                    <DataTip tip={tip}>
+                      {m.price != null
+                        ? `$${m.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : "—"}
+                    </DataTip>
                   </td>
                   <td
                     className={cn(
@@ -80,11 +94,13 @@ export function MoverHeatmapGrid({
                       up ? "text-green-500" : "text-red-500",
                     )}
                   >
-                    {pct(m.changePercent)}
+                    <DataTip tip={tip}>{pct(m.changePercent)}</DataTip>
                   </td>
                   {showVolume && (
-                    <td className="py-0 px-2 text-right font-mono text-amber-200/55 tabular-nums whitespace-nowrap leading-6">
-                      {m.volume != null ? formatVolume(m.volume) : "—"}
+                    <td className="py-0 px-2 text-right font-mono text-amber-50/90 tabular-nums whitespace-nowrap leading-6">
+                      <DataTip tip={tip}>
+                        {m.volume != null ? formatVolume(m.volume) : "—"}
+                      </DataTip>
                     </td>
                   )}
                 </tr>

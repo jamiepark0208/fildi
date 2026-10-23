@@ -93,6 +93,8 @@ export interface BreakdownData {
   priceTargetRange: PriceTargetRange | null;
   bullBullets: string[];
   bearBullets: string[];
+  /** ISO time when event-bullets last fired for this name (null = fund-metric cases only). */
+  eventBulletsGeneratedAt?: string | null;
   news: NewsItem[];
   earningsDate?: string | null;
   earningsHistory?: EarningsQuarter[];

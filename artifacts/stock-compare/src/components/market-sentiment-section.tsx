@@ -3,6 +3,8 @@ import { formatMdYy } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Recommendations } from "./analyst-ratings-section";
 import type { ReactNode } from "react";
+import { DataTip } from "./data-tip";
+import { caseLineTip, formatDerivedTip, type MetricTipCtx } from "@/lib/provenance-display";
 
 /** Rewrite ISO YYYY-MM-DD inside free text to m/d/yy. */
 function displayDatesInText(text: string): string {
@@ -26,8 +28,17 @@ const RATED_VERB = /\b(?:rated|maintains|reiterated|initiated)\b/gi;
  * Inline emphasis for case / catalyst lines — same font size, color + weight + underline.
  * Analyst pattern: Firm verb from Grade to Grade (date)
  */
-export function StyledCaseText({ text, tone }: { text: string; tone: "bull" | "bear" | "neutral" }) {
+export function StyledCaseText({
+  text,
+  tone,
+  metrics,
+}: {
+  text: string;
+  tone: "bull" | "bear" | "neutral";
+  metrics?: MetricTipCtx | null;
+}) {
   const raw = displayDatesInText(text);
+  const lineTip = caseLineTip(raw, metrics ?? {});
   const analyst = raw.match(
     /^(.+?)\s+(upgraded|cut|rated|downgraded|initiated|maintains|reiterated)(?:\s+from\s+(.+?))?(?:\s+to\s+|\s+)(.+?)(?:\s+\((.+)\))?$/i,
   );
@@ -36,44 +47,55 @@ export function StyledCaseText({ text, tone }: { text: string; tone: "bull" | "b
     const [, firm, verb, from, toOrRest, date] = analyst;
     // When there's no "from", group 3 is empty and group 4 is the grade (+ maybe junk).
     const to = (from ? toOrRest : toOrRest)?.trim() ?? "";
+    const actionTip = formatDerivedTip({
+      label: "Analyst action",
+      kind: "sourced",
+      source: "yahoo / fmp / headline",
+      asOf: date ? undefined : null,
+      extra: date ? `event ${date}` : "rating event — not a computed metric",
+    });
     return (
-      <span className="text-[11px] text-foreground leading-snug">
-        <span className="font-semibold text-foreground">{firm}</span>{" "}
-        <span
-          className={cn(
-            "font-semibold underline underline-offset-2",
-            /^cut|downgrad/i.test(verb!) ? "text-red-400 decoration-red-400/60" :
-            /^upgrad/i.test(verb!) ? "text-green-400 decoration-green-400/60" :
-            "text-amber-200/90 decoration-amber-400/40",
+      <DataTip tip={actionTip}>
+        <span className="text-[11px] text-foreground leading-snug">
+          <span className="font-semibold text-foreground">{firm}</span>{" "}
+          <span
+            className={cn(
+              "font-semibold underline underline-offset-2",
+              /^cut|downgrad/i.test(verb!) ? "text-red-400 decoration-red-400/60" :
+              /^upgrad/i.test(verb!) ? "text-green-400 decoration-green-400/60" :
+              "text-amber-200/90 decoration-amber-400/40",
+            )}
+          >
+            {verb}
+          </span>
+          {from ? (
+            <>
+              {" from "}
+              <GradeChip grade={from} />
+              {" to "}
+              <GradeChip grade={to} />
+            </>
+          ) : (
+            <>
+              {" "}
+              <GradeChip grade={to} />
+            </>
           )}
-        >
-          {verb}
+          {date ? (
+            <span className="italic text-muted-foreground"> ({date})</span>
+          ) : null}
         </span>
-        {from ? (
-          <>
-            {" from "}
-            <GradeChip grade={from} />
-            {" to "}
-            <GradeChip grade={to} />
-          </>
-        ) : (
-          <>
-            {" "}
-            <GradeChip grade={to} />
-          </>
-        )}
-        {date ? (
-          <span className="italic text-muted-foreground"> ({date})</span>
-        ) : null}
-      </span>
+      </DataTip>
     );
   }
 
-  // Generic: highlight known verbs/grades in metric or news lines
+  // Whole line tip (raw + caveats); numbers share the same tip.
   return (
-    <span className={cn("text-[11px] leading-snug", tone === "neutral" ? "text-foreground" : "text-foreground")}>
-      {highlightGeneric(raw, tone)}
-    </span>
+    <DataTip tip={lineTip}>
+      <span className="text-[11px] leading-snug text-foreground">
+        {highlightGeneric(raw, tone)}
+      </span>
+    </DataTip>
   );
 }
 
@@ -136,9 +158,9 @@ function highlightGeneric(text: string, tone: "bull" | "bear" | "neutral"): Reac
       NEUTRAL_GRADE.lastIndex = 0; RATED_VERB.lastIndex = 0;
       return <span key={i} className="text-amber-200/90 italic font-medium">{part}</span>;
     }
-    // Soften body copy slightly vs firm/grade emphasis
     return (
       <span key={i} className={tone === "bull" ? "text-green-100/90" : tone === "bear" ? "text-red-100/90" : "text-foreground"}>
+        {/* Numbers already covered by outer DataTip — skip nested tips */}
         {part}
       </span>
     );
@@ -152,10 +174,16 @@ export function BullBearCases({
   bullBullets,
   bearBullets,
   catalysts,
+  metrics,
+  eventBulletsGeneratedAt,
 }: {
   bullBullets: string[];
   bearBullets: string[];
   catalysts?: string[];
+  /** For tip caveats (tiny-base growth, NI vs margin). */
+  metrics?: MetricTipCtx | null;
+  /** When trigger event-bullets last wrote (earnings/analyst/±5% vs SPY). Quiet rows expire at 7d. */
+  eventBulletsGeneratedAt?: string | null;
 }) {
   // Earnings already on Trade ER chip — keep catalysts for other neutrals (news, initiate@Hold, …)
   const catalystLines = (catalysts ?? []).filter((l) => !EARNINGS_LINE.test(l));
@@ -163,7 +191,34 @@ export function BullBearCases({
   const hasCatalysts = catalystLines.length > 0;
   if (!hasBullets && !hasCatalysts) return null;
 
+  const eventAgeDays = eventBulletsGeneratedAt
+    ? Math.floor((Date.now() - Date.parse(eventBulletsGeneratedAt)) / 86_400_000)
+    : null;
+  const eventAsOfLabel =
+    eventAgeDays == null || !Number.isFinite(eventAgeDays)
+      ? null
+      : eventAgeDays <= 0
+        ? "event triggers · today"
+        : eventAgeDays === 1
+          ? "event triggers · 1d ago"
+          : `event triggers · ${eventAgeDays}d ago`;
+  const eventStale = eventAgeDays != null && eventAgeDays >= 5;
+
   return (
+    <div className="space-y-1.5">
+      {eventAsOfLabel && (
+        <DataTip tip="Daily event-bullets: earnings surprise, analyst up/down, or ≥5% move vs SPY. Quiet names drop after 7 days so old lines don't look live.">
+          <p
+            className={cn(
+              "text-[9px] font-mono px-1",
+              eventStale ? "text-amber-300/90" : "text-amber-200/45",
+            )}
+          >
+            {eventAsOfLabel}
+            {eventStale ? " · near expiry" : ""}
+          </p>
+        </DataTip>
+      )}
     <div
       className={
         hasCatalysts
@@ -180,7 +235,7 @@ export function BullBearCases({
           {bullBullets.map((b, i) => (
             <li key={i} className="flex gap-1.5">
               <span className="shrink-0 text-green-500/70 mt-0.5 text-[11px]">▲</span>
-              <StyledCaseText text={b} tone="bull" />
+              <StyledCaseText text={b} tone="bull" metrics={metrics} />
             </li>
           ))}
           {bullBullets.length === 0 && (
@@ -199,7 +254,7 @@ export function BullBearCases({
             {catalystLines.map((line, i) => (
               <li key={i} className="flex gap-1.5">
                 <span className="shrink-0 text-[#d4af37]/70 mt-0.5 text-[11px]">•</span>
-                <StyledCaseText text={line} tone="neutral" />
+                <StyledCaseText text={line} tone="neutral" metrics={metrics} />
               </li>
             ))}
           </ul>
@@ -215,7 +270,7 @@ export function BullBearCases({
           {bearBullets.map((b, i) => (
             <li key={i} className="flex gap-1.5">
               <span className="shrink-0 text-red-500/70 mt-0.5 text-[11px]">▼</span>
-              <StyledCaseText text={b} tone="bear" />
+              <StyledCaseText text={b} tone="bear" metrics={metrics} />
             </li>
           ))}
           {bearBullets.length === 0 && (
@@ -223,6 +278,7 @@ export function BullBearCases({
           )}
         </ul>
       </div>
+    </div>
     </div>
   );
 }

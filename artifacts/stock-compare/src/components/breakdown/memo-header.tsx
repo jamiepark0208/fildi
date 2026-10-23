@@ -182,6 +182,7 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
             bullBullets={data.bullBullets ?? []}
             bearBullets={data.bearBullets ?? []}
             catalysts={catalysts}
+            eventBulletsGeneratedAt={data.eventBulletsGeneratedAt}
           />
         </div>
       )}
