@@ -48,7 +48,6 @@ OUT = HERE.parent / "out" / "opt" / "S086.md"
 FLAGS = HERE.parent / "out" / "opt" / "S086_flags.json"
 API = HERE.parent.parent.parent / "artifacts" / "api-server"
 TOPN = 10
-CARRY_TECH, CARRY_FUND = 14, 45     # days; lab_tech is weekly, lab_fund (IBES) monthly
 MIN_WEEKS = 300                     # a tech digest must span the panel to be backtestable
 LOG_EVERY = 7                       # days between ledger entries (the backtest is weekly)
 DEMOTE_N = 30                       # graded forward trades before an arm can be demoted
@@ -179,15 +178,8 @@ def main():
     analog, _, all_weeks, _ = e.pick_analogs(macro, weeks, tgt, e.macro_state(px, universe, [today])[today])
     print(f"{len(universe)} names · {len(all_weeks)} weeks · {len(analog)} analogs · today {today}", flush=True)
 
-    # carry each field forward from its latest non-empty week (10-05 lab_fund held ibes_sue only)
-    def carry(src, days):
-        merged = defaultdict(dict)
-        for d in sorted(d for d in src if 0 <= (today - d).days <= days):
-            for t, rec in src[d].items():
-                merged[t].update(rec)
-        return dict(merged), max(d for d in src if d <= today)
-    tech[today], tw = carry(tech, CARRY_TECH)
-    fund[today], fw = carry(fund, CARRY_FUND)
+    tech[today], tw = e.carry_forward(tech, today, e.CARRY_TECH)
+    fund[today], fw = e.carry_forward(fund, today, e.CARRY_FUND)
     panel = e.build_panel(px, universe, all_weeks + [today], tech, fund)
     for row in panel.values():
         for t, f in row.items():

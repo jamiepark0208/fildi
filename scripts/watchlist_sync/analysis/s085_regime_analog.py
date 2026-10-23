@@ -267,6 +267,19 @@ def macro_state(px, names, dates):
     return out
 
 
+CARRY_TECH, CARRY_FUND = 14, 45     # days; lab_tech is weekly, lab_fund (IBES) monthly
+
+
+def carry_forward(src, today, days):
+    """{ticker: fields} for `today` = each field's latest value within `days` (a lab row can be partial: 10-05
+    lab_fund held ibes_sue only). Returns (merged, latest source date)."""
+    merged = defaultdict(dict)
+    for d in sorted(d for d in src if 0 <= (today - d).days <= days):
+        for t, rec in src[d].items():
+            merged[t].update(rec)
+    return dict(merged), max((d for d in src if d <= today), default=None)
+
+
 def pick_analogs(macro, weeks, tgt, macro_today):
     """Step 1 (shared with S086): the ANALOG_FRAC weeks nearest today's standardised macro state, last EXCLUDE_RECENT
     weeks excluded. Returns (analog weeks, {week: distance}, all eligible weeks, cutoff)."""
@@ -629,6 +642,9 @@ def main():
     analog, analog_dist, all_weeks, cutoff = pick_analogs(macro, weeks, tgt, macro_today)
     print(f"analogs {len(analog)} of {len(all_weeks)} eligible weeks (cutoff {cutoff})", flush=True)
 
+    # today has no lab row (weekly / monthly jobs) → carry each field forward (S086 10-22: 'no list' bug)
+    tech[today], _ = carry_forward(tech, today, CARRY_TECH)
+    fund[today], _ = carry_forward(fund, today, CARRY_FUND)
     panel = build_panel(px, names, all_weeks + [today], tech, fund)
     facs = [f for f in factor_names(panel)]
     print(f"factors {len(facs)}: {', '.join(facs)}", flush=True)
