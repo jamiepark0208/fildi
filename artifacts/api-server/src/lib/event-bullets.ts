@@ -12,7 +12,7 @@
  * impact. See routes/stocks.ts breakdown handler for where results are merged
  * into the response.
  */
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { db, earningsCalendar, analystEvents, pricesHistorical, tickerEventBullets } from "@workspace/db";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
@@ -20,6 +20,8 @@ import { logger } from "./logger.js";
 // Validated empirically against 45 days of watchlist price history: below this,
 // day-to-day noise dominates; above it, moves reliably line up with a real event.
 const EXCESS_MOVE_THRESHOLD_PCT = 5;
+/** Quiet tickers keep old rows forever unless we expire — Aug bullets were still prepended as "timely". */
+const EVENT_BULLET_TTL_DAYS = 7;
 
 function yesterday(): string {
   const d = new Date();
@@ -137,7 +139,15 @@ export async function runEventBulletCheck(): Promise<void> {
       const bearBullets = [...earnings.bear, ...analyst.bear, ...priceMove.bear];
       const triggers = [...earnings.triggers, ...analyst.triggers, ...priceMove.triggers];
 
-      if (bullBullets.length === 0 && bearBullets.length === 0) continue;
+      if (bullBullets.length === 0 && bearBullets.length === 0) {
+        // No fresh trigger — drop rows older than TTL so Breakdown doesn't show dead catalysts.
+        const cutoff = new Date();
+        cutoff.setUTCDate(cutoff.getUTCDate() - EVENT_BULLET_TTL_DAYS);
+        await db.delete(tickerEventBullets).where(
+          and(eq(tickerEventBullets.ticker, ticker), lt(tickerEventBullets.generatedAt, cutoff)),
+        );
+        continue;
+      }
 
       await db.insert(tickerEventBullets)
         .values({ ticker, bullBullets, bearBullets, triggers, generatedAt: new Date() })
