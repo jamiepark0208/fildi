@@ -1,56 +1,65 @@
-# Morning Market Brief — Thursday, October 22, 2026 (pre-market)
+# Morning Market Brief — Friday, October 23, 2026 (pre-market)
 
-**Banner:** S&P fut −1.0% (~7,724) · Dow fut −0.5% (~52,770) · Nasdaq 100 fut −1.7% (~29,511) · 10Y 5.04% · Brent ~$111–112 (+2–3%) · VIX ~18.2 (+9%)
+**Banner:** S&P fut -0.2% · Dow fut -0.6% · Nasdaq fut flat · 10Y ~5.01% · Brent ~$114.5 (+1.3%) · VIX ~19.6
 
 **What's moving the banner**
-- AI-capex ROI doubts are back: TSLA −3–5% premarket after cutting its 2026 capex plan to ~$20B from $25B+ despite an EPS/revenue beat; META −2–3% after a $3.83 EPS print (swamped by a ~$10B legal charge) while lifting its 2026 capex floor to $135B. Chips followed: LRCX −7–8% on a merely in-line guide, SOXX −3.5%, memory names (MU, SNDK, STX, WDC) −3–4%. (S4:L170–199, S1:L15–19)
-- Iran-war headline bid in oil: Brent $111–112 (+2–3%), near a five-month high, WTI back near $100, on NYT reporting that the U.S. and Israel have drawn up plans for renewed strikes on Iran after the Nov 3 midterms; Trump said Washington is not negotiating with Tehran; the U.S. ordered diplomats out of Saudi Arabia amid Houthi strikes on a Saudi oilfield. (S1:L10–11, S1:L134–139, S2:L105–118)
-- Overnight rout: KOSPI −3.5%, Hang Seng −3.0%, Nikkei −2.7%, Shanghai −1.5%; China's CSI 300 is now −20% from its June peak (bear market); STOXX 600 −0.9%, DAX −1.1%, CAC −1.1%, FTSE −0.4%. Hermès −7% in Paris on weak China demand; France 10Y at 5.05%, highest since 2002, and the France–Germany spread broke out to 170bp — widest since 2011. (S1:L91–104, S2:L119–121)
-- Classic risk-off in rates/FX: 10Y down to ~5.04–5.09% (−6–9bp), 30Y ~5.39% (one-week low); dollar and yen bid (DXY ~101.6–102.2, USD/JPY ~157). The one break in the pattern: oil up while gold falls (~$4,060–4,077, −1.5–1.8%). (S2:L63–76, S2:L105–127)
-- Bitcoin −2.5% to ~$81.7k after an overnight ~$84.8k high; crypto-adjacent equities (MSTR, MARA, COIN, HOOD) down premarket. (S1:L22–23, S2:L131–139)
+- Tech/AI hangover from Thursday's rout: Nasdaq -2.6% (worst since June), S&P -1.21% (worst since July), driven by AI-capex funding doubts. META -8% on first cash outflow in over a decade (capex guide $135–145B); NVDA -4.4%, AMD -8.1%, GOOGL -3.2%. Jensen Huang said capital availability is becoming a challenge for AI infra; Ed Yardeni called the AI trade a bubble but argued moderating valuations could help markets. [1][2][4]
+- Oil bid is the morning's pressure point: Brent ~$114.5, WTI above $101 — both highest since early May. Reports of US/Israel preparing renewed strikes on Iran plus Houthi attacks on Saudi sites and Iranian threats of retaliation on civilian targets keep a supply-risk bid under crude. [1][2][9]
+- SpaceX wireless report: Bloomberg says SpaceX is in talks to secure 80,000+ US cell sites for a nationwide carrier program. Telecoms down premarket (T -4.5%, VZ -3.9%, TMUS -4.5%); tower operators up big (CCI +8.5–12%, AMT +5.6–9%, SBAC +6.5%). [1][2][8]
+- Bonds unwinding the safety bid: 10Y tumbled 17–19bp Thursday to 4.96% (first close below 5% in a month), ticking back above 5% this morning (~5.01%); 30Y ~5.31%. [2][5]
+- Overnight Asia mixed: Nikkei -0.74% (near 3-month lows), Kospi -0.93%, Shanghai Comp closed +0.9% at 3,690 on state-backed ETF buying, Hang Seng +0.7%. Europe soft: STOXX 600 -0.5%, FTSE -0.5%. [6][8]
 
 **Why it matters**
-- The tape has flipped from rewarding AI capex to auditing it — an in-line guide got LRCX sold −8%. Earnings binaries are widening: beats aren't enough; guidance and capex pacing are the trade.
-- Brent back near five-month highs re-prices inflation into the Oct 27–28 FOMC; the 10Y bid is growth-fear, not comfort — watch the 11:30 bill and 1:00 TIPS auctions for absorption.
-- Jobless claims printed a benign 194k (< 200k consensus), but geopolitics and mega-cap guides own the tape today — don't over-read the labor data.
+- The selloff is concentrated, not broad: Thursday the Dow closed +0.02%, equal-weight held up, and defensives (staples, health care, financials, utilities) gained while tech fell 3.3%. Breadth is healthier than the headline index moves. [9][4]
+- Oil at 5-month highs into FOMC week (decision Wed Oct 28) re-prices inflation risk — futures are again pricing a December hike as likely. Watch whether PMIs/Michigan sentiment confirm or dent that repricing. [7][9]
+- VIX ~19.6 with futures +6%: real vol bid, not panic. Weekend headline risk (Iran) keeps gamma sellers honest into the close. [2]
 
 **What to watch today (ET)**
-- 8:30 AM — Initial jobless claims (printed): 194k vs 200k consensus vs 199k prior. Continuing claims: consensus 1.72M vs 1.71M prior (actual not verified at write time). (S1:L143–145, S3:L126–130)
-- 10:00 AM — Conference Board Leading Index (Sep): consensus −0.2% vs −0.1% prior (S3:L25–28)
-- 10:30 AM — EIA natural gas stocks: consensus +83 vs +67 prior (S3:L131)
-- 11:00 AM — Kansas Fed composite (Oct): consensus 11 vs 14 prior; KC Fed mfg index 18 vs 20 (S3:L132–133)
-- 11:30 AM — 4-wk and 8-wk T-bill auctions; 1:00 PM — 5-yr TIPS auction (S3:L134–138)
-- Fed: blackout ahead of the Oct 27–28 FOMC (decision Wed Oct 28, 2:00 PM ET) — no speakers (S3:L70–71)
-- Earnings BMO: PG (~$1.89 EPS est), UNP (~$3.47–3.48 EPS, ~$7.14B rev), SCCO, LMT (beat + raised 2026 guide), CMCSA, BX, HON, CSX (beat), DOW (S4:L15–28, S4:L156)
-- Earnings AMC: WDC (~$4.08–4.10 EPS est, options implying ±9%), NEM (~$1.94–1.95), DECK, MXL, RNG, VRSN, BE (S4:L29–40, S4:L156–157)
-- Tomorrow: S&P Global flash PMIs 9:45 AM (composite est 57.6 vs 58.4; mfg 55.5 vs 55.9; services 58.0 vs 58.8); Baker Hughes rig count 1:00 PM (S3:L140–143)
+- 9:45 AM — S&P Global flash PMIs (Oct): Manufacturing cons 55.6 vs prev 55.9; Services cons 57.9 vs prev 58.8; Composite [10][11]
+- 10:00 AM — U. Michigan final consumer sentiment (Oct): cons 46.3 vs prelim 48.1; 1-yr inflation expectations (prev 4.70%) [10][11]
+- 1:00 PM — Baker Hughes rig count (prev 459) [10]
+- Earnings: American Express, SLB, Infosys before open; no mega-cap reports after close [4]
+- No Fed speakers today; next FOMC decision Wed Oct 28. Moody's updates its France sovereign rating today. [9][5]
+- Tomorrow: Saturday — nothing scheduled. Next week: FOMC (Oct 28), Sep PCE (Oct 29; street 3.6% vs prior 3.4%), mega-cap tech earnings (GOOGL, MSFT, AMZN). [12]
 
 **Data**
-- Initial jobless claims (8:30 ET print): 194k actual vs 200k consensus vs 199k prior (S1:L143–145)
-- Futures (~7:40–7:55 ET): ES 7,724 (−0.97%), NQ 29,511 (−1.65%), YM 52,770 (−0.54%), RTY 2,778 (−0.59%) (S1:L35–55)
-- 10Y 5.041% / 5.0857% (−6bp); 30Y ~5.385–5.397% (one-week low); Brent $111.03–112.20 (+2–2.9%); WTI $99.20 (+2.1%); gold $4,060–4,077 (−1.5–1.8%); BTC $81,685 (−2.5%) (S2:L56–70, S2:L131–139)
-- Asia close: Nikkei 62,907.84 (−2.65%), KOSPI 5,533.77 (−3.52%), Hang Seng 22,934.68 (−3.03%), Shanghai 3,658.03 (−1.48%), ASX 8,793.20 (−0.43%) (S1:L91–99)
-- Europe midday: STOXX 600 −0.92%, FTSE −0.43%, DAX −1.1% (25,375), CAC −1.14% (S2:L141–143, S3:L8)
+- Thu close: S&P 7,663.43 (-1.21%, worst day since July) | Nasdaq 26,008.86 (-2.60%, worst since June) | Dow 52,867.98 (+0.02%) | VIX 19.03 (+14%) [6][4]
+- Thu bonds: 10Y -18.5bp to 4.961% (biggest drop in 2+ years) | Brent settled +4.0% at $113.17 (highest since early May) [4][2]
+- Thu claims: initial jobless claims 194k vs 200k expected [9]
+- Weekly track: S&P +0.1%, Nasdaq -0.5%, Dow +1.7% (Dow on track for weekly gains) [4]
 
-**Single names**
-- TSLA −3–5% premarket: beat (adj. EPS 48c vs 43c est, rev $28.05B vs $27.88B) but cut 2026 capex $25B+→~$20B. So what: the AI-transition pace, not the quarter, is the trade — tech short puts keep overnight gap risk into this tape. (S4:L191–192, S1:L120–123)
-- META −2–3%: rev $64.6B vs $63.3B est, but EPS $3.83 vs $6.54 (one-time ~$10B charge; $7.40 ex-charge); lifted 2026 capex floor $130B→$135B. So what: the market is taxing capex-heavy guides — expect the same treatment on WDC's guide tonight. (S1:L147–152, S4:L194–196)
-- LRCX −7–8%: record Q1 rev $8.22B, but Q2 guide $8.60B vs $8.53B est — in-line wasn't enough. So what: semi implied vol is realizing wider than priced; don't short premium into WDC tonight. (S1:L168–171, S4:L197–199)
-- IBM −5–6.6%: beat ($2.95 vs $2.86) yet sold. So what: confirms beats aren't enough — guide quality beats beat size. (S4:L192–194, S4:L99–107)
-- Energy/defense bid: LMT +3.8% (beat + raised 2026 guide), EOG +2.4%, KMI +2%, DOW +2.7%; CSX +3.3% on a beat (57c vs 53c). So what: defensive/energy premiums holding — short calls on oil names into a geopolitics bid are the wrong side. (S1:L71–79, S4:L187–196)
-- AAL −4.1%: widened FY loss forecast to −$1.00/−$1.60 from −$0.65/+$0.65 on fuel costs. So what: the oil spike is a margin tax on airlines/transports — avoid short puts there. (S4:L103–105)
-- SPOT +6.1% (Q4 rev guide above est, 788M MAU), AVEX +12% (disputed Navy drone-halt report), QS +7.3% (100 MWh solid-state battery line for AI data centers). So what: idiosyncratic positives — don't fade mechanically with the market. (S4:L91–96, S4:L187–189)
-- WDC −3% premarket into tonight's print (±9% implied). So what: no naked short puts into the print — spreads or sit out. (S4:L29–34, S4:L106–108)
+**Single names** (each with the "so what")
+- CCI +9–12%, AMT +6–9%, SBAC +6.5% — SpaceX carrier-program talks. So what: tower REITs gap up on news, vol stays fat — premium sellers can leg into covered premium but don't chase the open. [1][8]
+- T -4.5%, VZ -3.9%, TMUS -4.5% — SpaceX competition fears. So what: rotation-driven, not fundamentals; put sellers on VZ/T have strike room, but today's tape is order-flow driven — wait for the dust to settle. [1][2]
+- AXP raised full-year profit forecast; shares down ~1–3.5% post-earnings anyway. So what: beat-and-lower tape — post-earnings put premium on quality financials still collectible. [1]
+- WDC -4.1% premarket — earnings failed to lift the stock. DECK -7.8% on earnings miss. SOLV -9.1%, CNX -7.9% premarket decliners. RNG +15.7%, ELAN, JMKE +7%+ advancers. [2][8]
+- MRNA -4% premarket after -18% Thursday on apparent cancer-vaccine data leak. So what: event-driven, not a systemic read — but IV will stay jacked. [1]
+- Bounce candidates: SNDK, MU, NVDA-backed LITE up this morning after yesterday's AI-trade pounding — watch for follow-through or fade into 10 AM data. [2]
 
-**Implications**
-- Premium is richer than two weeks ago (VIX ~18–18.4, ~30% above its September low) but not at dislocation levels — sell premium selectively into vol strength, not indiscriminately into the hole. (S2:L166–168)
-- Headline risk is overnight and binary (Iran/geopolitics, mega-cap guide fallout, WDC tonight): favor defined-risk and shorter DTE; keep strikes wider and size smaller on index/tech.
-- Avoid short puts into tonight's binaries (WDC ±9% implied; NEM with gold sliding) and into oil-sensitive transport names where fuel is now a margin tax.
-- Two event walls ahead — FOMC Oct 27–28 and midterms Nov 3 — so keep duration short of them. The tape is tradable for premium, not for heroics.
+**Implications** (option-selling book)
+- Today is Friday — any weekly shorts still ITM at the open must be closed or rolled this morning; Robinhood can sell expiring contracts in the last 30 minutes, so don't leave assignments to chance. [standing policy]
+- VIX ~19.6 with futures +6% means put premium is genuinely bid on tech — sell into defined levels, not into the open's noise. Widen strikes on AI-capex names into FOMC week; keep standard widths on defensives. [2]
+- Intraday vol windows: 9:45 AM (PMIs) and 10:00 AM (Michigan sentiment) are the day's event risk — avoid opening fresh short premium in the 30 minutes ahead of each print. [10]
+- Weekend carry: oil at $114 with Iran headlines active is a gap-risk weekend. Keep short-put DTEs positioned so a Sunday-night oil spike doesn't pair with a Monday equity gap — smaller size on index shorts, wider strikes on energy-adjacent names. [2][9]
 
-**Context**
-- 1-day: Wednesday S&P 7,757.17 (+0.58%, third straight gain), Nasdaq 26,702.86 (+1.05%), Dow 52,856.09 (+0.69%), Russell 2,781.02 (+0.27%), VIX 16.68 (−3.6%) — this morning's futures give back most of Wednesday's index gains pre-open. (S1:L85–90, S3:L127–136)
-- 1-week: VIX ~18 is ~30% above its September low; CSI 300 −20% from its June peak = bear market; France–Germany 10Y spread 170bp, widest since 2011. (S2:L166–168, S2:L156–159, S2:L119–121)
-- 1-month: Brent ~$111–112 is its highest since May; 10Y ~5.04–5.09% is below its recent ~5.4% peak. (S2:L115–118, S2:L167–169)
+**Context** (verifiable only; 1w/1m omitted where not verified)
+- S&P 500: 1d -1.21% (7,663); week +0.1% [6][4]
+- 10Y: 1d -18.5bp to 4.96% (first close below 5% in a month); this morning back above 5.00% [4][2]
+- Brent: 1d +4.0% to $113.17 settle (highest since early May); now ~$114.5 [2]
+- VIX: 1d +14% to 19.03; futures +6% premarket [6][8]
 
-**Systems:** MacBook Pro awake — scheduler fresh (plan-review ran 6:04 AM PT, agent heartbeat 5:34 AM PT); API server response and live-vs-frozen price state not directly probeable (no shell on device).
+Systems: Mac online, heartbeat 5:31 AM PT, scheduler fresh (plan-review 3:03 AM PT); API/price freshness not verifiable from here (no shell path on Mac).
+
+**Sources**
+[1] https://www.reuters.com/business/wall-street-futures-dip-after-ai-rout-telecoms-slide-2026-10-23/
+[2] https://www.investopedia.com/5-things-to-know-before-the-stock-market-opens-on-friday-october-23-2026-12188503
+[3] https://www.investopedia.com/stock-market-today-dow-jones-s-and-p-500-10232026-12189475
+[4] https://www.tipranks.com/news/u-s-stock-futures-mixed-after-nasdaqs-2-6-drop
+[5] https://www.wsj.com/finance/stocks/nasdaq-futures-steady-as-ai-selloff-pauses-275c6454
+[6] https://nordfx.com/market-news/market-pulse-october-23-2026
+[7] https://www.ausecure.com/gold-price-today-oct-23-2026/
+[8] https://www.barrons.com/articles/s-p-500-futures-fall-in-premarket-trading-ringcentral-crown-castle-lead-148a43bc
+[9] https://www.ic.com/blog/friday-23rd-oct-2026-u-s-stock-futures-steady-after-tech-sell-off-as-ai-concerns-weigh-on-markets/
+[10] https://www.xtb.com/int/market-analysis/news-and-research/macro-calendar-preliminary-pmi-readings-and-earnings-ahead
+[11] https://www.actionforex.com/economic-calendar/657778-eco-data-10-23-26/
+[12] https://nowflation.com/calendar
