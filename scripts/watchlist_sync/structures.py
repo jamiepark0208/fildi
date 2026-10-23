@@ -364,7 +364,9 @@ def public(c):
 def log_ledger(conn, board, today):
     from forecast_ledger import UPSERT
     # a re-run replaces today's picks: drop today's unresolved rows first so only what the board shows gets graded
-    conn.execute("DELETE FROM watchlist_sync.forecast_ledger WHERE qtype = 'sim_structure' AND made_on = %s AND outcome IS NULL", (today,))
+    # scoped to this board's rows (question_id struct:…): the S081/S086/S088 paper arms share qtype sim_structure
+    conn.execute("DELETE FROM watchlist_sync.forecast_ledger WHERE qtype = 'sim_structure' AND made_on = %s AND outcome IS NULL "
+                 "AND question_id LIKE 'struct:%%'", (today,))
     n = 0
     for sid, lst in board.items():
         for c in lst:

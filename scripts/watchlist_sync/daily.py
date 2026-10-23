@@ -68,7 +68,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
         ("strategies board", PY, HERE, ["structures.py"]),   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
-        ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)
+        ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),
+        ("S/R strike picker", PY, HERE, ["analysis/s088_sr_zones.py", "--if-due"]),   # S088: weekly refit (~5 min) → sold put/call picks + 1σ baseline → forecast_ledger   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
         ("daily reflection", PY, HERE, ["analysis/daily_reflection.py"]),   # S014: wrong / missed / trader / score IC (report only)
