@@ -237,3 +237,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A260](asks/A260.md) | 2026-10-24 | Muse → Cursor | pm_alerts MC front-expiry only — multi-expiry books understate margin risk | open |
 | [A261](asks/A261.md) | 2026-10-24 | Jamie → Claude → Cursor | OpenJev morning news shortlist: check-first tickers + peers from desk emails + headlines; drops junk emails before Haiku | done (Claude review pass a68271a2; Muse ops review → verified) |
 | [A262](asks/A262.md) | 2026-10-24 | Jamie → Claude → Cursor | [quant] Test every free outside signal source vs Fildi (OSAP, JKP, option signals, StarMine extras, Finnhub, own-data flow, qlib, tastytrade, movers, QC/Quantpedia) — S089–S098 | planned |
+| [A263](asks/A263.md) | 2026-10-24 | Jamie → Claude → Cursor | Data-source inventory: every API/tool set up — unused endpoints + fields, ranked by value | planned |
