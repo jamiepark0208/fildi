@@ -32,7 +32,11 @@ gcloud compute ssh "$INSTANCE" --zone="$ZONE" --command='
   echo "sshd:"; sudo sshd -T | grep -E "^(passwordauthentication|permitrootlogin) " || true
   echo "pg:"; sudo -u postgres psql -tAc "show listen_addresses; show server_version"
   echo "env:"; sudo stat -c "%a %U:%G" /etc/fildi/env
-  grep -q "fildi bootstrap OK" /var/log/fildi-bootstrap.log 2>/dev/null && echo bootstrap_log=ok || echo bootstrap_log=missing
+  if [[ -f /var/lib/fildi/bootstrap.ok ]] || grep -q "fildi bootstrap OK" /var/log/fildi-bootstrap.log 2>/dev/null; then
+    echo bootstrap=ok
+  else
+    echo bootstrap=missing
+  fi
 '
 
 echo "PASS A241 P1 verify (confirm \$1 budget fildi-1usd-alert in Billing)"
