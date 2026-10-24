@@ -1,0 +1,166 @@
+{
+  "float": {
+    "http": 200,
+    "top_keys": [
+      "status",
+      "request_id",
+      "results"
+    ],
+    "status": "OK",
+    "error": "",
+    "n_results": 1,
+    "row_keys": [
+      "effective_date",
+      "free_float",
+      "free_float_percent",
+      "ticker"
+    ],
+    "sample": {
+      "ticker": "AAPL",
+      "free_float": 13521179933,
+      "effective_date": "2026-05-14",
+      "free_float_percent": 92.1
+    }
+  },
+  "form4": {
+    "http": 200,
+    "top_keys": [
+      "status",
+      "request_id",
+      "results",
+      "next_url"
+    ],
+    "status": "OK",
+    "error": "",
+    "n_results": 1,
+    "row_keys": [
+      "accession_number",
+      "aff_10b5_one",
+      "direct_or_indirect",
+      "equity_swap_involved",
+      "filing_date",
+      "filing_url",
+      "footnotes",
+      "form_type",
+      "is_director",
+      "is_officer",
+      "is_other",
+      "is_ten_percent_owner",
+      "issuer_cik",
+      "issuer_name",
+      "not_subject_to_section_16",
+      "owner_cik",
+      "owner_name",
+      "period_of_report",
+      "record_type",
+      "security_title",
+      "security_type",
+      "shares_owned_following_transaction",
+      "tickers",
+      "transaction_acquired_disposed",
+      "transaction_code",
+      "transaction_date",
+      "transaction_price_per_share",
+      "transaction_shares",
+      "transaction_timeliness",
+      "transaction_value"
+    ],
+    "sample": {
+      "accession_number": "0001739445-26-000165",
+      "form_type": "4",
+      "filing_date": "2026-10-23",
+      "period_of_report": "2026-10-23"
+    }
+  },
+  "13f": {
+    "http": 200,
+    "top_keys": [
+      "status",
+      "request_id",
+      "results",
+      "next_url"
+    ],
+    "status": "OK",
+    "error": "",
+    "n_results": 1,
+    "row_keys": [
+      "accession_number",
+      "cusip",
+      "file_number",
+      "filer_cik",
+      "filing_date",
+      "filing_url",
+      "film_number",
+      "form_type",
+      "investment_discretion",
+      "issuer_name",
+      "market_value",
+      "period",
+      "shares_or_principal_amount",
+      "shares_or_principal_type",
+      "title_of_class",
+      "voting_authority_none",
+      "voting_authority_shared",
+      "voting_authority_sole"
+    ],
+    "sample": {
+      "accession_number": "0001621100-26-000005",
+      "form_type": "13F-HR",
+      "filing_date": "2026-10-23"
+    }
+  },
+  "8k": {
+    "http": 200,
+    "top_keys": [
+      "status",
+      "request_id",
+      "results",
+      "next_url"
+    ],
+    "status": "OK",
+    "error": "",
+    "n_results": 1,
+    "row_keys": [
+      "accession_number",
+      "cik",
+      "filing_date",
+      "filing_url",
+      "primary_category",
+      "secondary_category",
+      "supporting_text",
+      "tertiary_category"
+    ],
+    "sample": {
+      "accession_number": "0001713407-26-000103",
+      "filing_date": "2026-10-22"
+    }
+  },
+  "related": {
+    "http": 200,
+    "top_keys": [
+      "request_id",
+      "results",
+      "status",
+      "ticker"
+    ],
+    "status": "OK",
+    "error": "",
+    "n_results": 10,
+    "row_keys": [
+      "ticker"
+    ],
+    "sample": {
+      "ticker": "MSFT"
+    }
+  },
+  "ratios": {
+    "http": 403,
+    "top_keys": [
+      "status",
+      "request_id",
+      "error"
+    ],
+    "status": "ERROR",
+    "error": "You are not entitled to this data. Please upgrade your plan at https://massive.com/pricing"
+  }
+}

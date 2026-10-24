@@ -1,0 +1,69 @@
+{
+  "http": 200,
+  "rows": [
+    {
+      "label": "Net Interest Income",
+      "valueType": null,
+      "rowType": "STANDARD",
+      "metric": "FIN",
+      "scale": 6,
+      "latest_is_number": true
+    },
+    {
+      "label": "Loan Loss Provision",
+      "valueType": null,
+      "rowType": "STANDARD",
+      "metric": "FIN",
+      "scale": 6,
+      "latest_is_number": true
+    },
+    {
+      "label": "Total Deposits",
+      "valueType": null,
+      "rowType": "STANDARD",
+      "metric": "FIN",
+      "scale": 6,
+      "latest_is_number": true
+    },
+    {
+      "label": "Tangible Book Value Per Share",
+      "valueType": null,
+      "rowType": "STANDARD",
+      "metric": "FIN",
+      "scale": 0,
+      "latest_is_number": true,
+      "latest": 116.53,
+      "unit_note": "USD per share (scale 0). Not millions."
+    },
+    {
+      "label": "Return on Tangible Equity (%)",
+      "valueType": "PERCENTAGE",
+      "rowType": "STANDARD",
+      "metric": "RAT",
+      "scale": null,
+      "latest_is_number": true,
+      "latest": 21.222467,
+      "unit_note": "Percent points. Client divides PERCENTAGE by 100."
+    },
+    {
+      "label": "Tier 1 Ratio",
+      "valueType": "RATIO",
+      "rowType": "STANDARD",
+      "metric": "RAT",
+      "scale": null,
+      "latest_is_number": true,
+      "latest": 15.226666,
+      "unit_note": "Percent points (15.2 = 15.2%). valueType is RATIO, not PERCENTAGE, so the existing /100 branch does not apply. Do not treat 15.2 as 15x."
+    },
+    {
+      "label": "Total Capital Ratio",
+      "valueType": "RATIO",
+      "rowType": "STANDARD",
+      "metric": "RAT",
+      "scale": null,
+      "latest_is_number": true,
+      "latest": 16.6,
+      "unit_note": "Same as Tier 1: percent points, valueType RATIO."
+    }
+  ]
+}
