@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { desc, gte, sql } from "drizzle-orm";
 import { db, deskCommentaries } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import {
   ingestDeskCommentaries,
   getDeskSoftContext,
@@ -22,7 +23,7 @@ import { newsSessionWindow } from "../lib/desk-commentary-normalize.js";
 
 const router = Router();
 
-router.get("/desk-commentaries", async (req, res) => {
+router.get("/desk-commentaries", requireAuth, async (req, res) => {
   try {
     const hours = Math.min(168, Math.max(1, Number(req.query["hours"] ?? 36) || 36));
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -54,7 +55,7 @@ router.get("/desk-commentaries", async (req, res) => {
 });
 
 /** Current news session inbox — used by Live → News troubleshooting table. */
-router.get("/desk-commentaries/session", async (_req, res) => {
+router.get("/desk-commentaries/session", requireAuth, async (_req, res) => {
   try {
     const win = newsSessionWindow();
     const rows = await db
@@ -146,7 +147,7 @@ router.get("/desk-commentaries/parse-preview", requireAdmin, async (req, res) =>
   }
 });
 
-router.get("/desk-commentaries/soft-context", async (req, res) => {
+router.get("/desk-commentaries/soft-context", requireAuth, async (req, res) => {
   try {
     const hours = Math.min(72, Math.max(1, Number(req.query["hours"] ?? 24) || 24));
     return res.json(await getDeskSoftContext(hours));

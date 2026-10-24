@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { eq, inArray } from "drizzle-orm";
 import {
   db,
@@ -68,15 +69,12 @@ router.get("/sdm/tickers", async (_req, res) => {
   }
 });
 
-// POST /sdm/refresh/:ticker  (admin only — ?admin=true)
+// POST /sdm/refresh/:ticker — admin only (A235: was ?admin=true query flag).
 // Forces enrich→populate→merge for one ticker (same gold path as nightly).
 // Does NOT use the legacy single-source waterfall.
-router.post("/sdm/refresh/:ticker", async (req, res) => {
-  if (req.query["admin"] !== "true") {
-    return res.status(403).json({ error: "Admin access required" });
-  }
-
-  const ticker = req.params["ticker"]?.toUpperCase();
+router.post("/sdm/refresh/:ticker", requireAdmin, async (req, res) => {
+  const raw = req.params["ticker"];
+  const ticker = (typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "")?.toUpperCase();
   if (!ticker) return res.status(400).json({ error: "ticker required" });
 
   try {
@@ -100,9 +98,9 @@ router.post("/sdm/refresh/:ticker", async (req, res) => {
   }
 });
 
-// POST /sdm/import-csv
+// POST /sdm/import-csv — admin only (A235).
 // Accepts { rows: HistoryCSVRow[] } and imports each into ticker_fundamentals_history.
-router.post("/sdm/import-csv", async (req, res) => {
+router.post("/sdm/import-csv", requireAdmin, async (req, res) => {
   const { rows } = req.body as { rows?: unknown[] };
   if (!Array.isArray(rows)) {
     return res.status(400).json({ error: "body.rows must be an array" });

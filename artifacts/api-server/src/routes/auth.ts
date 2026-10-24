@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import { eq, or, and, isNull } from "drizzle-orm";
-import { db, users, inviteCodes } from "@workspace/db";
+import { db, users, inviteCodes, pool } from "@workspace/db";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { logger } from "../lib/logger.js";
@@ -11,6 +11,17 @@ import { validate } from "../middleware/validate.js";
 import { registerSchema, loginSchema, adminCreateUserSchema, changePasswordSchema } from "../lib/validators/auth.js";
 
 const router = Router();
+
+/** Drop connect-pg-simple rows for a user. keepSid = leave the current browser session alive (self password change). */
+async function invalidateUserSessions(userId: number, keepSid?: string): Promise<number> {
+  const r = keepSid
+    ? await pool.query(
+        `DELETE FROM session WHERE (sess->>'userId')::int = $1 AND sid <> $2`,
+        [userId, keepSid],
+      )
+    : await pool.query(`DELETE FROM session WHERE (sess->>'userId')::int = $1`, [userId]);
+  return r.rowCount ?? 0;
+}
 
 // POST /auth/register
 router.post("/auth/register", authLimiter, validate(registerSchema), async (req, res) => {
@@ -60,6 +71,10 @@ router.post("/auth/login", authLimiter, validate(loginSchema), async (req, res) 
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
+  // A235: regenerate sid on login so a stolen pre-login cookie can't inherit the session.
+  await new Promise<void>((resolve, reject) => {
+    req.session.regenerate((err) => (err ? reject(err) : resolve()));
+  });
   req.session.userId = user.id;
   req.session.role = user.role as "admin" | "member";
 
@@ -100,8 +115,9 @@ router.post("/auth/change-password", requireAuth, validate(changePasswordSchema)
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
-
-  logger.info({ userId: user.id }, "auth: password changed");
+  // Kill other sessions; keep this one so Jamie isn't locked out mid-market (A235).
+  const dropped = await invalidateUserSessions(user.id, req.sessionID);
+  logger.info({ userId: user.id, droppedSessions: dropped }, "auth: password changed");
   return res.json({ ok: true });
 });
 
@@ -129,7 +145,7 @@ router.post("/admin/users", requireAdmin, validate(adminCreateUserSchema), async
 
 // POST /admin/invite
 router.post("/admin/invite", requireAdmin, async (req, res) => {
-  const code = randomBytes(4).toString("hex").toUpperCase();
+  const code = randomBytes(8).toString("hex").toUpperCase();
   await db.insert(inviteCodes).values({ code, createdBy: req.session.userId! });
   logger.info({ code, createdBy: req.session.userId }, "admin: invite code created");
   return res.json({ code });
@@ -178,7 +194,8 @@ router.post("/admin/users/:id/reset-password", requireAdmin, async (req, res) =>
   const result = await db.update(users).set({ passwordHash }).where(eq(users.id, id)).returning({ id: users.id });
   if (result.length === 0) return res.status(404).json({ error: "User not found" });
 
-  logger.info({ userId: id, resetBy: req.session.userId }, "admin: user password reset");
+  const dropped = await invalidateUserSessions(id);
+  logger.info({ userId: id, resetBy: req.session.userId, droppedSessions: dropped }, "admin: user password reset");
   return res.json({ id, tempPassword });
 });
 

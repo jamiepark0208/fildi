@@ -25,6 +25,7 @@ import {
   watchlist,
 } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
 import { callHaiku } from "../lib/haiku.js";
 import { ingestDeskCommentaries, ensureDeskCommentariesTable } from "../lib/desk-commentary.js";
@@ -711,7 +712,7 @@ async function loadRecentFeedback(sessionDate: string, limit = 12) {
   }
 }
 
-router.get("/desk-commentaries/daily-news", async (req, res) => {
+router.get("/desk-commentaries/daily-news", requireAuth, async (req, res) => {
   try {
     // A65: serve DB + cache; ingest at most every 15 min (POST refresh still always ingests).
     await maybeIngestDeskOnGet();

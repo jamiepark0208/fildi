@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import { yahooFinance } from "../lib/yahoo-client.js";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
@@ -239,7 +240,7 @@ Be specific and data-driven. Use numbers from the market data and concrete desk 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // GET /api/daily-brief/market — live prices only, no AI, called on every page load
-router.get("/daily-brief/market", async (_req, res) => {
+router.get("/daily-brief/market", requireAuth, async (_req, res) => {
   try {
     const marketData = await marketDataCache.getOrCompute("shared", fetchMarketData);
     return res.json({ marketData });
@@ -249,7 +250,7 @@ router.get("/daily-brief/market", async (_req, res) => {
 });
 
 // GET /api/daily-brief/history — all past briefs, newest first
-router.get("/daily-brief/history", (_req, res) => {
+router.get("/daily-brief/history", requireAuth, (_req, res) => {
   const history = loadHistory().sort(
     (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
   );
@@ -280,7 +281,7 @@ const refreshBrief = singleFlight(async (tickers: string[], today: string, userI
 });
 
 // GET /api/daily-brief — return today's stored brief or { noData: true }; ?refresh=true regenerates (admin only)
-router.get("/daily-brief", aiLimiterOnRefresh, async (req, res) => {
+router.get("/daily-brief", requireAuth, aiLimiterOnRefresh, async (req, res) => {
   const raw     = typeof req.query["tickers"] === "string" ? req.query["tickers"] : "";
   const refresh = req.query["refresh"] === "true";
   const tickers = raw ? raw.split(",").map(t => t.trim().toUpperCase()).filter(Boolean) : [];
@@ -305,7 +306,7 @@ router.get("/daily-brief", aiLimiterOnRefresh, async (req, res) => {
 });
 
 // GET /api/daily-brief/context
-router.get("/daily-brief/context", (_req, res) => {
+router.get("/daily-brief/context", requireAuth, (_req, res) => {
   return res.json(loadContext());
 });
 

@@ -176,7 +176,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A199](asks/A199.md) | 2026-10-20 | Muse → Cursor | Pre-Dec-11 build capacity plan (restored from A180 after ID collision) | done (matrix; Jamie kill/park tap) |
 | [A200](asks/A200.md) | 2026-10-20 | Muse → Cursor | [quant] Peer-group drift monitor (restored from A181 after ID collision) | auto-reviewed |
 | [A201](asks/A201.md) | 2026-10-20 | Muse → Cursor | Model-version promotion protocol (restored from A182 after ID collision) | done (protocol; 1.2.0 hold) |
-| [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | planned |
+| [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | declined (park; S045 + fetch-page A139) |
 | [A203](asks/A203.md) | 2026-10-20 | Muse → Claude | Jev corpus check — done by Muse: no corpus exists; fildi already runs the pattern (OpenJev) | done (killed at step 1) |
 | [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | done (S073 FAIL) |
 | [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
@@ -209,13 +209,13 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | auto-reviewed |
 | [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | revise |
 | [A234](asks/A234.md) | 2026-10-21 | Muse → Grok + Claude + Codex | Agent framework hardening: dynamic plan/build/verify, agent-to-agent comms, token orchestration, cross-training loop | revise |
-| [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | accepted (P0 shipped; P1/P2 open) |
+| [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | done (P0+P1+P2; await review) |
 | [A236](asks/A236.md) | 2026-10-21 | Claude → Cursor | Pipeline follow-ups: verify 05:00 run, late-open list-first, precompute 29 min, Finnhub limit, request audit | done |
 | [A237](asks/A237.md) | 2026-10-21 | Muse → Claude | [quant] Neocloud contagion: oversold quality peers after a CRWV-led selloff — relative-value + put-premium study | planned (equity leg; put leg = no) |
 | [A238](asks/A238.md) | 2026-10-21 | Claude → Cursor | Heavy-token queue: Cursor runs reviews-packets/backtests/studies, Claude judges from ≤ 20-line packets | open |
 | [A239](asks/A239.md) | 2026-10-21 | Claude → Cursor | Stage tab: draw Claude → Cursor/Grok dispatch beams (cursor-agent wrapper + parent tag) | done (Cursor 10-21) |
 | [A240](asks/A240.md) | 2026-10-21 | Claude → Cursor | [quant] Earnings dates missing for ~23 % of put candidates (NEM FCX UPS ETN…) → re-strike skipped | done |
-| [A241](asks/A241.md) | 2026-10-21 | Grok → Cursor | GCP free VM shadow: public jobs + public DB copy, Mac untouched until parity pass + Jamie go | planned (P0 numbers in file; P0.5/P1 need Jamie/audit) |
+| [A241](asks/A241.md) | 2026-10-21 | Grok → Cursor | GCP free VM shadow: public jobs + public DB copy, Mac untouched until parity pass + Jamie go | planned (P0+P0.5 done; P1 needs Jamie GCP) |
 | [A242](asks/A242.md) | 2026-10-22 | Muse → Cursor | CI red on cursor/mac-dev: fix StructuresBoard imports (formatMd, ticker-link) + gitleaks allowlist for MISSING_UPCOMING_EMPTY_KEY | done (Cursor 10-22: gitleaks allowlist; formatMd+ticker-link already on tip) |
 | [A243](asks/A243.md) | 2026-10-22 | Claude → Cursor | [quant] Model List stability: keep ideas until they break, daily scores, no cash gate, long call/put sections | done (Cursor 10-22: freshness+universe gate+carry+cash; LSEG RIC expand optional) |
 | [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | planned (S081 FAIL packet; Claude verdict) |

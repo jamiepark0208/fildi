@@ -1,14 +1,17 @@
 import { Router } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, ASIA_INDEX_SYMBOLS, type HotlistEntry, type HotlistSide } from "../lib/live-hotlist.js";
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers } from "../lib/live-movers.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
+import { computeRegimeOutlook, outlookCacheKey } from "../lib/intraday-regime-outlook.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
 import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
 import { hasHighImportanceCatalystToday, isEconomicCalendarStale } from "../lib/macro-static.js";
 import { TTLCache } from "../lib/ttl-cache.js";
-import { fetchKalshiMacroStrip } from "../lib/kalshi-macro.js";
+import { fetchKalshiPredMarketsBundle } from "../lib/kalshi-macro.js";
+import { getLiveMarketContext } from "../lib/live-market-context.js";
 import { getScenarioExposure, parseScenarioId, SCENARIO_IDS, SCENARIO_LABELS } from "../lib/scenario-exposure.js";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, watchlist, positions } from "@workspace/db";
@@ -35,6 +38,8 @@ export interface MarketContextQuote {
   ticker: string;
   price: number | null;
   changePercent: number | null;
+  /** ISO when the live-price cache entry was written (quote freshness). */
+  asOf?: string;
 }
 
 async function fetchMarketContext(): Promise<MarketContextQuote[]> {
@@ -43,6 +48,7 @@ async function fetchMarketContext(): Promise<MarketContextQuote[]> {
     ticker,
     price: live.get(ticker)?.price ?? null,
     changePercent: live.get(ticker)?.changePercent ?? null,
+    asOf: live.get(ticker)?.asOf,
   }));
 }
 
@@ -55,6 +61,7 @@ async function fetchAsiaContext(): Promise<MarketContextQuote[]> {
     ticker,
     price: live.get(ticker)?.price ?? null,
     changePercent: live.get(ticker)?.changePercent ?? null,
+    asOf: live.get(ticker)?.asOf,
   }));
 }
 
@@ -136,10 +143,20 @@ router.get("/live/prices", async (req, res, next) => {
       return res.status(400).json({ error: "max 200 tickers" });
     }
     const live = await getLivePrices(tickers);
-    const prices: Record<string, { price: number | null; changePercent: number | null }> = {};
+    const prices: Record<string, {
+      price: number | null;
+      changePercent: number | null;
+      source?: "schwab" | "yahoo";
+      asOf?: string;
+    }> = {};
     for (const t of tickers) {
       const q = live.get(t);
-      prices[t] = { price: q?.price ?? null, changePercent: q?.changePercent ?? null };
+      prices[t] = {
+        price: q?.price ?? null,
+        changePercent: q?.changePercent ?? null,
+        source: q?.source,
+        asOf: q?.asOf,
+      };
     }
     return res.json({ prices });
   } catch (err) {
@@ -147,7 +164,7 @@ router.get("/live/prices", async (req, res, next) => {
   }
 });
 
-router.post("/live/refresh", async (_req, res, next) => {
+router.post("/live/refresh", requireAdmin, async (_req, res, next) => {
   try {
     await liveHotlist.refresh();
     livePriceCache.clear();
@@ -168,9 +185,21 @@ router.get("/live/movers", async (_req, res, next) => {
   }
 });
 
+// Outlook is a pure historical aggregate over app_config regime days; key = date +
+// resolved prefix so it refreshes when a new checkpoint resolves, not every poll.
+const regimeOutlookCache = new TTLCache<Awaited<ReturnType<typeof computeRegimeOutlook>>>(
+  6 * 60 * 60 * 1000,
+  "regime-outlook",
+  32,
+);
+
 router.get("/live/regime", async (_req, res, next) => {
   try {
-    res.json(await getTodaysCheckpoints());
+    const checkpoints = await getTodaysCheckpoints();
+    const outlook = await regimeOutlookCache.getOrCompute(outlookCacheKey(checkpoints), () =>
+      computeRegimeOutlook(checkpoints),
+    );
+    res.json({ checkpoints, outlook });
   } catch (err) {
     next(err);
   }
@@ -207,12 +236,24 @@ router.get("/live/entry-stats", async (_req, res, next) => {
 });
 
 /**
- * GET /live/pred-markets — A82 Kalshi FOMC + CPI odds strip (hourly cache).
+ * GET /live/pred-markets — A82 Kalshi FOMC + CPI (hourly) + BTC/NDQ 15m up/down (45s).
  * Internal display only; personal use per Kalshi ToS.
  */
 router.get("/live/pred-markets", async (_req, res, next) => {
   try {
-    res.json(await fetchKalshiMacroStrip());
+    res.json(await fetchKalshiPredMarketsBundle());
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /live/market-context — Live › Market conviction strip (one coalesced payload).
+ * Kalshi 15m + desk lean + regime grade accuracy. Display / context only.
+ */
+router.get("/live/market-context", async (_req, res, next) => {
+  try {
+    res.json(await getLiveMarketContext());
   } catch (err) {
     next(err);
   }
@@ -220,14 +261,19 @@ router.get("/live/pred-markets", async (_req, res, next) => {
 
 /**
  * GET /live/scenarios?scenario=oil — A149 scenario exposure for book names (OpenJev S039).
+ * Always returns byScenario for all ids (one book fetch + one file parse) so tab switches are free.
  */
 router.get("/live/scenarios", async (req, res, next) => {
   try {
     const scenario = parseScenarioId(req.query["scenario"]) ?? "oil";
     const book = await bookTickersForScenarios(req.session?.userId);
-    const data = getScenarioExposure(scenario, book);
+    const byScenario = Object.fromEntries(
+      SCENARIO_IDS.map((id) => [id, getScenarioExposure(id, book)]),
+    ) as Record<(typeof SCENARIO_IDS)[number], ReturnType<typeof getScenarioExposure>>;
+    const data = byScenario[scenario]!;
     res.json({
       ...data,
+      byScenario,
       scenarios: SCENARIO_IDS.map((id) => ({ id, label: SCENARIO_LABELS[id] })),
     });
   } catch (err) {

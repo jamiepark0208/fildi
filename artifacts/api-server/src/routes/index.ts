@@ -131,12 +131,10 @@ router.use(researchLsegRouter);
 router.use(researchOpsRouter);
 router.use(scoreOutliersRouter);
 
-// watchlist.ts, feed.ts, and positions.ts each have their own internal
-// blanket `router.use(requireAuth)` (all-user-specific routes, intentional),
-// and their route paths are already baked in (e.g. "/watchlist"), so they
-// can't be mounted at a matching path prefix without double-prefixing. Same
-// leak risk as above — keep these LAST so there's nothing left downstream to
-// leak auth onto. Do not insert new routers below this line.
+// watchlist.ts + feed.ts: internal requireAuth. positions.ts: internal requireAdmin
+// (A235 — stale comment used to say requireAuth). Paths are baked in (e.g. "/watchlist"),
+// so they can't be mounted at a matching path prefix without double-prefixing. Keep LAST.
+// Do not insert new routers below this line.
 //
 // bug/14 (2026-07-11): positionsRouter existed as a file but was never
 // mounted here, so /api/positions + /api/portfolio-names 404'd — the

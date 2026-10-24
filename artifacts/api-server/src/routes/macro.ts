@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { requireAuth } from "../middleware/requireAuth.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
 import { callHaiku } from "../lib/haiku.js";
 import { yahooFinance } from "../lib/yahoo-client.js";
@@ -309,12 +310,12 @@ router.get("/events", async (_req: Request, res: Response) => {
   }
 });
 
-/** Watchlist next report dates from earnings_calendar (DB) — Calendar tab, not TradingView. */
-router.get("/watchlist-earnings", async (_req: Request, res: Response) => {
+/** Watchlist next report dates — requester's own watchlist only (A235; was union of all users). */
+router.get("/watchlist-earnings", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { getUnionWatchlistTickers } = await import("../lib/watchlist-tickers.js");
+    const { getUserWatchlistTickers } = await import("../lib/watchlist-tickers.js");
     const { getUpcomingEarningsDates } = await import("../lib/earnings-history.js");
-    const tickers = await getUnionWatchlistTickers();
+    const tickers = await getUserWatchlistTickers(req.session.userId!);
     const dates = await getUpcomingEarningsDates(tickers);
     const rows = Object.entries(dates)
       .filter((entry): entry is [string, string] => entry[1] != null && entry[1] !== "")

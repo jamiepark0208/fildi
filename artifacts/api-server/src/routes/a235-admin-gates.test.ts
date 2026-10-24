@@ -4,8 +4,8 @@ import type { Server } from "node:http";
 import test from "node:test";
 import express from "express";
 
-/** A235 P0 — member session must 403; empty session 401; admin not 401/403. */
-const PATHS: Array<[string, string]> = [
+/** A235 — member session must 403 on admin gates; empty session 401; admin not 401/403. */
+const ADMIN_PATHS: Array<[string, string]> = [
   ["/api/schwab/oauth/start", "POST"],
   ["/api/schwab/oauth/status", "GET"],
   ["/api/schwab/oauth/complete", "POST"],
@@ -14,12 +14,26 @@ const PATHS: Array<[string, string]> = [
   ["/api/research/lseg/signals", "GET"],
   ["/api/research/lseg/radar", "GET"],
   ["/api/research/lseg/AAPL", "GET"],
+  ["/api/sdm/import-csv", "POST"],
+  ["/api/sdm/refresh/AAPL", "POST"],
+  ["/api/live/refresh", "POST"],
+  ["/api/api-usage/history", "GET"],
+  ["/api/api-usage/ai-spend", "GET"],
+];
+
+/** Require a session (any role) — anon 401; member + admin clear. */
+const AUTH_PATHS: Array<[string, string]> = [
+  ["/api/desk-commentaries", "GET"],
+  ["/api/desk-commentaries/daily-news", "GET"],
+  ["/api/daily-brief/market", "GET"],
+  ["/api/macro/watchlist-earnings", "GET"],
 ];
 
 /** Safe for admin smoke — clears the gate without DB/OAuth side effects. */
 const ADMIN_SAFE: Array<[string, string]> = [
   ["/api/schwab/oauth/status", "GET"],
   ["/api/schwab/status", "GET"],
+  ["/api/api-usage/history", "GET"],
 ];
 
 async function boot(session: Record<string, unknown>): Promise<{ base: string; close: () => Promise<void> }> {
@@ -56,10 +70,10 @@ async function hit(base: string, path: string, method: string): Promise<number> 
   return res.status;
 }
 
-test("A235 P0: anonymous 401 / member 403 / admin clears gate", async () => {
+test("A235: anonymous 401 / member 403 on admin gates / admin clears / auth routes for members", async () => {
   const anon = await boot({});
   try {
-    for (const [path, method] of PATHS) {
+    for (const [path, method] of [...ADMIN_PATHS, ...AUTH_PATHS]) {
       assert.equal(await hit(anon.base, path, method), 401, `${method} ${path} anon`);
     }
   } finally {
@@ -68,8 +82,13 @@ test("A235 P0: anonymous 401 / member 403 / admin clears gate", async () => {
 
   const member = await boot({ userId: 2, role: "member" });
   try {
-    for (const [path, method] of PATHS) {
+    for (const [path, method] of ADMIN_PATHS) {
       assert.equal(await hit(member.base, path, method), 403, `${method} ${path} member`);
+    }
+    for (const [path, method] of AUTH_PATHS) {
+      const status = await hit(member.base, path, method);
+      assert.notEqual(status, 401, `${method} ${path} member auth`);
+      assert.notEqual(status, 403, `${method} ${path} member auth`);
     }
   } finally {
     await member.close();
