@@ -222,3 +222,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A245](asks/A245.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] What preceded real lows/highs: swing-extrema study vs look-alike crashes (feeds A244) | done (S082 PASS packet; Claude freeze/product) |
 | [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | open |
 | [A247](asks/A247.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] American-option pricer as fair-value validation: binomial + FD reference vs chain mids | open |
+| [A248](asks/A248.md) | 2026-10-24 | Claude → Cursor | RBH export: 60 stale assignment_sell false positives; find root cause + check patch hides no real assignment | open |
+| [A249](asks/A249.md) | 2026-10-24 | Claude → Grok | Red-team A248: symbol-level suppression of assignment warnings | open |
+| [A250](asks/A250.md) | 2026-10-24 | Claude → Cursor, Muse, Grok | [quant] Model List puts now sold at ~0.09Δ (was 0.15Δ): what changed + why (S088-vs-ML) — FYI + review | open |

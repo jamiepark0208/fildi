@@ -13,11 +13,16 @@ ET = ZoneInfo("America/New_York")
 
 # ── L1 (Fildi data) ─────────────────────────────────────────────────────────────
 MAX_SNAPSHOT_AGE_TRADING_DAYS = 1      # model_recs must be from the latest (or previous) trading close
-PUT_DELTA = (-0.20, -0.08)             # 0.00 deltas = broken greeks (seen 2026-10-01) → blocked. Max 0.20 (S071, 10-20: market-wide real LSEG
+PUT_DELTA = (-0.20, -0.05)             # floor 0.08 → 0.05 (10-24: target moved to 0.09, listed strikes land 0.06–0.12). 0.00 deltas = broken greeks (seen 2026-10-01) → blocked. Max 0.20 (S071, 10-20: market-wide real LSEG
                                        # quotes, paired by name-week: > 0.20Δ −10..−12 bp/wk after 2024, farther OTM +9..+13 bp, same sign both
                                        # halves, t ≤ 1.6; pre-registered rule said 0.09 but n.s. and min_income would drop most puts). Picks above are re-struck.
-PUT_TARGET_ABS_DELTA = 0.15            # re-strike target: listed strike nearest this |Δ| on the same expiry
-PUT_EARNINGS_ABS_DELTA = (0.12, 0.10)  # earnings before expiry: cap, target. Was a block; S066/S069: earnings puts pay more with a fatter
+PUT_TARGET_ABS_DELTA = 0.09            # every weekly put re-strikes to the listed strike nearest this |Δ| (was 0.15). S088-vs-ML 10-24
+                                       # (holdout 2023→, 34k name-weeks, real-fill): same names at ~0.08Δ vs 0.15Δ = income −0.4/−1.4/−1.7 bp/wk
+                                       # (1/2/4w), kept 88 → 93 %, worst-5 % week −244 → −61 bp, max DD −10.4 → −7.2 %. S088 HGB model strike = same
+                                       # result (+36.5 vs +36.9 bp/wk) → plain Δ rule, no model.
+PUT_NAME_INCOME_ABS_DELTA = 0.15       # min_income judges the NAME at this |Δ| (eligibility as tested), not the farther strike sold
+PUT_MIN_RESTRIKE_BID = 0.10            # re-strike only to strikes bidding ≥ this (S088 MIN_CREDIT; nickel bids are not tradable)
+PUT_EARNINGS_ABS_DELTA = (0.10, 0.07)  # (10-24: was 0.12/0.10, kept farther than the 0.09 normal target) earnings before expiry: cap, target. Was a block; S066/S069: earnings puts pay more with a fatter
                                        # tail (Jamie 10-20: go further OTM instead). Chain Δ already prices the event, so this is a
                                        # probability target (~90 % OTM), not a fixed distance.
 CALL_DELTA = (0.08, 0.35)

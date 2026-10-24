@@ -464,6 +464,22 @@ def vs_model_list(rows, n_top=10):
                 s088[k] = r
             if k in elig and (k not in hyb or r["e_zones"] > hyb[k]["e_zones"]):
                 hyb[k] = r
+        # live policy: S088 strike only among strikes the live checks pass (Δ band, income floor), else the current strike
+        live = dict(cur)
+        for r in hs:
+            k = (r["t"], r["d"])
+            if (k in elig and r["p_zones"] >= 0.90 and lo <= r["dlt"] <= hi
+                    and r["credit"] / r["K"] / h >= MIN_WEEKLY_INCOME_PCT / 100
+                    and (live[k] is cur[k] or r["e_zones"] > live[k]["e_zones"])):
+                live[k] = r
+        # same-risk comparator: current-eligible names, plain strike nearest the hybrid's average |Δ| (no model)
+        hyb_d = float(np.mean([r["dlt"] for r in hyb.values()])) if hyb else PUT_TARGET_ABS_DELTA
+        far = {}
+        for r in hs:
+            k = (r["t"], r["d"])
+            if k in elig and (k not in far or abs(r["dlt"] - hyb_d) < abs(far[k]["dlt"] - hyb_d)):
+                far[k] = r
+
         def top(d):
             bw = defaultdict(list)
             for r in d.values():
@@ -472,7 +488,9 @@ def vs_model_list(rows, n_top=10):
         base = summ(list(cur.values()))
         for name, rs in (("current rule, all eligible", list(cur.values())), (f"current rule, top {n_top} by credit", cur_top),
                          (f"S088 top {n_top}, P ≥ 90 %", top(s088)), (f"hybrid: current-eligible names, S088 strike, top {n_top}", top(hyb)),
-                         ("hybrid, all eligible names", list(hyb.values()))):
+                         ("hybrid, all eligible names", list(hyb.values())),
+                         ("LIVE POLICY: S088 strike within Δ band + income floor, else current", list(live.values())),
+                         (f"same names, plain strike nearest |Δ| {hyb_d:.2f} (same-risk comparator)", list(far.values()))):
             s = summ(rs)
             if not s:
                 continue

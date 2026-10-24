@@ -300,8 +300,9 @@ def carry_forward_puts(conn, ctx: dict) -> int:
 
 
 def restrike_puts(conn, ctx: dict) -> None:
-    """Puts above the Δ cap (or A243 carried ideas) move to the listed strike nearest PUT_TARGET_ABS_DELTA on the same
-    expiry (latest saved chain, no API). Carried picks always refresh so spot_drift measures the chain, not a stale model spot."""
+    """Every weekly put (strategy puts only when above the Δ cap) moves to the listed strike nearest PUT_TARGET_ABS_DELTA on
+    the same expiry (latest saved chain, no API). The name's income is measured at PUT_NAME_INCOME_ABS_DELTA (the S088-vs-ML
+    eligibility) and min_income / L2 realistic_yield judge that. Carried picks always refresh so spot_drift measures the chain."""
     def why_far(r):  # Jamie 10-20: a riskier put gets a farther strike, not a smaller size
         t = r["ticker"]
         er = ctx.get("earnings", {}).get(t)
@@ -315,8 +316,8 @@ def restrike_puts(conn, ctx: dict) -> None:
     def caps(r):  # (cap, target): risky → farther strike instead of a block / half size (rules.PUT_EARNINGS_ABS_DELTA)
         r["far_why"] = why_far(r)
         return R.PUT_EARNINGS_ABS_DELTA if r["far_why"] else (-R.PUT_DELTA[0], R.PUT_TARGET_ABS_DELTA)
-    hot = [r for r in ctx["recs"] if r["side"] == "put" and (
-        r.get("carried") or (r["delta"] is not None and -r["delta"] > caps(r)[0]))]
+    hot = [r for r in ctx["recs"] if r["side"] == "put" and not r.get("restruck") and (
+        r.get("carried") or not r.get("strategy") or (r["delta"] is not None and -r["delta"] > caps(r)[0]))]
     if not hot:
         return
     # Carried ideas need the newest chain even when snapshot_date is an older model Friday.
@@ -329,18 +330,21 @@ def restrike_puts(conn, ctx: dict) -> None:
     for r in hot:
         cap, target = caps(r)
         # Prefer same expiry; else nearest listed expiry still ≥ DTE min (carried names may have rolled)
-        same = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and 0.04 <= -c["delta"] <= cap]
-        band = same or [c for c in cs if c["ticker"] == r["ticker"] and c["dte"] >= R.DTE[0] and 0.04 <= -c["delta"] <= cap]
+        same = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and -R.PUT_DELTA[1] <= -c["delta"] <= cap]
+        band = same or [c for c in cs if c["ticker"] == r["ticker"] and c["dte"] >= R.DTE[0] and -R.PUT_DELTA[1] <= -c["delta"] <= cap]
         if not same and band:
             exp = min({c["expiry"] for c in band}, key=lambda e: abs((e - r["expiry"]).days) if r.get("expiry") else 0)
             band = [c for c in band if c["expiry"] == exp]
-        pick = min(band, key=lambda c: abs(-c["delta"] - target), default=None)
+        pick = min((c for c in band if c["bid"] >= R.PUT_MIN_RESTRIKE_BID), key=lambda c: abs(-c["delta"] - target), default=None)
         if not pick:
             if r.get("carried"):
                 r["carry_no_strike"] = True
             continue
-        why = r["far_why"] or ("carry-forward" if r.get("carried") else "rules.PUT_DELTA")
+        why = r["far_why"] or ("carry-forward" if r.get("carried") else f"target {target}Δ: same income, smaller bad weeks (S088-vs-ML)")
         note = f"re-struck {r.get('delta') or 0:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
+        ref = min(band, key=lambda c: abs(-c["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))   # the name's income at the tested Δ
+        r["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / (ref["dte"] + _settle_offset(ref["expiry"]))
+        r["restruck"] = True
         r.update(strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"], strike_iv=pick["iv"],
                  expiry=pick["expiry"], dte=pick["dte"],
                  weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
@@ -367,8 +371,17 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     c.append(chk("iv_sane", iv is not None and R.IV_SANE[0] <= iv <= R.IV_SANE[1], f"IV {iv}"))
     c.append(chk("premium_plausible", rec["premium"] <= rec["strike"] * R.MAX_PREMIUM_TO_STRIKE,
                  f"premium is {100 * rec['premium'] / rec['strike']:.1f}% of strike"))
-    c.append(chk("min_income", (rec["weekly_income_pct"] or 0) >= R.MIN_WEEKLY_INCOME_PCT,
-                 f"{rec['weekly_income_pct']:.2f}%/week (min {R.MIN_WEEKLY_INCOME_PCT})"))
+    # 10-24: a re-struck put is judged by the name's income at PUT_NAME_INCOME_ABS_DELTA; `scale` lets L2 scale its floor the same way
+    ni = rec.get("name_income_pct")
+    wk = rec["weekly_income_pct"] or 0
+    c.append(chk("min_income", (ni if ni is not None else wk) >= R.MIN_WEEKLY_INCOME_PCT,
+                 f"{wk:.2f}%/week" + (f" at this strike; name pays {ni:.2f}% at {R.PUT_NAME_INCOME_ABS_DELTA}Δ" if ni is not None else "")
+                 + f" (min {R.MIN_WEEKLY_INCOME_PCT})"))
+    if ni:
+        c[-1]["scale"] = round(wk / ni, 4)
+    if side == "put" and not rec.get("strategy"):   # the S088-vs-ML test only sold strikes bidding ≥ $0.10 (10-24)
+        c.append(chk("min_bid", (rec["premium"] or 0) >= R.PUT_MIN_RESTRIKE_BID,
+                     f"bid ${rec['premium'] or 0:.2f} (min ${R.PUT_MIN_RESTRIKE_BID:.2f})"))
     cl = ctx["close"].get(t)
     if cl:
         drift = 100 * (cl["close"] / rec["spot"] - 1)
