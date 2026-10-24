@@ -402,6 +402,9 @@ def run(rows, today_rows):
                     r[f"p_{lab}"], r[f"e_{lab}"] = float(pp), float(ee)
                 print(f"{side} {lab} {y} fitted ({len(te)} rows)", flush=True)
         res[side] = side_rows
+    if "--vs-ml" in sys.argv[1:]:
+        vs_model_list(res["put"])
+        return
     # today's model: fit on everything realised, predict today's candidates
     from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
     feats = BASE_FEATS + ZONE_FEATS
@@ -418,6 +421,68 @@ def run(rows, today_rows):
             r["p_zones"], r["e_zones"] = float(pp), float(ee)
     write(res, today_rows)
     log_ledger(today_rows, force='--force-log' in sys.argv[1:])
+
+
+def put_delta(r):
+    sig = r["iv"] * math.sqrt(5 * r["h"] / 252)
+    return ncdf(-(math.log(r["S"] / r["K"]) + 0.5 * sig * sig) / sig)
+
+
+def vs_model_list(rows, n_top=10):
+    """Before/after for the Model List switch (holdout 2023 →, same rows): current put rule (strike nearest |Δ| 0.15,
+    |Δ| ≤ 0.20, credit ≥ MIN_WEEKLY_INCOME_PCT/wk) vs S088 (top-10 P(kept) ≥ 90 % by predicted pnl), plus the hybrid
+    (current eligible names, S088 strike) that isolates strike choice from name choice."""
+    from rules import MIN_WEEKLY_INCOME_PCT, PUT_DELTA, PUT_TARGET_ABS_DELTA
+    lo, hi = abs(PUT_DELTA[1]), abs(PUT_DELTA[0])
+    L = ["# S088 vs current Model List put rule (holdout 2023 →, walk-forward)", "",
+         f"Current = per name-week the candidate strike nearest |Δ| {PUT_TARGET_ABS_DELTA}, |Δ| {lo}–{hi}, credit ≥ "
+         f"{MIN_WEEKLY_INCOME_PCT} %/wk of strike. Name ranking (fit score) has no history → 'all eligible' and 'top {n_top} "
+         "by credit' bracket it. pnl = bp per collateral-week.", "",
+         "| horizon | arm | n | bp/wk | real-fill bp/wk | kept | worst 5 % | Sharpe | max DD | avg |Δ| | week t | vs current all (t) | by year |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for h in HORIZONS:
+        hs = [r for r in rows if r["h"] == h and "pnl" in r and r["d"] >= HOLDOUT and "e_zones" in r]
+        for r in hs:
+            r["dlt"] = put_delta(r)
+        cur = {}
+        for r in hs:
+            if lo <= r["dlt"] <= hi and r["credit"] / r["K"] / h >= MIN_WEEKLY_INCOME_PCT / 100:
+                k = (r["t"], r["d"])
+                if k not in cur or abs(r["dlt"] - PUT_TARGET_ABS_DELTA) < abs(cur[k]["dlt"] - PUT_TARGET_ABS_DELTA):
+                    cur[k] = r
+        elig = {k for k in cur}
+        byw = defaultdict(list)
+        for r in cur.values():
+            byw[r["d"]].append(r)
+        cur_top = [r for v in byw.values() for r in sorted(v, key=lambda z: -z["credit"] / z["K"])[:n_top]]
+        s088, hyb = {}, {}
+        for r in hs:
+            if r["p_zones"] < 0.90:
+                continue
+            k = (r["t"], r["d"])
+            if k not in s088 or r["e_zones"] > s088[k]["e_zones"]:
+                s088[k] = r
+            if k in elig and (k not in hyb or r["e_zones"] > hyb[k]["e_zones"]):
+                hyb[k] = r
+        def top(d):
+            bw = defaultdict(list)
+            for r in d.values():
+                bw[r["d"]].append(r)
+            return [r for v in bw.values() for r in sorted(v, key=lambda z: -z["e_zones"])[:n_top]]
+        base = summ(list(cur.values()))
+        for name, rs in (("current rule, all eligible", list(cur.values())), (f"current rule, top {n_top} by credit", cur_top),
+                         (f"S088 top {n_top}, P ≥ 90 %", top(s088)), (f"hybrid: current-eligible names, S088 strike, top {n_top}", top(hyb)),
+                         ("hybrid, all eligible names", list(hyb.values()))):
+            s = summ(rs)
+            if not s:
+                continue
+            v = paired_t(s, base) if s is not base and rs is not None and name != "current rule, all eligible" else (float("nan"), 0)
+            L.append(f"| {h}w | {name} | {s['n']} | {s['bp']:+.1f} | {s['bp_hc']:+.1f} | {s['kept']:.1%} | {s['worst5']:+.0f} | "
+                     f"{s['sharpe']:.2f} | {s['mdd']:.1%} | {np.mean([r['dlt'] for r in rs]):.2f} | {s['t']:.1f} | {v[0]:+.1f} | "
+                     + " ".join(f"{y % 100}:{x:+.0f}" for y, x in s["years"].items()) + " |")
+    p = OUT.with_name("S088-vs-ML.md")
+    p.write_text("\n".join(L) + "\n")
+    print("\n".join(L))
 
 
 LOG_EVERY = 7       # days; the backtest enters weekly
