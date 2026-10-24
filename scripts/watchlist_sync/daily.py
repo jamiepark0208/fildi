@@ -50,6 +50,13 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         # Jamie 10-20: the noon-PT scan only reached the NEXT morning's plan (~19 h stale) → re-scan with live Schwab quotes first
         ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts 2>&1 "
                                          "| grep -o 'persisted.*' | tail -1 || echo 'option scan skipped (plan uses the last scan)'"]),
+        # Fri accountability used to wait for noon PT dual-write — Mac often asleep by then (10-24). Ride the ≥10:00 ET
+        # Model List window (live bids + chains already on disk via option scan). Noon scheduler stays as fallback.
+        ("Fri model snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH; "
+                                         "dow=$(TZ=America/New_York date +%u); "
+                                         "if [ \"$dow\" != 5 ]; then echo 'skip: not Friday ET'; exit 0; fi; "
+                                         "pnpm exec tsx src/scripts/run-model-snapshot.ts 2>&1 | tail -5 "
+                                         "|| echo 'Fri snapshot failed (noon scheduler / history catch-up can retry)'"]),
         ("fit model", PY, HERE, ["fit_model_v14.py", "--write"]),   # champion + challengers (fit-1.3 is only its input builder)
         # before the plan: build_plan reads today's panic-puts-hiv signals (was after publish → plans used yesterday's, 10-19)
         ("strategy signals", LPY, HERE, ["strategy_signals.py"]),   # A178: panic-puts-hiv live triggers + forward grades

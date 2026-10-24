@@ -139,7 +139,7 @@ describe("buildInventory", () => {
     ]);
     assert.deepEqual(rows.map((r) => r.taskId).sort(), ["maintain", "option-scores"]);
     assert.ok((rows.find((r) => r.taskId === "maintain")?.writes.length ?? 0) > 0);
-    assert.match(rows.find((r) => r.taskId === "option-scores")?.mutex ?? "", /skip Fri/i);
+    assert.match(rows.find((r) => r.taskId === "option-scores")?.mutex ?? "", /skip Fri noon/i);
   });
 });
 

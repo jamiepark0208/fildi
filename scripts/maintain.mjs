@@ -604,6 +604,29 @@ function budgetSnapshot() {
   };
 }
 
+/** Best-effort: if the 05:00 PT prep runs before the open, ask macOS to wake at 09:55 ET so Model List + Fri
+ *  accountability can capture live bids (10-24: Fri noon dual-write missed when the lid stayed closed). */
+function scheduleSessionWake() {
+  if (etHour() >= 10) return;
+  try {
+    const stamp = spawnSync("/usr/bin/python3", ["-c", `
+from datetime import datetime
+from zoneinfo import ZoneInfo
+et = ZoneInfo("America/New_York")
+now = datetime.now(et)
+w = now.replace(hour=9, minute=55, second=0, microsecond=0)
+if w <= now: raise SystemExit(0)
+print(w.astimezone().strftime("%m/%d/%y %H:%M:%S"))
+`], { encoding: "utf8" });
+    const when = (stamp.stdout || "").trim();
+    if (!when) return;
+    const r = spawnSync("/usr/bin/pmset", ["schedule", "wakeorpoweron", when], { encoding: "utf8" });
+    console.log(`[maintain] scheduled wake ${when} for Model List window${r.status === 0 ? "" : ` (pmset exit ${r.status}: ${(r.stderr || "").trim()})`}`);
+  } catch (e) {
+    console.log(`[maintain] wake schedule skipped: ${e?.message || e}`);
+  }
+}
+
 async function main() {
   mkdirSync(LOG_DIR, { recursive: true });
   // 10-21: the 07:00 run spent 75 min in seconds-long dark wakes (lid closed / idle sleep) → killed steps, DNS failures, a
@@ -642,6 +665,7 @@ async function main() {
     if (!takeLock()) { console.log("[maintain] another run holds the lock — skip"); return; }
     dataDoneToday = st.day === day && !!st.dataDone;
     writeFileSync(DAY_STATE, JSON.stringify({ day, attempts: (st.day === day ? st.attempts || 0 : 0) + 1, done: false, dataDone: dataDoneToday }));
+    scheduleSessionWake();
   }
 
   const started = Date.now();

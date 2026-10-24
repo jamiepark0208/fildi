@@ -42,6 +42,7 @@ import { deriveHotList } from "./live-hotlist.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { fetchAndStoreOHLCV } from "./indicators.js";
+import { loadChainsFromHistory } from "./option-chain-history.js";
 import { logger } from "./logger.js";
 import { computePathRisk, type PathRisk } from "./model-track-path-risk.js";
 export {
@@ -116,9 +117,17 @@ export async function resetModelTrackRecord(): Promise<{
 
 // ── Weekly snapshot ───────────────────────────────────────────────────────────
 
-export async function runModelSnapshot(snapshotDate: string = todayStr()): Promise<{
+export async function runModelSnapshot(
+  snapshotDate: string = todayStr(),
+  opts?: {
+    /** Prefer option_chain_history for snapshotDate (miss-day / weekend catch-up). */
+    fromHistory?: boolean;
+    /** Reuse chains already fetched (e.g. morning option scan). */
+    chainsByTicker?: Map<string, OptionsChainResult[]>;
+  },
+): Promise<{
   recs: number; hotlist: number; regimeStubs: number; tickers: number; failures: number;
-  liveBidRecs: number; degraded: boolean;
+  liveBidRecs: number; degraded: boolean; quoteSource: "live" | "history" | "mixed";
 }> {
   // A172 columns (idempotent — drizzle 0030 also applies them).
   const { pool } = await import("@workspace/db");
@@ -178,11 +187,51 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
     ? await loadPutEdgeFactors(tickers)
     : new Map();
 
-  // Fetch chains (bounded concurrency; per-ticker failures don't kill the run).
-  const { chainsByTicker, failures } = await fetchChainsForTickers(tickers, {
-    concurrency: CHAIN_CONCURRENCY,
-    logLabel: "model-track-record",
-  });
+  // Chains: explicit map → history-only → live fetch, with history fallback when live bids are dead (closed market).
+  let chainsByTicker: Map<string, OptionsChainResult[]>;
+  let failures = 0;
+  let quoteSource: "live" | "history" | "mixed" = "live";
+  if (opts?.chainsByTicker) {
+    chainsByTicker = opts.chainsByTicker;
+    quoteSource = "live";
+  } else if (opts?.fromHistory) {
+    chainsByTicker = await loadChainsFromHistory(snapshotDate, tickers);
+    quoteSource = "history";
+    if (chainsByTicker.size === 0) {
+      logger.warn({ snapshotDate }, "model-track-record: no option_chain_history for as_of — cannot reconstruct");
+    }
+  } else {
+    const fetched = await fetchChainsForTickers(tickers, {
+      concurrency: CHAIN_CONCURRENCY,
+      logLabel: "model-track-record",
+    });
+    chainsByTicker = fetched.chainsByTicker;
+    failures = fetched.failures;
+    let liveBids = 0;
+    let contracts = 0;
+    for (const chains of chainsByTicker.values()) {
+      for (const c of chains) {
+        for (const p of [...c.puts, ...c.calls]) {
+          if (!(p.bid > 0)) continue;
+          contracts++;
+          if (p.bidIsLive) liveBids++;
+        }
+      }
+    }
+    // Closed session: Yahoo/Schwab bids go to 0 — rebuild from that day's persisted live chains if we captured them.
+    if (contracts === 0 || liveBids < Math.max(5, Math.ceil(contracts * 0.25))) {
+      const hist = await loadChainsFromHistory(snapshotDate, tickers);
+      if (hist.size > 0) {
+        logger.info(
+          { snapshotDate, liveBids, contracts, histTickers: hist.size },
+          "model-track-record: live quotes unusable — using option_chain_history",
+        );
+        chainsByTicker = hist;
+        quoteSource = liveBids > 0 ? "mixed" : "history";
+        failures = 0;
+      }
+    }
+  }
 
   // Cross-watchlist IV distribution — mirrors use-top-options.ts exactly (put IVs only).
   const allWatchlistIVs: number[] = [];
@@ -370,10 +419,10 @@ export async function runModelSnapshot(snapshotDate: string = todayStr()): Promi
   const degraded = recs > 0 && liveBidRecs < Math.ceil(recs * 0.5);
 
   logger.info(
-    { snapshotDate, tickers: tickers.length, recs, hotlist, regimeStubs, failures, liveBidRecs, degraded, snapshotPersisted },
+    { snapshotDate, tickers: tickers.length, recs, hotlist, regimeStubs, failures, liveBidRecs, degraded, snapshotPersisted, quoteSource },
     "model-track-record: snapshot complete",
   );
-  return { recs, hotlist, regimeStubs, tickers: tickers.length, failures, liveBidRecs, degraded };
+  return { recs, hotlist, regimeStubs, tickers: tickers.length, failures, liveBidRecs, degraded, quoteSource };
 }
 
 // ── Regime grade stubs / grading → model-track-regime.ts (A83) ───────────────

@@ -7,7 +7,7 @@
  * greeks beyond delta are recomputable from iv and skipped.
  */
 import { logger } from "./logger.js";
-import type { OptionsChainResult } from "./options.js";
+import type { OptionRow, OptionsChainResult } from "./options.js";
 
 export const CHAIN_HISTORY_MAX_OTM = 0.35;
 export const CHAIN_HISTORY_MIN_OTM = 0.01;
@@ -90,5 +90,101 @@ export async function persistChainHistory(chainsByTicker: Map<string, OptionsCha
   } catch (err) {
     logger.warn({ err }, "option-chain-history: save failed");
     return 0;
+  }
+}
+
+/** Pure: DB-shaped rows → OptionsChainResult map (for closed-market / miss-day reconstruct). */
+export function chainsFromHistoryRows(
+  rows: Array<{
+    ticker: string;
+    expiry: string;
+    side: string;
+    strike: number;
+    dte: number | null;
+    spot: number;
+    bid: number;
+    ask: number | null;
+    last: number | null;
+    iv: number | null;
+    delta: number | null;
+    volume: number | null;
+    openInterest: number | null;
+    source: string | null;
+  }>,
+): Map<string, OptionsChainResult[]> {
+  type Acc = Map<string, OptionsChainResult>; // key = expiry
+  const byTicker = new Map<string, Acc>();
+  for (const r of rows) {
+    const t = r.ticker.toUpperCase();
+    let byExp = byTicker.get(t);
+    if (!byExp) {
+      byExp = new Map();
+      byTicker.set(t, byExp);
+    }
+    const exp = r.expiry.slice(0, 10);
+    let chain = byExp.get(exp);
+    if (!chain) {
+      const dte = r.dte ?? 0;
+      chain = {
+        ticker: t,
+        expiry: exp,
+        isWeekly: dte <= 9,
+        daysToExpiry: dte,
+        exactDte: dte,
+        settlementDte: dte,
+        spot: r.spot,
+        tier: 1,
+        puts: [],
+        calls: [],
+        fetchedAt: 0,
+        source: r.source === "schwab" || r.source === "yahoo" ? r.source : "yahoo",
+      };
+      byExp.set(exp, chain);
+    }
+    const opt: OptionRow = {
+      strike: r.strike,
+      bid: r.bid,
+      ask: r.ask ?? 0,
+      lastPrice: r.last ?? 0,
+      iv: r.iv ?? 0,
+      volume: r.volume,
+      openInterest: r.openInterest,
+      incomePct: r.strike > 0 ? (r.bid / r.strike) * 100 : 0,
+      meetsGate: true,
+      bidIsLive: true, // persisted only when live that session
+      quoteStale: false,
+      delta: r.delta,
+      spreadPct: r.ask != null && r.ask > 0 && r.bid > 0 ? (r.ask - r.bid) / ((r.ask + r.bid) / 2) : null,
+    };
+    if (r.side === "put") chain.puts.push(opt);
+    else if (r.side === "call") chain.calls.push(opt);
+  }
+  return new Map([...byTicker].map(([t, byExp]) => [t, [...byExp.values()]]));
+}
+
+/** Load a prior session's live chains (written by option-score / model snapshot). Empty map if none. */
+export async function loadChainsFromHistory(
+  asOf: string,
+  tickers?: string[],
+): Promise<Map<string, OptionsChainResult[]>> {
+  try {
+    const { pool } = await import("@workspace/db");
+    const params: unknown[] = [asOf];
+    let filter = "";
+    if (tickers?.length) {
+      params.push(tickers.map((t) => t.toUpperCase()));
+      filter = " AND ticker = ANY($2::text[])";
+    }
+    const { rows } = await pool.query(
+      `SELECT ticker, expiry::text, side, strike::float8 AS strike, dte, spot::float8 AS spot,
+              bid::float8 AS bid, ask::float8 AS ask, last::float8 AS last, iv::float8 AS iv,
+              delta::float8 AS delta, volume, open_interest AS "openInterest", source
+       FROM option_chain_history WHERE as_of = $1::date${filter}`,
+      params,
+    );
+    return chainsFromHistoryRows(rows as Parameters<typeof chainsFromHistoryRows>[0]);
+  } catch (err) {
+    logger.warn({ err, asOf }, "option-chain-history: load failed");
+    return new Map();
   }
 }

@@ -242,16 +242,16 @@ const INVENTORY_SPEC: Record<
   },
   "option-scores": {
     owner: "api-scheduler",
-    writes: ["option_score_snapshots"],
-    mutex: "optionScoreRunning · skip Fri (model-snapshot dual-writes)",
-    cadence: "weekdays ~7:00 AM PT (Model List run) · noon Mon–Thu fallback",
+    writes: ["option_score_snapshots", "option_chain_history"],
+    mutex: "optionScoreRunning · skip Fri noon (morning Model List + Fri snapshot dual-write)",
+    cadence: "weekdays ≥10:00 ET via daily.py · noon Mon–Thu fallback",
     primary: true,
   },
   "model-snapshot": {
     owner: "api-scheduler",
-    writes: ["model_recs", "option_score_snapshots (Fri dual-write)"],
+    writes: ["model_recs", "option_score_snapshots (Fri dual-write)", "option_chain_history"],
     mutex: "modelSnapshotRunning",
-    cadence: "Fri ~12:00 PM PT",
+    cadence: "Fri ≥10:00 ET via daily.py · noon PT fallback · history reconstruct if live bids dead",
     primary: true,
   },
   "model-grade": {

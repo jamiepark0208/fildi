@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chainHistoryRows } from "./option-chain-history.ts";
+import { chainHistoryRows, chainsFromHistoryRows } from "./option-chain-history.ts";
 import type { OptionsChainResult, OptionRow } from "./options.ts";
 
 const row = (strike: number, bid: number, live = true): OptionRow => ({
@@ -21,5 +21,19 @@ describe("chainHistoryRows", () => {
     assert.deepEqual(rows.map((r) => `${r.side}${r.strike}`), ["put90", "call110"]);
     assert.equal(rows[0]!.ticker, "ABC");
     assert.equal(rows[0]!.source, "schwab");
+  });
+});
+
+describe("chainsFromHistoryRows", () => {
+  it("rebuilds put/call chains keyed by ticker", () => {
+    const map = chainsFromHistoryRows([
+      { ticker: "abc", expiry: "2026-10-16", side: "put", strike: 90, dte: 10, spot: 100, bid: 0.5, ask: 0.6, last: 0.55, iv: 0.4, delta: -0.2, volume: 1, openInterest: 10, source: "schwab" },
+      { ticker: "abc", expiry: "2026-10-16", side: "call", strike: 110, dte: 10, spot: 100, bid: 0.3, ask: 0.4, last: null, iv: 0.35, delta: 0.2, volume: null, openInterest: 5, source: "schwab" },
+    ]);
+    const chains = map.get("ABC");
+    assert.equal(chains?.length, 1);
+    assert.equal(chains![0]!.puts.length, 1);
+    assert.equal(chains![0]!.calls.length, 1);
+    assert.equal(chains![0]!.puts[0]!.bidIsLive, true);
   });
 });
