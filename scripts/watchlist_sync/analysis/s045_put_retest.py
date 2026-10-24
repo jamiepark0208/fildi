@@ -21,12 +21,19 @@ Time-series features (one value per week): spy_dd_52w, mkt_med_dd, spy_vrp (S027
 Evaluation: weekly cross-sectional Spearman (Fama-MacBeth mean, t over weeks, halves), quintile
 spreads in breach % and pnl bp per week. Pre-declared bar: |t| ≥ 3 on pnl after controls and same
 sign in both halves → candidate (still needs a before/after on the Model List before shipping).
+
+Signal: .venv/bin/python analysis/s045_put_retest.py signal --module path.py:func | --expr "E['iv_rv']"
+func(E) returns one value per cached put. Prints Q5−Q1 pnl/breach, marginal vs put_edge, halves, placebo.
 """
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import math
 import sys
+import time
+from bisect import bisect_right
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
@@ -255,7 +262,191 @@ def ts_test(ev, feat):
             "pnl_sd_hi": sd(hi, 1) * 1e4, "pnl_sd_lo": sd(lo, 1) * 1e4}
 
 
+SIGNAL_VERSION = "1"
+
+
+def _attach_put_edge(conn, ev) -> None:
+    """vol-of-vol from the prior 61 IV prints, put tech = trend − volumeConfirm, put_edge = rank blend."""
+    tick = sorted({e["t"] for e in ev})
+    days, vals = defaultdict(list), defaultdict(list)
+    for t, d, p30 in conn.execute(
+            """SELECT ticker, date, iv30_put::float8 FROM lseg_research.daily_history
+               WHERE ticker = ANY(%s) AND iv30_put > 0 ORDER BY ticker, date""", (tick,)):
+        days[t].append(d)
+        vals[t].append(float(p30))
+    for e in ev:
+        ds, vs = days.get(e["t"]), vals.get(e["t"])
+        if ds:
+            j = bisect_right(ds, e["d"])
+            p = [v for v in vs[max(0, j - 61):j] if v > 0]
+            if len(p) >= 40:
+                e["vol_of_vol"] = float(np.std(np.diff(np.log(np.asarray(p, float)))))
+        tc = e.get("tech_trendContext"), e.get("tech_volumeConfirm")
+        if None not in tc:
+            e["put_tech"] = float(tc[0]) - float(tc[1])
+    by = defaultdict(list)
+    for e in ev:
+        iv_rv = e.get("iv_rv")
+        if iv_rv is None or e.get("vol_of_vol") is None or e.get("put_tech") is None:
+            continue
+        if not (0.3 <= float(iv_rv) <= 5):
+            continue
+        by[e["d"]].append(e)
+    for g in by.values():
+        if len(g) < 30:
+            continue
+        acc = np.zeros(len(g))
+        for k in ("iv_rv", "vol_of_vol", "put_tech"):
+            acc += rank([e[k] for e in g])
+        pct = rank(list(acc / 3.0))
+        for e, p in zip(g, pct):
+            e["put_edge"] = float(p)
+            e["put_edge_q"] = float(min(5, int(float(p) * 5) + 1))
+
+
+def events_to_panel(ev) -> dict:
+    E = {"ticker": np.array([e["t"] for e in ev]),
+         "as_of": np.array([e["d"].isoformat() if hasattr(e["d"], "isoformat") else str(e["d"])[:10] for e in ev])}
+    skip = {"t", "d", "expiry"}
+    keys = sorted({k for e in ev for k, v in e.items()
+                   if k not in skip and isinstance(v, (int, float)) and not isinstance(v, bool)})
+    for k in keys:
+        E[k] = np.array([np.nan if e.get(k) is None else float(e[k]) for e in ev], float)
+    return E
+
+
+def load_signal_panel() -> dict:
+    cache_dir = HERE / "out" / "opt"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    conn = connect()
+    try:
+        stamp = conn.execute("""SELECT concat_ws('|',
+            (SELECT max(computed_at)::text FROM watchlist_sync.lab_outcomes),
+            (SELECT max(computed_at)::text FROM watchlist_sync.lab_tech),
+            (SELECT max(date)::text FROM lseg_research.daily_history))""").fetchone()[0]
+        key = hashlib.sha1((stamp + "|" + SIGNAL_VERSION).encode()).hexdigest()[:10]
+        path = cache_dir / f"s045_signal_{key}.npz"
+        if path.exists():
+            z = np.load(path, allow_pickle=True)
+            return {k: z[k] for k in z.files}
+        ev_rows, tech, fund, px = load(conn)
+        ev = build(ev_rows, tech, fund, px)
+        _attach_put_edge(conn, ev)
+        E = events_to_panel(ev)
+        for old in cache_dir.glob("s045_signal_*.npz"):
+            old.unlink()
+        np.savez(path, **E)
+        print(f"put signal cache: {len(E['as_of']):,} events → {path.name}")
+        return E
+    finally:
+        conn.close()
+
+
+def put_signal_report(E, score, holdout="2023-01-01", lag=3, seed=7) -> str:
+    """Q5−Q1 pnl/breach, marginal vs put_edge quintile, halves, placebo. Verdict PASS / duplicate / FAIL."""
+    import lab
+    score = np.asarray(score, float).reshape(-1)
+    pnl = np.asarray(E["pnl"], float)
+    breach = np.asarray(E["breach"], float)
+    edge_q = np.asarray(E["put_edge_q"], float) if "put_edge_q" in E else np.full(len(score), np.nan)
+    dates = sorted({str(s)[:10] for s in np.asarray(E["as_of"]).tolist()})
+    use = [s for s in dates if s >= holdout and date.fromisoformat(s).weekday() == 0]
+    if not use:
+        use = [s for s in dates if s >= holdout]
+    mid = use[len(use) // 2] if use else holdout
+    groups = defaultdict(list)
+    want = set(use)
+    for i, s in enumerate(E["as_of"]):
+        if str(s)[:10] in want:
+            groups[str(s)[:10]].append(i)
+    spread, br, marg, packed = [], [], [], []
+    for d in use:
+        idx = np.array(groups.get(d, []), int)
+        if len(idx) < 30:
+            continue
+        m = np.isfinite(score[idx]) & np.isfinite(pnl[idx]) & np.isfinite(breach[idx])
+        if int(m.sum()) < 30:
+            continue
+        sc, py, bv = score[idx][m], pnl[idx][m], breach[idx][m]
+        k = len(sc) // 5
+        if k < 1 or np.std(sc) == 0:
+            continue
+        order = np.argsort(sc, kind="mergesort")
+        spread.append((d, 1e4 * float(py[order[-k:]].mean() - py[order[:k]].mean())))
+        br.append((d, 100.0 * float(bv[order[-k:]].mean() - bv[order[:k]].mean())))
+        packed.append((d, sc, py))
+        qq = edge_q[idx][m]
+        gaps = []
+        for q in range(1, 6):
+            sel = qq == q
+            if int(sel.sum()) < 4 or np.std(sc[sel]) == 0:
+                continue
+            med = float(np.median(sc[sel]))
+            hi, lo = py[sel & (sc >= med)], py[sel & (sc < med)]
+            if len(hi) and len(lo):
+                gaps.append(1e4 * float(hi.mean() - lo.mean()))
+        if len(gaps) >= 3:
+            marg.append((d, float(np.mean(gaps))))
+    sp, bp, mq = lab.pack_weeks(spread, mid, lag), lab.pack_weeks(br, mid, lag), lab.pack_weeks(marg, mid, lag)
+    rng = np.random.default_rng(seed)
+    placebo = []
+    for d, sc, py in packed:
+        sh = np.array(sc, copy=True)
+        rng.shuffle(sh)
+        k = len(sh) // 5
+        if k < 1 or np.std(sh) == 0:
+            continue
+        order = np.argsort(sh, kind="mergesort")
+        placebo.append((d, 1e4 * float(py[order[-k:]].mean() - py[order[:k]].mean())))
+    pl = lab.pack_weeks(placebo, mid, lag)
+    if lab.clears(sp) and lab.clears(mq):
+        verdict = "PASS"
+    elif lab.clears(sp):
+        verdict = "duplicate"
+    else:
+        verdict = "FAIL"
+
+    def row(name, p):
+        if not p or not math.isfinite(p.get("mean", math.nan)):
+            return f"| {name} | — | — | — | — | {p.get('n', 0) if p else 0} |"
+        return f"| {name} | {p['mean']:+.2f} | {p['t']:+.2f} | {p['a']:+.2f} | {p['b']:+.2f} | {p['n']} |"
+
+    lines = [
+        f"holdout {holdout}  weeks {len(use)}  scored {sp.get('n', 0)}  NW lag {lag}  midpoint {mid}  seed {seed}",
+        "| piece | mean | t | half A | half B | weeks |",
+        "|---|---|---|---|---|---|",
+        row("Q5−Q1 pnl bp", sp),
+        row("Q5−Q1 breach pp", bp),
+        row("within put_edge q pnl bp", mq),
+        row("placebo Q5−Q1 pnl bp", pl),
+        f"verdict {verdict}",
+    ]
+    return "\n".join(lines)
+
+
+def run_signal(a) -> None:
+    import lab
+    t0 = time.time()
+    E = load_signal_panel()
+    t_load = time.time() - t0
+    sig = lab.call_signal(E, a.module, a.expr)
+    t1 = time.time()
+    print(put_signal_report(E, sig, a.holdout, seed=a.seed))
+    print(f"timing load {t_load:.2f}s eval {time.time() - t1:.2f}s")
+
+
 def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("what", nargs="?", default="report", choices=["report", "signal"])
+    ap.add_argument("--module", default="")
+    ap.add_argument("--expr", default="")
+    ap.add_argument("--holdout", default="2023-01-01")
+    ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--write", action="store_true")
+    a = ap.parse_args()
+    if a.what == "signal":
+        run_signal(a)
+        return
     conn = connect()
     rows, tech, fund, px = load(conn)
     ev = build(rows, tech, fund, px)

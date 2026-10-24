@@ -14,17 +14,22 @@ A score is GOOD when the claim it makes comes true (strategy-neutral; strategies
   6 not redundant  |corr| with the other scorecards < 0.7 and it adds IC beyond them
 Sanity checks run first: placebo (score shuffled within date → IC ≈ 0) and IV-mechanics (options targets measured with IV held fixed).
 
-Usage: .venv/bin/python analysis/lab.py [report|weights|pca] → out/lab/*.md
+Usage: .venv/bin/python analysis/lab.py [report|weights|pca|signal] → out/lab/*.md
+  signal --module path.py:func | --expr "np expression over D" [--target rel_21] [--holdout 2023-01-01]
+  func(D) returns one value per cached row. Cold cache is the slow step; a warm signal is seconds.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import math
 import sys
+import time
+from bisect import bisect_right
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -38,35 +43,79 @@ V2_W = {"oversoldDepth": 0.25, "reversalSignal": 0.20, "volatilityState": 0.22, 
 FEATS = ["dd_52w", "mom_12_1", "dist_ma200", "rev5", "beta", "idio_vol", "iv30", "iv_rv", "iv_rank_1y", "earnings_21", "alpha",
          "mkt_med_dd", "spy_dd_52w", "spy_vrp"]
 OUTS = ["ret_5", "ret_21", "ret_63", "ret_126", "rel_5", "rel_21", "rel_63", "rel_126", "mae_21", "mfe_21", "rv_fwd_21", "vrp_real"]
-CACHE_VERSION = "5"   # bump when load() changes
+CACHE_VERSION = "6"   # bump when load() changes
 ENGINE = ""           # engine digest to grade; default = the most recently replayed base engine (--engine to pin)
 INPUTS = ["realizedVol20d", "rsi14Pct", "mfi14Pct", "stochPct", "priceVsMa50Atr", "priceVsMa200Atr", "ivRankRvProxy", "ivRankEffective", "ivVsRealizedVol",
           "bbWidthPct", "vsSpy20d", "earningsDaysOut"]
 
 
 # ---------------- data ----------------
+def _panel_stamp(conn) -> str:
+    """Cache key. Each extra source is skipped when its table is absent."""
+    return conn.execute("""
+        SELECT concat_ws('|',
+          (SELECT max(computed_at)::text FROM watchlist_sync.lab_tech),
+          (SELECT max(computed_at)::text FROM watchlist_sync.lab_outcomes),
+          COALESCE((SELECT max(computed_at)::text FROM watchlist_sync.lab_fund), ''),
+          COALESCE((SELECT max(obs_date)::text FROM lseg_research.starmine_history), ''),
+          COALESCE((SELECT max(as_of)::text FROM lseg_research.signals_daily), ''),
+          COALESCE((SELECT max(date)::text FROM lseg_research.daily_history), ''),
+          CASE WHEN to_regclass('public.short_interest_history') IS NULL THEN ''
+               ELSE COALESCE((SELECT max(settlement_date)::text FROM short_interest_history), '') END,
+          CASE WHEN to_regclass('public.insider_transactions') IS NULL THEN ''
+               ELSE COALESCE((SELECT max(filed)::text FROM insider_transactions), '') END,
+          CASE WHEN to_regclass('public.ticker_fundamentals') IS NULL THEN ''
+               ELSE COALESCE((SELECT max(fundamentals_last_fetched)::text FROM ticker_fundamentals), '') END)
+    """).fetchone()[0]
+
+
+def _pick_engine(conn) -> str:
+    """Digest whose rows join outcomes.
+
+    The newest base replay can be a short stub (0 outcome joins) while its
+    -ivhist sibling holds the history the A262 bar uses. Honor --engine.
+    """
+    global ENGINE
+    if ENGINE:
+        return ENGINE
+    base = conn.execute("""SELECT engine_digest FROM watchlist_sync.lab_tech WHERE engine_digest NOT LIKE '%-%'
+                           GROUP BY 1 ORDER BY max(computed_at) DESC LIMIT 1""").fetchone()
+    iv = conn.execute("""SELECT engine_digest FROM watchlist_sync.lab_tech WHERE engine_digest LIKE '%-ivhist'
+                         GROUP BY 1 ORDER BY max(as_of) DESC, max(computed_at) DESC LIMIT 1""").fetchone()
+    base_id = base[0] if base else ""
+    iv_id = iv[0] if iv else ""
+    chosen = base_id or iv_id
+    if base_id and iv_id and iv_id != base_id:
+        n = conn.execute("""SELECT count(*) FROM watchlist_sync.lab_tech t
+                            JOIN watchlist_sync.lab_outcomes o USING (ticker, as_of)
+                            WHERE t.engine_digest = %s""", (base_id,)).fetchone()[0]
+        if n < 1000:
+            chosen = iv_id
+            print(f"lab panel engine {iv_id} (base {base_id} joins {n})")
+    ENGINE = chosen
+    return ENGINE
+
+
 def load() -> dict:
     global ENGINE
     OUT.mkdir(parents=True, exist_ok=True)
     with connect() as conn:
-        stamp = conn.execute("""SELECT (SELECT max(computed_at)::text FROM watchlist_sync.lab_tech) || '|' ||
-                                       (SELECT max(computed_at)::text FROM watchlist_sync.lab_outcomes) || '|' ||
-                                       COALESCE((SELECT max(computed_at)::text FROM watchlist_sync.lab_fund), '')""").fetchone()[0]
-        ENGINE = ENGINE or conn.execute("""SELECT engine_digest FROM watchlist_sync.lab_tech WHERE engine_digest NOT LIKE '%-%'
-                                            GROUP BY 1 ORDER BY max(computed_at) DESC LIMIT 1""").fetchone()[0]
+        stamp = _panel_stamp(conn)
+        ENGINE = _pick_engine(conn)
         key = hashlib.sha1((stamp + CACHE_VERSION + ENGINE).encode()).hexdigest()[:10]
         cache = OUT / f"cache_{key}.npz"
         if cache.exists():
             z = np.load(cache, allow_pickle=True)
             return {k: z[k] for k in z.files}
-        ENGINE = ENGINE or conn.execute("""SELECT engine_digest FROM watchlist_sync.lab_tech WHERE engine_digest NOT LIKE '%-%'
-                                            GROUP BY 1 ORDER BY max(computed_at) DESC LIMIT 1""").fetchone()[0]
+        # ivhist primary: the sibling join would look for "<ivhist>-ivhist". v2 on this digest is lab_tech v2.
+        iv_join = "" if str(ENGINE).endswith("-ivhist") else "-ivhist"
         R = rows(conn, """SELECT t.ticker, t.as_of, t.inputs, t.v2, t.v4_put, t.v4_call, o.outcomes, o.features, x.v2 v2x, x.v4_put v4px,
                                  COALESCE(fu.features, '{}'::jsonb) fund
                           FROM watchlist_sync.lab_tech t JOIN watchlist_sync.lab_outcomes o USING (ticker, as_of)
                           LEFT JOIN watchlist_sync.lab_fund fu USING (ticker, as_of)
-                          LEFT JOIN watchlist_sync.lab_tech x ON x.ticker = t.ticker AND x.as_of = t.as_of AND x.engine_digest = t.engine_digest || '-ivhist'
-                          WHERE t.engine_digest = %s ORDER BY t.as_of, t.ticker""", (ENGINE,))
+                          LEFT JOIN watchlist_sync.lab_tech x ON x.ticker = t.ticker AND x.as_of = t.as_of
+                               AND %s <> '' AND x.engine_digest = t.engine_digest || %s
+                          WHERE t.engine_digest = %s ORDER BY t.as_of, t.ticker""", (iv_join, iv_join, ENGINE))
     n = len(R)
     D = {"ticker": np.array([r["ticker"] for r in R]), "as_of": np.array([r["as_of"].isoformat() for r in R]),
          "peer": np.array([str(r["inputs"].get("peerGroupId")) for r in R])}
@@ -104,6 +153,7 @@ def load() -> dict:
         D["o.mfe_z"] = np.where(sf > 0, D["o.mfe_21"] / sf, np.nan)
         D["o.mae_iv"] = np.where(si > 0, D["o.mae_21"] / si, np.nan)
         D["o.mfe_iv"] = np.where(si > 0, D["o.mfe_21"] / si, np.nan)
+    _extend_panel(D)
     for old in OUT.glob("cache_*.npz"):
         old.unlink()
     np.savez(cache, **D)
@@ -525,14 +575,457 @@ def rankc_by_date(D, x, L):
     return out
 
 
+# ---------------- panel fields (A268) ----------------
+# A266 mapped fundamentals. Snapshot only: filled on rows with as_of >= the fetch date.
+VENDOR_COLS = (
+    "forward_pe", "peg_ttm", "eps_growth_5y", "revenue_growth_5y", "payout_ratio", "interest_coverage",
+    "price_to_fcf", "fcf_yield", "sbc_to_revenue", "income_quality", "price_to_tbv", "tier1_capital_ratio",
+    "total_capital_ratio", "rotce", "net_interest_income", "total_deposits", "tangible_book_value_per_share",
+)
+SD_COLS = (
+    "short_pct", "short_interest", "arm_rank", "imp_volt", "combined_alpha_rank",
+    "valmo_rank", "price_mo_rank", "relval_rank", "free_float",
+)
+MIN_NAMES = 30
+MIN_HALF = 8
+SIGNAL_LAG = 3  # weekly rel_21 overlap, same lag as S095 / S089
+
+
+def _as_ord(v) -> int:
+    if isinstance(v, (int, np.integer)):
+        return int(v)
+    if isinstance(v, datetime):
+        v = v.date()
+    if isinstance(v, date):
+        return v.toordinal()
+    s = str(v)[:10]
+    return date(int(s[0:4]), int(s[5:7]), int(s[8:10])).toordinal()
+
+
+def align_asof(tickers, as_of, series, as_ord=None) -> np.ndarray:
+    """Last value with obs_date <= panel date, per ticker. Later observations are not used.
+
+    series[ticker] = sorted (ordinal or date, value). Missing ticker or no prior obs → NaN.
+    """
+    n = len(tickers)
+    out = np.full(n, np.nan)
+    if as_ord is None:
+        as_ord = np.fromiter((_as_ord(s) for s in as_of), dtype=np.int32, count=n)
+    buckets = defaultdict(list)
+    for i, t in enumerate(tickers):
+        buckets[t].append(i)
+    for t, idxs in buckets.items():
+        obs = series.get(t)
+        if not obs:
+            continue
+        keys = [_as_ord(o[0]) for o in obs]
+        vals = [float(o[1]) for o in obs]
+        for i in idxs:
+            j = bisect_right(keys, int(as_ord[i])) - 1
+            if j >= 0:
+                out[i] = vals[j]
+    return out
+
+
+def trailing_net(tickers, as_of, txns, window_days=90, as_ord=None) -> np.ndarray:
+    """Signed sum of filings in [as_of - window_days, as_of].
+
+    txns[ticker] = sorted (ordinal or date, signed dollars). A ticker with no
+    rows stays NaN. A covered ticker with nothing in the window is 0.
+    A filing after as_of is not included.
+    """
+    n = len(tickers)
+    out = np.full(n, np.nan)
+    if as_ord is None:
+        as_ord = np.fromiter((_as_ord(s) for s in as_of), dtype=np.int32, count=n)
+    buckets = defaultdict(list)
+    for i, t in enumerate(tickers):
+        buckets[t].append(i)
+    for t, idxs in buckets.items():
+        obs = txns.get(t)
+        if not obs:
+            continue
+        keys = [_as_ord(o[0]) for o in obs]
+        vals = np.array([float(o[1]) for o in obs], float)
+        prefix = np.cumsum(vals)
+        for i in idxs:
+            hi = int(as_ord[i])
+            lo = hi - int(window_days)
+            right = bisect_right(keys, hi)
+            left = bisect_right(keys, lo - 1)  # first index with filed >= lo
+            if right <= left:
+                out[i] = 0.0
+            else:
+                out[i] = float(prefix[right - 1] - (prefix[left - 1] if left else 0.0))
+    return out
+
+
+def _series(recs, date_key, value_key) -> dict:
+    raw = defaultdict(list)
+    for r in recs:
+        v = r[value_key]
+        if r.get(date_key) is None or v is None or (isinstance(v, float) and not math.isfinite(v)):
+            continue
+        raw[r["ticker"]].append((_as_ord(r[date_key]), float(v)))
+    out = {}
+    for t, pairs in raw.items():
+        dedup = {}
+        for o, v in pairs:
+            dedup[o] = v
+        out[t] = sorted(dedup.items())
+    return out
+
+
+def _safe_rows(conn, name, sql, params=()):
+    try:
+        return rows(conn, sql, params)
+    except Exception as e:
+        print(f"lab panel skip {name}: {type(e).__name__}: {str(e).splitlines()[0][:180]}")
+        return []
+
+
+def _extend_panel(D: dict) -> None:
+    """Point-in-time columns so a signal expression does not open SQL."""
+    D["iv.iv30"] = np.array(D["f.iv30"], dtype=float, copy=True)
+    D["iv.iv_rv"] = np.array(D["f.iv_rv"], dtype=float, copy=True)
+    if str(ENGINE).endswith("-ivhist"):
+        D["tech.ivhist"] = np.array(D["v2_total"], dtype=float, copy=True)
+    n = len(D["as_of"])
+    as_ord = np.fromiter((_as_ord(s) for s in D["as_of"]), dtype=np.int32, count=n)
+    tickers = D["ticker"]
+    names = sorted(set(np.asarray(tickers).tolist()))
+    conn = connect()
+    conn.autocommit = True
+    try:
+        if "tech.ivhist" not in D:
+            iv = conn.execute("""SELECT engine_digest FROM watchlist_sync.lab_tech WHERE engine_digest LIKE '%-ivhist'
+                                 GROUP BY 1 ORDER BY max(as_of) DESC, max(computed_at) DESC LIMIT 1""").fetchone()
+            if iv:
+                recs = _safe_rows(conn, "ivhist tech", """SELECT ticker, as_of, (v2->>'total')::float8 AS value
+                    FROM watchlist_sync.lab_tech WHERE engine_digest = %s AND v2->>'total' IS NOT NULL""", (iv[0],))
+                exact = {(r["ticker"], _as_ord(r["as_of"])): float(r["value"]) for r in recs if r["value"] is not None}
+                tech = np.full(n, np.nan)
+                for i, t in enumerate(tickers):
+                    v = exact.get((t, int(as_ord[i])))
+                    if v is not None:
+                        tech[i] = v
+                D["tech.ivhist"] = tech
+        recs = _safe_rows(conn, "starmine", """SELECT ticker, metric, obs_date, value::float8 AS value
+            FROM lseg_research.starmine_history WHERE value IS NOT NULL""")
+        by_m = defaultdict(list)
+        for r in recs:
+            by_m[r["metric"]].append(r)
+        for metric, group in by_m.items():
+            D[f"sm.{metric}"] = align_asof(tickers, D["as_of"], _series(group, "obs_date", "value"), as_ord)
+        sd_sql = "SELECT ticker, as_of, " + ", ".join(f"{c}::float8 AS {c}" for c in SD_COLS) + \
+                 " FROM lseg_research.signals_daily"
+        recs = _safe_rows(conn, "signals_daily", sd_sql)
+        for c in SD_COLS:
+            D[f"sd.{c}"] = align_asof(tickers, D["as_of"], _series(recs, "as_of", c), as_ord)
+        recs = _safe_rows(conn, "iv30", """SELECT ticker, date AS as_of, iv30_put::float8 AS iv30_put, iv30_call::float8 AS iv30_call
+            FROM lseg_research.daily_history WHERE ticker = ANY(%s) AND iv30_put IS NOT NULL""", (names,))
+        D["iv.iv30_put"] = align_asof(tickers, D["as_of"], _series(recs, "as_of", "iv30_put"), as_ord)
+        D["iv.iv30_call"] = align_asof(tickers, D["as_of"], _series(recs, "as_of", "iv30_call"), as_ord)
+        recs = _safe_rows(conn, "short interest", """SELECT ticker, settlement_date AS as_of, short_interest::float8 AS shares,
+            days_to_cover::float8 AS days_to_cover FROM short_interest_history WHERE settlement_date > '1900-01-02'""")
+        D["si.shares"] = align_asof(tickers, D["as_of"], _series(recs, "as_of", "shares"), as_ord)
+        D["si.days_to_cover"] = align_asof(tickers, D["as_of"], _series(recs, "as_of", "days_to_cover"), as_ord)
+        recs = _safe_rows(conn, "insider", """SELECT ticker, filed AS as_of, code, COALESCE(value, shares * price, 0)::float8 AS dollars
+            FROM insider_transactions WHERE code IN ('buy', 'sell')""")
+        raw = defaultdict(list)
+        for r in recs:
+            sign = 1.0 if r["code"] == "buy" else -1.0
+            raw[r["ticker"]].append((_as_ord(r["as_of"]), sign * float(r["dollars"] or 0.0)))
+        tx = {t: sorted(pairs) for t, pairs in raw.items()}
+        D["in.net_buy_90d"] = trailing_net(tickers, D["as_of"], tx, 90, as_ord)
+        vsql = "SELECT ticker, fundamentals_last_fetched::date AS as_of, " + \
+               ", ".join(f"{c}::float8 AS {c}" for c in VENDOR_COLS) + " FROM ticker_fundamentals"
+        recs = _safe_rows(conn, "vendor", vsql)
+        for c in VENDOR_COLS:
+            key = "vd.tbv_ps" if c == "tangible_book_value_per_share" else f"vd.{c}"
+            D[key] = align_asof(tickers, D["as_of"], _series(recs, "as_of", c), as_ord)
+    finally:
+        conn.close()
+    bits = []
+    for key in ("sm.combined_alpha_rank", "iv.iv30_put", "si.days_to_cover", "in.net_buy_90d", "vd.forward_pe", "sd.short_pct"):
+        if key in D:
+            bits.append(f"{key} {int(np.isfinite(np.asarray(D[key], float)).sum()):,}")
+    print("panel fields: " + ", ".join(bits))
+
+
+def rank01(x) -> np.ndarray:
+    """Average ranks scaled 0..1. Same tie rule as s045_put_retest.rank."""
+    x = np.asarray(x, float)
+    n = len(x)
+    order = np.argsort(x, kind="mergesort")
+    r = np.empty(n)
+    xs = x[order]
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and xs[j + 1] == xs[i]:
+            j += 1
+        r[order[i:j + 1]] = 0.5 * (i + j)
+        i = j + 1
+    return r / max(1, n - 1)
+
+
+def pack_weeks(pairs, mid: str, lag: int) -> dict:
+    pairs = [(d, float(v)) for d, v in pairs if v is not None and math.isfinite(v)]
+    if len(pairs) < MIN_HALF:
+        return {"thin": True, "n": len(pairs), "mean": math.nan, "t": math.nan, "a": math.nan, "b": math.nan, "na": 0, "nb": 0}
+    a = [v for d, v in pairs if d < mid]
+    b = [v for d, v in pairs if d >= mid]
+    vals = [v for _, v in pairs]
+    t = float(nw_t(vals, lag))
+    return {"thin": len(a) < MIN_HALF or len(b) < MIN_HALF, "n": len(pairs), "na": len(a), "nb": len(b),
+            "mean": float(np.mean(vals)), "t": t,
+            "a": float(np.mean(a)) if a else math.nan, "b": float(np.mean(b)) if b else math.nan}
+
+
+def clears(p: dict | None) -> bool:
+    return bool(p) and not p.get("thin") and p.get("t") is not None and math.isfinite(p["t"]) and p["t"] >= 2 and p.get("a", -1) > 0 and p.get("b", -1) > 0
+
+
+def week_stock(score, rel, alpha, tech) -> dict | None:
+    """One Monday: rank IC, top−bottom decile, FM partial, within alpha+tech quintile. Matches S095."""
+    if len(score) < MIN_NAMES or np.std(score) == 0 or np.std(rel) == 0:
+        return None
+    rs, ry = rank01(score), rank01(rel)
+    ra, rt = rank01(alpha), rank01(tech)
+    ic = float(np.corrcoef(rs, ry)[0, 1])
+    k = max(1, len(score) // 10)
+    order = np.argsort(-np.asarray(score), kind="mergesort")
+    rel = np.asarray(rel, float)
+    spread = float(rel[order[:k]].mean() - rel[order[-k:]].mean())
+    beta = np.linalg.lstsq(np.c_[np.ones(len(score)), rs, ra, rt], ry, rcond=None)[0]
+    comp = 0.5 * (ra + rt)
+    q = np.clip((comp * 0.999 * 5).astype(int), 0, 4)
+    score = np.asarray(score, float)
+    bits = []
+    for qi in range(5):
+        sel = q == qi
+        if int(sel.sum()) < 8 or np.std(score[sel]) == 0:
+            continue
+        med = np.median(score[sel])
+        hi, lo = rel[sel & (score >= med)], rel[sel & (score < med)]
+        if len(hi) and len(lo):
+            bits.append(float(hi.mean() - lo.mean()))
+    wq = float(np.mean(bits)) if len(bits) >= 3 else math.nan
+    return {"ic": ic, "spread": spread, "fm": float(beta[1]), "wq": wq}
+
+
+def _col(D, name: str) -> np.ndarray:
+    if name in D:
+        return np.asarray(D[name], float)
+    for pref in ("o.", "f.", "sm.", "iv.", "vd.", "sd.", "si.", "in."):
+        if f"{pref}{name}" in D:
+            return np.asarray(D[f"{pref}{name}"], float)
+    raise SystemExit(f"no panel column {name}")
+
+
+def _holdout_mondays(as_of, values, holdout: str) -> list[str]:
+    """Mondays on or after holdout that have a finite target. Same calendar S095 uses for the midpoint."""
+    seen = set()
+    for s, y in zip(as_of, values):
+        if not np.isfinite(y):
+            continue
+        ss = str(s)[:10]
+        if ss < holdout or ss in seen:
+            continue
+        if date.fromisoformat(ss).weekday() != 0:
+            continue
+        seen.add(ss)
+    return sorted(seen)
+
+
+def signal_report(D, score, target="rel_21", holdout="2023-01-01", lag=SIGNAL_LAG, seed=7) -> tuple[str, dict]:
+    """A262 stock bar on one signal aligned to D. Verdict PASS / duplicate / FAIL."""
+    score = np.asarray(score, float).reshape(-1)
+    if score.shape != (len(D["as_of"]),):
+        raise SystemExit(f"signal length {score.shape[0]} != panel {len(D['as_of'])}")
+    rel = _col(D, target)
+    alpha = _col(D, "sm.combined_alpha_rank" if "sm.combined_alpha_rank" in D else "f.alpha")
+    tech = _col(D, "tech.ivhist" if "tech.ivhist" in D else "v2_total")
+    mondays = _holdout_mondays(D["as_of"], rel, holdout)
+    mid = mondays[len(mondays) // 2] if mondays else holdout
+    want = set(mondays)
+    groups = defaultdict(list)
+    for i, s in enumerate(D["as_of"]):
+        if s in want:
+            groups[s].append(i)
+    series = {k: [] for k in ("ic", "spread", "fm", "wq")}
+    cards = [c for c in ("v2_total", "v4p_total", "v4c_total", "f.alpha", "sm.combined_alpha_rank", "tech.ivhist") if c in D]
+    corrs = {c: [] for c in cards}
+    ns, packed = [], []
+    for d in mondays:
+        idx = np.array(groups.get(d, []), int)
+        if len(idx) == 0:
+            continue
+        m = np.isfinite(score[idx]) & np.isfinite(rel[idx]) & np.isfinite(alpha[idx]) & np.isfinite(tech[idx])
+        if int(m.sum()) < MIN_NAMES:
+            continue
+        sc, ry, al, te = score[idx][m], rel[idx][m], alpha[idx][m], tech[idx][m]
+        met = week_stock(sc, ry, al, te)
+        if not met:
+            continue
+        ns.append(len(sc))
+        packed.append((d, sc, ry, al, te))
+        for k in series:
+            if math.isfinite(met[k]):
+                series[k].append((d, met[k]))
+        for c in cards:
+            other = np.asarray(D[c], float)[idx][m]
+            if int(np.isfinite(other).sum()) < MIN_NAMES or np.std(other[np.isfinite(other)]) == 0 or np.std(sc) == 0:
+                continue
+            ok = np.isfinite(other)
+            if int(ok.sum()) < MIN_NAMES or np.std(sc[ok]) == 0 or np.std(other[ok]) == 0:
+                continue
+            corrs[c].append((d, float(np.corrcoef(rank01(sc[ok]), rank01(other[ok]))[0, 1])))
+    stats = {k: pack_weeks(v, mid, lag) for k, v in series.items()}
+    stats["corr"] = {c: pack_weeks(v, mid, lag) for c, v in corrs.items()}
+    rng = np.random.default_rng(seed)
+    placebo = []
+    for d, sc, ry, al, te in packed:
+        sh = sc.copy()
+        rng.shuffle(sh)
+        met = week_stock(sh, ry, al, te)
+        if met and math.isfinite(met["ic"]):
+            placebo.append((d, met["ic"]))
+    stats["placebo"] = pack_weeks(placebo, mid, lag)
+    stats["n_weeks"] = len(ns)
+    stats["mean_n"] = float(np.mean(ns)) if ns else 0.0
+    stats["mid"] = mid
+    stats["mondays"] = len(mondays)
+    ic, fm, wq = stats["ic"], stats["fm"], stats["wq"]
+    if clears(ic) and (clears(fm) or clears(wq)):
+        verdict = "PASS"
+    elif clears(ic):
+        verdict = "duplicate"
+    else:
+        verdict = "FAIL"
+    stats["verdict"] = verdict
+
+    def row(name, p, scale=1.0):
+        if not p or not math.isfinite(p.get("mean", math.nan)):
+            n = p.get("n", 0) if p else 0
+            return f"| {name} | — | — | — | — | {n} |"
+        return (f"| {name} | {p['mean'] * scale:+.4f} | {p['t']:+.2f} | {p['a'] * scale:+.4f} | "
+                f"{p['b'] * scale:+.4f} | {p['n']} |")
+
+    lines = [
+        f"holdout {holdout}  mondays {len(mondays)}  scored weeks {len(ns)}  mean n {stats['mean_n']:.1f}  "
+        f"NW lag {lag}  midpoint {mid}  seed {seed}",
+        "| piece | mean | t | half A | half B | weeks |",
+        "|---|---|---|---|---|---|",
+        row("rank IC", ic),
+        row("decile pp", stats["spread"], 100),
+        row("FM partial", fm),
+        row("within-quintile pp", wq, 100),
+        row("placebo IC", stats["placebo"]),
+    ]
+    for c, p in stats["corr"].items():
+        lines.append(row(f"corr {c}", p))
+    lines.append(f"verdict {verdict}")
+    return "\n".join(lines), stats
+
+
+def _load_func(spec: str):
+    path_s, _, name = spec.partition(":")
+    if not name:
+        raise SystemExit("--module needs path.py:func")
+    raw = Path(path_s)
+    cands = [raw, Path(__file__).resolve().parent / raw, Path(__file__).resolve().parents[1] / raw]
+    found = next((c for c in cands if c.is_file()), None)
+    if found is None:
+        raise SystemExit(f"module not found: {path_s}")
+    if found.resolve() == Path(__file__).resolve():
+        fn = globals().get(name)
+        if fn is None:
+            raise SystemExit(f"{name} not in lab.py")
+        return fn
+    mod_name = "fildi_signal_" + hashlib.sha1(str(found.resolve()).encode()).hexdigest()[:8]
+    spec_ = importlib.util.spec_from_file_location(mod_name, found)
+    mod = importlib.util.module_from_spec(spec_)
+    spec_.loader.exec_module(mod)
+    fn = getattr(mod, name, None)
+    if fn is None:
+        raise SystemExit(f"{name} not in {found}")
+    return fn
+
+
+def call_signal(panel, module: str, expr: str) -> np.ndarray:
+    """func(panel) or a numpy expression. Exactly one of module / expr."""
+    if bool(module) == bool(expr):
+        raise SystemExit("pass exactly one of --module path.py:func or --expr")
+    n = len(panel["as_of"])
+    if expr:
+        sig = eval(expr, {"__builtins__": {}}, {"D": panel, "E": panel, "np": np})  # noqa: S307 — local research CLI
+    else:
+        sig = _load_func(module)(panel)
+    sig = np.asarray(sig, dtype=float).reshape(-1)
+    if sig.shape != (n,):
+        raise SystemExit(f"signal length {sig.shape[0]} != panel {n}")
+    return sig
+
+
+def s095_score(D) -> np.ndarray:
+    """S095 walk-forward qlib score, aligned to this panel. First call refits; later calls read the cache."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import s095_qlib_alpha158 as S
+    ident = f"{ENGINE}|{len(D['as_of'])}|{D['as_of'][0]}|{D['as_of'][-1]}"
+    key = hashlib.sha1(Path(S.__file__).read_bytes() + ident.encode()).hexdigest()[:12]
+    path = OUT / f"s095_{key}.npz"
+    if path.exists():
+        print(f"s095 score cache {path.name}")
+        return np.load(path)["score"]
+    t0 = time.time()
+    conn = connect()
+    try:
+        _digest, bars, outcomes, tech, alpha, _attached, _missed = S.load_panel(conn, None)
+    finally:
+        conn.close()
+    built, _weeks = S.build_rows(bars, outcomes, tech, alpha)
+    S.assign_scores(built)
+    idx = {(t, d): i for i, (t, d) in enumerate(zip(D["ticker"], D["as_of"]))}
+    out = np.full(len(D["as_of"]), np.nan)
+    hit = 0
+    for r in built:
+        sc = r.get("score")
+        if sc is None or not np.isfinite(sc):
+            continue
+        i = idx.get((r["t"], r["d"].isoformat()))
+        if i is None:
+            continue
+        out[i] = float(sc)
+        hit += 1
+    print(f"s095 scores aligned {hit:,} / panel {len(out):,} in {time.time() - t0:.0f}s")
+    np.savez(path, score=out)
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("what", nargs="?", default="all", choices=["all", "report", "pca", "weights"])
-    ap.add_argument("--engine", default="", help="engine digest to grade (default: latest base replay)")
+    ap.add_argument("what", nargs="?", default="all", choices=["all", "report", "pca", "weights", "signal"])
+    ap.add_argument("--engine", default="", help="engine digest to grade (default: latest base replay that joins outcomes)")
+    ap.add_argument("--module", default="", help="path.py:func  func(D) -> array aligned to the panel")
+    ap.add_argument("--expr", default="", help="numpy expression over D, e.g. D['f.iv_rv']")
+    ap.add_argument("--target", default="rel_21")
+    ap.add_argument("--holdout", default="2023-01-01")
+    ap.add_argument("--seed", type=int, default=7)
     a = ap.parse_args()
     global ENGINE
     ENGINE = a.engine
+    t0 = time.time()
     D = load()
+    t_load = time.time() - t0
+    if a.what == "signal":
+        sig = call_signal(D, a.module, a.expr)
+        t1 = time.time()
+        text, _stats = signal_report(D, sig, a.target, a.holdout, seed=a.seed)
+        print(text)
+        print(f"timing load {t_load:.2f}s eval {time.time() - t1:.2f}s")
+        return
     if a.what in ("all", "report"):
         report(D)
     if a.what in ("all", "pca"):

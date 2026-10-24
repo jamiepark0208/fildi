@@ -40,6 +40,7 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 - Reuse events in a scratch script: `import s045_put_retest as M; ev = M.build(*M.load(M.connect()))`.
 - Python: always `scripts/watchlist_sync/.venv/bin/python` (numpy; no scipy — use the harness `rank()`).
 - Runs > 1 min on Jamie's Mac (Jamie 10-24: backtests ate every core while he worked): prefix `nice -n 15 env OMP_NUM_THREADS=4` — low priority, ≤ 4 cores for sklearn/numpy.
+- Every new signal uses the cached panel first: `analysis/lab.py signal --module path.py:func` or `--expr` (stock board, rel_21, A262 bar) and `analysis/s045_put_retest.py signal` (puts: Q5−Q1 pnl/breach vs the put_edge quintile). A new script only if that harness cannot express the idea. Cold cache build is the slow step; a warm signal is seconds. The signal at date d may use only data dated ≤ d (`align_asof` / `trailing_net`).
 
 ## 4. Checks every result must pass (in this order)
 1. **IV fixed:** strike scales with IV + residualize on iv_rv, iv30, earnings_21 within week. Raw pnl IC re-learns IV (S045: 0.26 → 0.03).
