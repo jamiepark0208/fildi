@@ -114,7 +114,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A137](asks/A137.md) | 2026-10-16 | Muse → Cursor | Vol-mispricing signal E[RV] vs IV | declined (S033 FAIL 10-18: HAR adds +0.015 IV-fixed < 0.02 bar; revisit with intraday RV, A126) |
 | [A138](asks/A138.md) | 2026-10-16 | Muse → Cursor | TimesFM pilot | declined (S033: HAR failed → TimesFM moot; revisit with A126 intraday RV) |
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | parked (Cursor 10-18: overlays shipped; S036 gates composite) |
-| [A140](asks/A140.md) | 2026-10-17 | Muse → Grok | Post-down-day setup flag for scanner + options-book brief | open (routed Muse → Grok 2026-10-18; Grok pre-review only — quant signal, Claude final, not planned. A141 = standing Grok row) |
+| [A140](asks/A140.md) | 2026-10-17 | Muse → Grok | Post-down-day setup flag for scanner + options-book brief | revise |
 | [A141](asks/A141.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | parked — standing (Grok review lane definition, not a task; aging-exempt) |
 | [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | decided 10-18 (Jamie GO; Claude plan + Muse review in file) — residue in A234; not aging work |
 | [A143](asks/A143.md) | 2026-10-17 | Claude → Cursor | OpenJev overnight headline labels in Desk daily news (display only) | done (Cursor 10-18: smoke 72/72 labels in 52s; rollback fix) |
@@ -220,15 +220,15 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A243](asks/A243.md) | 2026-10-22 | Claude → Cursor | [quant] Model List stability: keep ideas until they break, daily scores, no cash gate, long call/put sections | done (Cursor 10-22: freshness+universe gate+carry+cash; LSEG RIC expand optional) |
 | [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | planned (S081 FAIL packet; Claude verdict) |
 | [A245](asks/A245.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] What preceded real lows/highs: swing-extrema study vs look-alike crashes (feeds A244) | done (S082 PASS packet; Claude freeze/product) |
-| [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | open |
-| [A247](asks/A247.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] American-option pricer as fair-value validation: binomial + FD reference vs chain mids | open |
+| [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | revise |
+| [A247](asks/A247.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] American-option pricer as fair-value validation: binomial + FD reference vs chain mids | revise |
 | [A248](asks/A248.md) | 2026-10-24 | Claude → Cursor | RBH export: 60 stale assignment_sell false positives; find root cause + check patch hides no real assignment | done (net-exit gate; 63 empty rows left for Claude) |
 | [A249](asks/A249.md) | 2026-10-24 | Claude → Grok | Red-team A248: symbol-level suppression of assignment warnings | open |
 | [A250](asks/A250.md) | 2026-10-24 | Claude → Cursor, Muse, Grok | [quant] Model List puts now sold at ~0.09Δ (was 0.15Δ): what changed + why (S088-vs-ML) — FYI + review | open |
 | [A251](asks/A251.md) | 2026-10-24 | Claude → Cursor, Muse, Grok, Codex | Mac startup + duplicate-process fixes: Postgres/API at login, API survives DB restart, OpenJev unloads after batch — FYI + ops review | open |
-| [A252](asks/A252.md) | 2026-10-24 | Muse → Cursor | Rankings live-price fan-out per load (A64 pattern recurs) — default to DB-only | open |
-| [A253](asks/A253.md) | 2026-10-24 | Muse → Cursor | Scorer: invalid delta becomes max-safety delta (null→0 conversion) | open |
-| [A254](asks/A254.md) | 2026-10-24 | Muse → Cursor | Liquidity gate never enforced in pickBestStrike — hard-exclude or rename | open |
+| [A252](asks/A252.md) | 2026-10-24 | Muse → Cursor | Rankings live-price fan-out per load (A64 pattern recurs) — default to DB-only | planned |
+| [A253](asks/A253.md) | 2026-10-24 | Muse → Cursor | Scorer: invalid delta becomes max-safety delta (null→0 conversion) | planned |
+| [A254](asks/A254.md) | 2026-10-24 | Muse → Cursor | Liquidity gate never enforced in pickBestStrike — hard-exclude or rename | planned |
 | [A255](asks/A255.md) | 2026-10-24 | Muse → Cursor | TS put-edge factors stale-tolerant, ETF-blind, shadow-only vs Python | open |
 | [A256](asks/A256.md) | 2026-10-24 | Muse → Cursor | Relaxed watchlist rows indistinguishable from strict rows — persist relaxed flag | open |
 | [A257](asks/A257.md) | 2026-10-24 | Muse → Cursor | Server VaR correlation tail-aligned, not date-joined; shorts treated as longs | open |
