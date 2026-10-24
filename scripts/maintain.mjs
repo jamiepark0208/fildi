@@ -153,13 +153,13 @@ function isPtMonday(d = new Date()) {
 
 /** Pool every morning; universe once a week (PT Monday). --scan=0 skips the 3-name chain sample. */
 function unusedFeedsArgs() {
-  const extra = ["--scan=0"];
-  if (isPtMonday()) extra.push("--scope=universe");
-  return extra;
+  // Pool only before the list (~6 s). The Monday universe pass is ~1k Polygon calls at 5/min (~3 h) → research queue,
+  // after the list is final (Claude 10-24: before daily.py it would have held Monday's Model List for hours).
+  return ["--scan=0"];
 }
 
 function unusedFeedsAction(r) {
-  const scope = isPtMonday() ? "universe" : "pool";
+  const scope = "pool";
   return `unused_feeds_exit_${r.status ?? r.signal ?? "spawn_error"}_scope_${scope}`;
 }
 
@@ -393,7 +393,7 @@ function runModelListDaily() {
   };
 }
 
-function runApiTsx(scriptRel, extraArgs = []) {
+function runApiTsx(scriptRel, extraArgs = [], timeoutMin = 30) {
   const t0 = Date.now();
   const envFile = "/tmp/fildi-env-export.sh";
   const cmd = `
@@ -408,7 +408,7 @@ function runApiTsx(scriptRel, extraArgs = []) {
   const r = spawnSync("bash", ["-lc", cmd], {
     encoding: "utf8",
     cwd: ROOT,
-    timeout: 30 * 60 * 1000,
+    timeout: timeoutMin * 60 * 1000,
   });
   return {
     status: r.status,
@@ -977,6 +977,11 @@ async function main() {
     //     of the day/month, Polygon shared 5/min gate), so production above always ran first and keeps its reserve.
     //     Only after today's list is final: a pre-open skip also exits 0 and must not hold the lock past 06:30 PT.
     if (args.has("--research") && modelListDoneToday(modelList)) {
+      if (isPtMonday()) {   // A267 weekly universe pass (Form 4, 8-K, related, short interest) under polygon.gate
+        const u = runApiTsx("src/scripts/refresh-unused-feeds.ts", ["--scan=0", "--scope=universe"], 240);   // ~3 h at 5/min; resumes per name
+        timings.unusedFeedsUniverse = u.ms;
+        actions.push(`unused_feeds_universe_exit_${u.status ?? u.signal ?? "spawn_error"}`);
+      }
       for (const [name, rel, extra, needsLseg] of RESEARCH_QUEUE) {
         if (needsLseg && !lsegDesktopUp()) { actions.push(`research_${name}_skipped_no_lseg`); continue; }
         const t0 = Date.now();
