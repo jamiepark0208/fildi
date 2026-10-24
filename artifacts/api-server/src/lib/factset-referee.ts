@@ -53,6 +53,12 @@ const FACTSET_FIELD_MAP: Array<{
   { key: "priceToBook", sfField: "priceToBook" },
   { key: "pegRatio", sfField: "pegRatio" },
   { key: "forwardPe", sfField: "forwardPe" },
+  { key: "tangibleBookValuePerShare", sfField: "tangibleBookValuePerShare" },
+  { key: "tier1CapitalRatio", sfField: "tier1CapitalRatio" },
+  { key: "totalCapitalRatio", sfField: "totalCapitalRatio" },
+  { key: "rotce", sfField: "rotce" },
+  { key: "netInterestIncome", sfField: "netInterestIncome" },
+  { key: "totalDeposits", sfField: "totalDeposits" },
 ];
 
 const GOLD_NULL_COLS = [

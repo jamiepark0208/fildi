@@ -1,5 +1,6 @@
 import { logApiCall } from "./api-logger.js";
 import { fetchJsonWithRetry } from "./http-client.js";
+import { vendorRawFromHttpUrl } from "./dropped-vendor-fields.js";
 
 const AV_BASE = "https://www.alphavantage.co/query";
 
@@ -26,7 +27,7 @@ export interface AVFundamentalsData {
 }
 
 function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
-  return fetchJsonWithRetry(url, { provider: "AV", maxRetries });
+  return fetchJsonWithRetry(url, { provider: "AV", maxRetries, vendorRaw: vendorRawFromHttpUrl("alpha_vantage", url) });
 }
 
 // AV returns all numbers as strings — parse and validate.

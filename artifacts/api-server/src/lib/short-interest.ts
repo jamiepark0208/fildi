@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { logger } from "./logger.js";
 import { polygonApiKey, polygonFetch } from "./polygon-limiter.js";
+import { rememberVendorPayload } from "./vendor-raw.js";
 
 type SqlRows<T> = T[] | { rows?: T[] };
 const rowsOf = <T,>(r: SqlRows<T>): T[] => (Array.isArray(r) ? r : r.rows ?? []);
@@ -54,6 +55,8 @@ async function fetchPolygonInterest(ticker: string): Promise<void> {
     return;
   }
   const body = (await res.json()) as { results?: Array<{ settlement_date: string; short_interest: number; avg_daily_volume?: number; days_to_cover?: number }> };
+  await rememberVendorPayload({ source: "polygon", endpoint: "/stocks/v1/short-interest", key: ticker.toUpperCase(), payload: body }).catch((err) =>
+    logger.warn({ ticker, err: String(err) }, "vendor_raw: short-interest store failed"));
   const rows = (body.results ?? []).filter((r) => r.settlement_date && Number.isFinite(r.short_interest));
   if (rows.length === 0) {
     await db.execute(sql`INSERT INTO short_interest_history (ticker, settlement_date, short_interest, source)
@@ -82,6 +85,8 @@ async function fetchPolygonVolume(ticker: string): Promise<void> {
   const body = (await res.json()) as {
     results?: Array<{ date: string; short_volume?: number; total_volume?: number; short_volume_ratio?: number }>;
   };
+  await rememberVendorPayload({ source: "polygon", endpoint: "/stocks/v1/short-volume", key: ticker.toUpperCase(), payload: body }).catch((err) =>
+    logger.warn({ ticker, err: String(err) }, "vendor_raw: short-volume store failed"));
   for (const r of body.results ?? []) {
     if (!r.date || !(r.total_volume! > 0)) continue;
     const ratio = r.short_volume_ratio ?? (r.short_volume != null ? r.short_volume / r.total_volume! : null);

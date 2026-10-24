@@ -43,6 +43,8 @@ live-price        | Live Price (Golden Source)      | 1 min    | lib/live-quote.
 live-screener     | Live Movers (Yahoo Screener)    | 5 min    | lib/live-movers.ts
 daily-brief-market | Daily Brief Market Strip       | 1 min    | routes/daily-brief.ts
 
+Persistent (not TTLCache): `vendor_raw` — raw vendor JSON, 400-day retention (`lib/retention.ts`, `lib/vendor-raw.ts`). Not a sweep entry.
+
 ## Cache key conventions
 - Single ticker: ticker.toUpperCase() e.g. "NVDA"
 - Multiple tickers: "TICKER1:TICKER2" uppercase sorted

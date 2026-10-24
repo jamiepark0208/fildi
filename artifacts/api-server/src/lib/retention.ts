@@ -37,6 +37,7 @@ export type RetentionReport = {
   aiUsageDeleted: number;
   apiUsageDeleted: number;
   intradayConfigDeleted: number;
+  vendorRawDeleted: number;
   logs: { rotated: boolean; scriptLogsDeleted: number; fildiLogsDeleted: number };
 };
 
@@ -46,6 +47,7 @@ export async function pruneOldRows(): Promise<RetentionReport> {
     aiUsageDeleted: 0,
     apiUsageDeleted: 0,
     intradayConfigDeleted: 0,
+    vendorRawDeleted: 0,
     logs: { rotated: false, scriptLogsDeleted: 0, fildiLogsDeleted: 0 },
   };
   try {
@@ -77,12 +79,20 @@ export async function pruneOldRows(): Promise<RetentionReport> {
     }
     const scriptLogsDeleted = pruneScriptLogs();
     const fildiLogsDeleted = pruneFildiRuntimeLogs();
+    let vendorRawDeleted = 0;
+    try {
+      const { pruneVendorRaw } = await import("./vendor-raw.js");
+      vendorRawDeleted = await pruneVendorRaw();
+    } catch (err) {
+      logger.error({ err }, "retention: vendor_raw prune failed");
+    }
 
     const report: RetentionReport = {
       ok: true,
       aiUsageDeleted: aiUsage.rowCount ?? 0,
       apiUsageDeleted: apiUsage.rowCount ?? 0,
       intradayConfigDeleted: intradayKeys.rowCount ?? 0,
+      vendorRawDeleted,
       logs: { rotated, scriptLogsDeleted, fildiLogsDeleted },
     };
     logger.info(report, "retention: pruned old rows + logs");

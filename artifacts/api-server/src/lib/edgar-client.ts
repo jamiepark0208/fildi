@@ -3,6 +3,7 @@ import { db, tickerCik } from "@workspace/db";
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
 import { fetchJsonWithRetry } from "./http-client.js";
+import { vendorRawFromHttpUrl } from "./dropped-vendor-fields.js";
 
 // ── SEC EDGAR XBRL client ─────────────────────────────────────────────────────
 // No API key required. EDGAR is a public US government service.
@@ -37,6 +38,7 @@ function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
   return fetchJsonWithRetry(url, {
     provider: "EDGAR", maxRetries, timeoutMs: 20_000, baseDelayMs: 500, nullOn404: true,
     init: { headers: { "User-Agent": UA, "Accept": "application/json" } },
+    vendorRaw: vendorRawFromHttpUrl("edgar", url),
   });
 }
 

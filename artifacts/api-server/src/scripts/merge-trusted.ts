@@ -51,7 +51,7 @@ export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
   // factset is last-resort referee (null fill / divergence settle) — never ahead of free sources.
   { tfCol: "peRatio",            priority: [["yahoo","peRatio"],      ["finnhub","peRatio"],      ["fmp","peRatio"],      ["alpha_vantage","peRatio"], ["factset","peRatio"]] },
-  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["fmp","forwardPe"],                               ["alpha_vantage","forwardPe"], ["factset","forwardPe"]] },
+  { tfCol: "forwardPe",          priority: [["yahoo","forwardPe"],    ["finnhub","forwardPe"],    ["fmp","forwardPe"],    ["alpha_vantage","forwardPe"], ["factset","forwardPe"]] },
   // Vendor PEGs are NOT comparable (Yahoo≈5yr expected, FMP=own mix, Finnhub=forwardPEG).
   // Gold PEG is overwritten by computeTrailingPeg(pe, epsGrowth). Priority list only
   // seeds provenance display / rare fallback before that overwrite.
@@ -63,7 +63,23 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "priceToBook",        priority: [["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"], ["factset","priceToBook"]] },
   { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["finnhub","psRatio"], ["fmp","priceToSales"]] },
   // Banks/insurers: P/TBV uses TBVPS from Finnhub (free) / FMP when available
-  { tfCol: "tangibleBookValuePerShare", priority: [["finnhub","tangibleBookValuePerShare"], ["fmp","tangibleBookValuePerShare"]] },
+  { tfCol: "tangibleBookValuePerShare", priority: [["finnhub","tangibleBookValuePerShare"], ["fmp","tangibleBookValuePerShare"], ["factset","tangibleBookValuePerShare"]] },
+  // A266 dropped fields — display / provenance. Not score weights.
+  { tfCol: "pegTtm",             priority: [["finnhub","pegTtm"]] },
+  { tfCol: "epsGrowth5Y",        priority: [["finnhub","epsGrowth5Y"]] },
+  { tfCol: "revenueGrowth5Y",    priority: [["finnhub","revenueGrowth5Y"]] },
+  { tfCol: "payoutRatio",        priority: [["fmp","payoutRatio"], ["finnhub","payoutRatio"]] },
+  { tfCol: "interestCoverage",   priority: [["fmp","interestCoverage"], ["finnhub","interestCoverage"]] },
+  { tfCol: "priceToFcf",         priority: [["fmp","priceToFcf"]] },
+  { tfCol: "fcfYield",           priority: [["fmp","fcfYield"]] },
+  { tfCol: "sbcToRevenue",       priority: [["fmp","sbcToRevenue"]] },
+  { tfCol: "incomeQuality",      priority: [["fmp","incomeQuality"]] },
+  { tfCol: "priceToTbv",         priority: [["finnhub","priceToTbv"]] },
+  { tfCol: "tier1CapitalRatio",  priority: [["factset","tier1CapitalRatio"]] },
+  { tfCol: "totalCapitalRatio",  priority: [["factset","totalCapitalRatio"]] },
+  { tfCol: "rotce",              priority: [["factset","rotce"]] },
+  { tfCol: "netInterestIncome",  priority: [["factset","netInterestIncome"]] },
+  { tfCol: "totalDeposits",      priority: [["factset","totalDeposits"]] },
   // REIT FFO proxy input — EDGAR D&A (free); ffoProxy derived in applyDerived
   { tfCol: "depreciationAmortization", priority: [["edgar","depreciationAmortization"]] },
   { tfCol: "ffoProxy",           priority: [] },
@@ -371,6 +387,8 @@ export async function writeProvenance(
 // ── Main batch runner ─────────────────────────────────────────────────────────
 
 export async function runMergeTrusted() {
+  const { ensureVendorRawSchema } = await import("../lib/vendor-raw.js");
+  await ensureVendorRawSchema();
   const regRows = await db.select({ ticker: tickerRegistry.ticker }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true));
   const trackedTickers = new Set(regRows.map(r => r.ticker));
   console.log(`Canonical universe: ${trackedTickers.size} tickers (fetch_fundamentals=true in ticker_registry)\n`);

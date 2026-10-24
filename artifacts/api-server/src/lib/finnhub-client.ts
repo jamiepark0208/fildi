@@ -1,5 +1,8 @@
 import { fetchJsonWithRetry } from "./http-client.js";
 import { logApiCall } from "./api-logger.js";
+import { mapFinnhubDropped, vendorRawFromHttpUrl } from "./dropped-vendor-fields.js";
+import { persistMappedFields } from "./vendor-raw.js";
+import { logger } from "./logger.js";
 
 export interface FinnhubFundamentalsData {
   finnhub_peRatio?:               number;
@@ -53,6 +56,7 @@ function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
   return fetchJsonWithRetry(url, {
     provider: "Finnhub", maxRetries, timeoutMs: 20_000, baseDelayMs: 1200, nullOn404: true,
     init: { headers: { "Accept": "application/json" } },
+    vendorRaw: vendorRawFromHttpUrl("finnhub", url),
   });
 }
 
@@ -252,6 +256,10 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     // Finnhub reports dividendYield in percentage format (0.9495 = 0.9495%), so pct() ÷100 → decimal
     finnhub_dividendYield:        pct(m["dividendYieldIndicatedAnnual"]) ?? pct(m["currentDividendYieldTTM"]),
   };
+
+  await persistMappedFields(t, "finnhub", mapFinnhubDropped(m)).catch((err) =>
+    logger.warn({ ticker: t, err: String(err) }, "vendor_raw: finnhub field persist failed"),
+  );
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
   logApiCall({ source: "finnhub", fn: "fetchFinnhubFundamentals", trigger: "backfill-finnhub script", ticker: t, outcome: "success", fieldsReturned });

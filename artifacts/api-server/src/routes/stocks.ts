@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { yahooFinance } from "../lib/yahoo-client.js";
+import { rememberYahooQuoteSummary } from "../lib/vendor-raw.js";
 import { readLatestFairValue, type LatestFairValue } from "../lib/fair-value-snapshots.js";
 import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
 import {
@@ -420,6 +421,22 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
 
   // ── Phase 4 value / acceleration fields — FMP only ──────────────────────────
   const forwardPe               = fmpNum(fmp?.forwardPe);
+  const pegTtm                  = fmpNum(fmp?.pegTtm);
+  const epsGrowth5Y             = fmpNum(fmp?.epsGrowth5Y);
+  const revenueGrowth5Y         = fmpNum(fmp?.revenueGrowth5Y);
+  const payoutRatio             = fmpNum(fmp?.payoutRatio);
+  const interestCoverage        = fmpNum(fmp?.interestCoverage);
+  const priceToFcf              = fmpNum(fmp?.priceToFcf);
+  const fcfYield                = fmpNum(fmp?.fcfYield);
+  const sbcToRevenue            = fmpNum(fmp?.sbcToRevenue);
+  const incomeQuality           = fmpNum(fmp?.incomeQuality);
+  const priceToTbv              = fmpNum(fmp?.priceToTbv);
+  const tangibleBookValuePerShare = fmpNum(fmp?.tangibleBookValuePerShare);
+  const tier1CapitalRatio       = fmpNum(fmp?.tier1CapitalRatio);
+  const totalCapitalRatio       = fmpNum(fmp?.totalCapitalRatio);
+  const rotce                   = fmpNum(fmp?.rotce);
+  const netInterestIncome       = fmpNum(fmp?.netInterestIncome);
+  const totalDeposits          = fmpNum(fmp?.totalDeposits);
   const forwardPeg              = fmpNum(fmp?.forwardPeg)
     ?? computeForwardPeg(forwardPe, pegGrowth);
   const derivedPeg              = fmpNum(fmp?.pegRatio)
@@ -519,6 +536,22 @@ function buildMetrics(quote: any, fmp: TickerFundamentalsRow | null, ticker: str
     })(),
     forwardPe,
     forwardPeg,
+    pegTtm,
+    epsGrowth5Y,
+    revenueGrowth5Y,
+    payoutRatio,
+    interestCoverage,
+    priceToFcf,
+    fcfYield,
+    sbcToRevenue,
+    incomeQuality,
+    priceToTbv,
+    tangibleBookValuePerShare,
+    tier1CapitalRatio,
+    totalCapitalRatio,
+    rotce,
+    netInterestIncome,
+    totalDeposits,
     evEbitda,
     evRevenue,
     // New FMP-sourced fields
@@ -564,6 +597,7 @@ router.get("/stocks/compare", async (req, res) => {
     ]);
     const needYahoo1 = !hasGoldFundamentals(fmp1);
     const needYahoo2 = !hasGoldFundamentals(fmp2);
+    const compareModules = "price,summaryDetail,financialData,defaultKeyStatistics";
     const [q1, q2] = await Promise.all([
       needYahoo1
         ? yahooFinance.quoteSummary(t1, {
@@ -576,6 +610,8 @@ router.get("/stocks/compare", async (req, res) => {
           })
         : Promise.resolve(null),
     ]);
+    if (q1) await rememberYahooQuoteSummary(t1, compareModules, q1);
+    if (q2) await rememberYahooQuoteSummary(t2, compareModules, q2);
 
     const merged1 = q1
       ? { ...q1.price, ...q1.summaryDetail, ...q1.financialData, ...q1.defaultKeyStatistics }
@@ -750,9 +786,11 @@ type QuoteMetrics = ReturnType<typeof buildMetrics> & { earningsDate: ReturnType
 export const quoteCache = new TTLCache<QuoteMetrics>(60 * 60 * 1000, 'quote', 1000); // key = ticker
 
 async function fetchQuoteSummary(ticker: string, modules: string[]) {
-  return yahooFinance.quoteSummary(ticker.toUpperCase(), {
+  const raw = await yahooFinance.quoteSummary(ticker.toUpperCase(), {
     modules: modules as any,
   });
+  await rememberYahooQuoteSummary(ticker, modules.join(","), raw);
+  return raw;
 }
 
 async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
@@ -967,6 +1005,7 @@ router.get("/stocks/breakdown", async (req, res) => {
       yahooFinance.quoteSummary(upperTicker, { modules: modules as any }),
       yahooFinance.search(upperTicker, { newsCount: 15, quotesCount: 0 } as any, { validateResult: false }).catch(() => ({ news: [] })),
     ]);
+    await rememberYahooQuoteSummary(upperTicker, modules.join(","), summary);
 
     // Live stub last so Schwab/Yahoo last+% aren't wiped by quoteSummary.price (often 0/missing).
     // Always merge summaryDetail + defaultKeyStatistics (ETF yield/AUM live there).

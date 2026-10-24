@@ -102,6 +102,8 @@ export interface FetchJsonOptions {
   init?: RequestInit;
   /** Resolve `null` on 404 instead of throwing (providers where 404 = "no data for ticker"). */
   nullOn404?: boolean;
+  /** A266 — persist this response in vendor_raw. Secrets stay out of endpoint/key. */
+  vendorRaw?: { source: string; endpoint: string; key: string; latestOnly?: boolean };
 }
 
 /**
@@ -144,7 +146,16 @@ export async function fetchJsonWithRetry<T = any>(url: string, opts: FetchJsonOp
       delay *= 2;
       continue;
     }
-    return res.json() as Promise<T>;
+    const body = (await res.json()) as T;
+    if (opts.vendorRaw && body != null) {
+      try {
+        const { rememberVendorPayload } = await import("./vendor-raw.js");
+        await rememberVendorPayload({ ...opts.vendorRaw, payload: body });
+      } catch (err) {
+        logger.warn({ err: String(err), source: opts.vendorRaw.source }, "vendor_raw: store failed");
+      }
+    }
+    return body;
   }
   // Unreachable: the loop returns or throws on the final attempt.
   throw new Error(`${provider}: exhausted retries for ${safeUrl}`);

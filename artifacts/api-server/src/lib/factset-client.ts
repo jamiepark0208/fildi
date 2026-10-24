@@ -20,6 +20,8 @@
  * referee benchmark for settling free-source PEG fights, not as gospel.
  */
 import { logger } from "./logger.js";
+import { mapFactSetHighlightRows } from "./dropped-vendor-fields.js";
+import { rememberVendorPayload } from "./vendor-raw.js";
 
 /** Subset of fundamentals fields FactSet overview can supply (+ derived valuations). */
 export interface FactSetFundamentalsPartial {
@@ -42,6 +44,14 @@ export interface FactSetFundamentalsPartial {
   debtToEquity?: number;
   revenueGrowthYoY?: number;
   epsGrowth?: number;
+  /** FactSet TBV, dollars/share (scale 0). RATIO capital ratios stay percent points. */
+  tangibleBookValuePerShare?: number;
+  tier1CapitalRatio?: number;
+  totalCapitalRatio?: number;
+  /** PERCENTAGE → decimal (21.22% stored as 0.2122). */
+  rotce?: number;
+  netInterestIncome?: number;
+  totalDeposits?: number;
   /** Derived: price / LTM EPS */
   peRatio?: number;
   /** Derived: price / BVPS */
@@ -130,78 +140,12 @@ export async function fetchFactSetFundamentals(
   const json = (await res.json()) as {
     data?: { tables?: { main?: { data?: { rows?: unknown[] } } } };
   };
-  const rows: any[] = json?.data?.tables?.main?.data?.rows ?? [];
-
-  type RowEntry = { cells: (string | null)[]; scale: number; isPct: boolean };
-  const byLabel = new Map<string, RowEntry>();
-  for (const row of rows) {
-    if (!row.cells || row.rowType === "Header") continue;
-    const label = (row.cells[0] ?? "").trim();
-    if (!label) continue;
-    const vt = row.rowMetadata?.valueType?.value ?? "";
-    const rt = row.rowMetadata?.rowType?.value ?? "";
-    const metricType = row.rowMetadata?.metric?.value ?? "";
-    const isPct = vt === "PERCENTAGE" || rt === "MARGIN" || rt === "MARGIN_RATIO";
-    const explicitScale = row.rowMetadata?.scale?.value;
-    const scale =
-      explicitScale != null
-        ? Number(explicitScale)
-        : metricType === "FIN" && !isPct
-          ? 6
-          : 0;
-    byLabel.set(label, { cells: row.cells, scale, isPct });
-  }
-
-  function val(label: string, colIdx = 1): number | undefined {
-    const entry = byLabel.get(label);
-    if (!entry) return undefined;
-    // FactSet overview columns: [0]=label, [1]=latest (LTM/current), [2]=prior FY, …
-    const raw = entry.cells[colIdx] ?? null;
-    if (raw == null || raw === "") return undefined;
-    const n = Number(raw);
-    if (!isFinite(n)) return undefined;
-    const scaled = entry.scale === 6 ? n * 1_000_000 : n;
-    return entry.isPct ? scaled / 100 : scaled;
-  }
-
-  const revenue = val("Revenue");
-  const netIncome = val("Net Income");
-  const revPrior = val("Revenue", 2);
-  const epsPrior = val("EPS (Diluted)", 2);
-  const revenueGrowthYoY =
-    revenue !== undefined && revPrior && revPrior !== 0
-      ? (revenue - revPrior) / Math.abs(revPrior)
-      : undefined;
-  const epsCur = val("EPS (Diluted)");
-  const epsGrowth =
-    epsCur !== undefined && epsPrior && epsPrior !== 0
-      ? (epsCur - epsPrior) / Math.abs(epsPrior)
-      : undefined;
-
-  return {
-    totalRevenue: revenue,
-    netIncome,
-    ebitda: val("EBITDA"),
-    ebit: val("EBIT"),
-    earningsPerShare: val("EPS (Diluted)"),
-    bookValuePerShare: val("Book Value Per Share"),
-    grossMargin: val("Gross Margin (%)") ?? val("Gross Margin (%) "),
-    operatingMargin: val("Operating Margin (%) ") ?? val("EBIT Margin (%)"),
-    netMargin: val("Net Margin (%)") ?? val("Net Margin (%) "),
-    returnOnEquity: val("Return on Equity (%)"),
-    returnOnAssets: val("Return on Asset (%)"),
-    totalStockholdersEquity: val("Total Shareholder Equity"),
-    freeCashFlow: val("Free Cash Flow"),
-    quarterlyOperatingCashFlow: val("Net Operating Cash Flow"),
-    cashAndEquivalents: val("Cash & ST Inv"),
-    currentRatio: val("Current Ratio"),
-    debtToEquity: (() => {
-      const v = byLabel.get("Total Debt / Total Eq (%)");
-      if (!v) return undefined;
-      const n = Number(v.cells[1] ?? v.cells[2]);
-      return isFinite(n) ? n / 100 : undefined;
-    })(),
-    revenueGrowthYoY,
-    epsGrowth,
-  };
+  await rememberVendorPayload({
+    source: "factset",
+    endpoint: "/factset/report/overview/v1/financial-highlights",
+    key: ticker.toUpperCase(),
+    payload: json,
+  }).catch((err) => logger.warn({ ticker, err: String(err) }, "vendor_raw: factset store failed"));
+  const rows = (json?.data?.tables?.main?.data?.rows ?? []) as Parameters<typeof mapFactSetHighlightRows>[0];
+  return mapFactSetHighlightRows(rows);
 }

@@ -152,7 +152,23 @@ export async function schwabGet<T = unknown>(path: string, query?: Record<string
     logger.warn({ path, status: res.status }, "schwab: request failed");
     return null;
   }
-  return (await res.json()) as T;
+  const body = (await res.json()) as T;
+  const skipRaw = /\/quotes\b|\/chains\b/i.test(path);
+  if (!skipRaw) {
+    try {
+      const { rememberVendorPayload } = await import("./vendor-raw.js");
+      const symbol = query?.symbol ?? query?.symbols ?? "batch";
+      await rememberVendorPayload({
+        source: "schwab",
+        endpoint: path,
+        key: symbol.toUpperCase(),
+        payload: body,
+      });
+    } catch (err) {
+      logger.warn({ path, err: String(err) }, "vendor_raw: schwab store failed");
+    }
+  }
+  return body;
 }
 
 export interface SchwabQuoteNorm {

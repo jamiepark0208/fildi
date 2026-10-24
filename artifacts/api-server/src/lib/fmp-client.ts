@@ -2,6 +2,8 @@ import { z } from "zod";
 import { logger } from "./logger.js";
 import { logApiCall } from "./api-logger.js";
 import { fetchJsonWithRetry, mapWithConcurrency } from "./http-client.js";
+import { vendorRawFromHttpUrl, mapFmpDropped } from "./dropped-vendor-fields.js";
+import { persistMappedFields } from "./vendor-raw.js";
 import { isFmpPremiumError, isFmpRestricted, markFmpRestricted } from "./fmp-restricted.js";
 
 /** Loose row shape from /stable/earnings — unknown keys ignored (A83 Wave 1). */
@@ -68,7 +70,11 @@ export interface FMPFundamentalsData {
 }
 
 function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
-  return fetchJsonWithRetry(url, { provider: "FMP", maxRetries });
+  return fetchJsonWithRetry(url, {
+    provider: "FMP",
+    maxRetries,
+    vendorRaw: vendorRawFromHttpUrl("fmp", url),
+  });
 }
 
 function fmpN(v: unknown): number | undefined {
@@ -230,6 +236,10 @@ export async function fetchFMPFundamentals(
 
   // Annual FCF: from annual cash-flow-statement (cfAnn). FMP field is freeCashFlow.
   result.freeCashFlow = fmpN(cfAnn.freeCashFlow);
+
+  await persistMappedFields(t, "fmp", mapFmpDropped(r, km)).catch((err) =>
+    logger.warn({ ticker: t, err: String(err) }, "vendor_raw: fmp field persist failed"),
+  );
 
   const fieldsReturned = Object.values(result).filter(v => v !== undefined).length;
   // ~9 stable endpoints per ticker — must match CALLS_PER_TICKER.fmp / budget math.

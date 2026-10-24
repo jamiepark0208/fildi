@@ -242,7 +242,55 @@ components:
           type: ["number", "null"]
         forwardPe:
           type: ["number", "null"]
-          description: Forward P/E ratio. Source Yahoo/FMP/Alpha Vantage.
+          description: Forward P/E ratio. Source Yahoo/FMP/Finnhub/Alpha Vantage.
+        pegTtm:
+          type: ["number", "null"]
+          description: Trailing PEG (Finnhub pegTTM). Not the derived gold PEG. A266 display only.
+        epsGrowth5Y:
+          type: ["number", "null"]
+          description: 5-year EPS growth as a fraction (Finnhub).
+        revenueGrowth5Y:
+          type: ["number", "null"]
+          description: 5-year revenue growth as a fraction (Finnhub).
+        payoutRatio:
+          type: ["number", "null"]
+          description: Dividend payout ratio as a fraction.
+        interestCoverage:
+          type: ["number", "null"]
+          description: Interest coverage (times).
+        priceToFcf:
+          type: ["number", "null"]
+          description: Price / free cash flow (FMP).
+        fcfYield:
+          type: ["number", "null"]
+          description: Free-cash-flow yield as a fraction (FMP).
+        sbcToRevenue:
+          type: ["number", "null"]
+          description: Stock-based compensation / revenue (FMP).
+        incomeQuality:
+          type: ["number", "null"]
+          description: Operating cash flow / net income (FMP).
+        priceToTbv:
+          type: ["number", "null"]
+          description: Price / tangible book (Finnhub).
+        tangibleBookValuePerShare:
+          type: ["number", "null"]
+          description: Tangible book value per share (dollars).
+        tier1CapitalRatio:
+          type: ["number", "null"]
+          description: Tier 1 capital ratio in percent points (15.2 = 15.2%). FactSet RATIO, not divided by 100.
+        totalCapitalRatio:
+          type: ["number", "null"]
+          description: Total capital ratio in percent points. FactSet RATIO.
+        rotce:
+          type: ["number", "null"]
+          description: Return on tangible equity as a fraction.
+        netInterestIncome:
+          type: ["number", "null"]
+          description: Net interest income in dollars (FactSet millions × 1e6).
+        totalDeposits:
+          type: ["number", "null"]
+          description: Total deposits in dollars (FactSet millions × 1e6).
         priceToBook:
           type: ["number", "null"]
         priceToSales:

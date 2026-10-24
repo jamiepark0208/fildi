@@ -23,6 +23,22 @@ export interface StockMetrics {
      * @nullable
      */
   forwardPe?: number | null;
+  pegTtm?: number | null;
+  epsGrowth5Y?: number | null;
+  revenueGrowth5Y?: number | null;
+  payoutRatio?: number | null;
+  interestCoverage?: number | null;
+  priceToFcf?: number | null;
+  fcfYield?: number | null;
+  sbcToRevenue?: number | null;
+  incomeQuality?: number | null;
+  priceToTbv?: number | null;
+  tangibleBookValuePerShare?: number | null;
+  tier1CapitalRatio?: number | null;
+  totalCapitalRatio?: number | null;
+  rotce?: number | null;
+  netInterestIncome?: number | null;
+  totalDeposits?: number | null;
   /** @nullable */
   priceToBook?: number | null;
   /** @nullable */

@@ -310,6 +310,22 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   tangibleBookValuePerShare:  numeric('tangible_book_value_per_share'),
   depreciationAmortization:   numeric('depreciation_amortization'),
   ffoProxy:                   numeric('ffo_proxy'),
+  // A266 — vendor fields we were dropping. Display only; not score inputs.
+  pegTtm:                     numeric('peg_ttm'),
+  epsGrowth5Y:                numeric('eps_growth_5y'),
+  revenueGrowth5Y:            numeric('revenue_growth_5y'),
+  payoutRatio:                numeric('payout_ratio'),
+  interestCoverage:           numeric('interest_coverage'),
+  priceToFcf:                 numeric('price_to_fcf'),
+  fcfYield:                   numeric('fcf_yield'),
+  sbcToRevenue:               numeric('sbc_to_revenue'),
+  incomeQuality:              numeric('income_quality'),
+  priceToTbv:                 numeric('price_to_tbv'),
+  tier1CapitalRatio:          numeric('tier1_capital_ratio'),
+  totalCapitalRatio:          numeric('total_capital_ratio'),
+  rotce:                      numeric('rotce'),
+  netInterestIncome:          numeric('net_interest_income'),
+  totalDeposits:              numeric('total_deposits'),
 
   // Phase 1A additions — data source tracking
   lastSource:         text('last_source').default('fmp'),
@@ -1572,6 +1588,18 @@ export type AvFundamentalsRow = typeof avFundamentals.$inferSelect
 // Enables "Yahoo returned 0.72 for NVDA grossMargin vs FMP returned 0.71" queries.
 // Populated by: populate-source-fundamentals.ts and backfill scripts.
 // NOT related to source_ticker_map (which tracks boolean source availability).
+
+// A266 — raw vendor JSON. History when the payload hash changes; EDGAR companyfacts is latest-only.
+export const vendorRaw = pgTable('vendor_raw', {
+  source:     text('source').notNull(),
+  endpoint:   text('endpoint').notNull(),
+  key:        text('key').notNull(),
+  fetchedOn:  date('fetched_on').notNull(),
+  payload:    jsonb('payload').notNull(),
+  payloadSha: text('payload_sha').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.source, t.endpoint, t.key, t.fetchedOn] }),
+}))
 
 export const sourceFundamentals = pgTable('source_fundamentals', {
   ticker:    text('ticker').notNull(),

@@ -3,6 +3,7 @@
  * Ranked equal to FMP in price-source-rank (below Schwab, above LSEG/Yahoo).
  */
 import { fetchJsonWithRetry } from "./http-client.js";
+import { vendorRawFromHttpUrl } from "./dropped-vendor-fields.js";
 import type { YahooBar } from "./indicator-bar-merge.js";
 
 type Agg = { t: number; o: number; h: number; l: number; c: number; v?: number };
@@ -23,6 +24,7 @@ export async function fetchPolygonDailyBars(
     provider: "Polygon",
     nullOn404: true,
     timeoutMs: 30_000,
+    vendorRaw: { ...vendorRawFromHttpUrl("polygon", url), key: t },
   });
   if (!data?.results?.length) return [];
   return data.results.map((b) => {

@@ -63,6 +63,8 @@ async function fetchProfileMetadata(ticker: string): Promise<{ sector: string | 
       const summary = await yahooFinance.quoteSummary(ticker, {
         modules: ["assetProfile"] as any,
       }, { validateResult: false });
+      const { rememberYahooQuoteSummary } = await import("./vendor-raw.js");
+      await rememberYahooQuoteSummary(ticker, "assetProfile", summary);
       const ap = (summary as any).assetProfile ?? {};
       return {
         sector:   (ap.sector as string) ?? null,

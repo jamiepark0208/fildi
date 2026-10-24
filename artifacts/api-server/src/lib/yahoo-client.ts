@@ -79,6 +79,8 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     raw = await yahooFinance.quoteSummary(symbol, {
       modules: ["financialData", "defaultKeyStatistics", "summaryDetail"],
     }, { validateResult: false });
+    const { rememberYahooQuoteSummary } = await import("./vendor-raw.js");
+    await rememberYahooQuoteSummary(symbol, "financialData,defaultKeyStatistics,summaryDetail", raw);
   } catch (err: any) {
     logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: err.message, requestedFields: "quoteSummary: financialData, defaultKeyStatistics" });
     return {};

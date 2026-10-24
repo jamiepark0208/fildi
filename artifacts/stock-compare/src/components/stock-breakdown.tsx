@@ -457,6 +457,10 @@ export function StockBreakdown({
                     { label: "PEG", tip: "P/E ÷ expected growth. Under ~1.5 often looks cheap vs growth.", value: formatNumber(m.pegRatio), good: m.pegRatio != null ? m.pegRatio < 1.5 : undefined, fieldKey: "pegRatio" },
                     { label: "P/B", tip: "Price ÷ book value per share.", value: formatNumber(m.priceToBook), fieldKey: "priceToBook" },
                     { label: "P/S", tip: "Price ÷ sales (revenue) per share.", value: formatNumber(m.priceToSales), fieldKey: "priceToSales" },
+                    ...(m.pegTtm != null ? [{ label: "PEG TTM", tip: "Trailing PEG (Finnhub pegTTM). Not the derived gold PEG.", value: formatNumber(m.pegTtm), fieldKey: "pegTtm" }] : []),
+                    ...(m.priceToFcf != null ? [{ label: "P/FCF", tip: "Price ÷ free cash flow (FMP).", value: formatNumber(m.priceToFcf), fieldKey: "priceToFcf" }] : []),
+                    ...(m.fcfYield != null ? [{ label: "FCF Yld", tip: "Free cash flow ÷ price (FMP).", value: formatPercent(m.fcfYield), fieldKey: "fcfYield" }] : []),
+                    ...(m.priceToTbv != null ? [{ label: "P/TBV", tip: "Price ÷ tangible book (Finnhub).", value: formatNumber(m.priceToTbv), fieldKey: "priceToTbv" }] : []),
                     ...(m.analystTargetPrice != null
                       ? [{ label: "Target", tip: "Street consensus price target.", value: formatCurrency(m.analystTargetPrice), fieldKey: "analystTargetPrice", isEstimate: true }]
                       : []),
@@ -502,6 +506,8 @@ export function StockBreakdown({
                       fieldKey: "pegRatio",
                     },
                     { label: "Fwd P/E", tip: "Price ÷ forward (next-year) EPS estimate.", value: formatNumber(m.forwardPe), fieldKey: "forwardPe", isEstimate: true },
+                    ...(m.epsGrowth5Y != null ? [{ label: "EPS 5y", tip: "5-year EPS growth (Finnhub). Fraction: 0.12 = 12%.", value: formatGrowthYoY(m.epsGrowth5Y), fieldKey: "epsGrowth5Y" }] : []),
+                    ...(m.revenueGrowth5Y != null ? [{ label: "Rev 5y", tip: "5-year revenue growth (Finnhub).", value: formatGrowthYoY(m.revenueGrowth5Y), fieldKey: "revenueGrowth5Y" }] : []),
                     ...extraTopMetrics("growth", data.scoreEvidence?.topMetrics),
                   ],
                 },
@@ -515,6 +521,9 @@ export function StockBreakdown({
                     { label: "Op Mgn", tip: "Operating income ÷ revenue.", value: formatPercent(m.operatingMargin), fieldKey: "operatingMargin" },
                     { label: "Net Mgn", tip: "Net income ÷ revenue.", value: formatPercent(m.netMargin), good: m.netMargin != null ? m.netMargin > 0.08 : undefined, fieldKey: "netMargin" },
                     { label: "FCF", tip: "Free cash flow (cash from ops after capex).", value: formatLargeNumber(m.freeCashFlow), fieldKey: "freeCashFlow" },
+                    ...(m.incomeQuality != null ? [{ label: "Inc Qual", tip: "Income quality: operating cash flow ÷ net income (FMP).", value: formatNumber(m.incomeQuality), fieldKey: "incomeQuality" }] : []),
+                    ...(m.sbcToRevenue != null ? [{ label: "SBC/Rev", tip: "Stock-based compensation ÷ revenue (FMP).", value: formatPercent(m.sbcToRevenue), fieldKey: "sbcToRevenue" }] : []),
+                    ...(m.payoutRatio != null ? [{ label: "Payout", tip: "Dividend payout ratio.", value: formatPercent(m.payoutRatio), fieldKey: "payoutRatio" }] : []),
                     ...extraTopMetrics("quality", data.scoreEvidence?.topMetrics),
                   ],
                 },
@@ -527,9 +536,25 @@ export function StockBreakdown({
                     { label: "D/E", tip: "Total debt ÷ equity. Lower = less leverage.", value: formatNumber(m.debtToEquity), good: m.debtToEquity != null ? m.debtToEquity < 0.5 : undefined, fieldKey: "debtToEquity" },
                     { label: "Beta", tip: "Equity beta vs the market (volatility).", value: formatNumber(m.beta), fieldKey: "beta" },
                     { label: "Div Yld", tip: "Annual dividend ÷ price.", value: formatPercent(m.dividendYield), good: m.dividendYield != null && m.dividendYield > 0 ? true : undefined, fieldKey: "dividendYield" },
+                    ...(m.interestCoverage != null ? [{ label: "Int Cov", tip: "Interest coverage (EBIT ÷ interest). Higher = easier debt service.", value: formatNumber(m.interestCoverage), fieldKey: "interestCoverage" }] : []),
                     ...extraTopMetrics("safety", data.scoreEvidence?.topMetrics),
                   ],
                 },
+                ...(m.tier1CapitalRatio != null || m.totalCapitalRatio != null || m.rotce != null || m.netInterestIncome != null || m.totalDeposits != null
+                  ? [{
+                      title: "Banks",
+                      sectionId: "bd-family-banks",
+                      score: null as number | null,
+                      rows: [
+                        ...(m.tier1CapitalRatio != null ? [{ label: "Tier 1", tip: "Tier 1 capital ratio. FactSet RATIO is percent points (15.2 = 15.2%), not divided by 100.", value: `${formatNumber(m.tier1CapitalRatio)}%`, fieldKey: "tier1CapitalRatio" }] : []),
+                        ...(m.totalCapitalRatio != null ? [{ label: "Tot Cap", tip: "Total capital ratio. FactSet RATIO, percent points.", value: `${formatNumber(m.totalCapitalRatio)}%`, fieldKey: "totalCapitalRatio" }] : []),
+                        ...(m.rotce != null ? [{ label: "ROTCE", tip: "Return on tangible equity. FactSet PERCENTAGE, stored as a fraction.", value: formatPercent(m.rotce), fieldKey: "rotce" }] : []),
+                        ...(m.tangibleBookValuePerShare != null ? [{ label: "TBV", tip: "Tangible book value per share (dollars).", value: formatCurrency(m.tangibleBookValuePerShare), fieldKey: "tangibleBookValuePerShare" }] : []),
+                        ...(m.netInterestIncome != null ? [{ label: "NII", tip: "Net interest income. FactSet FIN scale 6 (millions → dollars).", value: formatLargeNumber(m.netInterestIncome), fieldKey: "netInterestIncome" }] : []),
+                        ...(m.totalDeposits != null ? [{ label: "Deposits", tip: "Total deposits. FactSet FIN scale 6 (millions → dollars).", value: formatLargeNumber(m.totalDeposits), fieldKey: "totalDeposits" }] : []),
+                      ],
+                    }]
+                  : []),
               ]}
             />}
 

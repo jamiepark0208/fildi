@@ -62,6 +62,8 @@ async function fetchContext(ticker: string): Promise<{ high52w?: number; low52w?
       { modules: ["summaryDetail", "calendarEvents"] },
       { validateResult: false },
     ) as any;
+    const { rememberYahooQuoteSummary } = await import("./vendor-raw.js");
+    await rememberYahooQuoteSummary(ticker, "summaryDetail,calendarEvents", s);
 
     const high52w = s?.summaryDetail?.fiftyTwoWeekHigh ?? undefined;
     const low52w  = s?.summaryDetail?.fiftyTwoWeekLow  ?? undefined;
