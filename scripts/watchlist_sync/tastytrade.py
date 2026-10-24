@@ -83,6 +83,31 @@ def remember(endpoint: str, rows: list[tuple[str, object]]) -> None:
                 (endpoint, key, date.today(), json.dumps(payload), sha))
 
 
+DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.tasty_metrics_daily (
+  ticker text, date date, iv_index real, iv_index_5d_change real, iv_rank real, iv_percentile real,
+  liquidity_value real, liquidity_rank real, liquidity_rating smallint, iv_updated_at timestamptz,
+  PRIMARY KEY (ticker, date))"""
+_F = lambda it, k: float(it[k]) if it.get(k) not in (None, "") else None   # noqa: E731
+
+
+def store_typed(items: list[dict]) -> int:
+    """Permanent typed history (vendor_raw is pruned at 400 days; S096's forward test needs every day kept).
+    Ticker in Fildi form (BRK/B → BRK.B); date = the ET day fetched."""
+    with connect() as conn:
+        conn.execute(DDL)
+        for it in items:
+            conn.execute(
+                """INSERT INTO watchlist_sync.tasty_metrics_daily VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (ticker, date) DO UPDATE SET iv_index = excluded.iv_index, iv_index_5d_change = excluded.iv_index_5d_change,
+                   iv_rank = excluded.iv_rank, iv_percentile = excluded.iv_percentile, liquidity_value = excluded.liquidity_value,
+                   liquidity_rank = excluded.liquidity_rank, liquidity_rating = excluded.liquidity_rating, iv_updated_at = excluded.iv_updated_at""",
+                (it["symbol"].replace("/", "."), date.today(), _F(it, "implied-volatility-index"),
+                 _F(it, "implied-volatility-index-5-day-change"), _F(it, "implied-volatility-index-rank"),
+                 _F(it, "implied-volatility-percentile"), _F(it, "liquidity-value"), _F(it, "liquidity-rank"),
+                 it.get("liquidity-rating"), it.get("implied-volatility-updated-at")))
+    return len(items)
+
+
 def meter() -> None:
     if not _calls[0]:
         return
@@ -102,6 +127,7 @@ def metrics(symbols: list[str]) -> list[dict]:
         r = _http("GET", "/market-metrics?symbols=" + urllib.parse.quote(",".join(chunk), safe=","))
         items = (r.get("data") or {}).get("items") or []
         remember("/market-metrics", [(it.get("symbol", "?"), it) for it in items])
+        store_typed([it for it in items if it.get("symbol")])
         out += items
     return out
 
@@ -135,12 +161,11 @@ def verify(conn) -> tuple[bool, str]:
     from statistics import correlation, median
 
     import fit_model_v14 as V
-    tt = dict(conn.execute("""SELECT key, (payload->>'implied-volatility-percentile')::float FROM vendor_raw
-                              WHERE source = 'tastytrade' AND endpoint = '/market-metrics' AND fetched_on = current_date
-                              AND payload ? 'implied-volatility-percentile'""").fetchall())
+    tt = dict(conn.execute("""SELECT ticker, iv_percentile FROM watchlist_sync.tasty_metrics_daily
+                              WHERE date = current_date AND iv_percentile IS NOT NULL""").fetchall())
     n_uni = conn.execute("SELECT count(DISTINCT ticker) FROM fmp_fundamentals").fetchone()[0]
-    ls = V.iv_ranks(conn, {k.replace("/", ".") for k in tt})
-    pairs = [(ls[k.replace("/", ".")], v) for k, v in tt.items() if v is not None and k.replace("/", ".") in ls]
+    ls = V.iv_ranks(conn, set(tt))
+    pairs = [(ls[k], v) for k, v in tt.items() if k in ls]
 
     def rank(x):
         o = sorted(range(len(x)), key=x.__getitem__)

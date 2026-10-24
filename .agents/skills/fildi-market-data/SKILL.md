@@ -16,7 +16,7 @@ Router only. The how-to for each source stays in its playbook; this page says wh
 | Weekly research panel (features + outcomes) 2020→ | `watchlist_sync.lab_outcomes`, `lab_tech`, `lab_fund` | the default for factor studies | `research/studies/PLAYBOOK.md` §2 |
 | Live quotes / chains / account | Schwab (API server) | 100 requests/min shared with the app — never for backtests | `.claude/skills/options-pricer.md`, `data-architecture.md` |
 | Option trade bars (no quotes), minute bars | Polygon | 5 calls/min | `analysis/option_history.py` |
-| IV rank / IV percentile / liquidity rating / per-expiry IV, today only (no vendor history; ours accumulates daily from 2026-10-24) | tastytrade `/market-metrics` → `vendor_raw` source `tastytrade` (daily.py step `tastytrade.py universe`) | 100 symbols per call, ~3 calls/day; `BRK.B` → `BRK/B` | `scripts/watchlist_sync/tastytrade.py` |
+| IV rank / IV percentile / liquidity rating / per-expiry IV, today only (no vendor history; ours accumulates daily from 2026-10-24) | `watchlist_sync.tasty_metrics_daily` (typed, kept forever; raw also in `vendor_raw`, pruned at 400 d) ← tastytrade `/market-metrics` (daily.py step `tastytrade.py universe`) | 100 symbols per call, ~3 calls/day; `BRK.B` → `BRK/B` | `scripts/watchlist_sync/tastytrade.py` |
 | Outside options backtest (short/long legs by delta, DTE, entry/exit rules; 147 symbols, 2013→) | tastytrade backtester (`tastytrade.py backtest spec.json`) | stored by spec hash, a stored spec never re-runs; one at a time | same |
 | Rates / macro series | FRED CSV (`fredgraph.csv?id=DTB3`), cache under `out/` | free, no key | — |
 | Web pages / papers | `scripts/fetch-page.sh <url>` (Crawl4AI, local) | `--save` only when a study cites it | AGENTS rule 10 |

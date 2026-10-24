@@ -797,7 +797,7 @@ function readScript(token: string) {
   for (const base of [ROOT, resolve(ROOT, "scripts/watchlist_sync"), resolve(ROOT, "artifacts/api-server"), ""]) {
     try { txt = readFileSync(base ? resolve(base, token) : token, "utf8"); break; } catch { /* try next */ }
   }
-  const sources = ["polygon", "schwab", "finnhub", "alphavantage", "anthropic", "lseg", "fmp", "yahoo"].filter((s) =>
+  const sources = ["polygon", "schwab", "finnhub", "alphavantage", "anthropic", "lseg", "fmp", "yahoo", "tastytrade"].filter((s) =>
     new RegExp(s === "alphavantage" ? "alphavantage|alpha_vantage" : s, "i").test(txt));
   const v = { db: /connect\(|psycopg|DATABASE_URL|@workspace\/db|db\.execute/.test(txt), sources };
   scriptInfo.set(token, v);

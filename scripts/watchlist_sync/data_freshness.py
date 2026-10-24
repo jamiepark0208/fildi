@@ -42,9 +42,7 @@ CHECKS = [
     ("public.model_recs", "created_at", 5, "model track record (weekly) · API model snapshot"),
     ("lseg_research.signals_daily", "as_of", 1, "live StarMine alpha/ARM, PT, short interest → fit model · daily.py lseg signals"),
     ("lseg_research.starmine_history", "fetched_at", 20, "research history (monthly frequency, 28-day TTL by design)"),
-    # table string may carry a WHERE when the table is shared across vendors
-    ("public.vendor_raw WHERE source = 'tastytrade' AND endpoint = '/market-metrics'", "fetched_on", 1,
-     "tastytrade IV rank/pctile + liquidity (S096 forward test) · daily.py tastytrade step"),
+    ("watchlist_sync.tasty_metrics_daily", "date", 1, "tastytrade IV rank/pctile + liquidity (S096 forward test) · daily.py tastytrade step"),
 ]
 PER_NAME = [("optlab.underlying", "date", "ticker"), ("lseg_research.daily_history", "date", "ticker")]
 FUTURE = [("public.indicator_cache", "scored_date"), ("public.option_score_snapshots", "as_of"), ("public.model_recs", "snapshot_date")]

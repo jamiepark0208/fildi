@@ -46,10 +46,11 @@ const SOURCE_META: Record<string, SourceMeta> = {
   anthropic: { label: "Anthropic (Haiku)", limitKind: "none", rateNote: "30 req/15min per user" },
   lseg:   { label: "LSEG Workspace", limitKind: "daily", dailyLimit: 10000, rateNote: "10k req/day · CLI sync only" },
   wrds:   { label: "WRDS",         limitKind: "none",    rateNote: "CLI sync only · counts when you pull" },
+  tastytrade: { label: "tastytrade", limitKind: "none",  rateNote: "no published cap · ~3 calls/day (daily.py) + backtests" },
 };
 
 // Show these sources always (even with 0 calls); others shown only if they have data.
-const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "polygon_429", "schwab", "finnhub", "yahoo", "edgar", "anthropic", "lseg", "wrds"];
+const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "polygon_429", "schwab", "finnhub", "yahoo", "edgar", "anthropic", "lseg", "wrds", "tastytrade"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
