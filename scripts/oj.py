@@ -48,11 +48,36 @@ EVALS = FW / "evals"                       # manifests (committed): items hash, 
 EVAL_DATA = ROOT / "research/openjev/evals"  # raw items + answers (gitignored, rebuildable with --build)
 USAGE = Path.home() / ".fildi/openjev-usage.jsonl"
 MODEL = "openjev-latest"
+# 10-24 (Jamie): hosted Codiv serves the same 26B (openjev-0.1, NVFP4) on the same /v1/systemone API. OJ_PROVIDER=codiv
+# sends agent-tooling questions there (no Mac RAM, no load); secret values from .env.local are stripped first.
+PROVIDER = os.environ.get("OJ_PROVIDER", "local")
+CODIV_URL = "https://api.codiv.ai/v1/systemone"
+
+
+def _env_local() -> dict:
+    out = {}
+    try:
+        for ln in (ROOT / ".env.local").read_text().splitlines():
+            if "=" in ln and not ln.lstrip().startswith("#"):
+                k, v = ln.split("=", 1)
+                out[k.strip()] = v.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def _redact(text: str) -> str:
+    for v in _env_local().values():
+        if len(v) >= 8:
+            text = text.replace(v, "[redacted]")
+    return text
 import oj_server  # noqa: E402  — the single OpenJev instance (one port, start lock, shared queue, one idle stop)
 
 
 def ensure_server() -> int | None:
     """Port of THE shared OpenJev server (starts it once for everyone; None = unavailable → decide yourself)."""
+    if PROVIDER == "codiv":
+        return 0   # hosted: nothing to start
     return oj_server.ensure(who=me())
 
 
@@ -126,10 +151,15 @@ def post(port: int, state: str, questions: dict, **extra) -> dict:
     if time.time() - _last_ev[0] > 3:   # throttle: one AI-tab ping per 3 s of asking
         _last_ev[0] = time.time()
         ev("batch", f"{me()}: {WHAT[0]}", me())
-    body = json.dumps({"model": MODEL, "state": state, "questions": questions, **extra}).encode()
+    codiv = PROVIDER == "codiv"
+    body = json.dumps({"model": MODEL, "state": _redact(state) if codiv else state, "questions": questions, **extra}).encode()
+    url, hdr = f"http://127.0.0.1:{port}/v1/systemone", {"content-type": "application/json"}
+    if codiv:
+        url, hdr = CODIV_URL, {**hdr, "authorization": f"Bearer {_env_local().get('CODIV_API_KEY', '')}",
+               "user-agent": "fildi-oj/1.0"}   # Codiv's edge 403s Python's default urllib agent
     started = time.monotonic()
     for attempt in range(6):
-        req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/systemone", data=body, method="POST", headers={"content-type": "application/json"})
+        req = urllib.request.Request(url, data=body, method="POST", headers=hdr)
         try:
             with urllib.request.urlopen(req, timeout=600) as r:
                 response = json.loads(r.read())
@@ -392,7 +422,9 @@ def run_eval(pid: str, build: bool, limit: int | None, model: str | None = None,
     if model:
         MODEL = model
         ans_f = d / f"answers_{model}.jsonl"
-    port = port or ensure_server()
+    if PROVIDER == "codiv":
+        ans_f = d / f"answers_codiv_{MODEL}.jsonl"
+    port = 0 if PROVIDER == "codiv" else (port or ensure_server())
     if port is None:
         sys.exit("oj eval: OpenJev unavailable (RAM)")
     t0 = time.time()

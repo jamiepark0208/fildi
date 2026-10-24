@@ -41,6 +41,7 @@ Practical rules:
 3. **Muse → Cursor** = Cursor’s queue. **Claude → Claude / Cursor → Claude** = Claude’s (unchanged).
 4. **Check before editing:** `git status` / `git diff`; build on others’ work, don’t overwrite.
 4b. **Check before filing (Jamie 10-24, after A263/S092 duplicated Muse's A228 and a row id was overwritten):** search `ASKS.md`, `research/studies/INDEX.md` and `python3 scripts/oj.py dupes "<idea>"`; extend the existing row instead of filing a twin. New `asks/A###.md` must carry a `**Dupe check:**` line and a fresh id — `scripts/asks-check.sh` (run by agent-git-sync) blocks the push otherwise, and blocks changing another row's title. Session start for every agent on the Mac: `python3 scripts/agent_start.py --agent <you>` — step 6b lists rows untouched > 3 days; their owner acts or re-routes (a `revise` goes back to its author).
+4c. **Store what you fetch (Jamie 10-24):** every vendor response is kept whole in `vendor_raw` (A266) — never call an API and drop fields. Adding a vendor/endpoint = store raw + map the useful fields via FIELD_DEFS (or write why not in `research/common/data-inventory.md`). Never call something "fully integrated" without checking that inventory; agent_start flags it when > 30 days old.
 5. **One home per piece of logic** (`scripts/watchlist_sync/FACTOR_MAP.md`).
 6. **Session-state files stay per tool:** Claude → `.agents/context/state.md`, Cursor →
    `.cursor/context/cursor-state.md`. Muse uses ASKS only.

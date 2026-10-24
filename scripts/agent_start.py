@@ -87,6 +87,10 @@ def main() -> None:
         open_rows = [l for l in asks.splitlines() if l.startswith("| [A") and not re.search(r"\|\s*(done|verified|declined)\b[^|]*\|\s*$", l)]
         mine = [re.search(r"\[(A\d+)\]", l).group(1) for l in open_rows if re.search(rf"→ {Agent}\b|needs {Agent}", l)]
         say(f"6 ASKS for {Agent}: {len(mine)} open — {', '.join(mine[:15])}{' …' if len(mine) > 15 else ''}")
+        inv = ROOT / "research/common/data-inventory.md"
+        inv_ts = subprocess.run(["git", "log", "-1", "--format=%ct", "--", str(inv)], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        if not inv_ts or time.time() - int(inv_ts) > 30 * 86400:
+            say("6c data inventory > 30 d old (or missing) → re-run A263 audit: unused endpoints + dropped fields, then fix them (AGENTS 4c)")
         # 10-24 (Jamie): A228 sat in 'revise' 3 days with no owner action → new work duplicated it. Untouched > 3 days = stalled.
         stalled = []
         for l in open_rows:
