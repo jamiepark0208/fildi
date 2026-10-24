@@ -1,5 +1,6 @@
 # A##: <title>
 **From → to:** <from> → <to> · **Date:** YYYY-MM-DD · **Status:** open
+**Dupe check:** <rows/studies searched (ASKS.md, INDEX.md, `oj.py dupes`) and why this is not one of them — push fails without this line>
 **Moves:** <which scoreboard number (A171: Own−Avoid · FV spread · put Brier · IRA vs SPY/QQQ puts · put/call pnl) — or "ops" for tooling>
 
 ## Ask

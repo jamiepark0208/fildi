@@ -87,6 +87,18 @@ def main() -> None:
         open_rows = [l for l in asks.splitlines() if l.startswith("| [A") and not re.search(r"\|\s*(done|verified|declined)\b[^|]*\|\s*$", l)]
         mine = [re.search(r"\[(A\d+)\]", l).group(1) for l in open_rows if re.search(rf"→ {Agent}\b|needs {Agent}", l)]
         say(f"6 ASKS for {Agent}: {len(mine)} open — {', '.join(mine[:15])}{' …' if len(mine) > 15 else ''}")
+        # 10-24 (Jamie): A228 sat in 'revise' 3 days with no owner action → new work duplicated it. Untouched > 3 days = stalled.
+        stalled = []
+        for l in open_rows:
+            aid = re.search(r"\[(A\d+)\]", l).group(1)
+            st_ = re.search(r"\|\s*(open|planned|revise|accepted|blocked)\b", l)
+            f = f"research/common/asks/{aid}.md"
+            ts = subprocess.run(["git", "log", "-1", "--format=%ct", "--", f], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            if st_ and ts and time.time() - int(ts) > 3 * 86400:
+                route = re.search(r"\|\s*([A-Za-z]+ → [^|]+?)\s*\|", l)
+                stalled.append(f"{aid} {st_.group(1)} ({route.group(1) if route else '?'})")
+        say(f"6b stalled ASKS (no change > 3 d): {len(stalled)}" + (" — " + "; ".join(stalled[:12]) + (" …" if len(stalled) > 12 else "")
+            + " → owner acts or re-routes; a 'revise' goes back to its author" if stalled else ""))
         if a.agent == "claude":
             need = []
             for l in open_rows:

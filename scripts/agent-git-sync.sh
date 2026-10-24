@@ -28,6 +28,7 @@ if [ "$behind" = 0 ]; then
   if [ "$ahead" = 0 ]; then echo "agent-git-sync: up to date"; exit 0; fi
   # A94 lesson: never push boot-breaking TS (Jamie 2026-10-18)
   "$ROOT/scripts/agent-ship-check.sh" "$REMOTE" HEAD || { echo "agent-git-sync: ship-check failed — not pushed" >&2; exit 3; }
+  "$ROOT/scripts/asks-check.sh" "$REMOTE" HEAD || { echo "agent-git-sync: asks-check failed — not pushed" >&2; exit 3; }
   git push -q origin "HEAD:$BRANCH" || { echo "agent-git-sync: push failed" >&2; exit 3; }
   echo "agent-git-sync: pushed $ahead commit(s)"; exit 0
 fi
@@ -68,6 +69,7 @@ done
 NEW="$(git -C "$WT" rev-parse HEAD)"
 # Ship-check on replayed tip (same tree that will push). Fail → nothing pushed, local unchanged.
 "$ROOT/scripts/agent-ship-check.sh" "$REMOTE" "$NEW" || { echo "agent-git-sync: ship-check failed — not pushed" >&2; exit 3; }
+"$ROOT/scripts/asks-check.sh" "$REMOTE" "$NEW" || { echo "agent-git-sync: asks-check failed — not pushed" >&2; exit 3; }
 git -C "$WT" push -q origin "HEAD:$BRANCH" || { echo "agent-git-sync: push failed (origin moved again? rerun)" >&2; exit 3; }
 
 # --- 2. bring this checkout to NEW, path by path --------------------------------------------------
