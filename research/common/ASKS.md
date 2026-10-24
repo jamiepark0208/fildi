@@ -215,7 +215,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A238](asks/A238.md) | 2026-10-21 | Claude → Cursor | Heavy-token queue: Cursor runs reviews-packets/backtests/studies, Claude judges from ≤ 20-line packets | open |
 | [A239](asks/A239.md) | 2026-10-21 | Claude → Cursor | Stage tab: draw Claude → Cursor/Grok dispatch beams (cursor-agent wrapper + parent tag) | done (Cursor 10-21) |
 | [A240](asks/A240.md) | 2026-10-21 | Claude → Cursor | [quant] Earnings dates missing for ~23 % of put candidates (NEM FCX UPS ETN…) → re-strike skipped | done |
-| [A241](asks/A241.md) | 2026-10-21 | Grok → Cursor | GCP free VM shadow: public jobs + public DB copy, Mac untouched until parity pass + Jamie go | planned (P2 public dump on VM; P3 next) |
+| [A241](asks/A241.md) | 2026-10-21 | Grok → Cursor | GCP free VM shadow: public jobs + public DB copy, Mac untouched until parity pass + Jamie go | planned (P2+recon harness; P3 jobs next) |
 | [A242](asks/A242.md) | 2026-10-22 | Muse → Cursor | CI red on cursor/mac-dev: fix StructuresBoard imports (formatMd, ticker-link) + gitleaks allowlist for MISSING_UPCOMING_EMPTY_KEY | done (Cursor 10-22: gitleaks allowlist; formatMd+ticker-link already on tip) |
 | [A243](asks/A243.md) | 2026-10-22 | Claude → Cursor | [quant] Model List stability: keep ideas until they break, daily scores, no cash gate, long call/put sections | done (Cursor 10-22: freshness+universe gate+carry+cash; LSEG RIC expand optional) |
 | [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | planned (S081 FAIL packet; Claude verdict) |
