@@ -54,5 +54,7 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 ## Review loop + ASKS format (2026-10-11, user YES)
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
+- 10-24 late: A262 wave done. Every free outside source tested; nothing ships (S089b underpowered on book, 9-wk 2nd half → revisit at ≥52 wks post-2023; S097 movers = IV level; S098 outside short-vol structures fail; S094 P/C near-miss revisit ≈2027-03). A268 shipped: `lab.py signal` / `s045 signal` = seconds per idea (review pass; P3 multi-seed placebo). A243 commits reviewed (P3: carried puts on stale chain). Next session: Model List put count + S088 sector-capped name picking; S099 after Monday universe feed; Monday checks unchanged.
+
 Last reviewed SHA: 5885f50d (10-24: dd26e459..5885f50d live Model List quant commits reviewed — 2f47e611, 11953ce9, 06a33418, cdbaaa53, 47fae877, 519024f6; finding 519024f6 P3 stale-chain carry in A243)
 
