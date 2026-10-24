@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# SUPERSEDED 2026-10-24 — Grok+Jamie already provisioned via cloudshell-setup.sh
+# (project fildi-public-5ef5e2, VM fildi-public-1). Do not run this file on that
+# account (would create a second project). Kept only as a draft; use:
+#   bash deploy/gcp/cloudshell-setup.sh
+#   bash deploy/gcp/verify-p1.sh   # after gcloud auth, PROJECT=fildi-public-5ef5e2
+#
 # A241 P1 — paste into Google Cloud Shell (browser). Creates project + free-tier VM.
 # Free-tier traps asserted below: pd-standard (NOT Balanced), ephemeral IP (NOT static),
 # us-west1, e2-micro, 30 GB disk.
