@@ -20,10 +20,13 @@
 - Overlap → head-to-head + marginal gain, not "park" (10-16). A negative test ≠ no use: find what the tool is built for (10-16).
 - Every recommendation answers **"so what"**: what changes for his trades, how many bp/$ it is worth, what it costs, do it or not (10-21).
 
+- **Design dynamic, not one pinned answer (10-24):** show the range side by side (e.g. put ladder: every Δ band with kept %, income, worst 5 %, and the tickers that fit each band) so Jamie picks the level; the default/recommended row is highlighted, not the only one shown. Apply to any parameter (delta, DTE, horizon, risk tier) where a single cutoff hides the trade-off.
+
 ## Communication
 - Caveman: answer first, terse, keep numbers and caveats, no code in chat (10-06, 10-15).
 - UI: headline value in the cell, method/source/timestamp in the hover tooltip (10-14, 10-20).
 - Name rows by what they do, not just their ID (10-16).
+- **No same-hue text on tinted fill** (10-24): never gold/amber text on gold/amber background (e.g. `#d4af37` on `bg-[#d4af37]/15`). Theme/section headers = white (or near-white) text on a clearly different fill (`bg-zinc-800`, solid green/red chips, etc.). Tooltips must say what to *do*, not restate jargon.
 
 ## Ops
 - Never send merge conflicts to Jamie; sync via `scripts/agent-git-sync.sh` only (10-16).

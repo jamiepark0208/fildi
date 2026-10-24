@@ -126,4 +126,4 @@ if __name__ == "__main__":
     elif cmd == "dates":
         print(json.dumps(available_dates())[:3000])
     elif cmd == "backtest":
-        print(json.dumps(backtest(json.load(open(sys.argv[2]))), indent=1)[:6000])
+        print(json.dumps((backtest(json.load(open(sys.argv[2]))).get("results") or {}).get("statistics"), indent=1))
