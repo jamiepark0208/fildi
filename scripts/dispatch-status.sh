@@ -12,7 +12,7 @@ tree_cpu() {   # total CPU seconds of a process and all its descendants
   done
   ps -o time= -p "$(echo $all | tr -s ' ' ',')" 2>/dev/null | awk -F'[:.]' '{ s += (NF > 3 ? $1*3600 + $2*60 + $3 : $1*60 + $2) } END { print s+0 }'
 }
-for pid in $(pgrep -f "bash .*agent-dispatch.sh"); do
+for pid in $(pgrep -f "^bash scripts/agent-dispatch.sh|^bash .*/scripts/agent-dispatch.sh"); do
   ppid=$(ps -o ppid= -p "$pid" | tr -d ' ')
   ps -o command= -p "$ppid" | grep -qE "^bash .*agent-dispatch.sh" && continue   # the watchdog subshell, not a second job
   args=$(ps -o command= -p "$pid"); prompt=${args##* }
