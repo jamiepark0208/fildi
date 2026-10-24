@@ -72,6 +72,15 @@ export type ModelListItem = {
     bounce_5d?: { value: number | null; evidence?: string };
   } | null;
   isNew: boolean;
+  /** A261: morning news shortlist (display only). Tooltip titles are the source items. */
+  news?: {
+    role: string;
+    ofTicker: string | null;
+    dir: string | null;
+    cats: string[];
+    n: number;
+    titles: string[];
+  } | null;
   close: number | null;
   prevClose: number | null;
   closeDate: string | null;

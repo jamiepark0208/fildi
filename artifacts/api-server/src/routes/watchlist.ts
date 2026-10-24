@@ -209,6 +209,32 @@ router.get("/watchlist/model", async (req, res) => {
       } catch { /* pick_odds table may not exist yet */ }
     }
 
+    // A261: news shortlist chip (display only). Latest morning rows, not a score input.
+    try {
+      const newsRows = rowsOf(await db.execute(sql`
+        SELECT ticker, role, of_ticker, dir, cats, items
+        FROM watchlist_sync.openjev_shortlist
+        WHERE made_on = (SELECT MAX(made_on) FROM watchlist_sync.openjev_shortlist)`) as SqlRows<{
+        ticker: string; role: string; of_ticker: string | null; dir: string | null; cats: unknown; items: unknown;
+      }>);
+      const newsBy = new Map(newsRows.map((r) => [String(r.ticker).toUpperCase(), r]));
+      for (const f of folders.values()) {
+        for (const it of f.items as Array<{ ticker: string; news?: unknown }>) {
+          const n = newsBy.get(String(it.ticker).toUpperCase());
+          if (!n) continue;
+          const items = Array.isArray(n.items) ? n.items as Array<{ title?: string }> : [];
+          it.news = {
+            role: n.role,
+            ofTicker: n.of_ticker,
+            dir: n.dir,
+            cats: Array.isArray(n.cats) ? n.cats : [],
+            n: items.length,
+            titles: items.map((x) => x.title).filter((t): t is string => !!t).slice(0, 6),
+          };
+        }
+      }
+    } catch { /* shortlist table may not exist yet */ }
+
     // Pipeline health strip: is everything behind this list fresh and working? (one round trip; each part is optional)
     const healthRows = rowsOf(await db.execute(sql`
       SELECT

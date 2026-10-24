@@ -300,6 +300,36 @@ def _r_recmed(conn, t, d, m):
     return (rets[t] > med, {"ret": round(rets[t], 4), "median": round(med, 4)})
 
 
+def _aligned_closes(conn, ticker: str, lo: dt.date, hi: dt.date) -> list[tuple]:
+    for table in ("lseg_research.daily_history", "prices_historical"):
+        rows = conn.execute(
+            f"""SELECT date, close::float FROM {table}
+                WHERE ticker = %s AND date >= %s AND date <= %s AND close > 0 ORDER BY date""",
+            (ticker, lo, hi)).fetchall()
+        if len(rows) >= 40:
+            return rows
+    return rows
+
+
+def _r_abn_1s_5d(conn, t, d, m):
+    """A261: |5-day beta-residual return| > 1σ. Meta carries the start session (`from`) and horizon."""
+    from openjev_shortlist import abn_exceeds_1s
+    start = dt.date.fromisoformat(m["from"])
+    horizon = int(m.get("horizon") or 5)
+    lo = start - dt.timedelta(days=140)
+    stock = _aligned_closes(conn, t, lo, d)
+    spy = {r[0]: r[1] for r in _aligned_closes(conn, "SPY", lo, d)}
+    xs, xm = [], []
+    for day, px in stock:
+        if day in spy:
+            xs.append(px)
+            xm.append(spy[day])
+    flag = abn_exceeds_1s(xs, xm, horizon=horizon)
+    if flag is None:
+        return None
+    return flag, {"n": len(xs), "horizon": horizon}
+
+
 def _r_index21(conn, t, d, m):
     """house_view.py (S057): index_up_21d = close at resolves_on > start close; index_tail_21d = any close in the window ≤ 0.95 × start."""
     if not _has_bar(conn, t, d):
@@ -330,7 +360,7 @@ def _r_structure(conn, t, d, m):
 
 EXTRA_RESOLVERS = {"sim_structure": _r_structure, "index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
                    "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings,
-                   "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed}
+                   "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed, "abn_1s_5d": _r_abn_1s_5d}
 
 
 def _close_on_or_before_any(conn, t: str, d: dt.date) -> tuple[float, str] | None:

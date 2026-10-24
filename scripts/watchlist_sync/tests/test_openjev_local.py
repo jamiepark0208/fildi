@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import forecast_ledger as fl  # noqa: E402
 import openjev_local as oj  # noqa: E402
+import openjev_shortlist as osl  # noqa: E402
 
 
 def clean_state():
@@ -106,8 +107,43 @@ class Resolvers(unittest.TestCase):
 
     def test_every_scored_qtype_has_resolver(self):
         for qt in ("strike_touch", "direction_5d", "direction_20d", "drop_2sigma", "score_disagree",
-                   "earnings_vs_implied", "fv_vs_pt", "rec_beats_median"):
+                   "earnings_vs_implied", "fv_vs_pt", "rec_beats_median", "abn_1s_5d"):
             self.assertIn(qt, fl.EXTRA_RESOLVERS)
+
+    def test_abn_flat_is_not_a_move(self):
+        spy = [100 * (1.001 ** i) for i in range(80)]
+        stock = [50 * (1.001 ** i) for i in range(80)]
+        self.assertIs(osl.abn_exceeds_1s(stock, spy), False)
+
+    def test_abn_jump_is_a_move(self):
+        spy = [100 * (1.001 ** i) for i in range(80)]
+        stock = [50 * (1.001 ** i) for i in range(75)]
+        last = stock[-1]
+        for k in range(1, 6):
+            stock.append(last * (1.08 ** k))
+        self.assertIs(osl.abn_exceeds_1s(stock, spy), True)
+
+
+class Shortlist(unittest.TestCase):
+    def test_forecast_batch_off(self):
+        self.assertFalse(oj.FORECAST_BATCH)
+
+    def test_cap_three_per_source(self):
+        items = [{"ticker": "NVDA", "source": "email", "rel": 1.0, "mat": 1.0, "dir": "good",
+                  "cat": "earnings", "title": str(i), "id": i} for i in range(5)]
+        items.append({"ticker": "NVDA", "source": "headline", "rel": 0.2, "mat": 1.0, "dir": "bad",
+                      "cat": "legal", "title": "drop", "id": 9})
+        agg = osl.accumulate(items)
+        self.assertEqual(len(agg["NVDA"]["items"]), 3)
+        self.assertEqual(agg["NVDA"]["score"], 3)
+
+    def test_peers_skip_listed(self):
+        self.assertEqual(osl.pick_peers(["AMD", "AVGO", "TSM", "INTC"], {"NVDA", "AMD"}), ["AVGO", "TSM", "INTC"])
+
+    def test_reason_line(self):
+        self.assertEqual(osl.reason_line("news", ["earnings"], "good", 2, None),
+                         "news shortlist: earnings good (2 items)")
+        self.assertEqual(osl.reason_line("peer", [], "good", 0, "NVDA"), "news shortlist: peer of NVDA")
 
 
 class Guard(unittest.TestCase):

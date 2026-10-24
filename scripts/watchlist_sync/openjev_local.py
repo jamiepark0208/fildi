@@ -45,6 +45,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 PT = ZoneInfo("America/Los_Angeles")
 FORECASTER = "openjev:local-26b"
 MODEL = "openjev-latest"
+# A251: the daily forecast questions lose to the baseline. Freeze/answer stay; the morning tick
+# runs the news shortlist (A261) instead. Set True to restore the forecast batch.
+FORECAST_BATCH = False
 HOST, PORT = "127.0.0.1", 8091  # 8080 = fildi API server (clash 10-16)
 BASE = f"http://{HOST}:{PORT}"
 OJ_PY = ROOT / "research/openjev/.venv/bin/python"
@@ -882,6 +885,9 @@ def tick(conn, now: dt.datetime | None = None) -> dict:
     conn.commit()
     if t < FREEZE_AT:
         return {"idle": "before 05:30"}
+    if not FORECAST_BATCH:
+        import openjev_shortlist as ojs
+        return ojs.tick_news(conn, now)
     if maintain_running() and not conn.execute(
             "SELECT 1 FROM watchlist_sync.openjev_batches WHERE made_on = %s", (today,)).fetchone():
         # 10-21: maintain's chain starts 05:00 and rewrites scores/earnings until ~06:15 → freeze after it, not mid-write

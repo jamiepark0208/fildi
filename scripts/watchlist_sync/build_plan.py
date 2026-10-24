@@ -497,6 +497,11 @@ def build(show_rejected: bool) -> int:
                            (close, json.dumps(inputs))).fetchone()[0]
 
         items: list[tuple] = []
+        try:
+            import openjev_shortlist as ojs
+            news_why = ojs.reason_map(conn)
+        except Exception:
+            news_why = {}
         held = sorted({s["ticker"] for s in ctx["shares"]})
         trims = {t: trim_checks(t, ctx) for t in held}
         # 2026-10-19 (Jamie): RKLB was on trim AND sell-puts in one list. Never tell him to sell shares and to buy more via puts.
@@ -535,6 +540,8 @@ def build(show_rejected: bool) -> int:
                                    f"(IV/RV {e['iv_rv']:.2f}, S059 holdout)")
                 if r.get("repriced"):
                     reasons.append(r["repriced"])
+                if news_why.get(r["ticker"]):
+                    reasons.append(news_why[r["ticker"]])
                 items.append((pid, key, r["ticker"], rank if b["ok"] else None, r["option_score"], "option", side, r["strike"], r["expiry"],
                               b["account"], r["premium"], r["spot"], r["delta"], r["strike_iv"], b["ok"], json.dumps(b["checks"], default=str),
                               json.dumps(reasons), "pending" if b["ok"] else "not_required"))
@@ -545,6 +552,8 @@ def build(show_rejected: bool) -> int:
             ok = checks[0]["pass"]
             if ok:
                 rank += 1
+            if news_why.get(t):
+                flags = [*flags, news_why[t]]
             items.append((pid, "trim_risk", t, rank if ok else None, len(flags), "stock", None, None, None, None, None, None, None, None,
                           ok, json.dumps(checks), json.dumps(flags), "pending" if ok else "not_required"))
 

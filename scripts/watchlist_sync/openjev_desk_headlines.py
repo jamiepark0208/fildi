@@ -126,7 +126,8 @@ def label_one(port: int, ticker: str, name: str, h: dict) -> dict | None:
     return {"rel": rel, "dir": dir_v, "cat": cat}
 
 
-def run(limit: int | None = None) -> dict:
+def run(limit: int | None = None, *, max_new: int | None = None, reuse: bool = False) -> dict:
+    """Label new Finnhub headlines. reuse=True: the caller already loaded the model (A261 morning tick)."""
     import oj
     conn = connect()
     for stmt in DDL.split(";"):
@@ -138,7 +139,11 @@ def run(limit: int | None = None) -> dict:
         tickers = tickers[:limit]
     today = dt.datetime.now(PT).date()
     since = today - dt.timedelta(days=1)
-    port = oj.ensure_server()
+    if reuse:
+        import oj_server
+        port = oj_server.running_port()
+    else:
+        port = oj.ensure_server()
     if port is None:
         return {"ok": False, "error": "openjev unavailable"}
     names = {t: t for t in tickers}
@@ -151,12 +156,23 @@ def run(limit: int | None = None) -> dict:
     except Exception:
         conn.rollback()
     n_lab, n_skip = 0, 0
+    have = {(r[0], r[1]) for r in conn.execute(
+        "SELECT ticker, headline FROM watchlist_sync.openjev_headline_labels WHERE ts >= %s",
+        (dt.datetime.combine(since, dt.time.min, tzinfo=PT),),
+    ).fetchall()}
     for t in tickers:
+        if max_new is not None and n_lab >= max_new:
+            break
         for h in finnhub_news(t, since, today)[:12]:
+            if max_new is not None and n_lab >= max_new:
+                break
+            if (t, h["headline"]) in have:
+                continue
             lab = label_one(port, t, names.get(t, t), h)
             if not lab:
                 n_skip += 1
                 continue
+            have.add((t, h["headline"]))
             try:
                 conn.execute(
                     """INSERT INTO watchlist_sync.openjev_headline_labels

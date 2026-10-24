@@ -30,17 +30,27 @@ def main():
                            "WHERE plan_id = %s AND list_key = %s", (plan, key))
         pub = {r["ticker"]: r for r in rows(conn, "SELECT ticker, folder_key, status, why FROM watchlist_sync.model_items "
                                                   "WHERE run_id = %s AND folder_key IN (%s, 'review')", (run, key))}
+        news = None
+        if a.ticker:
+            try:
+                import openjev_shortlist as ojs
+                news = ojs.reason_map(conn).get(a.ticker.upper())
+            except Exception:
+                conn.rollback()
+                news = None
     if a.ticker:
         t = a.ticker.upper()
         it = next((i for i in items if i["ticker"] == t), None)
         if not it:
             print(f"{t}: not in plan {plan}'s {key} pool (pool = fresher of model_recs / option_score_snapshots; check fit verdict)")
+            print(f"  {news or 'news shortlist: —'}")
             return
         bad = [f"{c['check']} ({c['severity']}): {c['detail']}" for c in it["l1_checks"] if not c["pass"]]
         print(f"{t} plan {plan}: L1 {'pass' if it['l1_pass'] else 'BLOCK'}", *bad, sep="\n  ")
         print(f"  L2 {it['verify_status']}:", "; ".join(c["check"] for c in it["verify_checks"] or [] if not c["pass"]) or "—")
         p = pub.get(t)
         print(f"  publish run {run}:", f"{p['folder_key']} [{p['status']}] {p['why'][0]}" if p else "not published")
+        print(f"  {news or 'news shortlist: —'}")
         return
     blocks = Counter(c["check"] for i in items if not i["l1_pass"] for c in i["l1_checks"] if not c["pass"] and c["severity"] == "block")
     l1 = [i for i in items if i["l1_pass"]]

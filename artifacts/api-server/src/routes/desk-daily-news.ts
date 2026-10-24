@@ -692,7 +692,9 @@ function includeRow(r: {
   category: string | null;
   meta: unknown;
 }): boolean {
-  const meta = (r.meta ?? {}) as { includeInBrief?: boolean };
+  const meta = (r.meta ?? {}) as { includeInBrief?: boolean; openjev_relevant?: number };
+  // A261: OpenJev already marked this mail off-topic. Skip it before Haiku. includeInBrief is left as stored.
+  if (typeof meta.openjev_relevant === "number" && meta.openjev_relevant < 0.5) return false;
   if (typeof meta.includeInBrief === "boolean") return meta.includeInBrief;
   if ((r.noiseScore ?? 0) >= DESK_BRIEF_PREFS.noiseExcludeAtOrAbove) return false;
   if (r.category === "promo") return false;

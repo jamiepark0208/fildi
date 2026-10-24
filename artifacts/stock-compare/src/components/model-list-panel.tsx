@@ -15,7 +15,7 @@ import { HouseViewWarnings } from "@/components/live/house-view-card";
 
 /** Shared Model/My value cols — ch widths so numbers don't ellipsis. */
 export const WATCHLIST_ROW =
-  "grid grid-cols-[14px_4.5ch_7ch_6ch_5.5ch] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
+  "grid grid-cols-[14px_4.5ch_7ch_6ch_8ch] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
 
 /** My List only — trailing 14px for always-visible remove X (keeps headers aligned). */
 export const WATCHLIST_ROW_MINE =
@@ -114,6 +114,20 @@ function ItemRow({
         )}
         {(item.status === "warn" || item.why.some((w) => w.startsWith("⚠"))) && (
           <span className="text-[8px] px-0.5 rounded bg-orange-500/20 text-orange-300">!</span>
+        )}
+        {item.news && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[8px] px-0.5 rounded bg-emerald-500/20 text-emerald-300">news</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              {item.news.titles.length
+                ? item.news.titles.join(" · ")
+                : item.news.role === "peer"
+                  ? `peer of ${item.news.ofTicker}`
+                  : "news shortlist"}
+            </TooltipContent>
+          </Tooltip>
         )}
       </span>
     </div>
