@@ -50,7 +50,9 @@ USAGE = Path.home() / ".fildi/openjev-usage.jsonl"
 MODEL = "openjev-latest"
 # 10-24 (Jamie): hosted Codiv serves the same 26B (openjev-0.1, NVFP4) on the same /v1/systemone API. OJ_PROVIDER=codiv
 # sends agent-tooling questions there (no Mac RAM, no load); secret values from .env.local are stripped first.
-PROVIDER = os.environ.get("OJ_PROVIDER", "local")
+# auto (default for agent tools): reuse the local server if it is already up, else Codiv (same scores on P10/P11/P16v2/P17,
+# 10-24 graded sets) — no 22 GB load. The morning batch calls oj_server.ensure directly, so it stays local.
+PROVIDER = os.environ.get("OJ_PROVIDER", "auto")
 CODIV_URL = "https://api.codiv.ai/v1/systemone"
 
 
@@ -76,6 +78,9 @@ import oj_server  # noqa: E402  — the single OpenJev instance (one port, start
 
 def ensure_server() -> int | None:
     """Port of THE shared OpenJev server (starts it once for everyone; None = unavailable → decide yourself)."""
+    global PROVIDER
+    if PROVIDER == "auto":
+        PROVIDER = "local" if oj_server.running_port() or not _env_local().get("CODIV_API_KEY") else "codiv"
     if PROVIDER == "codiv":
         return 0   # hosted: nothing to start
     return oj_server.ensure(who=me())
@@ -166,9 +171,10 @@ def post(port: int, state: str, questions: dict, **extra) -> dict:
                 log_request_usage(response, round((time.monotonic() - started) * 1000))
                 return response
         except urllib.error.HTTPError as e:
-            if e.code != 529 or attempt == 5:
+            if e.code not in (429, 529) or attempt == 5:
                 raise
-            time.sleep(1 + attempt)
+            # 529 = local queue full; 429 = Codiv rate limit (hit after ~650 back-to-back eval calls, 10-24)
+            time.sleep(float(e.headers.get("retry-after") or 0) or (1 + attempt) * (10 if e.code == 429 else 1))
         except (urllib.error.URLError, ConnectionError):
             if attempt == 5 or (port := ensure_server()) is None:   # server idled out / restarted → bring it back once
                 raise

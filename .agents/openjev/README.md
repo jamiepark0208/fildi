@@ -81,6 +81,7 @@ Each prints the pattern's tier. Below A the output is a ranked shortlist you sti
 OpenJev's small built-in models were tested on the same graded sets: Laya (2 GB) AUC 0.93 on output triage but 0.40 on file
 relevance; Verdict (0.4 GB) 0.25 / 0.53. The 26B (20 GB) scores 0.98 / 0.84 → keep the 26B, share one instance.
 Fine-tuning a small model on our labels is the only path to an always-on light tier (≥ 1k labels per task first).
+**Hosted Codiv (10-24):** same 26B (openjev-0.1, NVFP4) at api.codiv.ai, free key in `.env.local`. Graded sets, Codiv vs local: P11 0.987 vs 0.987 (skips 85 % vs 83 %) · P10 1.000 vs 0.956 (skips 15 % vs 33 % — safer, saves less) · P17 0.896 vs 0.898 (0.26 vs 2.5 s/item) · P16v2 0.835 vs 0.823. → `oj.py` default `OJ_PROVIDER=auto`: local server if already up, else Codiv (no 22 GB load). Secrets from `.env.local` are stripped before sending; the morning stock batch stays local. Rate limit ≈ 650 rapid calls → 429 back-off.
 
 ## 8. Miss → teach → rebuild (Jamie 10-18: do not quit)
 A miss is a **label**, not a kill. Agents are one-angle; OpenJev is a second angle — make it better with corrections.
