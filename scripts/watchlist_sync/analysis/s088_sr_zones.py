@@ -405,6 +405,9 @@ def run(rows, today_rows):
     if "--vs-ml" in sys.argv[1:]:
         vs_model_list(res["put"])
         return
+    if "--ladder" in sys.argv[1:]:
+        ladder(res["put"])
+        return
     # today's model: fit on everything realised, predict today's candidates
     from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
     feats = BASE_FEATS + ZONE_FEATS
@@ -504,6 +507,46 @@ def vs_model_list(rows, n_top=10):
 
 
 LOG_EVERY = 7       # days; the backtest enters weekly
+
+
+LADDER_BANDS = ((0.03, 0.06), (0.06, 0.08), (0.08, 0.10), (0.10, 0.12), (0.12, 0.15), (0.15, 0.20), (0.20, 0.25))
+
+
+def ladder(rows):
+    """Jamie 10-24: show a wide |Δ| band with confidence levels, not one pinned strike. Holdout 2023 →, all names:
+    per |Δ| band kept / bp / worst 5 %, and whether the model's P(kept) separates strikes *within* a band
+    (top vs bottom half by p_zones) — if not, confidence = delta and the ladder shows delta tiers only."""
+    import json
+    L = ["# S088 put ladder by |Δ| band (holdout 2023 →, walk-forward, all names)", "",
+         "Within-band split = same band, top vs bottom half by model P(kept). pnl = bp per collateral-week.", "",
+         "| horizon | |Δ| band | n | kept | model P(kept) | bp/wk | real-fill bp/wk | worst 5 % | Sharpe | hi-P kept | lo-P kept | hi-P worst 5 % | lo-P worst 5 % | hi−lo real-fill bp (t) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    out = {}
+    for h in HORIZONS:
+        hs = [r for r in rows if r["h"] == h and "pnl" in r and r["d"] >= HOLDOUT and "p_zones" in r]
+        for r in hs:
+            r["dlt"] = put_delta(r)
+        for lo, hi in LADDER_BANDS:
+            b = [r for r in hs if lo <= r["dlt"] < hi]
+            s = summ(b)
+            if not s or s["n"] < 200:
+                continue
+            med = float(np.median([r["p_zones"] for r in b]))
+            hiP, loP = summ([r for r in b if r["p_zones"] > med]), summ([r for r in b if r["p_zones"] <= med])
+            hw, lw = defaultdict(list), defaultdict(list)
+            for r in b:
+                (hw if r["p_zones"] > med else lw)[r["d"]].append(haircut_pnl(r))
+            v = paired_t({"wk": {d: float(np.mean(x)) for d, x in hw.items()}}, {"wk": {d: float(np.mean(x)) for d, x in lw.items()}})
+            row = {"n": s["n"], "kept": s["kept"], "p_model": float(np.mean([r["p_zones"] for r in b])), "bp": s["bp"],
+                   "bp_hc": s["bp_hc"], "worst5": s["worst5"], "sharpe": s["sharpe"], "hiP_kept": hiP["kept"], "loP_kept": loP["kept"],
+                   "hiP_worst5": hiP["worst5"], "loP_worst5": loP["worst5"], "hi_lo_bp_hc": hiP["bp_hc"] - loP["bp_hc"], "hi_lo_t": v[0]}
+            out.setdefault(f"{h}w", {})[f"{lo:.2f}-{hi:.2f}"] = row
+            L.append(f"| {h}w | {lo:.2f}–{hi:.2f} | {s['n']} | {s['kept']:.1%} | {row['p_model']:.1%} | {s['bp']:+.1f} | {s['bp_hc']:+.1f} | "
+                     f"{s['worst5']:+.0f} | {s['sharpe']:.2f} | {hiP['kept']:.1%} | {loP['kept']:.1%} | {hiP['worst5']:+.0f} | "
+                     f"{loP['worst5']:+.0f} | {row['hi_lo_bp_hc']:+.1f} ({v[0]:.1f}) |")
+    (OUT.parent / "S088-ladder.md").write_text("\n".join(L) + "\n")
+    (OUT.parent / "S088-ladder.json").write_text(json.dumps(out, indent=1))
+    print("\n".join(L))
 
 
 def log_ledger(today_rows, force=False):
