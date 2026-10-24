@@ -140,6 +140,40 @@ class Shortlist(unittest.TestCase):
     def test_peers_skip_listed(self):
         self.assertEqual(osl.pick_peers(["AMD", "AVGO", "TSM", "INTC"], {"NVDA", "AMD"}), ["AVGO", "TSM", "INTC"])
 
+    def test_near_zero_name_dropped(self):
+        items = [
+            {"ticker": "GRAB", "source": "email", "rel": 0.9, "mat": 0.0, "dir": "bad",
+             "cat": "other", "title": "a", "id": 1},
+            {"ticker": "NFLX", "source": "email", "rel": 0.6, "mat": 0.05, "dir": "bad",
+             "cat": "other", "title": "b", "id": 2},
+            {"ticker": "PLTR", "source": "email", "rel": 0.55, "mat": 0.2, "dir": "bad",
+             "cat": "other", "title": "d", "id": 4},
+            {"ticker": "NVDA", "source": "email", "rel": 0.8, "mat": 0.6, "dir": "good",
+             "cat": "earnings", "title": "c", "id": 3},
+        ]
+        agg = osl.accumulate(items)
+        self.assertNotIn("GRAB", agg)
+        self.assertNotIn("NFLX", agg)
+        self.assertIn("PLTR", agg)
+        self.assertGreaterEqual(agg["NVDA"]["items"][0]["mat"], osl.MATERIAL_MIN)
+
+    def test_peers_ranked_by_correlation(self):
+        ranked = osl.rank_peers([("ADBE", 0.2), ("BOX", 0.91), ("BB", 0.5)], set())
+        self.assertEqual([t for t, _ in ranked], ["BOX", "BB", "ADBE"])
+        self.assertEqual(ranked[0][1], 0.91)
+
+    def test_corr_identical_and_short(self):
+        rows = [(dt.date(2025, 1, 1) + dt.timedelta(days=i), 100 * (1.01 if i % 2 == 0 else 0.99) ** i)
+                for i in range(90)]
+        self.assertAlmostEqual(osl.daily_return_corr(rows, list(rows)), 1.0, places=6)
+        self.assertIsNone(osl.daily_return_corr(rows[:10], rows[:10]))
+
+    def test_monday_window_includes_friday_close(self):
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo("America/New_York")
+        monday = dt.datetime(2026, 10, 26, 8, 0, tzinfo=et)
+        self.assertEqual(osl.mail_since(monday), dt.datetime(2026, 10, 23, 16, 0, tzinfo=et))
+
     def test_reason_line(self):
         self.assertEqual(osl.reason_line("news", ["earnings"], "good", 2, None),
                          "news shortlist: earnings good (2 items)")

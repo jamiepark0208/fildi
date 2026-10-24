@@ -1,8 +1,8 @@
 """A261 — morning news shortlist. OpenJev answers typed choices only (no prose).
 
-One model load inside openjev_local.tick (FORECAST_BATCH is off, A251): score desk emails,
-score kept emails + already-labeled headlines, write watchlist_sync.openjev_shortlist,
-then the A143 headline labels on that same server. A later tick with nothing new does not load.
+One model load inside openjev_local.tick (FORECAST_BATCH is off, A251): label new Finnhub
+headlines first, then score desk mail since the last 16:00 ET close plus those headlines,
+and write watchlist_sync.openjev_shortlist. A later tick with nothing new does not load.
 
     .venv/bin/python openjev_shortlist.py --smoke     # 20 off-topic + 20 company emails
     .venv/bin/python openjev_shortlist.py --morning   # one shortlist run
@@ -18,6 +18,8 @@ from zoneinfo import ZoneInfo
 HERE = Path(__file__).resolve().parent
 PT = ZoneInfo("America/Los_Angeles")
 RELEVANT_MIN = 0.5
+MATERIAL_MIN = 0.5       # one item this material, or a score at/above SCORE_MIN (review 11953ce9)
+SCORE_MIN = 0.05
 TOP_N = 15
 PEER_N = 3
 CAP_PER_SOURCE = 3
@@ -137,6 +139,8 @@ def accumulate(scored: list[dict], cap: int = CAP_PER_SOURCE) -> dict[str, dict]
         if not kept:
             continue
         score = sum(i["rel"] * i["mat"] for i in kept)
+        if score < SCORE_MIN and not any(i["mat"] >= MATERIAL_MIN for i in kept):
+            continue
         w = score or 1.0
         dnum = sum((i["rel"] * i["mat"]) * dir_num(i["dir"]) for i in kept) / w
         label = "good" if dnum > 0.25 else "bad" if dnum < -0.25 else "neutral"
@@ -148,13 +152,64 @@ def accumulate(scored: list[dict], cap: int = CAP_PER_SOURCE) -> dict[str, dict]
             "score": round(score, 4),
             "dir": label,
             "cats": cats[:4],
-            "items": [{"source": i["source"], "id": i["id"], "title": i["title"][:180]} for i in kept],
+            "items": [{"source": i["source"], "id": i["id"], "title": i["title"][:180],
+                       "mat": round(i["mat"], 4)} for i in kept],
         }
     return out
 
 
 def top_tickers(agg: dict[str, dict], n: int = TOP_N) -> list[str]:
     return sorted(agg, key=lambda t: agg[t]["score"], reverse=True)[:n]
+
+
+def mail_since(now: dt.datetime | None = None) -> dt.datetime:
+    """16:00 ET on the last trading day that has already closed.
+
+    Monday morning therefore includes Friday evening and the weekend (review 11953ce9).
+    """
+    import rules
+    now = now or dt.datetime.now(rules.ET)
+    closed = rules.last_close_date(now)
+    return dt.datetime.combine(closed, dt.time(16, 0), tzinfo=rules.ET)
+
+
+def daily_return_corr(a: list[tuple], b: list[tuple], min_days: int = 60) -> float | None:
+    """Pearson correlation of aligned daily simple returns. None when the overlap is short."""
+    def rets(rows: list[tuple]) -> dict:
+        out, prev = {}, None
+        for d, c in rows:
+            if c is None or c <= 0:
+                prev = None
+                continue
+            if prev is not None:
+                out[d] = c / prev - 1.0
+            prev = c
+        return out
+
+    ra, rb = rets(a), rets(b)
+    keys = sorted(set(ra) & set(rb))
+    if len(keys) > 252:
+        keys = keys[-252:]
+    if len(keys) < min_days:
+        return None
+    xs = [ra[k] for k in keys]
+    ys = [rb[k] for k in keys]
+    if statistics.pstdev(xs) == 0 or statistics.pstdev(ys) == 0:
+        return None
+    return statistics.correlation(xs, ys)
+
+
+def rank_peers(scored: list[tuple[str, float]], already: set[str], n: int = PEER_N) -> list[tuple[str, float]]:
+    """Highest 1-year return correlation first. Alphabetical only breaks a tie."""
+    out: list[tuple[str, float]] = []
+    for t, c in sorted(scored, key=lambda x: (-x[1], x[0])):
+        u = t.upper()
+        if u in already or any(p == u for p, _ in out):
+            continue
+        out.append((u, round(float(c), 2)))
+        if len(out) >= n:
+            break
+    return out
 
 
 def pick_peers(candidates: list[str], already: set[str], n: int = PEER_N) -> list[str]:
@@ -344,13 +399,14 @@ def _tickers_in(raw, universe: set[str]) -> list[str]:
     return out
 
 
-def _load_emails(conn):
+def _load_emails(conn, since: dt.datetime):
     return conn.execute(
         """SELECT id, subject, synopsis, left(body_plain, 800), tickers_mentioned,
                   (meta->>'openjev_relevant')::float
            FROM desk_commentaries
-           WHERE received_at > now() - interval '24 hours'
-           ORDER BY received_at DESC LIMIT 40"""
+           WHERE received_at > %s
+           ORDER BY received_at DESC LIMIT 80""",
+        (since,),
     ).fetchall()
 
 
@@ -378,7 +434,26 @@ def _load_headlines(conn, universe: set[str]) -> list[dict]:
     return out
 
 
-def peers_for(conn, ticker: str, already: set[str]) -> list[str]:
+def _year_closes(conn, tickers: list[str]) -> dict[str, list[tuple]]:
+    if not tickers:
+        return {}
+    rows = conn.execute(
+        """SELECT UPPER(ticker), date, close::float8
+           FROM prices_historical
+           WHERE UPPER(ticker) = ANY(%s)
+             AND date >= CURRENT_DATE - 400
+             AND close IS NOT NULL
+           ORDER BY 1, 2""",
+        (tickers,),
+    ).fetchall()
+    out: dict[str, list[tuple]] = {}
+    for t, d, c in rows:
+        out.setdefault(t, []).append((d, c))
+    return out
+
+
+def peers_for(conn, ticker: str, already: set[str]) -> list[tuple[str, float]]:
+    """Up to 3 same-group names, ranked by 1-year daily-return correlation. No alpha fallback."""
     gid = conn.execute("SELECT group_id FROM peer_group_overrides WHERE UPPER(ticker) = %s", (ticker,)).fetchone()
     if not gid:
         gid = conn.execute(
@@ -391,26 +466,39 @@ def peers_for(conn, ticker: str, already: set[str]) -> list[str]:
     rows = conn.execute(
         """SELECT UPPER(m.ticker) FROM peer_group_members m
            JOIN fmp_fundamentals f ON UPPER(f.ticker) = UPPER(m.ticker)
-           WHERE m.group_id = %s AND m.removed_at IS NULL
-           ORDER BY m.ticker""",
+           WHERE m.group_id = %s AND m.removed_at IS NULL""",
         (gid[0],),
     ).fetchall()
-    return pick_peers([r[0] for r in rows], already | {ticker})
+    members = [r[0] for r in rows if r[0] != ticker and r[0] not in already]
+    closes = _year_closes(conn, [ticker, *members])
+    base = closes.get(ticker) or []
+    scored = []
+    for m in members:
+        corr = daily_return_corr(base, closes.get(m) or [])
+        if corr is None:
+            continue
+        scored.append((m, corr))
+    return rank_peers(scored, already | {ticker})
 
 
 def render_md(day, rows: list[dict]) -> str:
     peers: dict[str, list[str]] = {}
     for r in rows:
         if r["role"] == "peer" and r.get("of_ticker"):
-            peers.setdefault(r["of_ticker"], []).append(r["ticker"])
+            c = r.get("corr")
+            bit = f"{r['ticker']} {c:.2f}" if isinstance(c, (int, float)) else r["ticker"]
+            peers.setdefault(r["of_ticker"], []).append(bit)
     lines = [f"# News shortlist {day}"]
-    for r in rows:
-        if r["role"] != "news":
-            continue
+    news = [r for r in rows if r["role"] == "news"]
+    if not news:
+        lines.append("(none)")
+    for r in news:
         cat = (r["cats"] or ["other"])[0]
         ps = " ".join(peers.get(r["ticker"], [])) or "—"
-        title = (r["items"][0]["title"] if r["items"] else "")[:70]
-        lines.append(f"{r['ticker']} {cat} {r['dir']} {r['score']:.2f} peers {ps} · {title}")
+        top = max(r["items"], key=lambda i: i.get("mat") or 0) if r["items"] else None
+        mat = f"{top['mat']:.2f}" if top and top.get("mat") is not None else "—"
+        title = (top["title"] if top else "")[:70]
+        lines.append(f"{r['ticker']} {cat} {r['dir']} {r['score']:.2f} mat {mat} peers {ps} · {title}")
     return "\n".join(lines[:30]) + "\n"
 
 
@@ -474,12 +562,13 @@ def reason_map(conn) -> dict[str, str]:
 
 
 def needs_model(conn, today) -> bool:
-    """No load when today's list exists and every email from the last 24h already has a score."""
+    """No load when today's list exists and every email since the last close already has a score."""
     ensure_table(conn)
     unscored = conn.execute(
         """SELECT COUNT(*) FROM desk_commentaries
-           WHERE received_at > now() - interval '24 hours'
-             AND (meta->>'openjev_relevant') IS NULL"""
+           WHERE received_at > %s
+             AND (meta->>'openjev_relevant') IS NULL""",
+        (mail_since(),),
     ).fetchone()[0]
     if unscored:
         return True
@@ -492,12 +581,12 @@ def needs_model(conn, today) -> bool:
 
 
 def morning(conn, post=None, today: dt.date | None = None) -> dict:
-    """Score last-24h mail + recent headlines and write the shortlist. Caller owns the model."""
+    """Score mail since the last close + headlines already labeled. Caller owns the model."""
     post = post or _answers
     today = today or dt.datetime.now(PT).date()
     universe = _universe(conn)
     scored: list[dict] = []
-    emails = _load_emails(conn)
+    emails = _load_emails(conn, mail_since())
     relevant = 0
     for eid, subject, synopsis, body, mentioned, prev in emails:
         p = float(prev) if prev is not None else score_email(post, subject or "", synopsis, body)
@@ -533,10 +622,11 @@ def morning(conn, post=None, today: dt.date | None = None) -> dict:
         rows.append({"ticker": t, "role": "news", "of_ticker": None, "score": a["score"], "dir": a["dir"],
                      "cats": a["cats"], "items": a["items"]})
     for t in list(tops):
-        for p in peers_for(conn, t, already):
+        for p, corr in peers_for(conn, t, already):
             rows.append({"ticker": p, "role": "peer", "of_ticker": t, "score": 0.0, "dir": agg[t]["dir"],
-                         "cats": agg[t]["cats"], "items": []})
+                         "cats": agg[t]["cats"], "items": [], "corr": corr})
             already.add(p)
+            print(f"  peer {p:6} of {t} corr={corr:.2f}", flush=True)
     write_rows(conn, today, rows)
     grades = log_grades(conn, today, rows)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -555,9 +645,11 @@ def tick_news(conn, now: dt.datetime | None = None) -> dict:
     import openjev_local as oj
     import oj_server
     with oj.Server() as srv:
-        out = morning(conn, today=today)
+        # Labels first so this morning's headlines are in the table the shortlist reads (review 11953ce9).
         import openjev_desk_headlines as odh
-        out["desk_headlines"] = odh.run(limit=6, max_new=12, reuse=True)
+        headlines = odh.run(limit=6, max_new=12, reuse=True)
+        out = morning(conn, today=today)
+        out["desk_headlines"] = headlines
         try:
             oj._own_touch[0] = oj_server.STAMP.stat().st_mtime
         except OSError:
