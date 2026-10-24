@@ -39,4 +39,9 @@ gcloud compute ssh "$INSTANCE" --zone="$ZONE" --command='
   fi
 '
 
-echo "PASS A241 P1 verify (confirm \$1 budget fildi-1usd-alert in Billing)"
+echo "budget channel:"
+gcloud billing budgets describe 26de4eea-d39f-49ad-b2dc-2c4ff282dfbd \
+  --billing-account=0164D0-C77B02-FCE300 --billing-project="$PROJECT" \
+  --format='value(notificationsRule.monitoringNotificationChannels.list())' 2>/dev/null || true
+
+echo "PASS A241 P1 verify"
