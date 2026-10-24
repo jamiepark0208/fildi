@@ -10,7 +10,7 @@ Status: **live** = in that layer today · **proposed** = A25 deferred · **shipp
 | Short-term: oversold depth, reversal, MA50 context, VWAP, volume, relative pressure | Technicals: entry timing (display, weight 0) | live, proposed demote (T4) | no edge, all \|t\| < 2 |
 | Price risk: idio vol, beta | Technicals (risk) | proposed | sizes moves, not direction (raw-drop IC is mechanical) |
 | Falling knife | Technicals (flag) | live | Step 4: no harm to put sellers; severity 0.15 in Model List |
-| IV vs realized vol, IV rank (true LSEG history) | Options: PRICING | proposed (O1/O2); dup in tech Volatility State + Model List PREMIUM | VRP IC +0.137, t 10.1 |
+| IV vs realized vol, IV rank (true LSEG history; tastytrade IV rank/pctile daily from 10-24 covers the ~137 names LSEG misses) | Options: PRICING | proposed (O1/O2); dup in tech Volatility State + Model List PREMIUM | VRP IC +0.137, t 10.1 |
 | RV-proxy "ivRank", Bollinger squeeze | none (remove) | live in tech v2 | wrong-signed / no edge |
 | Put/call ratio, skew, term structure | Options: PRICING | live in tech optionsFlow | untestable (no history) |
 | Contract: income, buffer, delta, DTE, liquidity, earnings in window | Options: contract scoring | live | graded live (grade_ledger) |

@@ -55,7 +55,7 @@ volumeSpike,                               -- volume confirm
 atmPutIv, atmPutStrike, nearestExpiry      -- options chain snapshot
 ```
 
-**Known proxy issue**: `ivRank`/`ivPercentile` currently use realized vol as IV proxy. Will upgrade to true IV rank after ~60d of `atmPutIv` history accumulates.
+**Known proxy issue (confirmed 10-24)**: `ivRank`/`ivPercentile` use realized vol as an IV proxy (`iv_rank_source = rv_proxy`). vs tastytrade's real IV rank: Spearman 0.22, half the names off > 30 pts. Fix = read tastytrade IV rank (`vendor_raw` source `tastytrade`, daily) with LSEG 1-year IV percentile as the check; A262 S096 step 2.
 
 ## Refresh
 ```bash

@@ -28,6 +28,7 @@ BASE = "https://api.tastyworks.com"
 BT = "https://backtester.vast.tastyworks.com"  # backtester has its own host
 UA = "fildi-research/1.0"
 _token: dict = {}
+_calls = [0]   # metered into api_usage (source 'tastytrade') by meter()
 
 
 def _env() -> None:
@@ -43,6 +44,7 @@ def _http(method: str, path: str, body: dict | None = None, auth: bool = True, b
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
     for attempt in range(4):
+        _calls[0] += 1
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read() or b"{}")
@@ -68,16 +70,28 @@ def token() -> str:
     return _token["access"]
 
 
-def remember(endpoint: str, key: str, payload) -> None:
-    """Same row shape as api-server lib/vendor-raw.ts (one row per source/endpoint/key/day)."""
-    sha = hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+def remember(endpoint: str, rows: list[tuple[str, object]]) -> None:
+    """Same row shape as api-server lib/vendor-raw.ts (one row per source/endpoint/key/day); one connection per batch."""
     with connect() as conn:
-        conn.execute(
-            """INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
-               VALUES ('tastytrade', %s, %s, %s, %s::jsonb, %s)
-               ON CONFLICT (source, endpoint, key, fetched_on)
-               DO UPDATE SET payload = EXCLUDED.payload, payload_sha = EXCLUDED.payload_sha""",
-            (endpoint, key, date.today(), json.dumps(payload), sha))
+        for key, payload in rows:
+            sha = hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+            conn.execute(
+                """INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
+                   VALUES ('tastytrade', %s, %s, %s, %s::jsonb, %s)
+                   ON CONFLICT (source, endpoint, key, fetched_on)
+                   DO UPDATE SET payload = EXCLUDED.payload, payload_sha = EXCLUDED.payload_sha""",
+                (endpoint, key, date.today(), json.dumps(payload), sha))
+
+
+def meter() -> None:
+    if not _calls[0]:
+        return
+    with connect() as conn:
+        conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at)
+                        VALUES ('tastytrade', (now() AT TIME ZONE 'America/Los_Angeles')::date, %s, now())
+                        ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made,
+                        updated_at = now()""", (_calls[0],))
+    _calls[0] = 0
 
 
 def metrics(symbols: list[str]) -> list[dict]:
@@ -87,28 +101,58 @@ def metrics(symbols: list[str]) -> list[dict]:
         chunk = symbols[i:i + 100]
         r = _http("GET", "/market-metrics?symbols=" + urllib.parse.quote(",".join(chunk), safe=","))
         items = (r.get("data") or {}).get("items") or []
-        for it in items:
-            remember("/market-metrics", it.get("symbol", "?"), it)
+        remember("/market-metrics", [(it.get("symbol", "?"), it) for it in items])
         out += items
     return out
 
 
 def available_dates() -> list[dict]:
     r = _http("GET", "/available-dates", base=BT)
-    remember("/available-dates", "all", r)
+    remember("/available-dates", [("all", r)])
     return r if isinstance(r, list) else (r.get("data") or {}).get("items") or r
 
 
 def backtest(spec: dict, poll: float = 5.0, max_wait: float = 900) -> dict:
-    """POST /backtests then poll until completed; stores the finished object keyed by a hash of the spec."""
+    """POST /backtests then poll until completed; stored keyed by a hash of the spec, and a stored spec is never re-run."""
+    key = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
+    with connect() as conn:
+        hit = conn.execute("""SELECT payload->'result' FROM vendor_raw WHERE source = 'tastytrade' AND endpoint = '/backtests'
+                              AND key = %s AND payload->'result'->>'status' = 'completed' LIMIT 1""", (key,)).fetchone()
+    if hit:
+        return hit[0]
     r = _http("POST", "/backtests", spec, base=BT)
     t0 = time.time()
     while r.get("status") != "completed" and time.time() - t0 < max_wait:
         time.sleep(poll)
         r = _http("GET", f"/backtests/{r['id']}", base=BT)
-    key = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
-    remember("/backtests", key, {"spec": spec, "result": r})
+    remember("/backtests", [(key, {"spec": spec, "result": r})])
     return r
+
+
+def verify(conn) -> tuple[bool, str]:
+    """Daily cross-check: today's tastytrade IV percentile vs the Model List's LSEG 1-year IV percentile (fit_model_v14.iv_ranks).
+    10-24 baseline: Spearman 0.84 on 130 names, median gap 0.05. Fails (exit 1 → daily.py flags the step) below 0.6 or < 90 % coverage."""
+    from statistics import correlation, median
+
+    import fit_model_v14 as V
+    tt = dict(conn.execute("""SELECT key, (payload->>'implied-volatility-percentile')::float FROM vendor_raw
+                              WHERE source = 'tastytrade' AND endpoint = '/market-metrics' AND fetched_on = current_date
+                              AND payload ? 'implied-volatility-percentile'""").fetchall())
+    n_uni = conn.execute("SELECT count(DISTINCT ticker) FROM fmp_fundamentals").fetchone()[0]
+    ls = V.iv_ranks(conn, {k.replace("/", ".") for k in tt})
+    pairs = [(ls[k.replace("/", ".")], v) for k, v in tt.items() if v is not None and k.replace("/", ".") in ls]
+
+    def rank(x):
+        o = sorted(range(len(x)), key=x.__getitem__)
+        r = [0] * len(x)
+        for j, i in enumerate(o):
+            r[i] = j
+        return r
+    rho = correlation(rank([a for a, _ in pairs]), rank([b for _, b in pairs])) if len(pairs) > 20 else float("nan")
+    gap = median(abs(a - b) for a, b in pairs) if pairs else float("nan")
+    ok = len(tt) >= 0.9 * n_uni and rho >= 0.6
+    return ok, (f"tastytrade: IV pctile {len(tt)}/{n_uni} names · vs LSEG {len(pairs)} names Spearman {rho:.2f}, "
+                f"median gap {gap:.2f} · tasty-only {len(tt) - len(pairs)} names" + ("" if ok else " ✗ CHECK"))
 
 
 if __name__ == "__main__":
@@ -122,8 +166,13 @@ if __name__ == "__main__":
         with connect() as conn:
             syms = [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM fmp_fundamentals ORDER BY 1")]
         items = metrics([t.replace(".", "/") for t in syms])
-        print(f"tastytrade metrics: {len(items)}/{len(syms)} names stored")
+        meter()
+        with connect() as conn:
+            ok, line = verify(conn)
+        print(f"tastytrade metrics: {len(items)}/{len(syms)} names stored · {line}")
+        sys.exit(0 if ok else 1)
     elif cmd == "dates":
         print(json.dumps(available_dates())[:3000])
     elif cmd == "backtest":
         print(json.dumps((backtest(json.load(open(sys.argv[2]))).get("results") or {}).get("statistics"), indent=1))
+    meter()

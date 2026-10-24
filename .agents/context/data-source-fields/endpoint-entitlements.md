@@ -44,5 +44,8 @@ Per-symbol endpoints (`quote`, `key-metrics`, `price-target-consensus`, `grades-
 ## LSEG (offline Workspace sync, Mac-only) — in DB
 `lseg_research.signals_daily` (daily, since 2026-10-04): StarMine ranks, EPS/PT consensus, **short_interest, short_pct (% float), free_float**, implied vol, credit. Short % shows in Live › Portfolio Alerts › Your names.
 
+## tastytrade (OAuth personal grant, scopes `read openid`; probed 2026-10-24)
+✅ **used** `GET /market-metrics?symbols=` (≤ 100/call: IV index, IV rank, IV percentile, liquidity rating, IV per expiry — snapshot, no history) · ✅ backtester `backtester.vast.tastyworks.com` `/available-dates` (147 symbols, 2013→), `/backtests` (needs `openid`; `read`-only token → 401 "invalid tastytrade token") · *docs* `/market-metrics/historic-corporate-events/{earnings-reports,dividends}/{symbol}`, `/market-data/by-type`, DXLink streaming. Account endpoints work but the account is empty (positions live at Robinhood). Client: `scripts/watchlist_sync/tastytrade.py`.
+
 ## Not offered by any of our sources
 Dark-pool prints, borrow rates / stock-loan fees, true unusual-options-activity feeds (derive from volume vs OI), real-time news sentiment.
