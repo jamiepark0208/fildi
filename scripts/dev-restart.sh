@@ -18,6 +18,15 @@ IF_DOWN=0
 [[ "${1:-}" == "--if-down" ]] && IF_DOWN=1
 
 mkdir -p "$LOG_DIR"
+# One restart at a time (maintain heal, the login LaunchAgent and agents all call this); a dead holder's lock is taken over.
+LOCKD="$LOG_DIR/dev-restart.lock.d"
+if ! mkdir "$LOCKD" 2>/dev/null; then
+  holder="$(cat "$LOCKD/pid" 2>/dev/null || true)"
+  if [[ -n "$holder" ]] && kill -0 "$holder" 2>/dev/null; then echo "dev-restart: another restart (pid $holder) is running — skip"; exit 0; fi
+  rm -rf "$LOCKD"; mkdir "$LOCKD"
+fi
+echo $$ > "$LOCKD/pid"
+trap 'rm -rf "$LOCKD"' EXIT
 
 if [[ -f "$ROOT/.env.local" ]]; then
   set -a
@@ -83,7 +92,20 @@ sweep_ports() {
   node "$ROOT/scripts/local-stack.mjs" down || true
 }
 
+# 10-24: a crashed API leaves its tsx watcher alive ("waiting for file changes", no port) → --if-down started a second
+# (then third) watcher; the next file edit would restart all of them. Kill this repo's API watchers before starting one.
+kill_stale_api_watchers() {
+  local pid
+  for pid in $(pgrep -f "tsx --watch --watch-path=src src/index.ts" 2>/dev/null || true); do
+    if [[ "$(/usr/sbin/lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "$ROOT/artifacts/api-server" ]]; then
+      echo "Stopping stale API watcher pid=$pid"
+      kill -TERM "-$(ps -o pgid= -p "$pid" | tr -d ' ')" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
 start_api() {
+  kill_stale_api_watchers
   echo "Starting API (tsx watch) on :$API_PORT → $LOG_DIR/api.log"
   # Explicit SCHWAB_* so a stripped spawn env cannot drop MD credentials.
   node "$ROOT/scripts/dev-spawn.mjs" \
@@ -136,6 +158,11 @@ if [[ "$IF_DOWN" -eq 1 ]]; then
     node "$ROOT/scripts/local-stack.mjs" status || true
     exit 0
   fi
+  # A tsx-watch reload after a file edit leaves the port down for a few seconds — give it 20 s before replacing it.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [[ "$api_up" -eq 1 ]] && break
+    sleep 2; [[ -n "$(listener_pid "$API_PORT")" ]] && api_up=1
+  done
   [[ "$api_up" -eq 0 ]] && start_api
   [[ "$vite_up" -eq 0 ]] && start_vite
 else

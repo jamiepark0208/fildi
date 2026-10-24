@@ -502,6 +502,7 @@ def _post(path: str, body: dict, timeout: float = 600.0):
     import oj_server
     for attempt in range(6):
         oj_server.touch()   # keeps the shared server's idle clock fresh
+        _own_touch[0] = oj_server.STAMP.stat().st_mtime
         req = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="POST",
                                      headers={"content-type": "application/json"})
         try:
@@ -563,10 +564,13 @@ class Sampler(threading.Thread):
             self.stop_ev.wait(1.0)
 
 
+_own_touch = [0.0]   # mtime of this process's last idle-clock touch
+
+
 class Server:
     """Context for a batch/study run on THE shared OpenJev instance (scripts/oj_server.py, Jamie 10-18): reuses a running
-    server or starts it once under the start lock; never kills it on exit (agents may be mid-request) — the shared idle
-    watchdog stops it 10 min after the last request. Sampler still measures peak RAM and kills only on runaway memory/time."""
+    server or starts it once under the start lock. On exit it stops a server IT started when nobody else asked since its own
+    last request (10-24: the daily batch held 22 GB for 10 idle min); a joined/shared server is left to the 10-min watchdog. Sampler still measures peak RAM and kills only on runaway memory/time."""
 
     def __init__(self, cache_gb: float = CACHE_STEPS_GB[0]):
         self.proc = None
@@ -580,6 +584,7 @@ class Server:
         t0 = time.time()
         global BASE
         self.shared = oj_server.running_port() is not None
+        _own_touch[0] = time.time()   # "others" = any idle-clock touch after this run's own last one
         port = oj_server.ensure(cache_gb=self.cache_gb, min_free=0, who="openjev-batch", wait_s=HARD_STOP_S)
         if port is None:
             raise RuntimeError("openjev server failed to start (see /tmp/fildi-logs/openjev-server.log)")
@@ -595,7 +600,16 @@ class Server:
     def __exit__(self, *exc):
         if self.sampler:
             self.sampler.stop_ev.set()
-        stage_event("batch", "run finished (model stays up until 10 idle min)")
+        import oj_server
+        try:
+            others = oj_server.STAMP.stat().st_mtime > _own_touch[0] + 1
+        except FileNotFoundError:
+            others = False
+        if not self.shared and not others:
+            oj_server.stop(who="openjev-batch")
+            stage_event("batch", "run finished, model stopped (batch started it, no other callers)")
+        else:
+            stage_event("batch", "run finished (shared model stays up until 10 idle min)")
         return False
 
 

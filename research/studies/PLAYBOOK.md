@@ -39,6 +39,7 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 - Add a feature: compute it in `build()` from bars ≤ as_of only, add the key to `xs`. Run: `cd scripts/watchlist_sync && .venv/bin/python analysis/s045_put_retest.py` (~25 s).
 - Reuse events in a scratch script: `import s045_put_retest as M; ev = M.build(*M.load(M.connect()))`.
 - Python: always `scripts/watchlist_sync/.venv/bin/python` (numpy; no scipy — use the harness `rank()`).
+- Runs > 1 min on Jamie's Mac (Jamie 10-24: backtests ate every core while he worked): prefix `nice -n 15 env OMP_NUM_THREADS=4` — low priority, ≤ 4 cores for sklearn/numpy.
 
 ## 4. Checks every result must pass (in this order)
 1. **IV fixed:** strike scales with IV + residualize on iv_rv, iv30, earnings_21 within week. Raw pnl IC re-learns IV (S045: 0.26 → 0.03).
