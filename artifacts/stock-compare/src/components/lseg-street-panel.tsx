@@ -170,6 +170,15 @@ function lsegCompactChips(data: LsegPayload, r: Interpretation): RelChip[] {
               : "neutral",
     });
   }
+  if (s.creditRank != null) {
+    // Model List: 35 % of OWN (params own.w_credit); ≤ 5 distress / ≤ 15 fragile risk flags; < 20 → put re-struck farther (rules.MIN_CREDIT_RANK_PUTS)
+    chips.push({
+      label: "Credit",
+      value: String(s.creditRank),
+      hint: s.creditRank <= 5 ? "distress · put farther" : s.creditRank <= 15 ? "fragile · put farther" : s.creditRank < 20 ? "put farther" : "35 % of OWN",
+      tone: s.creditRank < 20 ? "bad" : s.creditRank >= 70 ? "good" : "neutral",
+    });
+  }
   if (s.predSurprisePct != null) {
     chips.push({
       label: "PredSurp",
