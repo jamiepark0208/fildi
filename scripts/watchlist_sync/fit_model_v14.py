@@ -227,7 +227,8 @@ def main() -> None:
     with connect() as conn:
         PM.ensure(conn)
         S = latest_inputs(conn)
-        ivr = iv_ranks(conn, {s["ticker"] for s in S})
+        import iv_rank as IR   # resolver: LSEG 1y pctile → tastytrade → none (one home, Jamie 10-24)
+        ivr = IR.pctiles(conn, {s["ticker"] for s in S})
         versions = [PM.champion(conn)] + PM.challengers(conn)
         scored = {v: score_all(S, P, ivr) for v, P in versions}
         OUT.mkdir(parents=True, exist_ok=True)

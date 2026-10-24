@@ -1,0 +1,94 @@
+{
+  "version": "rules-1.0.0",
+  "updated": "2026-10-24",
+  "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
+  "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
+  "strategies": [
+    { "id": "sell_put", "label": "Sell puts", "view": "bullish", "premium": "sell", "where": "Rankings › Options (Sell Puts) · Model List" },
+    { "id": "sell_call", "label": "Sell calls (covered)", "view": "neutral / capped", "premium": "sell", "where": "Rankings › Options (Sell Calls)" },
+    { "id": "long_call", "label": "Buy calls", "view": "bullish", "premium": "buy", "where": "Rankings › Structures › Long options" },
+    { "id": "long_put", "label": "Buy puts", "view": "bearish", "premium": "buy", "where": "Rankings › Structures › Long options" }
+  ],
+  "inputs": [
+    {
+      "id": "iv_rv", "label": "IV ÷ realized vol (option richness)",
+      "source": "LSEG iv30 ÷ 20d realized (Model List) · Schwab ATM IV ÷ RV (scanner)", "ui": "Breakdown › Options history · Model List thesis (PREMIUM)",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "works", "live": "Model List PREMIUM 53 % · Options score IV>RV bonus · shadow options-1.3.0 (whole ivRelative)", "evidence": "S059 t +12 on 79k simulated puts (strongest single input); lab 10-05 IC +0.128" },
+        "sell_call": { "want": "high", "verdict": "fails", "live": "Options score IV>RV bonus", "evidence": "S061: adds nothing over the call tech score (FAIL as an add)" },
+        "long_call": { "want": "low", "verdict": "untested", "live": "—", "evidence": "S083 uses IV rank for calls; IV/RV on calls not separated yet" },
+        "long_put":  { "want": "low", "verdict": "fails", "live": "—", "evidence": "S083: winners have lower IV/RV (1.10 vs 1.16, t −25.6) but no ranking beats buy-all (AUC 0.515); buy-all −17 %" }
+      }
+    },
+    {
+      "id": "iv_pctile", "label": "IV rank (1-year IV percentile)",
+      "source": "iv_rank.py resolver → watchlist_sync.iv_rank_daily: LSEG 1y pctile → tastytrade → none (never the RV proxy)", "ui": "Breakdown › Options history › IV rank",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "works", "live": "Options score ivRelative 10 % (options-1.2.1, 10-24) · Model List PREMIUM 26 %", "evidence": "lab 10-05: true IV rank IC +0.084; the old RV proxy was wrong-signed (−0.030)" },
+        "sell_call": { "want": "high", "verdict": "untested", "live": "Options score ivRelative 10 % (options-1.2.1)", "evidence": "not tested on covered calls" },
+        "long_call": { "want": "low", "verdict": "works", "live": "Long options: '+ cheapest IV' angles (10-24) · cheap-vol state angle", "evidence": "10-24 S086 analog weeks, option $ per debit: tech call +2.5 → +31.8 %, 52w-high +32.5 → +47.5 %, SUE +8.7 → +24.8 %, 12-1 −1.0 → +10.2 % (buy-all +18.2 %); richest-IV twins lower in 4/5; S083 winners IV rank 0.372 vs 0.412 (t −19.7)" },
+        "long_put":  { "want": "low", "verdict": "fails", "live": "—", "evidence": "10-24: cheapest-IV put angles −2 to −20 %, buy-all −17 %: cheap doesn't rescue long puts" }
+      }
+    },
+    {
+      "id": "vol_of_vol", "label": "Vol of vol (how much IV itself moves)",
+      "source": "LSEG iv30 60-day σ(Δln IV), universe percentile", "ui": "Model List thesis (put edge)",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "works", "live": "shadow options-1.3.0 · Model List put_edge", "evidence": "S059 t +5.0" },
+        "sell_call": { "want": "high", "verdict": "fails", "live": "—", "evidence": "S061 FAIL as an add" },
+        "long_call": { "want": "low", "verdict": "untested", "live": "—", "evidence": "—" },
+        "long_put":  { "want": "low", "verdict": "untested", "live": "—", "evidence": "—" }
+      }
+    },
+    {
+      "id": "tech", "label": "Technicals (trend for puts · low volume + not stretched for calls)",
+      "source": "ticker_technicals → lane tech scores (put: trend − volumeConfirm; call: −volume − ma200 stretch)", "ui": "Rankings › Technicals (Sell Puts / Sell Calls)",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "works", "live": "Options score stockQuality 12 % (60 % tech)", "evidence": "S045 +15.7 bp/wk top − bottom fifth, −1.7 pp breach (t 4.5); S004: tech totals don't predict stock returns — the put lane does" },
+        "sell_call": { "want": "high", "verdict": "works", "live": "Options score stockQuality (call lane, options-1.2.0 →)", "evidence": "S046: low volume + not stretched above the 200-day" },
+        "long_call": { "want": "high", "verdict": "works", "live": "Long options: 'Fildi tech call score + cheapest IV'", "evidence": "S086 stock edge t 2.5 but options +2.5 % < buy-all (picks rich IV); + cheapest IV → +31.8 %" },
+        "long_put":  { "want": "low", "verdict": "fails", "live": "—", "evidence": "S086: no put angle beats buy-all" }
+      }
+    },
+    {
+      "id": "fund", "label": "Fundamentals score",
+      "source": "ticker_fundamentals fund_total (fund_score_snapshots history from 2026-10-05 only)", "ui": "Rankings › Fundamentals · Breakdown",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "too early", "live": "Options score stockQuality 12 % (40 % fund) · Model List OWN 45 %", "evidence": "Own − Avoid +2.9 pp over 5 days (vol-matched), 2 weeks of data" },
+        "sell_call": { "want": "none", "verdict": "untested", "live": "—", "evidence": "you hold the stock either way" },
+        "long_call": { "want": "high", "verdict": "untested", "live": "—", "evidence": "no point-in-time fund score before 10-05 → can't backtest; nearest proxy (estimate revisions) works: S086 +61 % vs buy-all +18 %" },
+        "long_put":  { "want": "low", "verdict": "untested", "live": "—", "evidence": "same history gap; revisions-down puts fail (S086)" }
+      }
+    },
+    {
+      "id": "revisions", "label": "Analyst estimate revisions (IBES / StarMine)",
+      "source": "WRDS IBES (research) · LSEG StarMine ARM (live)", "ui": "Breakdown › LSEG panel · Model List thesis (STREET)",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "redundant", "live": "Model List STREET adjustment", "evidence": "S004: redundant with trend on returns; kept as STREET tilt" },
+        "sell_call": { "want": "low", "verdict": "untested", "live": "—", "evidence": "—" },
+        "long_call": { "want": "high", "verdict": "works", "live": "Long options: 'Estimate revisions (S085)' (ledger arm)", "evidence": "S086 +2.9 %/21d vs avg (t 2.0), options +61 % vs buy-all +18 %; adding cheapest IV doesn't help (+52 %)" },
+        "long_put":  { "want": "low", "verdict": "fails", "live": "—", "evidence": "S086: puts on down-revisions −13 %" }
+      }
+    },
+    {
+      "id": "credit", "label": "Credit rank (StarMine)",
+      "source": "LSEG StarMine credit", "ui": "Breakdown › LSEG panel (Credit chip)",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "works", "live": "Model List OWN 35 %; < 20 → put re-struck farther; ≤ 5 / ≤ 15 risk flags", "evidence": "fit-1.4 design rule (distress avoidance); no separate pnl study" },
+        "sell_call": { "want": "none", "verdict": "untested", "live": "—", "evidence": "—" },
+        "long_call": { "want": "high", "verdict": "untested", "live": "—", "evidence": "—" },
+        "long_put":  { "want": "low", "verdict": "untested", "live": "—", "evidence": "—" }
+      }
+    },
+    {
+      "id": "liquidity", "label": "Option liquidity (tastytrade rating 0–5)",
+      "source": "watchlist_sync.tasty_metrics_daily (from 2026-10-24)", "ui": "Breakdown › Options history › IV rank",
+      "cells": {
+        "sell_put":  { "want": "high", "verdict": "untested", "live": "—", "evidence": "S096 step 1: rating vs real-fill haircut (tighter spread = better fills for buyers and sellers)" },
+        "sell_call": { "want": "high", "verdict": "untested", "live": "—", "evidence": "same" },
+        "long_call": { "want": "high", "verdict": "untested", "live": "—", "evidence": "same" },
+        "long_put":  { "want": "high", "verdict": "untested", "live": "—", "evidence": "same" }
+      }
+    }
+  ]
+}

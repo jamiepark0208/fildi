@@ -47,6 +47,10 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     ],
     "integrity": [("split repair", PY, HERE, ["split_repair.py", "--apply"])],
     "model": [
+        # S096 tastytrade IV rank/pctile + liquidity → tasty_metrics_daily (+ verify vs LSEG); then the IV-rank resolver
+        # (LSEG → tastytrade → none → iv_rank_daily) read by the option scan + fit below. Soft (pipe → exit 0): a failure must not stop the plan; its last line (✗ CHECK / traceback) shows in the log.
+        ("tastytrade metrics", SH, HERE, ["-c", f"{PY} tastytrade.py universe 2>&1 | tail -1"]),
+        ("IV rank resolver", SH, HERE, ["-c", f"{PY} iv_rank.py 2>&1 | tail -1"]),
         # Jamie 10-20: the noon-PT scan only reached the NEXT morning's plan (~19 h stale) → re-scan with live Schwab quotes first
         ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts 2>&1 "
                                          "| grep -o 'persisted.*' | tail -1 || echo 'option scan skipped (plan uses the last scan)'"]),
@@ -73,7 +77,6 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
         ("house view", PY, HERE, ["house_view.py"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
-        ("tastytrade metrics", PY, HERE, ["tastytrade.py", "universe"]),   # S096: IV rank/pctile + liquidity snapshot → vendor_raw (no vendor history → forward test)
         ("strategies board", PY, HERE, ["structures.py"]),   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
         ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),

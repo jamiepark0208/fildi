@@ -171,7 +171,8 @@ def before_after(conn, champ_params: dict, chal_params: dict) -> str:
     import fit_model as F13
     import fit_model_v14 as V
     S = V.latest_inputs(conn)  # fresh point-in-time inputs (fit-1.3 no longer writes history rows)
-    ivr = V.iv_ranks(conn, {s["ticker"] for s in S})
+    import iv_rank as IR
+    ivr = IR.pctiles(conn, {s["ticker"] for s in S})   # same resolver as the live fit
     a = {o["ticker"]: o for o in V.score_all(S, champ_params, ivr)}
     b = {o["ticker"]: o for o in V.score_all(S, chal_params, ivr)}
     moves = defaultdict(list)

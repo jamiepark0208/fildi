@@ -23,7 +23,7 @@ import { getMacroRegimeResult } from "../routes/macro-regime.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { getTiltState, getCalibrationTable } from "./model-track-record.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
-import { loadVolumeNodes, loadShadowInputs, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { loadVolumeNodes, loadIvRanks, loadShadowInputs, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
 import { loadPutEdgeFactors } from "./put-edge-factors.js";
 import { scoreShadowOnChosenStrike } from "./option-score-shadow.js";
 import { logger } from "./logger.js";
@@ -285,6 +285,7 @@ export async function computeAndPersistOptionScores(opts?: {
   const putTechWeights = (optChamp.params.putTechWeights ?? undefined) as Record<string, number> | undefined;
   const callTechWeights = (optChamp.params.callTechWeights ?? undefined) as Record<string, number> | undefined;
   const putRankings = putTechScores(rows, putTechWeights);
+  const ivRanks = await loadIvRanks();   // true IV percentile (iv_rank.py resolver), not the RV proxy in techRow.ivRank
   const volumeNodes = await loadVolumeNodes(candidates);
   const callRankings = laneTechScores(rows, callTechWeights, "call");
   const techRowMap = new Map(rows.map((r) => [r.ticker, r]));
@@ -343,8 +344,8 @@ export async function computeAndPersistOptionScores(opts?: {
       const isCall = side === "call";
       const incomeFloor = isCall ? CALL_INCOME_FLOOR : INCOME_FLOOR;
       const stockCtx: StockContext = {
-        ivRank:                num(techRow.ivRank),
-        ivPercentile:          num(techRow.ivPercentile),
+        ivRank:                ivRanks.get(ticker) ?? null,
+        ivPercentile:          null,   // was the same RV proxy again (counted twice)
         ivVsRealizedVol:       num(techRow.ivVsRealizedVol),
         basicSkew:             num(techRow.basicSkew),
         swingLow20d:           num(techRow.swingLow20d),

@@ -13,19 +13,21 @@ import { queryKeys } from "@/lib/query-keys";
 import { StructuresBoard } from "@/components/options-structures/StructuresBoard";
 import { StructureLab } from "@/components/options-structures/StructureLab";
 import { LongOptionBoard } from "@/components/options-structures/LongOptionBoard";
+import { RankingsRules } from "@/components/rankings-rules";
 
-const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies" | "long"; label: string }[] = [
+const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies" | "long" | "rules"; label: string }[] = [
   { id: "fundamental", label: "Fundamentals" },
   { id: "technical",   label: "Technicals" },
   { id: "options",     label: "Options" },
   { id: "strategies",  label: "Structures" },
   { id: "long",        label: "Long options" },   // S086: long call/put strategy board   // A192: today's structure picks (≠ Track Record › Strategies)
+  { id: "rules",       label: "Rules" },      // every input × strategy: wants high/low, verdict, live where (strategy_rules.json)
 ];
 
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
 // pages, without the compare-shelf chart or ticker-search UI.
 export default function Rankings() {
-  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options" | "strategies" | "long">("fildi_rankings_tab", "fundamental");
+  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options" | "strategies" | "long" | "rules">("fildi_rankings_tab", "fundamental");
   // Technical tab lens: oversold (sell puts) vs overbought (sell calls) — mirrors the
   // Options tab's page-level Sell Puts/Sell Calls toggle, persisted independently.
   const [techSide, setTechSide] = useSessionState<"puts" | "calls">("fildi_technical_side", "puts");
@@ -242,6 +244,8 @@ export default function Rankings() {
 
           {tab === "strategies" && (<><StructuresBoard /><StructureLab /></>)}
           {tab === "long" && <LongOptionBoard />}
+
+          {tab === "rules" && <RankingsRules />}
 
           {tab === "options" && (
             <OptionsScannerContent

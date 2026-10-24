@@ -34,7 +34,7 @@ import { fetchChainsForTickers } from "./options-chain-batch.js";
 import { computeAndPersistOptionScores } from "./option-score-snapshots.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
-import { loadPutScoringInputs, loadShadowInputs, loadVolumeNodes, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
+import { loadPutScoringInputs, loadShadowInputs, loadVolumeNodes, loadIvRanks, putTechScores, laneTechScores } from "./put-scoring-inputs.js";
 import { loadPutEdgeFactors } from "./put-edge-factors.js";
 import { scoreShadowOnChosenStrike } from "./option-score-shadow.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
@@ -239,6 +239,7 @@ export async function runModelSnapshot(
     for (const c of chains) for (const p of c.puts) if (p.iv > 0) allWatchlistIVs.push(p.iv);
   }
 
+  const ivRanks = await loadIvRanks();   // true IV percentile (iv_rank.py resolver), not the RV proxy in techRow.ivRank
   const volumeNodes = await loadVolumeNodes(tickers);
   const putPolicy  = applyPolicy(tiltState.put, putInputs.strikeWeights, { regime: macroRegimeName });
   const callPolicy = applyPolicy(tiltState.call, CALL_STRIKE_WEIGHTS, { regime: macroRegimeName });
@@ -257,8 +258,8 @@ export async function runModelSnapshot(
     for (const side of ["put", "call"] as const) {
       const isCall = side === "call";
       const stockCtx: StockContext = {
-        ivRank:                num(techRow.ivRank),
-        ivPercentile:          num(techRow.ivPercentile),
+        ivRank:                ivRanks.get(ticker) ?? null,
+        ivPercentile:          null,   // was the same RV proxy again (counted twice)
         ivVsRealizedVol:       num(techRow.ivVsRealizedVol),
         basicSkew:             num(techRow.basicSkew),
         swingLow20d:           num(techRow.swingLow20d),

@@ -129,6 +129,14 @@ def make_strats(rev):
         "Laggard calls: weakest 12-1": ({"mom_12_1": -1}, {"mom_12_1": 1}),
         "Laggard calls: furthest below 52w high": ({"prox_52w": -1}, {"prox_52w": 1}),
         "Laggard + revisions up": ({"mom_12_1": -1, **rev}, None) if rev else ({"mom_12_1": -1}, None),
+        # Jamie 10-24 (buy cheap, sell rich — same inputs, flipped IV): angle + lowest 1y IV rank, both sides.
+        # 10-24 analog test (option $ per debit, buy-all +18.2 %): tech call +2.5 → +31.8 %, 52w-high +32.5 → +47.5 %,
+        # 12-1 −1.0 → +10.2 %, SUE +8.7 → +24.8 %, revisions +61.2 → +52.1 %; richest-IV twins lower in 4/5; puts all < 0.
+        **{f"{n} + cheapest IV": ({**cp, "iv_rank252": -1}, {**(pp or {f: -v for f, v in cp.items()}), "iv_rank252": -1})
+           for n, (cp, pp) in {"Fildi tech call score": ({"tech_v4call_total": 1}, None),
+                               "52-week-high proximity": ({"prox_52w": 1}, None),
+                               "12-1 momentum": ({"mom_12_1": 1}, None),
+                               "Earnings surprise (SUE)": ({"ibes_sue": 1}, None)}.items()},
     }
 
 

@@ -36,6 +36,7 @@ import fairValueAssumptionsRouter from "./fair-value-assumptions";
 import convictionRouter from "./conviction";
 import optionsHistoryRouter from "./options-history";
 import volMetricsRouter from "./vol-metrics";
+import strategyRulesRouter from "./strategy-rules";
 import agentsRouter from "./agents";
 import agentsDrillRouter from "./agents-drill";
 import schwabRouter, { schwabMachineRouter } from "./schwab";
@@ -111,6 +112,7 @@ router.use("/explain", explainLimiter);
 router.use(stockContextRouter);
 router.use(optionsHistoryRouter);
 router.use(volMetricsRouter);
+router.use(strategyRulesRouter); // Rankings › Rules (strategy_rules.json)
 router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);

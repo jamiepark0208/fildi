@@ -2,6 +2,7 @@
 
 Rule: each factor lives in exactly one layer; scorecards are strategy-neutral (a claim about the stock or its options); strategy logic
 lives only in the Model List. Check this file before proposing any new factor or score. Evidence: `out/lab/conclusions.md`, `out/step8/`.
+**Per-strategy direction (Jamie 10-24, one rules engine):** what each input wants for sell put / sell call / long call / long put (sell → richest options, buy → cheapest), its verdict, where it is live and where the UI shows it = `strategy_rules.json` (Rankings › Rules). Update that file with any change here.
 Status: **live** = in that layer today · **proposed** = A25 deferred · **shipped** = A25 Cursor determination 10/05 · **dup** = also computed elsewhere today (to remove there).
 
 | factor | home | status | evidence (lab, 2020–26) |
@@ -10,8 +11,8 @@ Status: **live** = in that layer today · **proposed** = A25 deferred · **shipp
 | Short-term: oversold depth, reversal, MA50 context, VWAP, volume, relative pressure | Technicals: entry timing (display, weight 0) | live, proposed demote (T4) | no edge, all \|t\| < 2 |
 | Price risk: idio vol, beta | Technicals (risk) | proposed | sizes moves, not direction (raw-drop IC is mechanical) |
 | Falling knife | Technicals (flag) | live | Step 4: no harm to put sellers; severity 0.15 in Model List |
-| IV vs realized vol, IV rank (true LSEG history; tastytrade IV rank/pctile daily from 10-24 covers the ~137 names LSEG misses) | Options: PRICING | proposed (O1/O2); dup in tech Volatility State + Model List PREMIUM | VRP IC +0.137, t 10.1 |
-| RV-proxy "ivRank", Bollinger squeeze | none (remove) | live in tech v2 | wrong-signed / no edge |
+| IV vs realized vol, IV rank (true 1y IV percentile: **one resolver** `iv_rank.py` → `watchlist_sync.iv_rank_daily`, LSEG → tastytrade → none, 578/586 app names 10-24) | Options: PRICING | IV rank **live** via the resolver in Options score ivRelative (options-1.2.1, 10-24) + Model List PREMIUM; IV/RV live in Model List PREMIUM + shadow options-1.3.0 | VRP IC +0.137, t 10.1; true IV rank +0.084 |
+| RV-proxy "ivRank", Bollinger squeeze | none (remove) | out of the Options score 10-24 (options-1.2.1); still stored in ticker_technicals.iv_rank (display, Breakdown shows the gap) | wrong-signed / no edge; Spearman 0.22 vs real IV rank |
 | Put/call ratio, skew, term structure | Options: PRICING | live in tech optionsFlow | untestable (no history) |
 | Contract: income, buffer, delta, DTE, liquidity, earnings in window | Options: contract scoring | live | graded live (grade_ledger) |
 | Analyst expectations: IBES revision breadth, estimate drift | Fundamentals: expectations (`ibesRevBreadth`, optional from fund-1.1.1) | live | t 2.7 / 3.5, but redundant with trend (+0.008 when trend fixed). fund-1.1.1 (2026-10-06): no IBES row = not covered, no coverage shrink (`optionalMetrics` param). Before/after vs 1.1.0: rank corr 0.992, top-50 49 kept (TFC in, APA out), scored 568 → 570, mean abs shift 0.12; biggest ECOL 36.1 → 47.0. `compare-fund-params.ts` with 2 overrides |
