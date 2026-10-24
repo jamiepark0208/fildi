@@ -21,7 +21,13 @@
  *       (d) peer-health-check heal
  *       (e) merge-trusted + fund_score recompute (0 API)
  *       (f) budget / anomaly snapshot → report
+ *       (j) refresh-unused-feeds.ts after those data steps (pool daily; --scope=universe on PT Monday).
+ *           --scan=0. Polygon calls stay on polygon.gate inside the script. scheduler.ts is not involved.
  *     Full nightly-enrichment ONLY if last enrichment_runs success ≥ 4 days
+ *   node scripts/maintain.mjs --dry-run
+ *     Print the morning chain (no writes).
+ *   node scripts/maintain.mjs --step=unused-feeds
+ *     Run only that feed step and stamp timings.unusedFeeds on maintain-last.json.
  *   node scripts/maintain.mjs --drain-nr[=40]
  *     FactSet referee + merge if factset remaining ≥ max+20 (override / force)
  *   node scripts/maintain.mjs --no-drain-nr
@@ -135,6 +141,26 @@ function isPtSunday(d = new Date()) {
     weekday: "short",
   }).format(d);
   return wd === "Sun";
+}
+
+function isPtMonday(d = new Date()) {
+  const wd = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+  }).format(d);
+  return wd === "Mon";
+}
+
+/** Pool every morning; universe once a week (PT Monday). --scan=0 skips the 3-name chain sample. */
+function unusedFeedsArgs() {
+  const extra = ["--scan=0"];
+  if (isPtMonday()) extra.push("--scope=universe");
+  return extra;
+}
+
+function unusedFeedsAction(r) {
+  const scope = isPtMonday() ? "universe" : "pool";
+  return `unused_feeds_exit_${r.status ?? r.signal ?? "spawn_error"}_scope_${scope}`;
 }
 
 /** macOS banner when Maintain hard-fails — closes silent-failure gap for LaunchAgent runs. */
@@ -627,7 +653,62 @@ print(w.astimezone().strftime("%m/%d/%y %H:%M:%S"))
   }
 }
 
+function printMorningChain() {
+  const feed = `refresh-unused-feeds.ts ${unusedFeedsArgs().join(" ")} (after data steps, polygon.gate)`;
+  const steps = [
+    "backfill-stale-prices.ts",
+    "enrich-earnings-window.ts --max=40",
+    "enrich-missing-fundamentals.ts --max=30",
+    "enrich-unscored-fundamentals.ts --max=20",
+    "backfill-market-breadth.ts --days=5",
+    "nightly-enrichment.ts (if last success ≥ 4d)",
+    "drain-needs-review.ts",
+    "peer-health-check.ts",
+    "post-merge-scores.ts --scores-only",
+    "run-morning-precompute.ts",
+    feed,
+    "daily.py --if-needed",
+    "data_freshness.py",
+    "run-retention-prune.ts",
+    "option_history.py",
+    "research queue (only after the list is final)",
+  ];
+  console.log("[maintain] dry-run --enrich-if-due morning chain");
+  for (const s of steps) console.log(`  - ${s}`);
+}
+
+/** One chain step. Merges timings.unusedFeeds into the existing report; does not rerun the morning chain. */
+function runUnusedFeedsStepOnly() {
+  mkdirSync(LOG_DIR, { recursive: true });
+  if (!takeLock()) {
+    console.log("[maintain] another run holds the lock — skip unused-feeds step");
+    process.exit(1);
+  }
+  const r = runApiTsx("src/scripts/refresh-unused-feeds.ts", unusedFeedsArgs());
+  const prior = readPriorReport(REPORT) || {};
+  const timings = {
+    ...(prior.timings && typeof prior.timings === "object" ? prior.timings : {}),
+    unusedFeeds: r.ms,
+  };
+  const action = unusedFeedsAction(r);
+  const actions = Array.isArray(prior.actions) ? [...prior.actions] : [];
+  if (!actions.includes(action)) actions.push(action);
+  writeFileSync(REPORT, JSON.stringify({ ...prior, timings, actions }, null, 2));
+  console.log(`[maintain] unused-feeds ${action} ms=${r.ms}`);
+  if (r.stdoutTail) console.log(r.stdoutTail);
+  if (r.status !== 0 && r.stderrTail) console.error(r.stderrTail);
+  process.exit(r.status === 0 ? 0 : 1);
+}
+
 async function main() {
+  if (args.has("--dry-run")) {
+    printMorningChain();
+    return;
+  }
+  if (args.has("--step=unused-feeds")) {
+    runUnusedFeedsStepOnly();
+    return;
+  }
   mkdirSync(LOG_DIR, { recursive: true });
   // 10-21: the 07:00 run spent 75 min in seconds-long dark wakes (lid closed / idle sleep) → killed steps, DNS failures, a
   // Model List at 08:19. Hold a no-idle-sleep (+ no-sleep on AC) assertion for as long as this process lives.
@@ -795,6 +876,12 @@ async function main() {
     } else {
       actions.push("morning_precompute_skipped_process_down");
     }
+
+    // A267: after prices/breadth/earnings/scores. Pool daily; --scope=universe on PT Monday.
+    // Polygon calls take polygon.gate inside the script. Not a list input — a miss does not fail dataDone.
+    const feeds = runApiTsx("src/scripts/refresh-unused-feeds.ts", unusedFeedsArgs());
+    timings.unusedFeeds = feeds.ms;
+    actions.push(unusedFeedsAction(feeds));
   }
 
   if (enrichIfDue && !dataDoneToday) {
