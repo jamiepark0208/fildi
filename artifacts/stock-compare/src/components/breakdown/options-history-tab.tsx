@@ -1,6 +1,7 @@
 /**
  * Breakdown › Options history (Claude, PM role, user 2026-10-14). Headline numbers only; method lives in ⓘ tooltips (user rule).
- * Data: GET /api/stocks/:ticker/options-history (earnings moves, IV) + GET /api/pm/trades/:ticker (admin: your puts).
+ * Data: GET /api/stocks/:ticker/options-history (earnings moves, IV) + GET /api/pm/trades/:ticker (admin: your puts)
+ * + GET /api/stocks/:ticker/vol-metrics (IV rank from tastytrade / LSEG / technicals side by side, 10-24).
  * Written by scripts/watchlist_sync/analysis/option_derive.py from Polygon end-of-day option prices (schema optlab).
  */
 import { useMemo, useState } from "react";
@@ -15,6 +16,13 @@ import { cn } from "@/lib/utils";
 
 type Move = { date: string; implied: number; realized: number; ratio: number | null };
 type Iv = { date: string; iv: number; rv20: number | null; ivRank: number | null };
+type VolRow = { date: string; ivIndex: number | null; ivIndex5dChange: number | null; ivRank: number | null; ivPercentile: number | null;
+  liquidityRating: number | null; liquidityRank: number | null };
+type Vol = {
+  tasty: VolRow | null; history: VolRow[]; term: { expiry: string; iv: number }[];
+  lseg: { ivPercentile: number | null; days: number; asOf: string | null; usedByModelList: boolean } | null;
+  technicals: { ivRank: number | null; source: string | null } | null;
+};
 type Trade = {
   key: string; account: string; d0: string; expiry: string; strike: number; premium: number; qty: number;
   breached: boolean; closedEarly: boolean; path: { date: string; c: number }[];
@@ -127,6 +135,60 @@ function ImpliedVol({ iv }: { iv: Iv[] }) {
   );
 }
 
+const rk = (x: number | null | undefined) => (x == null ? "—" : Math.round(x * 100));
+
+function IvRank({ v }: { v: Vol | undefined }) {
+  const t = v?.tasty;
+  const cells: [string, React.ReactNode, string][] = [
+    ["tastytrade rank", rk(t?.ivRank), "Where today's IV sits between its 1-year low (0) and high (100)."],
+    ["tastytrade pctile", rk(t?.ivPercentile), "Share of the past year's days with lower IV."],
+    ["LSEG pctile", rk(v?.lseg?.ivPercentile), v?.lseg?.usedByModelList
+      ? `Model List PREMIUM input (30 % weight). ${v.lseg.days} days, as of ${v.lseg.asOf}.`
+      : "No current LSEG history for this name → the Model List PREMIUM score runs without an IV rank."],
+    ["Technicals", rk(v?.technicals?.ivRank), v?.technicals?.source === "rv_proxy"
+      ? "Realized-vol stand-in, not implied vol (agrees with tastytrade only 0.22 across names). Feeds the tech Volatility State until fixed."
+      : "Tech score Volatility State input."],
+  ];
+  return (
+    <div className="space-y-1">
+      <Head
+        title="IV rank"
+        value={rk(t?.ivRank)}
+        sub={t ? <>IV {pct(t.ivIndex)} · 5d {t.ivIndex5dChange == null ? "—" : `${t.ivIndex5dChange > 0 ? "+" : ""}${(t.ivIndex5dChange * 100).toFixed(1)} pts`}
+          · liquidity {t.liquidityRating ?? "—"}/5</> : "no tastytrade row yet (daily.py)"}
+        info={<>Every IV rank Fildi has, side by side. tastytrade refreshes daily (from 2026-10-24; history builds from there).
+          LSEG is what the Model List scores with today; across names it agrees with tastytrade (0.84). Liquidity 0–5 = tastytrade's
+          option-market rating (5 = tightest). IV by expiry = the term structure: a bump marks an event (earnings) priced into that expiry.</>}
+      />
+      <div className="grid grid-cols-4 gap-1 text-center">
+        {cells.map(([k, val, tip]) => (
+          <Tooltip key={k} delayDuration={150}>
+            <TooltipTrigger asChild>
+              <div className="rounded border border-zinc-800 px-1 py-1">
+                <div className="text-[9px] uppercase tracking-wide text-amber-200/50">{k}</div>
+                <div className="text-[13px] font-semibold tabular-nums text-amber-100">{val}</div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className={cn("max-w-[260px]", TIP)}>{tip}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+      {(v?.term.length ?? 0) > 1 && (
+        <ResponsiveContainer width="100%" height={90}>
+          <LineChart data={v!.term}>
+            <CartesianGrid stroke="#27272a" vertical={false} />
+            <XAxis dataKey="expiry" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 9, fill: "#a1a1aa" }} minTickGap={24} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={(x) => pct(x)} tick={{ fontSize: 9, fill: "#a1a1aa" }} width={32} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+            <RTooltip contentStyle={{ background: "#09090b", border: "1px solid #d4af3755", fontSize: 11 }}
+              formatter={(x: number) => [pct(x, 1), "IV"]} labelFormatter={(d) => `expiry ${d}`} />
+            <Line dataKey="iv" stroke={GOLD} dot={{ r: 1.5 }} strokeWidth={1.5} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
 function YourPuts({ trades }: { trades: Trade[] }) {
   const [sel, setSel] = useState<string | null>(null);
   const pts = useMemo(() => trades.map((t) => ({
@@ -189,11 +251,13 @@ function YourPuts({ trades }: { trades: Trade[] }) {
 export function OptionsHistoryTab({ ticker, isAdmin }: { ticker: string; isAdmin: boolean }) {
   const hist = useJson<{ earnings: Move[]; iv: Iv[] }>(["options-history", ticker], `/api/stocks/${encodeURIComponent(ticker)}/options-history`);
   const mine = useJson<{ trades: Trade[] }>(["pm-trades", ticker], `/api/pm/trades/${encodeURIComponent(ticker)}`, isAdmin);
+  const vol = useJson<Vol>(["vol-metrics", ticker], `/api/stocks/${encodeURIComponent(ticker)}/vol-metrics`);
   if (hist.isLoading) return <p className="text-[10px] text-amber-200/40">Loading…</p>;
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <EarningsMoves moves={hist.data?.earnings ?? []} />
       <ImpliedVol iv={hist.data?.iv ?? []} />
+      <IvRank v={vol.data} />
       {isAdmin && <div className="md:col-span-2"><YourPuts trades={mine.data?.trades ?? []} /></div>}
     </div>
   );

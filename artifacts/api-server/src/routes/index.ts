@@ -35,6 +35,7 @@ import stockContextRouter from "./stock-context";
 import fairValueAssumptionsRouter from "./fair-value-assumptions";
 import convictionRouter from "./conviction";
 import optionsHistoryRouter from "./options-history";
+import volMetricsRouter from "./vol-metrics";
 import agentsRouter from "./agents";
 import agentsDrillRouter from "./agents-drill";
 import schwabRouter, { schwabMachineRouter } from "./schwab";
@@ -109,6 +110,7 @@ router.use("/explain", explainLimiter);
 // /pm/* on options-history stays on requireAdmin. Frontend fetches send the session cookie.
 router.use(stockContextRouter);
 router.use(optionsHistoryRouter);
+router.use(volMetricsRouter);
 router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);

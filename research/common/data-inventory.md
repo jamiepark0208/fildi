@@ -30,7 +30,7 @@ Prior field notes in `.agents/context/data-source-fields/` (2026-09-29 / 10-14) 
 | Codiv | `CODIV_API_KEY` set. A129: free hosted tier, 100M tokens (not re-probed) | **0 code references** | None until local OpenJev is the constraint | OpenJev runs locally (`com.fildi.openjev`) |
 | Crawl4AI | Local | `scripts/fetch-page.sh` | — | Used for the Massive docs cited here |
 | OpenJev local | Local model, LaunchAgent | Shortlist, headline labels, controls | Hosted Codiv key unused | — |
-| tastytrade | OAuth personal grant (`read openid`), added 2026-10-24. No published cap | `/market-metrics` daily (271 names → `vendor_raw`), backtester on demand | historic earnings + dividends endpoints (verify our calendars), DXLink streaming quotes | IV percentile agrees with LSEG (Spearman 0.84, 130 names) and covers 137 names LSEG doesn't. Positions: none (portfolio is Robinhood) |
+| tastytrade | OAuth personal grant (`read openid`), added 2026-10-24. No published cap | `/market-metrics` daily (586 app names → `vendor_raw` + `tasty_metrics_daily`; shown in Breakdown › Options history › IV rank), backtester on demand | historic earnings + dividends endpoints (verify our calendars), DXLink streaming quotes | IV percentile agrees with LSEG (Spearman 0.84, 130 names) and covers 137 names LSEG doesn't. Positions: none (portfolio is Robinhood) |
 | S&P Global | Claude.ai connector + local plugin. **Not authenticated** (`mcp-needs-auth-cache.json`: `claude.ai S&P Global`, `plugin:sp-global:spglobal`). No key in `.env.local` | Nothing in repo code | Kensho / Capital IQ tearsheets | Would overlap FactSet + LSEG. Do not use until auth and a license check |
 
 ## Ranked — worth testing (do not run here)

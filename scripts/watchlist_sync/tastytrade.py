@@ -5,7 +5,7 @@ Every response is kept whole in vendor_raw (source 'tastytrade', rule 4c).
 
   python3 scripts/watchlist_sync/tastytrade.py auth
   python3 scripts/watchlist_sync/tastytrade.py metrics AAPL,MSFT
-  python3 scripts/watchlist_sync/tastytrade.py universe      # daily.py: every fmp_fundamentals name (~3 s)
+  python3 scripts/watchlist_sync/tastytrade.py universe      # daily.py: every name the app shows (~6 calls, seconds)
   python3 scripts/watchlist_sync/tastytrade.py dates
   python3 scripts/watchlist_sync/tastytrade.py backtest spec.json
 """
@@ -155,6 +155,9 @@ def backtest(spec: dict, poll: float = 5.0, max_wait: float = 900) -> dict:
     return r
 
 
+APP_NAMES = """SELECT ticker FROM fmp_fundamentals UNION SELECT ticker FROM ticker_technicals"""   # Model List universe + every Breakdown name
+
+
 def verify(conn) -> tuple[bool, str]:
     """Daily cross-check: today's tastytrade IV percentile vs the Model List's LSEG 1-year IV percentile (fit_model_v14.iv_ranks).
     10-24 baseline: Spearman 0.84 on 130 names, median gap 0.05. Fails (exit 1 → daily.py flags the step) below 0.6 or < 90 % coverage."""
@@ -163,7 +166,7 @@ def verify(conn) -> tuple[bool, str]:
     import fit_model_v14 as V
     tt = dict(conn.execute("""SELECT ticker, iv_percentile FROM watchlist_sync.tasty_metrics_daily
                               WHERE date = current_date AND iv_percentile IS NOT NULL""").fetchall())
-    n_uni = conn.execute("SELECT count(DISTINCT ticker) FROM fmp_fundamentals").fetchone()[0]
+    n_uni = conn.execute(f"SELECT count(*) FROM ({APP_NAMES}) u").fetchone()[0]
     ls = V.iv_ranks(conn, set(tt))
     pairs = [(ls[k], v) for k, v in tt.items() if k in ls]
 
@@ -189,7 +192,7 @@ if __name__ == "__main__":
         print(json.dumps(metrics(sys.argv[2].upper().split(",")), indent=1)[:4000])
     elif cmd == "universe":
         with connect() as conn:
-            syms = [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM fmp_fundamentals ORDER BY 1")]
+            syms = [r[0] for r in conn.execute(APP_NAMES + " ORDER BY 1")]
         items = metrics([t.replace(".", "/") for t in syms])
         meter()
         with connect() as conn:
