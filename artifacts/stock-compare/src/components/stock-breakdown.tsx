@@ -40,6 +40,8 @@ import { BreakdownMetaProvider } from "./breakdown/breakdown-meta-context";
 import { formatDerivedTip, formatProvenanceTip } from "@/lib/provenance-display";
 import { DataTip } from "./data-tip";
 import { ShortInterestPanel } from "./breakdown/short-interest-panel";
+import { InsiderPanel } from "./breakdown/insider-panel";
+import { EventsPanel } from "./breakdown/events-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
 import { AssumptionsTab } from "./breakdown/assumptions-tab";
@@ -718,6 +720,14 @@ export function StockBreakdown({
 
                     <BreakdownPanel title="Short interest" empty="No short-interest data." scrollMax="max-h-[260px]">
                       {activeTicker ? <ShortInterestPanel ticker={activeTicker} /> : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel title="Insiders" empty="No Form 4 buys or sales." scrollMax="max-h-[260px]">
+                      {activeTicker ? <InsiderPanel ticker={activeTicker} /> : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel title="Events" empty="No 8-K events." scrollMax="max-h-[260px]">
+                      {activeTicker ? <EventsPanel ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
                     <BreakdownPanel title="Earnings call" empty="No call summary yet." scrollMax="max-h-[260px]">

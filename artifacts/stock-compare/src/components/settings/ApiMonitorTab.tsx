@@ -35,6 +35,7 @@ const SOURCE_META: Record<string, SourceMeta> = {
   fmp:    { label: "FMP",          limitKind: "daily",   dailyLimit: 220, rateNote: "220/day (headroom under ~250)" },
   av:     { label: "Alpha Vantage",limitKind: "daily",   dailyLimit: 25,  rateNote: "25/day"  },
   polygon:{ label: "Polygon",      limitKind: "per-min", rateNote: "5 req/min · shared gate" },
+  schwab: { label: "Schwab",       limitKind: "per-min", rateNote: "120 req/min · market data" },
   polygon_429:{ label: "Polygon 429s", limitKind: "per-min", rateNote: "should stay 0" },
   finnhub:{ label: "Finnhub",      limitKind: "per-min", rateNote: "60 req/min" },
   yahoo:  { label: "Yahoo",        limitKind: "none",    rateNote: "fundamentals counted · quotes/chains not" },
@@ -48,7 +49,7 @@ const SOURCE_META: Record<string, SourceMeta> = {
 };
 
 // Show these sources always (even with 0 calls); others shown only if they have data.
-const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "polygon_429", "finnhub", "yahoo", "edgar", "anthropic", "lseg", "wrds"];
+const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "polygon_429", "schwab", "finnhub", "yahoo", "edgar", "anthropic", "lseg", "wrds"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

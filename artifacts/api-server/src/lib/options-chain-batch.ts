@@ -3,8 +3,11 @@
  * and model-track-record (avoids duplicated worker loops / Friday double pattern).
  */
 import { getOptionsChain, type OptionsChainResult } from "./options.js";
+import { recordOptionsChainSource } from "./options-chain-source-stats.js";
 import { getLivePrices } from "./live-quote.js";
 import { logger } from "./logger.js";
+import { installSchwabUsageMeter } from "./schwab-usage-meter.js";
+import { fetchScanChain } from "./unused-feeds.js";
 
 const DEFAULT_CONCURRENCY = 3;
 
@@ -54,12 +57,19 @@ export async function fetchChainsForTickers(
   const chainsByTicker = new Map<string, OptionsChainResult[]>();
   let failures = 0;
   let idx = 0;
+  installSchwabUsageMeter();
 
   const worker = async () => {
     while (idx < tickers.length) {
       const t = tickers[idx++]!;
       try {
-        chainsByTicker.set(t, await getOptionsChain(t));
+        const listed = await fetchScanChain(t);
+        if (listed?.length) {
+          recordOptionsChainSource("schwab");
+          chainsByTicker.set(t, listed);
+        } else {
+          chainsByTicker.set(t, await getOptionsChain(t));
+        }
       } catch (err) {
         failures++;
         logger.warn({ err, ticker: t }, `${label}: chain fetch failed`);

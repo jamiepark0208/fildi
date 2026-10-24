@@ -41,6 +41,7 @@ import schwabRouter, { schwabMachineRouter } from "./schwab";
 import positionsRouter from "./positions";
 import feedbackRouter from "./feedback";
 import liveRouter from "./live";
+import indexMoversRouter from "./index-movers";
 import trackRecordRouter from "./track-record";
 import strategiesRouter from "./strategies";
 import researchWrdsRouter from "./research-wrds";
@@ -123,6 +124,7 @@ router.use(technicalRouter);
 router.use(explainRouter);
 router.use(sdmRouter);
 router.use(liveRouter);
+router.use(indexMoversRouter);
 router.use(trackRecordRouter);
 router.use(strategiesRouter);
 // Local research caches (WRDS/LSEG) — DB read only, never live vendor calls.

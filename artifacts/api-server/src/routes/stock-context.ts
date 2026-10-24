@@ -9,6 +9,7 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { getShortInterest } from "../lib/short-interest.js";
+import { readEvents, readInsiders } from "../lib/unused-feeds.js";
 import { getSessionFlow } from "../lib/session-flow.js";
 
 const router = Router();
@@ -102,6 +103,32 @@ router.get("/stocks/:ticker/media-sentiment", async (req, res, next) => {
       sources,
       note: "Desk/media lean — display only; not a Model List input (A214)",
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/stocks/:ticker/insiders", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) {
+    res.status(400).json({ error: "bad ticker" });
+    return;
+  }
+  try {
+    res.json({ ticker: t, ...(await readInsiders(t)) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/stocks/:ticker/events", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) {
+    res.status(400).json({ error: "bad ticker" });
+    return;
+  }
+  try {
+    res.json({ ticker: t, rows: await readEvents(t) });
   } catch (err) {
     next(err);
   }

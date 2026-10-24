@@ -1,59 +1,51 @@
 /**
  * Shared Polygon free-tier gate (A96 / A185): 5 calls/min → 12.5 s gap.
- * Cross-process: same file lock + stamp as scripts/watchlist_sync/polygon_gate.py
- * (`/tmp/fildi-logs/polygon.gate`). In-process chain still serializes Node callers.
+ * Cross-process: the same flock + stamp as scripts/watchlist_sync/polygon_gate.py
+ * (`/tmp/fildi-logs/polygon.gate`). A separate .lock file raced Python and 429'd
+ * when a study was running (A267). In-process chain still serializes Node callers.
  */
-import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { spawn } from "node:child_process";
 import { recordApiUsage } from "./api-usage.js";
-
-const GAP_MS = 12_500;
-const GATE_PATH = "/tmp/fildi-logs/polygon.gate";
-const LOCK_PATH = `${GATE_PATH}.lock`;
 
 let chain: Promise<void> = Promise.resolve();
 
-async function sleep(ms: number): Promise<void> {
-  if (ms > 0) await new Promise((r) => setTimeout(r, ms));
-}
-
-/** Exclusive lock via O_EXCL lockfile (portable; matches Python flock intent). */
-async function withFileLock<T>(fn: () => Promise<T>): Promise<T> {
-  await mkdir(dirname(GATE_PATH), { recursive: true });
-  const deadline = Date.now() + 120_000;
-  while (Date.now() < deadline) {
-    try {
-      const fh = await open(LOCK_PATH, "wx");
-      try {
-        return await fn();
-      } finally {
-        await fh.close().catch(() => undefined);
-        await unlink(LOCK_PATH).catch(() => undefined);
-      }
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException)?.code;
-      if (code !== "EEXIST") throw err;
-      await sleep(50);
-    }
-  }
-  throw new Error("polygon gate: lock timeout");
-}
-
-/** Sleep until GAP_MS after the last cross-process call, then stamp now. */
-async function crossProcessWait(): Promise<void> {
-  await withFileLock(async () => {
-    let last = 0;
-    try {
-      const raw = (await readFile(GATE_PATH, "utf8")).trim();
-      last = Number(raw);
-      if (!Number.isFinite(last)) last = 0;
-    } catch {
-      last = 0;
-    }
-    // Stamp is epoch seconds (same as polygon_gate.py).
-    const pause = last * 1000 + GAP_MS - Date.now();
-    if (pause > 0) await sleep(pause);
-    await writeFile(GATE_PATH, String(Date.now() / 1000), "utf8");
+/** Sleep until 12.5s after the last call from ANY process (Python flock), then stamp. */
+function crossProcessWait(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const py = spawn("python3", ["-c", `
+import fcntl, time
+from pathlib import Path
+p = Path("/tmp/fildi-logs/polygon.gate")
+p.parent.mkdir(parents=True, exist_ok=True)
+with open(p, "a+") as f:
+    fcntl.flock(f, fcntl.LOCK_EX)
+    f.seek(0)
+    raw = f.read().strip()
+    try:
+        last = float(raw or 0)
+    except ValueError:
+        last = 0.0
+    pause = last + 12.5 - time.time()
+    if pause > 0:
+        time.sleep(pause)
+    f.seek(0)
+    f.truncate()
+    f.write(str(time.time()))
+    f.flush()
+`], { stdio: "ignore" });
+    const timer = setTimeout(() => {
+      py.kill();
+      reject(new Error("polygon gate: lock timeout"));
+    }, 120_000);
+    py.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    py.on("exit", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`polygon gate: python exit ${code}`));
+    });
   });
 }
 

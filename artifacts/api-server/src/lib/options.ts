@@ -228,7 +228,7 @@ function withBudget<T>(p: Promise<T>, label: string): Promise<T> {
   });
 }
 
-function noteBidQuality(source: "schwab" | "yahoo", chains: OptionsChainResult[]): void {
+export function noteBidQuality(source: "schwab" | "yahoo", chains: OptionsChainResult[]): void {
   const put = assessOptionChainQuoteDq(chains, false);
   const call = assessOptionChainQuoteDq(chains, true);
   const inBand = put.inBand + call.inBand;

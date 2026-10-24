@@ -95,7 +95,33 @@ function etParts(now: Date): { weekday: number; minutesOfDay: number } {
 const MARKET_OPEN_MIN = 9 * 60 + 30;   // 9:30 ET
 const MARKET_CLOSE_MIN = 16 * 60;      // 16:00 ET
 
+/** A267: today's Schwab /markets session. Null → calendar below. */
+export interface SchwabMarketDay {
+  date: string;
+  isOpen: boolean;
+  openMin: number;
+  closeMin: number;
+}
+
+let schwabDay: SchwabMarketDay | null = null;
+
+export function setSchwabMarketDay(day: SchwabMarketDay | null): void {
+  schwabDay = day;
+}
+
+function schwabSession(now: Date): SchwabMarketDay | null {
+  if (!schwabDay) return null;
+  if (schwabDay.date !== etDateKey(now)) return null;
+  return schwabDay;
+}
+
 export function isMarketOpen(now: Date = new Date()): boolean {
+  const schwab = schwabSession(now);
+  if (schwab) {
+    if (!schwab.isOpen) return false;
+    const { minutesOfDay } = etParts(now);
+    return minutesOfDay >= schwab.openMin && minutesOfDay < schwab.closeMin;
+  }
   const { weekday, minutesOfDay } = etParts(now);
   if (weekday < 1 || weekday > 5) return false;
   if (isNyseHoliday(now)) return false;
@@ -104,7 +130,13 @@ export function isMarketOpen(now: Date = new Date()): boolean {
 
 /** Minutes since 9:30 ET today, or null outside the weekday session window (incl. NYSE holidays). */
 export function minutesSinceOpen(now: Date = new Date()): number | null {
+  const schwab = schwabSession(now);
   const { weekday, minutesOfDay } = etParts(now);
+  if (schwab) {
+    if (!schwab.isOpen) return null;
+    if (minutesOfDay < schwab.openMin || minutesOfDay >= schwab.closeMin) return null;
+    return minutesOfDay - schwab.openMin;
+  }
   if (weekday < 1 || weekday > 5) return null;
   if (isNyseHoliday(now)) return null;
   if (minutesOfDay < MARKET_OPEN_MIN || minutesOfDay >= MARKET_CLOSE_MIN) return null;
@@ -118,6 +150,7 @@ export function etDateKey(now: Date = new Date()): string {
 
 /** True when `ymd` (YYYY-MM-DD, ET calendar) is a NYSE trading day (weekday, not a full-day holiday). */
 export function isTradingDayYmd(ymd: string): boolean {
+  if (schwabDay && schwabDay.date === ymd) return schwabDay.isOpen;
   const d = new Date(`${ymd}T12:00:00Z`);
   const dow = d.getUTCDay();
   return dow !== 0 && dow !== 6 && !nyseHolidays(Number(ymd.slice(0, 4))).has(ymd);
@@ -141,12 +174,15 @@ export function lastCompletedSessionYmd(now: Date = new Date()): string {
 
 /** UTC instant of 9:30 ET on `now`'s calendar date, or null on a non-trading day. */
 export function getMarketOpenUtc(now: Date = new Date()): Date | null {
+  const schwab = schwabSession(now);
+  if (schwab && !schwab.isOpen) return null;
   const { weekday } = etParts(now);
-  if (weekday < 1 || weekday > 5) return null;
-  if (isNyseHoliday(now)) return null;
+  if (!schwab && (weekday < 1 || weekday > 5)) return null;
+  if (!schwab && isNyseHoliday(now)) return null;
+  const openMin = schwab?.openMin ?? MARKET_OPEN_MIN;
   const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const offsetMs = now.getTime() - etNow.getTime();
   const openEt = new Date(etNow);
-  openEt.setHours(9, 30, 0, 0);
+  openEt.setHours(Math.floor(openMin / 60), openMin % 60, 0, 0);
   return new Date(openEt.getTime() + offsetMs);
 }

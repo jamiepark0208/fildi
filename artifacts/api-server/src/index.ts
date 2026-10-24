@@ -39,6 +39,9 @@ const server = app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  void import("./lib/unused-feeds.js")
+    .then((m) => m.hydrateSchwabMarketHours())
+    .catch((e: unknown) => logger.error({ err: e }, "startup: schwab market hours hydrate failed"));
   startScheduler().catch((e: unknown) => logger.error({ err: e }, "startup: scheduler init failed"));
   startCacheSweep(); // bug/5: periodic prune of expired TTLCache entries
 

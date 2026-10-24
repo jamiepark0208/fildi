@@ -227,6 +227,9 @@ def pick_peers(candidates: list[str], already: set[str], n: int = PEER_N) -> lis
 def reason_line(role: str, cats: list, dir_label_: str, n_items: int, of_ticker: str | None) -> str:
     if role == "peer":
         return f"news shortlist: peer of {of_ticker}"
+    if role == "event":
+        cat = cats[0] if cats else "8-K"
+        return f"8-K hard event: {cat}"
     cat = cats[0] if cats else "other"
     return f"news shortlist: {cat} {dir_label_} ({n_items} items)"
 
@@ -452,8 +455,23 @@ def _year_closes(conn, tickers: list[str]) -> dict[str, list[tuple]]:
     return out
 
 
+def _related_candidates(conn, ticker: str) -> list[str]:
+    """Polygon related tickers. Correlation still ranks them. Missing table → []."""
+    try:
+        conn.execute("SAVEPOINT rel_tickers")
+        rows = conn.execute(
+            "SELECT UPPER(related) FROM related_tickers WHERE UPPER(ticker) = %s ORDER BY ord NULLS LAST",
+            (ticker,),
+        ).fetchall()
+        conn.execute("RELEASE SAVEPOINT rel_tickers")
+        return [r[0] for r in rows if r[0]]
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT rel_tickers")
+        return []
+
+
 def peers_for(conn, ticker: str, already: set[str]) -> list[tuple[str, float]]:
-    """Up to 3 same-group names, ranked by 1-year daily-return correlation. No alpha fallback."""
+    """Up to 3 names, ranked by 1-year daily-return correlation. Related tickers are extra candidates."""
     gid = conn.execute("SELECT group_id FROM peer_group_overrides WHERE UPPER(ticker) = %s", (ticker,)).fetchone()
     if not gid:
         gid = conn.execute(
@@ -461,15 +479,20 @@ def peers_for(conn, ticker: str, already: set[str]) -> list[tuple[str, float]]:
                WHERE UPPER(ticker) = %s AND removed_at IS NULL LIMIT 1""",
             (ticker,),
         ).fetchone()
-    if not gid:
+    members: list[str] = []
+    if gid:
+        rows = conn.execute(
+            """SELECT UPPER(m.ticker) FROM peer_group_members m
+               JOIN fmp_fundamentals f ON UPPER(f.ticker) = UPPER(m.ticker)
+               WHERE m.group_id = %s AND m.removed_at IS NULL""",
+            (gid[0],),
+        ).fetchall()
+        members = [r[0] for r in rows if r[0] != ticker and r[0] not in already]
+    for rel in _related_candidates(conn, ticker):
+        if rel != ticker and rel not in already and rel not in members:
+            members.append(rel)
+    if not members:
         return []
-    rows = conn.execute(
-        """SELECT UPPER(m.ticker) FROM peer_group_members m
-           JOIN fmp_fundamentals f ON UPPER(f.ticker) = UPPER(m.ticker)
-           WHERE m.group_id = %s AND m.removed_at IS NULL""",
-        (gid[0],),
-    ).fetchall()
-    members = [r[0] for r in rows if r[0] != ticker and r[0] not in already]
     closes = _year_closes(conn, [ticker, *members])
     base = closes.get(ticker) or []
     scored = []
@@ -490,6 +513,7 @@ def render_md(day, rows: list[dict]) -> str:
             peers.setdefault(r["of_ticker"], []).append(bit)
     lines = [f"# News shortlist {day}"]
     news = [r for r in rows if r["role"] == "news"]
+    events = [r for r in rows if r["role"] == "event"]
     if not news:
         lines.append("(none)")
     for r in news:
@@ -499,6 +523,8 @@ def render_md(day, rows: list[dict]) -> str:
         mat = f"{top['mat']:.2f}" if top and top.get("mat") is not None else "—"
         title = (top["title"] if top else "")[:70]
         lines.append(f"{r['ticker']} {cat} {r['dir']} {r['score']:.2f} mat {mat} peers {ps} · {title}")
+    for r in events:
+        lines.append(f"{r['ticker']} 8-K {(r['cats'] or ['event'])[0]}")
     return "\n".join(lines[:30]) + "\n"
 
 
@@ -580,6 +606,34 @@ def needs_model(conn, today) -> bool:
     return not (OUT_DIR / f"{today.isoformat()}.md").exists()
 
 
+def hard_event_rows(conn, today: dt.date, already: set[str]) -> list[dict]:
+    """Non-earnings 8-Ks from the last 7 days. Missing table → []. Not a score."""
+    try:
+        conn.execute("SAVEPOINT hard_8k")
+        rows = conn.execute(
+            """SELECT DISTINCT ON (ticker) ticker, category, filed::text
+               FROM corporate_events
+               WHERE filed >= %s
+                 AND COALESCE(category, '') !~* 'earnings|quarterly_results'
+                 AND COALESCE(primary_category, '') !~* 'earnings|quarterly_results'
+               ORDER BY ticker, filed DESC""",
+            (today - dt.timedelta(days=7),),
+        ).fetchall()
+        conn.execute("RELEASE SAVEPOINT hard_8k")
+    except Exception:
+        conn.execute("ROLLBACK TO SAVEPOINT hard_8k")
+        return []
+    out = []
+    for t, cat, filed in rows:
+        if t in already or len(out) >= 8:
+            continue
+        out.append({
+            "ticker": t, "role": "event", "of_ticker": None, "score": 1.0, "dir": "neutral",
+            "cats": [cat or "8-K"], "items": [{"title": f"8-K {cat or ''} {filed}", "mat": 1}],
+        })
+    return out
+
+
 def morning(conn, post=None, today: dt.date | None = None) -> dict:
     """Score mail since the last close + headlines already labeled. Caller owns the model."""
     post = post or _answers
@@ -627,6 +681,7 @@ def morning(conn, post=None, today: dt.date | None = None) -> dict:
                          "cats": agg[t]["cats"], "items": [], "corr": corr})
             already.add(p)
             print(f"  peer {p:6} of {t} corr={corr:.2f}", flush=True)
+    rows.extend(hard_event_rows(conn, today, already))
     write_rows(conn, today, rows)
     grades = log_grades(conn, today, rows)
     OUT_DIR.mkdir(parents=True, exist_ok=True)

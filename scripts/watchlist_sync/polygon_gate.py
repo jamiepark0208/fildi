@@ -2,7 +2,7 @@
 
 Free plan = 5 calls/min shared by ALL processes, so the per-script timers each fetcher used to keep could collide → 429s.
 `wait()` takes an exclusive file lock, sleeps until GAP_S after the last call made by ANY process, stamps the time and
-releases. `record(conn, n)` adds n to api_usage (Settings › API Monitor). Node's polygon-limiter.ts is still separate (A185).
+releases. `record(conn, n)` adds n to api_usage (Settings › API Monitor). Node's polygon-limiter.ts takes this same flock (A267).
 """
 from __future__ import annotations
 

@@ -17,6 +17,7 @@ import {
   type EntryVerdict,
 } from "@/components/live/hotlist-table";
 import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers";
+import { IndexMoversStrip } from "@/components/live/index-movers-strip";
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
@@ -494,6 +495,8 @@ export default function Live() {
               <RegimeBanner checkpoints={regime} />
 
               <PatternDigestCard />
+
+              <IndexMoversStrip />
 
               <section className="space-y-1.5">
                 {moversLoading && !movers ? (

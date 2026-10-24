@@ -61,12 +61,51 @@ HOLIDAYS = {
 }
 
 
+_hours_cache: dict[str, tuple[bool, int, int]] = {}
+_hours_loaded = False
+
+
+def _schwab_hours(d: date) -> tuple[bool, int, int] | None:
+    """Schwab /markets rows (A267). One read per process. None → calendar."""
+    global _hours_loaded
+    if not _hours_loaded:
+        _hours_loaded = True
+        try:
+            import os
+            import psycopg
+            url = os.environ.get("DATABASE_URL")
+            if url:
+                with psycopg.connect(url, connect_timeout=3) as conn:
+                    rows = conn.execute(
+                        "SELECT session_date::text, is_open, open_min, close_min FROM schwab_market_hours",
+                    ).fetchall()
+                for session_date, is_open, open_min, close_min in rows:
+                    _hours_cache[str(session_date)[:10]] = (
+                        bool(is_open),
+                        int(open_min if open_min is not None else 9 * 60 + 30),
+                        int(close_min if close_min is not None else 16 * 60),
+                    )
+        except Exception:
+            pass
+    return _hours_cache.get(d.isoformat())
+
+
 def is_trading_day(d: date) -> bool:
+    hours = _schwab_hours(d)
+    if hours is not None:
+        return hours[0]
     return d.weekday() < 5 and d.isoformat() not in HOLIDAYS
 
 
 def market_open(now: datetime | None = None) -> bool:
     n = (now or datetime.now(ET)).astimezone(ET)
+    hours = _schwab_hours(n.date())
+    if hours is not None:
+        if not hours[0]:
+            return False
+        open_t = time(hours[1] // 60, hours[1] % 60)
+        close_t = time(hours[2] // 60, hours[2] % 60)
+        return open_t <= n.time() < close_t
     return is_trading_day(n.date()) and time(9, 30) <= n.time() < time(16, 0)
 
 
