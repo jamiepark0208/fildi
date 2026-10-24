@@ -1,0 +1,12 @@
+[Unit]
+Description=Fildi A241 public tick every 30 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+AccuracySec=1min
+Persistent=true
+Unit=fildi-public-tick.service
+
+[Install]
+WantedBy=timers.target

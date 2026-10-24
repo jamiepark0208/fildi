@@ -1,0 +1,22 @@
+[Unit]
+Description=Fildi A241 public VM market tick (Yahoo → prices_historical)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fildi
+Group=fildi
+EnvironmentFile=-/etc/fildi/env
+# After env file so empty DATABASE_URL= in template cannot win
+Environment=DATABASE_URL=postgresql:///tradedash?host=/var/run/postgresql
+Environment=FILDI_TICK_LOG=/opt/fildi/logs/public-tick.log
+Environment=HOME=/opt/fildi
+WorkingDirectory=/opt/fildi
+ExecStart=/usr/bin/python3 /opt/fildi/deploy/gcp/public-tick.py
+Nice=10
+MemoryMax=200M
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=multi-user.target

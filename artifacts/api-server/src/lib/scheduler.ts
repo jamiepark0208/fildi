@@ -57,6 +57,7 @@ import {
   type RunAttempt,
   NO_ATTEMPT,
 } from "./scheduler-catchup.js";
+import { getHostRole, isPublicHost, PUBLIC_HOST_SKIP } from "./host-role.js";
 
 export { shouldRunRegimeCheckpointsAt } from "./scheduler-catchup.js";
 
@@ -669,7 +670,7 @@ export async function runRegimeCheckpoints() {
         logger.error({ err }, "scheduler: entry-signal recompute failed"),
       );
       // Model List re-check rides the same checkpoints, in session only (fire-and-forget child process).
-      if (minutesSinceOpen() != null) runModelListIntradayCheck();
+      if (!isPublicHost() && minutesSinceOpen() != null) runModelListIntradayCheck();
     }
     lastRegimeCheckpointRun = new Date();
   } finally {
@@ -746,24 +747,26 @@ async function refreshPersistedLastRuns(): Promise<void> {
 }
 
 function runDueJobs(): void {
+  const pub = isPublicHost();
   if (shouldRunEnrichmentNow()) runEnrichment();
   if (shouldRunRetentionNow()) runRetentionPrune();
-  if (shouldRunTradeExpiryNow()) runTradeExpiry();
+  if (!pub && shouldRunTradeExpiryNow()) runTradeExpiry();
   if (shouldRunModelSnapshotNow()) runModelSnapshotJob();
   if (shouldRunOptionScoreNow()) runOptionScoreJob();
-  if (shouldRunEventBulletsNow()) runEventBulletsJob();
+  if (!pub && shouldRunEventBulletsNow()) runEventBulletsJob(); // Anthropic — off on public shadow
   if (shouldRunEarningsBackfillNow()) runEarningsBackfillJob();
   if (shouldRunFmpAnalystFeedNow()) runFmpAnalystFeedJob();
-  if (shouldRunDeskIngestNow()) runDeskIngestJob();
-  if (shouldRunVoicesIngestNow()) runVoicesIngestJob();
-  if (shouldRunSchwabHealthNow()) runSchwabHealthJob();
-  if (shouldRunResearchOpsNow()) runResearchOpsJob();
+  if (!pub && shouldRunDeskIngestNow()) runDeskIngestJob();
+  if (!pub && shouldRunVoicesIngestNow()) runVoicesIngestJob(); // LLM path — off on public shadow
+  if (!pub && shouldRunSchwabHealthNow()) runSchwabHealthJob();
+  if (!pub && shouldRunResearchOpsNow()) runResearchOpsJob();
   // Size-gated, not day-gated — checks every tick but only acts past the 20MB threshold.
   rotateApiServerLogIfNeeded();
 }
 
 export async function startScheduler(): Promise<void> {
   await refreshPersistedLastRuns();
+  const role = getHostRole();
 
   const tick = () => {
     void refreshPersistedLastRuns()
@@ -778,11 +781,13 @@ export async function startScheduler(): Promise<void> {
     if (shouldRunRegimeCheckpointsNow()) runRegimeCheckpoints();
   }, 60 * 1000);
 
-  // A194: Schwab 1m → intraday_bars_1m (own 60s heartbeat + 5m gate inside poller).
-  startSchwab1mPoller();
+  // A194 / A241: Schwab 1m stays Mac-only (no brokerage token on public VM).
+  if (!isPublicHost()) startSchwab1mPoller();
 
   logger.info(
     {
+      hostRole: role,
+      publicSkip: isPublicHost() ? PUBLIC_HOST_SKIP : null,
       scheduleDays: ["Sunday", "Thursday"], scheduleHourUtc: SCHEDULE_HOUR,
       tradeExpiryDay: "Saturday", tradeExpiryHourUtc: TRADE_EXPIRY_HOUR,
       modelSnapshotDay: "Friday", modelSnapshotHourUtc: MODEL_SNAPSHOT_HOUR,
