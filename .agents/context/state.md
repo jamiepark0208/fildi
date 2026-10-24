@@ -54,5 +54,5 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 ## Review loop + ASKS format (2026-10-11, user YES)
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
-Last reviewed SHA: dd26e459 (10-21 night: 6334b42..dd26e459 via Cursor A238 packets — 10 commits, 5 quant verdicts + 5 non-quant sign-offs; A172/A191 live clauses pending next snapshot; finding → A240)
+Last reviewed SHA: 5885f50d (10-24: dd26e459..5885f50d live Model List quant commits reviewed — 2f47e611, 11953ce9, 06a33418, cdbaaa53, 47fae877, 519024f6; finding 519024f6 P3 stale-chain carry in A243)
 
