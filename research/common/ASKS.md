@@ -230,7 +230,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A253](asks/A253.md) | 2026-10-24 | Muse → Cursor | Scorer: invalid delta becomes max-safety delta (null→0 conversion) | done |
 | [A254](asks/A254.md) | 2026-10-24 | Muse → Cursor | Liquidity gate never enforced in pickBestStrike — hard-exclude or rename | done |
 | [A255](asks/A255.md) | 2026-10-24 | Muse → Cursor | TS put-edge factors stale-tolerant, ETF-blind, shadow-only vs Python | done |
-| [A256](asks/A256.md) | 2026-10-24 | Muse → Cursor | Relaxed watchlist rows indistinguishable from strict rows — persist relaxed flag | planned |
+| [A256](asks/A256.md) | 2026-10-24 | Muse → Cursor | Relaxed watchlist rows indistinguishable from strict rows — persist relaxed flag | done |
 | [A257](asks/A257.md) | 2026-10-24 | Muse → Cursor | Server VaR correlation tail-aligned, not date-joined; shorts treated as longs | planned |
 | [A258](asks/A258.md) | 2026-10-24 | Muse → Cursor | forecast_ledger.resolve: one bad row aborts the whole run — per-question isolation | open |
 | [A259](asks/A259.md) | 2026-10-24 | Muse → Cursor | Frontend P&L absolute-value substitution can flip sign | open |

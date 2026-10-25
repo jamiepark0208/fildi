@@ -62,6 +62,8 @@ interface ScannerRowProps {
   livePrice?: number | null;
   /** Nightly options-snapshot underlying — for Δ vs live on crash/move days. */
   snapSpot?: number | null;
+  /** A256: snapshot came from watchlist relaxed second-pass. */
+  snapRelaxed?: boolean;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
@@ -125,6 +127,7 @@ export function ScannerRow({
   bestBuffer = null,
   scoreNAReason = null,
   stockScore = null,
+  snapRelaxed = false,
   isCall,
   isOversold = false,
   isOverbought = false,
@@ -360,6 +363,14 @@ export function ScannerRow({
               title={`Liquidity warning (does not exclude): ${newScorerBest.liquidity.reason ?? "thin book"}`}
             >
               LIQ
+            </span>
+          )}
+          {snapRelaxed && (
+            <span
+              className="ml-0.5 px-0.5 py-px rounded border border-violet-500/40 bg-violet-500/15 text-violet-200 text-[8px] font-bold leading-none shrink-0"
+              title="Watchlist relaxed pick — failed strict income/quality gates; not a strict Overall hit"
+            >
+              REL
             </span>
           )}
           {isMonthlyOnlyCalendar(optionsData) && (

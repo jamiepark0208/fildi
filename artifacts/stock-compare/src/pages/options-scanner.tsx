@@ -9,7 +9,7 @@ import {
   type TechnicalScore,
 } from "@/lib/technical-rankings";
 import { Loader2, RefreshCw, TrendingUp, Search, Trophy, Settings2 } from "lucide-react";
-import { pickBestStrike, selectPremiumCandidates, type StockContext } from "@/lib/option-scorer";
+import { pickBestStrike, selectPremiumCandidates, collectSideIVsFromChainMap, type StockContext } from "@/lib/option-scorer";
 import { computeRelativeMove, computeStockScore } from "@/lib/stock-scorer";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useTrackRecordTilt } from "@/hooks/use-track-record-tilt";
@@ -197,6 +197,8 @@ export function OptionsScannerContent({
         edge?: { quintile: number; pnlBp: number | null; breach: number | null; ivRv: number | null } | null;
         /** Focus set: puts = put-edge Q4–Q5 (≤ 15); calls = names you hold (≤ 10). */
         focus?: boolean;
+        /** A256: watchlist second-pass — not a strict Overall hit. */
+        relaxed?: boolean;
       }>;
       asOf: string | null;
       computedAt: string | null;
@@ -430,15 +432,11 @@ export function OptionsScannerContent({
     [fundRankingsData],
   );
 
-  // Cross-watchlist IVs for absolute IV component (from all loaded option chains)
+  // A256: side-specific IVs for ivAbsolute (puts vs puts, calls vs calls).
   const allWatchlistIVs = useMemo(() => {
-    const ivs: number[] = [];
-    for (const chains of optionsMap.values()) {
-      if (!chains) continue;
-      for (const c of chains) for (const p of c.puts) if (p.iv > 0) ivs.push(p.iv);
-    }
-    return ivs;
-  }, [optionsMap]);
+    const chains = [...optionsMap.values()].filter((c): c is NonNullable<typeof c> => !!c);
+    return collectSideIVsFromChainMap(chains, isCallMode);
+  }, [optionsMap, isCallMode]);
 
   // Collapsed-row Option Score / Income / Buffer: nightly snapshot wins when present.
   // Live chains only fill names with no snap (and feed the expanded strike panel) —
@@ -1092,6 +1090,7 @@ export function OptionsScannerContent({
                 moverFactLine={moverFacts?.[ticker.toUpperCase()]?.line ?? null}
                 livePrice={livePrices?.[ticker]?.price ?? null}
                 snapSpot={rankingByTicker.get(ticker)?.spot ?? null}
+                snapRelaxed={rankingByTicker.get(ticker)?.relaxed === true}
                 heat={columnHeat}
               />
             ))}

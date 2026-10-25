@@ -12,6 +12,7 @@ import {
   pickBestStrike, selectPremiumCandidates,
   isViablePremiumIncome, CALL_STRIKE_WEIGHTS, CALL_INCOME_FLOOR, INCOME_FLOOR,
   applyPolicy,
+  collectSideIVsFromChainMap, RELAXED_COMPONENT, isRelaxedComponentScores,
   type StockContext, type TechnicalRow, type MacroRegime,
 } from "@workspace/option-scoring";
 import { type OptionsChainResult, type OptionRow } from "./options.js";
@@ -77,6 +78,8 @@ export interface OptionRankingRow {
   edge?: { quintile: number; pnlBp: number | null; breach: number | null; ivRv: number | null } | null;
   /** Focus view (Jamie 10-19 "too many tickers"): puts = put-edge Q4–Q5, top FOCUS_PUTS; calls = shares you hold, top FOCUS_CALLS. */
   focus?: boolean;
+  /** A256: watchlist second-pass (relaxed income/SQ) — not a strict Overall hit. */
+  relaxed?: boolean;
 }
 
 const FOCUS_PUTS = 15;
@@ -139,6 +142,7 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
     ivVsRealized: num(r.ivVsRealized),
     computedAt: r.computedAt instanceof Date ? r.computedAt.toISOString() : String(r.computedAt),
     rank: i + 1,
+    relaxed: isRelaxedComponentScores((r.componentScores ?? {}) as Record<string, unknown>),
   }));
 
   await attachFocus(rows, side);
@@ -322,10 +326,9 @@ export async function computeAndPersistOptionScores(opts?: {
     }
   }
 
-  const allIVs: number[] = [];
-  for (const chains of chainsByTicker.values()) {
-    for (const c of chains) for (const p of c.puts) if (p.iv > 0) allIVs.push(p.iv);
-  }
+  // A256: side-specific IV universes for ivAbsolute (puts≠calls).
+  const putIVs = collectSideIVsFromChainMap(chainsByTicker.values(), false);
+  const callIVs = collectSideIVsFromChainMap(chainsByTicker.values(), true);
 
   /** Watchlist names get a relaxed second pass so Rankings isn't blank when Overall gates fire. */
   const watchlistSet = new Set(watchlistInTech);
@@ -342,6 +345,7 @@ export async function computeAndPersistOptionScores(opts?: {
 
     for (const side of ["put", "call"] as const) {
       const isCall = side === "call";
+      const sideIVs = isCall ? callIVs : putIVs;
       const incomeFloor = isCall ? CALL_INCOME_FLOOR : INCOME_FLOOR;
       const stockCtx: StockContext = {
         ivRank:                ivRanks.get(ticker) ?? null,
@@ -364,7 +368,7 @@ export async function computeAndPersistOptionScores(opts?: {
       const sideChains = chains.map((c) => ({ ...c, options: isCall ? c.calls : c.puts }));
       let best = pickBestStrike(
         sideChains,
-        stockCtx, volRegime, allIVs, undefined,
+        stockCtx, volRegime, sideIVs, undefined,
         policy.weights, isCall,
         {
           minStockQuality: policy.sqFloor,
@@ -377,7 +381,7 @@ export async function computeAndPersistOptionScores(opts?: {
         // Fund score missing or thin premium — still show a scored live-bid strike on Watchlist.
         best = pickBestStrike(
           sideChains,
-          stockCtx, volRegime, allIVs, undefined,
+          stockCtx, volRegime, sideIVs, undefined,
           policy.weights, isCall,
           {
             minStockQuality: 0,
@@ -412,7 +416,8 @@ export async function computeAndPersistOptionScores(opts?: {
 
       let shadowScore: string | null = null;
       let shadowVersion: string | null = null;
-      if (!isCall && shadowInputs && shadowPutRankings && shadowPutPolicy) {
+      // A256: skip shadow/champion grade on relaxed fallbacks (would flatter the champion).
+      if (!relaxed && !isCall && shadowInputs && shadowPutRankings && shadowPutPolicy) {
         const edge = putEdgeFactors.get(ticker);
         // A255: TS put-edge = two shadow marginal percentiles only — never on stockCtx / live pick.
         const shadowCtx: StockContext = {
@@ -426,7 +431,7 @@ export async function computeAndPersistOptionScores(opts?: {
           chain,
           stockCtx: shadowCtx,
           regime: volRegime,
-          allWatchlistIVs: allIVs,
+          allWatchlistIVs: sideIVs,
           strikeWeights: shadowPutPolicy.weights,
           earningsHaircut: shadowPutPolicy.earningsHaircut,
           calibration,
@@ -436,6 +441,11 @@ export async function computeAndPersistOptionScores(opts?: {
           shadowVersion = shadowInputs.version;
         }
       }
+
+      const componentScores: Record<string, unknown> = {
+        ...best.result.componentScores,
+        ...(relaxed ? { relaxed: RELAXED_COMPONENT } : {}),
+      };
 
       inserts.push({
         ticker,
@@ -451,7 +461,7 @@ export async function computeAndPersistOptionScores(opts?: {
         strikeIv: opt.iv > 0 ? String(opt.iv) : null,
         dte: String(chain.exactDte),
         optionScore: String(best.result.optionScore),
-        componentScores: best.result.componentScores,
+        componentScores,
         earningsDaysOut: techRow.earningsDaysOut ?? null,
         earningsRisk: best.result.earningsRisk,
         bidIsLive: best.result.bidIsLive,

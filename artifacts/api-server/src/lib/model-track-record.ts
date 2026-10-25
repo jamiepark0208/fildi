@@ -26,6 +26,7 @@ import {
   selectPremiumCandidates,
   buildCalibrationTable, walkForwardCalibration,
   shrinkTickerExpectancy, TILT_MIN_N,
+  collectSideIVsFromChainMap,
   type StockContext, type TechnicalRow, type TiltState, type SideTiltStats, type MacroRegime,
   type CalibrationTable, type GradedRecForCalibration, type SidePolicy,
 } from "@workspace/option-scoring";
@@ -233,11 +234,9 @@ export async function runModelSnapshot(
     }
   }
 
-  // Cross-watchlist IV distribution — mirrors use-top-options.ts exactly (put IVs only).
-  const allWatchlistIVs: number[] = [];
-  for (const chains of chainsByTicker.values()) {
-    for (const c of chains) for (const p of c.puts) if (p.iv > 0) allWatchlistIVs.push(p.iv);
-  }
+  // A256: side-specific IV universes for ivAbsolute.
+  const putIVs = collectSideIVsFromChainMap(chainsByTicker.values(), false);
+  const callIVs = collectSideIVsFromChainMap(chainsByTicker.values(), true);
 
   const ivRanks = await loadIvRanks();   // true IV percentile (iv_rank.py resolver), not the RV proxy in techRow.ivRank
   const volumeNodes = await loadVolumeNodes(tickers);
@@ -257,6 +256,7 @@ export async function runModelSnapshot(
 
     for (const side of ["put", "call"] as const) {
       const isCall = side === "call";
+      const sideIVs = isCall ? callIVs : putIVs;
       const stockCtx: StockContext = {
         ivRank:                ivRanks.get(ticker) ?? null,
         ivPercentile:          null,   // was the same RV proxy again (counted twice)
@@ -283,7 +283,7 @@ export async function runModelSnapshot(
       );
       const best = pickBestStrike(
         chains.map(c => ({ ...c, options: isCall ? c.calls : c.puts })),
-        stockCtx, volRegime, allWatchlistIVs, undefined, tickerPolicy.weights, isCall,
+        stockCtx, volRegime, sideIVs, undefined, tickerPolicy.weights, isCall,
         {
           minStockQuality: tickerPolicy.sqFloor,
           calibration,
@@ -324,7 +324,7 @@ export async function runModelSnapshot(
             volOfVolPct: edge?.volOfVolPct ?? null,
           },
           regime: volRegime,
-          allWatchlistIVs,
+          allWatchlistIVs: sideIVs,
           strikeWeights: shadowPolicy.weights,
           earningsHaircut: shadowPolicy.earningsHaircut,
           calibration,
