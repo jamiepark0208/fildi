@@ -423,6 +423,8 @@ def run(rows, today_rows):
         for r, pp, ee in zip(te, clf.predict_proba(Xt)[:, 1], reg.predict(Xt)):
             r["p_zones"], r["e_zones"] = float(pp), float(ee)
     write(res, today_rows)
+    ladder(res["put"])            # band stats re-derived every weekly run (walk-forward fits above), then today's picks per band
+    write_put_ladder(today_rows)
     log_ledger(today_rows, force='--force-log' in sys.argv[1:])
 
 
@@ -547,6 +549,50 @@ def ladder(rows):
     (OUT.parent / "S088-ladder.md").write_text("\n".join(L) + "\n")
     (OUT.parent / "S088-ladder.json").write_text(json.dumps(out, indent=1))
     print("\n".join(L))
+
+
+LADDER_DEFAULT = "0.08-0.10"   # live Model List rule PUT_TARGET_ABS_DELTA 0.09 (10-24)
+
+
+def write_put_ladder(today_rows):
+    """Rankings › Put ladder (Jamie 10-24: every band side by side + the tickers that fit each, default highlighted).
+    Per horizon × |Δ| band: holdout stats from S088-ladder.json (`--ladder` run) + today's best strike per name in the band
+    (highest model expected pnl), its P(kept), and a tail tier = model P(kept) above / below today's band median
+    (holdout: the higher-P half had the smaller worst 5 % in every band from 0.06Δ). → watchlist_sync.put_ladder."""
+    import json
+    p = OUT.parent / "S088-ladder.json"
+    stats = json.loads(p.read_text()) if p.is_file() else {}
+    conn = connect()
+    edo = dict(conn.execute("SELECT ticker, earnings_days_out FROM ticker_technicals WHERE earnings_days_out IS NOT NULL").fetchall())
+    today = max(r["d"] for r in today_rows)
+    out = {"asOf": str(today), "default": LADDER_DEFAULT, "statsFrom": "holdout 2023 →, walk-forward (S088 --ladder)", "horizons": {}}
+    for h in HORIZONS:
+        hz = []
+        for lo, hi in LADDER_BANDS:
+            key = f"{lo:.2f}-{hi:.2f}"
+            best = {}
+            for r in today_rows:
+                if r["side"] != "put" or r["h"] != h or "e_zones" not in r:
+                    continue
+                dl = put_delta(r)
+                if lo <= dl < hi and (r["t"] not in best or r["e_zones"] > best[r["t"]][0]["e_zones"]):
+                    best[r["t"]] = (r, dl)
+            med = float(np.median([r["p_zones"] for r, _ in best.values()])) if best else 0.0
+            picks = [{"ticker": r["t"], "spot": round(r["S"], 2), "strike": r["K"], "delta": round(dl, 3), "distSigma": round(r["dist_sig"], 2),
+                      "credit": round(r["credit"], 2), "creditPctWk": round(100 * r["credit"] / r["K"] / h, 3),
+                      "pKept": round(r["p_zones"], 3), "pImplied": round(r["p_implied"], 3), "expPnlBpWk": round(r["e_zones"] * 1e4, 1),
+                      "tier": "lower tail" if r["p_zones"] > med else "higher tail", "zone": bool(r["at_zone"]),
+                      "earningsDays": edo.get(r["t"]), "earningsInWindow": edo.get(r["t"]) is not None and 0 <= edo[r["t"]] <= 7 * h}
+                     for r, dl in sorted(best.values(), key=lambda z: -z[0]["e_zones"])]
+            hz.append({"band": key, "stats": stats.get(f"{h}w", {}).get(key), "picks": picks})
+        out["horizons"][f"{h}w"] = hz
+    conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_ladder (as_of date PRIMARY KEY, payload jsonb NOT NULL,
+                    computed_at timestamptz NOT NULL DEFAULT now())""")
+    conn.execute("""INSERT INTO watchlist_sync.put_ladder (as_of, payload) VALUES (%s, %s)
+                    ON CONFLICT (as_of) DO UPDATE SET payload = excluded.payload, computed_at = now()""", (today, json.dumps(out)))
+    conn.commit()
+    print(f"put ladder → watchlist_sync.put_ladder {today}: " + " · ".join(
+        f"{h}: " + "/".join(str(len(b["picks"])) for b in out["horizons"][h]) for h in out["horizons"]))
 
 
 def log_ledger(today_rows, force=False):

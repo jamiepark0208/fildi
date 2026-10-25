@@ -43,6 +43,9 @@ CHECKS = [
     ("lseg_research.signals_daily", "as_of", 1, "live StarMine alpha/ARM, PT, short interest → fit model · daily.py lseg signals"),
     ("lseg_research.starmine_history", "fetched_at", 20, "research history (monthly frequency, 28-day TTL by design)"),
     ("watchlist_sync.tasty_metrics_daily", "date", 1, "tastytrade IV rank/pctile + liquidity (S096 forward test) · daily.py tastytrade step"),
+    ("watchlist_sync.iv_rank_daily", "date", 1, "IV-rank resolver (LSEG → tastytrade) read by Options score + Model List · daily.py iv_rank.py"),
+    ("watchlist_sync.put_ladder", "as_of", 8, "Rankings › Put ladder · weekly S088 run (daily.py --if-due)"),
+    ("watchlist_sync.long_option_board", "as_of", 3, "Rankings › Long options · daily.py S086 step"),
 ]
 PER_NAME = [("optlab.underlying", "date", "ticker"), ("lseg_research.daily_history", "date", "ticker")]
 FUTURE = [("public.indicator_cache", "scored_date"), ("public.option_score_snapshots", "as_of"), ("public.model_recs", "snapshot_date")]

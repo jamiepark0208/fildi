@@ -22,6 +22,7 @@ type Vol = {
   tasty: VolRow | null; history: VolRow[]; term: { expiry: string; iv: number }[];
   lseg: { ivPercentile: number | null; days: number; asOf: string | null; usedByModelList: boolean } | null;
   technicals: { ivRank: number | null; source: string | null } | null;
+  resolved: { pctile: number; source: string; date: string } | null;
 };
 type Trade = {
   key: string; account: string; d0: string; expiry: string; strike: number; premium: number; qty: number;
@@ -139,28 +140,32 @@ const rk = (x: number | null | undefined) => (x == null ? "—" : Math.round(x *
 
 function IvRank({ v }: { v: Vol | undefined }) {
   const t = v?.tasty;
+  const r = v?.resolved;
   const cells: [string, React.ReactNode, string][] = [
+    ["Scores use", rk(r?.pctile), r
+      ? `1-year IV percentile from ${r.source === "lseg" ? "LSEG" : "tastytrade"} (${r.date}). Feeds the Options score IV part (10 %) and the Model List PREMIUM IV rank. Order: LSEG when fresh, else tastytrade.`
+      : "No IV rank for this name → the IV-rank part drops out of the Options score and Model List PREMIUM."],
     ["tastytrade rank", rk(t?.ivRank), "Where today's IV sits between its 1-year low (0) and high (100)."],
     ["tastytrade pctile", rk(t?.ivPercentile), "Share of the past year's days with lower IV."],
     ["LSEG pctile", rk(v?.lseg?.ivPercentile), v?.lseg?.usedByModelList
-      ? `Model List PREMIUM input (30 % weight). ${v.lseg.days} days, as of ${v.lseg.asOf}.`
-      : "No current LSEG history for this name → the Model List PREMIUM score runs without an IV rank."],
+      ? `${v.lseg.days} days of LSEG IV history, as of ${v.lseg.asOf} — first choice for the scores.`
+      : "No current LSEG history (needs ≥ 120 days, ≤ 7 days old) → scores fall back to tastytrade."],
     ["Technicals", rk(v?.technicals?.ivRank), v?.technicals?.source === "rv_proxy"
-      ? "Realized-vol stand-in, not implied vol (agrees with tastytrade only 0.22 across names). Feeds the tech Volatility State until fixed."
-      : "Tech score Volatility State input."],
+      ? "Realized-vol stand-in, not implied vol (agrees with tastytrade only 0.22 across names). No longer used by the Options score (options-1.2.1, 10-24); display only."
+      : "Technicals table value."],
   ];
   return (
     <div className="space-y-1">
       <Head
         title="IV rank"
-        value={rk(t?.ivRank)}
+        value={rk(r?.pctile ?? t?.ivPercentile)}
         sub={t ? <>IV {pct(t.ivIndex)} · 5d {t.ivIndex5dChange == null ? "—" : `${t.ivIndex5dChange > 0 ? "+" : ""}${(t.ivIndex5dChange * 100).toFixed(1)} pts`}
           · liquidity {t.liquidityRating ?? "—"}/5</> : "no tastytrade row yet (daily.py)"}
         info={<>Every IV rank Fildi has, side by side. tastytrade refreshes daily (from 2026-10-24; history builds from there).
-          LSEG is what the Model List scores with today; across names it agrees with tastytrade (0.84). Liquidity 0–5 = tastytrade's
+          "Scores use" is the one value every score reads (LSEG when fresh, else tastytrade); across names LSEG and tastytrade agree (0.83). Liquidity 0–5 = tastytrade's
           option-market rating (5 = tightest). IV by expiry = the term structure: a bump marks an event (earnings) priced into that expiry.</>}
       />
-      <div className="grid grid-cols-4 gap-1 text-center">
+      <div className="grid grid-cols-5 gap-1 text-center">
         {cells.map(([k, val, tip]) => (
           <Tooltip key={k} delayDuration={150}>
             <TooltipTrigger asChild>

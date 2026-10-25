@@ -33,5 +33,5 @@ Router only. The how-to for each source stays in its playbook; this page says wh
 ## Gotchas that already cost a study
 - Bars with low > high, or a flat bar at the window high, break volume-profile helpers → sanitize high/low on load (S064).
 - TMO and a few others have no `daily_history` rows → check coverage before quoting a universe size.
-- `ticker_technicals.iv_rank` is a realized-vol proxy (`iv_rank_source = rv_proxy`), not IV rank: Spearman 0.22 vs tastytrade's real IV rank (10-24). For IV rank use the LSEG 1-year percentile (`fit_model_v14.iv_ranks`, ~130 names) or tastytrade (~267).
+- `ticker_technicals.iv_rank` is a realized-vol proxy (`iv_rank_source = rv_proxy`), not IV rank: Spearman 0.22 vs tastytrade's real IV rank (10-24). For IV rank read the resolver table `watchlist_sync.iv_rank_daily` (`iv_rank.py`: LSEG 1y pctile → tastytrade → none, ~578/586 names) — every score uses it; `fit_model_v14.iv_ranks` is the LSEG-only primitive (tastytrade verify).
 - Strike ladders: each guessed strike that isn't listed costs one LSEG request; walk down from the target, cap the walk.

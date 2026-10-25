@@ -12,12 +12,15 @@ type Rules = {
   version: string; updated: string; principle: string;
   strategies: { id: string; label: string; view: string; premium: string; where: string }[];
   inputs: { id: string; label: string; source: string; ui: string; cells: Record<string, Cell> }[];
+  pairs?: Record<string, string>;
 };
 
 const VERDICT_TONE: Record<string, string> = {
   works: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
   fails: "bg-red-500/10 text-red-300/80 border-red-500/25",
   "too early": "bg-amber-500/10 text-amber-200/80 border-amber-500/25",
+  candidate: "bg-sky-500/10 text-sky-300 border-sky-500/25",
+  mixed: "bg-amber-500/10 text-amber-200/80 border-amber-500/25",
   redundant: "bg-zinc-800 text-zinc-400 border-zinc-700",
   untested: "bg-zinc-900 text-zinc-500 border-zinc-800",
 };
@@ -94,6 +97,14 @@ export function RankingsRules() {
           </tbody>
         </table>
       </div>
+      {R.pairs && (
+        <div className="text-[11px] text-zinc-300 space-y-0.5 max-w-[900px]">
+          <div className="text-amber-200/60">Two inputs together · {R.pairs.study}</div>
+          {R.strategies.map((s) => R.pairs?.[s.id] && (
+            <div key={s.id}><span className="text-zinc-400">{s.label}:</span> {R.pairs[s.id]}</div>
+          ))}
+        </div>
+      )}
       <p className="text-[10px] text-zinc-500">● = live in a score or board today · hover a cell for the study and where it is used · untested cells are the study queue</p>
     </div>
   );

@@ -4,6 +4,7 @@
  *   tastytrade  ← watchlist_sync.tasty_metrics_daily (daily.py `tastytrade.py universe`) + latest vendor_raw payload (IV by expiry)
  *   LSEG        ← lseg_research.daily_history iv30_put, 1-year percentile = fit_model_v14.iv_ranks (Model List PREMIUM input)
  *   technicals  ← ticker_technicals.iv_rank (realized-vol proxy; shown so the gap is visible)
+ *   resolved    ← watchlist_sync.iv_rank_daily (iv_rank.py: LSEG → tastytrade → none) = what the scores actually use
  * GET /api/stocks/:ticker/vol-metrics
  */
 import { Router } from "express";
@@ -50,7 +51,10 @@ router.get("/stocks/:ticker/vol-metrics", async (req, res) => {
   const lsegOk = l && l.days >= LSEG_MIN_DAYS && l.asOf && (Date.now() - Date.parse(l.asOf)) / 864e5 <= LSEG_MAX_AGE_DAYS;
   const tech = await safe<{ ivRank: number | null; source: string | null }>(sql`
     SELECT iv_rank::float8 AS "ivRank", iv_rank_source AS source FROM ticker_technicals WHERE ticker = ${t} LIMIT 1`);
+  const resolved = await safe<{ pctile: number; source: string; date: string }>(sql`
+    SELECT pctile::float8 AS pctile, source, date::text FROM watchlist_sync.iv_rank_daily WHERE ticker = ${t} ORDER BY date DESC LIMIT 1`);
   return res.json({
+    resolved: resolved[0] ?? null,
     ticker: t,
     tasty: history[history.length - 1] ?? null,
     history,

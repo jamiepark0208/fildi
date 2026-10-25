@@ -129,24 +129,31 @@ def make_strats(rev):
         "Laggard calls: weakest 12-1": ({"mom_12_1": -1}, {"mom_12_1": 1}),
         "Laggard calls: furthest below 52w high": ({"prox_52w": -1}, {"prox_52w": 1}),
         "Laggard + revisions up": ({"mom_12_1": -1, **rev}, None) if rev else ({"mom_12_1": -1}, None),
-        # Jamie 10-24 (buy cheap, sell rich — same inputs, flipped IV): angle + lowest 1y IV rank, both sides.
-        # 10-24 analog test (option $ per debit, buy-all +18.2 %): tech call +2.5 → +31.8 %, 52w-high +32.5 → +47.5 %,
-        # 12-1 −1.0 → +10.2 %, SUE +8.7 → +24.8 %, revisions +61.2 → +52.1 %; richest-IV twins lower in 4/5; puts all < 0.
-        **{f"{n} + cheapest IV": ({**cp, "iv_rank252": -1}, {**(pp or {f: -v for f, v in cp.items()}), "iv_rank252": -1})
-           for n, (cp, pp) in {"Fildi tech call score": ({"tech_v4call_total": 1}, None),
-                               "52-week-high proximity": ({"prox_52w": 1}, None),
-                               "12-1 momentum": ({"mom_12_1": 1}, None),
-                               "Earnings surprise (SUE)": ({"ibes_sue": 1}, None)}.items()},
+        # S100 (10-24) the one pair that passed its holdout for long calls: revisions + 60-day return
+        # (holdout +69.6 % vs revisions alone +43.1 %, all calls +34.1 %; gain t 2.0, halves +10.5 / +42.4 %)
+        "Revisions + 60-day strength (S100)": ({**rev, "ret60": 1}, None) if rev else ({"ret60": 1}, None),
     }
 
 
-REV_ANGLES = {"Estimate revisions (S085)", "Laggard + revisions up"}
+REV_ANGLES = {"Estimate revisions (S085)", "Laggard + revisions up", "Revisions + 60-day strength (S100)"}
+
+
+CHEAP_GATE = True   # Jamie 10-24 "buying → cheapest options is a requirement": every angle picks only names whose 1y IV rank is
+                    # below that week's median. S100 (all weeks, top 10 calls): gate raised 10 of 13 angles (revisions +32 → +44 %,
+                    # holdout +24 pts, t 2.1); the buy-all comparator stays ungated.
 
 
 def scores(row, parts):
     cp, pp = parts
     call = combo(row, cp) if cp else {}
     put = combo(row, pp) if pp else {t: -v for t, v in call.items()}
+    if CHEAP_GATE:
+        ivr = [f["iv_rank252"] for f in row.values() if f.get("iv_rank252") == f.get("iv_rank252") and f.get("iv_rank252") is not None]
+        if ivr:
+            med = float(np.median(ivr))
+            cheap = {t for t, f in row.items() if f.get("iv_rank252") is not None and f["iv_rank252"] == f["iv_rank252"] and f["iv_rank252"] < med}
+            call = {t: v for t, v in call.items() if t in cheap}
+            put = {t: v for t, v in put.items() if t in cheap}
     return call, put
 
 
@@ -171,6 +178,7 @@ def forward_record(conn):
 
 
 def main():
+    global CHEAP_GATE
     args = sys.argv[1:]
     conn = connect()
     dg = None if "--no-refresh" in args else refresh_tech(conn)
@@ -243,10 +251,16 @@ def main():
                    for t in picks(scores(panel[d], strats_wk.get(d, strats_full)[name])[si])
                    if (v := opt(t, d, side)) is not None]
             r[f"{side}_opt"] = (float(np.mean(pnl)) if pnl else float("nan"), len(pnl))
+            CHEAP_GATE = False   # same angle without the cheap-IV gate, shown beside it (Jamie: compare, don't pin)
+            pu = [v for d in analog if len(panel.get(d, {})) >= 40
+                  for t in picks(scores(panel[d], strats_wk.get(d, strats_full)[name])[si])
+                  if (v := opt(t, d, side)) is not None]
+            CHEAP_GATE = True
+            r[f"{side}_opt_ungated"] = float(np.mean(pu)) if pu else float("nan")
         c, p = scores(panel[today], strats_full[name])
         today_picks[name] = {"call": picks(c), "put": picks(p)}
         res.append(r)
-        print(f"{name}: call an {r['call_an'][0]:+.2%} t{r['call_an'][1]:.1f} opt {r['call_opt'][0]:+.1%} | "
+        print(f"{name}: call an {r['call_an'][0]:+.2%} t{r['call_an'][1]:.1f} opt {r['call_opt'][0]:+.1%} (ungated {r['call_opt_ungated']:+.1%}) | "
               f"put an {r['put_an'][0]:+.2%} t{r['put_an'][1]:.1f} opt {r['put_opt'][0]:+.1%}", flush=True)
 
     fwd = forward_record(conn)
@@ -328,11 +342,12 @@ def publish(conn, res, tp, buy_all, analog, today, tw, fw, row, px, pricer, fwd,
                               "breakeven": nn(q.get("breakeven")), "spot": nn(row[t]["_spot"]),
                               "src": q.get("src")})
             sides[s] = {"edgeAnalog": [nn(v) for v in r[f"{s}_an"]], "edgeAll": [nn(v) for v in r[f"{s}_all"]],
-                        "option": [nn(r[f"{s}_opt"][0]), r[f"{s}_opt"][1]], "names": names}
+                        "option": [nn(r[f"{s}_opt"][0]), r[f"{s}_opt"][1]], "optionUngated": nn(r.get(f"{s}_opt_ungated")),
+                        "names": names}
         f = fwd.get(f"S086:{n}")
         strategies.append({"name": n, "status": status[n], "insampleAll": r["insample_all"],
                            "forward": f, **sides})
-    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": len(analog),
+    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": len(analog), "cheapGate": CHEAP_GATE,
                "buyAll": {s: nn(v) for s, v in buy_all.items()}, "forwardBuyAll": base_fwd,
                "techAsOf": str(tw), "ibesAsOf": str(fw), "revisionFactors": rev, "strategies": strategies,
                "overlap": {s: [[t, k] for t, k in cnt[s].most_common() if k > 1] for s in cnt}}

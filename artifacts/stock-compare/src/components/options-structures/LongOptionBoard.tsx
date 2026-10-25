@@ -15,7 +15,7 @@ import { TickerLink } from "@/components/ticker-link";
 type Name = { ticker: string; sector: string | null; beta: number | null; overlap: number; strike: number | null;
   debit: number | null; breakeven: number | null; spot: number | null; src: string | null };
 type Fwd = { open: number; n: number; wins: number; mean: number | null } | null;
-type Side = { edgeAnalog: (number | null)[]; edgeAll: (number | null)[]; option: [number | null, number]; names: Name[] };
+type Side = { edgeAnalog: (number | null)[]; edgeAll: (number | null)[]; option: [number | null, number]; optionUngated?: number | null; names: Name[] };
 type Strategy = { name: string; status: "" | "ledger" | "failing forward"; insampleAll: boolean; forward: Fwd;
   call: Side; put: Side };
 type Board = { asOf: string; expiry: string; analogWeeks: number; buyAll: { call: number; put: number };
@@ -140,11 +140,14 @@ export function LongOptionBoard() {
                 : <ChevronRight className="w-3 h-3 text-[#d4af37] shrink-0" />}
               <span className="font-semibold text-white">{st.name}</span>
               {([["Calls", st.call, vc], ["Puts", st.put, vp]] as const).map(([lab, s, v]) => (
-                <DataTip key={lab} tip={`${v.tip}\n\nEdge on today-like weeks ${pct(s.edgeAnalog[0], 2)} (t ${s.edgeAnalog[1]?.toFixed(1) ?? "—"}, beat avg ${pct(s.edgeAnalog[2], 0)} of weeks) · all weeks ${pct(s.edgeAll[0], 2)} (t ${s.edgeAll[1]?.toFixed(1) ?? "—"}${st.insampleAll ? ", in-sample" : ""}). Option ${pct(s.option[0])} on ${s.option[1]} trades.`}>
+                <DataTip key={lab} tip={`${v.tip}\n\nEdge on today-like weeks ${pct(s.edgeAnalog[0], 2)} (t ${s.edgeAnalog[1]?.toFixed(1) ?? "—"}, beat avg ${pct(s.edgeAnalog[2], 0)} of weeks) · all weeks ${pct(s.edgeAll[0], 2)} (t ${s.edgeAll[1]?.toFixed(1) ?? "—"}${st.insampleAll ? ", in-sample" : ""}). Option ${pct(s.option[0])} on ${s.option[1]} trades${s.optionUngated != null ? ` · picks limited to names with IV rank below the week's median (buy cheap); without that gate ${pct(s.optionUngated)}` : ""}.`}>
                   <span className="inline-flex items-center gap-1">
                     <span className="text-amber-100/60">{lab}</span>
                     <span className={cn("rounded border px-1 text-[10px] uppercase", v.cls)}>{v.label}</span>
                     <span className="tabular-nums text-white">{pct(s.option[0], 0)}</span>
+                    {s.optionUngated != null && (
+                      <span className="tabular-nums text-zinc-500 text-[10px]">no gate {pct(s.optionUngated, 0)}</span>
+                    )}
                   </span>
                 </DataTip>
               ))}

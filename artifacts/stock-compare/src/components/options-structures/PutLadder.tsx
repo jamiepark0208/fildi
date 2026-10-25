@@ -1,0 +1,112 @@
+/**
+ * Rankings › Put ladder (S088, Jamie 10-24: "show every band side by side, the tickers that fit each, default highlighted").
+ * One column per |Δ| band: holdout stats (kept, real-fill bp/wk, worst 5 %, safer-half vs riskier-half tail) + today's
+ * best listed strike per name in that band (model P(kept), credit %/wk, tail tier, earnings flag).
+ * Data: GET /api/options/put-ladder ← watchlist_sync.put_ladder (daily.py S088 step, weekly refit).
+ */
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
+import { DataTip } from "@/components/data-tip";
+import { TickerLink } from "@/components/ticker-link";
+import { formatMdYy } from "@/lib/format";
+
+type Stats = { n: number; kept: number; p_model: number; bp_hc: number; worst5: number;
+  hiP_worst5: number; loP_worst5: number; hiP_kept: number; loP_kept: number } | null;
+type Pick = { ticker: string; spot: number; strike: number; delta: number; credit: number; creditPctWk: number;
+  pKept: number; expPnlBpWk: number; tier: "lower tail" | "higher tail"; zone: boolean; earningsDays: number | null; earningsInWindow: boolean };
+type Band = { band: string; stats: Stats; picks: Pick[] };
+type Ladder = { asOf: string; default: string; statsFrom: string; horizons: Record<string, Band[]> };
+
+const pct = (v: number, dp = 1) => `${(v * 100).toFixed(dp)}%`;
+const SHOW = 15;
+
+function BandColumn({ b, isDefault, showAll }: { b: Band; isDefault: boolean; showAll: boolean }) {
+  const s = b.stats;
+  const picks = showAll ? b.picks : b.picks.slice(0, SHOW);
+  return (
+    <div className={cn("rounded border p-1.5 min-w-[190px] flex-1",
+      isDefault ? "border-[#d4af37] bg-[#d4af37]/5" : "border-zinc-800 bg-zinc-950")}>
+      <div className="flex items-baseline justify-between">
+        <span className={cn("text-[12px] font-semibold", isDefault ? "text-[#d4af37]" : "text-zinc-200")}>
+          {b.band.replace("-", "–")}Δ
+        </span>
+        {isDefault && <span className="text-[10px] text-[#d4af37]">default</span>}
+      </div>
+      {s ? (
+        <DataTip tip={`Holdout 2023 →, ${s.n.toLocaleString()} sold puts. Model said ${pct(s.p_model)} kept. Safer half (higher model P) worst 5 %: ${s.hiP_worst5.toFixed(0)} bp vs riskier half ${s.loP_worst5.toFixed(0)} bp.`}>
+          <div className="text-[10px] text-zinc-400 leading-tight mt-0.5 cursor-help">
+            kept <span className="text-zinc-200">{pct(s.kept)}</span> · <span className="text-zinc-200">{s.bp_hc >= 0 ? "+" : ""}{s.bp_hc.toFixed(0)}</span> bp/wk
+            <br />worst 5 % <span className={s.worst5 < -100 ? "text-red-300" : "text-zinc-200"}>{s.worst5.toFixed(0)}</span> bp
+          </div>
+        </DataTip>
+      ) : <div className="text-[10px] text-zinc-500 mt-0.5">no holdout stats</div>}
+      <div className="text-[10px] text-zinc-500 mt-1 mb-0.5">{b.picks.length} names today</div>
+      <table className="w-full text-[11px]">
+        <tbody>
+          {picks.map((p) => (
+            <tr key={p.ticker} className="border-t border-zinc-900">
+              <td className="py-0.5">
+                <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1", p.tier === "lower tail" ? "bg-emerald-400" : "bg-amber-400")} />
+                <TickerLink ticker={p.ticker} />
+                {p.earningsInWindow && <DataTip tip={`Earnings in ${p.earningsDays} days — inside this expiry`}><span className="ml-0.5 text-red-300">E</span></DataTip>}
+              </td>
+              <td className="text-right text-zinc-300">
+                <DataTip tip={`Spot ${p.spot} · strike ${p.strike} · ${p.delta.toFixed(2)}Δ · credit $${p.credit.toFixed(2)}${p.zone ? " · at a support zone" : ""} · model expected ${p.expPnlBpWk >= 0 ? "+" : ""}${p.expPnlBpWk} bp/wk`}>
+                  <span className="cursor-help">{p.strike}</span>
+                </DataTip>
+              </td>
+              <td className="text-right text-zinc-300">{p.creditPctWk.toFixed(2)}%</td>
+              <td className="text-right text-zinc-400">{pct(p.pKept, 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function PutLadder() {
+  const [h, setH] = useState("1w");
+  const [showAll, setShowAll] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ["put-ladder"],
+    queryFn: async () => {
+      const r = await fetch("/api/options/put-ladder");
+      if (!r.ok) throw new Error("put ladder failed");
+      return (await r.json()) as { ladder: Ladder | null };
+    },
+    staleTime: 10 * 60_000,
+  });
+  if (isLoading) return <p className="text-sm text-muted-foreground animate-pulse">Loading put ladder…</p>;
+  const L = data?.ladder;
+  if (!L) return <p className="text-sm text-muted-foreground">No put ladder yet — built by the weekly S088 run.</p>;
+  const bands = L.horizons[h] ?? [];
+  return (
+    <div className="space-y-2 min-w-0">
+      <div className="flex items-center gap-2 flex-wrap text-[11px]">
+        <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 h-6">
+          {Object.keys(L.horizons).map((k) => (
+            <button key={k} onClick={() => setH(k)}
+              className={cn("px-2 h-5 rounded-full font-semibold", h === k ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]")}>
+              {k.replace("w", " wk")}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setShowAll((v) => !v)} className="text-amber-200/60 hover:text-[#d4af37]">
+          {showAll ? `top ${SHOW} per band` : "show every name"}
+        </button>
+        <span className="text-zinc-500">
+          as of {formatMdYy(L.asOf)} · columns = |Δ| bands · per name: strike · credit %/wk · model P(kept) ·
+          <span className="text-emerald-400"> ●</span> safer half <span className="text-amber-400">●</span> riskier half of its band · E = earnings before expiry
+        </span>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {bands.map((b) => <BandColumn key={b.band} b={b} isDefault={b.band === L.default} showAll={showAll} />)}
+      </div>
+      <p className="text-[10px] text-zinc-500">
+        Stats: {L.statsFrom}. Farther bands keep more often but pay about the same per week (+29 to +38 bp/wk); nearer bands carry a bigger worst 5 %. The model's P(kept) is calibrated within ~1 pt per band and mainly sorts tail risk inside a band.
+      </p>
+    </div>
+  );
+}

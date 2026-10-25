@@ -21,6 +21,7 @@
 - Every recommendation answers **"so what"**: what changes for his trades, how many bp/$ it is worth, what it costs, do it or not (10-21).
 
 - **Design dynamic, not one pinned answer (10-24):** show the range side by side (e.g. put ladder: every Δ band with kept %, income, worst 5 %, and the tickers that fit each band) so Jamie picks the level; the default/recommended row is highlighted, not the only one shown. Apply to any parameter (delta, DTE, horizon, risk tier) where a single cutoff hides the trade-off.
+- **Same inputs, direction flips by strategy (10-24):** every option strategy uses the same inputs; selling options wants the richest options, buying wants the cheapest (a requirement — a gate, not an optional angle); bullish trades want strong names, bearish weak. One home: `scripts/watchlist_sync/strategy_rules.json` (Rankings › Rules) — each input × strategy cell carries want, verdict, where live, study. Test every cell before it ranks; untested cells are the study queue.
 
 ## Communication
 - Caveman: answer first, terse, keep numbers and caveats, no code in chat (10-06, 10-15).
