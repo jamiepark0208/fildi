@@ -299,7 +299,7 @@ export async function computeAndPersistOptionScores(opts?: {
     ? applyPolicy(tiltState.put, shadowInputs.strikeWeights, { regime: macroRegimeName })
     : null;
   const putEdgeFactors = shadowInputs
-    ? await loadPutEdgeFactors(candidates)
+    ? await loadPutEdgeFactors(candidates, asOf) // A255: as-of + universe rank; shadowCtx only
     : new Map();
 
   let chainsByTicker: Map<string, OptionsChainResult[]>;
@@ -414,6 +414,7 @@ export async function computeAndPersistOptionScores(opts?: {
       let shadowVersion: string | null = null;
       if (!isCall && shadowInputs && shadowPutRankings && shadowPutPolicy) {
         const edge = putEdgeFactors.get(ticker);
+        // A255: TS put-edge = two shadow marginal percentiles only — never on stockCtx / live pick.
         const shadowCtx: StockContext = {
           ...stockCtx,
           techTotalScore: shadowPutRankings.get(ticker) ?? null,
@@ -537,28 +538,33 @@ export async function computeAndPersistOptionScores(opts?: {
 }
 
 
-/** A192 Structures board: catalog (description / regime / evidence) + today's ≤ 5 names per structure (scripts/watchlist_sync/structures.py)
- *  + the house-view stance line. Table reads only. */
-export async function readStructuresBoard(): Promise<{
-  asOf: string | null;
-  stance: string | null;
-  structures: Array<{ id: string; name: string; family: string; description: string; regime: string; evidence: string;
-    evidenceNote: string; rows: Array<Record<string, unknown>> }>;
-}> {
-  try {
-    const { rows: cat } = await db.execute(sql`SELECT id, name, family, description, regime, evidence, evidence_note FROM watchlist_sync.structure_catalog`);
-    const { rows: rk } = await db.execute(sql`SELECT as_of::text AS as_of, structure, rank, payload FROM watchlist_sync.structure_rank_daily
-      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily) ORDER BY structure, rank`);
-    const { rows: hv } = await db.execute(sql`SELECT memo FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`);
-    const memo = String((hv[0] as Record<string, unknown> | undefined)?.memo ?? "");
-    // Drop the "Stance (rules, not vibes)." label — desk only needs the action clause.
-    const stanceRaw = memo.split("\n").find((l) => /\*\*Stance/i.test(l) || /^Stance\b/i.test(l)) ?? null;
-    const stance = stanceRaw
-      ? stanceRaw
-          .replace(/\*\*/g, "")
-          .replace(/^Stance\s*(\([^)]*\))?\s*[.:–—-]?\s*/i, "")
-          .trim() || null
-      : null;
+/** A192 Structures board: catalog + today's picks (primary / more / study tiers from structures.py)
+ *  + house-view stance. Table reads only. */
+  export async function readStructuresBoard(): Promise<{
+    asOf: string | null;
+    stance: string | null;
+    stanceAsOf: string | null;
+    structures: Array<{ id: string; name: string; family: string; description: string; regime: string; evidence: string;
+      evidenceNote: string; rows: Array<Record<string, unknown>> }>;
+  }> {
+    try {
+      const { rows: cat } = await db.execute(sql`SELECT id, name, family, description, regime, evidence, evidence_note FROM watchlist_sync.structure_catalog`);
+      const { rows: rk } = await db.execute(sql`SELECT as_of::text AS as_of, structure, rank, payload FROM watchlist_sync.structure_rank_daily
+        WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily) ORDER BY structure, rank`);
+      const { rows: hv } = await db.execute(sql`SELECT view_date::text AS view_date, memo FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`);
+      const memo = String((hv[0] as Record<string, unknown> | undefined)?.memo ?? "");
+      const stanceAsOf = ((hv[0] as Record<string, unknown> | undefined)?.view_date as string | undefined) ?? null;
+      // Drop the "Stance (rules, not vibes)." label — desk only needs the action clause.
+      // Prefer plain **Do.** line; fall back to jargon **Stance.**
+      const doRaw = memo.split("\n").find((l) => /\*\*Do\./i.test(l) || /^Do\./i.test(l)) ?? null;
+      const stanceRaw = memo.split("\n").find((l) => /\*\*Stance/i.test(l) || /^Stance\b/i.test(l)) ?? null;
+      const pick = doRaw ?? stanceRaw;
+      const stance = pick
+        ? pick
+            .replace(/\*\*/g, "")
+            .replace(/^(Do|Stance)\s*(\([^)]*\))?\s*[.:–—-]?\s*/i, "")
+            .trim() || null
+        : null;
     const by = new Map<string, Array<Record<string, unknown>>>();
     for (const r of rk as Array<Record<string, unknown>>) {
       const k = String(r.structure);
@@ -570,9 +576,14 @@ export async function readStructuresBoard(): Promise<{
       id: String(c.id), name: String(c.name), family: String(c.family), description: String(c.description), regime: String(c.regime),
       evidence: String(c.evidence), evidenceNote: String(c.evidence_note), rows: by.get(String(c.id)) ?? [],
     })).sort((a, b) => (b.rows.length > 0 ? 1 : 0) - (a.rows.length > 0 ? 1 : 0) || order.indexOf(a.evidence) - order.indexOf(b.evidence));
-    return { asOf: (rk[0] as Record<string, unknown> | undefined)?.as_of as string ?? null, stance, structures };
+    return {
+      asOf: (rk[0] as Record<string, unknown> | undefined)?.as_of as string ?? null,
+      stance,
+      stanceAsOf,
+      structures,
+    };
   } catch (err) {
     logger.warn({ err: String(err) }, "structures board unavailable");
-    return { asOf: null, stance: null, structures: [] };
+    return { asOf: null, stance: null, stanceAsOf: null, structures: [] };
   }
 }

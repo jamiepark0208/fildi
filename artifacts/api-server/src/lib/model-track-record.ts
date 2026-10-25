@@ -184,7 +184,7 @@ export async function runModelSnapshot(
     ? putTechScores(rows, shadowInputs.putTechWeights)
     : null;
   const putEdgeFactors = shadowInputs
-    ? await loadPutEdgeFactors(tickers)
+    ? await loadPutEdgeFactors(tickers, snapshotDate) // A255: as-of + universe rank; shadowCtx only
     : new Map();
 
   // Chains: explicit map → history-only → live fetch, with history fallback when live bids are dead (closed market).
