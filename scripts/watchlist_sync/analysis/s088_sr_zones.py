@@ -360,9 +360,17 @@ def main():
         last_i = len(b["c"]) - 1
         for i in es + ([last_i] if last_i not in es else []):
             zs, a = zones(b, i)
+            extra = {}
+            if i == last_i:   # S100 sell-call candidate inputs (forward test): vol of vol (60d σ of Δln IV30) + 1-month return
+                iv = [x for x in b["ivp"][max(0, i - 60): i + 1] if x]
+                if len(iv) >= 40:
+                    extra["vov"] = float(np.std(np.diff(np.log(iv))))
+                if i >= 21:
+                    extra["rev_1m"] = float(b["c"][i] / b["c"][i - 21] - 1)
             for side in ("put", "call"):
                 for r in candidates(b, i, side, pricer, zs, a):
                     r["t"] = t
+                    r.update(extra)
                     (today_rows if i == last_i else rows).append(r)
         if n % 25 == 0:
             print(f"{n}/{len(bars)} {t} rows {len(rows)}", flush=True)
@@ -424,8 +432,18 @@ def run(rows, today_rows):
             r["p_zones"], r["e_zones"] = float(pp), float(ee)
     write(res, today_rows)
     ladder(res["put"])            # band stats re-derived every weekly run (walk-forward fits above), then today's picks per band
+    ladder(res["call"], "call")   # covered-call ladder (Jamie 10-24: dynamic bands, not one cutoff)
     write_put_ladder(today_rows)
     log_ledger(today_rows, force='--force-log' in sys.argv[1:])
+
+
+def call_delta(r):
+    sig = r["iv"] * math.sqrt(5 * r["h"] / 252)
+    return ncdf((math.log(r["S"] / r["K"]) + 0.5 * sig * sig) / sig)
+
+
+def side_delta(r):
+    return put_delta(r) if r["side"] == "put" else call_delta(r)
 
 
 def put_delta(r):
@@ -514,20 +532,21 @@ LOG_EVERY = 7       # days; the backtest enters weekly
 LADDER_BANDS = ((0.03, 0.06), (0.06, 0.08), (0.08, 0.10), (0.10, 0.12), (0.12, 0.15), (0.15, 0.20), (0.20, 0.25))
 
 
-def ladder(rows):
+def ladder(rows, side="put"):
     """Jamie 10-24: show a wide |Δ| band with confidence levels, not one pinned strike. Holdout 2023 →, all names:
     per |Δ| band kept / bp / worst 5 %, and whether the model's P(kept) separates strikes *within* a band
     (top vs bottom half by p_zones) — if not, confidence = delta and the ladder shows delta tiers only."""
     import json
-    L = ["# S088 put ladder by |Δ| band (holdout 2023 →, walk-forward, all names)", "",
-         "Within-band split = same band, top vs bottom half by model P(kept). pnl = bp per collateral-week.", "",
+    L = [f"# S088 {side} ladder by |Δ| band (holdout 2023 →, walk-forward, all names)", "",
+         "Within-band split = same band, top vs bottom half by model P(kept). pnl = bp per collateral-week"
+         + (" (calls: per $ of stock vs holding it — the covered-call overwrite)." if side == "call" else "."), "",
          "| horizon | |Δ| band | n | kept | model P(kept) | bp/wk | real-fill bp/wk | worst 5 % | Sharpe | hi-P kept | lo-P kept | hi-P worst 5 % | lo-P worst 5 % | hi−lo real-fill bp (t) |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     out = {}
     for h in HORIZONS:
         hs = [r for r in rows if r["h"] == h and "pnl" in r and r["d"] >= HOLDOUT and "p_zones" in r]
         for r in hs:
-            r["dlt"] = put_delta(r)
+            r["dlt"] = side_delta(r)
         for lo, hi in LADDER_BANDS:
             b = [r for r in hs if lo <= r["dlt"] < hi]
             s = summ(b)
@@ -546,12 +565,14 @@ def ladder(rows):
             L.append(f"| {h}w | {lo:.2f}–{hi:.2f} | {s['n']} | {s['kept']:.1%} | {row['p_model']:.1%} | {s['bp']:+.1f} | {s['bp_hc']:+.1f} | "
                      f"{s['worst5']:+.0f} | {s['sharpe']:.2f} | {hiP['kept']:.1%} | {loP['kept']:.1%} | {hiP['worst5']:+.0f} | "
                      f"{loP['worst5']:+.0f} | {row['hi_lo_bp_hc']:+.1f} ({v[0]:.1f}) |")
-    (OUT.parent / "S088-ladder.md").write_text("\n".join(L) + "\n")
-    (OUT.parent / "S088-ladder.json").write_text(json.dumps(out, indent=1))
+    sfx = "" if side == "put" else "-call"
+    (OUT.parent / f"S088-ladder{sfx}.md").write_text("\n".join(L) + "\n")
+    (OUT.parent / f"S088-ladder{sfx}.json").write_text(json.dumps(out, indent=1))
     print("\n".join(L))
 
 
 LADDER_DEFAULT = "0.08-0.10"   # live Model List rule PUT_TARGET_ABS_DELTA 0.09 (10-24)
+CALL_LADDER_DEFAULT = "0.15-0.20"   # Structures covered call ~0.20Δ; Model List allows 0.08–0.35Δ (rules.CALL_DELTA) — no pinned target
 
 
 def write_put_ladder(today_rows):
@@ -560,39 +581,42 @@ def write_put_ladder(today_rows):
     (highest model expected pnl), its P(kept), and a tail tier = model P(kept) above / below today's band median
     (holdout: the higher-P half had the smaller worst 5 % in every band from 0.06Δ). → watchlist_sync.put_ladder."""
     import json
-    p = OUT.parent / "S088-ladder.json"
-    stats = json.loads(p.read_text()) if p.is_file() else {}
     conn = connect()
     edo = dict(conn.execute("SELECT ticker, earnings_days_out FROM ticker_technicals WHERE earnings_days_out IS NOT NULL").fetchall())
     today = max(r["d"] for r in today_rows)
-    out = {"asOf": str(today), "default": LADDER_DEFAULT, "statsFrom": "holdout 2023 →, walk-forward (S088 --ladder)", "horizons": {}}
-    for h in HORIZONS:
-        hz = []
-        for lo, hi in LADDER_BANDS:
-            key = f"{lo:.2f}-{hi:.2f}"
-            best = {}
-            for r in today_rows:
-                if r["side"] != "put" or r["h"] != h or "e_zones" not in r:
-                    continue
-                dl = put_delta(r)
-                if lo <= dl < hi and (r["t"] not in best or r["e_zones"] > best[r["t"]][0]["e_zones"]):
-                    best[r["t"]] = (r, dl)
-            med = float(np.median([r["p_zones"] for r, _ in best.values()])) if best else 0.0
-            picks = [{"ticker": r["t"], "spot": round(r["S"], 2), "strike": r["K"], "delta": round(dl, 3), "distSigma": round(r["dist_sig"], 2),
-                      "credit": round(r["credit"], 2), "creditPctWk": round(100 * r["credit"] / r["K"] / h, 3),
-                      "pKept": round(r["p_zones"], 3), "pImplied": round(r["p_implied"], 3), "expPnlBpWk": round(r["e_zones"] * 1e4, 1),
-                      "tier": "lower tail" if r["p_zones"] > med else "higher tail", "zone": bool(r["at_zone"]),
-                      "earningsDays": edo.get(r["t"]), "earningsInWindow": edo.get(r["t"]) is not None and 0 <= edo[r["t"]] <= 7 * h}
-                     for r, dl in sorted(best.values(), key=lambda z: -z[0]["e_zones"])]
-            hz.append({"band": key, "stats": stats.get(f"{h}w", {}).get(key), "picks": picks})
-        out["horizons"][f"{h}w"] = hz
+    out = {"asOf": str(today), "default": LADDER_DEFAULT, "callDefault": CALL_LADDER_DEFAULT,
+           "statsFrom": "holdout 2023 →, walk-forward (S088 weekly run)", "horizons": {}, "callHorizons": {}}
+    for side, key_out, sfx in (("put", "horizons", ""), ("call", "callHorizons", "-call")):
+        p = OUT.parent / f"S088-ladder{sfx}.json"
+        stats = json.loads(p.read_text()) if p.is_file() else {}
+        for h in HORIZONS:
+            hz = []
+            for lo, hi in LADDER_BANDS:
+                key = f"{lo:.2f}-{hi:.2f}"
+                best = {}
+                for r in today_rows:
+                    if r["side"] != side or r["h"] != h or "e_zones" not in r:
+                        continue
+                    dl = side_delta(r)
+                    if lo <= dl < hi and (r["t"] not in best or r["e_zones"] > best[r["t"]][0]["e_zones"]):
+                        best[r["t"]] = (r, dl)
+                med = float(np.median([r["p_zones"] for r, _ in best.values()])) if best else 0.0
+                base = (lambda r: r["K"]) if side == "put" else (lambda r: r["S"])   # collateral: strike (puts) / stock (calls)
+                picks = [{"ticker": r["t"], "spot": round(r["S"], 2), "strike": r["K"], "delta": round(dl, 3), "distSigma": round(r["dist_sig"], 2),
+                          "credit": round(r["credit"], 2), "creditPctWk": round(100 * r["credit"] / base(r) / h, 3),
+                          "pKept": round(r["p_zones"], 3), "pImplied": round(r["p_implied"], 3), "expPnlBpWk": round(r["e_zones"] * 1e4, 1),
+                          "tier": "lower tail" if r["p_zones"] > med else "higher tail", "zone": bool(r["at_zone"]),
+                          "earningsDays": edo.get(r["t"]), "earningsInWindow": edo.get(r["t"]) is not None and 0 <= edo[r["t"]] <= 7 * h}
+                         for r, dl in sorted(best.values(), key=lambda z: -z[0]["e_zones"])]
+                hz.append({"band": key, "stats": stats.get(f"{h}w", {}).get(key), "picks": picks})
+            out[key_out][f"{h}w"] = hz
     conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_ladder (as_of date PRIMARY KEY, payload jsonb NOT NULL,
                     computed_at timestamptz NOT NULL DEFAULT now())""")
     conn.execute("""INSERT INTO watchlist_sync.put_ladder (as_of, payload) VALUES (%s, %s)
                     ON CONFLICT (as_of) DO UPDATE SET payload = excluded.payload, computed_at = now()""", (today, json.dumps(out)))
     conn.commit()
-    print(f"put ladder → watchlist_sync.put_ladder {today}: " + " · ".join(
-        f"{h}: " + "/".join(str(len(b["picks"])) for b in out["horizons"][h]) for h in out["horizons"]))
+    print(f"put + call ladder → watchlist_sync.put_ladder {today}: " + " · ".join(
+        f"{k[:4]} {h}: " + "/".join(str(len(b["picks"])) for b in out[k][h]) for k in ("horizons", "callHorizons") for h in out[k]))
 
 
 def log_ledger(today_rows, force=False):
@@ -618,6 +642,14 @@ def log_ledger(today_rows, force=False):
                     best[r["t"]] = r
             arms = [(f"S088:{side}:{h}w", sorted(best.values(), key=lambda z: -z["e_zones"])[:10], "p_zones"),
                     (f"S088:{side}:{h}w:1σ", [r for r in cand if r["grid_m"] == 1.0], "p_implied")]
+            if side == "call" and h == 1:
+                # S100 candidate (10-24): covered calls on high vol-of-vol names down over the last month broke even vs holding on the
+                # 2024-07→ holdout while all covered calls lost 22 bp/wk; t 1.7 vs live call tech → forward test only (graded vs the 1σ arm)
+                one = [r for r in cand if r["grid_m"] == 1.0 and r.get("vov") is not None and r.get("rev_1m") is not None]
+                if len(one) >= 30:
+                    rv_, rr_ = np.argsort(np.argsort([r["vov"] for r in one])), np.argsort(np.argsort([-r["rev_1m"] for r in one]))
+                    top = [one[k] for k in np.argsort(rv_ + rr_)[-10:]]
+                    arms.append(("S100:call:1w:vov+1m-drop", top, "p_implied"))
             exp = today + timedelta(days=7 * h)
             exp += timedelta(days=(4 - exp.weekday()) % 7)
             for fc, rs, pk in arms:

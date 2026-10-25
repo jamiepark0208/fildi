@@ -16,7 +16,7 @@ type Stats = { n: number; kept: number; p_model: number; bp_hc: number; worst5: 
 type Pick = { ticker: string; spot: number; strike: number; delta: number; credit: number; creditPctWk: number;
   pKept: number; expPnlBpWk: number; tier: "lower tail" | "higher tail"; zone: boolean; earningsDays: number | null; earningsInWindow: boolean };
 type Band = { band: string; stats: Stats; picks: Pick[] };
-type Ladder = { asOf: string; default: string; statsFrom: string; horizons: Record<string, Band[]> };
+type Ladder = { asOf: string; default: string; callDefault?: string; statsFrom: string; horizons: Record<string, Band[]>; callHorizons?: Record<string, Band[]> };
 
 const pct = (v: number, dp = 1) => `${(v * 100).toFixed(dp)}%`;
 const SHOW = 15;
@@ -66,8 +66,39 @@ function BandColumn({ b, isDefault, showAll }: { b: Band; isDefault: boolean; sh
   );
 }
 
+/** DTE side by side (Jamie 10-24: no single cutoff): real-fill bp/wk and worst 5 % per band for every horizon. */
+function HorizonStrip({ H, def }: { H: Record<string, Band[]>; def: string }) {
+  const hs = Object.keys(H);
+  const bands = H[hs[0]]?.map((b) => b.band) ?? [];
+  return (
+    <div className="overflow-x-auto">
+      <table className="text-[10px] text-zinc-400">
+        <thead>
+          <tr>
+            <th className="text-left pr-2 font-normal">bp/wk · worst 5 %</th>
+            {bands.map((b) => <th key={b} className={cn("px-1.5 font-normal", b === def && "text-[#d4af37]")}>{b.replace("-", "–")}Δ</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {hs.map((h) => (
+            <tr key={h}>
+              <td className="pr-2 text-zinc-300">{h.replace("w", " wk")}</td>
+              {H[h].map((b) => (
+                <td key={b.band} className={cn("px-1.5 tabular-nums", b.band === def && "text-[#d4af37]")}>
+                  {b.stats ? <>{b.stats.bp_hc >= 0 ? "+" : ""}{b.stats.bp_hc.toFixed(0)} · <span className={b.stats.worst5 < -100 ? "text-red-300" : ""}>{b.stats.worst5.toFixed(0)}</span></> : "—"}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function PutLadder() {
   const [h, setH] = useState("1w");
+  const [side, setSide] = useState<"put" | "call">("put");
   const [showAll, setShowAll] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["put-ladder"],
@@ -81,12 +112,24 @@ export function PutLadder() {
   if (isLoading) return <p className="text-sm text-muted-foreground animate-pulse">Loading put ladder…</p>;
   const L = data?.ladder;
   if (!L) return <p className="text-sm text-muted-foreground">No put ladder yet — built by the weekly S088 run.</p>;
-  const bands = L.horizons[h] ?? [];
+  const H = side === "call" && L.callHorizons ? L.callHorizons : L.horizons;
+  const def = side === "call" ? (L.callDefault ?? "") : L.default;
+  const bands = H[h] ?? [];
   return (
     <div className="space-y-2 min-w-0">
       <div className="flex items-center gap-2 flex-wrap text-[11px]">
+        {L.callHorizons && (
+          <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 h-6">
+            {(["put", "call"] as const).map((k) => (
+              <button key={k} onClick={() => setSide(k)}
+                className={cn("px-2 h-5 rounded-full font-semibold", side === k ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]")}>
+                {k === "put" ? "Sell puts" : "Sell calls"}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 h-6">
-          {Object.keys(L.horizons).map((k) => (
+          {Object.keys(H).map((k) => (
             <button key={k} onClick={() => setH(k)}
               className={cn("px-2 h-5 rounded-full font-semibold", h === k ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]")}>
               {k.replace("w", " wk")}
@@ -102,10 +145,14 @@ export function PutLadder() {
         </span>
       </div>
       <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {bands.map((b) => <BandColumn key={b.band} b={b} isDefault={b.band === L.default} showAll={showAll} />)}
+        {bands.map((b) => <BandColumn key={b.band} b={b} isDefault={b.band === def} showAll={showAll} />)}
       </div>
+      <HorizonStrip H={H} def={def} />
       <p className="text-[10px] text-zinc-500">
-        Stats: {L.statsFrom}. Farther bands keep more often but pay about the same per week (+29 to +38 bp/wk); nearer bands carry a bigger worst 5 %. The model's P(kept) is calibrated within ~1 pt per band and mainly sorts tail risk inside a band.
+        Stats: {L.statsFrom}. {side === "put"
+          ? "Puts: bp per week of collateral after real fills. Farther bands keep more often at similar weekly pay; nearer bands carry a bigger worst 5 %."
+          : "Covered calls: bp per week per $ of stock vs just holding it (negative = the call cost you upside). Kept = stock stayed below the strike."}{" "}
+        The model's P(kept) mainly sorts tail risk inside a band.
       </p>
     </div>
   );

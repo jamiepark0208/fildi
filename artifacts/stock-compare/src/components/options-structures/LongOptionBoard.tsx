@@ -15,11 +15,11 @@ import { TickerLink } from "@/components/ticker-link";
 type Name = { ticker: string; sector: string | null; beta: number | null; overlap: number; strike: number | null;
   debit: number | null; breakeven: number | null; spot: number | null; src: string | null };
 type Fwd = { open: number; n: number; wins: number; mean: number | null } | null;
-type Side = { edgeAnalog: (number | null)[]; edgeAll: (number | null)[]; option: [number | null, number]; optionUngated?: number | null; names: Name[] };
+type Side = { edgeAnalog: (number | null)[]; edgeAll: (number | null)[]; option: [number | null, number]; optionUngated?: number | null; optionByDte?: Record<string, number | null>; names: Name[] };
 type Strategy = { name: string; status: "" | "ledger" | "failing forward"; insampleAll: boolean; forward: Fwd;
   call: Side; put: Side };
 type Board = { asOf: string; expiry: string; analogWeeks: number; buyAll: { call: number; put: number };
-  forwardBuyAll: Fwd; techAsOf: string; ibesAsOf: string; strategies: Strategy[];
+  forwardBuyAll: Fwd; buyAllCallByDte?: Record<string, number | null>; techAsOf: string; ibesAsOf: string; strategies: Strategy[];
   overlap: { call: [string, number][]; put: [string, number][] } };
 
 const pct = (v: number | null | undefined, dp = 1) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${(v * 100).toFixed(dp)}%`);
@@ -140,7 +140,7 @@ export function LongOptionBoard() {
                 : <ChevronRight className="w-3 h-3 text-[#d4af37] shrink-0" />}
               <span className="font-semibold text-white">{st.name}</span>
               {([["Calls", st.call, vc], ["Puts", st.put, vp]] as const).map(([lab, s, v]) => (
-                <DataTip key={lab} tip={`${v.tip}\n\nEdge on today-like weeks ${pct(s.edgeAnalog[0], 2)} (t ${s.edgeAnalog[1]?.toFixed(1) ?? "—"}, beat avg ${pct(s.edgeAnalog[2], 0)} of weeks) · all weeks ${pct(s.edgeAll[0], 2)} (t ${s.edgeAll[1]?.toFixed(1) ?? "—"}${st.insampleAll ? ", in-sample" : ""}). Option ${pct(s.option[0])} on ${s.option[1]} trades${s.optionUngated != null ? ` · picks limited to names with IV rank below the week's median (buy cheap); without that gate ${pct(s.optionUngated)}` : ""}.`}>
+                <DataTip key={lab} tip={`${v.tip}\n\nEdge on today-like weeks ${pct(s.edgeAnalog[0], 2)} (t ${s.edgeAnalog[1]?.toFixed(1) ?? "—"}, beat avg ${pct(s.edgeAnalog[2], 0)} of weeks) · all weeks ${pct(s.edgeAll[0], 2)} (t ${s.edgeAll[1]?.toFixed(1) ?? "—"}${st.insampleAll ? ", in-sample" : ""}). Option ${pct(s.option[0])} on ${s.option[1]} trades${s.optionUngated != null ? ` · picks limited to names with IV rank below the week's median (buy cheap); without that gate ${pct(s.optionUngated)}` : ""}${s.optionByDte && Object.keys(s.optionByDte).length > 1 ? `\nBy horizon (per trade, held to expiry; buy-all in brackets): ${Object.entries(s.optionByDte).map(([k, v]) => `${k}d ${pct(v, 0)} (${pct(b.buyAllCallByDte?.[k], 0)})`).join(" · ")}` : ""}.`}>
                   <span className="inline-flex items-center gap-1">
                     <span className="text-amber-100/60">{lab}</span>
                     <span className={cn("rounded border px-1 text-[10px] uppercase", v.cls)}>{v.label}</span>

@@ -22,7 +22,7 @@ const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies
   { id: "options",     label: "Options" },
   { id: "strategies",  label: "Structures" },
   { id: "long",        label: "Long options" },   // S086: long call/put strategy board   // A192: today's structure picks (≠ Track Record › Strategies)
-  { id: "ladder",      label: "Put ladder" }, // S088: every |Δ| band side by side + today's names per band
+  { id: "ladder",      label: "Ladder" },     // S088: sold puts + covered calls, every |Δ| band × 1/2/4 wk side by side + today's names per band
   { id: "rules",       label: "Rules" },      // every input × strategy: wants high/low, verdict, live where (strategy_rules.json)
 ];
 

@@ -177,8 +177,11 @@ def forward_record(conn):
             for a in set(by) | set(open_)}
 
 
+BUY_ALL_DTE: dict = {}
+
+
 def main():
-    global CHEAP_GATE
+    global CHEAP_GATE, BUY_ALL_DTE
     args = sys.argv[1:]
     conn = connect()
     dg = None if "--no-refresh" in args else refresh_tech(conn)
@@ -217,7 +220,7 @@ def main():
     cache = {}
 
     def opt(t, d, side):
-        k = (t, d, side)
+        k = (t, d, side, e.DTE)
         if k not in cache:
             tr = e.price_long(pricer, px[t], panel[d][t]["_i"], side, e.tbill_at(tb, d))
             cache[k] = tr["expiry"] if tr else None
@@ -226,6 +229,14 @@ def main():
     base = {s: [v for d in analog for t in panel.get(d, {}) if (v := opt(t, d, s)) is not None]
             for s in ("call", "put")}
     buy_all = {s: float(np.mean(v)) for s, v in base.items()}
+    buy_all_dte = {"45": buy_all["call"]}   # call buy-all per horizon (comparator for optionByDte)
+    for dte in (30, 90):
+        e.DTE = dte
+        v = [x for d in analog for t in panel.get(d, {}) if (x := opt(t, d, "call")) is not None]
+        buy_all_dte[str(dte)] = float(np.mean(v)) if v else float("nan")
+    e.DTE = 45
+    print(f"buy-all calls by DTE: {buy_all_dte}", flush=True)
+    BUY_ALL_DTE = {k: (None if v != v else round(v, 5)) for k, v in buy_all_dte.items()}
     print(f"buy-all analog: call {buy_all['call']:+.1%} put {buy_all['put']:+.1%}", flush=True)
 
     res, today_picks = [], {}
@@ -257,6 +268,16 @@ def main():
                   if (v := opt(t, d, side)) is not None]
             CHEAP_GATE = True
             r[f"{side}_opt_ungated"] = float(np.mean(pu)) if pu else float("nan")
+            # horizons side by side (Jamie 10-24: no single cutoff) — same picks bought at ~30 / ~90 DTE, held to expiry
+            r[f"{side}_by_dte"] = {"45": r[f"{side}_opt"][0]}
+            if side == "call":
+                for dte in (30, 90):
+                    e.DTE = dte
+                    pv = [v for d in analog if len(panel.get(d, {})) >= 40
+                          for t in picks(scores(panel[d], strats_wk.get(d, strats_full)[name])[si])
+                          if (v := opt(t, d, side)) is not None]
+                    r[f"{side}_by_dte"][str(dte)] = float(np.mean(pv)) if pv else float("nan")
+                e.DTE = 45
         c, p = scores(panel[today], strats_full[name])
         today_picks[name] = {"call": picks(c), "put": picks(p)}
         res.append(r)
@@ -343,11 +364,12 @@ def publish(conn, res, tp, buy_all, analog, today, tw, fw, row, px, pricer, fwd,
                               "src": q.get("src")})
             sides[s] = {"edgeAnalog": [nn(v) for v in r[f"{s}_an"]], "edgeAll": [nn(v) for v in r[f"{s}_all"]],
                         "option": [nn(r[f"{s}_opt"][0]), r[f"{s}_opt"][1]], "optionUngated": nn(r.get(f"{s}_opt_ungated")),
+                        "optionByDte": {k: nn(v) for k, v in (r.get(f"{s}_by_dte") or {}).items()},
                         "names": names}
         f = fwd.get(f"S086:{n}")
         strategies.append({"name": n, "status": status[n], "insampleAll": r["insample_all"],
                            "forward": f, **sides})
-    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": len(analog), "cheapGate": CHEAP_GATE,
+    payload = {"asOf": str(today), "expiry": str(exp), "analogWeeks": len(analog), "cheapGate": CHEAP_GATE, "buyAllCallByDte": BUY_ALL_DTE,
                "buyAll": {s: nn(v) for s, v in buy_all.items()}, "forwardBuyAll": base_fwd,
                "techAsOf": str(tw), "ibesAsOf": str(fw), "revisionFactors": rev, "strategies": strategies,
                "overlap": {s: [[t, k] for t, k in cnt[s].most_common() if k > 1] for s in cnt}}
