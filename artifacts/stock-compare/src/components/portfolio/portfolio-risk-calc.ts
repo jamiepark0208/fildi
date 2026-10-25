@@ -17,6 +17,8 @@ export interface PortfolioRiskResult {
   dailyVolatilityPct: number;
   var95Pct: number; cvar95Pct: number; var95Usd: number; cvar95Usd: number;
   skippedTickers: string[];
+  /** A257: underlying parametric VaR (not full option-book VaR). */
+  varBasis?: "underlying";
 }
 
 // ── Margin usage ──────────────────────────────────────────────────────────────
@@ -39,11 +41,25 @@ export function computeMarginUsage(accountSummaries: AccountSummary[], activePor
 // HHI on a standard 0-10,000 scale (sum of squared % weights, e.g. two tickers at
 // 50% each = 5,000; fully diversified across many small positions → near 0).
 export function computeConcentration(betaData: { ticker: string; weight: number }[]) {
-  const weights = betaData.map(d => d.weight).sort((a, b) => b - a);
+  const sorted = [...betaData].sort((a, b) => b.weight - a.weight);
+  const weights = sorted.map(d => d.weight);
   const hhi = weights.reduce((s, w) => s + w * w, 0);
   const top5Pct = weights.slice(0, 5).reduce((s, w) => s + w, 0);
-  const level: "Low" | "Moderate" | "High" = hhi < 1500 ? "Low" : hhi < 2500 ? "Moderate" : "High";
-  return { hhi: Math.round(hhi), top5Pct, level, topTicker: betaData[0]?.ticker, topTickerPct: betaData[0]?.weight };
+  const topTickerPct = sorted[0]?.weight ?? 0;
+  // DOJ HHI alone is too lenient for a short book (HHI ~1100 + top-5 67% still "Low").
+  // Level = worse of HHI band vs top-weight bands.
+  let level: "Low" | "Moderate" | "High" = hhi < 1500 ? "Low" : hhi < 2500 ? "Moderate" : "High";
+  if (top5Pct >= 75 || topTickerPct >= 30) level = "High";
+  else if (top5Pct >= 55 || topTickerPct >= 20) {
+    if (level === "Low") level = "Moderate";
+  }
+  return {
+    hhi: Math.round(hhi),
+    top5Pct,
+    level,
+    topTicker: sorted[0]?.ticker,
+    topTickerPct,
+  };
 }
 
 // ── Portfolio Greeks (Vega/Gamma exposure) ──────────────────────────────────

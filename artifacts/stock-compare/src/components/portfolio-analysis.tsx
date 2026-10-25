@@ -13,13 +13,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatCurrency, formatCompactCurrency, formatCompactCurrencyInt, formatMdYy, formatMYy } from "@/lib/format";
-import { GRID_WRAP, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { cn } from "@/lib/utils";
 import {
   formatStrike, PALETTE, SECTOR_OVERRIDES, BETA_BAR_LEGEND, REALIZED_UNREALIZED_LEGEND, TICKER_PNL_SEGMENTS,
 } from "./portfolio/portfolio-palette";
 import { detectCoveredCalls } from "./portfolio/covered-calls-detector";
-import { DonutChart, PieLegend } from "./portfolio/portfolio-charts";
+import { DonutChart } from "./portfolio/portfolio-charts";
 import { PositionHealthPanel } from "./portfolio/position-health-panel";
 import { TopTickersPanel, CumulativeSummaryPanel, CorrelationPanel, OptionsIncomePanel } from "./portfolio/pnl-detail-panels";
 import { VolBacktestPanel, type IvRankBacktest } from "./portfolio/vol-backtest-panel";
@@ -304,13 +304,39 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   }, [liquidityQueries]);
 
   // ── Correlation matrix + parametric VaR/CVaR ────────────────────────────────
-  // betaData already carries per-ticker notional weight — reuse it as the risk
-  // endpoint's input instead of re-deriving position sizing server-side.
-  const riskPositions = useMemo(
-    () => betaData.map(d => ({ ticker: d.ticker, weight: d.weight })),
-    [betaData],
+  // A257: signed exposure — long stock / short put +, short stock / short call −;
+  // covered-call haircut applied server-side. Magnitude = notional, not |MV|.
+  const riskPositions = useMemo(() => {
+    const byTicker: Record<string, { signed: number; covered: boolean }> = {};
+    for (const e of filtered) {
+      const t = e.ticker.toUpperCase();
+      const notional = Math.abs(
+        e.currentValue != null
+          ? e.currentValue
+          : e.positionType === "stock" || e.positionType === "crypto"
+            ? (priceMap[e.ticker] ?? e.avgPrice) * e.qty
+            : cashCollateral(e) || e.avgPrice * 100 * e.qty,
+      );
+      let sign = 1;
+      if (e.positionType === "stock" || e.positionType === "crypto") sign = e.qty < 0 ? -1 : 1;
+      else if (e.positionType === "short_put" || e.positionType === "long_call") sign = 1;
+      else if (e.positionType === "short_call" || e.positionType === "long_put") sign = -1;
+      if (!byTicker[t]) byTicker[t] = { signed: 0, covered: coveredCalls.has(e.ticker) || coveredCalls.has(t) };
+      byTicker[t]!.signed += sign * notional;
+      if (coveredCalls.has(e.ticker) || coveredCalls.has(t)) byTicker[t]!.covered = true;
+    }
+    const gross = Object.values(byTicker).reduce((s, v) => s + Math.abs(v.signed), 0);
+    if (gross <= 0) return [];
+    return Object.entries(byTicker).map(([ticker, { signed, covered }]) => ({
+      ticker,
+      weight: (signed / gross) * 100,
+      coveredCall: covered,
+    }));
+  }, [filtered, priceMap, coveredCalls]);
+  const riskKey = useMemo(
+    () => riskPositions.map(p => `${p.ticker}:${p.weight}:${p.coveredCall ? "cc" : ""}`).sort().join(","),
+    [riskPositions],
   );
-  const riskKey = useMemo(() => riskPositions.map(p => `${p.ticker}:${p.weight}`).sort().join(","), [riskPositions]);
 
   const { data: portfolioRisk } = useQuery<PortfolioRiskResult>({
     queryKey: ["portfolio-risk", riskKey],
@@ -605,53 +631,55 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
         </div>
       )}
 
-      {/* Row 1: Allocation + Sector + Tickers + Risk */}
-      <div className="grid grid-cols-4 gap-4 items-stretch">
-        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-0">
+      {/* Row 1: three equal donuts · Row 2: full-width Risk Metrics */}
+      <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4 items-stretch">
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60 overflow-hidden">
+          <CardHeader className="px-3 pt-2.5 pb-0">
             <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Capital Allocation</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 overflow-visible">
+          <CardContent className="px-2 pb-2">
             <DonutChart data={allocationData} total={totalValue} label="Net Value" />
-            <PieLegend data={allocationData} />
           </CardContent>
         </Card>
 
-        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-0">
-            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide flex items-center justify-between">
-              <span>Sector Exposure</span>
-              <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded normal-case tracking-normal",
-                concentration.level === "High" ? "bg-red-500/15 text-red-400"
-                  : concentration.level === "Moderate" ? "bg-yellow-500/15 text-yellow-400"
-                  : "bg-green-500/15 text-green-400")}>
-                {concentration.level} concentration
-              </span>
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60 overflow-hidden">
+          <CardHeader className="px-3 pt-2.5 pb-0 flex flex-row flex-wrap items-center gap-x-2 gap-y-1 space-y-0">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
+              Sector Exposure
             </CardTitle>
+            <span className={cn(
+              "text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap",
+              concentration.level === "High" ? "bg-red-500/15 text-red-400 border-red-500/30"
+                : concentration.level === "Moderate" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                : "bg-green-500/15 text-green-400 border-green-500/30",
+            )}>
+              {concentration.level} concentration
+            </span>
           </CardHeader>
-          <CardContent className="px-4 pb-4 overflow-visible">
-            <DonutChart data={sectorData.items} total={sectorData.total} label="Notional" />
-            <PieLegend data={sectorData.items} />
+          <CardContent className="px-2 pb-2">
+            <DonutChart
+              data={sectorData.items}
+              total={sectorData.total}
+              label="Notional"
+            />
           </CardContent>
         </Card>
 
-        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-0">
+        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60 overflow-hidden">
+          <CardHeader className="px-3 pt-2.5 pb-0">
             <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">Ticker Holdings</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4 overflow-visible">
+          <CardContent className="px-2 pb-2">
             <DonutChart data={tickerData.items} total={tickerData.total} label="Notional" />
-            <PieLegend data={tickerData.items} />
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60 min-w-0 flex flex-col">
-          <CardHeader className="px-3 pt-3 pb-1.5 shrink-0">
-            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide leading-none">
-              Risk Metrics
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-2 pb-2 pt-0 flex-1 min-h-0 flex flex-col">
+        <div className="min-w-0 space-y-1.5">
+          <div className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide leading-none px-0.5">
+            Risk Metrics
+          </div>
             {(() => {
               const shortPuts = filtered.filter((e) => e.positionType === "short_put").length;
               const shortCalls = filtered.filter((e) => e.positionType === "short_call").length;
@@ -825,49 +853,62 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                         lines: ["VaR", "95%"],
                         value: formatCompactCurrency(portfolioRisk.var95Usd),
                         color: "text-yellow-400",
-                        hint: "Rough 1-day loss you shouldn't exceed 95% of the time (normal-returns model from recent prices). Not a guarantee.",
+                        hint: "Underlying parametric VaR (not option-book VaR): rough 1-day loss you shouldn't exceed 95% of the time from signed stock/option exposures and date-aligned returns. Not a guarantee.",
                       },
                       {
                         key: "cvar",
                         lines: ["CVaR", "95%"],
                         value: formatCompactCurrency(portfolioRisk.cvar95Usd),
                         color: "text-red-400",
-                        hint: "Average loss on the bad 5% of days — how ugly the tail looks if VaR is breached.",
+                        hint: "Underlying CVaR — average loss on the bad 5% of days if VaR is breached (same signed, date-aligned model).",
                       },
                       {
                         key: "vol",
                         lines: ["Daily", "vol"],
                         value: `${portfolioRisk.dailyVolatilityPct.toFixed(2)}%`,
                         color: "text-zinc-100",
-                        hint: "Estimated day-to-day % swing of the portfolio from recent returns and weights.",
+                        hint: "Estimated day-to-day % swing from date-aligned returns and signed weights (shorts hedge).",
                       },
                     ] as Metric[])
                   : []),
               ];
+              // Full-width: 4 Metric/Value pairs per row (shared GRID_* “ag-grid” look)
+              const COLS = 4;
               const rows: Metric[][] = [];
-              for (let i = 0; i < metrics.length; i += 2) rows.push(metrics.slice(i, i + 2));
+              for (let i = 0; i < metrics.length; i += COLS) rows.push(metrics.slice(i, i + COLS));
+              const colIdx = Array.from({ length: COLS }, (_, i) => i);
               return (
-                <div className={cn(GRID_WRAP, "flex-1 min-h-0 overflow-auto")}>
-                  <table className="w-full border-collapse table-fixed">
+                <div className={GRID_WRAP}>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className={GRID_HEADER}>
+                        {colIdx.map((ci) => (
+                          <Fragment key={ci}>
+                            <th className={cn(GRID_TH, "text-left py-0.5")}>Metric</th>
+                            <th className={cn(GRID_TH, "text-right py-0.5")}>Value</th>
+                          </Fragment>
+                        ))}
+                      </tr>
+                    </thead>
                     <tbody>
                       {rows.map((pair, ri) => (
                         <tr key={ri} className={gridRow(ri)}>
-                          {([0, 1] as const).map((ci) => {
+                          {colIdx.map((ci) => {
                             const m = pair[ci];
                             if (!m) {
                               return (
                                 <Fragment key={ci}>
-                                  <td className={cn(GRID_TD, "py-0.5 px-1.5")} />
-                                  <td className={cn(GRID_TD, "py-0.5 px-1.5")} />
+                                  <td className={cn(GRID_TD, "py-0.5")} />
+                                  <td className={cn(GRID_TD, "py-0.5")} />
                                 </Fragment>
                               );
                             }
                             return (
                               <Fragment key={m.key}>
-                                <td className={cn(GRID_TD, "py-0.5 px-1.5 text-[9px] uppercase tracking-wide text-zinc-400 whitespace-nowrap")}>
+                                <td className={cn(GRID_TD, "py-0.5 text-[11px] text-white whitespace-nowrap")}>
                                   <UiTooltip delayDuration={200}>
                                     <TooltipTrigger asChild>
-                                      <span className="cursor-help border-b border-dotted border-zinc-500/60">
+                                      <span className="cursor-help border-b border-dotted border-[#d4af37]/40">
                                         {m.lines.join(" ")}
                                       </span>
                                     </TooltipTrigger>
@@ -879,7 +920,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                                     </TooltipContent>
                                   </UiTooltip>
                                 </td>
-                                <td className={cn(GRID_TD, "py-0.5 px-1.5 text-right font-mono tabular-nums text-[10px] font-semibold truncate", m.color)}>
+                                <td className={cn(GRID_TD, "py-0.5 text-[11px] text-right font-mono font-semibold whitespace-nowrap", m.color)}>
                                   {m.value}
                                 </td>
                               </Fragment>
@@ -892,8 +933,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                 </div>
               );
             })()}
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       {/* Charts below the fold — defer mount until near viewport */}
@@ -909,107 +949,103 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       {/* Row 1.1a: Beta + trade-type — same box sizing/styling as Tickers / Cum P&L row */}
       <div className="grid grid-cols-2 gap-4 min-w-0">
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-                  Beta Contribution
-                </CardTitle>
-                <p className="text-[10px] text-white">weighted β · covered calls adjusted to δ×0.70</p>
-              </div>
-            </div>
+          <CardHeader className="px-4 pt-3 pb-1">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide flex items-baseline gap-2 flex-wrap">
+              <span>Beta Contribution</span>
+              <span className="text-[10px] font-normal normal-case tracking-normal text-white/80">
+                weighted β · CC → δ×0.70
+              </span>
+            </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-3">
             {topBetaData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
+              <div className="h-[260px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topBetaData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} />
-                  <Tooltip content={(p) => {
-                    const d = p.payload?.[0]?.payload;
-                    if (!p.active || !d) return null;
-                    return (
-                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[140px] text-zinc-100">
-                        <div className="font-semibold flex items-center gap-1 text-white">
-                          {d.ticker}
-                          {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
+              <div className="relative">
+                <div className="absolute top-0 right-0 z-10 flex flex-wrap justify-end gap-x-2.5 gap-y-0.5 max-w-[50%] pointer-events-none">
+                  {BETA_BAR_LEGEND.map(({ color, label }) => (
+                    <div key={label} className="flex items-center gap-1 text-[9px] text-white">
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={topBetaData} barSize={32} margin={{ top: 22, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                    <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} />
+                    <Tooltip content={(p) => {
+                      const d = p.payload?.[0]?.payload;
+                      if (!p.active || !d) return null;
+                      return (
+                        <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[140px] text-zinc-100">
+                          <div className="font-semibold flex items-center gap-1 text-white">
+                            {d.ticker}
+                            {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
+                          </div>
+                          <div className="flex justify-between gap-4"><span className="text-zinc-400">β Contribution</span><span className="font-mono font-semibold tabular-nums">{d.contribution.toFixed(3)}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Beta</span><span className="font-mono tabular-nums">{d.beta}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Weight</span><span className="font-mono tabular-nums">{d.weight}%</span></div>
                         </div>
-                        <div className="flex justify-between gap-4"><span className="text-zinc-400">β Contribution</span><span className="font-mono font-semibold tabular-nums">{d.contribution.toFixed(3)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Beta</span><span className="font-mono tabular-nums">{d.beta}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Weight</span><span className="font-mono tabular-nums">{d.weight}%</span></div>
-                      </div>
-                    );
-                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
-                  <Bar dataKey="contribution" radius={[3, 3, 0, 0]}>
-                    {topBetaData.map((d, i) => (
-                      <Cell key={i}
-                        fill={d.covered ? "#a78bfa" : d.contribution > 0.4 ? "#f97316" : d.contribution > 0.2 ? "#fbbf24" : "#34d399"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {topBetaData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
-                {BETA_BAR_LEGEND.map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-1.5 text-[10px] text-white">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                    {label}
-                  </div>
-                ))}
+                      );
+                    }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                    <Bar dataKey="contribution" radius={[3, 3, 0, 0]}>
+                      {topBetaData.map((d, i) => (
+                        <Cell key={i}
+                          fill={d.covered ? "#a78bfa" : d.contribution > 0.4 ? "#f97316" : d.contribution > 0.2 ? "#fbbf24" : "#34d399"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             )}
           </CardContent>
         </Card>
 
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-                  Cumulative P&amp;L by Trade Type
-                </CardTitle>
-                <p className="text-[10px] text-white">realized + unrealized · scoped to {activePortfolio}</p>
-              </div>
-            </div>
+          <CardHeader className="px-4 pt-3 pb-1">
+            <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide flex items-baseline gap-2 flex-wrap">
+              <span>Cumulative P&amp;L by Trade Type</span>
+              <span className="text-[10px] font-normal normal-case tracking-normal text-white/80">
+                realized + unrealized · {activePortfolio}
+              </span>
+            </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-3">
             {tradeTypeChartData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
+              <div className="h-[260px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={tradeTypeChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="category" interval={0} tick={{ fontSize: 11, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
-                  <Tooltip content={(p) => {
-                    const d = p.payload?.[0]?.payload;
-                    if (!p.active || !d) return null;
-                    return (
-                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
-                        <div className="font-semibold text-white">{d.category}</div>
-                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Realized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.realized)}</span></div>
-                        <div className="flex justify-between gap-4"><span className="text-zinc-400">Unrealized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.unrealized)}</span></div>
-                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.total)}</span></div>
-                      </div>
-                    );
-                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
-                  <Bar dataKey="realized" stackId="pnl" fill={REALIZED_UNREALIZED_LEGEND[0].color} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="unrealized" stackId="pnl" fill={REALIZED_UNREALIZED_LEGEND[1].color} radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {tradeTypeChartData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
-                {REALIZED_UNREALIZED_LEGEND.map(({ key, color, label }) => (
-                  <div key={key} className="flex items-center gap-1.5 text-[10px] text-white">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                    {label}
-                  </div>
-                ))}
+              <div className="relative">
+                <div className="absolute top-0 right-0 z-10 flex gap-3 pointer-events-none">
+                  {REALIZED_UNREALIZED_LEGEND.map(({ key, color, label }) => (
+                    <div key={key} className="flex items-center gap-1 text-[10px] text-white">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={tradeTypeChartData} barSize={32} margin={{ top: 18, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                    <XAxis dataKey="category" interval={0} tick={{ fontSize: 11, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
+                    <Tooltip content={(p) => {
+                      const d = p.payload?.[0]?.payload;
+                      if (!p.active || !d) return null;
+                      return (
+                        <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
+                          <div className="font-semibold text-white">{d.category}</div>
+                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Realized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.realized)}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Unrealized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.unrealized)}</span></div>
+                          <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.total)}</span></div>
+                        </div>
+                      );
+                    }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                    <Bar dataKey="realized" stackId="pnl" fill={REALIZED_UNREALIZED_LEGEND[0].color} radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="unrealized" stackId="pnl" fill={REALIZED_UNREALIZED_LEGEND[1].color} radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             )}
           </CardContent>
@@ -1019,14 +1055,14 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
       {/* Row 1.1b: Cumulative P&L tickers + line chart (P&L table is a sub-tab) */}
       <div className="grid grid-cols-2 gap-4 min-w-0">
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-2">
+          <CardHeader className="px-4 pt-3 pb-1">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-                  Cumulative P&amp;L — Tickers
-                </CardTitle>
-                <p className="text-[10px] text-white">all accounts · realized + unrealized</p>
-              </div>
+              <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide flex items-baseline gap-2 flex-wrap">
+                <span>Cumulative P&amp;L — Tickers</span>
+                <span className="text-[10px] font-normal normal-case tracking-normal text-white/80">
+                  all accounts · realized + unrealized
+                </span>
+              </CardTitle>
               <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
                 {([{ key: "top", label: "Top 8" }, { key: "all", label: "All" }] as const).map(t => (
                   <button key={t.key} onClick={() => setTickerChartScope(t.key)}
@@ -1038,61 +1074,59 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </div>
             </div>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-3">
             {topTickersPnlChartData.length === 0 ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-white">No data</div>
+              <div className="h-[260px] flex items-center justify-center text-xs text-white">No data</div>
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
-                  <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
-                  <Tooltip content={(p) => {
-                    const d = p.payload?.[0]?.payload;
-                    if (!p.active || !d) return null;
-                    return (
-                      <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
-                        <div className="font-semibold text-white">{d.ticker}</div>
-                        {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
-                          <div key={key} className="flex justify-between gap-4"><span className="text-zinc-400">{label}</span><span className="font-mono tabular-nums">{formatCurrency(d[key])}</span></div>
-                        ))}
-                        <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total Earned</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.totalEarned)}</span></div>
-                      </div>
-                    );
-                  }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
-                  {TICKER_PNL_SEGMENTS.map(({ key, color }, i) => (
-                    <Bar key={key} dataKey={key} stackId="pnl" fill={color} radius={i === TICKER_PNL_SEGMENTS.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+              <div className="relative">
+                <div className="absolute top-0 right-0 z-10 flex flex-wrap justify-end gap-x-2.5 gap-y-0.5 max-w-[55%] pointer-events-none">
+                  {TICKER_PNL_SEGMENTS.map(({ key, color, label }) => (
+                    <div key={key} className="flex items-center gap-1 text-[9px] text-white">
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
+                      {label}
+                    </div>
                   ))}
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {topTickersPnlChartData.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-[#d4af37]/15 flex flex-wrap gap-x-4 gap-y-1.5">
-                {TICKER_PNL_SEGMENTS.map(({ key, color, label }) => (
-                  <div key={key} className="flex items-center gap-1.5 text-[10px] text-white">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                    {label}
-                  </div>
-                ))}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={topTickersPnlChartData} barSize={32} margin={{ top: 22, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.4} />
+                    <XAxis dataKey="ticker" interval={0} tick={{ fontSize: 12, fontWeight: 600, fill: "#ffffff" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "#ffffff" }} axisLine={false} tickLine={false} width={36} tickFormatter={(v) => formatCompactCurrencyInt(v)} />
+                    <Tooltip content={(p) => {
+                      const d = p.payload?.[0]?.payload;
+                      if (!p.active || !d) return null;
+                      return (
+                        <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
+                          <div className="font-semibold text-white">{d.ticker}</div>
+                          {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
+                            <div key={key} className="flex justify-between gap-4"><span className="text-zinc-400">{label}</span><span className="font-mono tabular-nums">{formatCurrency(d[key])}</span></div>
+                          ))}
+                          <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total Earned</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.totalEarned)}</span></div>
+                        </div>
+                      );
+                    }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
+                    {TICKER_PNL_SEGMENTS.map(({ key, color }, i) => (
+                      <Bar key={key} dataKey={key} stackId="pnl" fill={color} radius={i === TICKER_PNL_SEGMENTS.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             )}
           </CardContent>
         </Card>
 
         <Card className="bg-zinc-950 border-[#d4af37]/25 shadow-lg shadow-black/60">
-          <CardHeader className="px-4 pt-4 pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide">
-                  Cumulative P&amp;L
-                </CardTitle>
-                <p className="text-[10px] text-white">
-                  {cumPnlView === "realized" && "stock + options + dividends · includes assignment lots · scoped to " + activePortfolio}
-                  {cumPnlView === "unrealized" && "live mark-to-market on open positions, today · flat line (no daily history kept) · scoped to " + activePortfolio}
-                  {cumPnlView === "total" && "realized history + live unrealized added at today · scoped to " + activePortfolio}
-                  {cumPnlView === "table" && "same scope as chart · realized + live unrealized by trade type · " + activePortfolio}
-                </p>
-              </div>
+          <CardHeader className="px-4 pt-3 pb-1">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle className="text-xs font-semibold text-[#d4af37] uppercase tracking-wide flex items-baseline gap-2 flex-wrap min-w-0">
+                <span>Cumulative P&amp;L</span>
+                <span className="text-[10px] font-normal normal-case tracking-normal text-white/80 truncate">
+                  {cumPnlView === "realized" && `stock + options + dividends · ${activePortfolio}`}
+                  {cumPnlView === "unrealized" && `live MTM · ${activePortfolio}`}
+                  {cumPnlView === "total" && `realized + live unrealized · ${activePortfolio}`}
+                  {cumPnlView === "table" && `by trade type · ${activePortfolio}`}
+                </span>
+              </CardTitle>
               <div className="flex items-center gap-3">
                 <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[10px] font-semibold">
                   {([
@@ -1264,15 +1298,6 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
               </div>
             )}
           </div>
-          <p className="text-[10px] text-white/70 normal-case pt-1">
-            {detailTab === "tickers" && "By frequency · net realized P&L YTD"}
-            {detailTab === "summary" && "Realized + unrealized + dividends"}
-            {detailTab === "income" && `Sold calls/puts · bi-weekly · ${activePortfolio}`}
-            {detailTab === "corr" && "3mo corr · VaR · hover cells"}
-            {detailTab === "health" && "Break-even · moneyness · assign risk"}
-            {detailTab === "backtest" && "Vol-rank vs your premium sells (RV proxy)"}
-            {detailTab === "holdings" && (holdingsKind === "equity" ? "Equity by account · DoD from live quotes" : "Active options · underlying DoD")}
-          </p>
           {detailTab === "corr" && portfolioRisk && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono tabular-nums pt-1.5 pb-0.5">
               <span className="text-yellow-400">VaR 95% {formatCompactCurrency(portfolioRisk.var95Usd)} ({portfolioRisk.var95Pct.toFixed(1)}%)</span>

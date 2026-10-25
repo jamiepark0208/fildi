@@ -1,9 +1,10 @@
 /**
  * Correlation + parametric VaR/CVaR from local prices_historical (no Yahoo fan-out).
- * Yahoo chart-per-ticker used to rate-limit and leave most names skipped → tiny matrices.
+ * A257: date-join returns (no tail-slice mismatch); signed weights (shorts hedge).
  */
 import { and, gte, inArray, isNotNull, asc } from "drizzle-orm";
 import { db, pricesHistorical } from "@workspace/db";
+import { etDateKey } from "./market-hours.js";
 
 // 1-day 95% parametric (variance-covariance) VaR/CVaR under a normal-returns
 // assumption — standard closed-form constants, not fitted:
@@ -12,45 +13,77 @@ import { db, pricesHistorical } from "@workspace/db";
 const Z_95 = 1.645;
 const CVAR_95_MULT = 2.063;
 const LOOKBACK_DAYS = 100; // calendar ≈ 3mo trading
-const MIN_CLOSES = 10;
+/** Need enough closes to form ≥ MIN_SHARED_RETURNS on a dense series. */
+export const MIN_CLOSES = 61;
+/** Skip corr/cov pair when fewer than this many date-aligned returns (A257). */
+export const MIN_SHARED_RETURNS = 60;
 /** Cap matrix size for UI readability / O(n²) cost — denser grid shows ~32 */
 const MAX_TICKERS = 32;
+/** Same haircut the beta card uses for covered-call stock delta. */
+export const COVERED_CALL_WEIGHT_HAIRCUT = 0.70;
 
-function dailyReturns(closes: number[]): number[] {
-  const out: number[] = [];
-  for (let i = 1; i < closes.length; i++) out.push(closes[i] / closes[i - 1] - 1);
-  return out;
-}
+export type DatedClose = { date: string; close: number };
 
 function mean(xs: number[]): number {
   return xs.reduce((s, x) => s + x, 0) / (xs.length || 1);
 }
 
-function pearsonCorrelation(a: number[], b: number[]): number {
-  const n = Math.min(a.length, b.length);
-  if (n < 2) return 0;
-  const ma = mean(a.slice(-n)), mb = mean(b.slice(-n));
+/** Successive date-aligned returns on the intersection of dates (sorted). */
+export function alignReturns(
+  a: DatedClose[],
+  b: DatedClose[],
+): { ra: number[]; rb: number[] } | null {
+  const mapB = new Map(b.map((x) => [x.date.slice(0, 10), x.close]));
+  const shared: { date: string; ca: number; cb: number }[] = [];
+  for (const x of a) {
+    const d = x.date.slice(0, 10);
+    const cb = mapB.get(d);
+    if (cb == null || !(x.close > 0) || !(cb > 0)) continue;
+    shared.push({ date: d, ca: x.close, cb });
+  }
+  shared.sort((p, q) => (p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
+  if (shared.length < 2) return null;
+  const ra: number[] = [];
+  const rb: number[] = [];
+  for (let i = 1; i < shared.length; i++) {
+    ra.push(shared[i]!.ca / shared[i - 1]!.ca - 1);
+    rb.push(shared[i]!.cb / shared[i - 1]!.cb - 1);
+  }
+  return { ra, rb };
+}
+
+export function pearsonCorrelationAligned(a: DatedClose[], b: DatedClose[]): number | null {
+  const aligned = alignReturns(a, b);
+  if (!aligned || aligned.ra.length < MIN_SHARED_RETURNS) return null;
+  const { ra, rb } = aligned;
+  const n = ra.length;
+  const ma = mean(ra), mb = mean(rb);
   let cov = 0, va = 0, vb = 0;
   for (let i = 0; i < n; i++) {
-    const da = a[a.length - n + i] - ma, db = b[b.length - n + i] - mb;
+    const da = ra[i]! - ma, db = rb[i]! - mb;
     cov += da * db; va += da * da; vb += db * db;
   }
   if (va === 0 || vb === 0) return 0;
   return cov / Math.sqrt(va * vb);
 }
 
-function covariance(a: number[], b: number[]): number {
-  const n = Math.min(a.length, b.length);
-  if (n < 2) return 0;
-  const ma = mean(a.slice(-n)), mb = mean(b.slice(-n));
+export function covarianceAligned(a: DatedClose[], b: DatedClose[]): number | null {
+  const aligned = alignReturns(a, b);
+  if (!aligned || aligned.ra.length < MIN_SHARED_RETURNS) return null;
+  const { ra, rb } = aligned;
+  const n = ra.length;
+  const ma = mean(ra), mb = mean(rb);
   let cov = 0;
-  for (let i = 0; i < n; i++) cov += (a[a.length - n + i] - ma) * (b[b.length - n + i] - mb);
+  for (let i = 0; i < n; i++) cov += (ra[i]! - ma) * (rb[i]! - mb);
   return cov / (n - 1);
 }
 
 export interface PortfolioRiskInput {
   ticker: string;
-  weight: number; // fraction or percent of portfolio notional — renormalized
+  /** Signed exposure weight (percent or fraction). Short stock / short call → negative. */
+  weight: number;
+  /** Apply covered-call δ×0.70 haircut to this ticker's weight magnitude. */
+  coveredCall?: boolean;
 }
 
 export interface PortfolioRiskResult {
@@ -62,18 +95,24 @@ export interface PortfolioRiskResult {
   var95Usd: number;
   cvar95Usd: number;
   skippedTickers: string[];
+  /** A257: underlying parametric VaR (not full option-book VaR). */
+  varBasis?: "underlying";
 }
 
-async function loadClosesFromDb(tickers: string[]): Promise<Map<string, number[]>> {
-  const out = new Map<string, number[]>();
+async function loadDatedClosesFromDb(tickers: string[]): Promise<Map<string, DatedClose[]>> {
+  const out = new Map<string, DatedClose[]>();
   if (tickers.length === 0) return out;
-  const cutoff = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  // Trading-day cutoff (ET), not a UTC date slice (A257).
+  const today = etDateKey();
+  const [y, m, d] = today.split("-").map(Number);
+  const cutoffDt = new Date(Date.UTC(y!, m! - 1, d!));
+  cutoffDt.setUTCDate(cutoffDt.getUTCDate() - LOOKBACK_DAYS);
+  const cutoff = cutoffDt.toISOString().slice(0, 10);
 
   const rows = await db
     .select({
       ticker: pricesHistorical.ticker,
+      date: pricesHistorical.date,
       close: pricesHistorical.close,
     })
     .from(pricesHistorical)
@@ -89,28 +128,36 @@ async function loadClosesFromDb(tickers: string[]): Promise<Map<string, number[]
   for (const r of rows) {
     const t = String(r.ticker).toUpperCase();
     const c = Number(r.close);
-    if (!Number.isFinite(c)) continue;
+    if (!Number.isFinite(c) || !(c > 0)) continue;
+    const date = String(r.date).slice(0, 10);
     const arr = out.get(t) ?? [];
-    arr.push(c);
+    arr.push({ date, close: c });
     out.set(t, arr);
   }
   return out;
 }
 
-export async function computePortfolioRisk(
+/** Pure core — tests call this with fixture closes. */
+export function computePortfolioRiskFromCloses(
   positions: PortfolioRiskInput[],
   portfolioValueUsd: number,
-): Promise<PortfolioRiskResult> {
-  // Prefer heavier weights first when we cap the matrix.
+  closesByTicker: Map<string, DatedClose[]>,
+): PortfolioRiskResult {
+  // Prefer heavier |weight| first when we cap the matrix. Keep sign when aggregating.
   const weightAgg = new Map<string, number>();
+  const covered = new Set<string>();
   for (const p of positions) {
     const t = p.ticker.toUpperCase();
-    weightAgg.set(t, (weightAgg.get(t) ?? 0) + Math.abs(p.weight));
+    let w = p.weight;
+    if (p.coveredCall) {
+      covered.add(t);
+      w *= COVERED_CALL_WEIGHT_HAIRCUT;
+    }
+    weightAgg.set(t, (weightAgg.get(t) ?? 0) + w);
   }
-  const ranked = [...weightAgg.entries()].sort((a, b) => b[1] - a[1]);
+  const ranked = [...weightAgg.entries()].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const uniqueTickers = ranked.map(([t]) => t);
 
-  const closesByTicker = await loadClosesFromDb(uniqueTickers);
   const skippedTickers: string[] = [];
   const withHistory = uniqueTickers.filter((t) => {
     const n = closesByTicker.get(t)?.length ?? 0;
@@ -122,29 +169,31 @@ export async function computePortfolioRisk(
   const tickers = withHistory.slice(0, MAX_TICKERS);
   for (const t of withHistory.slice(MAX_TICKERS)) skippedTickers.push(t);
 
-  const returnsByTicker = new Map(tickers.map((t) => [t, dailyReturns(closesByTicker.get(t)!)]));
-
   const correlationMatrix = tickers.map((a) =>
-    tickers.map((b) =>
-      a === b
-        ? 1
-        : parseFloat(pearsonCorrelation(returnsByTicker.get(a)!, returnsByTicker.get(b)!).toFixed(3)),
-    ),
+    tickers.map((b) => {
+      if (a === b) return 1;
+      const r = pearsonCorrelationAligned(closesByTicker.get(a)!, closesByTicker.get(b)!);
+      return r == null ? 0 : parseFloat(r.toFixed(3));
+    }),
   );
 
+  // Signed weights — do not abs. Renormalize by gross (|w| sum).
   const weightMap = new Map<string, number>();
-  for (const p of positions) {
-    const t = p.ticker.toUpperCase();
-    if (!closesByTicker.has(t) || !tickers.includes(t)) continue;
-    weightMap.set(t, (weightMap.get(t) ?? 0) + Math.abs(p.weight));
+  for (const t of tickers) {
+    if (!weightAgg.has(t)) continue;
+    weightMap.set(t, weightAgg.get(t)!);
   }
-  const weightSum = [...weightMap.values()].reduce((s, w) => s + w, 0);
-  const w = (t: string) => (weightSum > 0 ? (weightMap.get(t) ?? 0) / weightSum : 0);
+  const gross = [...weightMap.values()].reduce((s, w) => s + Math.abs(w), 0);
+  const w = (t: string) => (gross > 0 ? (weightMap.get(t) ?? 0) / gross : 0);
 
   let variance = 0;
   for (const a of tickers) {
     for (const b of tickers) {
-      variance += w(a) * w(b) * covariance(returnsByTicker.get(a)!, returnsByTicker.get(b)!);
+      const cov = a === b
+        ? covarianceAligned(closesByTicker.get(a)!, closesByTicker.get(a)!)
+        : covarianceAligned(closesByTicker.get(a)!, closesByTicker.get(b)!);
+      if (cov == null) continue; // pair under MIN_SHARED_RETURNS — skip, don't tail-slice
+      variance += w(a) * w(b) * cov;
     }
   }
   const dailyVol = Math.sqrt(Math.max(0, variance));
@@ -161,5 +210,23 @@ export async function computePortfolioRisk(
     var95Usd: parseFloat(((var95Pct / 100) * portfolioValueUsd).toFixed(2)),
     cvar95Usd: parseFloat(((cvar95Pct / 100) * portfolioValueUsd).toFixed(2)),
     skippedTickers,
+    varBasis: "underlying",
   };
+}
+
+export async function computePortfolioRisk(
+  positions: PortfolioRiskInput[],
+  portfolioValueUsd: number,
+): Promise<PortfolioRiskResult> {
+  const weightAgg = new Map<string, number>();
+  for (const p of positions) {
+    const t = p.ticker.toUpperCase();
+    weightAgg.set(t, (weightAgg.get(t) ?? 0) + Math.abs(p.weight));
+  }
+  const uniqueTickers = [...weightAgg.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([t]) => t);
+
+  const closesByTicker = await loadDatedClosesFromDb(uniqueTickers);
+  return computePortfolioRiskFromCloses(positions, portfolioValueUsd, closesByTicker);
 }
