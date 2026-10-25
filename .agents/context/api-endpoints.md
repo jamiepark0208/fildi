@@ -329,6 +329,10 @@ routes/watchlist.ts        → /api/watchlist/*
 | GET | /api/options/candidates | options.ts |
 | GET | /api/options/rankings | options.ts |
 | GET | /api/options/structures | options.ts |
+| GET | /api/options/put-ladder | long-option-board.ts (Rankings › Put ladder ← watchlist_sync.put_ladder) |
+| GET | /api/options/long-board | long-option-board.ts (Rankings › Long options) |
+| GET | /api/rankings/rules | strategy-rules.ts (Rankings › Rules ← strategy_rules.json) |
+| GET | /api/stocks/:ticker/vol-metrics | vol-metrics.ts (Breakdown › IV rank; resolved = iv_rank_daily) |
 | GET | /api/options/structures/backtest | options.ts |
 | POST | /api/options/rankings/refresh | options.ts |
 | GET | /api/options/batch | options.ts |

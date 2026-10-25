@@ -39,7 +39,7 @@ from s076_structures_backtest import Pricer, fill  # noqa: E402
 
 OUT = HERE.parent / "out" / "opt" / "S088.md"
 HORIZONS = (1, 2, 4)
-SIGMAS = (0.75, 1.0, 1.5)
+SIGMAS = (0.75, 0.95, 1.0, 1.1, 1.22, 1.35, 1.5, 1.7)   # 10-24: one grid point inside every put-ladder |Δ| band (weekly 1.35σ ≈ 0.09Δ); was 0.75/1.0/1.5 → 0.08–0.12Δ only via zones
 METHODS = ("fractal", "pivot10", "channel", "vp", "wpivot", "fib", "ma")
 FIRST_FIT_YEAR = 2021          # first predicted year; 2019-10 → 2020 only trains
 HOLDOUT = date(2023, 1, 1)

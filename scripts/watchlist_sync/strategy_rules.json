@@ -1,5 +1,5 @@
 {
-  "version": "rules-1.1.0",
+  "version": "rules-1.2.0",
   "updated": "2026-10-24",
   "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
   "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
@@ -329,5 +329,175 @@
     "sell_call": "One candidate: high vol of vol + 1-month drop (breaks even vs holding; t 1.7 vs live call tech) → forward test.",
     "long_call": "Revisions + 60-day return passed (+69.6 % vs +43.1 %) → added to Long options.",
     "long_put": "Nothing works; buying puts lost on every angle and pair."
+  },
+  "engine": {
+    "_doc": "Machine-readable half of this file, read by strategy_engine.py (Structures board; the Model List inherits it via Cursor's unification). Every structure maps to one strategy; each strategy lists hard gates (all must pass), a re-strike rule and its rank inputs (sign-weighted within-day ranks). Edit here, not in code.",
+    "structure_strategy": {
+      "csp": "sell_put",
+      "put_spread": "sell_put",
+      "jade_lizard": "sell_put",
+      "covered_call": "sell_call",
+      "call_spread": "sell_call",
+      "short_strangle": "sell_vol",
+      "short_straddle": "sell_vol",
+      "iron_condor": "sell_vol",
+      "iron_fly": "sell_vol",
+      "long_call": "long_call",
+      "bull_call_spread": "long_call",
+      "long_put": "long_put",
+      "bear_put_spread": "long_put",
+      "long_straddle": "buy_vol",
+      "long_strangle": "buy_vol",
+      "calendar": "none",
+      "collar": "none"
+    },
+    "strategies": {
+      "sell_put": {
+        "gates": [
+          {
+            "input": "verdict",
+            "not_in": [
+              "red"
+            ],
+            "why": "Model List risk flag (red) → no bullish premium",
+            "if_known": true
+          },
+          {
+            "input": "put_edge_q",
+            "min": 4,
+            "if_known": true,
+            "why": "S059: put-edge Q1–Q3 lose after fills"
+          },
+          {
+            "input": "iv_rv",
+            "min": 1.15,
+            "why": "sell rich (S059 IV/RV t +12)"
+          }
+        ],
+        "strike": {
+          "default_band": "0.08-0.10",
+          "bands": [
+            "0.03-0.06",
+            "0.06-0.08",
+            "0.08-0.10",
+            "0.10-0.12",
+            "0.12-0.15",
+            "0.15-0.20",
+            "0.20-0.25"
+          ],
+          "restrike": {
+            "input": "credit",
+            "below": 20,
+            "band": "0.06-0.08",
+            "why": "credit rank < 20 → one band farther (rules.MIN_CREDIT_RANK_PUTS)"
+          }
+        },
+        "rank": [
+          [
+            "put_edge_q",
+            1
+          ],
+          [
+            "ev_rv_cap",
+            1
+          ]
+        ]
+      },
+      "sell_call": {
+        "gates": [
+          {
+            "input": "iv_rv",
+            "min": 1.15,
+            "why": "sell rich"
+          }
+        ],
+        "rank": [
+          [
+            "ev_rv_cap",
+            1
+          ]
+        ]
+      },
+      "sell_vol": {
+        "gates": [
+          {
+            "input": "iv_rv",
+            "min": 1.15,
+            "why": "sell rich"
+          }
+        ],
+        "rank": [
+          [
+            "ev_rv_cap",
+            1
+          ]
+        ]
+      },
+      "long_call": {
+        "gates": [
+          {
+            "input": "iv_pctile",
+            "below": "median",
+            "why": "buy cheap — required (Jamie 10-24; S100 gate +10/13 angles)"
+          },
+          {
+            "input": "verdict",
+            "not_in": [
+              "red"
+            ],
+            "why": "Model List risk flag (red) → no bullish trade",
+            "if_known": true
+          },
+          {
+            "input": "ret60",
+            "min": 0,
+            "why": "S100: 60-day strength is the best single long-call input",
+            "if_known": true
+          }
+        ],
+        "rank": [
+          [
+            "arm",
+            1
+          ],
+          [
+            "ret60",
+            1
+          ]
+        ],
+        "rank_why": "S100 PASS pair: revisions (live = StarMine ARM) + 60-day return"
+      },
+      "long_put": {
+        "gates": [
+          {
+            "input": "iv_pctile",
+            "below": "median",
+            "why": "buy cheap — required"
+          }
+        ],
+        "rank": [
+          [
+            "ev_rv_cap",
+            1
+          ]
+        ],
+        "note": "S086/S100: no long-put angle beats buy-all → study tier only"
+      },
+      "buy_vol": {
+        "gates": [
+          {
+            "input": "iv_pctile",
+            "below": "median",
+            "why": "buy cheap — required"
+          }
+        ],
+        "rank": [
+          [
+            "ev_rv_cap",
+            1
+          ]
+        ]
+      }
+    }
   }
 }
