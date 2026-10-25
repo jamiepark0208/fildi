@@ -264,6 +264,8 @@ export function ScannerRow({
       weeklyIncome: picked.result.weeklyIncome,
       optionScore: picked.result.optionScore,
       dataQuality: picked.result.dataQuality,
+      // A254: soft liquidity warning on the winning scanner row (not a gate).
+      liquidity: picked.result.liquidity,
       runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
     };
   }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall]);
@@ -350,6 +352,14 @@ export function ScannerRow({
               title={`Earnings ${techRow.earningsDaysOut === 0 ? "today" : `in ${techRow.earningsDaysOut}d`} — elevated IV; prefer deep OTM`}
             >
               E{techRow.earningsDaysOut}
+            </span>
+          )}
+          {newScorerBest?.liquidity?.warn && (
+            <span
+              className="ml-0.5 px-0.5 py-px rounded border border-orange-500/40 bg-orange-500/15 text-orange-200 text-[8px] font-bold leading-none shrink-0"
+              title={`Liquidity warning (does not exclude): ${newScorerBest.liquidity.reason ?? "thin book"}`}
+            >
+              LIQ
             </span>
           )}
           {isMonthlyOnlyCalendar(optionsData) && (

@@ -60,7 +60,8 @@ export const INDEX_MOVE_THRESHOLD = 0.01; // ±1% → RALLY / CRASH
 export const MIN_OI           = 50;
 export const MAX_SPREAD_PCT   = 0.30;  // fraction of mid price
 export const MIN_VOL          = 5;
-export const LIQUIDITY_GATE_HARD = false; // false = soft warn; true = hard exclude
+/** When true, liquidityCheck failures set pass=false (picker may hard-exclude later). Soft warn only today (A254). */
+export const LIQUIDITY_GATE_HARD = false;
 
 // ── Option Score component weights (must sum to 1.0) ─────────────────────────
 export const W_INCOME        = 0.30;

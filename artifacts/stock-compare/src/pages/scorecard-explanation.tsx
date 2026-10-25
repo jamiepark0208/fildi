@@ -175,7 +175,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 chips={status.chipsFor?.("options")}
                 text={status.stripFor("options")}
               />
-              <p className="text-xs text-white/70">Rank stocks → score strikes → liquidity gate + macro regime</p>
+              <p className="text-xs text-white/70">Rank stocks → score strikes → liquidity warning + macro regime</p>
               <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock rank layer</p>
               <GuideMetricGrid
                 rows={OPTIONS_STOCK_ROWS}

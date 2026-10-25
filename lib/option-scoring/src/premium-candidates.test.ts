@@ -136,4 +136,43 @@ describe("live bid only", () => {
     );
     assert.equal(best, null);
   });
+
+  // A254: soft liquidity warning — thin book can still win; reason surfaced, not excluded.
+  it("pickBestStrike still returns thin OI/vol with liquidity.warn", async () => {
+    const { pickBestStrike } = await import("./option-scorer.ts");
+    const chains = [{
+      spot: 100,
+      exactDte: 7,
+      settlementDte: 7,
+      options: [{
+        strike: 90,
+        bid: 1.2,
+        ask: 1.4,
+        iv: 0.45,
+        volume: 1,
+        openInterest: 10,
+        delta: -0.12,
+        spreadPct: 0.5,
+        incomePct: 1.2 * 100 / 100, // ~1.2% of spot → weekly via settlement
+        meetsGate: true,
+        bidIsLive: true,
+      }],
+    }];
+    // incomePct in buildCandidate = option.incomePct / (settlementDte/7)
+    // Use a generous incomePct so viability passes.
+    chains[0]!.options[0]!.incomePct = 1.5;
+    const best = pickBestStrike(
+      chains as never,
+      baseStock,
+      "BASELINE",
+      [0.35, 0.4, 0.45],
+      3,
+      undefined,
+      false,
+    );
+    assert.ok(best, "thin liquidity must still be pickable");
+    assert.equal(best!.result.liquidity.warn, true);
+    assert.equal(best!.result.liquidity.pass, true);
+    assert.ok(best!.result.liquidity.reason);
+  });
 });

@@ -322,7 +322,9 @@ export function scoreDtePreferenceCall(dte: number): number {
   return 0.8; // 21 < dte < 25 transition zone
 }
 
-// ── Liquidity gate ────────────────────────────────────────────────────────────
+  // ── Liquidity warning (soft; LIQUIDITY_GATE_HARD opts into exclusion) ─────────
+  // A254: not a picker gate while HARD=false. Null OI/volume warn — unknown book
+  // must not look liquid. pickBestStrike never filters on this today.
 
 export function liquidityGate(
   openInterest: number | null,
@@ -332,9 +334,22 @@ export function liquidityGate(
   const reasons: string[] = [];
   let hard = false;
 
-  if (openInterest !== null && openInterest < MIN_OI)  { reasons.push(`OI ${openInterest} < ${MIN_OI}`);   hard = LIQUIDITY_GATE_HARD; }
-  if (spreadPct    !== null && spreadPct > MAX_SPREAD_PCT) { reasons.push(`spread ${(spreadPct*100).toFixed(0)}% > ${MAX_SPREAD_PCT*100}%`); hard = LIQUIDITY_GATE_HARD; }
-  if (volume       !== null && volume < MIN_VOL)       { reasons.push(`vol ${volume} < ${MIN_VOL}`);        hard = LIQUIDITY_GATE_HARD; }
+  if (openInterest === null) {
+    reasons.push("OI unknown");
+  } else if (openInterest < MIN_OI) {
+    reasons.push(`OI ${openInterest} < ${MIN_OI}`);
+    hard = LIQUIDITY_GATE_HARD;
+  }
+  if (spreadPct !== null && spreadPct > MAX_SPREAD_PCT) {
+    reasons.push(`spread ${(spreadPct * 100).toFixed(0)}% > ${MAX_SPREAD_PCT * 100}%`);
+    hard = LIQUIDITY_GATE_HARD;
+  }
+  if (volume === null) {
+    reasons.push("vol unknown");
+  } else if (volume < MIN_VOL) {
+    reasons.push(`vol ${volume} < ${MIN_VOL}`);
+    hard = LIQUIDITY_GATE_HARD;
+  }
 
   if (reasons.length === 0) return { pass: true, warn: false, reason: null };
   return { pass: !hard, warn: true, reason: reasons.join(", ") };
@@ -486,7 +501,7 @@ export function buildCandidate(
 // ── Convenience: pick the BEST strike across all chains for a stock ───────────
 // Chain-shape-agnostic: caller supplies the strike array to scan via `options`
 // (e.g. `{ ...chain, options: chain.puts }` or `{ ...chain, options: chain.calls }`)
-// so puts and calls share this one loop/liquidity-gate/runner-up implementation.
+  // so puts and calls share this one loop/liquidity-warning/runner-up implementation.
 
 export interface PickBestStrikeOpts {
   /** Ownership floor on stockQuality [0,1]. Default SQ_FLOOR_BASE. */

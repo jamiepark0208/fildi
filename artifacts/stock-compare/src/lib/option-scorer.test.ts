@@ -283,19 +283,23 @@ describe("scoreDtePreference", () => {
 // ── liquidityGate ─────────────────────────────────────────────────────────────
 
 describe("liquidityGate", () => {
-  it("all null → pass, no warn", () => {
+  // A254: null OI/vol warn (unknown book); still soft — pass stays true while HARD=false.
+  it("all null → pass with warn (OI/vol unknown)", () => {
     const r = liquidityGate(null, null, null);
     assert.equal(r.pass, true);
-    assert.equal(r.warn, false);
+    assert.equal(r.warn, true);
+    assert.ok(r.reason?.includes("OI unknown"));
+    assert.ok(r.reason?.includes("vol unknown"));
   });
-  it("good values → pass", () => {
+  it("good values → pass, no warn", () => {
     const r = liquidityGate(200, 0.05, 50);
     assert.equal(r.pass, true);
     assert.equal(r.warn, false);
   });
-  it("low OI → warn (soft gate)", () => {
+  it("low OI → warn (soft; still pass)", () => {
     const r = liquidityGate(MIN_OI - 1, 0.05, 50);
     assert.equal(r.warn, true);
+    assert.equal(r.pass, true);
   });
   it("high spread → warn", () => {
     const r = liquidityGate(200, MAX_SPREAD_PCT + 0.01, 50);
@@ -304,6 +308,12 @@ describe("liquidityGate", () => {
   it("low volume → warn", () => {
     const r = liquidityGate(200, 0.05, MIN_VOL - 1);
     assert.equal(r.warn, true);
+  });
+  it("null OI alone → warn, does not exclude", () => {
+    const r = liquidityGate(null, 0.05, 50);
+    assert.equal(r.warn, true);
+    assert.equal(r.pass, true);
+    assert.ok(r.reason?.includes("OI unknown"));
   });
 });
 
