@@ -25,3 +25,4 @@
 - 2026-10-22 · auto · 6 reviewed · planned 5 / revise 1 / declined 0 / needs Jamie 0
 - 2026-10-22 · auto · 6 reviewed · planned 2 / revise 3 / declined 0 / needs Jamie 1
 - 2026-10-24 · auto · 6 reviewed · planned 3 / revise 3 / declined 0 / needs Jamie 0
+- 2026-10-24 · auto · 6 reviewed · planned 4 / revise 0 / declined 1 / needs Jamie 1
