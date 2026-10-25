@@ -8,6 +8,7 @@ import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users,
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { PeerGroupsTab } from "@/components/settings/PeerGroupsTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
+import { DataSourcesTab } from "@/components/settings/DataSourcesTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
 import { ResearchTab } from "@/components/settings/ResearchTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
@@ -663,7 +664,7 @@ function CacheMonitorTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "scorecard-guide" | "feedback" | "scheduled-tasks" | "research";
+type Tab = "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "data-sources" | "scorecard-guide" | "feedback" | "scheduled-tasks" | "research";
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -677,6 +678,7 @@ export default function Settings() {
     { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
     { id: "peer-groups",     label: "Sector Peers",    adminOnly: true },
     { id: "api-monitor",     label: "API Monitor",     adminOnly: true },
+    { id: "data-sources",    label: "Data Sources",    adminOnly: true },
     { id: "feedback",        label: "Feedback",        adminOnly: true },
     { id: "research",        label: "Research",        adminOnly: true },
   ];
@@ -743,6 +745,7 @@ export default function Settings() {
           {tab === "stockdb"     && <StockDBTab />}
           {tab === "peer-groups" && isAdmin && <PeerGroupsTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
+          {tab === "data-sources" && isAdmin && <DataSourcesTab />}
           {tab === "feedback"    && isAdmin && <FeedbackTab />}
           {tab === "research"    && isAdmin && <ResearchTab />}
         </div>

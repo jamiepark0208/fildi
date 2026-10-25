@@ -17,6 +17,7 @@ import {
 } from "./schwab-auth.js";
 import { TTLCache } from "./ttl-cache.js";
 import { retryAfterMs } from "./http-client.js";
+import { recordApiUsage } from "./api-usage.js";
 import {
   daysUntilCeilNonNeg,
   exactDaysUntil,
@@ -58,6 +59,8 @@ function bumpUsage(path: string, status: number | null, err?: string): void {
   usage.lastStatus = status;
   if (status === 429) usage.last429At = now;
   if (err) usage.lastError = err;
+  // A264: meter Schwab into api_usage (every other vendor already is).
+  void recordApiUsage("schwab", 1).catch(() => undefined);
 }
 
 export function getSchwabUsageStats(): {

@@ -1,0 +1,179 @@
+/**
+ * A264 — static vendor catalog (from research/common/data-inventory.md summary).
+ * Live calls/limits merge in the /api/admin/data-sources route.
+ */
+export interface DataSourceCatalogRow {
+  id: string;
+  /** api_usage.source key when metered (null = local / unmetered). */
+  usageKey: string | null;
+  name: string;
+  plan: string;
+  feeds: string;
+  tables: string;
+  unusedAvailable: string;
+  dailyLimit: number | null;
+}
+
+/** Order matches inventory summary — desk vendors first. */
+export const DATA_SOURCES_CATALOG: DataSourceCatalogRow[] = [
+  {
+    id: "schwab", usageKey: "schwab", name: "Schwab",
+    plan: "OAuth market data (~100/min soft)",
+    feeds: "Live quotes, option chains, price history (scanner / Model List)",
+    tables: "TTL caches only (not Postgres fundamentals)",
+    unusedAvailable: "/movers, /expirationchain, /instruments, /markets (S097)",
+    dailyLimit: null,
+  },
+  {
+    id: "polygon", usageKey: "polygon", name: "Polygon / Massive",
+    plan: "Free stocks · 5/min",
+    feeds: "Aggs, option bars, dividends, short interest/volume",
+    tables: "polygon_* · option bars · short interest",
+    unusedAvailable: "Form 4, 8-K, related tickers, 13-F (S099) · financials 403",
+    dailyLimit: null,
+  },
+  {
+    id: "fmp", usageKey: "fmp", name: "FMP",
+    plan: "220/day",
+    feeds: "Statements, grades/targets, peers, profile → fund score / universe",
+    tables: "fmp_fundamentals · source_fundamentals · analyst events",
+    unusedAvailable: "P/FCF, interest coverage, income quality, SBC/rev (mega-cap)",
+    dailyLimit: 220,
+  },
+  {
+    id: "finnhub", usageKey: "finnhub", name: "Finnhub",
+    plan: "9999/day free",
+    feeds: "Metrics, earnings, peers, company-news",
+    tables: "finnhub_fundamentals · analyst/news paths",
+    unusedAvailable: "109/133 metric=all keys; economic calendar 403",
+    dailyLimit: 9999,
+  },
+  {
+    id: "factset", usageKey: "factset", name: "FactSet",
+    plan: "Proxy · 500/day cap",
+    feeds: "Overview financial highlights → source_fundamentals",
+    tables: "source_fundamentals (factset)",
+    unusedAvailable: "Bank Tier 1 / ROTCE / TBV / NII already in overview JSON",
+    dailyLimit: 500,
+  },
+  {
+    id: "lseg", usageKey: "lseg", name: "LSEG Workspace",
+    plan: "10k datapoints/day (research guard 80%)",
+    feeds: "signals, StarMine, holders, events, option mids (research)",
+    tables: "lseg_research.*",
+    unusedAvailable: "Extra StarMine models (A262 S092) — research only",
+    dailyLimit: 10_000,
+  },
+  {
+    id: "wrds", usageKey: "wrds", name: "WRDS",
+    plan: "Academic · 279 libraries",
+    feeds: "IBES, CRSP, finratio, CBOE indexes (A265) — research only",
+    tables: "wrds_research.*",
+    unusedAvailable: "tr_13f, tr_insiders, comp_bank_daily (A228); no full OptionMetrics",
+    dailyLimit: null,
+  },
+  {
+    id: "yahoo", usageKey: "yahoo", name: "Yahoo",
+    plan: "Keyless",
+    feeds: "Quotes/charts/options fallback · quoteSummary fundamentals",
+    tables: "yahoo_fundamentals · prices_historical paths",
+    unusedAvailable: "insiderHolders, institutionOwnership, earningsTrend modules",
+    dailyLimit: null,
+  },
+  {
+    id: "edgar", usageKey: "edgar", name: "SEC EDGAR",
+    plan: "Keyless ≤10/s",
+    feeds: "companyfacts / submissions → fund lines + FFO D&A",
+    tables: "edgar_fundamentals",
+    unusedAvailable: "efts.sec.gov full-text search (0 code refs)",
+    dailyLimit: null,
+  },
+  {
+    id: "av", usageKey: "av", name: "Alpha Vantage",
+    plan: "25/day",
+    feeds: "OVERVIEW + earnings-call transcripts",
+    tables: "av_fundamentals · earnings_transcripts",
+    unusedAvailable: "EARNINGS_CALENDAR, TOP_GAINERS, INSIDER, ANALYTICS",
+    dailyLimit: 25,
+  },
+  {
+    id: "fred", usageKey: "fred", name: "FRED",
+    plan: "Keyless CSV",
+    feeds: "Macro regime / charts / fair-value rates",
+    tables: "macro caches · study out/",
+    unusedAvailable: "— (desk series covered)",
+    dailyLimit: null,
+  },
+  {
+    id: "tastytrade", usageKey: "tastytrade", name: "tastytrade",
+    plan: "OAuth read openid",
+    feeds: "IV rank / liquidity metrics · optional backtester",
+    tables: "tasty_metrics_daily · vendor_raw",
+    unusedAvailable: "historic earnings/dividends endpoints; DXLink streaming",
+    dailyLimit: null,
+  },
+  {
+    id: "kalshi", usageKey: "kalshi", name: "Kalshi",
+    plan: "Public API",
+    feeds: "FOMC / CPI / BTC-NDQ macro display",
+    tables: "TTL caches",
+    unusedAvailable: "Broader event catalog not inventoried",
+    dailyLimit: null,
+  },
+  {
+    id: "cnn", usageKey: "cnn", name: "CNN Fear & Greed",
+    plan: "Keyless JSON",
+    feeds: "Fear/greed + put/call (macro)",
+    tables: "macro caches",
+    unusedAvailable: "Other sub-indices; live often 418 bot block",
+    dailyLimit: null,
+  },
+  {
+    id: "nyfed", usageKey: "nyfed", name: "NY Fed",
+    plan: "Keyless xlsx",
+    feeds: "GSCPI",
+    tables: "macro caches",
+    unusedAvailable: "— (SOFR via FRED)",
+    dailyLimit: null,
+  },
+  {
+    id: "anthropic", usageKey: "anthropic", name: "Anthropic",
+    plan: "API key (Haiku transcripts)",
+    feeds: "Earnings transcript summaries",
+    tables: "watchlist_sync.earnings_transcripts",
+    unusedAvailable: "No other product callers",
+    dailyLimit: null,
+  },
+  {
+    id: "codiv", usageKey: null, name: "Codiv (hosted OpenJev)",
+    plan: "CODIV_API_KEY set · 100M token tier",
+    feeds: "—",
+    tables: "—",
+    unusedAvailable: "0 code references — local OpenJev is SoR",
+    dailyLimit: null,
+  },
+  {
+    id: "openjev", usageKey: null, name: "OpenJev local",
+    plan: "Local model / LaunchAgent",
+    feeds: "Shortlists, headline labels, controls",
+    tables: "local only",
+    unusedAvailable: "—",
+    dailyLimit: null,
+  },
+  {
+    id: "crawl4ai", usageKey: null, name: "Crawl4AI",
+    plan: "Local",
+    feeds: "scripts/fetch-page.sh research docs",
+    tables: "research/sources/",
+    unusedAvailable: "—",
+    dailyLimit: null,
+  },
+  {
+    id: "spglobal", usageKey: null, name: "S&P Global",
+    plan: "Claude connector — not authenticated",
+    feeds: "Nothing in repo",
+    tables: "—",
+    unusedAvailable: "Kensho / CapIQ — do not use until auth + license",
+    dailyLimit: null,
+  },
+];

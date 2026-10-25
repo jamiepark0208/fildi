@@ -116,4 +116,67 @@ router.get("/admin/data-health", requireAdmin, async (_req, res, next) => {
   }
 });
 
+/** A264 — Data Sources panel: inventory catalog + 30d api_usage + research sync stamps. */
+router.get("/admin/data-sources", requireAdmin, async (_req, res, next) => {
+  try {
+    const { DATA_SOURCES_CATALOG } = await import("../lib/data-sources-catalog.js");
+    const { getApiUsageHistory } = await import("../lib/api-usage.js");
+    const history = await getApiUsageHistory(30);
+    const calls30 = new Map<string, number>();
+    const lastCallDay = new Map<string, string>();
+    for (const r of history) {
+      calls30.set(r.source, (calls30.get(r.source) ?? 0) + r.callsMade);
+      if (!lastCallDay.has(r.source) || r.date > lastCallDay.get(r.source)!) {
+        lastCallDay.set(r.source, r.date);
+      }
+    }
+
+    type SyncRow = { dataset: string; last_ok: string | null; rows: number | null; notes: string | null };
+    const rowsOf = <T,>(r: unknown): T[] =>
+      Array.isArray(r) ? (r as T[]) : ((r as { rows?: T[] })?.rows ?? []);
+    let sync: SyncRow[] = [];
+    try {
+      const r = await db.execute(sql`
+        SELECT dataset, last_ok_at::text AS last_ok, last_rows AS rows, notes
+        FROM wrds_research.sync_state
+        ORDER BY dataset`);
+      sync = rowsOf<SyncRow>(r);
+    } catch { /* schema may be absent on a fresh DB */ }
+    try {
+      const r = await db.execute(sql`
+        SELECT dataset, last_ok_at::text AS last_ok, last_rows AS rows, notes
+        FROM lseg_research.sync_state
+        ORDER BY dataset`);
+      const more = rowsOf<SyncRow>(r);
+      sync = [...sync, ...more.map((s) => ({ ...s, dataset: `lseg:${s.dataset}` }))];
+    } catch { /* optional */ }
+
+    const sources = DATA_SOURCES_CATALOG.map((c) => {
+      const key = c.usageKey;
+      const calls = key ? (calls30.get(key) ?? 0) : 0;
+      const limit = c.dailyLimit;
+      const pctOfDaily = limit != null && limit > 0
+        ? Math.min(100, Math.round((calls / 30 / limit) * 1000) / 10)
+        : null;
+      return {
+        ...c,
+        calls30d: calls,
+        lastCallDate: key ? (lastCallDay.get(key) ?? null) : null,
+        avgDailyCalls: Math.round((calls / 30) * 10) / 10,
+        pctOfDailyLimit: pctOfDaily,
+        nearLimit: pctOfDaily != null && pctOfDaily >= 70,
+      };
+    });
+
+    res.json({
+      asOf: new Date().toISOString(),
+      inventoryRef: "research/common/data-inventory.md",
+      sources,
+      researchSync: sync,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
