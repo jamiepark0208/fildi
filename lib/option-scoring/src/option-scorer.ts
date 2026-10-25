@@ -164,7 +164,10 @@ export function scoreBuffer(
   otmPct: number,
   regime: MacroRegime,
 ): number | null {
-  const absDelta = delta !== null ? Math.abs(pf(delta) ?? 0) : null;
+  // A253: pf() already returns null for non-finite; never coerce to 0 (that
+  // scored as max-safety delta). Abs only after a finite parse.
+  const parsedDelta = delta !== null ? pf(delta) : null;
+  const absDelta = parsedDelta !== null ? Math.abs(parsedDelta) : null;
   const iv = pf(strikeIV);
 
   const deltaBandScore = absDelta !== null ? scoreDeltaBand(absDelta, regime) : null;

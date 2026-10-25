@@ -165,6 +165,30 @@ describe("scoreBuffer", () => {
     const max = Math.max(deltaBand, sd) + 0.01;
     assert.ok((blended as number) >= min && (blended as number) <= max, `blended ${blended} not in [${min},${max}]`);
   });
+  // A253: non-finite delta must drop the delta-band piece, never score as |Δ|=0 (max safety).
+  it("non-finite delta + valid IV falls back to SD-only (not max-safety band)", () => {
+    // otm/IV chosen so SD < 1 and blending with fake Δ=0 would inflate above SD-only
+    const sdOnly = scoreBuffer(null, 0.80, 7, 0.04, "BASELINE");
+    const fakeZeroDelta = scoreBuffer(0, 0.80, 7, 0.04, "BASELINE");
+    assert.ok(sdOnly !== null && (sdOnly as number) < 1);
+    assert.ok(fakeZeroDelta !== null && (fakeZeroDelta as number) > (sdOnly as number));
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const r = scoreBuffer(bad, 0.80, 7, 0.04, "BASELINE");
+      assert.equal(r, sdOnly, `expected SD-only for delta=${bad}, got ${r}`);
+      assert.notEqual(r, fakeZeroDelta);
+    }
+  });
+  it("non-finite delta + null IV returns null (not max-safety 1.0)", () => {
+    // Bug path: pf(NaN)??0 → |Δ|=0 → scoreDeltaBand = 1.0
+    assert.equal(scoreBuffer(NaN, null, 7, 0.10, "BASELINE"), null);
+    assert.equal(scoreBuffer(Infinity, null, 7, 0.10, "BASELINE"), null);
+    assert.notEqual(scoreDeltaBand(0, "BASELINE"), null);
+    assert.ok((scoreDeltaBand(0, "BASELINE") as number) >= 0.99);
+  });
+  it("finite delta 0 still tops the band", () => {
+    assert.equal(scoreBuffer(0, null, 7, 0.10, "BASELINE"), scoreDeltaBand(0, "BASELINE"));
+    assert.ok((scoreBuffer(0, null, 7, 0.10, "BASELINE") as number) >= 0.99);
+  });
 });
 
 // ── scoreIvRelative ───────────────────────────────────────────────────────────
