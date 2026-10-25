@@ -1,15 +1,16 @@
-"""Option structures board (A192, Claude 10-19). Prices 16 structures for ~120 names from today's REAL Schwab ladders
-(optlab.skew_survey) with your realistic fills, ranks ≤ 5 names per structure, and logs every shown candidate to the forecast ledger
-(qtype sim_structure) so each structure is graded at expiry. → watchlist_sync.structure_rank_daily → GET /api/options/structures.
+"""Option structures board (A192, Claude 10-19). Prices 16 structures for today's REAL Schwab ladders
+(optlab.skew_survey) with realistic fills → watchlist_sync.structure_rank_daily → GET /api/options/structures.
 
-Per candidate:
-  fill      sell = bid + 23 % of spread, buy = ask − 23 % (RH median fill, state.md); net credit (+) / debit (−) per share
-  capital   defined risk = max loss · CSP = strike · covered call / collar = spot · naked (strangle/straddle) = Reg-T 20 % rule
-  p_mkt     P(profit at expiry) at the market's ATM IV (lognormal, zero drift)
-  ev_rv     expected pnl at the stock's 20-day realized vol (same lognormal) — the S059 IV/RV edge in dollar form
-  rank      regime-fit first, then ev_rv ÷ capital. A ticker appears in one structure only (its best), trim names get no bullish
-            structure, earnings before expiry → excluded (S018: gap risk, edge not persistent per name).
-Evidence badges come from the studies (S059, S020, S061, S018, S049); untested structures say so. Backtest: A192 Phase 2.
+Tiers (payload.tier):
+  primary  regime-fit + EV>0 · ≤ TOP · one ticker once · forecast_ledger
+  more     soft IV/RV/edge floor · leftover tickers · ≤ TOP_MORE · not ledgered
+  margin   short strangle/straddle (S076 pass but ret÷risk < CSP, margin-only) · ≤ TOP_MARGIN
+  study    S076-fail structures · priced shapes · ≤ TOP_STUDY each · not recommendations
+
+Pricing input = Schwab chain ladders in optlab.skew_survey (bid/ask/IV/delta by strike) — not a
+25Δ risk-reversal "skew signal". Edge for ranking CSP/jade is mainly IV/RV rich + put-edge Q (S059).
+
+Gates: trim → no bullish; earnings before expiry → out (S018). Backtest: A192 / S076.
 
     .venv/bin/python structures.py [--no-log]
 """
@@ -27,15 +28,23 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from build_plan import connect, rows  # noqa: E402
+import strategy_engine as SE  # noqa: E402  (A271: gates / inputs / put ladder / rank from strategy_rules.json)
 
 FILL = 0.23
-TOP = 5
+TOP = 10        # primary (strict regime-fit)
+TOP_MORE = 15   # leftover tickers, softer IV/RV / edge floor
+TOP_MARGIN = 8  # strangle/straddle (pass but margin-only / below CSP)
+TOP_STUDY = 8   # per fail structure — priced examples
+# Soft floors for tier=more (still need capital + finite EV + no earnings)
+MORE_IVRV_SELL = 1.05   # short premium (strict fit uses 1.15)
+MORE_IVRV_BUY = 1.05    # long premium (strict fit uses 0.95)
+MORE_EDGE_Q = 3         # CSP prefer ≥3 when put-edge known (strict fit uses ≥4)
 GRID = np.linspace(-5, 5, 801)          # standard-normal grid for terminal prices
 W = np.exp(-GRID ** 2 / 2); W /= W.sum()
 
 # id: (name, family, description, when it fits, evidence badge, evidence note)
 CATALOG = {
-    "csp": ("Cash-secured put", "short_premium", "Sell a ~0.20Δ put with cash set aside to buy 100 shares at the strike.",
+    "csp": ("Cash-secured put", "short_premium", "Sell a weekly put with cash set aside to buy 100 shares at the strike — strike from the put ladder (default 0.08–0.10Δ; every band on the row).",
             "You'd own the stock at the strike; IV rich vs realized; no earnings before expiry.", "pass",
             "S059 (Mon→Fri, net of fills): Q5 +22 bp/wk, breach 10.7 % vs ~14 %; Q1–Q3 lose after fills. S049 panic puts."),
     "covered_call": ("Covered call", "short_premium", "Sell a ~0.20Δ call against 100 shares you hold.",
@@ -77,8 +86,10 @@ CATALOG = {
                "Protect a holding after a run-up / when credit is wide (S028).", "fail",
                "S076: costs 1.05 %/month vs holding, t −3.3; cuts the worst 5 % to −10 %."),
 }
-# calendar value depends on where back-month IV goes after the front expires; a fixed-IV pricer showed +155 % (IBM) → not ranked
-UNRANKED = {"calendar", "short_strangle", "short_straddle"}   # S076: work, but below CSP on return ÷ risk + margin-only
+# calendar: back-month IV path unknown under fixed-IV pricer → never show as a pick
+UNRANKED = {"calendar"}
+# S076 pass on margin, but ret÷risk < CSP → show as margin tier (not primary ledger)
+MARGIN = {"short_strangle", "short_straddle"}
 BULLISH = {"csp", "put_spread", "jade_lizard", "long_call", "bull_call_spread"}
 BEARISH = {"long_put", "bear_put_spread", "call_spread"}
 
@@ -117,10 +128,15 @@ def main():
     today = date.today()
     with connect() as conn:
         last = conn.execute("SELECT MAX(as_of) FROM optlab.skew_survey").fetchone()[0]
-        if last != today:   # Schwab down / survey skipped: keep yesterday's board (API shows its date) rather than re-stamp old quotes
-            print(f"structures: skipped — latest skew survey is {last}, not today"); return
+        if not last:
+            print("structures: skipped — no skew_survey rows"); return
+        # Price off the latest Schwab ladder day (not only calendar today). Weekend / missed
+        # survey days still refresh the board; API as_of = survey day so UI can show stale.
+        as_of = last if isinstance(last, date) else date.fromisoformat(str(last)[:10])
+        if as_of != today:
+            print(f"structures: using skew survey as_of={as_of} (no survey for {today})", flush=True)
         q = rows(conn, """SELECT ticker, expiry, side, strike, spot, bid, ask, iv, delta FROM optlab.skew_survey
-                          WHERE as_of = %s AND bid IS NOT NULL AND ask > 0""", (today,))
+                          WHERE as_of = %s AND bid IS NOT NULL AND ask > 0""", (as_of,))
         rv, hist = {}, {}
         for t, cl in rows_closes(conn):
             if len(cl) >= 260:
@@ -147,24 +163,46 @@ def main():
         chains = defaultdict(list)
         for r in q:
             chains[(r["ticker"], r["expiry"])].append(r)
+        names = sorted({r["ticker"] for r in q})
+        I = SE.load_inputs(conn, names)                      # A271: the same inputs on every row
+        ivs = [v["iv_pctile"] for v in I.values() if v.get("iv_pctile") is not None]
+        ctx = {"iv_median": float(np.median(ivs)) if ivs else None}
+        ladder = SE.ladder_picks(conn)                       # S088 put ladder (1w) — the sold-put engine
         cands = []
-        for t in sorted({r["ticker"] for r in q}):
+        for t in names:
             exps = sorted(e for (tt, e) in chains if tt == t)
             if len(exps) < 1 or t not in rv:
                 continue
-            for c in build_all(t, exps, chains, today, held):
-                c.update(evaluate(c, rv[t], today, hist[t]))
+            for c in build_all(t, exps, chains, as_of, held, ladder.get(t), I.get(t, {})):
+                c.update(evaluate(c, rv[t], as_of, hist[t]))
+                if c.get("s088"):   # one engine for sold puts: show the ladder model's numbers; keep the board's own as ev_board
+                    c["ev_board"], c["p_board"] = c["ev_rv_cap"], c["p_rv"]
+                    c["ev_rv_cap"] = c["s088"]["expPnlBpWk"] / 1e4
+                    c["ev_rv"] = round(c["ev_rv_cap"] * c["capital"], 3)
+                    c["p_rv"] = c["s088"]["pKept"]
                 c["earnings"] = str(er[t]) if t in er and er[t] <= c["expiry_max"] else None
                 c["edge_q"] = edge.get(t)
-                c["fit"], c["fit_why"] = regime_fit(c, rv[t], trend.get(t), edge.get(t))
+                c["inputs"] = I.get(t, {})
+                desc = regime_fit(c, rv[t], trend.get(t), edge.get(t))[1]
+                if SE.strategy_of(c["structure"]) == "none":
+                    c["fit"], c["fit_why"] = regime_fit(c, rv[t], trend.get(t), edge.get(t))
+                else:
+                    ok, why = SE.fit(c, I, ctx)
+                    c["fit"], c["fit_why"] = ok, desc + ("" if ok else " · " + "; ".join(why))
                 cands.append(c)
+        for sid in {c["structure"] for c in cands}:       # rank score per structure (rules file); CSP = S088 expected pnl
+            cs = [c for c in cands if c["structure"] == sid]
+            stg = SE.strategy_of(sid)
+            k = SE.rank_key(cs, stg) if sid in ("long_call", "bull_call_spread") else {}
+            for c in cs:
+                c["_score"] = k.get(id(c), c["ev_rv_cap"])
         board = pick_board(cands, trim)
         conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.structure_rank_daily (
           as_of date NOT NULL, structure text NOT NULL, rank int NOT NULL, ticker text NOT NULL, payload jsonb NOT NULL,
           PRIMARY KEY (as_of, structure, rank))""")
         conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.structure_catalog (
           id text PRIMARY KEY, name text, family text, description text, regime text, evidence text, evidence_note text, updated_at timestamptz DEFAULT now())""")
-        conn.execute("DELETE FROM watchlist_sync.structure_rank_daily WHERE as_of = CURRENT_DATE")
+        conn.execute("DELETE FROM watchlist_sync.structure_rank_daily WHERE as_of = %s", (as_of,))
         for sid, (name, fam, desc, reg, ev, note) in CATALOG.items():
             conn.execute("""INSERT INTO watchlist_sync.structure_catalog (id, name, family, description, regime, evidence, evidence_note)
                             VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, family = EXCLUDED.family,
@@ -172,14 +210,21 @@ def main():
                             evidence_note = EXCLUDED.evidence_note, updated_at = now()""", (sid, name, fam, desc, reg, ev, note))
         for sid, lst in board.items():
             for i, c in enumerate(lst, 1):
-                conn.execute("INSERT INTO watchlist_sync.structure_rank_daily VALUES (CURRENT_DATE, %s, %s, %s, %s)",
-                             (sid, i, c["ticker"], json.dumps(public(c), default=str)))
-        n_log = 0 if "--no-log" in sys.argv else log_ledger(conn, board, today)
+                conn.execute("INSERT INTO watchlist_sync.structure_rank_daily VALUES (%s, %s, %s, %s, %s)",
+                             (as_of, sid, i, c["ticker"], json.dumps(public(c), default=str)))
+        n_log = 0 if "--no-log" in sys.argv else log_ledger(conn, board, as_of)
         conn.commit()
     shown = sum(len(v) for v in board.values())
-    print(f"structures: {len(cands)} priced · {shown} shown across {sum(1 for v in board.values() if v)} structures · {n_log} ledger rows")
+    n_pri = sum(1 for v in board.values() for c in v if c.get("tier") == "primary")
+    n_more = sum(1 for v in board.values() for c in v if c.get("tier") == "more")
+    n_margin = sum(1 for v in board.values() for c in v if c.get("tier") == "margin")
+    n_study = sum(1 for v in board.values() for c in v if c.get("tier") == "study")
+    print(f"structures: {len(cands)} priced · {shown} shown (primary {n_pri} · more {n_more} · margin {n_margin} · study {n_study}) · {n_log} ledger rows")
     for sid, lst in board.items():
-        print(f"  {sid:17s} " + ", ".join(f"{c['ticker']} ev/cap {100 * c['ev_rv_cap']:+.1f}% p {c['p_mkt']:.0%}" for c in lst))
+        if not lst:
+            continue
+        print(f"  {sid:17s} " + ", ".join(
+            f"{c['ticker']}[{c.get('tier', '?')[:1]}] {100 * c['ev_rv_cap']:+.1f}%" for c in lst))
 
 
 def rows_closes(conn):
@@ -218,7 +263,7 @@ def _leg(r, qty, front):
             "bid": float(r["bid"]), "ask": float(r["ask"]), "front": front}
 
 
-def build_all(t, exps, chains, today, held):
+def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
     wk = next((e for e in exps if 5 <= (e - today).days <= 14), None)
     mo = next((e for e in exps if 15 <= (e - today).days <= 52), None)  # A193: 45 left calendar holes
     out = []
@@ -240,7 +285,17 @@ def build_all(t, exps, chains, today, held):
         L = lambda side, d, q, **kw: (lambda r: _leg(r, q, e) if r else None)(_pick(ch, side, d, **kw))  # noqa: E731
         A = lambda side, q: (lambda r: _leg(r, q, e) if r else None)(_atm(ch, side))  # noqa: E731
         if tag == "weekly":
-            sp = L("put", 0.20, -1); add("csp", [sp])
+            # A271: CSP strike = the S088 put-ladder pick at the rules' band (default 0.08–0.10Δ; credit < 20 → one band farther),
+            # priced on this real chain; every band's pick rides along as `ladder`. No ladder pick → no CSP for the name.
+            band = SE.put_band((inputs or {}).get("credit"))
+            lp = (ladder or {}).get(band)
+            lo, hi = SE.band_bounds(band)
+            puts = [r for r in ch if r["side"] == "put" and r["iv"] and r["delta"] is not None and lo <= abs(r["delta"]) < hi]
+            # listed put inside the band: nearest the ladder's strike, else nearest the band middle (no ladder model → board EV)
+            r = min(puts, key=lambda x: abs(float(x["strike"]) - lp["strike"]) if lp else abs(abs(x["delta"]) - (lo + hi) / 2)) if puts else None
+            if r:
+                add("csp", [_leg(r, -1, e)], {"s088": lp, "band": band, "restruck": band != SE.put_band(None), "ladder": ladder,
+                                              "ladder_model": bool(lp)})
             if t in held:
                 add("covered_call", [L("call", 0.20, -1)])
             s25p, s25c = L("put", 0.25, -1), L("call", 0.25, -1)
@@ -327,7 +382,7 @@ def regime_fit(c, rv20, tech, q):
     up = tech and tech["m50"] is not None and tech["m50"] > 0
     if fam == "short_premium":
         ok = ivrv >= 1.15 and (q is None or q >= 4)   # A196: Q1–Q3 lose after fills
-        return ok, f"IV/RV {ivrv:.2f}" + (f", put edge Q{q}" if q else "")
+        return ok, f"IV/RV {ivrv:.2f}"  # edge quintile ranks CSPs; don't paint "Q5" on every why cell
     if fam == "long_premium":
         ok = ivrv <= 0.95
         return ok, f"IV/RV {ivrv:.2f} ({'cheap' if ok else 'not cheap'})"
@@ -340,24 +395,97 @@ def regime_fit(c, rv20, tech, q):
     return True, "hedge on a holding"
 
 
+def _clean(c, trim) -> bool:
+    if c["structure"] in UNRANKED:
+        return False
+    # CSP: the S088 ladder model (walk-forward, real-fill haircut) decides; the board's own EV undervalues far puts (A271)
+    ev_ok = c["ev_rv"] > 0
+    if c["earnings"] or c["capital"] <= 0 or not math.isfinite(c["ev_rv_cap"]) or not ev_ok:
+        return False
+    if c["structure"] in BULLISH and c["ticker"] in trim:
+        return False
+    return True
+
+
+def _soft_fit(c) -> bool:
+    """Quality floor for tier=more — real IV/RV / edge, looser than regime_fit."""
+    fam = CATALOG[c["structure"]][1]
+    ivrv = c.get("iv_rv") or 0.0
+    q = c.get("edge_q")
+    if fam == "short_premium":
+        if ivrv < MORE_IVRV_SELL:
+            return False
+        if c["structure"] == "csp" and q is not None and q < MORE_EDGE_Q:
+            return False
+        return True
+    if fam == "long_premium":
+        return ivrv <= MORE_IVRV_BUY
+    if fam == "directional":
+        return ivrv <= 1.35
+    if fam == "time":
+        return ivrv >= 0.95
+    return True
+
+
+def _n_tier(board, sid, tier: str) -> int:
+    return sum(1 for x in board[sid] if x.get("tier") == tier)
+
+
 def pick_board(cands, trim):
-    # evidence "fail" (S020 / S061 on your own trades) → described, never ranked as a recommendation
-    ok = [c for c in cands if c["structure"] not in UNRANKED and CATALOG[c["structure"]][4] != "fail" and not c["earnings"] and not (c["structure"] in BULLISH and c["ticker"] in trim)
-          and c["capital"] > 0 and math.isfinite(c["ev_rv_cap"])]
-    # CSPs use the tested ranking (S059 put edge quintile) first; untested structures use EV from the stock's own history
-    ok.sort(key=lambda c: (not c["fit"], -(c["edge_q"] or 0) if c["structure"] == "csp" else 0, -c["ev_rv_cap"]))
-    board, used = {sid: [] for sid in CATALOG}, set()
-    # best structure per ticker wins; a ticker shows once (Jamie: lists were confusing)
-    for c in ok:
-        if c["ticker"] in used or len(board[c["structure"]]) >= TOP or not c["fit"] or c["ev_rv"] <= 0:
+    """Primary → more → margin (strangle/straddle) → study (per fail structure). One ticker once."""
+    board: dict[str, list] = {sid: [] for sid in CATALOG}
+    used: set[str] = set()
+
+    # —— primary: pass/untested, strict fit (not margin alts)
+    primary_pool = [c for c in cands if _clean(c, trim) and c["structure"] not in MARGIN
+                    and CATALOG[c["structure"]][4] in ("pass", "untested")]
+    # CSP claims a ticker before other structures (S076 return÷risk 0.15 vs jade 0.11; its EV comes from the put ladder, a different model)
+    primary_pool.sort(key=lambda c: (not c["fit"], c["structure"] != "csp", -(c["edge_q"] or 0) if c["structure"] == "csp" else 0, -c.get("_score", c["ev_rv_cap"])))
+    for c in primary_pool:
+        if not c["fit"] or c["ticker"] in used or _n_tier(board, c["structure"], "primary") >= TOP:
             continue
-        board[c["structure"]].append(c)
+        board[c["structure"]].append({**c, "tier": "primary"})
         used.add(c["ticker"])
+
+    # —— more: soft gate on leftover tickers, same pass/untested structures
+    more_pool = [c for c in primary_pool if c["ticker"] not in used and _soft_fit(c)]
+    more_pool.sort(key=lambda c: (-(c["edge_q"] or 0) if c["structure"] == "csp" else 0, -c.get("_score", c["ev_rv_cap"])))
+    for c in more_pool:
+        if c["ticker"] in used or _n_tier(board, c["structure"], "more") >= TOP_MORE:
+            continue
+        board[c["structure"]].append({**c, "tier": "more", "fit_why": (c.get("fit_why") or "") + " · soft gate"})
+        used.add(c["ticker"])
+
+    # —— margin: short strangle/straddle (S076 pass, below CSP on ret÷risk)
+    margin_pool = [c for c in cands if _clean(c, trim) and c["structure"] in MARGIN and (c["fit"] or _soft_fit(c))]
+    margin_pool.sort(key=lambda c: -c["ev_rv_cap"])
+    for c in margin_pool:
+        if c["ticker"] in used or _n_tier(board, c["structure"], "margin") >= TOP_MARGIN:
+            continue
+        board[c["structure"]].append({**c, "tier": "margin", "fit_why": (c.get("fit_why") or "") + " · margin (below CSP ret÷risk)"})
+        used.add(c["ticker"])
+
+    # —— study: each fail structure gets its own top names (may reuse tickers already on primary —
+    #    so the lab shows many structure types, not only CSP/jade leftovers)
+    for sid, meta in CATALOG.items():
+        if meta[4] != "fail" or sid in UNRANKED:
+            continue
+        pool = [c for c in cands if c["structure"] == sid and _clean(c, trim)]
+        pool.sort(key=lambda c: (c["ticker"] in used, -c["ev_rv_cap"]))
+        seen_here: set[str] = set()
+        for c in pool:
+            if _n_tier(board, sid, "study") >= TOP_STUDY:
+                break
+            if c["ticker"] in seen_here:
+                continue
+            board[sid].append({**c, "tier": "study", "fit_why": (c.get("fit_why") or "priced") + " · study only (S076 fail)"})
+            seen_here.add(c["ticker"])
+
     return board
 
 
 def public(c):
-    return {k: v for k, v in c.items() if k not in ("fit",)} | {"fit": c["fit"],
+    return {k: v for k, v in c.items() if k not in ("fit",)} | {"fit": c["fit"], "tier": c.get("tier") or "primary",
             "legs": [{k: lg[k] for k in ("side", "strike", "expiry", "qty", "px", "bid", "ask", "iv")} for lg in c["legs"]]}
 
 
@@ -370,9 +498,11 @@ def log_ledger(conn, board, today):
     n = 0
     for sid, lst in board.items():
         for c in lst:
+            if c.get("tier", "primary") != "primary":
+                continue  # grade only strict-fit primary picks
             qid = f"struct:{sid}:{c['ticker']}:{c['expiry']}:{today}"
             meta = json.dumps({"structure": sid, "legs": public(c)["legs"], "credit": c["credit"], "spot": c["spot"],
-                               "from": str(today), "stock": bool(c.get("stock"))}, default=str)
+                               "from": str(today), "stock": bool(c.get("stock")), "tier": "primary"}, default=str)
             for fc, p in (("market_iv", c["p_mkt"]), ("realized_vol", c["p_rv"])):
                 conn.execute(UPSERT, (qid, f"Will the {CATALOG[sid][0]} on {c['ticker']} (exp {c['expiry']}) make money at expiry?",
                                       "sim_structure", c["ticker"], fc, round(p, 4), datetime.now(), today, c["expiry"], meta))
