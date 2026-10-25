@@ -123,6 +123,13 @@ WRDS Postgres  --(narrow SQL)-->  research/wrds sync_*  -->  local Postgres sche
 
 Consumers: **offline notebooks / calibration scripts only.** UI may later show research chips only if license review says OK — default is no UI.
 
+
+## CBOE indexes (A265)
+```bash
+cd research/wrds && .venv/bin/python sync_cboe.py   # VIX, VIX9D, VIX3M, VVIX, SKEW → wrds_research.cboe_daily
+```
+CBOE public CDN CSVs (WRDS `cboe.cboe` is VIX/VXN/VXD only; LSEG blocked at monthly datapoint guard). Research-only — never FIELD_DEFS.
+
 ## Apply schema once
 
 ```bash

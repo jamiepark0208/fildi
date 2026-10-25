@@ -108,3 +108,18 @@ CREATE TABLE IF NOT EXISTS wrds_research.crsp_dsf (
 
 CREATE INDEX IF NOT EXISTS idx_wrds_crsp_dsf_ticker_date
   ON wrds_research.crsp_dsf (ticker, date DESC);
+
+-- A265: CBOE vol indexes (VIX, VIX9D, VIX3M, VVIX, SKEW) — research only.
+-- Primary feed: CBOE public daily CSVs (WRDS cboe.cboe has VIX/VXN/VXD only;
+-- LSEG get_history blocked when monthly datapoint budget is exhausted).
+CREATE TABLE IF NOT EXISTS wrds_research.cboe_daily (
+  date          date NOT NULL,
+  index         text NOT NULL,
+  close         double precision NOT NULL,
+  source        text NOT NULL DEFAULT 'cboe_cdn',
+  fetched_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (date, index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wrds_cboe_daily_index_date
+  ON wrds_research.cboe_daily (index, date DESC);

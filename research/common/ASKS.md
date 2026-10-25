@@ -239,7 +239,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A262](asks/A262.md) | 2026-10-24 | Jamie → Claude → Cursor | [quant] Test every free outside signal source vs Fildi (OSAP, JKP, option signals, StarMine extras, Finnhub, own-data flow, qlib, tastytrade, movers, QC/Quantpedia) — S089–S098 | planned |
 | [A263](asks/A263.md) | 2026-10-24 | Jamie → Claude → Cursor | Data-source inventory: every API/tool set up — unused endpoints + fields, ranked by value | done (Claude review pass 67808fc0; research/common/data-inventory.md) |
 | [A264](asks/A264.md) | 2026-10-24 | Muse → Claude → Cursor | Data Sources panel: every source, what it feeds, calls vs limit, unused-but-available (A228 W8) | planned |
-| [A265](asks/A265.md) | 2026-10-24 | Muse → Claude → Cursor | CBOE index history pull: VIX, VIX9D, VIX3M, VVIX, SKEW (A228 W2) | planned |
+| [A265](asks/A265.md) | 2026-10-24 | Muse → Claude → Cursor | CBOE index history pull: VIX, VIX9D, VIX3M, VVIX, SKEW (A228 W2) | done |
 | [A266](asks/A266.md) | 2026-10-24 | Jamie → Claude → Cursor | Store every vendor response we fetch (vendor_raw) + map the dropped Finnhub/FMP/FactSet fields; display, no score change | done (Claude review pass e283c734; finding 1 dividend hunk pending) |
 | [A267](asks/A267.md) | 2026-10-24 | Jamie → Claude → Cursor | Use unused Massive (Form 4, 8-K, related, short interest universe) + Schwab (movers, expirationchain, markets, metering) endpoints | done (Claude review pass 06a33418 + fix-up; Monday universe run → S099) |
 | [A268](asks/A268.md) | 2026-10-24 | Jamie → Claude → Cursor | One-command signal test (lab.py signal / s045 signal on cached panels) — seconds per idea | done (Claude review pass 10-24) |
