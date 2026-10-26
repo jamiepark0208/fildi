@@ -45,10 +45,16 @@ def history(ld: Any, conn, root: str, expiry: date, cp: str, strike: float) -> l
                            "FROM optlab.lseg_opt_fetched WHERE ric = %s", (ric,)).fetchone()
         # live contracts: hits refresh once a day; a miss (strike not listed) re-checks weekly, not daily (10-21: each is a request)
         if got is None or (expiry >= date.today() and (got[2] if got[0] == 0 else got[1])):
+            if ld is None:
+                raise RuntimeError(f"Option cache miss: {ric}; cache-only mode makes no requests")
             try:
                 h = ld.get_history(universe=ric, fields=FIELDS, interval="daily",
                                    start=str(expiry - timedelta(days=400)), end=str(expiry))
-            except Exception:  # "universe is not found" → contract never existed under this RIC
+            except Exception as exc:
+                # Only a confirmed invalid universe is a cacheable miss. Budget,
+                # entitlement and transport errors must not poison historical coverage.
+                if "universe is not found" not in str(exc).lower():
+                    raise
                 h = None
             rows = []
             if h is not None and len(h):

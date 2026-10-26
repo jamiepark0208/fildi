@@ -1,0 +1,72 @@
+(node:49696) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ assessOptionChainQuoteDq
+  ✔ flags Schwab zero live bids as DQ fail and names ask-only strikes (0.625292ms)
+  ✔ empty OTM band includes spot strike range hint (0.121041ms)
+  ✔ warns on Yahoo fallback even with bids (0.047375ms)
+  ✔ ok for Schwab with live bids (0.037666ms)
+✔ assessOptionChainQuoteDq (1.238667ms)
+(node:49697) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ A191 ivRelative / volOfVol
+  ✔ ivRelative uses universe IV/RV percentile when provided (0.344875ms)
+  ✔ volOfVol passes through percentile (0.053208ms)
+  ✔ computeOptionScore includes volOfVol when weighted (0.296125ms)
+✔ A191 ivRelative / volOfVol (1.179416ms)
+(node:49698) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ clampGrowth
+  ✔ caps extreme positive and negative growth (0.230333ms)
+✔ clampGrowth (0.568667ms)
+▶ expectedEarningsYield
+  ✔ prefers sane forward PE inverse (0.104125ms)
+  ✔ rejects garbage ADR forward PE (<5) and falls back to 1/PE × growth (0.052208ms)
+  ✔ nulls absurd NI/mcap when PE missing (0.049083ms)
+✔ expectedEarningsYield (0.288583ms)
+▶ trailingEarningsYield / sanitizedFcfYield
+  ✔ uses 1/PE when available and nulls absurd FCF yields (0.395292ms)
+✔ trailingEarningsYield / sanitizedFcfYield (0.432458ms)
+▶ netCashToAssets
+  ✔ computes (cash-debt)/assets (0.052833ms)
+✔ netCashToAssets (0.099167ms)
+▶ isSpeculativeThin
+  ✔ flags speculative modes and micro revenue (0.055209ms)
+✔ isSpeculativeThin (0.096208ms)
+▶ isSoftPeerSet
+  ✔ flags chinese and small peers (0.07675ms)
+✔ isSoftPeerSet (0.102417ms)
+▶ blendThree
+  ✔ renormalizes when one leg missing (0.070333ms)
+✔ blendThree (0.098084ms)
+▶ applyPostScoreAdjustments
+  ✔ applies China mult and safety prior (0.13425ms)
+  ✔ caps speculative names (0.041291ms)
+  ✔ unranks extremely thin safety (0.021583ms)
+✔ applyPostScoreAdjustments (0.2385ms)
+▶ PEG floor constant
+  ✔ is set above absurd near-zero PEGs (0.040792ms)
+✔ PEG floor constant (0.056541ms)
+(node:49699) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ scoreShadowOnChosenStrike
+  ✔ scores a live-bid put without changing the strike (0.67325ms)
+  ✔ returns null when bid is not live (0.0525ms)
+✔ scoreShadowOnChosenStrike (1.178583ms)
+(node:49700) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ alignReturns (A257)
+  ✔ pairs only shared dates (no tail-slice mismatch) (0.266042ms)
+  ✔ returns null corr when under MIN_SHARED_RETURNS (0.071125ms)
+✔ alignReturns (A257) (0.655542ms)
+▶ signed VaR weights (A257)
+  ✔ short-stock weight lowers variance vs the same long weight (1.206625ms)
+  ✔ skips a 9-close name and still returns a card (0.249042ms)
+✔ signed VaR weights (A257) (1.529875ms)
+ℹ tests 26
+ℹ suites 14
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 326.109583

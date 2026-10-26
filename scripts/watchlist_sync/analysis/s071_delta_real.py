@@ -11,10 +11,15 @@ Pre-registered: for each Δ bucket, mean pnl, week-cluster Sharpe, ITM rate, wor
 largest bucket whose Sharpe is within 0.03 of the best in BOTH halves; target = the best-Sharpe bucket (ties → farther OTM).
 
     cd research/lseg && .venv/bin/python ../../scripts/watchlist_sync/analysis/s071_delta_real.py [--tickers=MU,SHOP]
+    # --cache-only refuses missing quotes; --from-trades=PATH replays without DB/vendor access.
+    # --output=PATH isolates reports; smoke/replay default to separate files. Budget stops do not publish a final report.
 """
 from __future__ import annotations
 
 import math
+import json
+import hashlib
+from contextlib import nullcontext
 import random
 import statistics
 import sys
@@ -95,29 +100,39 @@ def stats(xs):
                 itm=sum(x["itm"] for x in xs) / len(xs), w5=statistics.mean(w5))
 
 
-def main():
-    only = next((a.split("=", 1)[1].split(",") for a in sys.argv if a.startswith("--tickers=")), None)
+def collect(only, cache_only=False):
+    rng.seed(71)
     conn = connect()
-    OP.ensure(conn)
-    bars, rep = load(conn, only)
-    allx = []
-    with lseg_session() as ld:
-        order = sorted(bars)
-        rng.shuffle(order)
-        for t in order:
-            if ld.requests > REQ_CAP or ld.remaining < 200:  # 200 = one name's pulls; stop cleanly before the per-request guard
-                print(f"stopped: {ld.requests} LSEG requests (cap {REQ_CAP}); re-run tomorrow continues from cache")
-                break
-            rows, rd = bars[t], [d for d, _ in rep.get(t, [])]
-            ok = [i for i, r in enumerate(rows) if r[0] >= START and r[0].weekday() == 0 and all(abs((r[0] - x).days) > 10 for x in rd)]
-            for i in rng.sample(ok, min(NWEEK, len(ok))):
-                wk = week_of(rows, rows[i][0])
-                if wk:
-                    allx += week_trades(ld, conn, t, rows, *wk)
-            print(f"{t}: {len(allx)} puts ({ld.requests} req)", flush=True)
-    if only:
-        for x in allx[:12]:
-            print(f"{x['t']} {x['d']}→{x['e']} K {x['K']:g} Δ {x['dl']:.2f} pnl {x['pnl']:+.2%} itm {int(x['itm'])}")
+    try:
+        if not cache_only:
+            OP.ensure(conn)
+        bars, rep = load(conn, only)
+        allx = []
+        with (nullcontext(None) if cache_only else lseg_session()) as ld:
+            if ld is not None:
+                ld.limit = min(ld.limit if ld.limit is not None else REQ_CAP, REQ_CAP)  # hard cap includes retries and strike guesses
+            order = sorted(bars)
+            rng.shuffle(order)
+            for t in order:
+                if ld is not None and (ld.requests >= REQ_CAP or ld.remaining < 200):  # 200 = one name's pulls; stop cleanly before the per-request guard
+                    raise RuntimeError("S071 incomplete: request budget exhausted; cached quotes retained, no final report published")
+                rows, rd = bars[t], [d for d, _ in rep.get(t, [])]
+                ok = [i for i, r in enumerate(rows) if r[0] >= START and r[0].weekday() == 0 and all(abs((r[0] - x).days) > 10 for x in rd)]
+                for i in rng.sample(ok, min(NWEEK, len(ok))):
+                    wk = week_of(rows, rows[i][0])
+                    if wk:
+                        allx += week_trades(ld, conn, t, rows, *wk)
+                print(f"{t}: {len(allx)} puts ({ld.requests if ld is not None else 0} req)", flush=True)
+        if only:
+            for x in allx[:12]:
+                print(f"{x['t']} {x['d']}→{x['e']} K {x['K']:g} Δ {x['dl']:.2f} pnl {x['pnl']:+.2%} itm {int(x['itm'])}")
+        return allx
+    finally:
+        conn.close()
+
+
+def report(allx, only=None, output=OUT):
+    rng.seed(71)  # inference reproducible independently of acquisition/cache path
     L = ["# S071 — weekly short puts by real entry Δ (market-wide, real LSEG quotes, no earnings weeks)", "",
          f"{'SMOKE ' if only else ''}{len(allx)} puts, {len({(x['t'], x['d']) for x in allx})} name-weeks. Fill bid + 23 % of spread, "
          "exit intrinsic at Friday close, pnl per $ collateral. Sharpe = mean / sd of weekly averages.", "",
@@ -161,7 +176,9 @@ def main():
             mean = lambda s: statistics.mean([v for k in s for v in wk[k]])
             obs = mean(ks)
             bs = [mean([rng.choice(ks) for _ in ks]) for _ in range(1000)]
-            L.append(f"| {lab} | {b[0]:.3f}–{b[1]:.3f} | {n} | {obs * 1e4:+.1f} | {obs / statistics.stdev(bs):.1f} |")
+            se = statistics.stdev(bs)
+            paired_t = obs / se if se else float("nan")
+            L.append(f"| {lab} | {b[0]:.3f}–{b[1]:.3f} | {n} | {obs * 1e4:+.1f} | {paired_t:.1f} |")
     # income floor on real quotes (10-20 eve, Jamie: "target 0.75–1 %/wk?"): premium at the real fill ÷ strike, Mon→Fri
     L += ["", "## Income floor on real quotes: puts with fill ≥ floor vs below (all Δ buckets)", "",
           "| floor %/wk | kept n | kept pnl bp | below pnl bp | diff (t) | < 2024-07 | ≥ 2024-07 | kept worst 5 % |", "|---|---|---|---|---|---|---|---|"]
@@ -176,7 +193,8 @@ def main():
             return float("nan"), float("nan")
         f = lambda s: statistics.mean([v for w in s for v in wk[w][0]]) - statistics.mean([v for w in s for v in wk[w][1]])
         o = f(ks)
-        return o, o / statistics.stdev([f([rng.choice(ks) for _ in ks]) for _ in range(500)])
+        se = statistics.stdev([f([rng.choice(ks) for _ in ks]) for _ in range(500)])
+        return o, o / se if se else float("nan")
     for fl in (0.003, 0.005, 0.0075, 0.01):
         k, r = [x for x in allx if x["prem"] >= fl], [x for x in allx if x["prem"] < fl]
         if len(k) < 30 or len(r) < 30:
@@ -197,9 +215,39 @@ def main():
         med = lambda f: statistics.median(f(x) for x in xs)
         L.append(f"| {lo:.0%}–{hi:.0%} | {len(xs)} | {med(lambda x: x['prem'] / x['m252']):.2f} | {med(lambda x: x['mid'] / x['m252']):.2f} | "
                  f"{med(lambda x: x['mid'] / x['m365']):.2f} | {statistics.mean(x['prem'] for x in xs):.2%} | {statistics.mean(x['m252'] for x in xs):.2%} |")
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("\n".join(L) + "\n")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(L) + "\n")
     print("\n".join(L))
+
+
+def save_trades(path, trades, only):
+    packet = {"schema": 1, "study": "S071", "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              "tickers": only, "trades": trades}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(packet, default=str, allow_nan=False) + "\n")
+
+
+def read_trades(path):
+    packet = json.loads(path.read_text())
+    if packet.get("schema") != 1 or packet.get("study") != "S071":
+        raise ValueError("Expected S071 trade ledger schema 1")
+    for row in packet["trades"]:
+        for key in ("d", "e"):
+            row[key] = date.fromisoformat(row[key])
+    return packet["trades"], packet["tickers"]
+
+
+def main():
+    only = next((a.split("=", 1)[1].split(",") for a in sys.argv if a.startswith("--tickers=")), None)
+    replay = next((Path(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--from-trades=")), None)
+    output = next((Path(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--output=")),
+                  OUT.with_stem(OUT.stem + ("_replay" if replay else "_smoke" if only else "")))
+    if replay:
+        trades, only = read_trades(replay)  # no DB connection or vendor session
+    else:
+        trades = collect(only, cache_only="--cache-only" in sys.argv)
+        save_trades(output.with_suffix(".json"), trades, only)
+    report(trades, only, output)
 
 
 if __name__ == "__main__":

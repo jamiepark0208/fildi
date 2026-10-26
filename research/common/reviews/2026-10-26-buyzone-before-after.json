@@ -1,0 +1,17 @@
+{
+  "names": [
+    "AAPL",
+    "AMD",
+    "CAVA",
+    "MU",
+    "SHOP"
+  ],
+  "baseline_trades": 660,
+  "corrected_trades": 660,
+  "removed": 0,
+  "added": 0,
+  "matched": 660,
+  "matched_changed": 36,
+  "source_sha256": "f67087dd2411269be2eb111ce96a3e991df2b724b438e080c44b4eb61272297a",
+  "scope": "Five-name modeled-fill mechanics smoke on identical current cached inputs; no vendor calls or economic validation."
+}

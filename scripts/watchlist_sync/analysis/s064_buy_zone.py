@@ -32,11 +32,13 @@ from bisect import bisect_right
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
+from functools import lru_cache
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 from build_plan import connect  # noqa: E402
+from weekly_put_calendar import weekly_sessions  # noqa: E402
 from s045_put_retest import bs_put, volume_nodes  # noqa: E402
 from s049_panic_puts import FUNDS, put_delta, split_factor, third_friday  # noqa: E402
 
@@ -138,7 +140,8 @@ def anchors(rows, i, sm, t, d, T):
 
 def pick_expiry(d):
     exps = [third_friday(d.year + (d.month - 1 + k) // 12, (d.month - 1 + k) % 12 + 1) for k in range(3)]
-    exps = [e for e in exps if 28 <= (e - d).days <= 50]
+    exps = [max((s for s in weekly_sessions(e) if s <= e), default=None) for e in exps]
+    exps = [e for e in exps if e and 28 <= (e - d).days <= 50]
     return min(exps, key=lambda e: abs((e - d).days - 37)) if exps else None
 
 
@@ -158,6 +161,8 @@ def sell_put(ld, conn, t, d, S_tr, iv, target_tr, e):
             return k, next(r for lim, r in BS_RATIO if -dl < lim) * bs_put(S_tr, k, v, T), None
         if dl >= -0.40:
             for K in (k, math.floor(k / 2.5) * 2.5) if step == 1.0 and k % 2.5 else (k,):
+                if not -0.40 <= put_delta(S_tr, K, v, T) <= -0.10:
+                    continue
                 hist = OP.history(ld, conn, t, e, "P", K)
                 if hist:
                     day = next((r for r in hist if r[0] == d), None)
@@ -168,15 +173,32 @@ def sell_put(ld, conn, t, d, S_tr, iv, target_tr, e):
     return None
 
 
+@lru_cache(None)
+def holding_dates(d):
+    """Entry and 63 following exchange sessions; unsupported calendar fails closed."""
+    days = []
+    cursor = d
+    while len(days) < 64:
+        sessions = weekly_sessions(cursor)
+        if not sessions:
+            return ()
+        days.extend(s for s in sessions if s >= cursor)
+        cursor = cursor + timedelta(days=7 - cursor.weekday())
+    return tuple(days[:64])
+
+
 def trade(ld, conn, t, rows, i, gate, sm, rf=None):
     d, S, _, _, _, iv = rows[i]
     e = pick_expiry(d)
     if not e or not iv or i + 63 >= len(rows):
         return []
+    expected = holding_dates(d)
+    if not expected or tuple(r[0] for r in rows[i:i + 64]) != expected or e not in expected:
+        return []  # missing sessions must not shift expiry or the holding horizon
     fd = split_factor(conn, t, d)
     if split_factor(conn, t, rows[i + 63][0]) != fd:
         return []  # split inside the window: contract terms change
-    iE = max(j for j in range(i, i + 64) if rows[j][0] <= e)
+    iE = i + expected.index(e)
     S63 = rows[i + 63][1]
     buy_now = S63 / S - 1
     r_d = (asof(rf, d) or 0.0) / 252 if rf else 0.0  # T-bill per session

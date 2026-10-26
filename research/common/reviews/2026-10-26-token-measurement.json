@@ -1,0 +1,11 @@
+{
+  "test_exit": 0,
+  "encoding": "o200k_base",
+  "full_output_tokens": 1024,
+  "compact_output_tokens": 193,
+  "reduction_tokens": 831,
+  "reduction_percent": 81.15,
+  "full_log": "research/common/reviews/2026-10-26-token-full.txt",
+  "full_sha256": "ccebe34849a42aa21f21b323bf1e9cccfb4aecdaa1db8502fcf8dc8f510945a5",
+  "scope": "Same real test execution; tokenizer-measured tool-output reduction only, NOT measured Astra billing, total task tokens or subscription savings."
+}

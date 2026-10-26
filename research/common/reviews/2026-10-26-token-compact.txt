@@ -1,0 +1,12 @@
+exit 0 · 72 lines · 3562 bytes · timeout=False · declared inputs unchanged=False
+4:   ✔ flags Schwab zero live bids as DQ fail and names ask-only strikes (0.625292ms)
+68: ℹ fail 0
+65: ℹ tests 26
+66: ℹ suites 14
+67: ℹ pass 26
+69: ℹ cancelled 0
+70: ℹ skipped 0
+71: ℹ todo 0
+72: ℹ duration_ms 326.109583
+Full log: /var/folders/9y/xg048s755bg0mdvwkxccdss80000gn/T/fildi-check-j5hnp3cg/output.log
+Receipt: /var/folders/9y/xg048s755bg0mdvwkxccdss80000gn/T/fildi-check-j5hnp3cg/receipt.json
