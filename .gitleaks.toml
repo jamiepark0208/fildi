@@ -12,6 +12,9 @@ regexes = [
   '''priceVsMa20Atr''',
   '''priceVsMa50Atr''',
   '''finnhubLongTermDebtToEquity''',
+  # A269: finnhub-access-token FP — import line pairs mapFinnhubDropped + vendorRawFromHttpUrl
+  # (function names, not credentials). Either alone is fine; the pair trips the rule.
+  '''mapFinnhubDropped''',
   # app_config keys (earnings-history.ts, ASKS A242) — not API credentials
   '''a240_missing_upcoming_empty_attempts''',
   # CLAUDE.md factor names (gitleaks generic-api-key false positive on "Key replacements: …")
