@@ -1,5 +1,7 @@
 # Fildi Google server: Jamie steps (A241 P1)
 
+> **2026-10-26 — STOPPED.** Jamie closed A241. VM `fildi-public-1` is TERMINATED. Agents: do not provision, start, or recon. See `research/common/asks/A241.md`.
+
 1. Card verified? Open https://console.cloud.google.com, click **>_** (top right) = Cloud Shell.
 2. In Cloud Shell: **⋮ → Upload**, pick `cloudshell-setup.sh`.
 3. Type: `bash cloudshell-setup.sh`  (if it asks to authorize, click Authorize).

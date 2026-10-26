@@ -1,19 +1,17 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-24 (Structures UI: themes + nest Long options)
+**Last updated:** 2026-10-26 (A241 GCP closed)
 
 ## Standing
-Jamie already approved A241 shadow test. Cursor ships next slices without asking. Only stop for money/account/trade or final cutover “go”.
+- **A241 GCP public shadow: STOPPED.** Do not resume, recon, provision, or cut over unless Jamie explicitly unparks.
+- No auto-chain on parked/stopped infra rows.
 
 ## Live
-- A241 **parked** 10-26 (Jamie): public-tick timer off; no recon until unpark
-- VM timer `fildi-public-tick.timer` every 30m — Yahoo prices for watchlist
-- Recon: `node scripts/parity/vm_vs_mac.mjs` → FINDINGS → fix → retest
-- Mac: `FILDI_HOST_ROLE` unset → unchanged
-- Rankings › Structures: meta portals into tab row; structures.py uses latest skew (not skip); skew+board refreshed 10/24
+- A241 closed 10-26: VM `fildi-public-1` **TERMINATED**; `fildi-public-tick.timer` disabled earlier; no claim file.
+- Mac unchanged (`FILDI_HOST_ROLE` unset). Public Fildi for other users = **new ask later**, not A241.
+- Rankings › Structures work from prior sessions remains unrelated.
 
 ## Next (auto)
-1. Daily recon after market sessions; triage FINDINGS
-2. Thicken public jobs (option scores / snapshot) if e2-micro holds
-3. Mac-off overnight drill
+1. Normal Muse→Cursor planned queue only (not A241)
+2. Ignore GCP / parity / public-tick unless Jamie unparks A241
