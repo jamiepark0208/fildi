@@ -28,14 +28,16 @@ export const CROSS_SECTION_BLEND = {
   peer: 0.55,
   sector: 0.3,
   universe: 0.15,
-  note: "Default 55% peer + 30% sector + 15% universe. Soft peers (chinese/speculative/<8) and expEy use heavier sector/universe. Megacaps get 25% universe.",
+  /** Whole % for UI — never float * 100 in JSX (0.55 → 55.000…1). */
+  pct(w: number) {
+    return Math.round(w * 100);
+  },
 };
 
 /** Final total blend after family scores + post-gates. */
 export const SECTOR_OPPORTUNITY_LAYER = {
   weight: 0.1,
   components: { size: 0.5, prospects: 0.3, cheap: 0.2 },
-  note: "final = 90% company + 10% peer-group opportunity (size / prospects / 1÷PE). Speculative groups size-haircut ×0.5. Persisted as fund_company_score + fund_sector_score; fund_total_score is blended.",
 };
 
 export type EngineMetric = {
@@ -180,101 +182,67 @@ export type TreatmentStep = {
 export const TREATMENT_FLOW: TreatmentStep[] = [
   {
     id: "pre_revenue",
-    title: "True pre-revenue / pre-scale",
-    detector: "Revenue null/≤0, OR revenue <$50M and NI < 0",
-    action: "Style = pre_revenue (group mode pre_revenue_ok alone never forces this)",
+    title: "Pre-revenue / pre-scale",
+    detector: "Little or no revenue, or tiny revenue and still losing money",
+    action: "Use pre-revenue style — drop earnings yield, PEG, forward P/E",
     metricEffects: [
-      "Exclude: earningsYield, PEG, Fwd P/E",
-      `Family: V${STYLE_FAMILY_WEIGHTS.pre_revenue.value} G${STYLE_FAMILY_WEIGHTS.pre_revenue.growth} Q${STYLE_FAMILY_WEIGHTS.pre_revenue.quality} S${STYLE_FAMILY_WEIGHTS.pre_revenue.safety}`,
+      `Weights: value ${STYLE_FAMILY_WEIGHTS.pre_revenue.value}% · growth ${STYLE_FAMILY_WEIGHTS.pre_revenue.growth}% · quality ${STYLE_FAMILY_WEIGHTS.pre_revenue.quality}% · safety ${STYLE_FAMILY_WEIGHTS.pre_revenue.safety}%`,
     ],
   },
   {
     id: "financial",
-    title: "Financial (bank / insurance / REIT / broker)",
-    detector: "scoring_mode ∈ financial|insurance|reit|financial_mixed OR peer path match",
-    action: "Style = financial",
+    title: "Banks, insurers, REITs",
+    detector: "Financial scoring mode or peer path",
+    action: "Financial style — bank/REIT metrics instead of industrial leverage",
     metricEffects: [
-      "Exclude: D/E, Net Debt/EBITDA; banks also exclude Current Ratio",
-      "REITs: exclude Net Margin & ROIC−WACC; ↑ Div Yield, FCF, P/FFO",
-      "↑ ROE, P/B, P/TBV (Finnhub TBVPS); CET1/combined still paid-only",
+      "Drop D/E and net debt/EBITDA; banks also drop current ratio",
+      "REITs lean on div yield, FCF, P/FFO; banks lean on ROE, P/B, P/TBV",
     ],
   },
   {
     id: "unprofitable",
-    title: "Unprofitable operator",
-    detector: "Revenue ≥ $50M and NI < 0",
-    action: "Style growth/blend — never value via cheap P/E",
-    metricEffects: ["Exclude: earningsYield, PEG, EPS growth"],
+    title: "Unprofitable but operating",
+    detector: "Real revenue, negative net income",
+    action: "Growth/blend style — never score as cheap on P/E",
+    metricEffects: ["Drop earnings yield, PEG, EPS growth"],
   },
   {
     id: "style_norms",
-    title: "Value / Growth / GARP / Quality / Blend",
-    detector: "Cross-section value vs growth norms (peer+sector+universe blend)",
-    action: "Assign style from v/g thresholds",
-    metricEffects: Object.entries(STYLE_FAMILY_WEIGHTS)
-      .filter(([k]) => !["pre_revenue", "financial"].includes(k))
-      .map(([k, w]) => `${k}: V${w.value} G${w.growth} Q${w.quality} S${w.safety}`),
+    title: "Value / growth / GARP / quality / blend",
+    detector: "How cheap vs how fast it grows vs peers",
+    action: "Pick a style; family weights follow the table below",
+    metricEffects: [],
   },
   {
     id: "mode_tilts",
-    title: "Cyclical / Chinese / Distress tilts",
-    detector: "energy|mining|semi/memory · chinese · PB<0 or CR<0.5",
-    action: "Style unchanged; intra-metric multipliers",
-    metricEffects: [
-      "Cyclical/semi: EY/ROE/margins haircut; EV/EBITDA & expEy ↑",
-      "Chinese: ROE/ROIC/PEG ↓; runway/FCF/beta/netCash/expEy ↑; total ×0.90",
-      "Distress: EY/PB/PS ×0.4; runway/CR/dilution ×1.5",
-    ],
+    title: "Cyclical, Chinese ADR, distress",
+    detector: "Energy/mining/semi · Chinese · balance-sheet stress",
+    action: "Same style; nudge individual metrics (and China −10% on total)",
+    metricEffects: [],
   },
   {
     id: "post_gates",
-    title: "Post-score gates (v3)",
+    title: "Final caps",
     detector: "After family blend",
-    action: "Cap / haircut / require safety",
+    action: "Clip extremes so thin or speculative names cannot print fake highs",
     metricEffects: [
-      "Growth capped ±100% for scoring; PEG floored at 0.25",
-      "expEy = 1/fwdPE or NI×(1+g≤35%)/mcap — universe-heavy norms",
-      "Missing safety → prior 38 (or unrank if coverage <15%)",
-      "Speculative/micro-rev total capped at 55",
-      "P/S total haircut OFF (mult=1) — P/S already in value family (no double-count)",
-      "Megacap (≥$200B): blend-style uses V15/G20/Q40/S25; plus total = 0.72×total + 0.28×Q when Q≥48",
-      "Yields: prefer 1/PE; reject fwdPE<5; null NI/FCF÷mcap if |yield|>25% (ADR currency)",
+      "Speculative / micro-revenue capped at 55",
+      "Megacaps lean more on quality",
+      "Thin safety coverage → neutral prior (or unrank)",
     ],
   },
 ];
 
 export const SCORE_PIPELINE_STEPS = [
-  "Load gold fundamentals + primary peer group + scoring_mode",
-  "Compute raw metrics (nulls skipped; growth/PEG outlier caps)",
-  "Normalize inside peer_group_members (winsorize 2/98)",
-  "Normalize inside sector (peer_group_id prefix) when ≥3 names",
-  "Normalize vs full universe",
-  `Blend cross-section: default ${CROSS_SECTION_BLEND.peer * 100}/${CROSS_SECTION_BLEND.sector * 100}/${CROSS_SECTION_BLEND.universe * 100} peer/sector/universe (soft peers & expEy heavier sector/universe)`,
-  "Blend with own history (70/30 peer-hist helper)",
-  "Assign style via TREATMENT_FLOW; apply exclusions + intra tilts",
-  "Family blend via STYLE_FAMILY_WEIGHTS[style]; safety prior if thin; speculative/China/megacap post-gates",
-  `Sector opportunity layer (${SECTOR_OPPORTUNITY_LAYER.weight * 100}%): peer-group size/prospects/cheapness → blend into total; persist company+sector+total`,
+  "Pull fundamentals + peer group",
+  "Build metrics (skip blanks; cap wild growth/PEG)",
+  `Rank vs peers (${CROSS_SECTION_BLEND.pct(CROSS_SECTION_BLEND.peer)}%), sector (${CROSS_SECTION_BLEND.pct(CROSS_SECTION_BLEND.sector)}%), and all stocks (${CROSS_SECTION_BLEND.pct(CROSS_SECTION_BLEND.universe)}%)`,
+  "Pick a style → apply family weights + exclusions",
+  `Blend in ${CROSS_SECTION_BLEND.pct(SECTOR_OPPORTUNITY_LAYER.weight)}% peer-group opportunity → save total score`,
 ];
 
 export const SPECIALTY_GAP_NOTES = [
-  {
-    want: "CET1 / NIM / NPL",
-    status: "Not on free FMP/Finnhub/Yahoo/EDGAR",
-    interim: "P/TBV + ROE + exclude structural leverage",
-  },
-  {
-    want: "FFO / AFFO",
-    status: "AFFO still missing; FFO proxy wired",
-    interim: "ffoProxy = NI + EDGAR D&A → pFfo metric for REITs",
-  },
-  {
-    want: "Combined ratio",
-    status: "Not on free APIs",
-    interim: "ROE + P/TBV for insurers until paid feed",
-  },
-  {
-    want: "P/TBV",
-    status: "Wired — Finnhub/FMP TBVPS → gold → ptbv (financials only)",
-    interim: "CET1 still paid-only; P/TBV is the free-tier bank value signal",
-  },
+  { want: "Bank CET1 / NIM / NPL", status: "Paid data only", interim: "Use P/TBV + ROE for now" },
+  { want: "REIT AFFO", status: "FFO proxy only", interim: "P/FFO from NI + D&A" },
+  { want: "Insurance combined ratio", status: "Paid data only", interim: "ROE + P/TBV" },
 ];

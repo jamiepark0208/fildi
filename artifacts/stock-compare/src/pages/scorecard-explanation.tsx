@@ -89,7 +89,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
   return (
     <>
         {showHeader && (
-          <div className="px-4 py-2 border-b border-[#d4af37]/20 sticky top-14 bg-zinc-950/95 backdrop-blur z-40">
+          <div className="px-4 py-2 border-b border-[#d4af37]/20 sticky top-0 bg-zinc-950/95 backdrop-blur z-40">
             <div className="flex items-start gap-2">
               <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
@@ -145,10 +145,8 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
               />
               <FundamentalTreatmentPanel />
               {isAdmin && (
-                <p className="text-[10px] text-white/70 border border-[#d4af37]/15 rounded px-2 py-1.5">
-                  Admin note: preset/weight editors below apply to <em>technical &amp; options</em> layers
-                  and a legacy client preset — they do <strong className="text-white/80">not</strong> rewrite
-                  persisted fund scores. Change scoring via engine treatments + recompute.
+                <p className="text-[10px] text-white/55 border border-[#d4af37]/15 rounded px-2 py-1.5">
+                  Presets on this page edit technical/options weights only — not the persisted fundamental score.
                 </p>
               )}
             </TabsContent>
@@ -207,10 +205,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
             </div>
           )}
 
-          <p className="text-[11px] text-white/70 mt-2">
-            Peer-group relative. Missing/excluded metrics drop weight (not scored as 0). Persisted in DB.
-          </p>
-          <p className="text-[11px] mt-1">
+          <p className="text-[11px] mt-2">
             <button className="text-[#d4af37] hover:underline" onClick={() => navigate("/options-scanner")}>
               See scores on Scanner →
             </button>
