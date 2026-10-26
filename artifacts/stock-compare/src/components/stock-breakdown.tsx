@@ -111,20 +111,31 @@ export function StockBreakdown({
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const jumpToTop = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+    // Layout after async breakdown body can re-anchor mid-page — pin again next frames.
+    requestAnimationFrame(() => {
+      el.scrollTop = 0;
+      requestAnimationFrame(() => { el.scrollTop = 0; });
+    });
+  }, []);
+
   // When driven by watchlist / Model List click, sync ticker from prop and jump to top
-  // (kept mid-scroll from the previous name feels like "can't scroll up" to Model Thesis).
+  // (kept mid-scroll from the previous name hides MODEL THESIS above the fold).
   useEffect(() => {
     if (propTicker) {
       setActiveTicker(propTicker);
       setInputText(propTicker);
       setChartPeriod("1W");
-      scrollRef.current?.scrollTo({ top: 0 });
+      jumpToTop();
     }
-  }, [propTicker]);
+  }, [propTicker, jumpToTop]);
 
   useEffect(() => {
-    if (modelThesis) scrollRef.current?.scrollTo({ top: 0 });
-  }, [modelThesis]);
+    if (modelThesis) jumpToTop();
+  }, [modelThesis, jumpToTop]);
 
   const debouncedQuery = useDebounce(inputText, 180);
 
@@ -145,6 +156,12 @@ export function StockBreakdown({
   const { data, isLoading, isFetching, error } = useBreakdown(activeTicker);
   const { data: peersMeta } = useCompetitors(activeTicker ?? "");
   const { byField: provByField } = useFundamentalsProvenance(activeTicker);
+
+  // Breakdown body arriving below the thesis triggers CSS overflow-anchor → header
+  // scrolls off the top (Jamie: "can't scroll up to MODEL THESIS"). Re-pin when data lands.
+  useEffect(() => {
+    if (modelThesis && data && !isLoading) jumpToTop();
+  }, [modelThesis, data, isLoading, jumpToTop]);
 
   const tagMatchesFor = useCallback((type: ClassificationTagType, value: string) => {
     if (!watchlistMetrics) return undefined;
@@ -260,7 +277,7 @@ export function StockBreakdown({
       {/* Content area — min-h-0 + data-lenis-prevent so nested scroll works under A127 Lenis */}
       <div
         ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain [overflow-anchor:none]"
         data-lenis-prevent
       >
         {/* Empty state */}

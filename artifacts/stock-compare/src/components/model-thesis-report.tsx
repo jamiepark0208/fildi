@@ -431,7 +431,8 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
 
   return (
     <div className="rounded-md border border-[#d4af37]/35 bg-[#1E1E2E] px-2.5 py-2 space-y-2 shadow-lg shadow-black/40">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      {/* sticky so MODEL THESIS stays visible if scroll-anchor or a mid-page jump tries to hide it */}
+      <div className="sticky top-0 z-10 -mx-2.5 -mt-2 px-2.5 pt-2 pb-1.5 mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 bg-[#1E1E2E]/95 backdrop-blur-sm border-b border-[#d4af37]/20">
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#d4af37]">
           Model thesis
         </span>
