@@ -160,11 +160,14 @@ def band_states(conn, tickers) -> tuple[dict, dict]:
           "vix_ratio": vix["VIX"] / vix["VIX3M"] if vix.get("VIX") and vix.get("VIX3M") else 0.0}
     mf["state"] = BE.market_state(mf)
     names = {}
+    sec = BE.sector_now(conn, tickers)
     for t in tickers:
         f = feats(t)
         if f:
             nf = {"stk_dd52": f["dd52"], "rel_3m": f["3m"] - m["3m"]}
-            names[t] = {"state": BE.name_state(nf), "dd52": f["dd52"], "rel_3m": nf["rel_3m"]}
+            e, dd = sec.get(t, (None, None))
+            names[t] = {"state": BE.name_state(nf), "dd52": f["dd52"], "rel_3m": nf["rel_3m"], "sector": e, "sec_dd52": dd,
+                        "market_state": BE.market_state(mf | {"sec_dd52": dd})}   # SPY state, or sector_drop for this name
     return mf, names
 
 
@@ -174,7 +177,7 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
     rules.PUT_DELTA); callers floor the target at rules.PUT_DELTA's 0.05."""
     import band_engine as BE
     s = ENGINE["strategies"]["sell_put"]["strike"]
-    ms, ns = market["state"], (name or {}).get("state", "normal")
+    ms, ns = (name or {}).get("market_state", market["state"]), (name or {}).get("state", "normal")
     tab = band_table()
     b = BE.choose(tab, ms, ns, BE.FLOORS[s.get("risk", "standard")]) if tab else s["default_band"]
     if b is None:
@@ -192,7 +195,11 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
     b = bands[i]
     h = tab.get(f"{ms}|{ns}|{b}") if tab else None
     hist = f" (history {h['bp']:+.0f} bp/wk, worst 5 % {h['w5']:+.0f})" if h else ""
-    return b, f"market {ms.replace('_', ' ')} · stock {ns} → {b}Δ{hist}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
+    if ms == "sector_drop":
+        ms_txt = f"SPY {market['state']} but {name['sector']} {name['sec_dd52']:+.0%} off high → sector drop"
+    else:
+        ms_txt = f"market {ms.replace('_', ' ')}"
+    return b, f"{ms_txt} · stock {ns} → {b}Δ{hist}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
 
 
 def csp_band_legs(chain, pick, leg, front):

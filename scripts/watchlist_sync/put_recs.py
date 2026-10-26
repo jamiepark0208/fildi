@@ -7,7 +7,8 @@ Best strikes read `watchlist_sync.put_recs_daily` and only re-price the chosen c
 
 Per name, on the latest saved chain (option_chain_history, ~445 names):
   expiry  listed expiry nearest 7 calendar days out, rules.DTE[0]–14 days (S088/S101: 1-week puts earn the most per week)
-  band    strategy_engine.engine_put_band (band_engine table: market state × stock state; panic → none)
+  band    strategy_engine.engine_put_band (band_engine table: market state × stock state; panic → none;
+          market state is per name: SPY's, or sector_drop when the name's sector ETF is ≥ 15 % off its high)
           + build_plan.put_far_reason (earnings before expiry · credit < 20 · put-risk / low-OWN) → never closer than 0.06–0.08Δ
   strike  listed put nearest the band middle, bid ≥ rules.PUT_MIN_RESTRIKE_BID; empty band → one band farther, then one closer
   gates   strategy_rules.json sell_put gates (verdict not red · put-edge Q ≥ 4 · IV/RV ≥ 1.15) via strategy_engine.fit
@@ -82,7 +83,9 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     out = []
     for t in names:
         exp = pick_expiry(sorted({p["expiry"] for p in by[t]}), as_of)
-        rec = {"ticker": t, "as_of": str(as_of), "market_state": market["state"], "stock_state": (states.get(t) or {}).get("state"),
+        ms = (states.get(t) or {}).get("market_state", market["state"])
+        rec = {"ticker": t, "as_of": str(as_of), "market_state": ms, "stock_state": (states.get(t) or {}).get("state"),
+               "sector": (states.get(t) or {}).get("sector"),
                "expiry": str(exp) if exp else None}
         band, why = SE.engine_put_band(market, states.get(t))
         far = BP.put_far_reason(t, exp, ctx) if exp else None
@@ -105,7 +108,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         if rv.get(t):
             fair = bs_put(p["spot"], p["strike"], rv[t], max(p["dte"], 1) / 365)
             rec["ev_rv_cap"] = (p["bid"] - fair) / p["strike"] * 7 / days
-        h = SE.band_table().get(f"{market['state']}|{rec['stock_state'] or 'normal'}|{used}")
+        h = SE.band_table().get(f"{ms}|{rec['stock_state'] or 'normal'}|{used}")
         if h:
             rec.update(hist_bp=h["bp"], hist_w5=h["w5"], hist_kept=h["kept"])
         ok, gates = SE.fit({"ticker": t, "structure": "csp", "iv_rv": rec["iv_rv"]}, I, {})

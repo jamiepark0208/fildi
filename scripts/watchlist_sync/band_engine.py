@@ -5,6 +5,8 @@ State = market state × name state, read from point-in-time indicators:
   market  panic      VIX ÷ VIX3M ≥ 1 (vol curve inverted: the selloff is still running)
           sharp_drop SPY 3m ≤ −8 %, curve back < 1 (V-shaped selloff)
           bear_grind SPY ≥ 10 % below its 52w high without a sharp 3m drop (2022-style slow bear)
+          sector_drop SPY calm but the name's sector ETF ≥ 15 % below its 52w close high (10-26: SMH −20 % while SPY −2.5 %;
+                     sector = the ETF its daily returns tracked best over the prior year, point-in-time)
           rally      SPY 6m ≥ +10 % or SPY within 2 % of its 52w high
           normal     everything else
   name    crashed    stock ≥ 30 % below its 52w high or 3m return ≥ 20 % under SPY
@@ -44,6 +46,70 @@ SPLIT = date(2023, 1, 1)
 FLOORS = {"standard": -200.0, "aggressive": -400.0}   # 10-26: frontier on fixed pricer — −200 matches the live 0.09Δ return at < ½ its drawdown (2023→)
 MIN_N = 150
 BANDS = [f"{lo:.2f}-{hi:.2f}" for lo, hi in LADDER_BANDS]
+SECTOR_ETFS = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLI", "XLC", "XLP", "XLU", "XLB", "XLRE", "SMH", "QQQ", "IWM"]
+SECTOR_DD = -0.15   # S101 sector probe 10-26: ≥ 15 % off high passed both periods; 1m ≤ −8 % / QQQ 1m ≤ −5 % did not
+
+
+def _closes(conn, tickers, since=None):
+    px = defaultdict(dict)
+    for t, d, c in conn.execute("SELECT ticker, date, close::float8 FROM lseg_research.daily_history WHERE ticker = ANY(%s) "
+                                "AND close > 0" + (" AND date >= %s" if since else ""), (list(tickers),) + ((since,) if since else ())):
+        px[t][d] = c
+    return px
+
+
+def _best_etf(px, t, days):
+    """ETF whose daily log returns correlate most with t's over `days` (≥ 150 shared days), else None."""
+    def r(x):
+        ds = [d for d in days if d in px[x]]
+        return {b: math.log(px[x][b] / px[x][a]) for a, b in zip(ds, ds[1:])}
+    rt = r(t)
+    best = None
+    for e in SECTOR_ETFS:
+        re_ = r(e)
+        ks = [d for d in rt if d in re_]
+        if len(ks) < 150:
+            continue
+        cc = float(np.corrcoef([rt[d] for d in ks], [re_[d] for d in ks])[0, 1])
+        if best is None or cc > best[1]:
+            best = (e, cc)
+    return best[0] if best else None
+
+
+def _etf_dd(px, e, d):
+    """ETF close at the last date ≤ d vs its 252-day close high (None if < 252 days)."""
+    ds = [x for x in sorted(px[e]) if x <= d][-252:]
+    return px[e][ds[-1]] / max(px[e][x] for x in ds) - 1 if len(ds) == 252 else None
+
+
+def add_sector(conn, rows):
+    """Point-in-time sector ETF (prior calendar year's best correlation) + its drawdown on each row (sec, sec_dd52)."""
+    names = sorted({r["t"] for r in rows})
+    px = _closes(conn, names + SECTOR_ETFS)
+    sec, dd = {}, {}
+    for r in rows:
+        k = (r["t"], r["d"].year)
+        if k not in sec:
+            sec[k] = _best_etf(px, r["t"], sorted(d for d in px[r["t"]] if d.year == k[1] - 1)) if px.get(r["t"]) else None
+        e = sec[k]
+        if e:
+            if (e, r["d"]) not in dd:
+                dd[(e, r["d"])] = _etf_dd(px, e, r["d"])
+            r["sec"], r["sec_dd52"] = e, dd[(e, r["d"])]
+    return rows
+
+
+def sector_now(conn, tickers):
+    """{ticker: (etf, etf drawdown)} at the last close; sector = best correlation over the trailing year."""
+    from datetime import timedelta
+    px = _closes(conn, list(tickers) + SECTOR_ETFS, date.today() - timedelta(days=760))
+    end = max(max(px[e]) for e in SECTOR_ETFS if px.get(e))
+    out = {}
+    for t in tickers:
+        e = _best_etf(px, t, sorted(d for d in px.get(t, {}) if d > end - timedelta(days=365))) if px.get(t) else None
+        if e:
+            out[t] = (e, _etf_dd(px, e, end))
+    return out
 
 
 def market_state(f):
@@ -53,6 +119,8 @@ def market_state(f):
         return "sharp_drop"
     if f["spy_dd52"] <= -0.10:
         return "bear_grind"
+    if (f.get("sec_dd52") or 0) <= SECTOR_DD:
+        return "sector_drop"
     if f["spy_6m"] >= 0.10 or f["spy_dd52"] >= -0.02:
         return "rally"
     return "normal"
@@ -160,7 +228,10 @@ def summary(rs, all_weeks):
 
 
 def backtest():
+    from build_plan import connect
     rows = [r for r in pickle.loads(CACHE.read_bytes()) if r["h"] == 1 and r.get("vix_ratio") == r.get("vix_ratio")]
+    with connect() as c:
+        add_sector(c, rows)
     tr = [r for r in rows if r["d"] < SPLIT]
     te = [r for r in rows if r["d"] >= SPLIT]
     table = fit(tr)
@@ -188,7 +259,7 @@ def backtest():
           "| market | name | standard band | aggressive band | train bp / worst 5 % (standard) | test bp / worst 5 % (standard band) | test months |",
           "|---|---|---|---|---|---|---|"]
     test_tab = fit(te)
-    for m in ("panic", "sharp_drop", "bear_grind", "normal", "rally"):
+    for m in ("panic", "sharp_drop", "bear_grind", "sector_drop", "normal", "rally"):
         for n in ("crashed", "normal", "extended"):
             bs, ba = choose(table, m, n, FLOORS["standard"]), choose(table, m, n, FLOORS["aggressive"])
             a = table.get(f"{m}|{n}|{bs}") if bs else None
@@ -274,6 +345,8 @@ def refresh():
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     CACHE.write_bytes(pickle.dumps(rows))
     rows = [r for r in rows if r["h"] == 1 and r.get("vix_ratio") == r.get("vix_ratio")]
+    with connect() as c:
+        add_sector(c, rows)
     TABLE.write_text(json.dumps({"fitted": str(date.today()), "rows": len(rows), "floors": FLOORS, "table": fit(rows)}, indent=1))
     print(f"band table: refit on {len(rows):,} rows → {TABLE}")
 
