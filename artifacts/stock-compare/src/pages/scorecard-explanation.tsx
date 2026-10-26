@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { GuideMetricGrid } from "@/components/scorecard-guide/guide-metric-grid";
@@ -222,11 +222,8 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
 
 export default function ScorecardExplanation() {
   return (
-    <div className="min-h-[100dvh] bg-[#040c18] text-white">
-      <TopNav />
-      <main className="pt-14 min-w-0">
-        <ScorecardGuideContent />
-      </main>
-    </div>
+    <AppPage className="bg-[#040c18] text-white" contentClassName="min-w-0">
+      <ScorecardGuideContent />
+    </AppPage>
   );
 }

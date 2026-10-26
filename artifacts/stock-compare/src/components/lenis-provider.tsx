@@ -1,6 +1,8 @@
 /**
  * A127 — Lenis smooth scroll. Honors prefers-reduced-motion.
  * Charts/tables: add data-lenis-prevent (wheel hijack breaks zoom / inner scroll).
+ * Top-level tabs: use AppPage (viewport scroll pane + data-lenis-prevent) — never
+ * bare `pt-14` document scroll or overflow-x tables eat the wheel.
  */
 import { useEffect, type ReactNode } from "react";
 import Lenis from "lenis";

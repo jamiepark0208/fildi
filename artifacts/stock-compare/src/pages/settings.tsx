@@ -711,7 +711,8 @@ export default function Settings() {
   return (
     <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
-      {/* min-h-0: flex child must shrink or overflow-y-auto never engages (content clipped, no scroll). */}
+      {/* Custom chrome (sticky header + tabs outside scroll). Same contract as AppPage:
+          viewport lock + data-lenis-prevent on the scroll pane — do not use bare pt-14. */}
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
         {/* Header */}
         <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">

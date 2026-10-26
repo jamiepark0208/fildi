@@ -2,7 +2,7 @@ import { useState, useMemo } from "react"
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "wouter"
 import { X } from "lucide-react"
-import { TopNav } from "@/components/top-nav"
+import { AppPage } from "@/components/app-page"
 import { TradeCard, type TradePost } from "@/components/TradeCard"
 import { useAuth } from "@/context/AuthContext"
 import { useDebounce } from "@/hooks/use-debounce"
@@ -262,9 +262,7 @@ export default function Feed() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-900">
-      <TopNav />
-      <main className="pt-14 p-6">
+    <AppPage contentClassName="p-6">
         <div className="max-w-5xl mx-auto flex gap-6">
 
           {/* Feed column */}
@@ -360,7 +358,6 @@ export default function Feed() {
           </div>
 
         </div>
-      </main>
-    </div>
+    </AppPage>
   )
 }

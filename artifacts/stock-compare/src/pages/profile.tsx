@@ -3,7 +3,7 @@ import { AnimatedNumber } from "@/components/animated-number"
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { useParams, Link, useLocation } from "wouter"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { TopNav } from "@/components/top-nav"
+import { AppPage } from "@/components/app-page"
 import { TradeCard, type TradePost } from "@/components/TradeCard"
 import { useAuth } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
@@ -653,9 +653,8 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-900">
-      <TopNav />
-      <main className="pt-14 p-5 max-w-2xl space-y-2">
+    <AppPage contentClassName="p-5">
+      <div className="max-w-2xl space-y-2">
 
         {!isOwnerProfile && me && (
           <Link href="/profile/me" className="text-xs text-white/70 hover:text-[#d4af37] transition-colors shrink-0">
@@ -777,7 +776,7 @@ export default function Profile() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppPage>
   )
 }

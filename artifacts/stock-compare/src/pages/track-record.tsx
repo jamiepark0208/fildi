@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip,
 } from "recharts";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TickerDrilldown } from "@/components/track-record/ticker-drilldown";
 import { StrategiesTab } from "@/components/track-record/strategies-tab";
@@ -813,9 +813,8 @@ export default function TrackRecord() {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-900">
-      <TopNav />
-      <main className="pt-14 px-4 pb-4 space-y-2 max-w-7xl mx-auto">
+    <AppPage contentClassName="px-4 pb-4">
+      <div className="space-y-2 max-w-7xl mx-auto">
         {isAdmin && (
           <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
             {([
@@ -898,7 +897,7 @@ export default function TrackRecord() {
             )}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppPage>
   );
 }

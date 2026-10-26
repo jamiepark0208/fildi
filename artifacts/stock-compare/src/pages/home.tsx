@@ -6,7 +6,7 @@ import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { MetricsTable } from "@/components/metrics-table";
 import { ScorecardBreakdown } from "@/components/scorecard-breakdown";
 import { type StockScore } from "@/lib/rankings";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { StockCards } from "@/components/stock-cards";
 import { PriceChart, Period } from "@/components/price-chart";
 import { queryKeys } from "@/lib/query-keys";
@@ -125,11 +125,8 @@ export default function Home({ tickers, setTickers }: HomeProps) {
   const hasData = loadedStocks.some(s => s.currentPrice !== undefined && s.currentPrice !== null);
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30">
-      <TopNav />
-
-      <main className="pt-14 min-w-0">
-        <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
+    <AppPage className="bg-background selection:bg-primary/30" contentClassName="min-w-0">
+        <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Fundamental Analysis</h1>
             <p className="text-xs text-muted-foreground mt-0.5">Compare up to 5 equities simultaneously</p>
@@ -171,7 +168,6 @@ export default function Home({ tickers, setTickers }: HomeProps) {
           )}
           {rankings.length >= 2 && <ScorecardBreakdown scores={rankings} />}
         </div>
-      </main>
-    </div>
+    </AppPage>
   );
 }

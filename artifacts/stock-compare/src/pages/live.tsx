@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { RefreshCw, Loader2 } from "lucide-react";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { cn } from "@/lib/utils";
 import { type TechnicalRow } from "@/lib/technical-rankings";
 
@@ -461,10 +461,7 @@ export default function Live() {
   const { byTicker: conflictsByTicker } = useRecConflicts(dipTickers, rallyTickers);
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-900">
-      <TopNav />
-      {/* px/pb only — never `p-*` with `pt-14` (Tailwind order can wipe top pad → tabs under fixed nav). */}
-      <main className={cn("pt-14", pageTab === "macro" ? "px-0 pb-0" : "px-6 pb-6")}>
+    <AppPage contentClassName={pageTab === "macro" ? "px-0 pb-0" : "px-6 pb-6"}>
         <div className={cn(pageTab === "macro" ? "w-full" : "max-w-5xl mx-auto space-y-2")}>
           <div className={cn(
             "flex items-center gap-2 flex-nowrap overflow-x-auto",
@@ -611,7 +608,6 @@ export default function Live() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </AppPage>
   );
 }

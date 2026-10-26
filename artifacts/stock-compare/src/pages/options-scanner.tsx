@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { cn } from "@/lib/utils";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import {
@@ -1104,13 +1104,8 @@ export function OptionsScannerContent({
 
 export default function OptionsScanner() {
   return (
-    <div className="min-h-[100dvh] bg-background">
-      <TopNav />
-      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-4 [overflow-anchor:none]" data-lenis-prevent>
-          <OptionsScannerContent />
-        </div>
-      </main>
-    </div>
+    <AppPage className="bg-background" contentClassName="p-6 space-y-4">
+      <OptionsScannerContent />
+    </AppPage>
   );
 }

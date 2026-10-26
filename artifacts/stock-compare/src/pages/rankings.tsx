@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { RankingsLeaderboard } from "@/components/rankings-leaderboard";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
 import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
@@ -145,16 +145,7 @@ export default function Rankings() {
   }, [allTechnicalsData]);
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30">
-      <TopNav />
-
-      {/* Same Lenis trap as Settings/Watchlist: document wheel dies over overflow-x
-          tables (Overall options) → clip at ~15 rows. Fixed pane + data-lenis-prevent. */}
-      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden min-w-0">
-        <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 min-w-0 [overflow-anchor:none]"
-          data-lenis-prevent
-        >
+    <AppPage className="bg-background selection:bg-primary/30" contentClassName="p-3">
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
               {RANKINGS_TABS.map((t) => (
@@ -273,8 +264,6 @@ export default function Rankings() {
               onSideChange={setTechSide}
             />
           )}
-        </div>
-      </main>
-    </div>
+    </AppPage>
   );
 }

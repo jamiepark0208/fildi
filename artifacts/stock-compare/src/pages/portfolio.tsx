@@ -1,7 +1,7 @@
 import { useState, useMemo, lazy, Suspense } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
-import { TopNav } from "@/components/top-nav";
+import { AppPage } from "@/components/app-page";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -778,13 +778,12 @@ export default function Portfolio() {
   if (authLoading || (!isAdmin && !isLoaded)) return null;
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30">
-      <TopNav />
-
-      <main className="pt-14 min-w-0">
-        {/* Sticky actions — only when something to show (avoids empty strip for admin-with-data) */}
+    <>
+    <AppPage className="bg-background selection:bg-primary/30" contentClassName="min-w-0">
+        {/* Sticky actions — only when something to show (avoids empty strip for admin-with-data).
+            top-0: sticky is relative to AppPage scroll pane (TopNav is outside). */}
         {(!isAdmin || entries.length === 0) && (
-          <div className="px-5 py-2 border-b border-border/50 flex items-center justify-end gap-4 sticky top-14 bg-background/95 backdrop-blur z-40">
+          <div className="px-5 py-2 border-b border-border/50 flex items-center justify-end gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
             <div className="flex items-center gap-2 shrink-0">
               {!isAdmin && (
                 <Button size="sm" variant="outline" onClick={() => setShowAddPortfolio(true)} className="gap-1.5 h-8 border-[#d4af37]/25 text-amber-200/80 hover:bg-amber-500/10 hover:text-[#d4af37]">
@@ -922,7 +921,7 @@ export default function Portfolio() {
             </>
           )}
         </div>
-      </main>
+    </AppPage>
 
       {/* Add Portfolio dialog — non-admin only */}
       {!isAdmin && (
@@ -957,6 +956,6 @@ export default function Portfolio() {
           entries={entries}
         />
       )}
-    </div>
+    </>
   );
 }
