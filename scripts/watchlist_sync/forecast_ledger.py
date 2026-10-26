@@ -173,7 +173,45 @@ def _close_on_or_before(conn, t: str, d: dt.date) -> tuple[float, str, dt.date] 
     return None
 
 
+def _meta_dict(meta) -> dict:
+    if meta is None:
+        return {}
+    if isinstance(meta, str):
+        return json.loads(meta) if meta else {}
+    return dict(meta)
+
+
+def _resolve_one(conn, qid: str, qtype: str, t: str, d: dt.date, meta) -> bool:
+    """Resolve one question. Raises on corrupt meta; returns False if not yet resolvable."""
+    meta = _meta_dict(meta)
+    if qtype in EXTRA_RESOLVERS:   # A129 v5 OpenJev question types
+        r = EXTRA_RESOLVERS[qtype](conn, t, d, meta)
+        if r is None:
+            return False
+        y, info = r
+        conn.execute("""UPDATE watchlist_sync.forecast_ledger SET outcome = %s, resolved_at = now(), meta = meta || %s
+                        WHERE question_id = %s AND outcome IS NULL""", (y, json.dumps(info), qid))
+        return True
+    c = _close_on_or_before(conn, t, d)
+    if not c:
+        return False
+    if qtype in ("put_otm", "model_pick_otm", "sim_put_otm"):
+        y = put_otm(c[0], float(meta["strike"]))
+        info = {"close": c[0], "close_src": c[1], "close_date": str(c[2])}
+    else:  # index_up_week: last close of the week vs last close before its Monday
+        monday = d - dt.timedelta(days=d.weekday())
+        prev = _close_on_or_before_any(conn, t, monday - dt.timedelta(days=1))
+        if not prev:
+            return False
+        y = c[0] > prev[0]
+        info = {"close": c[0], "prev_close": prev[0], "close_src": c[1]}
+    conn.execute("""UPDATE watchlist_sync.forecast_ledger SET outcome = %s, resolved_at = now(), meta = meta || %s
+                    WHERE question_id = %s AND outcome IS NULL""", (y, json.dumps(info), qid))
+    return True
+
+
 def resolve(conn, now: dt.datetime | None = None) -> int:
+    """Resolve past questions. A258: SAVEPOINT per question so one bad meta cannot abort the batch."""
     today = (now or dt.datetime.now(PT)).astimezone(PT).date()
     done = 0
     open_q = conn.execute("""SELECT DISTINCT question_id, qtype, subject, resolves_on, meta FROM watchlist_sync.forecast_ledger
@@ -183,31 +221,26 @@ def resolve(conn, now: dt.datetime | None = None) -> int:
         if qid in seen or qtype.startswith("advisory"):
             continue
         seen.add(qid)
-        if qtype in EXTRA_RESOLVERS:   # A129 v5 OpenJev question types
-            r = EXTRA_RESOLVERS[qtype](conn, t, d, meta)
-            if r is None:
-                continue
-            y, info = r
-            conn.execute("""UPDATE watchlist_sync.forecast_ledger SET outcome = %s, resolved_at = now(), meta = meta || %s
-                            WHERE question_id = %s AND outcome IS NULL""", (y, json.dumps(info), qid))
-            done += 1
-            continue
-        c = _close_on_or_before(conn, t, d)
-        if not c:
-            continue
-        if qtype in ("put_otm", "model_pick_otm", "sim_put_otm"):
-            y = put_otm(c[0], float(meta["strike"]))
-            info = {"close": c[0], "close_src": c[1], "close_date": str(c[2])}
-        else:  # index_up_week: last close of the week vs last close before its Monday
-            monday = d - dt.timedelta(days=d.weekday())
-            prev = _close_on_or_before_any(conn, t, monday - dt.timedelta(days=1))
-            if not prev:
-                continue
-            y = c[0] > prev[0]
-            info = {"close": c[0], "prev_close": prev[0], "close_src": c[1]}
-        conn.execute("""UPDATE watchlist_sync.forecast_ledger SET outcome = %s, resolved_at = now(), meta = meta || %s
-                        WHERE question_id = %s AND outcome IS NULL""", (y, json.dumps(info), qid))
-        done += 1
+        m = _meta_dict(meta)
+        if m.get("resolve_error"):
+            continue  # parked permanently after a prior corrupt-meta failure
+        sp = f"fl_r_{done}_{abs(hash(qid)) % 10_000_000}"
+        try:
+            conn.execute(f"SAVEPOINT {sp}")
+            if _resolve_one(conn, qid, qtype, t, d, m):
+                done += 1
+            conn.execute(f"RELEASE SAVEPOINT {sp}")
+        except Exception as e:
+            conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+            err = f"{type(e).__name__}: {e}"
+            print(f"forecast_ledger.resolve skip {qid}: {err}", file=sys.stderr)
+            # Park the question so the same corrupt row cannot abort every night (A258).
+            try:
+                conn.execute("""UPDATE watchlist_sync.forecast_ledger SET meta = meta || %s
+                                WHERE question_id = %s AND outcome IS NULL""",
+                             (json.dumps({"resolve_error": err[:500]}), qid))
+            except Exception as e2:
+                print(f"forecast_ledger.resolve could not park {qid}: {e2}", file=sys.stderr)
     conn.commit()
     return done
 
