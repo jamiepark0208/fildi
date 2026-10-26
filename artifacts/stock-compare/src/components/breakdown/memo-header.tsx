@@ -63,7 +63,7 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
               Top: {etf.holdings.slice(0, 8).map((h) => h.symbol).join(" · ")}
             </p>
           ) : null}
-          <p className="text-[10px] text-amber-200/40 italic">
+          <p className="text-[10px] text-amber-100/70 italic">
             Stock fund model / peer scores N/A for ETFs — price chart + yield/AUM above.
           </p>
         </div>

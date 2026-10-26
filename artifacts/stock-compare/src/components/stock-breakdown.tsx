@@ -232,7 +232,7 @@ export function StockBreakdown({
                     )}
                   >
                     <span className="font-mono font-bold">{r.ticker}</span>
-                    <span className="text-muted-foreground text-xs truncate ml-2 max-w-[180px]">
+                    <span className="text-amber-100/80 text-xs truncate ml-2 max-w-[180px]">
                       {r.name}
                     </span>
                   </li>
@@ -253,13 +253,13 @@ export function StockBreakdown({
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" data-lenis-prevent>
         {/* Empty state */}
         {!activeTicker && (
-          <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground/60 gap-4 py-20">
+          <div className="h-full flex flex-col items-center justify-center text-center text-amber-100/70 gap-4 py-20">
             <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center border border-dashed border-border">
               <BarChart2 className="w-8 h-8" />
             </div>
             <div>
               <p className="text-sm font-medium">Enter a ticker to get the full breakdown</p>
-              <p className="text-xs mt-1 text-muted-foreground/40">
+              <p className="text-xs mt-1 text-amber-100/60">
                 Valuation · Growth · Health · Analyst Ratings · News
               </p>
             </div>
@@ -276,7 +276,7 @@ export function StockBreakdown({
         {/* Loading */}
         {activeTicker && isLoading && !data && (
           <div className="flex items-center justify-center py-16">
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="flex flex-col items-center gap-3 text-amber-100/80">
               <Loader2 className="w-8 h-8 animate-spin" />
               <span className="text-sm">Loading {activeTicker}…</span>
             </div>
@@ -338,13 +338,13 @@ export function StockBreakdown({
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-muted-foreground">No description available.</p>
+                      <p className="text-xs text-amber-100/70">No description available.</p>
                     )}
                   </PopoverContent>
                 </Popover>
                 {m.companyName ? (
                   <span
-                    className="text-[11px] text-muted-foreground font-medium truncate min-w-0"
+                    className="text-[11px] text-amber-100/80 font-medium truncate min-w-0"
                     title={m.companyName}
                   >
                     {m.companyName}
@@ -400,7 +400,7 @@ export function StockBreakdown({
                       </span>
                     </DataTip>
                   ) : (
-                    <span className="text-sm font-mono text-muted-foreground">—</span>
+                    <span className="text-sm font-mono text-amber-100/70">—</span>
                   )}
                 </div>
               </div>
@@ -575,7 +575,7 @@ export function StockBreakdown({
                 minHeight={380}
                 rootMargin="320px 0px"
                 fallback={
-                  <div className="h-[380px] w-full min-w-0 rounded-lg border border-[#d4af37]/15 bg-zinc-950/80 flex items-center justify-center text-[10px] text-amber-200/40">
+                  <div className="h-[380px] w-full min-w-0 rounded-lg border border-[#d4af37]/15 bg-zinc-950/80 flex items-center justify-center text-[10px] text-amber-100/70">
                     Chart · scroll to load
                   </div>
                 }
@@ -780,7 +780,7 @@ export function StockBreakdown({
                               ))}
                             </div>
                           ) : (
-                            <p className="text-[10px] text-amber-200/40 italic">No recent news.</p>
+                            <p className="text-[10px] text-amber-100/70 italic">No recent news.</p>
                           )
                         )}
                         {digTab === "history" && (
@@ -789,7 +789,7 @@ export function StockBreakdown({
                               <FundScoreHistoryChart history={data.scoreHistory ?? []} />
                             </div>
                           ) : (
-                            <p className="text-[10px] text-amber-200/40 italic">No score history yet.</p>
+                            <p className="text-[10px] text-amber-100/70 italic">No score history yet.</p>
                           )
                         )}
                         {digTab === "accounting" && activeTicker && (
@@ -819,7 +819,7 @@ export function StockBreakdown({
                   <DialogTitle className="text-[#d4af37] text-base tracking-tight">
                     Technicals · {m.ticker}
                   </DialogTitle>
-                  <DialogDescription className="text-zinc-500 text-[11px]">
+                  <DialogDescription className="text-amber-100/80 text-[11px]">
                     TradingView technical summary — open when you need the dig, not in the main path.
                   </DialogDescription>
                 </DialogHeader>

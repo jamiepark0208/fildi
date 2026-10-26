@@ -205,14 +205,14 @@ function ModelPickExplain({ thesis }: { thesis: ModelThesis }) {
   };
   if (state.status === "idle") {
     return (
-      <button type="button" onClick={run} className="text-[10px] px-2 py-0.5 rounded border border-[#d4af37]/40 text-[#d4af37] hover:bg-[#d4af37]/10">
+      <button type="button" onClick={run} className="text-[10px] px-2 py-0.5 rounded border border-[#d4af37]/50 text-amber-50 bg-[#d4af37]/15 hover:bg-[#d4af37]/25">
         Explain this pick (AI)
       </button>
     );
   }
   return (
-    <div className="rounded border border-[#d4af37]/25 px-2 py-1.5 text-[11px] leading-snug text-amber-100/85 whitespace-pre-wrap">
-      <div className="text-[9px] uppercase tracking-wider text-amber-200/70 mb-0.5">AI explanation · numbers from the model</div>
+    <div className="rounded border border-[#d4af37]/35 px-2 py-1.5 text-[11px] leading-snug text-amber-50 whitespace-pre-wrap">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-[#d4af37] mb-0.5">AI explanation · numbers from the model</div>
       {state.status === "loading" ? "Explaining…" : state.text.replace(/\*\*/g, "")}
     </div>
   );
@@ -249,23 +249,25 @@ function ActionTicket({
         "rounded-md border px-2.5 py-2 space-y-1.5",
         urgency === "HIGH" ? "border-red-500/45 bg-red-500/[0.07]"
           : urgency === "MED" ? "border-amber-400/40 bg-amber-500/[0.06]"
-            : "border-[#d4af37]/25 bg-zinc-950",
+            : "border-[#d4af37]/30 bg-black/30",
       )}
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className={cn(
           "text-[10px] font-bold uppercase tracking-wide",
-          urgency === "HIGH" ? "text-red-300" : urgency === "MED" ? "text-amber-200" : "text-[#d4af37]",
+          urgency === "HIGH" ? "text-red-300" : urgency === "MED" ? "text-amber-100" : "text-[#d4af37]",
         )}>
           {isTrim ? "Trim" : folderName}
         </span>
         <span className="text-[13px] font-bold text-white font-mono tracking-wide">{item.ticker}</span>
         {close != null && (
-          <span className="font-mono text-[12px] font-semibold text-sky-200/90">${close.toFixed(2)}</span>
+          <span className="font-mono text-[12px] font-semibold text-sky-200">${close.toFixed(2)}</span>
         )}
         <span className={cn(
           "text-[9px] font-bold uppercase px-1 py-0.5 rounded border",
-          urgency === "HIGH" ? "border-red-400/50 text-red-300" : urgency === "MED" ? "border-amber-400/50 text-amber-200" : "border-zinc-600 text-zinc-400",
+          urgency === "HIGH" ? "border-red-400/50 text-red-200 bg-red-900/40"
+            : urgency === "MED" ? "border-amber-400/50 text-amber-50 bg-amber-900/35"
+              : "border-[#d4af37]/40 text-amber-50 bg-zinc-800/80",
         )}>
           {urgency}
         </span>
@@ -286,7 +288,7 @@ function ActionTicket({
       </div>
 
       <div className="grid grid-cols-[3.75rem_1fr] gap-x-2 gap-y-0.5 text-[11px] font-mono leading-snug">
-        <span className="text-zinc-500">What</span>
+        <span className="text-[#d4af37] font-semibold">What</span>
         <span className="text-white font-semibold">
           {isTrim
             ? `Reduce ${item.ticker} equity`
@@ -296,55 +298,59 @@ function ActionTicket({
         </span>
         {(isTrim || c?.contracts != null) && (
           <>
-            <span className="text-zinc-500">Size</span>
-            <span className="text-amber-100/90">
+            <span className="text-[#d4af37] font-semibold">Size</span>
+            <span className="text-white" title={isTrim ? undefined : "1 option contract = right on 100 shares"}>
               {isTrim ? (
                 shares != null ? (
                   <>
-                    {shares.toLocaleString()} sh
-                    {mv != null && <span className="text-zinc-500"> · ~${Math.round(mv).toLocaleString()}</span>}
+                    {shares.toLocaleString()} shares
+                    {mv != null && <span className="text-amber-100/70"> · ~${Math.round(mv).toLocaleString()}</span>}
                   </>
                 ) : (
-                  <span className="text-zinc-500">unknown (RH book)</span>
+                  <span className="text-amber-100/70">unknown (RH book)</span>
                 )
               ) : (
-                <>{c!.contracts} ct{c!.contracts === 1 ? "" : "s"}{c!.collateral != null ? ` · $${Math.round(c!.collateral).toLocaleString()} collat` : ""}</>
+                <>
+                  {c!.contracts === 1 ? "1 contract" : `${c!.contracts} contracts`}
+                  <span className="text-amber-100/70"> (= {(c!.contracts ?? 1) * 100} sh)</span>
+                  {c!.collateral != null ? ` · $${Math.round(c!.collateral).toLocaleString()} collateral` : ""}
+                </>
               )}
             </span>
           </>
         )}
         {!isTrim && (
           <>
-            <span className="text-zinc-500">Income</span>
-            <span className={cn("font-semibold", income ? "text-emerald-400" : "text-zinc-500")}>
+            <span className="text-[#d4af37] font-semibold">Income</span>
+            <span className={cn("font-semibold", income ? "text-emerald-400" : "text-amber-100/70")}>
               {isTrim ? "—" : income ?? (c?.premium != null ? `~$${c.premium.toFixed(2)}` : "—")}
             </span>
           </>
         )}
         {isTrim && (
           <>
-            <span className="text-zinc-500">When</span>
-            <span className="text-amber-100/90">Next RTH</span>
+            <span className="text-[#d4af37] font-semibold">When</span>
+            <span className="text-white">Next RTH</span>
           </>
         )}
-        <span className="text-zinc-500">Why</span>
-        <span className="text-amber-50/95 space-x-1">
+        <span className="text-[#d4af37] font-semibold">Why</span>
+        <span className="text-amber-50 space-x-1">
           {scoreWhy && <span className="text-sky-300">{scoreWhy.replace(/^Fildi\s+/i, "")}</span>}
           {weekWhy && <span className="text-emerald-400/90">· {weekWhy}</span>}
           {deltaHint && !weekWhy?.includes("Δ") && !weekWhy?.toLowerCase().includes("delta") && (
-            <span className="text-zinc-300">· {deltaHint}</span>
+            <span className="text-amber-100">· {deltaHint}</span>
           )}
           {edgeWhy && <span className="text-violet-300/90">· {edgeWhy}</span>}
           {riskWhy.slice(0, 2).map((w) => (
             <span key={w} className="text-orange-300">· {w}</span>
           ))}
           {!scoreWhy && !weekWhy && !edgeWhy && riskWhy.length === 0 && (
-            <span className="text-zinc-500">{why[0] ?? item.flags[0] ?? "—"}</span>
+            <span className="text-amber-100/80">{why[0] ?? item.flags[0] ?? "—"}</span>
           )}
         </span>
         {isTrim && (
           <>
-            <span className="text-zinc-500">→ Into</span>
+            <span className="text-[#d4af37] font-semibold">→ Into</span>
             <span className="text-sky-300 font-semibold">Cash</span>
           </>
         )}
@@ -382,16 +388,18 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
   });
 
   return (
-    <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-2.5 py-2 space-y-2">
+    <div className="rounded-md border border-[#d4af37]/35 bg-[#1E1E2E] px-2.5 py-2 space-y-2 shadow-lg shadow-black/40">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">Model thesis</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#d4af37]">
+          Model thesis
+        </span>
         <span
           className={cn(
             "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
-            tone === "good" && "border-green-500/40 text-green-300",
-            tone === "bad" && "border-red-500/40 text-red-300",
-            tone === "warn" && "border-amber-400/40 text-amber-200",
-            tone === "neutral" && "border-zinc-600 text-zinc-400",
+            tone === "good" && "border-green-400/60 bg-green-700/50 text-white",
+            tone === "bad" && "border-red-400/70 bg-red-800/80 text-amber-50",
+            tone === "warn" && "border-amber-400/60 bg-amber-700/40 text-white",
+            tone === "neutral" && "border-[#d4af37]/40 bg-zinc-800 text-amber-50",
           )}
         >
           {VERDICT_LABELS[item.verdict] || item.verdict || "Watch"}
@@ -422,14 +430,14 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
       {driverOnly.length > 0 && (
         <WhyCallout
           tone={tone}
-          title={<span className="text-[11px] text-zinc-300">Also</span>}
+          title={<span className="text-[11px] text-amber-50">Also</span>}
         >
           <ul className="space-y-0.5 text-[11px]">
             {driverOnly.map((w, i) => (
               <li
                 key={i}
                 className={cn(
-                  w.startsWith("⚠") || /falling.?knife|fragile/i.test(w) ? "text-orange-300" : "text-violet-200/90",
+                  w.startsWith("⚠") || /falling.?knife|fragile/i.test(w) ? "text-orange-300" : "text-violet-200",
                 )}
               >
                 {w}
@@ -440,120 +448,142 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
       )}
 
       {pillars && (
-        <div className="grid grid-cols-5 gap-1">
-          {([
-            ["own", "Own"],
-            ["street", "Street"],
-            ["premium", "Prem"],
-            ["fit", "Fit"],
-            ["edge", "Edge"],
-          ] as const).map(([k, label]) => {
-            const v = pillars[k];
-            const pt = pillarTone(k, v, isTrim);
-            const tip = pillarTip(k, v, isTrim);
-            return (
-              <Tooltip key={k} delayDuration={120}>
+        <div className="space-y-1">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-amber-100/80">
+            Scores · hover any box for what it means
+          </div>
+          <div className="grid grid-cols-5 gap-1">
+            {([
+              ["own", "Own"],
+              ["street", "Street"],
+              ["premium", "Prem"],
+              ["fit", "Fit"],
+              ["edge", "Edge"],
+            ] as const).map(([k, label]) => {
+              const v = pillars[k];
+              const pt = pillarTone(k, v, isTrim);
+              const tip = pillarTip(k, v, isTrim);
+              return (
+                <Tooltip key={k} delayDuration={120}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-left w-full rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
+                    >
+                      <WhyMetric
+                        label={label}
+                        value={v != null ? Math.round(v) : "—"}
+                        tone={pt}
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="max-w-[260px] bg-zinc-900 text-amber-50 border border-[#d4af37]/40 text-[11px] leading-snug"
+                  >
+                    {tip}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Market facts (left) vs your trade history (right) */}
+      {(pillars?.ma200 != null || c?.vol || c?.wall || (c?.earnings && c.earnings.days_after_expiry <= 14)
+        || (c?.win?.ev != null && c.win.ev_good != null) || c?.record) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="rounded border border-[#d4af37]/20 bg-black/20 px-2 py-1.5 space-y-1 min-h-[2.5rem]">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-[#d4af37]">Market</div>
+            {pillars?.ma200 != null && (
+              <div className="text-[10px] text-amber-50" title="Close vs 200-day average">
+                Trend:{" "}
+                <span className={pillars.ma200 >= 0 ? "text-green-400" : "text-red-400"}>
+                  {pillars.ma200 >= 0 ? "above" : "below"} 200-day ({pillars.ma200 >= 0 ? "+" : ""}{(pillars.ma200 * 100).toFixed(0)}%)
+                </span>
+              </div>
+            )}
+            {c?.vol && (
+              <div className="text-[10px] text-amber-50">
+                Options vs realized:{" "}
+                <span className={c.vol.contract_iv_rv >= 1.1 ? "text-green-400" : c.vol.contract_iv_rv < 0.95 ? "text-red-400" : "text-white"}>
+                  {c.vol.contract_iv_rv.toFixed(2)}× {c.vol.contract_iv_rv >= 1.1 ? "rich" : c.vol.contract_iv_rv < 0.95 ? "cheap" : "fair"}
+                </span>
+              </div>
+            )}
+            {c?.wall && (
+              <Tooltip>
                 <TooltipTrigger asChild>
-                  <button type="button" className="text-left w-full rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40">
-                    <WhyMetric
-                      label={label}
-                      value={v != null ? Math.round(v) : "—"}
-                      tone={pt}
-                    />
-                  </button>
+                  <div className="text-[10px] text-amber-50 cursor-help">
+                    IV wall ({c.wall.kind}): <span className="font-mono text-white">${c.wall.level.toFixed(2)}</span> · strike{" "}
+                    <span className="font-mono text-white">{c.wall.strike_sigma.toFixed(1)}σ</span>{" "}
+                    {c.wall.beyond_wall ? "beyond the wall" : "inside the wall"}
+                    {c.wall.held != null && (
+                      <>
+                        {" "}· stayed inside{" "}
+                        <span className={c.wall.held >= 0.97 ? "text-green-400" : c.wall.held < 0.93 ? "text-red-400" : "text-white"}>
+                          {Math.round(c.wall.held * 100)}%
+                        </span>{" "}
+                        past yr
+                      </>
+                    )}
+                  </div>
                 </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  className="max-w-[260px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug"
-                >
-                  {tip}
+                <TooltipContent className="max-w-[300px] text-[11px] leading-snug text-amber-50">
+                  {c.wall.kind === "floor" ? "Put floor" : "Call ceiling"} = the price the options market gives a 5 % chance of finishing
+                  {c.wall.kind === "floor" ? " below" : " above"} by expiry: spot × e^({c.wall.kind === "floor" ? "−" : "+"}1.645 × 30-day ATM IV × √(days/365)).
+                  Strike σ = how many of those standard moves away the strike sits (live puts sell ~0.9–1.4σ, i.e. inside the wall, by design).
+                  Stayed inside = how often this stock actually finished inside its own wall over the past year at this horizon
+                  ({c.wall.held_n ?? "—"} start days, LSEG closes): above 95 % its options over-priced the tail; below, under-priced it.
+                  Display only — not a filter.
                 </TooltipContent>
               </Tooltip>
-            );
-          })}
-        </div>
-      )}
+            )}
+            {c?.earnings && c.earnings.days_after_expiry <= 14 && (
+              <div className={cn("text-[10px]", c.earnings.inside ? "text-orange-300" : "text-amber-50")}>
+                Earnings {fmtExpiry(c.earnings.date)}:{" "}
+                {c.earnings.inside ? "inside this trade's window (gap risk)" : `${c.earnings.days_after_expiry}d after expiry`}
+              </div>
+            )}
+            {!(pillars?.ma200 != null || c?.vol || c?.wall || (c?.earnings && c.earnings.days_after_expiry <= 14)) && (
+              <div className="text-[10px] text-amber-100/60">No market bullets for this pick.</div>
+            )}
+          </div>
 
-      {pillars?.ma200 != null && (
-        <div className="text-[10px] text-amber-200/70" title="Close vs 200-day average">
-          Trend:{" "}
-          <span className={pillars.ma200 >= 0 ? "text-green-400" : "text-red-400"}>
-            {pillars.ma200 >= 0 ? "above" : "below"} 200-day ({pillars.ma200 >= 0 ? "+" : ""}{(pillars.ma200 * 100).toFixed(0)}%)
-          </span>
-        </div>
-      )}
-
-      {c?.win?.ev != null && c.win.ev_good != null && c.win.ev_bad != null && (
-        <div className="text-[10px] text-amber-200/70">
-          Per contract (history): good <span className={usdTone(c.win.ev_good)}>{usd(c.win.ev_good)}</span> · avg{" "}
-          <span className={usdTone(c.win.ev)}>{usd(c.win.ev)}</span> · bad <span className={usdTone(c.win.ev_bad)}>{usd(c.win.ev_bad)}</span>
-        </div>
-      )}
-
-      {c?.vol && (
-        <div className="text-[10px] text-amber-200/70">
-          Options vs realized:{" "}
-          <span className={c.vol.contract_iv_rv >= 1.1 ? "text-green-400" : c.vol.contract_iv_rv < 0.95 ? "text-red-400" : "text-amber-100"}>
-            {c.vol.contract_iv_rv.toFixed(2)}× {c.vol.contract_iv_rv >= 1.1 ? "rich" : c.vol.contract_iv_rv < 0.95 ? "cheap" : "fair"}
-          </span>
-        </div>
-      )}
-
-      {c?.wall && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="text-[10px] text-amber-200/70 cursor-default">
-              IV wall ({c.wall.kind}): <span className="font-mono text-amber-100">${c.wall.level.toFixed(2)}</span> · strike{" "}
-              <span className="font-mono text-amber-100">{c.wall.strike_sigma.toFixed(1)}σ</span>{" "}
-              {c.wall.beyond_wall ? "beyond the wall" : "inside the wall"}
-              {c.wall.held != null && (
-                <>
-                  {" "}· stayed inside{" "}
-                  <span className={c.wall.held >= 0.97 ? "text-green-400" : c.wall.held < 0.93 ? "text-red-400" : "text-amber-100"}>
-                    {Math.round(c.wall.held * 100)}%
-                  </span>{" "}
-                  past yr
-                </>
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-[300px] text-[11px] leading-snug">
-            {c.wall.kind === "floor" ? "Put floor" : "Call ceiling"} = the price the options market gives a 5 % chance of finishing
-            {c.wall.kind === "floor" ? " below" : " above"} by expiry: spot × e^({c.wall.kind === "floor" ? "−" : "+"}1.645 × 30-day ATM IV × √(days/365)).
-            Strike σ = how many of those standard moves away the strike sits (live puts sell ~0.9–1.4σ, i.e. inside the wall, by design).
-            Stayed inside = how often this stock actually finished inside its own wall over the past year at this horizon
-            ({c.wall.held_n ?? "—"} start days, LSEG closes): above 95 % its options over-priced the tail; below, under-priced it.
-            Display only — not a filter.
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {c?.earnings && c.earnings.days_after_expiry <= 14 && (
-        <div className={cn("text-[10px]", c.earnings.inside ? "text-orange-300" : "text-amber-200/70")}>
-          Earnings {fmtExpiry(c.earnings.date)}:{" "}
-          {c.earnings.inside ? "inside this trade's window (gap risk)" : `${c.earnings.days_after_expiry}d after expiry`}
-        </div>
-      )}
-
-      {c?.record && (
-        <div className="text-[10px] text-amber-200/70">
-          Your record ({c.type}s): {c.record.wins} of {c.record.n} profitable ·{" "}
-          <span className={usdTone(c.record.pnl)}>{usd(c.record.pnl)}</span>
+          <div className="rounded border border-[#d4af37]/20 bg-black/20 px-2 py-1.5 space-y-1 min-h-[2.5rem]">
+            <div className="text-[9px] font-bold uppercase tracking-wider text-[#d4af37]">Your history</div>
+            {c?.win?.ev != null && c.win.ev_good != null && c.win.ev_bad != null && (
+              <div className="text-[10px] text-amber-50">
+                Per contract: good <span className={usdTone(c.win.ev_good)}>{usd(c.win.ev_good)}</span> · avg{" "}
+                <span className={usdTone(c.win.ev)}>{usd(c.win.ev)}</span> · bad <span className={usdTone(c.win.ev_bad)}>{usd(c.win.ev_bad)}</span>
+              </div>
+            )}
+            {c?.record && (
+              <div className="text-[10px] text-amber-50">
+                Your record ({c.type}s): {c.record.wins} of {c.record.n} profitable ·{" "}
+                <span className={usdTone(c.record.pnl)}>{usd(c.record.pnl)}</span>
+              </div>
+            )}
+            {!(c?.win?.ev != null && c.win.ev_good != null) && !c?.record && (
+              <div className="text-[10px] text-amber-100/60">No closed trades for this side yet.</div>
+            )}
+          </div>
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
         <ModelPickExplain key={`${thesis.folderKey}:${item.ticker}:${item.contract?.type ?? ""}:${item.contract?.account ?? ""}`} thesis={thesis} />
         {flagOnly.map((f) => (
-          <span key={f} className="text-[9px] px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-200/80">
+          <span key={f} className="text-[9px] px-1.5 py-0.5 rounded border border-amber-400/50 bg-amber-900/40 text-amber-50">
             {f}
           </span>
         ))}
       </div>
 
       {item.adjustments && item.adjustments.length > 0 && (
-        <div className="rounded border border-amber-400/25 px-2 py-1">
-          <div className="text-[9px] uppercase tracking-wider text-amber-200/70 mb-0.5">Adjustments</div>
+        <div className="rounded border border-amber-400/35 bg-black/25 px-2 py-1">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-[#d4af37] mb-0.5">Adjustments</div>
           <table className="text-[10px] w-full">
             <tbody>
               {item.adjustments.map((a, i) => {
@@ -561,8 +591,8 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
                 const net = num ? (a.to as number) - (a.from as number) : null;
                 return (
                   <tr key={i} className="align-top">
-                    <td className="pr-2 text-amber-100 font-semibold whitespace-nowrap">{a.what}</td>
-                    <td className="pr-2 font-mono whitespace-nowrap text-amber-200/80">
+                    <td className="pr-2 text-white font-semibold whitespace-nowrap">{a.what}</td>
+                    <td className="pr-2 font-mono whitespace-nowrap text-amber-50">
                       {num ? Math.round(a.from as number) : a.from} → {num ? Math.round(a.to as number) : a.to}
                       {net != null && (
                         <span className={cn("ml-1", net >= 0 ? "text-green-400" : "text-red-400")}>
@@ -570,7 +600,7 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
                         </span>
                       )}
                     </td>
-                    <td className="text-amber-200/60">{a.why}</td>
+                    <td className="text-amber-100/85">{a.why}</td>
                   </tr>
                 );
               })}

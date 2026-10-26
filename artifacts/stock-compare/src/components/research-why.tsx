@@ -21,7 +21,7 @@ export function Num({ children }: { children: ReactNode }) {
   return <span className="font-mono font-semibold text-zinc-100">{children}</span>;
 }
 export function Em({ children }: { children: ReactNode }) {
-  return <span className="italic text-zinc-500">{children}</span>;
+  return <span className="italic text-amber-100/70">{children}</span>;
 }
 export function U({ children }: { children: ReactNode }) {
   return <span className="underline decoration-[#d4af37]/50 underline-offset-2">{children}</span>;
@@ -54,11 +54,11 @@ export function WhyMetric({
   return (
     <div className={cn("rounded border px-2.5 py-2 space-y-1", TONE_BORDER[tone])}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</span>
-        <span className="font-mono text-[14px] font-semibold text-zinc-100 shrink-0">{value}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#d4af37]">{label}</span>
+        <span className="font-mono text-[14px] font-semibold text-white shrink-0">{value}</span>
       </div>
-      {sub && <div className="text-[9.5px] text-zinc-500 font-mono">{sub}</div>}
-      {note && <div className="text-[10.5px] text-zinc-300 leading-snug">{note}</div>}
+      {sub && <div className="text-[9.5px] text-amber-100/80 font-mono">{sub}</div>}
+      {note && <div className="text-[10.5px] text-amber-50 leading-snug">{note}</div>}
       {children}
     </div>
   );
@@ -76,7 +76,7 @@ export function WhyCallout({
   return (
     <div className={cn("rounded border px-2.5 py-2 space-y-1", TONE_BORDER[tone])}>
       <div className="text-[12px] font-semibold text-zinc-100 leading-snug">{title}</div>
-      {children && <div className="text-[10.5px] text-zinc-400 leading-snug space-y-1">{children}</div>}
+      {children && <div className="text-[10.5px] text-amber-100/85 leading-snug space-y-1">{children}</div>}
     </div>
   );
 }
