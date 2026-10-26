@@ -107,16 +107,44 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
 
         <div className={showHeader ? "p-4 max-w-6xl pb-20" : "max-w-6xl pb-8"}>
           <Tabs value={tab} onValueChange={setTab}>
-            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-hidden">
                 <TabsTrigger value="fundamental" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Fundamental</TabsTrigger>
                 <TabsTrigger value="technical" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Technical</TabsTrigger>
                 <TabsTrigger value="options" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Options</TabsTrigger>
               </TabsList>
 
-              {isAdmin && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-white/70">Presets:</span>
+              {/* As-of sits with the layer tabs — not a lonely grey line under them */}
+              {tab === "fundamental" && (
+                <TabStatusHeader
+                  chips={status.chipsFor?.("fundamentals")}
+                  text={status.stripFor("fundamentals")}
+                  warn={status.fundStale}
+                  inline
+                />
+              )}
+              {tab === "technical" && (
+                <TabStatusHeader
+                  chips={status.chipsFor?.("technicals")}
+                  text={status.stripFor("technicals")}
+                  warn={status.techStale}
+                  inline
+                />
+              )}
+              {tab === "options" && (
+                <TabStatusHeader
+                  chips={status.chipsFor?.("options")}
+                  text={status.stripFor("options")}
+                  inline
+                />
+              )}
+
+              {/* Tech/options weight drafts only — never the persisted fund-score engine */}
+              {isAdmin && (tab === "technical" || tab === "options") && (
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-[11px] text-white" title="Draft weights for Technical/Options grids. Save to persist. Does not change fundamental engine scores.">
+                    Presets:
+                  </span>
                   <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden">
                     {Object.entries(SCORING_PRESETS).map(([key, p]) => (
                       <button
@@ -126,7 +154,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                           "text-[11px] font-semibold px-2 h-6 transition-colors",
                           preset === key
                             ? "bg-[#d4af37] text-black"
-                            : "bg-zinc-950 text-white/70 hover:text-[#d4af37]",
+                            : "bg-zinc-950 text-white hover:text-[#d4af37]",
                         )}
                       >
                         {p.label}
@@ -138,20 +166,10 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
             </div>
 
             <TabsContent value="fundamental" className="mt-0 space-y-2">
-              <TabStatusHeader
-                chips={status.chipsFor?.("fundamentals")}
-                text={status.stripFor("fundamentals")}
-                warn={status.fundStale}
-              />
               <FundamentalTreatmentPanel />
             </TabsContent>
 
             <TabsContent value="technical" className="mt-0 space-y-2">
-              <TabStatusHeader
-                chips={status.chipsFor?.("technicals")}
-                text={status.stripFor("technicals")}
-                warn={status.techStale}
-              />
               <GuideMetricGrid
                 rows={TECHNICAL_GUIDE_ROWS}
                 coverageLabel={techCov.label}
@@ -164,11 +182,7 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
             </TabsContent>
 
             <TabsContent value="options" className="mt-0 space-y-2">
-              <TabStatusHeader
-                chips={status.chipsFor?.("options")}
-                text={status.stripFor("options")}
-              />
-              <p className="text-xs text-white/70">Rank stocks → score strikes → liquidity warning + macro regime</p>
+              <p className="text-xs text-white">Rank stocks → score strikes → liquidity warning + macro regime</p>
               <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock rank layer</p>
               <GuideMetricGrid
                 rows={OPTIONS_STOCK_ROWS}

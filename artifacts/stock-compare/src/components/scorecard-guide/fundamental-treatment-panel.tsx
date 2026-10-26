@@ -79,7 +79,7 @@ function PipelineStrip({ activeStyle }: { activeStyle?: string | null }) {
             <div className="text-[9px] font-bold uppercase tracking-wider text-[#d4af37]/80">
               {i + 1}. {step.title}
             </div>
-            <div className="text-[10px] text-white/60 mt-0.5 leading-snug">{step.detail}</div>
+            <div className="text-[10px] text-white mt-0.5 leading-snug">{step.detail}</div>
             {step.id === "style" && activeStyle && (
               <div className="text-[10px] font-semibold text-[#d4af37] mt-1 capitalize">
                 → {activeStyle.replace(/_/g, " ")}
@@ -106,7 +106,7 @@ function StyleTree() {
       {STYLE_GATES.map((g, i) => (
         <div key={g.q} className="grid grid-cols-[auto_1fr_auto] gap-x-2 items-center text-[10px]">
           <span className="font-mono text-[#d4af37]/50 w-4">{i + 1}</span>
-          <span className="text-white/70">{g.q}</span>
+          <span className="text-white">{g.q}</span>
           <span className="text-emerald-400/90 font-medium text-right whitespace-nowrap">{g.yes}</span>
         </div>
       ))}
@@ -147,13 +147,13 @@ function TickerWalkthrough() {
           Try a ticker
         </span>
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-white/40" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-white" />
           <input
             value={input}
             onChange={(e) => setInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && commit()}
             placeholder="NVDA"
-            className="h-7 w-28 pl-7 pr-2 text-[11px] font-mono rounded border border-[#d4af37]/25 bg-zinc-950 text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/40"
+            className="h-7 w-28 pl-7 pr-2 text-[11px] font-mono rounded border border-[#d4af37]/25 bg-zinc-950 text-white placeholder:text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/40"
           />
         </div>
         <button
@@ -163,7 +163,7 @@ function TickerWalkthrough() {
         >
           Load
         </button>
-        {isFetching && <span className="text-[10px] text-white/40">…</span>}
+        {isFetching && <span className="text-[10px] text-white">…</span>}
       </div>
 
       {ticker && !row && !isFetching && (
@@ -174,33 +174,33 @@ function TickerWalkthrough() {
         <div className="space-y-2">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-lg font-bold text-white tabular-nums">{row.totalScore.toFixed(0)}</span>
-            <span className="text-[11px] text-white/50">total</span>
+            <span className="text-[11px] text-white">total</span>
             {row.styleBucket && (
               <span className="text-[11px] font-semibold capitalize text-[#d4af37]">
                 {row.styleBucket.replace(/_/g, " ")}
               </span>
             )}
             {row.peerGroupName && (
-              <span className="text-[10px] text-white/40">
+              <span className="text-[10px] text-white">
                 peers: {row.peerGroupName}
                 {row.peerGroupSize != null ? ` (${row.peerGroupSize})` : ""}
               </span>
             )}
           </div>
           <FamilyBars weights={weights} highlight={row.styleBucket as StyleBucket} />
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-white/55">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-white">
             {FAM.map((f) => (
               <span key={f}>
                 <span className={cn("inline-block w-1.5 h-1.5 rounded-sm mr-1 align-middle", FAM_COLOR[f])} />
                 {f} {weights[f]}%
                 {row.familyScores?.[f] != null && (
-                  <span className="text-white/80 font-mono ml-1">{row.familyScores[f].score.toFixed(0)}</span>
+                  <span className="text-white font-mono ml-1">{row.familyScores[f].score.toFixed(0)}</span>
                 )}
               </span>
             ))}
           </div>
           {(row.companyScore != null || row.sectorScore != null) && (
-            <div className="text-[10px] text-white/45 font-mono">
+            <div className="text-[10px] text-white font-mono">
               company {row.companyScore?.toFixed(0) ?? "—"} · sector opp {row.sectorScore?.toFixed(0) ?? "—"} · blend → total
             </div>
           )}
@@ -219,11 +219,11 @@ export function FundamentalTreatmentPanel() {
           <h2 className="text-xs font-semibold text-[#d4af37]/90 uppercase tracking-wide">
             Fundamental score
           </h2>
-          <p className="text-[11px] text-white/45 mt-0.5">
+          <p className="text-[11px] text-white mt-0.5">
             Peer-relative quality → rankings, Model List, options stockQuality. Blanks drop out (not zero).
           </p>
         </div>
-        <div className="flex gap-2 text-[9px] text-white/40">
+        <div className="flex gap-2 text-[9px] text-white">
           {FAM.map((f) => (
             <span key={f} className="flex items-center gap-1 capitalize">
               <span className={cn("w-2 h-2 rounded-sm", FAM_COLOR[f])} />
@@ -236,7 +236,7 @@ export function FundamentalTreatmentPanel() {
       <TickerWalkthrough />
 
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-white/50 mb-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-white mb-1.5">
           Engine sequence
         </div>
         <PipelineStrip />
@@ -251,8 +251,8 @@ export function FundamentalTreatmentPanel() {
           {(Object.keys(STYLE_FAMILY_WEIGHTS) as StyleBucket[]).map((style) => (
             <div key={style} className="space-y-0.5">
               <div className="flex justify-between text-[10px]">
-                <span className="capitalize text-white/70">{style.replace(/_/g, " ")}</span>
-                <span className="font-mono text-white/40">
+                <span className="capitalize text-white">{style.replace(/_/g, " ")}</span>
+                <span className="font-mono text-white">
                   {FAM.map((f) => STYLE_FAMILY_WEIGHTS[style][f]).join("/")}
                 </span>
               </div>
@@ -263,7 +263,7 @@ export function FundamentalTreatmentPanel() {
       </div>
 
       <details className="rounded-md border border-white/10 bg-black/30 open:pb-1">
-        <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white/60 hover:text-white/80">
+        <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white hover:text-white/80">
           Metrics catalog ({ENGINE_METRICS.length}) — expand
         </summary>
         <div className="max-h-48 overflow-y-auto px-2 pb-2">
@@ -278,11 +278,11 @@ export function FundamentalTreatmentPanel() {
             </thead>
             <tbody>
               {ENGINE_METRICS.map((m) => (
-                <tr key={m.key} className="border-t border-white/5 text-white/60">
+                <tr key={m.key} className="border-t border-white/5 text-white">
                   <td className="py-0.5 text-white/85">{m.label}</td>
                   <td className="py-0.5 capitalize">{m.family.slice(0, 3)}</td>
                   <td className="py-0.5 text-right font-mono">{m.baseIntra}</td>
-                  <td className="py-0.5 pl-2 text-white/45">{m.treatment}</td>
+                  <td className="py-0.5 pl-2 text-white">{m.treatment}</td>
                 </tr>
               ))}
             </tbody>

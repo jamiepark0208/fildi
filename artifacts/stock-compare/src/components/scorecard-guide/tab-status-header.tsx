@@ -10,18 +10,18 @@ export function StatusChipRow({ chips }: { chips?: GuideStatusChips; compact?: b
     items.push({
       key: "refresh",
       label: chips.lastRefresh === "Live at scan" ? chips.lastRefresh : `As of ${chips.lastRefresh}`,
-      cls: "text-white/80",
+      cls: "text-[#d4af37]",
     });
   }
-  if (chips.stale) items.push({ key: "stale", label: "Stale", cls: "text-amber-400 font-semibold" });
+  if (chips.stale) items.push({ key: "stale", label: "Stale", cls: "text-amber-300 font-semibold" });
 
   if (items.length === 0) return null;
 
   return (
-    <span className="block text-[11px] font-mono text-amber-200/40">
+    <span className="text-[11px] font-mono tabular-nums">
       {items.map((it, i) => (
         <span key={it.key}>
-          {i > 0 && " · "}
+          {i > 0 && <span className="text-white/40"> · </span>}
           <span className={it.cls}>{it.label}</span>
         </span>
       ))}
@@ -30,18 +30,18 @@ export function StatusChipRow({ chips }: { chips?: GuideStatusChips; compact?: b
 }
 
 type Props = {
-  /** Preferred — structured status badges */
   chips?: GuideStatusChips;
-  /** @deprecated use chips — kept for partial deploy / HMR safety */
+  /** @deprecated use chips */
   text?: string;
   warn?: boolean;
+  /** Sit beside Fundamental/Technical/Options tabs instead of a lonely row */
+  inline?: boolean;
 };
 
-/** Per-tab timeliness / coverage strip */
-export function TabStatusHeader({ chips, text, warn }: Props) {
+export function TabStatusHeader({ chips, text, warn, inline }: Props) {
   if (chips) {
     return (
-      <div className="mb-1">
+      <div className={cn(inline ? "flex items-center h-7" : "mb-1")}>
         <StatusChipRow chips={chips} />
       </div>
     );
@@ -49,10 +49,11 @@ export function TabStatusHeader({ chips, text, warn }: Props) {
   if (text) {
     return (
       <p className={cn(
-        "text-xs font-mono tabular-nums mb-1",
-        warn ? "text-amber-400" : "text-amber-200/50",
+        "text-xs font-mono tabular-nums",
+        inline ? "flex items-center h-7" : "mb-1",
+        warn ? "text-amber-300" : "text-[#d4af37]",
       )}>
-        {text}
+        {text.startsWith("Last refresh:") ? text.replace(/^Last refresh:/, "As of") : text}
       </p>
     );
   }
