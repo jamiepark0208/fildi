@@ -1,5 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import type { CoverageDomain } from "@/lib/scorecard-guide-metadata";
+import { formatMdYy } from "@/lib/format";
 
 type TickerStatus = { ticker: string; lastFetched: string | null; coveragePct: number | null };
 type FundStatus = { tickers: TickerStatus[]; apiBudget?: { remaining: number } };
@@ -35,7 +36,7 @@ function latestFetch(tickers: TickerStatus[]): Date | null {
 
 function fmtDate(d: Date | null): string {
   if (!d || Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return formatMdYy(d.toISOString());
 }
 
 function isStale(d: Date | null, maxDays: number): boolean {

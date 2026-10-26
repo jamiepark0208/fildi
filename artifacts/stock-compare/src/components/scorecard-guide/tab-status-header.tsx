@@ -1,40 +1,18 @@
 import { cn } from "@/lib/utils";
-import type { CoverageTone, GuideStatusChips } from "@/hooks/use-guide-status";
+import type { GuideStatusChips } from "@/hooks/use-guide-status";
 
-function coverageTextClass(tone: CoverageTone): string {
-  if (tone === "good") return "text-green-400";
-  if (tone === "partial") return "text-yellow-400";
-  return "text-amber-200/50";
-}
-
-function sourceTextClass(name: string, active: boolean): string {
-  if (!active) return "text-amber-200/30";
-  if (name === "FactSet") return "text-green-400";
-  if (name === "FMP") return "text-sky-300";
-  return "text-[#d4af37]";
-}
-
-/** Single-line " · "-separated compact read — replaces the old multi-badge wrapped row. */
+/** Single-line status — as-of + stale only (vendor health lives on Settings › API). */
 export function StatusChipRow({ chips }: { chips?: GuideStatusChips; compact?: boolean }) {
   if (!chips) return null;
 
   const items: { key: string; label: string; cls: string }[] = [];
-  if (chips.peerRanked) items.push({ key: "peer", label: "Peer-ranked", cls: "text-white" });
   if (chips.lastRefresh) {
     items.push({
       key: "refresh",
-      label: chips.lastRefresh === "Live at scan" ? chips.lastRefresh : `Refresh: ${chips.lastRefresh}`,
-      cls: "text-white",
+      label: chips.lastRefresh === "Live at scan" ? chips.lastRefresh : `As of ${chips.lastRefresh}`,
+      cls: "text-white/80",
     });
   }
-  if (chips.coverage.label) {
-    items.push({ key: "cov", label: `Coverage: ${chips.coverage.label}`, cls: coverageTextClass(chips.coverage.tone) });
-  }
-  chips.sources.forEach(s => items.push({
-    key: s.name,
-    label: `${s.name}: ${s.active ? "Active" : "Inactive"}${s.detail ? ` (${s.detail})` : ""}`,
-    cls: sourceTextClass(s.name, s.active),
-  }));
   if (chips.stale) items.push({ key: "stale", label: "Stale", cls: "text-amber-400 font-semibold" });
 
   if (items.length === 0) return null;

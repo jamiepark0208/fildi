@@ -709,10 +709,10 @@ export default function Settings() {
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: "scorecard-guide", label: "Scorecard Guide" },
     { id: "stockdb",         label: "Stock DB" },
+    { id: "api-monitor",     label: "API",             adminOnly: true },
     { id: "users",           label: "Users",           adminOnly: true },
     { id: "cache",           label: "Cache",           adminOnly: true },
     { id: "scheduled-tasks", label: "Tasks",           adminOnly: true },
-    { id: "api-monitor",     label: "API",             adminOnly: true },
     { id: "inbox",           label: "Inbox",           adminOnly: true },
   ];
 
@@ -753,11 +753,8 @@ export default function Settings() {
       {/* Custom chrome (sticky header + tabs outside scroll). Same contract as AppPage:
           viewport lock + data-lenis-prevent on the scroll pane — do not use bare pt-14. */}
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
-        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
-          <h1 className="text-sm font-bold tracking-tight leading-none text-white">Settings</h1>
-        </div>
-
-        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
+        {/* No page title — TopNav gear already says Settings */}
+        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-4 py-1.5">
           <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
             {visibleTabs.map((t) => (
               <button
@@ -774,7 +771,7 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4" data-lenis-prevent>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-2" data-lenis-prevent>
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users" && isAdmin && <UserMgmtTab />}
           {tab === "cache" && isAdmin && <CacheMonitorTab />}

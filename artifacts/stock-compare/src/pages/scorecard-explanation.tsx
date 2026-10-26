@@ -105,9 +105,9 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           </div>
         )}
 
-        <div className="p-4 max-w-6xl pb-20">
+        <div className={showHeader ? "p-4 max-w-6xl pb-20" : "max-w-6xl pb-8"}>
           <Tabs value={tab} onValueChange={setTab}>
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
+            <div className="flex items-center gap-3 mb-1.5 flex-wrap">
               <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-hidden">
                 <TabsTrigger value="fundamental" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Fundamental</TabsTrigger>
                 <TabsTrigger value="technical" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Technical</TabsTrigger>
@@ -144,11 +144,6 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 warn={status.fundStale}
               />
               <FundamentalTreatmentPanel />
-              {isAdmin && (
-                <p className="text-[10px] text-white/55 border border-[#d4af37]/15 rounded px-2 py-1.5">
-                  Presets on this page edit technical/options weights only — not the persisted fundamental score.
-                </p>
-              )}
             </TabsContent>
 
             <TabsContent value="technical" className="mt-0 space-y-2">
