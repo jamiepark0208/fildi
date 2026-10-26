@@ -17,6 +17,7 @@ moves off the base band only when that beat the base in both halves of the fitte
 
     .venv/bin/python band_engine.py backtest
     .venv/bin/python band_engine.py today [--tickers=A,B]      # every band per name, chosen band marked
+    .venv/bin/python band_engine.py refresh                    # weekly refit of the live table (daily.py)
 """
 from __future__ import annotations
 
@@ -260,5 +261,22 @@ def today():
     print("\n".join(L))
 
 
+def refresh():
+    """Weekly (daily.py 'band table'): rebuild the S101 rows and refit the live table on all history. ~5 min; skips < 6.5 days."""
+    import time
+    if TABLE.exists() and time.time() - TABLE.stat().st_mtime < 6.5 * 86400:
+        print(f"band table: fresh ({TABLE.name}, {(time.time() - TABLE.stat().st_mtime) / 86400:.1f} d)")
+        return
+    from build_plan import connect
+    from s101_band_regime import build
+    with connect() as c:
+        rows = build(c)
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    CACHE.write_bytes(pickle.dumps(rows))
+    rows = [r for r in rows if r["h"] == 1 and r.get("vix_ratio") == r.get("vix_ratio")]
+    TABLE.write_text(json.dumps({"fitted": str(date.today()), "rows": len(rows), "floors": FLOORS, "table": fit(rows)}, indent=1))
+    print(f"band table: refit on {len(rows):,} rows → {TABLE}")
+
+
 if __name__ == "__main__":
-    {"backtest": backtest, "today": today}[sys.argv[1] if len(sys.argv) > 1 else "backtest"]()
+    {"backtest": backtest, "today": today, "refresh": refresh}[sys.argv[1] if len(sys.argv) > 1 else "backtest"]()

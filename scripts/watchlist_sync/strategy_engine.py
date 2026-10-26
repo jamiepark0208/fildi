@@ -122,6 +122,79 @@ def put_band(credit_rank) -> str:
     return r["band"] if credit_rank is not None and credit_rank < r["below"] else s["default_band"]
 
 
+# ---------------------------------------------------------------- sold-put band by market × stock state (A277 §8, S101)
+
+_BAND_TABLE: dict | None = None
+
+
+def band_table() -> dict:
+    """band_engine.py's per-state band history (refit weekly by daily.py 'band table'); {} if never built."""
+    global _BAND_TABLE
+    if _BAND_TABLE is None:
+        p = HERE / "out" / "opt" / "band_engine.json"
+        _BAND_TABLE = json.loads(p.read_text())["table"] if p.exists() else {}
+    return _BAND_TABLE
+
+
+def band_states(conn, tickers) -> tuple[dict, dict]:
+    """(market {state, spy_3m, spy_6m, spy_dd52, vix, vix_ratio}, {ticker: {state, dd52, rel_3m}}) at the last LSEG close,
+    with band_engine's definitions (one home for the thresholds)."""
+    import band_engine as BE
+    want = sorted(set(tickers) | {"SPY"})
+    ser: dict[str, tuple[list, list]] = {}
+    for t, c, h in conn.execute(
+            "SELECT ticker, close::float8, COALESCE(high, close)::float8 FROM lseg_research.daily_history WHERE ticker = ANY(%s) "
+            "AND close > 0 AND date >= (SELECT MAX(date) FROM lseg_research.daily_history) - 400 ORDER BY ticker, date", (want,)):
+        ser.setdefault(t, ([], []))[0].append(c)
+        ser[t][1].append(h)
+
+    def feats(t):
+        c, h = ser.get(t, ([], []))
+        if len(c) < 127:
+            return None
+        return {"3m": c[-1] / c[-64] - 1, "6m": c[-1] / c[-127] - 1, "dd52": c[-1] / max(h[-252:]) - 1}
+    m = feats("SPY") or {"3m": 0.0, "6m": 0.0, "dd52": 0.0}
+    vix = dict(conn.execute("SELECT DISTINCT ON (index) index, close::float8 FROM wrds_research.cboe_daily "
+                            "WHERE index IN ('VIX','VIX3M') ORDER BY index, date DESC").fetchall())
+    mf = {"spy_3m": m["3m"], "spy_6m": m["6m"], "spy_dd52": m["dd52"], "vix": vix.get("VIX"),
+          "vix_ratio": vix["VIX"] / vix["VIX3M"] if vix.get("VIX") and vix.get("VIX3M") else 0.0}
+    mf["state"] = BE.market_state(mf)
+    names = {}
+    for t in tickers:
+        f = feats(t)
+        if f:
+            nf = {"stk_dd52": f["dd52"], "rel_3m": f["3m"] - m["3m"]}
+            names[t] = {"state": BE.name_state(nf), "dd52": f["dd52"], "rel_3m": nf["rel_3m"]}
+    return mf, names
+
+
+def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[str | None, str]:
+    """(band, reason) for a sold put. None = no new puts (panic). Falls back to the rules' default band when the table is
+    missing or the name has no history. Weak credit → one band farther (rules restrike). Capped at 0.20Δ (S071 /
+    rules.PUT_DELTA); callers floor the target at rules.PUT_DELTA's 0.05."""
+    import band_engine as BE
+    s = ENGINE["strategies"]["sell_put"]["strike"]
+    ms, ns = market["state"], (name or {}).get("state", "normal")
+    tab = band_table()
+    b = BE.choose(tab, ms, ns, BE.FLOORS[s.get("risk", "standard")]) if tab else s["default_band"]
+    if b is None:
+        if ms == "panic":
+            return None, f"panic (VIX ÷ VIX3M {market['vix_ratio']:.2f} ≥ 1) → no new puts until the curve normalises (S101)"
+        b = s["default_band"]
+    bands = s["bands"]
+    lo_cap = 0
+    hi_cap = max(i for i, x in enumerate(bands) if band_bounds(x)[1] <= 0.20 + 1e-9)
+    i = min(max(bands.index(b), lo_cap), hi_cap)
+    r = s["restrike"]
+    weak = credit_rank is not None and credit_rank < r["below"]
+    if weak and i > lo_cap:
+        i -= 1
+    b = bands[i]
+    h = tab.get(f"{ms}|{ns}|{b}") if tab else None
+    hist = f" (history {h['bp']:+.0f} bp/wk, worst 5 % {h['w5']:+.0f})" if h else ""
+    return b, f"market {ms.replace('_', ' ')} · stock {ns} → {b}Δ{hist}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
+
+
 def csp_band_legs(chain, pick, leg, front):
     """{band: leg} — the listed put whose |Δ| is nearest each band's midpoint and inside the band (structures._pick/_leg)."""
     out = {}

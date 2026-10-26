@@ -300,7 +300,7 @@ def carry_forward_puts(conn, ctx: dict) -> int:
 
 
 def restrike_puts(conn, ctx: dict) -> None:
-    """Every weekly put (strategy puts only when above the Δ cap) moves to the listed strike nearest PUT_TARGET_ABS_DELTA on
+    """Every weekly put (strategy puts only when above the Δ cap) moves to the listed strike nearest the band engine's target on
     the same expiry (latest saved chain, no API). The name's income is measured at PUT_NAME_INCOME_ABS_DELTA (the S088-vs-ML
     eligibility) and min_income / L2 realistic_yield judge that. Carried picks always refresh so spot_drift measures the chain."""
     def why_far(r):  # Jamie 10-20: a riskier put gets a farther strike, not a smaller size
@@ -313,9 +313,30 @@ def restrike_puts(conn, ctx: dict) -> None:
             return f"StarMine credit {cr} < {R.MIN_CREDIT_RANK_PUTS}"
         return __import__("publish_model_list").put_size_note(ctx["fit"].get(t), ctx["fit_params"]) if "fit" in ctx else None
 
+    # A277 §8 (S101): the normal target is the band engine's band for this market × stock state (same function as
+    # Structures' CSP), not a fixed PUT_TARGET_ABS_DELTA. Credit is left to why_far (it already moves the strike farther).
+    import strategy_engine as SE
+    puts = sorted({r["ticker"] for r in ctx["recs"] if r["side"] == "put"})
+    bm, bn = SE.band_states(conn, puts) if puts else ({"state": "normal"}, {})
+    ctx["band_market"] = bm
+    if bm["state"] == "panic":   # no new puts at all while the curve is inverted, re-struck or not
+        why = SE.engine_put_band(bm, None)[1]
+        for r in ctx["recs"]:
+            if r["side"] == "put":
+                r["engine_pause"] = why
+
+    def engine_target(r):
+        band, why = SE.engine_put_band(bm, bn.get(r["ticker"]))
+        r["band_why"] = why
+        if band is None:          # panic → option_checks blocks new puts; keep the old target for the strike shown
+            r["engine_pause"] = why
+            return R.PUT_TARGET_ABS_DELTA
+        lo, hi = SE.band_bounds(band)
+        return max(-R.PUT_DELTA[1], (lo + hi) / 2)
+
     def caps(r):  # (cap, target): risky → farther strike instead of a block / half size (rules.PUT_EARNINGS_ABS_DELTA)
         r["far_why"] = why_far(r)
-        return R.PUT_EARNINGS_ABS_DELTA if r["far_why"] else (-R.PUT_DELTA[0], R.PUT_TARGET_ABS_DELTA)
+        return R.PUT_EARNINGS_ABS_DELTA if r["far_why"] else (-R.PUT_DELTA[0], engine_target(r))
     hot = [r for r in ctx["recs"] if r["side"] == "put" and not r.get("restruck") and (
         r.get("carried") or not r.get("strategy") or (r["delta"] is not None and -r["delta"] > caps(r)[0]))]
     if not hot:
@@ -340,7 +361,7 @@ def restrike_puts(conn, ctx: dict) -> None:
             if r.get("carried"):
                 r["carry_no_strike"] = True
             continue
-        why = r["far_why"] or ("carry-forward" if r.get("carried") else f"target {target}Δ: same income, smaller bad weeks (S088-vs-ML)")
+        why = r["far_why"] or ("carry-forward" if r.get("carried") else r.get("band_why") or f"target {target}Δ")
         note = f"re-struck {r.get('delta') or 0:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
         ref = min(band, key=lambda c: abs(-c["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))   # the name's income at the tested Δ
         r["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / (ref["dte"] + _settle_offset(ref["expiry"]))
@@ -423,6 +444,7 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                          # 10-20 (Jamie OK): no inputs = unknown edge, and S059 says most weekly puts lose after fills → block;
                          # the old warn fallback applies only when the drift check has demoted put edge for everyone
                          "block" if e or not ctx.get("edge_demoted") else "warn"))
+        c.append(chk("market_not_panic", not rec.get("engine_pause"), rec.get("engine_pause") or "vol curve normal (VIX < VIX3M)"))   # S101
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         hb = ctx["held_back_reason"]("sell_puts", ctx["fit"].get(t), ctx["fit_params"], None) if "fit" in ctx else None
         c.append(chk("verdict_ok", hb is None, hb or "scored, not red"))

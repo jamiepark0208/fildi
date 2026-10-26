@@ -1,5 +1,5 @@
 {
-  "version": "rules-1.3.0",
+  "version": "rules-1.4.0",
   "updated": "2026-10-24",
   "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
   "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
@@ -375,6 +375,9 @@
           }
         ],
         "strike": {
+          "mode": "band_engine",
+          "risk": "standard",
+          "_band_engine": "A277 §8 / S101 (Jamie 10-26): the band moves with market state (panic / sharp drop / bear grind / normal / rally) × stock state (crashed / normal / extended); band_engine.py picks the best net bp/wk whose worst 5 % week ≥ floor (standard −200, aggressive −400) and only leaves the base band when that beat it in both halves of the fit. Panic → no new puts. default_band = fallback when the table is missing. OOS 2023→: standard +28.2 bp/wk, max DD −4.1 % vs the old fixed 0.08–0.10 +28.1 / −9.8 %.",
           "default_band": "0.08-0.10",
           "bands": [
             "0.03-0.06",
