@@ -9,6 +9,7 @@
 - Working: iv-rank-resolver options-1.2.1, rankings-rules-tab, put+call-ladder-tab, s100-pairs, a271-structures-engine, hold-after-assignment-ladder
 - In progress: cursor: model-list-structures-unification + A271 UI fields
 - Blocked: jamie: default put band choice
+- 10-26 sector/theme ETFs (A277): sector_etfs.py (49 ETFs, daily stage) + `board`; band state stays on the broad 14 (themes as trigger failed: fat tails). Next: S059 put-edge gate inside sector_drop — the binding constraint for semis/AI-infra ~1 %/wk puts.
 - 10-26 sector-aware band state (A277): band_engine `sector_drop` (sector ETF ≥ 15 % off high, SPY calm) → 0.15–0.20Δ; 32 SMH names today. Next: S059 put-edge gate inside sector_drop (most semis gated Q1–3); Model List 7 mismatches clear on next daily run.
 - 10-26 overnight-jobs fix (f0291366 + gate fix): unused-feeds exit 1 root cause **reproduced** = polygon.gate starvation (callers slept inside the flock → "polygon gate: lock timeout" at 120 s with 2 callers). Gate now reserves a slot + sleeps outside the lock (Node + Python); retry/soft-stop kept as backstop → **check 10-27 maintain log**: `unused_feeds_exit_0`. S077 retired (FAIL, display-only). Pythia hook removed (A124 declined). LSEG chip shows month datapoints. Open: pmset wake needs root (Jamie: sudoers entry or accept ~5:51 start).
 

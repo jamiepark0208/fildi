@@ -46,26 +46,35 @@ SPLIT = date(2023, 1, 1)
 FLOORS = {"standard": -200.0, "aggressive": -400.0}   # 10-26: frontier on fixed pricer — −200 matches the live 0.09Δ return at < ½ its drawdown (2023→)
 MIN_N = 150
 BANDS = [f"{lo:.2f}-{hi:.2f}" for lo, hi in LADDER_BANDS]
-SECTOR_ETFS = ["XLK", "XLF", "XLE", "XLV", "XLY", "XLI", "XLC", "XLP", "XLU", "XLB", "XLRE", "SMH", "QQQ", "IWM"]
+from sector_etfs import BROAD, ETFS as _ETFS  # noqa: E402
+# The state uses the 14 broad ETFs (SMH ≈ SOXX, r 0.99). 10-26 test with all 49 (themes: REMX, WGMI, TAN …) as the trigger:
+# fires in 41/46 test months, no extra bp at 0.15–0.20Δ (+38/+44) and worst 5 % −550 → themes are where to look
+# (sector_etfs.py board), not how aggressive to be.
+SECTOR_ETFS = list(BROAD)
 SECTOR_DD = -0.15   # S101 sector probe 10-26: ≥ 15 % off high passed both periods; 1m ≤ −8 % / QQQ 1m ≤ −5 % did not
 
 
 def _closes(conn, tickers, since=None):
+    """Stocks from LSEG daily_history, sector ETFs from sector_etf_daily (LSEG / CRSP + Polygon stitched)."""
     px = defaultdict(dict)
-    for t, d, c in conn.execute("SELECT ticker, date, close::float8 FROM lseg_research.daily_history WHERE ticker = ANY(%s) "
-                                "AND close > 0" + (" AND date >= %s" if since else ""), (list(tickers),) + ((since,) if since else ())):
-        px[t][d] = c
+    etf = [t for t in tickers if t in _ETFS]
+    for tab, ts in (("lseg_research.daily_history", [t for t in tickers if t not in _ETFS]), ("watchlist_sync.sector_etf_daily", etf)):
+        for t, d, c in conn.execute(f"SELECT ticker, date, close::float8 FROM {tab} WHERE ticker = ANY(%s) AND close > 0"
+                                    + (" AND date >= %s" if since else ""), (ts,) + ((since,) if since else ())):
+            px[t][d] = c
     return px
 
 
-def _best_etf(px, t, days):
+def _best_etf(px, t, days, etfs=None):
     """ETF whose daily log returns correlate most with t's over `days` (≥ 150 shared days), else None."""
     def r(x):
         ds = [d for d in days if d in px[x]]
         return {b: math.log(px[x][b] / px[x][a]) for a, b in zip(ds, ds[1:])}
     rt = r(t)
     best = None
-    for e in SECTOR_ETFS:
+    for e in etfs or SECTOR_ETFS:
+        if not px.get(e):
+            continue
         re_ = r(e)
         ks = [d for d in rt if d in re_]
         if len(ks) < 150:

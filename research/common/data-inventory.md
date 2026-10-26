@@ -117,3 +117,4 @@ No repo caller, no env key. Local Claude plugin `sp-global` is installed (Kensho
 - Tangible book is mapped from Finnhub and FMP into gold. The September field memos that say it is unmapped are stale.
 - Finnhub economic calendar is wired and rejected (403).
 - (10-24 eve) `ticker_technicals.iv_rank` / tech Volatility State uses a realized-vol proxy, not IV rank — Spearman 0.22 vs tastytrade real IV rank, half the names off > 30 pts. The "upgrade after ~60 d of atmPutIv" note in technical-scorecard.md never happened (snapshots since 09-29).
+- 10-26 Polygon /v2/aggs day (adjusted) for 35 theme ETFs → vendor_raw (source polygon, endpoint aggs/day) + watchlist_sync.sector_etf_daily close (sector_etfs.py, A277). CRSP dsf for the same ETFs 2017–2024 (sync_crsp.py --force now does a full --days backfill).

@@ -96,7 +96,7 @@ def main() -> int:
             )
             max_date = str(mx.iloc[0]["mx"])[:10]
             wm = get_watermark(local, DATASET)
-            if wm:
+            if wm and not args.force:   # --force = full --days lookback (the watermark is global → new tickers got 1 day)
                 start = wm
             else:
                 from datetime import date as date_cls
