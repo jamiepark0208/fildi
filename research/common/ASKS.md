@@ -243,7 +243,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A266](asks/A266.md) | 2026-10-24 | Jamie → Claude → Cursor | Store every vendor response we fetch (vendor_raw) + map the dropped Finnhub/FMP/FactSet fields; display, no score change | done (Claude review pass e283c734; finding 1 dividend hunk pending) |
 | [A267](asks/A267.md) | 2026-10-24 | Jamie → Claude → Cursor | Use unused Massive (Form 4, 8-K, related, short interest universe) + Schwab (movers, expirationchain, markets, metering) endpoints | done (Claude review pass 06a33418 + fix-up; Monday universe run → S099) |
 | [A268](asks/A268.md) | 2026-10-24 | Jamie → Claude → Cursor | One-command signal test (lab.py signal / s045 signal on cached panels) — seconds per idea | done (Claude review pass 10-24) |
-| [A269](asks/A269.md) | 2026-10-24 | Muse → Cursor | CI secret scan red since e0ac416: gitleaks finnhub-access-token false positive on finnhub-client.ts import — allowlist or rename | open |
+| [A269](asks/A269.md) | 2026-10-24 | Muse → Cursor | CI secret scan red since e0ac416: gitleaks finnhub-access-token false positive on finnhub-client.ts import — allowlist or rename | planned |
 | [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | auto-reviewed |
 | [A272](asks/A272.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] College quant projects: MP cleaning, Kalman pairs, AS quoting, AC scheduling, tested | auto-reviewed |
 | [A273](asks/A273.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Every vol model: 7-model horse race (ARCH/GARCH/GJR/EGARCH/APARCH/EWMA/DCC), tested | auto-reviewed |
