@@ -39,6 +39,7 @@ import volMetricsRouter from "./vol-metrics";
 import strategyRulesRouter from "./strategy-rules";
 import agentsRouter from "./agents";
 import agentsDrillRouter from "./agents-drill";
+import clientTelemetryRouter from "./client-telemetry";
 import schwabRouter, { schwabMachineRouter } from "./schwab";
 import positionsRouter from "./positions";
 import feedbackRouter from "./feedback";
@@ -99,7 +100,8 @@ router.use(scheduledTasksRouter);
 // A no-path `.use(requireAuth)` in that position becomes a global gate for
 // everything mounted after it in this file, which is exactly what broke
 // dailyBrief/macro/etc when first tried (see watchlist.ts/feed.ts note below).
-router.use(["/stocks", "/indicators", "/options", "/technical", "/technicals", "/explain", "/sdm", "/live", "/track-record", "/strategies", "/schwab", "/research"], requireAuth);
+router.use(["/stocks", "/indicators", "/options", "/technical", "/technicals", "/explain", "/sdm", "/live", "/track-record", "/strategies", "/schwab", "/research", "/client"], requireAuth);
+router.use(clientTelemetryRouter);
 // A235 P0: licensed research caches — admin only until entitlement registry (A233).
 // Do NOT use bare "/research" (would sweep research-ops). Path-scoped like bug/1.
 router.use(["/research/wrds", "/research/lseg"], requireAdmin);

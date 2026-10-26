@@ -19,12 +19,12 @@ function LegendItem({ swatch, label, explanation }: { swatch: React.ReactNode; l
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-help decoration-dotted underline-offset-4 hover:underline">
+        <div className="flex items-center gap-1.5 text-xs text-amber-100 cursor-help decoration-dotted underline-offset-4 hover:underline">
           {swatch}
           {label}
         </div>
       </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[220px] text-xs bg-card text-foreground border border-border p-2">
+      <TooltipContent side="top" className="max-w-[260px] text-xs bg-zinc-950 text-amber-50 border border-[#d4af37]/40 p-2 leading-snug">
         {explanation}
       </TooltipContent>
     </Tooltip>
@@ -69,6 +69,26 @@ const PERIODS: Period[] = ["1D", "1W", "1M", "3M", "1Y"];
 
 function toUnixTime(dateStr: string): UTCTimestamp {
   return Math.floor(new Date(dateStr).getTime() / 1000) as UTCTimestamp;
+}
+
+/** US equity session clock — never browser-local (UTC/PT machines misread as “future ET”). */
+const ET = "America/New_York";
+
+function formatEtTime(d: Date, withDate: boolean): string {
+  const time = d.toLocaleTimeString("en-US", {
+    timeZone: ET,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (!withDate) return `${time} ET`;
+  const md = d.toLocaleDateString("en-US", { timeZone: ET, month: "numeric", day: "numeric" });
+  return `${md} ${time} ET`;
+}
+
+/** Drop bars stamped after “now” (forming Yahoo bar / clock skew). */
+function notFutureBar(dateStr: string, slackMs = 120_000): boolean {
+  const t = new Date(dateStr).getTime();
+  return Number.isFinite(t) && t <= Date.now() + slackMs;
 }
 
 function computeEMA(values: number[], period: number): (number | null)[] {
@@ -134,13 +154,24 @@ function computeMACD(closes: number[]): {
 type IndicatorId = "em" | "ema" | "rsi" | "macd" | "session" | "ict";
 
 const INDICATOR_META: { id: IndicatorId; label: string; title: string; on: string }[] = [
-  { id: "em", label: "EM", title: "±1σ expected-move bands from ATM IV (follow price)", on: "border-sky-400/50 bg-sky-400/15 text-sky-200" },
-  { id: "ema", label: "EMA", title: "EMA 50 / 200 on price", on: "border-yellow-400/50 bg-yellow-400/15 text-yellow-200" },
-  { id: "rsi", label: "RSI", title: "RSI(14) sub-pane", on: "border-violet-400/50 bg-violet-400/15 text-violet-200" },
-  { id: "macd", label: "MACD", title: "MACD(12,26,9) sub-pane", on: "border-emerald-400/50 bg-emerald-400/15 text-emerald-200" },
-  { id: "session", label: "Session", title: "Yahoo 5m session VWAP + POC/VAH/VAL", on: "border-pink-400/50 bg-pink-400/15 text-pink-200" },
-  { id: "ict", label: "ICT", title: "FVG, sweeps, BOS, S&D (display only)", on: "border-cyan-400/50 bg-cyan-400/15 text-cyan-200" },
+  { id: "em", label: "EM", title: "IV expected move: ±1σ corridor around each close (1-week sky, 30-day violet). Width from today’s ATM put IV — not a moving average.", on: "border-sky-400/50 bg-sky-400/15 text-sky-200" },
+  { id: "ema", label: "EMA", title: "EMA 50 (yellow dash) + EMA 200 (orange). Trend filters — not expected move.", on: "border-yellow-400/50 bg-yellow-400/15 text-yellow-200" },
+  { id: "rsi", label: "RSI", title: "RSI(14) momentum in a sub-pane (0–100).", on: "border-violet-400/50 bg-violet-400/15 text-violet-200" },
+  { id: "macd", label: "MACD", title: "MACD(12,26,9) line / signal / histogram sub-pane.", on: "border-emerald-400/50 bg-emerald-400/15 text-emerald-200" },
+  { id: "session", label: "Session", title: "Today’s VWAP + volume-profile POC / VAH / VAL (5m).", on: "border-pink-400/50 bg-pink-400/15 text-pink-200" },
+  { id: "ict", label: "ICT", title: "Fair-value gaps, liquidity sweeps, BOS, supply/demand (display only).", on: "border-cyan-400/50 bg-cyan-400/15 text-cyan-200" },
 ];
+
+/** Marker abbreviations → hover copy */
+const MARKER_HELP: Record<string, string> = {
+  L: "Period low — lowest low in this timeframe window",
+  H: "Period high — highest high in this timeframe window",
+  SL: "Swing low — local reversal low (support candidate)",
+  SH: "Swing high — local reversal high (resistance candidate)",
+  S1: "Pivot S1 — classic floor-trader support from prior H/L/C",
+  R1: "Pivot R1 — classic floor-trader resistance from prior H/L/C",
+  P: "Pivot point — (H+L+C)/3 of prior session/bar set",
+};
 
 async function fetchTechnicals(ticker: string): Promise<DbTechnicalLevels | null> {
   const res = await fetch(`/api/technicals/${encodeURIComponent(ticker)}`, { credentials: "include" });
@@ -163,6 +194,8 @@ interface LWMarker {
   price: number;
   color: string;
   text?: string;
+  /** Longer hover description (compact charts use short `text`). */
+  detail?: string;
 }
 
 interface LWPriceLine {
@@ -173,6 +206,21 @@ interface LWPriceLine {
   /** Default true. False = TradingView-style bare line (no axis chip). */
   axisLabelVisible?: boolean;
 }
+
+/** Live readout for the legend row (no floating tooltip). */
+export type ChartHover = {
+  timeLabel: string;
+  o?: number;
+  h?: number;
+  l?: number;
+  c?: number;
+  chgPct?: number;
+  vol?: string;
+  ema50?: number;
+  ema200?: number;
+  rsi?: number;
+  mark?: string;
+};
 
 interface LightweightPriceChartProps {
   series: LWSeriesSpec[];
@@ -189,32 +237,30 @@ interface LightweightPriceChartProps {
   vwap?: LWPoint[] | null;
   rsi?: LWPoint[] | null;
   macd?: { macd: LWPoint[]; signal: LWPoint[]; hist: LWVolume[] } | null;
+  onHover?: (h: ChartHover | null) => void;
 }
 
 function formatTickTime(time: Time, period: Period): string {
-  const ms = (time as number) * 1000;
-  const d = new Date(ms);
-  if (period === "1D") return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  // 1W/1M use hourly bars — day label is enough on the axis
-  if (period === "1W" || period === "1M") return d.toLocaleDateString([], { month: "short", day: "numeric" });
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(2);
-  return `${mm}/${yy}`;
+  const d = new Date((time as number) * 1000);
+  if (period === "1D") {
+    return d.toLocaleTimeString("en-US", { timeZone: ET, hour: "numeric", minute: "2-digit" });
+  }
+  if (period === "1Y") {
+    return d.toLocaleDateString("en-US", { timeZone: ET, month: "numeric", year: "2-digit" });
+  }
+  return d.toLocaleDateString("en-US", { timeZone: ET, month: "numeric", day: "numeric" });
 }
 
-function formatTooltipTime(time: Time, period: Period): string {
-  const ms = (time as number) * 1000;
-  const d = new Date(ms);
-  if (period === "1D" || period === "1W" || period === "1M") {
-    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  }
-  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+function formatHoverTime(time: Time, period: Period): string {
+  const d = new Date((time as number) * 1000);
+  if (period === "1D") return formatEtTime(d, false);
+  if (period === "1W" || period === "1M") return formatEtTime(d, true);
+  return d.toLocaleDateString("en-US", { timeZone: ET, month: "numeric", day: "numeric" });
 }
 
 /** Imperative lightweight-charts canvas — created once and updated in place, rather than re-mounted on every render. */
-function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines, overlays, candles, volumes, vwap, rsi, macd }: LightweightPriceChartProps) {
+function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines, overlays, candles, volumes, vwap, rsi, macd, onHover }: LightweightPriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const overlayMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
@@ -234,6 +280,12 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   const priceLineHandlesRef = useRef<IPriceLine[]>([]);
   const candlesRef = useRef<LWCandle[] | null>(null);
   candlesRef.current = candles ?? null;
+  const periodRef = useRef(period);
+  periodRef.current = period;
+  const markersTipRef = useRef(markers ?? []);
+  markersTipRef.current = markers ?? [];
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
   /** Fit zoom only when tickers or period change — refetches must not wipe the user's pan/zoom (A93). */
   const viewKeyRef = useRef<string>("");
   const primarySeries = (): ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null =>
@@ -247,9 +299,9 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(255,255,255,0.8)",
-        fontSize: 11,
-        fontFamily: "monospace",
+        textColor: "rgba(232,213,163,0.95)",
+        fontSize: 9,
+        fontFamily: "ui-monospace, monospace",
       },
       grid: {
         vertLines: { visible: false },
@@ -259,34 +311,92 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       rightPriceScale: { visible: false, borderVisible: false },
       leftPriceScale: { visible: true, borderVisible: false },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+      // Explicit — nested overflow parents + Lenis otherwise steal wheel/drag.
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        axisDoubleClickReset: true,
+        mouseWheel: true,
+        pinch: true,
+      },
     });
     chartRef.current = chart;
 
+    // After the canvas handles zoom, block parent overflow-y / Lenis from scrolling the page.
+    const stopParentScroll = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    container.addEventListener("wheel", stopParentScroll, { passive: false });
+    const cleanupWheel = () => container.removeEventListener("wheel", stopParentScroll);
+
     chart.subscribeCrosshairMove(param => {
-      const tooltip = tooltipRef.current;
-      if (!tooltip) return;
-      if (!param.time || !param.point) {
-        tooltip.style.opacity = "0";
+      const emit = onHoverRef.current;
+      if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+        emit?.(null);
         return;
       }
-      const lines: string[] = [`<div class="font-bold mb-1">${formatTooltipTime(param.time, period)}</div>`];
-      seriesMapRef.current.forEach((s, ticker) => {
-        const d = param.seriesData.get(s) as LWPoint | undefined;
-        if (d?.value != null) {
-          lines.push(`<div style="color:${s.options().color}">${ticker}: $${d.value.toFixed(2)}</div>`);
+      const per = periodRef.current;
+      const h: ChartHover = { timeLabel: formatHoverTime(param.time, per) };
+      const candleApi = candleRef.current;
+      if (candleApi) {
+        const c = param.seriesData.get(candleApi) as LWCandle | undefined;
+        if (c?.open != null) {
+          h.o = c.open;
+          h.h = c.high;
+          h.l = c.low;
+          h.c = c.close;
+          h.chgPct = c.open ? ((c.close - c.open) / c.open) * 100 : undefined;
         }
-      });
-      if (lines.length <= 1) {
-        tooltip.style.opacity = "0";
+      } else {
+        seriesMapRef.current.forEach((s) => {
+          const d = param.seriesData.get(s) as LWPoint | undefined;
+          if (d?.value != null) h.c = d.value;
+        });
+      }
+      const volApi = volumeRef.current;
+      if (volApi) {
+        const v = param.seriesData.get(volApi) as { value?: number } | undefined;
+        if (v?.value != null) {
+          const n = v.value;
+          h.vol = n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n));
+        }
+      }
+      const { ema50, ema200 } = emaSeriesRef.current;
+      if (ema50) {
+        const d = param.seriesData.get(ema50) as LWPoint | undefined;
+        if (d?.value != null) h.ema50 = d.value;
+      }
+      if (ema200) {
+        const d = param.seriesData.get(ema200) as LWPoint | undefined;
+        if (d?.value != null) h.ema200 = d.value;
+      }
+      if (rsiRef.current) {
+        const d = param.seriesData.get(rsiRef.current) as LWPoint | undefined;
+        if (d?.value != null) h.rsi = d.value;
+      }
+      const tSec = param.time as number;
+      for (const m of markersTipRef.current) {
+        if (Math.abs((m.time as number) - tSec) < 1 && m.text) {
+          h.mark = m.text;
+          break;
+        }
+      }
+      if (h.c == null && h.o == null && h.ema50 == null && !h.mark) {
+        emit?.(null);
         return;
       }
-      tooltip.innerHTML = lines.join("");
-      tooltip.style.opacity = "1";
-      tooltip.style.left = `${Math.min(param.point.x + 12, container.clientWidth - 140)}px`;
-      tooltip.style.top = "8px";
+      emit?.(h);
     });
 
     return () => {
+      cleanupWheel();
+      onHoverRef.current?.(null);
       chart.remove();
       chartRef.current = null;
       seriesMapRef.current.clear();
@@ -314,123 +424,134 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    const useCandles = !!(candles && candles.length > 0);
-    const viewKey = `${useCandles ? "c" : "l"}|${series.map(s => s.ticker).join(",")}|${period}`;
-    const viewChanged = viewKeyRef.current !== viewKey;
-    viewKeyRef.current = viewKey;
-    const ts = chart.timeScale();
-    const savedRange = viewChanged ? null : ts.getVisibleLogicalRange();
+    // Rapid ticker/period swaps: LWC setData/fitContent/setVisibleLogicalRange can throw
+    // "Value is null" (same class as Live session chart). Never take down the route.
+    try {
+      const useCandles = !!(candles && candles.length > 0);
+      const viewKey = `${useCandles ? "c" : "l"}|${series.map(s => s.ticker).join(",")}|${period}`;
+      const viewChanged = viewKeyRef.current !== viewKey;
+      viewKeyRef.current = viewKey;
+      const ts = chart.timeScale();
+      const savedRange = viewChanged ? null : ts.getVisibleLogicalRange();
 
-    if (useCandles) {
-      seriesMapRef.current.forEach((s) => { chart.removeSeries(s); });
-      seriesMapRef.current.clear();
-      if (!candleRef.current) {
-        candleRef.current = chart.addSeries(CandlestickSeries, {
-          upColor: "#22c55e",
-          downColor: "#ef4444",
-          borderUpColor: "#22c55e",
-          borderDownColor: "#ef4444",
-          wickUpColor: "#22c55e",
-          wickDownColor: "#ef4444",
-          lastValueVisible: true,
-          priceLineVisible: true,
-          // Scale to candle OHLC only — overlays / EM bands must not squash the range.
-          autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
-            const res = original();
-            const bars = candlesRef.current;
-            if (!res?.priceRange || !bars?.length) return res;
-            let min = Infinity;
-            let max = -Infinity;
-            for (const c of bars) {
-              if (c.low < min) min = c.low;
-              if (c.high > max) max = c.high;
-            }
-            if (!Number.isFinite(min) || !Number.isFinite(max)) return res;
-            const pad = Math.max((max - min) * 0.06, max * 0.002);
-            return {
-              priceRange: { minValue: min - pad, maxValue: max + pad },
-              margins: res.margins,
-            };
-          },
-        });
-      }
-      candleRef.current.setData(candles!);
-      chart.priceScale("left").applyOptions({
-        autoScale: true,
-        scaleMargins: { top: 0.05, bottom: volumes?.length ? 0.22 : 0.05 },
-      });
-    } else {
-      if (candleRef.current) {
-        chart.removeSeries(candleRef.current);
-        candleRef.current = null;
-      }
-      const seen = new Set(series.map(s => s.ticker));
-      seriesMapRef.current.forEach((s, ticker) => {
-        if (!seen.has(ticker)) {
-          chart.removeSeries(s);
-          seriesMapRef.current.delete(ticker);
-        }
-      });
-      series.forEach(spec => {
-        let s = seriesMapRef.current.get(spec.ticker);
-        if (!s) {
-          s = chart.addSeries(LineSeries, {
-            color: spec.color,
-            lineWidth: 2,
-            priceScaleId: spec.scaleId === "left" ? "left" : "right",
-            lastValueVisible: series.length === 1,
-            priceLineVisible: series.length === 1,
+      if (useCandles) {
+        seriesMapRef.current.forEach((s) => { chart.removeSeries(s); });
+        seriesMapRef.current.clear();
+        if (!candleRef.current) {
+          candleRef.current = chart.addSeries(CandlestickSeries, {
+            upColor: "#22c55e",
+            downColor: "#ef4444",
+            borderUpColor: "#22c55e",
+            borderDownColor: "#ef4444",
+            wickUpColor: "#22c55e",
+            wickDownColor: "#ef4444",
+            lastValueVisible: true,
+            priceLineVisible: true,
+            // Scale to candle OHLC only — overlays / EM bands must not squash the range.
+            autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+              const res = original();
+              const bars = candlesRef.current;
+              if (!res?.priceRange || !bars?.length) return res;
+              let min = Infinity;
+              let max = -Infinity;
+              for (const c of bars) {
+                if (c.low < min) min = c.low;
+                if (c.high > max) max = c.high;
+              }
+              if (!Number.isFinite(min) || !Number.isFinite(max)) return res;
+              const pad = Math.max((max - min) * 0.06, max * 0.002);
+              return {
+                priceRange: { minValue: min - pad, maxValue: max + pad },
+                margins: res.margins,
+              };
+            },
           });
-          seriesMapRef.current.set(spec.ticker, s);
-        } else {
-          s.applyOptions({ priceScaleId: spec.scaleId === "left" ? "left" : "right" });
         }
-        s.setData(spec.data);
-      });
-      chart.priceScale("left").applyOptions({ scaleMargins: { top: 0.05, bottom: 0.05 } });
-    }
-
-    if (volumes && volumes.length > 0) {
-      if (!volumeRef.current) {
-        volumeRef.current = chart.addSeries(HistogramSeries, {
-          priceScaleId: "vol",
-          priceFormat: { type: "volume" },
-          lastValueVisible: false,
-          priceLineVisible: false,
+        candleRef.current.setData(candles!);
+        // Leave bottom ~28% of the price pane for volume overlay (TradingView-style).
+        chart.priceScale("left").applyOptions({
+          autoScale: true,
+          scaleMargins: { top: 0.04, bottom: volumes?.length ? 0.28 : 0.04 },
         });
+      } else {
+        if (candleRef.current) {
+          chart.removeSeries(candleRef.current);
+          candleRef.current = null;
+        }
+        const seen = new Set(series.map(s => s.ticker));
+        seriesMapRef.current.forEach((s, ticker) => {
+          if (!seen.has(ticker)) {
+            chart.removeSeries(s);
+            seriesMapRef.current.delete(ticker);
+          }
+        });
+        series.forEach(spec => {
+          let s = seriesMapRef.current.get(spec.ticker);
+          if (!s) {
+            s = chart.addSeries(LineSeries, {
+              color: spec.color,
+              lineWidth: 2,
+              priceScaleId: spec.scaleId === "left" ? "left" : "right",
+              lastValueVisible: series.length === 1,
+              priceLineVisible: series.length === 1,
+            });
+            seriesMapRef.current.set(spec.ticker, s);
+          } else {
+            s.applyOptions({ priceScaleId: spec.scaleId === "left" ? "left" : "right" });
+          }
+          s.setData(spec.data);
+        });
+        chart.priceScale("left").applyOptions({
+          scaleMargins: { top: 0.04, bottom: volumes?.length ? 0.28 : 0.04 },
+        });
+      }
+
+      if (volumes && volumes.length > 0) {
+        if (!volumeRef.current) {
+          volumeRef.current = chart.addSeries(HistogramSeries, {
+            priceScaleId: "vol",
+            priceFormat: { type: "volume" },
+            lastValueVisible: false,
+            priceLineVisible: false,
+          });
+        }
+        // Overlay in lower band; small bottom pad so bars clear the time axis (was bottom:0 → clipped).
         chart.priceScale("vol").applyOptions({
-          scaleMargins: { top: 0.82, bottom: 0 },
+          scaleMargins: { top: 0.72, bottom: 0.04 },
           borderVisible: false,
+          visible: false,
         });
+        volumeRef.current.setData(volumes);
+      } else if (volumeRef.current) {
+        chart.removeSeries(volumeRef.current);
+        volumeRef.current = null;
       }
-      volumeRef.current.setData(volumes);
-    } else if (volumeRef.current) {
-      chart.removeSeries(volumeRef.current);
-      volumeRef.current = null;
-    }
 
-    if (vwap && vwap.length > 0) {
-      if (!vwapRef.current) {
-        vwapRef.current = chart.addSeries(LineSeries, {
-          color: "#f472b6",
-          lineWidth: 1,
-          lastValueVisible: false,
-          priceLineVisible: false,
-          crosshairMarkerVisible: false,
-        });
+      if (vwap && vwap.length > 0) {
+        if (!vwapRef.current) {
+          vwapRef.current = chart.addSeries(LineSeries, {
+            color: "#f472b6",
+            lineWidth: 1,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
+          });
+        }
+        vwapRef.current.setData(vwap);
+      } else if (vwapRef.current) {
+        chart.removeSeries(vwapRef.current);
+        vwapRef.current = null;
       }
-      vwapRef.current.setData(vwap);
-    } else if (vwapRef.current) {
-      chart.removeSeries(vwapRef.current);
-      vwapRef.current = null;
-    }
 
-    if (viewChanged || savedRange == null) {
-      ts.fitContent();
-      // Re-enable Y auto-scale after period change (user drag locks the scale otherwise).
-      chart.priceScale("left").applyOptions({ autoScale: true });
-    } else {
-      ts.setVisibleLogicalRange(savedRange);
+      if (viewChanged || savedRange == null) {
+        try { ts.fitContent(); } catch { /* empty scale mid-swap */ }
+        // Re-enable Y auto-scale after period change (user drag locks the scale otherwise).
+        chart.priceScale("left").applyOptions({ autoScale: true });
+      } else {
+        try { ts.setVisibleLogicalRange(savedRange); } catch { try { ts.fitContent(); } catch { /* ignore */ } }
+      }
+    } catch {
+      // Leave prior frame — better than RouteErrorBoundary on Breakdown/Home ticker swaps.
     }
   }, [series, period, candles, volumes, vwap]);
 
@@ -611,13 +732,14 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
   }, [rsi, macd]);
 
   return (
-    <div className="relative w-full h-full" data-lenis-prevent>
-      <div ref={containerRef} className="w-full h-full" />
-      <div
-        ref={tooltipRef}
-        className="pointer-events-none absolute z-10 rounded-md border border-border/50 bg-card/95 px-2.5 py-1.5 text-xs shadow-lg transition-opacity"
-        style={{ opacity: 0 }}
-      />
+    <div
+      className="relative w-full h-full overscroll-none"
+      data-lenis-prevent
+      data-lenis-prevent-wheel
+      data-lenis-prevent-touch
+    >
+      {/* touch-none: browser must not claim the gesture as page scroll */}
+      <div ref={containerRef} className="w-full h-full touch-none" />
     </div>
   );
 }
@@ -634,6 +756,7 @@ export function PriceChart({
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [hover, setHover] = useState<ChartHover | null>(null);
   /** Clickable indicator tags — EM/EMA on by default for technical chart. */
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorId>>(
     () => new Set<IndicatorId>(["em", "ema"]),
@@ -710,14 +833,16 @@ export function PriceChart({
     tickers.forEach((ticker, i) => {
       const qData = queries[i]?.data;
       if (qData) {
-        historyByTicker[ticker] = qData.map(p => ({
-          date: p.date,
-          close: p.close,
-          open: p.open,
-          high: p.high,
-          low: p.low,
-          volume: p.volume,
-        }));
+        historyByTicker[ticker] = qData
+          .filter((p) => notFutureBar(p.date))
+          .map(p => ({
+            date: p.date,
+            close: p.close,
+            open: p.open,
+            high: p.high,
+            low: p.low,
+            volume: p.volume,
+          }));
       }
     });
 
@@ -747,8 +872,20 @@ export function PriceChart({
       if ((b.high ?? b.close) > (highBar.high ?? highBar.close)) highBar = b;
     }
     return [
-      { time: toUnixTime(lowBar.date), price: lowBar.low ?? lowBar.close, color: "#ef4444", text: compact ? "L" : "Period Low" },
-      { time: toUnixTime(highBar.date), price: highBar.high ?? highBar.close, color: "#22c55e", text: compact ? "H" : "Period High" },
+      {
+        time: toUnixTime(lowBar.date),
+        price: lowBar.low ?? lowBar.close,
+        color: "#ef4444",
+        text: compact ? "L" : "Period Low",
+        detail: MARKER_HELP.L,
+      },
+      {
+        time: toUnixTime(highBar.date),
+        price: highBar.high ?? highBar.close,
+        color: "#22c55e",
+        text: compact ? "H" : "Period High",
+        detail: MARKER_HELP.H,
+      },
     ];
   }, [tickers, historyByTicker, compact]);
 
@@ -756,17 +893,21 @@ export function PriceChart({
     .filter(z => z.renderAs === "marker" && z.date)
     .map(z => {
       let text: string;
+      let detail: string;
       if (z.label.startsWith("Pivot")) {
         text = compact ? (z.label.includes("S1") ? "S1" : z.label.includes("R1") ? "R1" : "P") : z.label;
+        detail = MARKER_HELP[text] ?? z.label;
       } else if (z.kind === "support") {
         text = compact ? "SL" : "Swing Low";
+        detail = MARKER_HELP.SL;
       } else {
         text = compact ? "SH" : "Swing High";
+        detail = MARKER_HELP.SH;
       }
       const color = z.label.startsWith("Pivot")
         ? (z.kind === "support" ? "#22c55e" : "#ef4444")
         : (z.kind === "support" ? "#f59e0b" : "#a78bfa");
-      return { time: toUnixTime(z.date!), price: z.price, color, text };
+      return { time: toUnixTime(z.date!), price: z.price, color, text, detail };
     }), [zones, compact]);
 
   const zonePriceLines = useMemo((): LWPriceLine[] => zones
@@ -778,7 +919,11 @@ export function PriceChart({
       dashed: z.label.startsWith("MA") || z.label.startsWith("BB"),
     })), [zones]);
 
-  /** A93 — ±1σ expected-move bands from ATM IV, tracked along each bar (wavy, not flat). */
+  /**
+   * A93 — ±1σ IV expected-move corridor around each bar’s close (not a moving average).
+   * Width = today’s ATM put IV scaled to 1w / 30d; applied as a % of that bar’s close
+   * (fixed $ from last spot made history look like parallel rails).
+   */
   const ivBand = useMemo(() => {
     if (!showTechnicalZones || tickers.length !== 1) return null;
     const bars = historyByTicker[tickers[0]] ?? [];
@@ -786,33 +931,39 @@ export function PriceChart({
     const spot = bars[bars.length - 1]!.close;
     const tech = technicalsQuery.data;
     const ivPct = pfNum(tech?.atmPutIv);
-    const weekFrac = pfNum(tech?.impliedMoveWeekly);
-    const emWeek = weekFrac != null && weekFrac > 0
-      ? spot * weekFrac
+    const weekFracRaw = pfNum(tech?.impliedMoveWeekly);
+    const weekFrac = weekFracRaw != null && weekFracRaw > 0
+      ? weekFracRaw
       : ivPct != null && ivPct > 0
-        ? spot * (ivPct / 100) * Math.sqrt(7 / 365)
+        ? (ivPct / 100) * Math.sqrt(7 / 365)
         : null;
-    const em30 = ivPct != null && ivPct > 0
-      ? spot * (ivPct / 100) * Math.sqrt(30 / 365)
+    const monthFrac = ivPct != null && ivPct > 0
+      ? (ivPct / 100) * Math.sqrt(30 / 365)
       : null;
-    if (emWeek == null && em30 == null) return null;
+    if (weekFrac == null && monthFrac == null) return null;
     const overlays: LWSeriesSpec[] = [];
-    const band = (half: number, id: string, color: string) => {
+    const band = (frac: number, id: string, color: string) => {
       const up: LWPoint[] = [];
       const dn: LWPoint[] = [];
       for (const b of bars) {
         const t = toUnixTime(b.date);
-        up.push({ time: t, value: b.close + half });
-        dn.push({ time: t, value: b.close - half });
+        up.push({ time: t, value: b.close * (1 + frac) });
+        dn.push({ time: t, value: b.close * (1 - frac) });
       }
       overlays.push(
         { ticker: `${id}+`, color, scaleId: "left", data: up },
         { ticker: `${id}-`, color, scaleId: "left", data: dn },
       );
     };
-    if (emWeek != null) band(emWeek, "_em_w", "rgba(56,189,248,0.65)");
-    if (em30 != null) band(em30, "_em_30", "rgba(167,139,250,0.5)");
-    return { overlays, emWeek, em30 };
+    if (weekFrac != null) band(weekFrac, "_em_w", "rgba(56,189,248,0.65)");
+    if (monthFrac != null) band(monthFrac, "_em_30", "rgba(167,139,250,0.5)");
+    return {
+      overlays,
+      weekFrac,
+      monthFrac,
+      emWeek$: weekFrac != null ? spot * weekFrac : null,
+      em30$: monthFrac != null ? spot * monthFrac : null,
+    };
   }, [showTechnicalZones, tickers, historyByTicker, technicalsQuery.data]);
 
   const shortStrikeLines = useMemo((): LWPriceLine[] => {
@@ -957,7 +1108,9 @@ export function PriceChart({
     ticker,
     color: compact ? "#d4af37" : STOCK_COLORS[i % STOCK_COLORS.length],
     scaleId: yAxes[ticker] || "left",
-    data: (historyByTicker[ticker] ?? []).map(b => ({ time: toUnixTime(b.date), value: b.close })),
+    data: (historyByTicker[ticker] ?? [])
+      .filter((b) => notFutureBar(b.date))
+      .map(b => ({ time: toUnixTime(b.date), value: b.close })),
   })).filter(s => s.data.length > 0), [tickers, historyByTicker, yAxes, compact]);
 
   /** A93 candles + A126 volume histogram; session VWAP on 1D when volume present. */
@@ -965,7 +1118,7 @@ export function PriceChart({
     if (!showTechnicalZones || tickers.length !== 1) {
       return { candles: null as LWCandle[] | null, volumes: null as LWVolume[] | null, vwap: null as LWPoint[] | null };
     }
-    const bars = historyByTicker[tickers[0]] ?? [];
+    const bars = (historyByTicker[tickers[0]] ?? []).filter((b) => notFutureBar(b.date));
     const candles: LWCandle[] = [];
     const volumes: LWVolume[] = [];
     let cumPV = 0;
@@ -981,7 +1134,8 @@ export function PriceChart({
         volumes.push({
           time: t,
           value: b.volume,
-          color: b.close >= o ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.45)",
+          // Soft overlay on price (TV-style) — not a separate pane.
+          color: b.close >= o ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)",
         });
         if (selectedPeriod === "1D") {
           const typical = (h + l + b.close) / 3;
@@ -1029,13 +1183,18 @@ export function PriceChart({
   return (
     <div
       data-lenis-prevent
+      data-lenis-prevent-wheel
+      data-lenis-prevent-touch
       className={compact
-      ? "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-3 h-full flex flex-col"
-      : "bg-card border border-border rounded-xl p-4 shadow-sm mb-4"}
+        ? "bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 h-full min-h-0 flex flex-col overflow-hidden overscroll-none"
+        : "bg-card border border-border rounded-xl p-4 shadow-sm mb-4 overscroll-none"}
     >
-      <div className={cn("flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4", compact ? "mb-2" : "mb-6")}>
-        <div className="flex items-center gap-3">
-          <h2 className={compact ? "text-[11px] font-bold tracking-tight text-[#d4af37]" : "text-lg font-bold tracking-tight"}>
+      <div className={cn(
+        "shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center",
+        compact ? "gap-1.5 mb-1" : "gap-4 mb-6",
+      )}>
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 className={compact ? "text-[11px] font-bold tracking-tight text-[#d4af37] shrink-0" : "text-lg font-bold tracking-tight"}>
             Price History
           </h2>
           {isError && (
@@ -1045,9 +1204,9 @@ export function PriceChart({
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className={cn("flex items-center min-w-0", compact ? "gap-1.5 flex-nowrap overflow-x-auto" : "gap-2")}>
           {showTechnicalZones && techTicker && tickers.length === 1 && (
-            <div className="flex flex-wrap items-center gap-1">
+            <div className={cn("flex items-center gap-1", compact ? "flex-nowrap shrink-0" : "flex-wrap")}>
               {INDICATOR_META.map((ind) => {
                 const on = activeIndicators.has(ind.id);
                 const busy = ind.id === "session" && sessionFlowQuery.isFetching;
@@ -1057,7 +1216,7 @@ export function PriceChart({
                     type="button"
                     onClick={() => toggleIndicator(ind.id)}
                     className={cn(
-                      "text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors",
+                      "text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors shrink-0",
                       on ? ind.on : "border-[#d4af37]/25 text-amber-200/70 hover:text-amber-100",
                     )}
                     title={ind.title}
@@ -1075,9 +1234,9 @@ export function PriceChart({
               disabled={refreshing}
               title="Refresh support/resistance levels"
               className={cn(
-                "flex items-center gap-1 rounded-md border font-medium disabled:opacity-50",
+                "flex items-center gap-1 rounded-md border font-medium disabled:opacity-50 shrink-0",
                 compact
-                  ? "px-1.5 py-1 text-[10px] border-[#d4af37]/20 text-amber-200/60 hover:text-[#d4af37] hover:bg-[#d4af37]/10"
+                  ? "px-1.5 py-0.5 text-[10px] border-[#d4af37]/20 text-amber-200/60 hover:text-[#d4af37] hover:bg-[#d4af37]/10"
                   : "px-2 py-1.5 text-xs border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60",
               )}
             >
@@ -1085,14 +1244,14 @@ export function PriceChart({
               Levels
             </button>
           )}
-          <div className={cn("flex items-center rounded-lg", compact ? "bg-black border border-[#d4af37]/20 p-0.5" : "bg-secondary/60 p-1 border border-border/50")}>
+          <div className={cn("flex items-center rounded-lg shrink-0", compact ? "bg-black border border-[#d4af37]/20 p-0.5" : "bg-secondary/60 p-1 border border-border/50")}>
             {PERIODS.map(p => (
               <button
                 key={p}
                 onClick={() => onPeriodChange(p)}
                 className={cn(
                   "font-bold rounded-md transition-colors",
-                  compact ? "px-2 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
+                  compact ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1.5 text-xs",
                   selectedPeriod === p
                     ? compact ? "bg-[#d4af37] text-black shadow-sm" : "bg-primary text-primary-foreground shadow-sm"
                     : compact ? "text-amber-200/50 hover:text-[#d4af37] hover:bg-[#d4af37]/10" : "text-muted-foreground hover:text-foreground hover:bg-background/50",
@@ -1105,20 +1264,43 @@ export function PriceChart({
         </div>
       </div>
 
-      {compact && showEm && ivBand && (
-        <div className="mb-1.5 flex items-center gap-3 text-[9px] font-medium text-amber-200/70">
-          {ivBand.emWeek != null && (
-            <span className="inline-flex items-center gap-1">
-              <span className="h-px w-3 border-t border-dashed border-sky-400" />
-              1w EM
+      {/* Compact: fixed one-line key — live values overlay the chart so hover never grows this strip. */}
+      {compact && (
+        <div className="shrink-0 h-5 mb-1 flex items-center gap-x-2.5 overflow-x-auto whitespace-nowrap text-[10px] font-semibold tracking-wide [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <span className="inline-flex items-center gap-1 text-[#d4af37]/90" title="Bar OHLC on hover">
+            Price
+          </span>
+          {showEm && ivBand?.weekFrac != null && (
+            <span className="inline-flex items-center gap-1 text-sky-300/90" title="±1σ weekly IV expected move">
+              <span className="h-0 w-2.5 border-t border-dashed border-sky-400" />
+              1w ±{(ivBand.weekFrac * 100).toFixed(1)}%
             </span>
           )}
-          {ivBand.em30 != null && (
-            <span className="inline-flex items-center gap-1">
-              <span className="h-px w-3 border-t border-dashed border-violet-400" />
-              30d EM
+          {showEm && ivBand?.monthFrac != null && (
+            <span className="inline-flex items-center gap-1 text-violet-300/90" title="±1σ ~30d IV expected move">
+              <span className="h-0 w-2.5 border-t border-dashed border-violet-400" />
+              30d ±{(ivBand.monthFrac * 100).toFixed(1)}%
             </span>
           )}
+          {showEma && emaSeries && (
+            <>
+              <span className="inline-flex items-center gap-1 text-[#fde047]/90" title="EMA 50">
+                <span className="h-0 w-2.5 border-t border-dashed border-[#fde047]" />
+                EMA50
+              </span>
+              <span className="inline-flex items-center gap-1 text-[#fb923c]/90" title="EMA 200">
+                <span className="h-0 w-2.5 border-t border-[#fb923c]" />
+                EMA200
+              </span>
+            </>
+          )}
+          {showRsi && (
+            <span className="text-violet-300/90" title="RSI(14)">RSI</span>
+          )}
+          <span className="inline-flex items-center gap-1 text-amber-100/80" title="L period low · SL swing low · SH swing high">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+            L·SL·SH
+          </span>
         </div>
       )}
 
@@ -1199,7 +1381,7 @@ export function PriceChart({
               <LegendItem
                 swatch={<span className="w-2.5 h-0.5 border-t-2 border-dashed border-sky-400" />}
                 label="IV expected move"
-                explanation="±1σ band from ATM put IV: 1-week (cyan) and ~30-day (violet). Market-implied range to those horizons — not a forecast."
+                explanation="±1σ from ATM put IV around each close: 1-week (sky) and ~30-day (violet). Not EMA. Not a forecast — options-market implied range."
               />
             )}
             {shortStrikeLines.length > 0 && (
@@ -1236,11 +1418,51 @@ export function PriceChart({
       </div>}
 
       <div className={cn(
-        "w-full relative",
+        "w-full relative min-h-0",
         compact
-          ? (showRsi || showMacd ? "flex-1 min-h-[320px]" : "flex-1 min-h-[220px]")
+          ? "flex-1"
           : (showRsi || showMacd ? "h-[420px]" : "h-[320px]"),
       )}>
+        {/* Hover readout floats over the canvas — never changes header/legend height. */}
+        {compact && hover && (hover.o != null || hover.c != null || hover.ema50 != null || hover.mark) && (
+          <div className="pointer-events-none absolute top-1 left-1 z-20 max-w-[calc(100%-4.5rem)] rounded border border-[#d4af37]/25 bg-zinc-950/90 px-1.5 py-0.5 text-[10px] font-mono tabular-nums shadow-md leading-snug">
+            <span className="text-[#d4af37] font-semibold">{hover.timeLabel ?? "—"}</span>
+            {hover.o != null && hover.h != null && hover.l != null && hover.c != null && (
+              <span className="ml-1.5 text-white">
+                {hover.o.toFixed(2)}
+                <span className="text-amber-100/35 mx-0.5">/</span>
+                {hover.h.toFixed(2)}
+                <span className="text-amber-100/35 mx-0.5">/</span>
+                {hover.l.toFixed(2)}
+                <span className="text-amber-100/35 mx-0.5">/</span>
+                <span className={hover.chgPct != null && hover.chgPct >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                  {hover.c.toFixed(2)}
+                </span>
+                {hover.chgPct != null && (
+                  <span className={cn("ml-1", hover.chgPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {hover.chgPct >= 0 ? "+" : ""}{hover.chgPct.toFixed(1)}%
+                  </span>
+                )}
+                {hover.vol != null && <span className="ml-1 text-amber-100/80">V {hover.vol}</span>}
+              </span>
+            )}
+            {showEm && hover.c != null && ivBand?.weekFrac != null && (
+              <span className="ml-1.5 text-sky-300">1w±{(hover.c * ivBand.weekFrac).toFixed(2)}</span>
+            )}
+            {showEma && hover.ema50 != null && (
+              <span className="ml-1.5 text-[#fde047]">50 {hover.ema50.toFixed(2)}</span>
+            )}
+            {showEma && hover.ema200 != null && (
+              <span className="ml-1 text-[#fb923c]">200 {hover.ema200.toFixed(2)}</span>
+            )}
+            {showRsi && hover.rsi != null && (
+              <span className="ml-1.5 text-violet-300">RSI {hover.rsi.toFixed(0)}</span>
+            )}
+            {hover.mark != null && (
+              <span className="ml-1.5 text-rose-300">{hover.mark}</span>
+            )}
+          </div>
+        )}
         {isLoading && !hasAnyData ? (
           <div className="absolute inset-0 flex items-center justify-center bg-card/50 backdrop-blur-sm z-10 rounded-lg border border-border/50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1263,6 +1485,7 @@ export function PriceChart({
             vwap={ohlcv.vwap}
             rsi={rsiSeries}
             macd={macdSeries}
+            onHover={setHover}
           />
         )}
       </div>

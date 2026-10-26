@@ -14,6 +14,7 @@ per step. Steps and their rules are unchanged (CLAUDE.md § STARTUP is the sourc
   9 state rotation           scripts/state_rotate.py (state.md budget, verbatim archive)
  10 workflow audit           scripts/workflow_audit.py --short (W-registry: did each workflow change pay off?)
  11 data freshness           scripts/watchlist_sync/data_freshness.py (key tables vs job cadence, future-dated rows, today's daily.py)
+ 12 UI crashes (48h)         ~/.fildi/ui-crashes.jsonl — browser RouteErrorBoundary + window.error; fix without Jamie re-report
 
     python3 scripts/agent_start.py [--agent claude] [--no-sync]
 """
@@ -126,6 +127,32 @@ def main() -> None:
         rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/data_freshness.py", log)
         bad = [l for l in out.splitlines() if l.startswith("✗")]
         say(f"11 data freshness: {last(out, pat='freshness')}" + (f" — STALE: {'; '.join(b[2:90] for b in bad[:4])} → fix the job (not just re-run)" if bad else ""))
+        # UI crashes from Jamie's browser → ~/.fildi/ui-crashes.jsonl (RouteErrorBoundary + window.error).
+        # Agents act on these without Jamie re-reporting. Token-cheap: ≤2 lines.
+        try:
+            crash_p = Path.home() / ".fildi" / "ui-crashes.jsonl"
+            if crash_p.exists():
+                cutoff = time.time() - 48 * 3600
+                rows = []
+                for ln in crash_p.read_text().splitlines()[-80:]:
+                    try:
+                        j = json.loads(ln)
+                        ts = j.get("t") or ""
+                        epoch = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() if ts else 0
+                        if epoch >= cutoff:
+                            rows.append(j)
+                    except Exception:  # noqa: BLE001
+                        continue
+                if rows:
+                    last_m = str(rows[-1].get("message", ""))[:80]
+                    path = rows[-1].get("path") or "?"
+                    say(f"12 UI crashes (48h): {len(rows)} — last: {last_m} @ {path} → investigate + fix (do not wait for Jamie)")
+                else:
+                    say("12 UI crashes (48h): 0")
+            else:
+                say("12 UI crashes (48h): 0 (no log yet)")
+        except Exception as e:  # noqa: BLE001
+            say(f"12 UI crashes: skipped ({e.__class__.__name__})")
     digest = "\n".join(lines)
     print(digest + f"\nfull log: {logp}")
     with USAGE.open("a") as f:

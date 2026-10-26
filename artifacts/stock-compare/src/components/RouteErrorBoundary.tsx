@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
+import { reportUiCrash } from "@/lib/report-ui-crash";
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,11 @@ export class RouteErrorBoundary extends Component<Props, State> {
 
   override componentDidCatch(error: Error, info: { componentStack: string }) {
     Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
+    reportUiCrash({
+      message: error?.message ?? "RouteErrorBoundary",
+      source: "RouteErrorBoundary",
+      stack: `${error?.stack ?? ""}\n${info.componentStack ?? ""}`.slice(0, 1500),
+    });
     // Stale Vite lazy chunk after HMR — one silent reload instead of a scary card.
     const msg = error?.message ?? "";
     if (/Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(msg)) {

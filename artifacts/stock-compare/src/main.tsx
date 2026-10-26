@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { reportUiCrash } from "@/lib/report-ui-crash";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -10,6 +11,27 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0,
   });
 }
+
+// LWC / effect throws often miss React error boundaries — still land in agent bus.
+window.addEventListener("error", (ev) => {
+  const msg = ev.error?.message ?? ev.message ?? "";
+  if (!msg || /ResizeObserver|Script error/i.test(msg)) return;
+  reportUiCrash({
+    message: String(msg),
+    source: "window.error",
+    stack: ev.error?.stack ?? null,
+  });
+});
+window.addEventListener("unhandledrejection", (ev) => {
+  const reason = ev.reason;
+  const msg = reason instanceof Error ? reason.message : String(reason ?? "");
+  if (!msg) return;
+  reportUiCrash({
+    message: msg,
+    source: "unhandledrejection",
+    stack: reason instanceof Error ? reason.stack ?? null : null,
+  });
+});
 
 // Vite HMR: after a rebuild, old lazy-route chunk URLs 404. Without this the
 // app flashes NotFound ("Did you forget…") / error, then a messy remount that

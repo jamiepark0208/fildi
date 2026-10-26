@@ -60,6 +60,24 @@ function codegraph() {
   }
 }
 
+/** Recent browser crashes → agents fix without Jamie re-reporting. */
+function uiCrashes() {
+  try {
+    const p = path.join(require('os').homedir(), '.fildi', 'ui-crashes.jsonl');
+    if (!fs.existsSync(p)) return null;
+    const cutoff = Date.now() - 48 * 3600 * 1000;
+    const rows = fs.readFileSync(p, 'utf8').trim().split('\n').slice(-40)
+      .map((ln) => { try { return JSON.parse(ln); } catch { return null; } })
+      .filter((j) => j && j.t && Date.parse(j.t) >= cutoff);
+    if (!rows.length) return 'UI crashes 48h: 0';
+    const last = rows[rows.length - 1];
+    const msg = String(last.message || '').slice(0, 60);
+    return `UI crashes 48h: ${rows.length} — last: ${msg} @ ${last.path || '?'} → fix now`;
+  } catch {
+    return null;
+  }
+}
+
 function buildBanner() {
   const s = readCursorState();
   const c = readCursorSession();
@@ -70,6 +88,7 @@ function buildBanner() {
     s.tasks.length ? `Next: ${s.tasks.join(', ')}` : null,
     c.last ? `Last Cursor session: ${c.last}` : null,
     s.active.length ? s.active.join(' | ') : null,
+    uiCrashes(),
     `Git: ${g.log}${g.dirty ? ` | ${g.dirty} changed` : ' | clean'}`,
     `Codegraph: ${codegraph()}`,
     `Plan: ${planPath} · State: .cursor/context/cursor-state.md`,
