@@ -263,12 +263,12 @@ export function FundamentalTreatmentPanel() {
       </div>
 
       <details className="rounded-md border border-white/10 bg-black/30 open:pb-1">
-        <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white hover:text-white/80">
+        <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white hover:text-[#d4af37]">
           Metrics catalog ({ENGINE_METRICS.length}) — expand
         </summary>
         <div className="max-h-48 overflow-y-auto px-2 pb-2">
           <table className="w-full text-[10px]">
-            <thead className="sticky top-0 bg-zinc-950 text-[#d4af37]/70">
+            <thead className="sticky top-0 bg-zinc-950 text-[#d4af37]">
               <tr>
                 <th className="text-left py-1">Metric</th>
                 <th className="text-left py-1">Fam</th>
@@ -278,8 +278,8 @@ export function FundamentalTreatmentPanel() {
             </thead>
             <tbody>
               {ENGINE_METRICS.map((m) => (
-                <tr key={m.key} className="border-t border-white/5 text-white">
-                  <td className="py-0.5 text-white/85">{m.label}</td>
+                <tr key={m.key} className="border-t border-white/10 text-white">
+                  <td className="py-0.5 text-white">{m.label}</td>
                   <td className="py-0.5 capitalize">{m.family.slice(0, 3)}</td>
                   <td className="py-0.5 text-right font-mono">{m.baseIntra}</td>
                   <td className="py-0.5 pl-2 text-white">{m.treatment}</td>
