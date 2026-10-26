@@ -9,6 +9,8 @@ import { scoreColor } from "./live-format";
 import { RecConflictChip } from "./rec-conflict-chip";
 import type { RecConflict } from "@/lib/rec-conflicts";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
+import { formatMdYy } from "@/lib/format";
+import { rankingsSnapshotStale } from "@/lib/rankings-snapshot-age";
 
 /** Match Track Record compact density */
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -27,8 +29,19 @@ export function TopOptionsTable({
   regimeConfidence?: number | null;
   conflictsByTicker?: Map<string, RecConflict[]>;
 }) {
-  const { rows, isFetching } = useTopOptions(side, n);
+  const { rows, isFetching, asOf, computedAt } = useTopOptions(side, n);
   const { data: tickerRecords } = useTickerTrackRecord();
+  const stale = rankingsSnapshotStale(asOf);
+  const asOfLabel = asOf ? formatMdYy(asOf) : null;
+  const computedLabel = computedAt
+    ? new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(computedAt))
+    : null;
 
   const softCaution =
     regimeConfidence != null &&
@@ -44,15 +57,26 @@ export function TopOptionsTable({
         </p>
       )}
       {rows.length === 0 ? (
-        <p className="text-[11px] text-amber-200/40">
+        <p className="text-[11px] text-amber-100/70">
           {isFetching ? "Loading nightly rankings…" : "No scored candidates yet — run Overall refresh."}
         </p>
       ) : (
         <div className={GRID_WRAP}>
-          <div className={cn(GRID_HEADER, "px-2 py-1")}>
+          <div className={cn(GRID_HEADER, "px-2 py-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5")}>
             <h3 className="text-[10px] font-semibold text-[#d4af37] uppercase tracking-widest">
               Best strikes · {side === "put" ? "Puts" : "Calls"}
             </h3>
+            <span
+              className={cn(
+                "text-[9px] font-mono",
+                stale ? "text-orange-300 font-semibold" : "text-amber-100/80",
+              )}
+              title="option_score_snapshots from nightly Overall job (DB-only; no live quotes)"
+            >
+              {stale ? "STALE snapshot · " : "snapshot "}
+              {asOfLabel ? `as of ${asOfLabel}` : "as of —"}
+              {computedLabel ? ` · ran ${computedLabel} ET` : ""}
+            </span>
           </div>
           <table className="w-full">
             <thead className="bg-black/60 text-[#d4af37]">

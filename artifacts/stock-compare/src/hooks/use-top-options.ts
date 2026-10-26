@@ -73,7 +73,12 @@ function toRow(r: RankingRow): TopOptionRow {
   };
 }
 
-export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow[]; isFetching: boolean } {
+export function useTopOptions(side: "put" | "call", n = 7): {
+  rows: TopOptionRow[];
+  isFetching: boolean;
+  asOf: string | null;
+  computedAt: string | null;
+} {
   const { user } = useAuth();
   const { entries } = useWatchlist();
 
@@ -91,10 +96,23 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
   // Lite rankings — skip livePrices (Live table doesn't paint day-%; Rankings page keeps the full key).
   const { data: snapRankings, isFetching } = useQuery({
     queryKey: queryKeys.optionsRankingsLite(side),
-    queryFn: async (): Promise<{ rankings: RankingRow[] }> => {
+    queryFn: async (): Promise<{
+      rankings: RankingRow[];
+      asOf: string | null;
+      computedAt: string | null;
+    }> => {
       const res = await fetch(`/api/options/rankings?side=${side}&livePrices=0`);
       if (!res.ok) throw new Error("options rankings fetch failed");
-      return res.json();
+      const body = await res.json() as {
+        rankings?: RankingRow[];
+        asOf?: string | null;
+        computedAt?: string | null;
+      };
+      return {
+        rankings: body.rankings ?? [],
+        asOf: body.asOf ?? null,
+        computedAt: body.computedAt ?? null,
+      };
     },
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
@@ -109,5 +127,10 @@ export function useTopOptions(side: "put" | "call", n = 7): { rows: TopOptionRow
     return [...wl, ...rest].slice(0, n).map(toRow);
   }, [snapRankings, watchlistSet, n]);
 
-  return { rows, isFetching };
+  return {
+    rows,
+    isFetching,
+    asOf: snapRankings?.asOf ?? null,
+    computedAt: snapRankings?.computedAt ?? null,
+  };
 }
