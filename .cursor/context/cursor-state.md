@@ -1,21 +1,19 @@
 # Cursor State
 > Cursor-only — do NOT write to `.agents/context/state.md` (Claude Code).
 
-**Last updated:** 2026-10-24 (A235 P1/P2 + A241 P0.5 gitleaks + A202 park)
+**Last updated:** 2026-10-24 (Structures UI: themes + nest Long options)
 
-## Next build
-1. A241 P1 blocked on Jamie GCP account (provisioning script ready when he pastes Cloud Shell)
-2. Cut `cursor/gcp-shadow` when tree clean after sync
-3. Optional: more Fri `backfill_option_session.py` (822 live-bid rows; hit cap 150)
+## Standing
+Jamie already approved A241 shadow test. Cursor ships next slices without asking. Only stop for money/account/trade or final cutover “go”.
 
-## Done this session
-- A211 stage 1 → `.agents/context/job-host-split.md`
-- A248 net-exit gate in `~/rbh_scripts/export_rbh_transactions.py`
-- Fri LSEG backfill path + thicken (567 written this pass)
-- A241 P0.5: gitleaks installed, 0 leaks (FP allowlist in `.gitleaks.toml`)
-- A235 P1/P2: sdm/live admin, desk auth, sessions, api-usage admin, own watchlist-earnings
-- A202 parked (S045 + fetch-page for A139)
-- A244 still Claude (S081 FAIL)
+## Live
+- A241 **parked** 10-26 (Jamie): public-tick timer off; no recon until unpark
+- VM timer `fildi-public-tick.timer` every 30m — Yahoo prices for watchlist
+- Recon: `node scripts/parity/vm_vs_mac.mjs` → FINDINGS → fix → retest
+- Mac: `FILDI_HOST_ROLE` unset → unchanged
+- Rankings › Structures: meta portals into tab row; structures.py uses latest skew (not skip); skew+board refreshed 10/24
 
-## Phase
-Permission hardening complete for invite floor. GCP shadow waits on Jamie account.
+## Next (auto)
+1. Daily recon after market sessions; triage FINDINGS
+2. Thicken public jobs (option scores / snapshot) if e2-micro holds
+3. Mac-off overnight drill
