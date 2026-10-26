@@ -411,6 +411,12 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
     names = sorted({p["ticker"] for p in puts} | {x["t"] for x in longs})
     ratio, margin = b.get("maint_ratio_est"), "maint_ratio_est" in b
     expiring = [p for p in puts if p["expiry"] == near]
+    # A260: MC is front-expiry only — surface notional by every expiry so the label is honest.
+    notional_by_expiry: dict[str, float] = {}
+    for p in puts:
+        k = str(p["expiry"])
+        notional_by_expiry[k] = notional_by_expiry.get(k, 0.0) + float(
+            p.get("assign_cash") or (p["strike"] * 100 * p["qty"]))
     # A117: empirical Cholesky when history is thick enough; else S015 one-factor
     corr_mode = "one_factor"
     t0 = time.perf_counter()
@@ -505,9 +511,11 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
 
     return {"expiry": near, "days_left": days, "margin": margin, "risk": base[key], "assign_p90": base["assign_p90"],
             "corr": corr_mode, "corr_ms": round(corr_ms, 1), "var": var,
+            "front_expiry_only": True,  # A260: MC paths cover nearest expiry only
+            "notional_by_expiry": dict(sorted(notional_by_expiry.items())),
             "puts": [{**p, "p_assign": pa} for p, pa in zip(expiring, base["p_assign"])],
             "fix": {"close": [f"{expiring[i]['ticker']} {expiring[i]['strike']:g}P" for i in sorted(closed)], "cost": cost,
-                    "risk_after": cur[key]} if closed else None}
+                    "risk_after": cur[key], "front_expiry_only": True} if closed else None}
 
 
 def _crash_drop(book: dict, acct: str) -> float | None:
@@ -640,9 +648,16 @@ def bullets(book: dict, sims: dict) -> list[dict]:
             r, kind = s["risk"], "margin call" if s["margin"] else "assignment > cash"
             lo, hi = (THRESH["margin_amber"], THRESH["margin_red"]) if s["margin"] else (THRESH["cash_amber"], THRESH["cash_red"])
             if r >= lo:
-                txt = f"{acct}: {r:.0%} chance of a {kind} at {s['expiry'][5:]} expiry (bad-case assignment {f(s['assign_p90'])})."
+                # A260: label MC as front-expiry only; append later-expiry notional when the book spans weeks.
+                txt = (f"{acct}: {r:.0%} chance of a {kind} at front expiry {s['expiry'][5:]} only "
+                       f"(bad-case assignment {f(s['assign_p90'])}).")
+                later = {k: v for k, v in (s.get("notional_by_expiry") or {}).items() if k != str(s["expiry"])}
+                if later:
+                    bits = ", ".join(f"{k[5:]} {f(v)}" for k, v in sorted(later.items()))
+                    txt += f" Later-expiry assign notional (not in MC): {bits}."
                 if s["fix"]:
-                    txt += f" Closing {', '.join(s['fix']['close'])} ({f(s['fix']['cost'])}) → {s['fix']['risk_after']:.0%}."
+                    txt += (f" Closing {', '.join(s['fix']['close'])} ({f(s['fix']['cost'])}) → "
+                            f"{s['fix']['risk_after']:.0%} (front expiry only).")
                 out.append({"key": f"{acct}:{'margin' if s['margin'] else 'cash'}", "level": "red" if r >= hi else "amber", "text": txt, "value": r})
             likely = [p for p in s["puts"] if p["p_assign"] >= THRESH["assign_listed"]]
             if likely and s["days_left"] <= 2:
