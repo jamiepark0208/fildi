@@ -14,16 +14,11 @@ export function PeerGroupsTab() {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl">
-      <div>
-        <h2 className="text-xs font-semibold text-white uppercase tracking-wide">Sector Peers</h2>
-        <p className="text-[10px] text-white mt-0.5">
-          Auto-classified peer groups for sector-relative fundamental scoring. Look up a ticker to
-          reassign its group or edit the roster — changes feed scoring immediately.
-        </p>
-      </div>
+    <div className="flex flex-col gap-3 max-w-3xl">
+      <p className="text-[11px] text-white/55">
+        Look up a ticker to reassign its peer group. Changes apply to scoring immediately.
+      </p>
 
-      {/* Ticker search */}
       <div className="flex items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50" />

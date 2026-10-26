@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { VendorCatalogPanel } from "@/components/settings/VendorCatalogPanel";
 
 // ── Data Health types ─────────────────────────────────────────────────────────
 
@@ -762,6 +763,8 @@ export function ApiMonitorTab() {
           </p>
         </div>
       )}
+
+      <VendorCatalogPanel />
     </div>
   );
 }

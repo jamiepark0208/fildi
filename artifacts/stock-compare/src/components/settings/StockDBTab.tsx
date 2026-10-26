@@ -19,6 +19,7 @@ import {
 import { PipelineHealthPanel } from "./stockdb/stock-db-admin-panel";
 import { VendorCrossCheckPanel } from "./stockdb/vendor-cross-check-panel";
 import { StockDbSummaryBar } from "./stockdb/stock-db-summary-bar";
+import { PeerGroupsTab } from "./PeerGroupsTab";
 
 function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: string | null; sortDir: "asc" | "desc" }) {
   if (sortCol !== colKey) return <span className="opacity-20 ml-0.5 inline-block w-2.5 text-center">↕</span>;
@@ -53,7 +54,7 @@ export function StockDBTab() {
   const [overrideNote, setOverrideNote]         = useState("");
   const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(() => new Set(_persist.collapsedSectors));
   const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(() => new Set(_persist.collapsedGroups));
-  const [viewMode, setViewMode]                 = useState<"fundamentals" | "technicals">("fundamentals");
+  const [viewMode, setViewMode]                 = useState<"fundamentals" | "technicals" | "peers">("fundamentals");
   const [pipelineExpanded, setPipelineExpanded] = useState(false);
 
   const { data: runsData } = useQuery<{ runs: EnrichmentRun[] }>({
@@ -614,47 +615,56 @@ export function StockDBTab() {
       {/* View toggle + filter + legend */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-1 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded-md w-fit text-[11px] font-semibold">
-          {(["fundamentals", "technicals"] as const).map(mode => (
+          {([
+            { id: "fundamentals" as const, label: "Fundamentals" },
+            { id: "technicals" as const, label: "Technicals" },
+            { id: "peers" as const, label: "Peers" },
+          ]).map(mode => (
             <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
+              key={mode.id}
+              onClick={() => setViewMode(mode.id)}
               className={cn(
-                "px-2.5 py-1.5 rounded capitalize transition-colors",
-                viewMode === mode
+                "px-2.5 py-1.5 rounded transition-colors",
+                viewMode === mode.id
                   ? "bg-[#d4af37] text-black"
                   : "text-amber-200/50 hover:text-[#d4af37]",
               )}
             >
-              {mode === "fundamentals" ? "Fundamentals" : "Technicals"}
+              {mode.label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-amber-200/30 pointer-events-none" />
-            <input
-              type="text"
-              value={tickerFilter}
-              onChange={e => setTickerFilter(e.target.value)}
-              placeholder="Filter tickers…"
-              className="pl-6 pr-3 py-1 text-xs bg-zinc-950 border border-[#d4af37]/20 text-white placeholder:text-amber-200/30 rounded-md focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 w-44"
-            />
-            {tickerFilter && (
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-200/30 tabular-nums">
-                {visibleRows}/{data.length}
-              </span>
-            )}
+        {viewMode !== "peers" && (
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-amber-200/30 pointer-events-none" />
+              <input
+                type="text"
+                value={tickerFilter}
+                onChange={e => setTickerFilter(e.target.value)}
+                placeholder="Filter tickers…"
+                className="pl-6 pr-3 py-1 text-xs bg-zinc-950 border border-[#d4af37]/20 text-white placeholder:text-amber-200/30 rounded-md focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 w-44"
+              />
+              {tickerFilter && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-200/30 tabular-nums">
+                  {visibleRows}/{data.length}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-3 text-xs text-amber-200/50">
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
+              <span className="flex items-center gap-1"><span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-medium">rep</span> Representative (watchlist)</span>
+            </div>
           </div>
-          <div className="flex gap-3 text-xs text-amber-200/50">
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
-            <span className="flex items-center gap-1"><span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-medium">rep</span> Representative (watchlist)</span>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Grid */}
+      {viewMode === "peers" ? (
+        <PeerGroupsTab />
+      ) : (
+      /* Grid */
       <div className="rounded-md border border-[#d4af37]/25 overflow-auto max-h-[calc(100vh-300px)] bg-zinc-950 shadow-lg shadow-black/60">
         <table className="text-xs border-collapse min-w-max">
           <thead className="sticky top-0 z-20 bg-black text-[#d4af37]">
@@ -989,6 +999,7 @@ export function StockDBTab() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
     {/* ── Provenance Popover ─────────────────────────────────────────────── */}
     <Popover open={!!activeCell} onOpenChange={(open) => { if (!open) setActiveCell(null); }}>

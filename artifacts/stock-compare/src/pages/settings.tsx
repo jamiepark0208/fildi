@@ -6,9 +6,7 @@ import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, UserPlus } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
-import { PeerGroupsTab } from "@/components/settings/PeerGroupsTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
-import { DataSourcesTab } from "@/components/settings/DataSourcesTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
 import { ResearchTab } from "@/components/settings/ResearchTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
@@ -662,9 +660,47 @@ function CacheMonitorTab() {
   );
 }
 
+// ─── Inbox (Feedback + Research) ──────────────────────────────────────────────
+
+function InboxTab() {
+  const [sub, setSub] = useSessionState<"feedback" | "research">("fildi_settings_inbox", "feedback");
+  return (
+    <div className="space-y-3">
+      <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+        {([
+          { id: "feedback" as const, label: "Feedback" },
+          { id: "research" as const, label: "Research" },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setSub(t.id)}
+            className={cn(
+              "px-2.5 py-1.5 transition-colors",
+              sub === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {sub === "feedback" ? <FeedbackTab /> : <ResearchTab />}
+    </div>
+  );
+}
+
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "users" | "cache" | "stockdb" | "peer-groups" | "api-monitor" | "data-sources" | "scorecard-guide" | "feedback" | "scheduled-tasks" | "research";
+type Tab = "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "inbox" | "scheduled-tasks";
+
+const LEGACY_TAB: Record<string, Tab> = {
+  "data-sources": "api-monitor",
+  "peer-groups": "stockdb",
+  feedback: "inbox",
+  research: "inbox",
+  profile: "scorecard-guide",
+  agents: "scorecard-guide",
+};
 
 export default function Settings() {
   const { isAdmin } = useAuth();
@@ -673,20 +709,21 @@ export default function Settings() {
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: "scorecard-guide", label: "Scorecard Guide" },
     { id: "stockdb",         label: "Stock DB" },
-    { id: "users",           label: "User Mgmt",       adminOnly: true },
-    { id: "cache",           label: "Cache Monitor",   adminOnly: true },
-    { id: "scheduled-tasks", label: "Scheduled Tasks", adminOnly: true },
-    { id: "peer-groups",     label: "Sector Peers",    adminOnly: true },
-    { id: "api-monitor",     label: "API Monitor",     adminOnly: true },
-    { id: "data-sources",    label: "Data Sources",    adminOnly: true },
-    { id: "feedback",        label: "Feedback",        adminOnly: true },
-    { id: "research",        label: "Research",        adminOnly: true },
+    { id: "users",           label: "Users",           adminOnly: true },
+    { id: "cache",           label: "Cache",           adminOnly: true },
+    { id: "scheduled-tasks", label: "Tasks",           adminOnly: true },
+    { id: "api-monitor",     label: "API",             adminOnly: true },
+    { id: "inbox",           label: "Inbox",           adminOnly: true },
   ];
 
-  // Persisted tab may point at an admin-only / removed tab — fall back to Scorecard Guide.
+  // Persisted / removed tabs → current homes.
   useEffect(() => {
     const legacy = tab as string;
-    if (legacy === "profile" || legacy === "agents" || !tabs.some((t) => t.id === tab)) {
+    if (LEGACY_TAB[legacy]) {
+      setTab(LEGACY_TAB[legacy]);
+      return;
+    }
+    if (!tabs.some((t) => t.id === tab)) {
       setTab("scorecard-guide");
       return;
     }
@@ -694,13 +731,15 @@ export default function Settings() {
     if (current?.adminOnly && !isAdmin) setTab("scorecard-guide");
   }, [isAdmin, tab, setTab]);
 
-  // Ops Nucleus deep-links (API Monitor / Stock DB) from Scheduled Tasks.
+  // Ops Nucleus deep-links (API / Stock DB) from Tasks.
   useEffect(() => {
     const onTab = (e: Event) => {
       const next = (e as CustomEvent<string>).detail;
       if (next === "api-monitor" || next === "stockdb" || next === "scheduled-tasks") {
         setTab(next as Tab);
       }
+      if (next === "data-sources") setTab("api-monitor");
+      if (next === "peer-groups") setTab("stockdb");
     };
     window.addEventListener("fildi:settings-tab", onTab);
     return () => window.removeEventListener("fildi:settings-tab", onTab);
@@ -714,14 +753,11 @@ export default function Settings() {
       {/* Custom chrome (sticky header + tabs outside scroll). Same contract as AppPage:
           viewport lock + data-lenis-prevent on the scroll pane — do not use bare pt-14. */}
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
-        {/* Header */}
         <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
           <h1 className="text-sm font-bold tracking-tight leading-none text-white">Settings</h1>
         </div>
 
-        {/* Sub-tabs */}
         <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
-          {/* No explicit generic on TabBar — Replit's vite metadata plugin can't parse generic JSX call sites (`<TabBar<Tab> …>`) and corrupts the transform; T is inferred from props anyway. */}
           <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
             {visibleTabs.map((t) => (
               <button
@@ -738,18 +774,14 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Tab content — data-lenis-prevent: Lenis owns document wheel; without it, inner overflow never receives scroll. */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4" data-lenis-prevent>
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
-          {tab === "users"   && isAdmin && <UserMgmtTab />}
-          {tab === "cache"       && isAdmin && <CacheMonitorTab />}
+          {tab === "users" && isAdmin && <UserMgmtTab />}
+          {tab === "cache" && isAdmin && <CacheMonitorTab />}
           {tab === "scheduled-tasks" && isAdmin && <ScheduledTasksTab />}
-          {tab === "stockdb"     && <StockDBTab />}
-          {tab === "peer-groups" && isAdmin && <PeerGroupsTab />}
+          {tab === "stockdb" && <StockDBTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
-          {tab === "data-sources" && isAdmin && <DataSourcesTab />}
-          {tab === "feedback"    && isAdmin && <FeedbackTab />}
-          {tab === "research"    && isAdmin && <ResearchTab />}
+          {tab === "inbox" && isAdmin && <InboxTab />}
         </div>
       </main>
     </div>
