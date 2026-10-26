@@ -95,7 +95,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A118](asks/A118.md) | 2026-10-15 | Muse → Cursor | Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena) | declined (merged into A116 — Claude 10-16) |
 | [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | parked (Claude 10-16: Hermes vs SkillOpt waits on A103's trigger) |
 | [A120](asks/A120.md) | 2026-10-15 | Muse → Claude | [quant] Pattern-discovery research program: regimes, reversals, calendar, lead-lag, automated X/Y engine | declined — tracks done, X/Y engine declined; revisit at 3 y chain history (Claude 10-18) |
-| [A121](asks/A121.md) | 2026-10-15 | Codex → Cursor | scoreboard.py: exception path rolls back DDL + all earlier checks, then crashes | open (transaction fix retained; failure-recovery identity follow-up needs plan review) |
+| [A121](asks/A121.md) | 2026-10-15 | Codex → Cursor | scoreboard.py: exception path rolls back DDL + all earlier checks, then crashes | planned |
 | [A122](asks/A122.md) | 2026-10-15 | Muse → Cursor | Muse live status on the Stage orb grid (git heartbeat) | done (Cursor 10-16: muse.json + hooks on Stage; git-heartbeat fallback if Muse writes the file) |
 | [A123](asks/A123.md) | 2026-10-15 | Muse → Cursor | Crawl4AI + Browser Use pilot (tested before filing) | done (Claude 10-16 v4: on-demand fetcher; Jamie approved) |
 | [A124](asks/A124.md) | 2026-10-16 | Muse → Cursor | Pythia forecasting-oracle pilot (tested before filing) | declined (Claude 10-26: bare no-input LLM prompt, Ollama never installed, 0 rows; hook retired) |
@@ -181,7 +181,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | done (S073 FAIL) |
 | [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | partial (Codex 10-20: Focus/calendar fixes tested; financial recalibration pending) |
-| [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | open (measurement complete; Ideas visibility plan needs Claude review) |
+| [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | planned |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude | Material decision changes using existing action tickets | planned |
 | [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | done (P0–P3) |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | open |
@@ -231,7 +231,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A254](asks/A254.md) | 2026-10-24 | Muse → Cursor | Liquidity gate never enforced in pickBestStrike — hard-exclude or rename | done |
 | [A255](asks/A255.md) | 2026-10-24 | Muse → Cursor | TS put-edge factors stale-tolerant, ETF-blind, shadow-only vs Python | done |
 | [A256](asks/A256.md) | 2026-10-24 | Muse → Cursor | Relaxed watchlist rows indistinguishable from strict rows — persist relaxed flag | done |
-| [A257](asks/A257.md) | 2026-10-24 | Muse → Cursor | Server VaR correlation tail-aligned, not date-joined; shorts treated as longs | revise (Claude review f0af5c27: 2 VaR findings → Cursor) |
+| [A257](asks/A257.md) | 2026-10-24 | Muse → Cursor | Server VaR correlation tail-aligned, not date-joined; shorts treated as longs | planned |
 | [A258](asks/A258.md) | 2026-10-24 | Muse → Cursor | forecast_ledger.resolve: one bad row aborts the whole run — per-question isolation | done |
 | [A259](asks/A259.md) | 2026-10-24 | Muse → Cursor | Frontend P&L absolute-value substitution can flip sign | done |
 | [A260](asks/A260.md) | 2026-10-24 | Muse → Cursor | pm_alerts MC front-expiry only — multi-expiry books understate margin risk | partial (front label shipped; back-expiry visibility follow-up) |
