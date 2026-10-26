@@ -25,6 +25,21 @@ function fmtExpiry(iso: string) {
   return `${Number(m)}/${Number(d)}`;
 }
 
+/** m/d/yy for action ticket header */
+function fmtExpiryMdYy(iso: string) {
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return iso;
+  return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
+}
+
+/** Chip shows short word (Avoid); full VERDICT_LABELS detail on hover. */
+function verdictChip(verdict: string): { short: string; tip: string } {
+  const full = VERDICT_LABELS[verdict] || verdict || "Watch";
+  const i = full.indexOf(":");
+  if (i > 0) return { short: full.slice(0, i).trim(), tip: full.slice(i + 1).trim() };
+  return { short: full, tip: full };
+}
+
 function pct(x: number) {
   return `${Math.round(x * 100)}%`;
 }
@@ -234,14 +249,39 @@ function ActionTicket({
   const mv = shares != null && close != null ? shares * close : null;
   const why = rankedWhy(item.why, item.flags);
   const income = c && !isTrim ? incomeLine(c) : null;
-  const deltaHint = why.find((w) => /δ|delta|Δ/i.test(w));
   const scoreWhy = why.find((w) => w.toLowerCase().includes("option score"));
   const weekWhy = why.find((w) => w.toLowerCase().includes("%/week") || w.toLowerCase().includes("% / week"));
   const edgeWhy = why.find((w) => w.toLowerCase().includes("put edge"));
   const riskWhy = why.filter((w) =>
     /falling.?knife|fragile|earnings|credit/i.test(w)
-    && w !== scoreWhy && w !== weekWhy && w !== edgeWhy && w !== deltaHint,
+    && w !== scoreWhy && w !== weekWhy && w !== edgeWhy,
   );
+
+  // Compact Why: score · X%/wk · Δ · edge (drop long "at $strike (N DTE…)" prose).
+  const whyCompact: Array<{ cls: string; text: string }> = [];
+  if (item.score != null) whyCompact.push({ cls: "text-sky-300", text: `score ${Math.round(item.score)}` });
+  if (weekWhy) {
+    const pctM = weekWhy.match(/([\d.]+)\s*%\s*\/?\s*week/i);
+    whyCompact.push({ cls: "text-emerald-400", text: pctM ? `${pctM[1]}%/wk` : "yield" });
+    const dM = weekWhy.match(/Δ\s*([+\-]?\d+\.?\d*)/i) || weekWhy.match(/delta\s*([+\-]?\d+\.?\d*)/i);
+    if (dM) whyCompact.push({ cls: "text-amber-100", text: `Δ${dM[1].startsWith("+") || dM[1].startsWith("-") ? dM[1] : `+${dM[1]}`}` });
+  }
+  if (edgeWhy) {
+    const eM = edgeWhy.match(/([\d.]+)/);
+    whyCompact.push({ cls: "text-violet-300", text: eM ? `edge ${eM[1]}` : "put edge" });
+  }
+  for (const w of riskWhy.slice(0, 1)) {
+    whyCompact.push({ cls: "text-orange-300", text: w.replace(/^⚠\s*/, "").slice(0, 28) });
+  }
+  if (whyCompact.length === 0 && why[0]) whyCompact.push({ cls: "text-amber-100/80", text: why[0].slice(0, 40) });
+
+  const sideLabel = isTrim
+    ? "TRIM"
+    : c?.type === "put"
+      ? "SELL PUT"
+      : c?.type === "call"
+        ? "SELL CALL"
+        : folderName.toUpperCase();
 
   return (
     <div
@@ -257,11 +297,21 @@ function ActionTicket({
           "text-[10px] font-bold uppercase tracking-wide",
           urgency === "HIGH" ? "text-red-300" : urgency === "MED" ? "text-amber-100" : "text-[#d4af37]",
         )}>
-          {isTrim ? "Trim" : folderName}
+          {sideLabel}
         </span>
         <span className="text-[13px] font-bold text-white font-mono tracking-wide">{item.ticker}</span>
         {close != null && (
           <span className="font-mono text-[12px] font-semibold text-sky-200">${close.toFixed(2)}</span>
+        )}
+        {!isTrim && c && (
+          <>
+            <span className="text-[11px] font-mono text-amber-50">
+              at X=<span className="text-white font-semibold">${c.strike}</span>
+            </span>
+            <span className="text-[11px] font-mono text-amber-50">
+              Exp <span className="text-white font-semibold">{fmtExpiryMdYy(c.expiry)}</span>
+            </span>
+          </>
         )}
         <span className={cn(
           "text-[9px] font-bold uppercase px-1 py-0.5 rounded border",
@@ -287,73 +337,65 @@ function ActionTicket({
         )}
       </div>
 
-      <div className="grid grid-cols-[3.75rem_1fr] gap-x-2 gap-y-0.5 text-[11px] font-mono leading-snug">
-        <span className="text-[#d4af37] font-semibold">What</span>
-        <span className="text-white font-semibold">
-          {isTrim
-            ? `Reduce ${item.ticker} equity`
-            : c
-              ? `Sell ${c.strike}${c.type === "put" ? "P" : "C"} ${fmtExpiry(c.expiry)}${c.contracts ? ` ×${c.contracts}` : ""}`
-              : folderName}
-        </span>
-        {(isTrim || c?.contracts != null) && (
-          <>
-            <span className="text-[#d4af37] font-semibold">Size</span>
-            <span className="text-white" title={isTrim ? undefined : "1 option contract = right on 100 shares"}>
-              {isTrim ? (
-                shares != null ? (
-                  <>
-                    {shares.toLocaleString()} shares
-                    {mv != null && <span className="text-amber-100/70"> · ~${Math.round(mv).toLocaleString()}</span>}
-                  </>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] font-mono leading-snug">
+        <div className="grid grid-cols-[3.25rem_1fr] gap-x-2 gap-y-0.5 content-start">
+          <span className="text-[#d4af37] font-semibold">What</span>
+          <span className="text-white font-semibold">
+            {isTrim
+              ? `Reduce ${item.ticker} equity`
+              : c
+                ? `Sell ${c.strike}${c.type === "put" ? "P" : "C"} ${fmtExpiry(c.expiry)}${c.contracts ? ` ×${c.contracts}` : ""}`
+                : folderName}
+          </span>
+          {(isTrim || c?.contracts != null) && (
+            <>
+              <span className="text-[#d4af37] font-semibold">Size</span>
+              <span className="text-white" title={isTrim ? undefined : "1 option contract = right on 100 shares"}>
+                {isTrim ? (
+                  shares != null ? (
+                    <>
+                      {shares.toLocaleString()} shares
+                      {mv != null && <span className="text-amber-100/70"> · ~${Math.round(mv).toLocaleString()}</span>}
+                    </>
+                  ) : (
+                    <span className="text-amber-100/70">unknown (RH book)</span>
+                  )
                 ) : (
-                  <span className="text-amber-100/70">unknown (RH book)</span>
-                )
-              ) : (
-                <>
-                  {c!.contracts === 1 ? "1 contract" : `${c!.contracts} contracts`}
-                  <span className="text-amber-100/70"> (= {(c!.contracts ?? 1) * 100} sh)</span>
-                  {c!.collateral != null ? ` · $${Math.round(c!.collateral).toLocaleString()} collateral` : ""}
-                </>
-              )}
-            </span>
-          </>
-        )}
-        {!isTrim && (
-          <>
-            <span className="text-[#d4af37] font-semibold">Income</span>
-            <span className={cn("font-semibold", income ? "text-emerald-400" : "text-amber-100/70")}>
-              {isTrim ? "—" : income ?? (c?.premium != null ? `~$${c.premium.toFixed(2)}` : "—")}
-            </span>
-          </>
-        )}
-        {isTrim && (
-          <>
-            <span className="text-[#d4af37] font-semibold">When</span>
-            <span className="text-white">Next RTH</span>
-          </>
-        )}
-        <span className="text-[#d4af37] font-semibold">Why</span>
-        <span className="text-amber-50 space-x-1">
-          {scoreWhy && <span className="text-sky-300">{scoreWhy.replace(/^Fildi\s+/i, "")}</span>}
-          {weekWhy && <span className="text-emerald-400/90">· {weekWhy}</span>}
-          {deltaHint && !weekWhy?.includes("Δ") && !weekWhy?.toLowerCase().includes("delta") && (
-            <span className="text-amber-100">· {deltaHint}</span>
+                  <>
+                    {c!.contracts === 1 ? "1 contract" : `${c!.contracts} contracts`}
+                    <span className="text-amber-100/70"> (= {(c!.contracts ?? 1) * 100} sh)</span>
+                  </>
+                )}
+              </span>
+            </>
           )}
-          {edgeWhy && <span className="text-violet-300/90">· {edgeWhy}</span>}
-          {riskWhy.slice(0, 2).map((w) => (
-            <span key={w} className="text-orange-300">· {w}</span>
-          ))}
-          {!scoreWhy && !weekWhy && !edgeWhy && riskWhy.length === 0 && (
-            <span className="text-amber-100/80">{why[0] ?? item.flags[0] ?? "—"}</span>
+          {isTrim && (
+            <>
+              <span className="text-[#d4af37] font-semibold">When</span>
+              <span className="text-white">Next RTH</span>
+              <span className="text-[#d4af37] font-semibold">→ Into</span>
+              <span className="text-sky-300 font-semibold">Cash</span>
+            </>
           )}
-        </span>
-        {isTrim && (
-          <>
-            <span className="text-[#d4af37] font-semibold">→ Into</span>
-            <span className="text-sky-300 font-semibold">Cash</span>
-          </>
-        )}
+        </div>
+        <div className="grid grid-cols-[3.25rem_1fr] gap-x-2 gap-y-0.5 content-start">
+          {!isTrim && (
+            <>
+              <span className="text-[#d4af37] font-semibold">Income</span>
+              <span className={cn("font-semibold", income ? "text-emerald-400" : "text-amber-100/70")}>
+                {income ?? (c?.premium != null ? `~$${c.premium.toFixed(2)}` : "—")}
+              </span>
+            </>
+          )}
+          <span className="text-[#d4af37] font-semibold">Why</span>
+          <span className="text-amber-50">
+            {whyCompact.map((p, i) => (
+              <span key={i} className={p.cls}>
+                {i > 0 ? " · " : ""}{p.text}
+              </span>
+            ))}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -393,17 +435,29 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
         <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#d4af37]">
           Model thesis
         </span>
-        <span
-          className={cn(
-            "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
-            tone === "good" && "border-green-400/60 bg-green-700/50 text-white",
-            tone === "bad" && "border-red-400/70 bg-red-800/80 text-amber-50",
-            tone === "warn" && "border-amber-400/60 bg-amber-700/40 text-white",
-            tone === "neutral" && "border-[#d4af37]/40 bg-zinc-800 text-amber-50",
-          )}
-        >
-          {VERDICT_LABELS[item.verdict] || item.verdict || "Watch"}
-        </span>
+        {(() => {
+          const chip = verdictChip(item.verdict);
+          return (
+            <Tooltip delayDuration={100}>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border cursor-help",
+                    tone === "good" && "border-green-400/60 bg-green-700/50 text-white",
+                    tone === "bad" && "border-red-400/70 bg-red-800/80 text-amber-50",
+                    tone === "warn" && "border-amber-400/60 bg-amber-700/40 text-white",
+                    tone === "neutral" && "border-[#d4af37]/40 bg-zinc-800 text-amber-50",
+                  )}
+                >
+                  {chip.short}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[240px] text-[11px] text-amber-50 border border-[#d4af37]/40">
+                {chip.tip}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })()}
       </div>
 
       <ActionTicket thesis={thesis} shares={shares} isTrim={isTrim} />
@@ -448,45 +502,40 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
       )}
 
       {pillars && (
-        <div className="space-y-1">
-          <div className="text-[9px] font-semibold uppercase tracking-wider text-amber-100/80">
-            Scores · hover any box for what it means
-          </div>
-          <div className="grid grid-cols-5 gap-1">
-            {([
-              ["own", "Own"],
-              ["street", "Street"],
-              ["premium", "Prem"],
-              ["fit", "Fit"],
-              ["edge", "Edge"],
-            ] as const).map(([k, label]) => {
-              const v = pillars[k];
-              const pt = pillarTone(k, v, isTrim);
-              const tip = pillarTip(k, v, isTrim);
-              return (
-                <Tooltip key={k} delayDuration={120}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="text-left w-full rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
-                    >
-                      <WhyMetric
-                        label={label}
-                        value={v != null ? Math.round(v) : "—"}
-                        tone={pt}
-                      />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="bottom"
-                    className="max-w-[260px] bg-zinc-900 text-amber-50 border border-[#d4af37]/40 text-[11px] leading-snug"
+        <div className="grid grid-cols-5 gap-1">
+          {([
+            ["own", "Own"],
+            ["street", "Street"],
+            ["premium", "Prem"],
+            ["fit", "Fit"],
+            ["edge", "Edge"],
+          ] as const).map(([k, label]) => {
+            const v = pillars[k];
+            const pt = pillarTone(k, v, isTrim);
+            const tip = pillarTip(k, v, isTrim);
+            return (
+              <Tooltip key={k} delayDuration={120}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-left w-full rounded-sm cursor-help focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/40"
                   >
-                    {tip}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
+                    <WhyMetric
+                      label={label}
+                      value={v != null ? Math.round(v) : "—"}
+                      tone={pt}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="max-w-[260px] bg-zinc-900 text-amber-50 border border-[#d4af37]/40 text-[11px] leading-snug"
+                >
+                  {tip}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </div>
       )}
 
@@ -515,8 +564,8 @@ export function ModelThesisReport({ thesis }: { thesis: ModelThesis }) {
             {c?.wall && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="text-[10px] text-amber-50 cursor-help">
-                    IV wall ({c.wall.kind}): <span className="font-mono text-white">${c.wall.level.toFixed(2)}</span> · strike{" "}
+                  <div className="text-[10px] text-amber-50 cursor-help" title="Options-implied 5% breach level from ATM IV — not chart support/resistance">
+                    Options IV {c.wall.kind}: <span className="font-mono text-white">${c.wall.level.toFixed(2)}</span> · strike{" "}
                     <span className="font-mono text-white">{c.wall.strike_sigma.toFixed(1)}σ</span>{" "}
                     {c.wall.beyond_wall ? "beyond the wall" : "inside the wall"}
                     {c.wall.held != null && (
