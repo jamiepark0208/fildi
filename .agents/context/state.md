@@ -21,6 +21,7 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **10-26 sell puts unified (Claude):** put_recs.py → put_recs_daily read by Model List, Structures, Rankings, Live; put_consistency.py daily. Check tomorrow 05:00 run: put consistency 0 mismatches. Next: S101c calls → call_recs, long options.
 - **10-26 step 2 (Claude, rules-1.4.0):** band engine live in build_plan + structures (one function in strategy_engine). Left: expiry unification, Rankings/Live → engine (API), consistency check, S101c calls.
 - **10-26 step 1 (Claude):** S076 put pricer fixed (step ratios → 0.01Δ curve); net bp now rises with Δ; band_engine floors −200/−400 + stability rule. S088 refresh running in background. Next: §8 wire band_engine into strategy_rules/strategy_engine (+ empty-band → nearest listed strike), then surfaces + consistency check, S101c calls, re-run S081/S083/S086 on fixed pricer.
 - **10-26 band_engine.py (Claude):** market × name state → band; OOS same net, better DD/Sharpe; sharp drop → higher Δ both periods; panic pause; size-by-state fails. Next: normal×extended fallback, 0.08–0.10 artifact check, wire into strategy_rules.json + engine table (A277), S101c calls.
