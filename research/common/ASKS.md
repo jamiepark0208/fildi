@@ -139,7 +139,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A163](asks/A163.md) | 2026-10-18 | Grok → Cursor | Live-app click audit session (read-only, Mac) | parked (Cursor 10-18: needs Jamie go that day for live click audit) |
 | [A164](asks/A164.md) | 2026-10-18 | Grok → Muse | CodeGraph per-session cloud setup + Grok token-budget rules | done (Muse 10-18: measured — park per-session CodeGraph) |
 | [A160](asks/A160.md) | 2026-10-18 | Claude → Cursor | [quant] Peer groups: merge waste→industrials, large+regional banks; GICS cross-check | done (merges Cursor; GICS cross-check + override fix Claude 10-18) |
-| [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | planned — hold out taught items (Claude 10-18) |
+| [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude → Cursor | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | planned — hold out taught items (Claude 10-18) |
 | [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | open |
 | [A167](asks/A167.md) | 2026-10-18 | Claude → Claude | [quant] Put-tuned tech score + nodeGap (options-1.1.0; S045 +15.7 bp/wk OOS) | done — options-1.1.0 live 10-18; grade at ≥ 8 expiries |
 | [A168](asks/A168.md) | 2026-10-18 | Muse → Cursor | Fix CI api-server unit tests: video-lab-upload test hits dummy DATABASE_URL | declined (need met by A169; Cursor 10-20) |
@@ -153,14 +153,14 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A176](asks/A176.md) | 2026-10-18 | Claude → Claude | [quant] Strategy runner + tables, seeded with wheel / covered calls / Own−Avoid | done (Claude 10-19: 3 seeds, IRA replay = scoreboard exactly; S047) |
 | [A177](asks/A177.md) | 2026-10-18 | Claude → Claude | [quant] 0DTE tail-lotto: do we have real intraday option prices? | done (Claude 10-19: S048 FAIL — 10 triggers, 0 winners; thin) |
 | [A178](asks/A178.md) | 2026-10-18 | Claude → Claude | [quant] Panic put-selling after capitulation days vs normal wheel | done (Claude 10-19: S049 holdout +1.47 %/trade PASS; in-sample disagrees → candidate) |
-| [A179](asks/A179.md) | 2026-10-19 | Cursor → Claude | Daily put-seller desk workflow UX (Today strip, ticker Open Options, trust chrome) | planned |
+| [A179](asks/A179.md) | 2026-10-19 | Cursor → Claude → Cursor | Daily put-seller desk workflow UX (Today strip, ticker Open Options, trust chrome) | planned |
 | [A180](asks/A180.md) | 2026-10-19 | Cursor → Claude | DB-first shell for Breakdown / quote / compare (cut request-path Yahoo) | done (Cursor 10-19) |
 | [A181](asks/A181.md) | 2026-10-19 | Cursor → Claude | Price chart history ≥1W from prices_historical (not Yahoo chart) | done (Cursor 10-19) |
 | [A182](asks/A182.md) | 2026-10-19 | Cursor → Claude | LazyMount Breakdown PriceChart (defer history fetch) | done (Cursor 10-19) |
 | [A183](asks/A183.md) | 2026-10-19 | Claude → Claude | [quant] Sector laggard catch-up (peer group rallies/crashes, one member lags) | done (Claude 10-19: S050 FAIL — laggards keep lagging, n.s.) |
 | [A184](asks/A184.md) | 2026-10-19 | Claude → Claude | [quant] Strategy backlog: ORB, intraday momentum, FVG, revisions drift, trend, 52w high, RSI(2), squeeze, GEX | open |
 | [A185](asks/A185.md) | 2026-10-19 | Claude → Cursor | Polygon budget: Node polygon-limiter.ts joins the shared cross-process gate | done (Cursor 10-20) |
-| [A186](asks/A186.md) | 2026-10-19 | Cursor → Claude | [quant] Simulated Rec W-L when no graded model_recs (backtest fill, labeled sim) | planned (Claude plan 10-19: 52-wk 1σ-put OTM base rate, labeled sim; stop rule at 100 graded) |
+| [A186](asks/A186.md) | 2026-10-19 | Cursor → Claude → Cursor | [quant] Simulated Rec W-L when no graded model_recs (backtest fill, labeled sim) | planned (Claude plan 10-19: 52-wk 1σ-put OTM base rate, labeled sim; stop rule at 100 graded) |
 | [A187](asks/A187.md) | 2026-10-19 | Cursor → Claude | Enhance Options SIG beyond V2 technical gate (fit / Opt / regime)? | declined (Claude 10-19: composite method; panic-put badge A189 + regime dial cover the need) |
 | [A188](asks/A188.md) | 2026-10-19 | Claude → Claude | [quant] Intraday mispricing list (research-based): option day/night, EOD hedging momentum, 0DTE regime, opex pinning, liquidity reversal, pre-FOMC | open |
 | [A189](asks/A189.md) | 2026-10-19 | Claude → Cursor | Show live "Panic puts, high IV" signals (Strategies tab panel + Options board badge) | done (Cursor 10-20) |
@@ -169,7 +169,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A192](asks/A192.md) | 2026-10-19 | Claude → Claude | [quant] Rank every major option structure (Structures tab): plan v2 + Phase 0 skew survey | accepted (Phase 0 running) |
 | [A193](asks/A193.md) | 2026-10-19 | Muse → Cursor | skew_survey.py crashes on calendar-hole days (unguarded monthly expiry min()) | done |
 | [A194](asks/A194.md) | 2026-10-19 | Muse → Cursor | Schwab 1m bars + WRDS OptionMetrics check | done (Cursor 10-20 row 1) · row 2 declined |
-| [A195](asks/A195.md) | 2026-10-19 | Muse → Claude | [quant] Cointegration divergence as put-selling entry signal — study | planned |
+| [A195](asks/A195.md) | 2026-10-19 | Muse → Claude → Cursor | [quant] Cointegration divergence as put-selling entry signal — study | planned |
 | [A196](asks/A196.md) | 2026-10-19 | Muse → Claude | [quant] Visser trend/momentum filter for put entries — study | done (S073 FAIL) |
 | [A197](asks/A197.md) | 2026-10-20 | Muse → Cursor | ci-guards: brief-only (commentary/) commits fail Agent-trailer rule → CI red at tip | done |
 | [A198](asks/A198.md) | 2026-10-20 | Muse → Cursor | Stock Breakdown scroll fix — DONE (restored from A179 after ID collision) | done |
@@ -193,10 +193,10 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A216](asks/A216.md) | 2026-10-20 | Claude → Cursor | StructuresBoard: keep Claude's plain-language headers + hover tips when committing your redesign | done |
 | [A217](asks/A217.md) | 2026-10-20 | Muse → Claude | [quant] Breeden–Litzenberger implied density from Schwab chains — study (Q vs empirical P gap; A213 implied column) | done (S077 FAIL — display only; Claude 10-26) |
 | [A218](asks/A218.md) | 2026-10-20 | Muse → Cursor | Test: Orca fleet console for the agent roster + Headroom token-compression check | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
-| [A219](asks/A219.md) | 2026-10-20 | Muse → Claude | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-21: VWAP timing now; ORB declined) |
+| [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-21: VWAP timing now; ORB declined) |
 | [A220](asks/A220.md) | 2026-10-20 | Muse → Claude | [quant] IV-wall coverage calibration: strike floor + wall-test defense | done — display column shipped (Claude 10-21) |
-| [A221](asks/A221.md) | 2026-10-20 | Muse → Claude | [quant] Book concentration: covariance clusters, marginal risk at entry, equal-risk sizing | planned (Claude 10-21: vs sector cap, market-wide book) |
-| [A222](asks/A222.md) | 2026-10-20 | Muse → Claude | [quant] Qlib downside-label underlying ranking as a score factor | planned (Claude 10-21: marginal over put edge) |
+| [A221](asks/A221.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Book concentration: covariance clusters, marginal risk at entry, equal-risk sizing | planned (Claude 10-21: vs sector cap, market-wide book) |
+| [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | planned (Claude 10-21: marginal over put edge) |
 | [A223](asks/A223.md) | 2026-10-20 | Muse → Claude | Pilot: NautilusTrader as study engine (re-run S064, three gates) | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
 | [A224](asks/A224.md) | 2026-10-20 | Muse → Cursor | Test: Vibe-Trading — Shadow Account on Jamie's journal, alpha-zoo funnel, options cross-check | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
 | [A225](asks/A225.md) | 2026-10-20 | Muse → Cursor | Test: Superpowers + Claude Mem gated installs (Mac lane weak spots) | parked (Superpowers deferred; Mem declined) |
@@ -204,14 +204,14 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | needs Jamie |
 | [A228](asks/A228.md) | 2026-10-21 | Muse → Claude + Cursor | WRDS + LSEG: usage audit, entitled-but-unused inventory, adoption workstreams W1–W8 | split 10-24 → A264 (W8 panel), A265 (W2 CBOE), W4 = A262 S092; W1/W3/W5–W7 parked |
 | [A229](asks/A229.md) | 2026-10-21 | Claude → all agents | Pipeline schedule changes: 05:00 PT data chain, list ≥ 07:00 PT, retries, OpenJev/transcripts timing | done (FYI) |
-| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | planned (Claude 10-26: candle probe → Phase A packet → Kalshi only with history) |
+| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude → Cursor | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | planned (Claude 10-26: candle probe → Phase A packet → Kalshi only with history) |
 | [A231](asks/A231.md) | 2026-10-21 | Muse → Cursor | CI red on tip — ASKS rows A214/A230 link missing ask files (a219961e) | done (Muse 10-21: files restored from Mac working tree) |
-| [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | planned (Claude 10-26: iv30 not straddles; monthly IBES) |
+| [A232](asks/A232.md) | 2026-10-21 | Muse → Claude → Cursor | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | planned (Claude 10-26: iv30 not straddles; monthly IBES) |
 | [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | revise |
 | [A234](asks/A234.md) | 2026-10-21 | Muse → Grok + Claude + Codex | Agent framework hardening: dynamic plan/build/verify, agent-to-agent comms, token orchestration, cross-training loop | revise |
 | [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | done (P0+P1+P2; await review) |
 | [A236](asks/A236.md) | 2026-10-21 | Claude → Cursor | Pipeline follow-ups: verify 05:00 run, late-open list-first, precompute 29 min, Finnhub limit, request audit | done |
-| [A237](asks/A237.md) | 2026-10-21 | Muse → Claude | [quant] Neocloud contagion: oversold quality peers after a CRWV-led selloff — relative-value + put-premium study | planned (equity leg; put leg = no) |
+| [A237](asks/A237.md) | 2026-10-21 | Muse → Claude → Cursor | [quant] Neocloud contagion: oversold quality peers after a CRWV-led selloff — relative-value + put-premium study | planned (equity leg; put leg = no) |
 | [A238](asks/A238.md) | 2026-10-21 | Claude → Cursor | Heavy-token queue: Cursor runs reviews-packets/backtests/studies, Claude judges from ≤ 20-line packets | open |
 | [A239](asks/A239.md) | 2026-10-21 | Claude → Cursor | Stage tab: draw Claude → Cursor/Grok dispatch beams (cursor-agent wrapper + parent tag) | done (Cursor 10-21) |
 | [A240](asks/A240.md) | 2026-10-21 | Claude → Cursor | [quant] Earnings dates missing for ~23 % of put candidates (NEM FCX UPS ETN…) → re-strike skipped | done |

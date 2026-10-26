@@ -184,8 +184,11 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     if (!m) continue;
     const [, id, d, f, to, title, status] = m;
     const from = who(f!);
-    const destTok = to!.split("/")[0]!.trim();
-    let dest = who(destTok) ?? who(to!);
+    // "Muse → Claude → Cursor": last hop owns the row; a Claude hop before it means Claude plans first.
+    const hops = to!.split("→").map((h) => h.trim());
+    const hopWho = (h: string) => who(h.split("/")[0]!) ?? who(h);
+    let dest = hopWho(hops[hops.length - 1]!);
+    const viaClaude = hops.slice(0, -1).some((h) => hopWho(h) === "claude");
     if (!from || !dest) continue;
     const st = status!.trim();
     if (/needs jamie|user call/i.test(st)) dest = "jamie";
@@ -196,7 +199,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     // Cursor→Claude was missing → A24 invisible on Ideas (Jamie 10-18).
     const onBoard = (from === "muse" && dest === "cursor")
       || (from === "claude" && dest === "cursor")
-      || dest === "claude" || dest === "codex" || from === "codex"
+      || viaClaude || dest === "claude" || dest === "codex" || from === "codex"
       || from === "grok" || dest === "grok"
       || dest === "jamie"
       || /needs jamie|needs claude|user call|sign-off still open/i.test(st);
@@ -212,7 +215,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         title: title!.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
         status: st,
         phase,
-        assignee: ideaAssignee(from, dest, phase, st),
+        assignee: ideaAssignee(viaClaude ? "claude" : from, dest, phase, st),
         quant: /\[quant\]/i.test(title!),
         blurb: ideaBlurb(id!),
         reviews: ideaReviews(id!),
