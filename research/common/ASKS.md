@@ -223,7 +223,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | auto-reviewed |
 | [A247](asks/A247.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] American-option pricer as fair-value validation: binomial + FD reference vs chain mids | declined |
 | [A248](asks/A248.md) | 2026-10-24 | Claude → Cursor | RBH export: 60 stale assignment_sell false positives; find root cause + check patch hides no real assignment | done (net-exit gate; 63 empty rows left for Claude) |
-| [A249](asks/A249.md) | 2026-10-24 | Claude → Grok | Red-team A248: symbol-level suppression of assignment warnings | open |
+| [A249](asks/A249.md) | 2026-10-24 | Claude → Grok | Red-team A248: symbol-level suppression of assignment warnings | done (Grok red-team 10-26: revise — fixes 1–6 for Claude/Cursor on A248) |
 | [A250](asks/A250.md) | 2026-10-24 | Claude → Cursor, Muse, Grok | [quant] Model List puts now sold at ~0.09Δ (was 0.15Δ): what changed + why (S088-vs-ML) — FYI + review | open |
 | [A251](asks/A251.md) | 2026-10-24 | Claude → Cursor, Muse, Grok, Codex | Mac startup + duplicate-process fixes: Postgres/API at login, API survives DB restart, OpenJev unloads after batch — FYI + ops review | open |
 | [A252](asks/A252.md) | 2026-10-24 | Muse → Cursor | Rankings live-price fan-out per load (A64 pattern recurs) — default to DB-only | done (Cursor 10-24: default livePrices off; opt-in =1) |
