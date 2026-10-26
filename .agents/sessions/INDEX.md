@@ -5,6 +5,7 @@ Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
 ## Recent (last 30 days)
 
+- [2026-10-26](claude-2026-10-26.md) — One rules engine: IV-rank resolver, strategy_rules.json + strategy_engine.py driving Structures, put/call ladder with hold-after-assignment, S100 pairs; default put band awaits Jamie. | build | next: set default put band per Jamie, other cutoff ladders if any, trim S088 runtime
 - [2026-10-21](claude-2026-10-21.md) — Pipeline drill: 5 maintain bugs + OpenJev/transcripts timing + FMP 402 waste fixed; A229 tells all agents; Jamie approved remaining fixes + lid-closed. | build | next: verify-10-22-0500-run, finnhub-limit-9999, cache-audit-rest
 - [2026-10-20](claude-2026-10-20.md) — 10-20: Model List filters reworked per S069 (earnings/risk → farther strike, no regime pause, scanner 450, morning live scan); own trades removed from rules; S070 rescue + S072 catalysts null; S071 interim. Next session: holistic app/ops review. | build | next: Holistic honest review of whole Fildi app + ops (Jamie 10-20), verify 10-21 7 AM run (option scan + plan), S071 daily rerun
 - [2026-10-19](claude-2026-10-19.md) — Strategy Library: 8 strategies stored; panic puts + IV>49 confirmed (2025 p0.004, 2022 same sign p0.08) and live with nightly signals; found LSEG expired-option history 2019+; fixed split + bad-tick bugs via small-batch hand checks; Cursor queue A175/A189/A185/A186. | build | next: S053 verdict, S049 2020 + 2019/21/23/24 years, conditions grid all years

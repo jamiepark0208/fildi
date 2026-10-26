@@ -3,9 +3,12 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-21
+**build** — last updated 2026-10-26
 
 ## Active work
+- Working: iv-rank-resolver options-1.2.1, rankings-rules-tab, put+call-ladder-tab, s100-pairs, a271-structures-engine, hold-after-assignment-ladder
+- In progress: cursor: model-list-structures-unification + A271 UI fields
+- Blocked: jamie: default put band choice
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
 - **Unfinished, partial work uncommitted in tree (agents died at session limit):** cache monitor rebuild (ttl-cache.ts counters, cache-registry.ts, new cache-overview.ts) · A126 charts (early) · finish one at a time, inline or ONE sonnet agent (CLAUDE.md subagent budget rule). Not mine: GROK.md, A140, CONVENTIONS.md, cursor-usage-snap.mjs, A131/A122 edits.
