@@ -12,7 +12,8 @@ import { TickerLink } from "@/components/ticker-link";
 import { formatMdYy } from "@/lib/format";
 
 type Stats = { n: number; kept: number; p_model: number; bp_hc: number; worst5: number;
-  hiP_worst5: number; loP_worst5: number; hiP_kept: number; loP_kept: number } | null;
+  hiP_worst5: number; loP_worst5: number; hiP_kept: number; loP_kept: number;
+  hold?: Record<string, { bp_hc: number; worst5: number; n: number }> } | null;
 type Pick = { ticker: string; spot: number; strike: number; delta: number; credit: number; creditPctWk: number;
   pKept: number; expPnlBpWk: number; tier: "lower tail" | "higher tail"; zone: boolean; earningsDays: number | null; earningsInWindow: boolean };
 type Band = { band: string; stats: Stats; picks: Pick[] };
@@ -41,6 +42,15 @@ function BandColumn({ b, isDefault, showAll }: { b: Band; isDefault: boolean; sh
           </div>
         </DataTip>
       ) : <div className="text-[10px] text-zinc-500 mt-0.5">no holdout stats</div>}
+      {s?.hold && Object.keys(s.hold).length > 0 && (
+        <DataTip tip={"If assigned, keep the shares N more weeks and mark them then (recovery counted, further drops too). bp per collateral-week incl. the holding weeks; worst 5 % per trade-week."}>
+          <div className="text-[10px] text-zinc-500 leading-tight cursor-help">
+            {Object.entries(s.hold).map(([n, x]) => (
+              <div key={n}>hold {n}w: <span className="text-zinc-300">{x.bp_hc >= 0 ? "+" : ""}{x.bp_hc.toFixed(0)}</span> · {x.worst5.toFixed(0)}</div>
+            ))}
+          </div>
+        </DataTip>
+      )}
       <div className="text-[10px] text-zinc-500 mt-1 mb-0.5">{b.picks.length} names today</div>
       <table className="w-full text-[11px]">
         <tbody>

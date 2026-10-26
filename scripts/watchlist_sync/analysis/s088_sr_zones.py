@@ -298,6 +298,9 @@ def candidates(b, i, side, pricer, zs, a):
                 if side == "put":
                     r["kept"] = 1.0 if Se > K else 0.0
                     r["pnl"] = (credit - max(K - Se, 0.0)) / K
+                    if Se < K:   # assigned: price N weeks later, for the hold-after-assignment ladder (Jamie 10-26)
+                        r["Se"] = Se
+                        r["S_after"] = {n: float(b["c"][j + 5 * n]) for n in HOLD_AFTER if j + 5 * n < len(b["c"])}
                 else:
                     r["kept"] = 1.0 if Se < K else 0.0
                     r["pnl"] = (credit - max(Se - K, 0.0)) / S
@@ -529,6 +532,21 @@ def vs_model_list(rows, n_top=10):
 LOG_EVERY = 7       # days; the backtest enters weekly
 
 
+HOLD_AFTER = (4, 13)   # weeks the assigned shares are kept before marking them (Jamie 10-26: count the recovery too)
+
+
+def hold_pnl(r, n):
+    """Real-fill pnl and capital-weeks if assigned shares are held n more weeks (None if that price isn't known yet).
+    Not assigned → unchanged (credit kept, h weeks). Assigned → expiry loss + (price n weeks later − expiry price) ÷ strike."""
+    tot = haircut_pnl(r) * r["h"]
+    if not r.get("Se"):
+        return tot, r["h"]
+    later = (r.get("S_after") or {}).get(n)
+    if later is None:
+        return None
+    return tot + (later - r["Se"]) / r["K"], r["h"] + n
+
+
 LADDER_BANDS = ((0.03, 0.06), (0.06, 0.08), (0.08, 0.10), (0.10, 0.12), (0.12, 0.15), (0.15, 0.20), (0.20, 0.25))
 
 
@@ -558,13 +576,21 @@ def ladder(rows, side="put"):
             for r in b:
                 (hw if r["p_zones"] > med else lw)[r["d"]].append(haircut_pnl(r))
             v = paired_t({"wk": {d: float(np.mean(x)) for d, x in hw.items()}}, {"wk": {d: float(np.mean(x)) for d, x in lw.items()}})
-            row = {"n": s["n"], "kept": s["kept"], "p_model": float(np.mean([r["p_zones"] for r in b])), "bp": s["bp"],
+            hold = {}
+            if side == "put":
+                for n in HOLD_AFTER:
+                    hp = [x for r in b if (x := hold_pnl(r, n))]
+                    if len(hp) >= 0.9 * len(b):   # recent trades lack the later price → skip if > 10 % missing
+                        hold[str(n)] = {"bp_hc": float(sum(p for p, _ in hp) / sum(w for _, w in hp) * 1e4),
+                                        "worst5": float(np.percentile([p / w for p, w in hp], 5) * 1e4), "n": len(hp)}
+            row = {"n": s["n"], "kept": s["kept"], "p_model": float(np.mean([r["p_zones"] for r in b])), "bp": s["bp"], "hold": hold,
                    "bp_hc": s["bp_hc"], "worst5": s["worst5"], "sharpe": s["sharpe"], "hiP_kept": hiP["kept"], "loP_kept": loP["kept"],
                    "hiP_worst5": hiP["worst5"], "loP_worst5": loP["worst5"], "hi_lo_bp_hc": hiP["bp_hc"] - loP["bp_hc"], "hi_lo_t": v[0]}
             out.setdefault(f"{h}w", {})[f"{lo:.2f}-{hi:.2f}"] = row
             L.append(f"| {h}w | {lo:.2f}–{hi:.2f} | {s['n']} | {s['kept']:.1%} | {row['p_model']:.1%} | {s['bp']:+.1f} | {s['bp_hc']:+.1f} | "
                      f"{s['worst5']:+.0f} | {s['sharpe']:.2f} | {hiP['kept']:.1%} | {loP['kept']:.1%} | {hiP['worst5']:+.0f} | "
-                     f"{loP['worst5']:+.0f} | {row['hi_lo_bp_hc']:+.1f} ({v[0]:.1f}) |")
+                     f"{loP['worst5']:+.0f} | {row['hi_lo_bp_hc']:+.1f} ({v[0]:.1f}) |"
+                     + "".join(f" hold {k}w {x['bp_hc']:+.1f} / {x['worst5']:+.0f} |" for k, x in hold.items()))
     sfx = "" if side == "put" else "-call"
     (OUT.parent / f"S088-ladder{sfx}.md").write_text("\n".join(L) + "\n")
     (OUT.parent / f"S088-ladder{sfx}.json").write_text(json.dumps(out, indent=1))
