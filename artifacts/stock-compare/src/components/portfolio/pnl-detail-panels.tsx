@@ -102,7 +102,14 @@ export function CumulativeSummaryPanel({ rows }: { rows: SummaryRow[] }) {
                       {cell(r.longCall)}
                       {cell(r.longPut)}
                       {cell(r.dividends)}
-                      {cell(r.stocksRealized)}
+                      <td
+                        className={cn(TTD, "text-right", r.stocksRealized > 0 ? "text-green-400" : r.stocksRealized < 0 ? "text-red-400" : "text-white")}
+                        title={r.stocksRealizedMixed ? "Export vs transactions disagree on sign — kept export" : undefined}
+                      >
+                        {r.stocksRealized !== 0
+                          ? `${r.stocksRealized >= 0 ? "+" : ""}${formatCurrency(r.stocksRealized)}${r.stocksRealizedMixed ? "*" : ""}`
+                          : "—"}
+                      </td>
                       {cell(r.stocksUnrealized)}
                       {cell(r.totalStocks)}
                     </tr>

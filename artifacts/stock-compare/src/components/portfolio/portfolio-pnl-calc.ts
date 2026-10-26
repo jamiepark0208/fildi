@@ -1,5 +1,7 @@
 // Pure P&L / income calculations behind PortfolioAnalysis (moved out of the component; logic unchanged).
 import { type PortfolioEntry, entryPortfolio } from "@/hooks/use-portfolio";
+import { preferTxnStockRealized } from "./prefer-txn-stock-realized";
+export { preferTxnStockRealized };
 
 export interface RealizedEvent {
   account: string; symbol: string; assetType: "stock" | "option" | "dividend"; direction: "long" | "short" | null;
@@ -160,11 +162,9 @@ export function buildCumulativeSummaryByAccount(
       .map(r => {
         const acct = canonicalizeAccount(r.account, nickMap);
         const txnStock = stockPnlByAccountTicker.get(`${acct}::${r.ticker}`) ?? 0;
-        let stocksRealized = num(r.stocksRealized);
-        // Prefer the larger of export vs txn-FIFO — export misses some call-aways.
-        if (Math.abs(txnStock) > Math.abs(stocksRealized) + 0.01) {
-          stocksRealized = txnStock;
-        }
+        const chosen = preferTxnStockRealized(num(r.stocksRealized), txnStock);
+        const stocksRealized = chosen.value;
+        const stocksRealizedMixed = chosen.mixed;
         const sellPut = num(r.sellPut), sellCall = num(r.sellCall);
         const longCall = num(r.longCall), longPut = num(r.longPut);
         const dividends = num(r.dividends);
@@ -177,6 +177,7 @@ export function buildCumulativeSummaryByAccount(
         return {
           ticker: r.ticker, sellPut, sellCall, longCall, longPut, stocksRealized, dividends,
           stocksUnrealized, optionsUnrealized, totalRealized, totalUnrealized, totalStocks, totalEarned,
+          stocksRealizedMixed,
         };
       });
     // Aggregate across accounts when All is selected (same ticker may appear twice).
@@ -191,6 +192,7 @@ export function buildCumulativeSummaryByAccount(
       cur.stocksUnrealized += r.stocksUnrealized; cur.optionsUnrealized += r.optionsUnrealized;
       cur.totalRealized += r.totalRealized; cur.totalUnrealized += r.totalUnrealized;
       cur.totalStocks += r.totalStocks; cur.totalEarned += r.totalEarned;
+      cur.stocksRealizedMixed = cur.stocksRealizedMixed || r.stocksRealizedMixed;
     }
     return Array.from(byTicker.values()).sort((a, b) => b.totalEarned - a.totalEarned);
   };
@@ -226,7 +228,7 @@ export function buildCumulativeSummaryByAccount(
       const totalUnrealized = v.stocksUnrealized + v.optionsUnrealized;
       const totalStocks = v.stocksRealized + v.stocksUnrealized;
       const totalEarned = totalRealized + totalUnrealized + v.dividends;
-      return { ticker, ...v, totalRealized, totalUnrealized, totalStocks, totalEarned };
+      return { ticker, ...v, totalRealized, totalUnrealized, totalStocks, totalEarned, stocksRealizedMixed: false };
     }).sort((a, b) => b.totalEarned - a.totalEarned);
   };
   const buildFor = tickerEarnings.length > 0 ? buildFromImported : buildFromRealizedEvents;
