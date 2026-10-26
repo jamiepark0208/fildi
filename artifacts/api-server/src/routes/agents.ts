@@ -87,16 +87,18 @@ type Idea = {
  * Ready to build → ASKS `to` (Cursor only when Muse/Claude→Cursor). Grok→Claude stays Claude.
  * Last-touch is separate (touchedBy) — do not use for the badge (Jamie 10-18).
  */
-function ideaAssignee(from: AgentId, to: AgentId, phase: string, status = ""): AgentId {
+function ideaAssignee(from: AgentId, to: AgentId, phase: string, status = "", viaClaude = false): AgentId {
   // Explicit wait on Claude (commit/quant sign-off) — not the same as ASKS `to`.
   if (/needs claude|\bclaude \[quant\] sign-off|sign-off still open/i.test(status)) return "claude";
+  // Revise after a commit review → builder fixes; plan revise → back to its author (AGENTS.md 4b).
+  if (/^revise\b/i.test(status)) return /review [0-9a-f]{7,}/i.test(status) ? to : from;
   if (phase === "needs you") return "jamie";
   if (phase === "reviewed") return to;
   if (phase === "building" && to === "codex") return "codex";
   if (phase === "building") return to === "cursor" || from === "muse" || from === "claude" ? "cursor" : to;
   if (phase === "filed") {
-    // Review loop: open Muse→Cursor / Claude→Cursor waits on Claude plan, not Cursor build.
-    if (to === "cursor" && (from === "muse" || from === "claude")) return "claude";
+    // Review loop: open Muse→Cursor (or a Claude hop) waits on Claude plan; Claude-filed rows are already specced.
+    if (to === "cursor" && (from === "muse" || viaClaude)) return "claude";
     return to;
   }
   return to;
@@ -215,7 +217,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         title: title!.replace(/\[quant\]\s*/i, "").trim().slice(0, 140),
         status: st,
         phase,
-        assignee: ideaAssignee(viaClaude ? "claude" : from, dest, phase, st),
+        assignee: ideaAssignee(from, dest, phase, st, viaClaude),
         quant: /\[quant\]/i.test(title!),
         blurb: ideaBlurb(id!),
         reviews: ideaReviews(id!),
