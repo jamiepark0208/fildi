@@ -204,9 +204,9 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | needs Jamie |
 | [A228](asks/A228.md) | 2026-10-21 | Muse → Claude + Cursor | WRDS + LSEG: usage audit, entitled-but-unused inventory, adoption workstreams W1–W8 | split 10-24 → A264 (W8 panel), A265 (W2 CBOE), W4 = A262 S092; W1/W3/W5–W7 parked |
 | [A229](asks/A229.md) | 2026-10-21 | Claude → all agents | Pipeline schedule changes: 05:00 PT data chain, list ≥ 07:00 PT, retries, OpenJev/transcripts timing | done (FYI) |
-| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | auto-reviewed |
+| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | planned (Claude 10-26: candle probe → Phase A packet → Kalshi only with history) |
 | [A231](asks/A231.md) | 2026-10-21 | Muse → Cursor | CI red on tip — ASKS rows A214/A230 link missing ask files (a219961e) | done (Muse 10-21: files restored from Mac working tree) |
-| [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | auto-reviewed |
+| [A232](asks/A232.md) | 2026-10-21 | Muse → Claude | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | planned (Claude 10-26: iv30 not straddles; monthly IBES) |
 | [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | revise |
 | [A234](asks/A234.md) | 2026-10-21 | Muse → Grok + Claude + Codex | Agent framework hardening: dynamic plan/build/verify, agent-to-agent comms, token orchestration, cross-training loop | revise |
 | [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | done (P0+P1+P2; await review) |
@@ -220,7 +220,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A243](asks/A243.md) | 2026-10-22 | Claude → Cursor | [quant] Model List stability: keep ideas until they break, daily scores, no cash gate, long call/put sections | done (Cursor 10-22: freshness+universe gate+carry+cash; LSEG RIC expand optional) |
 | [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | planned (S081 FAIL packet; Claude verdict) |
 | [A245](asks/A245.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] What preceded real lows/highs: swing-extrema study vs look-alike crashes (feeds A244) | done (S082 PASS packet; Claude freeze/product) |
-| [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | auto-reviewed |
+| [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | planned (Claude 10-26: phase 1 before 12-11, tab later) |
 | [A247](asks/A247.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] American-option pricer as fair-value validation: binomial + FD reference vs chain mids | declined |
 | [A248](asks/A248.md) | 2026-10-24 | Claude → Cursor | RBH export: 60 stale assignment_sell false positives; find root cause + check patch hides no real assignment | done (net-exit gate; 63 empty rows left for Claude) |
 | [A249](asks/A249.md) | 2026-10-24 | Claude → Grok | Red-team A248: symbol-level suppression of assignment warnings | done (Grok red-team 10-26: revise — fixes 1–6 for Claude/Cursor on A248) |
@@ -244,9 +244,9 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A267](asks/A267.md) | 2026-10-24 | Jamie → Claude → Cursor | Use unused Massive (Form 4, 8-K, related, short interest universe) + Schwab (movers, expirationchain, markets, metering) endpoints | done (Claude review pass 06a33418 + fix-up; Monday universe run → S099) |
 | [A268](asks/A268.md) | 2026-10-24 | Jamie → Claude → Cursor | One-command signal test (lab.py signal / s045 signal on cached panels) — seconds per idea | done (Claude review pass 10-24) |
 | [A269](asks/A269.md) | 2026-10-24 | Muse → Cursor | CI secret scan red since e0ac416: gitleaks finnhub-access-token false positive on finnhub-client.ts import — allowlist or rename | done |
-| [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | auto-reviewed |
-| [A272](asks/A272.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] College quant projects: MP cleaning, Kalman pairs, AS quoting, AC scheduling, tested | auto-reviewed |
-| [A273](asks/A273.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Every vol model: 7-model horse race (ARCH/GARCH/GJR/EGARCH/APARCH/EWMA/DCC), tested | auto-reviewed |
+| [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | planned (Claude 10-26: GARCH graded on put ranks, merged w/ A273; PySR declined) |
+| [A272](asks/A272.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] College quant projects: MP cleaning, Kalman pairs, AS quoting, AC scheduling, tested | planned (Claude 10-26: corr cleaning after A257 only; Kalman parked; pairs/AS/AC declined) |
+| [A273](asks/A273.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Every vol model: 7-model horse race (ARCH/GARCH/GJR/EGARCH/APARCH/EWMA/DCC), tested | planned (Claude 10-26: merged into A270 vol study; APARCH cut) |
 | [A271](asks/A271.md) | 2026-10-25 | Claude → Cursor | [quant] Structures reads the rules engine (strategy_engine.py): inputs on every row, gates, CSP = put ladder, long-call rank — Model List unification inherits it | done (Claude built 10-25; UI fields for Cursor) |
 | [A274](asks/A274.md) | 2026-10-26 | Muse → Cursor | Repair: /api/options/rankings ignores livePrices — A252 done claim fails at HEAD | planned (Claude 10-26) |
 | [A275](asks/A275.md) | 2026-10-26 | Muse → Cursor | Surface snapshot age on DB-only option surfaces (Live table first) | planned (Claude 10-26) |
