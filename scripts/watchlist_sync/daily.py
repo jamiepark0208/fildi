@@ -69,6 +69,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
                                       f"--from={(date.today() - timedelta(days=7)).isoformat()} 2>&1 | grep lab_tech "
                                       "|| echo 'tech components skipped (put_edge keeps last week, ≤ 10 d)'"]),
         ("band table", PY, HERE, ["band_engine.py", "refresh"]),   # A277 §8 / S101: weekly refit of the sold-put band table (~5 min) — read by build_plan + structures
+        ("put recs", PY, HERE, ["put_recs.py"]),   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)
         ("plan (L1)", PY, HERE, ["build_plan.py"]),
     ],
     "verify": [("evaluate quotes (L2)", PY, HERE, ["verify_plan.py", "evaluate"])],  # quotes come from the export session (Step 13)
@@ -78,7 +79,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
         ("house view", PY, HERE, ["house_view.py"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
-        ("strategies board", PY, HERE, ["structures.py"]),   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
+        ("strategies board", PY, HERE, ["structures.py"]),
+        ("put consistency", PY, HERE, ["put_consistency.py"]),   # A277 §3: WARN if a surface shows a different put than the engine   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
         ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),
         ("S/R strike picker", PY, HERE, ["analysis/s088_sr_zones.py", "--if-due"]),   # S088: weekly refit (~5 min) → sold put/call picks + 1σ baseline → forecast_ledger   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)

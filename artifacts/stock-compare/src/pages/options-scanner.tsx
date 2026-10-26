@@ -77,7 +77,7 @@ export function OptionsScannerContent({
   /** Chain fetch failed / timed out — clears infinite "Loading options…" spinner. */
   const [chainFailed, setChainFailed] = useState<Map<string, string>>(new Map());
   const [overrides,     setOverrides]     = useState<Set<string>>(new Set());
-  const [sort,          setSort]          = useState<SortKey>("optionScore");
+  const [sort,          setSort]          = useState<SortKey>("rank");   // A277: puts default to the engine rank (Model List order)
   // Sell Puts vs. Sell Calls — a page-level mode, not a per-row sub-tab, so the whole
   // table (scores, sort, expanded strike view) is scoped consistently to one side at a time.
   const [scanMode,      setScanMode]      = useState<"puts" | "calls">(() => {
@@ -199,6 +199,9 @@ export function OptionsScannerContent({
         focus?: boolean;
         /** A256: watchlist second-pass — not a strict Overall hit. */
         relaxed?: boolean;
+        /** A277 (puts): the one sold-put pick (put_recs.py) — strike/expiry/rank are the engine's. */
+        engine?: { band: string | null; why: string; pass: boolean; gates: string[]; histBp: number | null; histW5: number | null } | null;
+        rank?: number;
       }>;
       asOf: string | null;
       computedAt: string | null;
@@ -615,6 +618,18 @@ export function OptionsScannerContent({
     list.sort((a, b) => {
       let cmp = 0;
       switch (sort) {
+        case "rank": {   // A277: engine rank for puts (passing names first); calls have no engine yet → option score
+          const ra = !isCallMode && rankingByTicker.get(a)?.engine ? rankingByTicker.get(a)!.rank ?? null : null;
+          const rb = !isCallMode && rankingByTicker.get(b)?.engine ? rankingByTicker.get(b)!.rank ?? null : null;
+          if (ra != null && rb != null) cmp = ra - rb;
+          else if (ra != null) cmp = -1;
+          else if (rb != null) cmp = 1;
+          else {
+            const sa = snapOption(a), sb = snapOption(b);
+            cmp = sa != null && sb != null ? sb - sa : sa != null ? -1 : sb != null ? 1 : 0;
+          }
+          break;
+        }
         case "optionScore": {
           const sa = snapOption(a);
           const sb = snapOption(b);
@@ -1034,7 +1049,8 @@ export function OptionsScannerContent({
               className={cn(OPTIONS_BOARD_COLS, "px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] tracking-wide uppercase text-[#d4af37] font-semibold")}
               style={{ borderLeft: "3px solid transparent" }}
             >
-              <div className="text-center font-semibold">#</div>
+              <SortableHeader label="#" sortKey="rank" active={sort === "rank"} onClick={setSort}
+                title="Puts: engine rank — the one sold-put pick (band from market × stock state), same order and strike as the Model List / Live (A277)" />
               <div className="font-semibold">Ticker</div>
               <div className="font-semibold" title="Live equity quote (Schwab→Yahoo cache); % under price = vs nightly options snapshot">Price</div>
               <div className="font-semibold" title="Entry gate: puts = oversold V2 · calls = overbought V2 (hover badge for detail)">Sig</div>
@@ -1092,6 +1108,9 @@ export function OptionsScannerContent({
                 livePrice={livePrices?.[ticker]?.price ?? null}
                 snapSpot={rankingByTicker.get(ticker)?.spot ?? null}
                 snapRelaxed={rankingByTicker.get(ticker)?.relaxed === true}
+                enginePick={!isCallMode && rankingByTicker.get(ticker)?.engine
+                  ? { strike: rankingByTicker.get(ticker)!.strike, expiry: rankingByTicker.get(ticker)!.expiry, why: rankingByTicker.get(ticker)!.engine!.why }
+                  : null}
                 heat={columnHeat}
               />
             ))}

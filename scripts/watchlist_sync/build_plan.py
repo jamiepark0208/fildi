@@ -77,17 +77,7 @@ def load_context(conn) -> dict:
     ctx["close"] = {r["ticker"]: r for r in rows(conn, """
         SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker) AS ticker, date, close::float8
         FROM prices_historical ORDER BY UPPER(ticker), date DESC""")}
-    ctx["earnings"] = {r["ticker"]: r["d"] for r in rows(conn, """
-        SELECT ticker, MIN(d) AS d FROM (
-          SELECT ticker, event_date AS d FROM lseg_research.events WHERE event_type = 'EarningsReleases' AND event_date >= CURRENT_DATE
-          UNION ALL
-          SELECT UPPER(ticker), report_date::date FROM earnings_calendar WHERE report_date::date >= CURRENT_DATE
-        ) x GROUP BY ticker""")}
-    ctx["lseg"] = {r["ticker"]: r for r in rows(conn, """
-        SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, arm_rank, combined_alpha_rank, pred_surprise_pct_fq1,
-               short_interest, free_float
-        FROM lseg_research.signals_daily WHERE combined_alpha_rank IS NOT NULL OR as_of < CURRENT_DATE - 7
-        ORDER BY ticker, as_of DESC""")}   # skip a day LSEG served empty ranks (10-19)
+    ctx.update(put_context(conn, with_fit=False))   # fit already loaded above
     restrike_puts(conn, ctx)   # needs earnings dates, fit (put risk / OWN) and LSEG credit: risky puts get the farther target
     ctx["tech"] = {r["ticker"].upper(): r for r in rows(conn, "SELECT ticker, falling_knife, rsi14::float8 AS rsi FROM ticker_technicals")}
     snap_id = conn.execute("SELECT MAX(id) FROM portfolio_snapshots").fetchone()[0]
@@ -299,76 +289,82 @@ def carry_forward_puts(conn, ctx: dict) -> int:
     return added
 
 
+def put_context(conn, with_fit: bool = True) -> dict:
+    """What the far-strike rule needs (one loader for build_plan and put_recs.py): next earnings date, LSEG credit/alpha ranks,
+    champion fit rows + params."""
+    out = {
+        "earnings": {r["ticker"]: r["d"] for r in rows(conn, """
+            SELECT ticker, MIN(d) AS d FROM (
+              SELECT ticker, event_date AS d FROM lseg_research.events WHERE event_type = 'EarningsReleases' AND event_date >= CURRENT_DATE
+              UNION ALL
+              SELECT UPPER(ticker), report_date::date FROM earnings_calendar WHERE report_date::date >= CURRENT_DATE
+            ) x GROUP BY ticker""")},
+        "lseg": {r["ticker"]: r for r in rows(conn, """
+            SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, arm_rank, combined_alpha_rank, pred_surprise_pct_fq1,
+                   short_interest, free_float
+            FROM lseg_research.signals_daily WHERE combined_alpha_rank IS NOT NULL OR as_of < CURRENT_DATE - 7
+            ORDER BY ticker, as_of DESC""")},   # skip a day LSEG served empty ranks (10-19)
+    }
+    if with_fit:
+        import publish_model_list as PL   # lazy: PL imports build_plan
+        out["fit"], _, out["fit_params"] = PL.champion_scores(conn)
+    return out
+
+
+def put_far_reason(ticker: str, expiry, ctx: dict) -> str | None:
+    """Why a sold put on `ticker` expiring `expiry` gets the farther strike (Jamie 10-20: farther, not smaller): earnings before
+    expiry (S066/S069), StarMine credit < MIN_CREDIT_RANK_PUTS, or the fit's put-risk / low-OWN note (S069). None = normal."""
+    er = ctx.get("earnings", {}).get(ticker)
+    if er and expiry and er <= expiry:
+        return "earnings before expiry"
+    cr = (ctx.get("lseg", {}).get(ticker) or {}).get("credit_combined_rank")
+    if cr is not None and cr < R.MIN_CREDIT_RANK_PUTS:
+        return f"StarMine credit {cr} < {R.MIN_CREDIT_RANK_PUTS}"
+    if "fit" in ctx:
+        return __import__("publish_model_list").put_size_note(ctx["fit"].get(ticker), ctx["fit_params"])
+    return None
+
+
 def restrike_puts(conn, ctx: dict) -> None:
-    """Every weekly put (strategy puts only when above the Δ cap) moves to the listed strike nearest the band engine's target on
-    the same expiry (latest saved chain, no API). The name's income is measured at PUT_NAME_INCOME_ABS_DELTA (the S088-vs-ML
-    eligibility) and min_income / L2 realistic_yield judge that. Carried picks always refresh so spot_drift measures the chain."""
-    def why_far(r):  # Jamie 10-20: a riskier put gets a farther strike, not a smaller size
-        t = r["ticker"]
-        er = ctx.get("earnings", {}).get(t)
-        if er and er <= r["expiry"]:
-            return "earnings before expiry"
-        cr = (ctx.get("lseg", {}).get(t) or {}).get("credit_combined_rank")
-        if cr is not None and cr < R.MIN_CREDIT_RANK_PUTS:
-            return f"StarMine credit {cr} < {R.MIN_CREDIT_RANK_PUTS}"
-        return __import__("publish_model_list").put_size_note(ctx["fit"].get(t), ctx["fit_params"]) if "fit" in ctx else None
-
-    # A277 §8 (S101): the normal target is the band engine's band for this market × stock state (same function as
-    # Structures' CSP), not a fixed PUT_TARGET_ABS_DELTA. Credit is left to why_far (it already moves the strike farther).
-    import strategy_engine as SE
-    puts = sorted({r["ticker"] for r in ctx["recs"] if r["side"] == "put"})
-    bm, bn = SE.band_states(conn, puts) if puts else ({"state": "normal"}, {})
-    ctx["band_market"] = bm
-    if bm["state"] == "panic":   # no new puts at all while the curve is inverted, re-struck or not
-        why = SE.engine_put_band(bm, None)[1]
-        for r in ctx["recs"]:
-            if r["side"] == "put":
-                r["engine_pause"] = why
-
-    def engine_target(r):
-        band, why = SE.engine_put_band(bm, bn.get(r["ticker"]))
-        r["band_why"] = why
-        if band is None:          # panic → option_checks blocks new puts; keep the old target for the strike shown
-            r["engine_pause"] = why
-            return R.PUT_TARGET_ABS_DELTA
-        lo, hi = SE.band_bounds(band)
-        return max(-R.PUT_DELTA[1], (lo + hi) / 2)
-
-    def caps(r):  # (cap, target): risky → farther strike instead of a block / half size (rules.PUT_EARNINGS_ABS_DELTA)
-        r["far_why"] = why_far(r)
-        return R.PUT_EARNINGS_ABS_DELTA if r["far_why"] else (-R.PUT_DELTA[0], engine_target(r))
-    hot = [r for r in ctx["recs"] if r["side"] == "put" and not r.get("restruck") and (
-        r.get("carried") or not r.get("strategy") or (r["delta"] is not None and -r["delta"] > caps(r)[0]))]
-    if not hot:
-        return
-    # Carried ideas need the newest chain even when snapshot_date is an older model Friday.
+    """Every model put (strategy puts only when above the Δ cap) takes the engine's pick for its name from
+    watchlist_sync.put_recs_daily — put_recs.py is the one sold-put picker (A277: expiry, market × stock band, far rule, strike),
+    so the Model List, Structures, Rankings and Live show the same contract. Same as_of as the latest saved chain.
+    No engine strike → blocked by engine_pick (carried: carry_restrike); panic → market_not_panic. The name's income is still
+    measured at PUT_NAME_INCOME_ABS_DELTA on that expiry (min_income eligibility, S088-vs-ML)."""
     as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
     if not as_of:
         return
-    cs = rows(conn, """SELECT ticker, expiry, strike::float8, dte::float8, spot::float8, bid::float8, iv::float8, delta::float8
+    eng = {r["ticker"]: r["payload"] for r in rows(conn, "SELECT ticker, payload FROM watchlist_sync.put_recs_daily WHERE as_of = %s",
+                                                   (as_of,))}
+    if not eng:
+        print("  restrike: no put_recs_daily rows for the chain day — run put_recs.py first; puts keep their model strikes")
+        return
+    ctx["band_market"] = next(iter(eng.values()))["market_state"]
+    for r in ctx["recs"]:
+        if r["side"] == "put" and ctx["band_market"] == "panic":
+            r["engine_pause"] = next(iter(eng.values()))["why"]
+    hot = [r for r in ctx["recs"] if r["side"] == "put" and not r.get("restruck") and (
+        r.get("carried") or not r.get("strategy") or (r["delta"] is not None and -r["delta"] > -R.PUT_DELTA[0]))]
+    cs = rows(conn, """SELECT ticker, expiry, strike::float8, dte::float8, bid::float8, delta::float8
                        FROM option_chain_history WHERE as_of = %s AND side = 'put' AND ticker = ANY(%s) AND bid > 0 AND delta < 0""",
               (as_of, sorted({r["ticker"] for r in hot})))
     for r in hot:
-        cap, target = caps(r)
-        # Prefer same expiry; else nearest listed expiry still ≥ DTE min (carried names may have rolled)
-        same = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == r["expiry"] and -R.PUT_DELTA[1] <= -c["delta"] <= cap]
-        band = same or [c for c in cs if c["ticker"] == r["ticker"] and c["dte"] >= R.DTE[0] and -R.PUT_DELTA[1] <= -c["delta"] <= cap]
-        if not same and band:
-            exp = min({c["expiry"] for c in band}, key=lambda e: abs((e - r["expiry"]).days) if r.get("expiry") else 0)
-            band = [c for c in band if c["expiry"] == exp]
-        pick = min((c for c in band if c["bid"] >= R.PUT_MIN_RESTRIKE_BID), key=lambda c: abs(-c["delta"] - target), default=None)
-        if not pick:
+        e = eng.get(r["ticker"])
+        if not e or e.get("strike") is None:
+            r["engine_none"] = "; ".join((e or {}).get("gates") or ["no saved chain for this name"])
             if r.get("carried"):
                 r["carry_no_strike"] = True
             continue
-        why = r["far_why"] or ("carry-forward" if r.get("carried") else r.get("band_why") or f"target {target}Δ")
-        note = f"re-struck {r.get('delta') or 0:.2f}Δ → {pick['delta']:.2f}Δ (cap {cap}, {why})"
-        ref = min(band, key=lambda c: abs(-c["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))   # the name's income at the tested Δ
-        r["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / (ref["dte"] + _settle_offset(ref["expiry"]))
+        exp = date.fromisoformat(e["expiry"])
+        r["far_why"], r["band_why"] = e.get("far"), e["why"]
+        note = f"engine pick {e['strike']:g} {exp:%m-%d} ({-e['delta']:.2f}Δ, was {-(r.get('delta') or 0):.2f}Δ): {e['why']}"
+        ref = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == exp]
+        if ref:
+            ref = min(ref, key=lambda c: abs(-c["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))   # the name's income at the tested Δ
+            r["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / (ref["dte"] + _settle_offset(ref["expiry"]))
         r["restruck"] = True
-        r.update(strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"], strike_iv=pick["iv"],
-                 expiry=pick["expiry"], dte=pick["dte"],
-                 weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(pick["expiry"])),
+        r.update(strike=e["strike"], spot=e["spot"], premium=e["bid"], bid_is_live=True, delta=e["delta"], strike_iv=e["iv"],
+                 expiry=exp, dte=e["dte"], weekly_income_pct=e["income_wk_pct"],
                  repriced=f"{r['repriced']}; {note}" if r.get("repriced") else note)
 
 
@@ -445,6 +441,8 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                          # the old warn fallback applies only when the drift check has demoted put edge for everyone
                          "block" if e or not ctx.get("edge_demoted") else "warn"))
         c.append(chk("market_not_panic", not rec.get("engine_pause"), rec.get("engine_pause") or "vol curve normal (VIX < VIX3M)"))   # S101
+        if rec.get("engine_none") and not rec.get("carried"):   # A277: no engine put for this name → not on the list
+            c.append(chk("engine_pick", False, f"no engine put: {rec['engine_none']}"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
         hb = ctx["held_back_reason"]("sell_puts", ctx["fit"].get(t), ctx["fit_params"], None) if "fit" in ctx else None
         c.append(chk("verdict_ok", hb is None, hb or "scored, not red"))

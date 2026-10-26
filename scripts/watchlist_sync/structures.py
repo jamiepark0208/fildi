@@ -165,10 +165,10 @@ def main():
             chains[(r["ticker"], r["expiry"])].append(r)
         names = sorted({r["ticker"] for r in q})
         I = SE.load_inputs(conn, names)                      # A271: the same inputs on every row
-        BM, BN = SE.band_states(conn, names)                 # A277 §8: sold-put band by market × stock state (band_engine)
-        for t in names:
-            b, why = SE.engine_put_band(BM, BN.get(t), I.get(t, {}).get("credit"))
-            I.setdefault(t, {}).update(put_band=b, put_band_why=why, market_state=BM["state"], stock_state=(BN.get(t) or {}).get("state"))
+        for t, pr in conn.execute("""SELECT ticker, payload FROM watchlist_sync.put_recs_daily
+                                     WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND ticker = ANY(%s)""",
+                                  (names,)).fetchall():
+            I.setdefault(t, {})["put_rec"] = pr             # A277: the one sold-put pick (put_recs.py)
         ivs = [v["iv_pctile"] for v in I.values() if v.get("iv_pctile") is not None]
         ctx = {"iv_median": float(np.median(ivs)) if ivs else None}
         ladder = SE.ladder_picks(conn)                       # S088 put ladder (1w) — the sold-put engine
@@ -278,9 +278,19 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
         front = min(lg["expiry"] for lg in legs)
         for lg in legs:
             lg["front"] = front
-        spot = float(chains[(t, legs[0]["expiry"])][0]["spot"])
+        spot = float((extra or {}).get("spot") or chains[(t, legs[0]["expiry"])][0]["spot"])
         out.append({"structure": sid, "ticker": t, "spot": spot, "legs": legs, "expiry": front,
                     "expiry_max": max(lg["expiry"] for lg in legs), **(extra or {})})
+
+    # A277: the CSP is the engine's pick (put_recs.py → watchlist_sync.put_recs_daily) — the same contract the Model List, Rankings
+    # and Live show; no engine strike (panic, no weekly, gated band empty) → no CSP. S088's ladder rides along for the Ladder view.
+    pr = (inputs or {}).get("put_rec") or {}
+    if pr.get("strike") is not None:
+        x = date.fromisoformat(pr["expiry"])
+        lp = (ladder or {}).get(pr["band"])
+        add("csp", [_leg({"side": "put", "strike": pr["strike"], "expiry": x, "iv": pr["iv"], "bid": pr["bid"], "ask": pr["ask"]}, -1, x)],
+            {"spot": pr["spot"], "s088": lp, "band": pr["band"], "band_target": pr["band_target"], "band_why": pr["why"],
+             "restruck": pr["band"] != SE.put_band(None), "ladder": ladder, "ladder_model": bool(lp)})
 
     for e, tag in ((wk, "weekly"), (mo, "monthly")):
         if not e:
@@ -289,29 +299,6 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
         L = lambda side, d, q, **kw: (lambda r: _leg(r, q, e) if r else None)(_pick(ch, side, d, **kw))  # noqa: E731
         A = lambda side, q: (lambda r: _leg(r, q, e) if r else None)(_atm(ch, side))  # noqa: E731
         if tag == "weekly":
-            # A271: CSP strike = the S088 put-ladder pick inside the band, priced on this real chain; every band's pick rides
-            # along as `ladder` (no ladder pick → the listed put nearest the band middle).
-            # A277 §8: the band comes from the band engine (market × stock state); panic → None → no CSP. No listed put in the
-            # band → one band farther, then one band closer (≤ 0.20Δ); nothing there → no CSP (never drift further from the pick).
-            band = inputs["put_band"] if "put_band" in (inputs or {}) else SE.put_band((inputs or {}).get("credit"))
-            puts, used = [], band
-            if band:
-                order = SE.ENGINE["strategies"]["sell_put"]["strike"]["bands"]
-                i = order.index(band)
-                for j in [i] + [k for k in (i - 1, i + 1) if 0 <= k < len(order) and SE.band_bounds(order[k])[1] <= 0.20 + 1e-9]:
-                    lo, hi = SE.band_bounds(order[j])
-                    puts = [r for r in ch if r["side"] == "put" and r["iv"] and r["delta"] is not None and lo <= abs(r["delta"]) < hi]
-                    if puts:
-                        used = order[j]
-                        break
-            lp = (ladder or {}).get(used) if used else None
-            lo, hi = SE.band_bounds(used) if used else (0, 0)
-            # listed put nearest the band middle — the Model List's re-strike rule (build_plan.restrike_puts), so both surfaces pick
-            # the same strike (A277); S088's within-band strike choice added nothing (hi−lo t ≈ 0), its numbers still ride along
-            r = min(puts, key=lambda x: abs(abs(x["delta"]) - (lo + hi) / 2)) if puts else None
-            if r:
-                add("csp", [_leg(r, -1, e)], {"s088": lp, "band": used, "band_target": band, "band_why": (inputs or {}).get("put_band_why"),
-                                              "restruck": used != SE.put_band(None), "ladder": ladder, "ladder_model": bool(lp)})
             if t in held:
                 add("covered_call", [L("call", 0.20, -1)])
             s25p, s25c = L("put", 0.25, -1), L("call", 0.25, -1)

@@ -53,7 +53,7 @@ export interface MacroRegimeResult {
 }
 
 export type ScorecardRow = IndicatorResult & { stale: boolean };
-export type SortKey = "optionScore" | "score" | "income" | "iv" | "otm" | "buffer";
+export type SortKey = "rank" | "optionScore" | "score" | "income" | "iv" | "otm" | "buffer";
 
 export function pfNum(v: number | string | null | undefined): number | null {
   if (v == null) return null;

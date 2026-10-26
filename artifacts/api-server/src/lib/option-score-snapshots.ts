@@ -80,6 +80,19 @@ export interface OptionRankingRow {
   focus?: boolean;
   /** A256: watchlist second-pass (relaxed income/SQ) — not a strict Overall hit. */
   relaxed?: boolean;
+  /** A277 (puts): the one sold-put pick — watchlist_sync.put_recs_daily (put_recs.py). Strike/expiry/rank on this row are the engine's. */
+  engine?: { band: string | null; why: string; pass: boolean; gates: string[]; histBp: number | null; histW5: number | null } | null;
+}
+
+/** A277: engine put picks (put_recs.py), rank order. Empty if the table is missing or not yet written. */
+async function readPutRecs(): Promise<{ asOf: string | null; rows: Array<{ ticker: string; rank: number; pass: boolean; p: Record<string, unknown>; computedAt: string }> }> {
+  const { rows } = await db.execute(sql`SELECT ticker, rank, pass, payload, computed_at FROM watchlist_sync.put_recs_daily
+    WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND rank IS NOT NULL ORDER BY rank`).catch(() => ({ rows: [] }));
+  const rs = (rows as Array<Record<string, unknown>>).map((r) => ({
+    ticker: String(r.ticker), rank: Number(r.rank), pass: r.pass === true, p: r.payload as Record<string, unknown>,
+    computedAt: r.computed_at instanceof Date ? r.computed_at.toISOString() : String(r.computed_at),
+  }));
+  return { asOf: rs[0] ? String(rs[0].p.as_of) : null, rows: rs };
 }
 
 const FOCUS_PUTS = 15;
@@ -117,6 +130,31 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
       eq(optionScoreSnapshots.asOf, latest.asOf),
     ))
     .orderBy(desc(optionScoreSnapshots.optionScore));
+
+  if (side === "put") {
+    // A277: puts come from the engine (same contract as Model List / Structures); option score stays a display column.
+    const eng = await readPutRecs();
+    if (eng.rows.length) {
+      const snap = new Map(raw.map((r) => [r.ticker, r]));
+      const rows: OptionRankingRow[] = eng.rows.map((e) => {
+        const p = e.p, s = snap.get(e.ticker);
+        const strike = Number(p.strike), spot = Number(p.spot);
+        return {
+          ticker: e.ticker, side: "put", asOf: String(p.as_of), strike, expiry: String(p.expiry), spot, premium: Number(p.bid),
+          weeklyIncomePct: num(p.income_wk_pct as number | null), otmPct: spot > 0 ? (spot - strike) / spot * 100 : null,
+          delta: num(p.delta as number | null), strikeIv: num(p.iv as number | null), dte: num(p.dte as number | null),
+          optionScore: s ? Number(s.optionScore) : 0, componentScores: (s?.componentScores ?? {}) as Record<string, unknown>,
+          earningsDaysOut: s?.earningsDaysOut ?? null, earningsRisk: p.far === "earnings before expiry", bidIsLive: true, quoteStale: false,
+          dataQuality: s ? num(s.dataQuality) : null, atmPutIv: s ? num(s.atmPutIv) : null, ivVsRealized: num(p.iv_rv as number | null),
+          computedAt: e.computedAt, rank: e.rank, relaxed: false,
+          engine: { band: (p.band as string) ?? null, why: String(p.why ?? ""), pass: e.pass, gates: (p.gates as string[]) ?? [],
+                    histBp: num(p.hist_bp as number | null), histW5: num(p.hist_w5 as number | null) },
+        };
+      });
+      await attachFocus(rows, side);
+      return { rows, asOf: eng.asOf, computedAt: rows[0]?.computedAt ?? null };
+    }
+  }
 
   const rows: OptionRankingRow[] = raw.map((r, i) => ({
     ticker: r.ticker,
@@ -176,6 +214,11 @@ async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Prom
       for (const r of rows) {
         const e = em.get(r.ticker);
         r.edge = e ? { quintile: Number(e.quintile), pnlBp: num(e.pnl_bp as number | null), breach: num(e.breach as number | null), ivRv: num(e.iv_rv as number | null) } : null;
+      }
+      if (rows[0]?.engine) {   // A277: engine rows are already ranked and gated (put edge is one of the gates) — keep that order
+        const keep = new Set(rows.filter((r) => r.engine?.pass && !trim.has(r.ticker)).slice(0, FOCUS_PUTS).map((r) => r.ticker));
+        rows.forEach((r) => { r.focus = keep.has(r.ticker); });
+        return;
       }
       const pick = rows.filter((r) => (r.edge?.quintile ?? 0) >= 4 && !trim.has(r.ticker))
         .sort((a, b) => (b.edge!.quintile - a.edge!.quintile) || (b.optionScore - a.optionScore)).slice(0, FOCUS_PUTS);

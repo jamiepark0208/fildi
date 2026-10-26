@@ -64,6 +64,8 @@ interface ScannerRowProps {
   snapSpot?: number | null;
   /** A256: snapshot came from watchlist relaxed second-pass. */
   snapRelaxed?: boolean;
+  /** A277 (puts): the engine's contract — the expanded row re-prices it on the live chain instead of re-picking. */
+  enginePick?: { strike: number; expiry: string; why: string } | null;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
@@ -128,6 +130,7 @@ export function ScannerRow({
   scoreNAReason = null,
   stockScore = null,
   snapRelaxed = false,
+  enginePick = null,
   isCall,
   isOversold = false,
   isOverbought = false,
@@ -256,10 +259,14 @@ export function ScannerRow({
   const effectiveWeights = strikeWeights;
   const newScorerBest = useMemo(() => {
     if (!optionsData || !stockCtx) return null;
-    const picked = pickBestStrike(
-      optionsData.map(c => ({ ...c, options: isCall ? c.calls : c.puts })),
-      stockCtx, macroRegime, allWatchlistIVs, undefined, effectiveWeights, isCall,
-    );
+    // A277: a name with an engine pick shows that contract (live price), never a different "best" strike.
+    const chains = enginePick
+      ? optionsData.filter(c => c.expiry === enginePick.expiry).map(c => ({ ...c, options: c.puts.filter(p => p.strike === enginePick.strike) }))
+      : optionsData.map(c => ({ ...c, options: isCall ? c.calls : c.puts }));
+    // The engine already applied its gates/income view → score that contract without the scanner's own floors.
+    const picked = enginePick
+      ? pickBestStrike(chains, stockCtx, macroRegime, allWatchlistIVs, 0, effectiveWeights, isCall, { incomeFloor: 0, minStockQuality: 0 })
+      : pickBestStrike(chains, stockCtx, macroRegime, allWatchlistIVs, undefined, effectiveWeights, isCall);
     if (!picked) return null;
     return {
       chain: picked.chain as OptionsChainResult,
@@ -271,7 +278,8 @@ export function ScannerRow({
       liquidity: picked.result.liquidity,
       runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
     };
-  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- enginePick is a fresh object per render; its values are the key
+  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall, enginePick?.strike, enginePick?.expiry]);
 
   const bestStrike = newScorerBest
     ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
