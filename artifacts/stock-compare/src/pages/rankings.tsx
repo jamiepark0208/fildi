@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSessionState } from "@/hooks/use-session-state";
 import { useQuery } from "@tanstack/react-query";
 import { TopNav } from "@/components/top-nav";
@@ -10,18 +10,16 @@ import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-r
 import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { queryKeys } from "@/lib/query-keys";
-import { StructuresBoard } from "@/components/options-structures/StructuresBoard";
-import { StructureLab } from "@/components/options-structures/StructureLab";
-import { LongOptionBoard } from "@/components/options-structures/LongOptionBoard";
+import { StructuresHub } from "@/components/options-structures/StructuresHub";
+import { STRUCTURES_META_SLOT_ID } from "@/components/options-structures/structure-slots";
 import { RankingsRules } from "@/components/rankings-rules";
 import { PutLadder } from "@/components/options-structures/PutLadder";
 
-const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies" | "long" | "ladder" | "rules"; label: string }[] = [
+const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies" | "ladder" | "rules"; label: string }[] = [
   { id: "fundamental", label: "Fundamentals" },
   { id: "technical",   label: "Technicals" },
   { id: "options",     label: "Options" },
-  { id: "strategies",  label: "Structures" },
-  { id: "long",        label: "Long options" },   // S086: long call/put strategy board   // A192: today's structure picks (≠ Track Record › Strategies)
+  { id: "strategies",  label: "Structures" }, // Lab (S076+A192) + nested Long options (S086)
   { id: "ladder",      label: "Ladder" },     // S088: sold puts + covered calls, every |Δ| band × 1/2/4 wk side by side + today's names per band
   { id: "rules",       label: "Rules" },      // every input × strategy: wants high/low, verdict, live where (strategy_rules.json)
 ];
@@ -29,7 +27,11 @@ const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies
 // Rankings-only view: same two leaderboards shown on Fundamental/Technical
 // pages, without the compare-shelf chart or ticker-search UI.
 export default function Rankings() {
-  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options" | "strategies" | "long" | "ladder" | "rules">("fildi_rankings_tab", "fundamental");
+  const [tab, setTab] = useSessionState<"fundamental" | "technical" | "options" | "strategies" | "ladder" | "rules">("fildi_rankings_tab", "fundamental");
+  // Migrate old top-level / nested "Long options" → Structures (long call/put rows).
+  useEffect(() => {
+    if ((tab as string) === "long") setTab("strategies");
+  }, [tab, setTab]);
   // Technical tab lens: oversold (sell puts) vs overbought (sell calls) — mirrors the
   // Options tab's page-level Sell Puts/Sell Calls toggle, persisted independently.
   const [techSide, setTechSide] = useSessionState<"puts" | "calls">("fildi_technical_side", "puts");
@@ -146,8 +148,13 @@ export default function Rankings() {
     <div className="min-h-[100dvh] bg-background text-foreground selection:bg-primary/30">
       <TopNav />
 
-      <main className="pt-14 min-w-0">
-        <div className="p-3 min-w-0">
+      {/* Same Lenis trap as Settings/Watchlist: document wheel dies over overflow-x
+          tables (Overall options) → clip at ~15 rows. Fixed pane + data-lenis-prevent. */}
+      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden min-w-0">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 min-w-0 [overflow-anchor:none]"
+          data-lenis-prevent
+        >
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
               {RANKINGS_TABS.map((t) => (
@@ -212,8 +219,16 @@ export default function Rankings() {
               </div>
             )}
 
-            {/* Host for Options filter Settings popover — scanner portals here */}
-            <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center ml-auto" />
+            {/* Right side of tab row: Options filters and/or Structures meta (portal targets). */}
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 ml-auto min-w-0">
+              <div id={OPTIONS_FILTER_SLOT_ID} className="flex items-center" />
+              {tab === "strategies" ? (
+                <div
+                  id={STRUCTURES_META_SLOT_ID}
+                  className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 min-w-0 text-[11px]"
+                />
+              ) : null}
+            </div>
           </div>
 
           {tab === "fundamental" && (
@@ -244,8 +259,7 @@ export default function Rankings() {
             )
           )}
 
-          {tab === "strategies" && (<><StructuresBoard /><StructureLab /></>)}
-          {tab === "long" && <LongOptionBoard />}
+          {tab === "strategies" && <StructuresHub />}
 
           {tab === "ladder" && <PutLadder />}
 

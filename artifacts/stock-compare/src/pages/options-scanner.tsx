@@ -1027,7 +1027,8 @@ export function OptionsScannerContent({
               )}
             </div>
 
-            <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black/40">
+            {/* overflow-x only — overflow-x-auto alone can trap vertical wheel under Lenis */}
+            <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto overflow-y-visible bg-black/40">
             {/* Column headers — track matches ScannerRow; only #/Ticker/Price stay bold */}
             <div
               className={cn(OPTIONS_BOARD_COLS, "px-1.5 py-1 border-b border-[#d4af37]/25 bg-black text-[10px] tracking-wide uppercase text-[#d4af37] font-semibold")}
@@ -1103,10 +1104,12 @@ export function OptionsScannerContent({
 
 export default function OptionsScanner() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       <TopNav />
-      <main className="pt-14 p-6 space-y-4">
-        <OptionsScannerContent />
+      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-4 [overflow-anchor:none]" data-lenis-prevent>
+          <OptionsScannerContent />
+        </div>
       </main>
     </div>
   );
