@@ -300,7 +300,7 @@ function WatchlistView() {
   }
 
   return (
-    <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels-v5" className="flex-1 overflow-hidden">
+    <ResizablePanelGroup direction="horizontal" autoSaveId="fildi-watchlist-panels-v5" className="flex-1 min-h-0 overflow-hidden">
       {/* Left Panel — hug row content (Sym/Last/Chg/%); no ellipsis, minimal spare */}
       <ResizablePanel defaultSize={18} minSize={14} maxSize={28} className="flex flex-col bg-zinc-950 min-w-[15rem] min-h-0" data-lenis-prevent>
         <div className="flex border-b border-[#d4af37]/20 text-[11px] font-bold shrink-0">
@@ -584,7 +584,8 @@ export default function Watchlist() {
   return (
     <div className="min-h-[100dvh] bg-zinc-900 text-foreground">
       <TopNav />
-      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden">
+      {/* min-h-0: flex child must shrink or breakdown overflow-y-auto never engages (Lenis + Model List click). */}
+      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
         <WatchlistView />
       </main>
     </div>

@@ -109,14 +109,22 @@ export function StockBreakdown({
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // When driven by watchlist click, sync ticker from prop
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // When driven by watchlist / Model List click, sync ticker from prop and jump to top
+  // (kept mid-scroll from the previous name feels like "can't scroll up" to Model Thesis).
   useEffect(() => {
     if (propTicker) {
       setActiveTicker(propTicker);
       setInputText(propTicker);
       setChartPeriod("1W");
+      scrollRef.current?.scrollTo({ top: 0 });
     }
   }, [propTicker]);
+
+  useEffect(() => {
+    if (modelThesis) scrollRef.current?.scrollTo({ top: 0 });
+  }, [modelThesis]);
 
   const debouncedQuery = useDebounce(inputText, 180);
 
@@ -250,7 +258,11 @@ export function StockBreakdown({
       </div>}
 
       {/* Content area — min-h-0 + data-lenis-prevent so nested scroll works under A127 Lenis */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" data-lenis-prevent>
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        data-lenis-prevent
+      >
         {/* Empty state */}
         {!activeTicker && (
           <div className="h-full flex flex-col items-center justify-center text-center text-amber-100/70 gap-4 py-20">
