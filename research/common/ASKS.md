@@ -83,16 +83,16 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A104](asks/A104.md) | 2026-10-15 | Muse → Cursor | Lightpanda pilot: lightweight headless browser for fildi scraping | declined (Claude 10-15: Fildi runs no headless browser) |
 | [A105](asks/A105.md) | 2026-10-15 | Muse → Cursor | Open-source quant stack survey: what fildi should borrow | declined as survey (Claude 10-15: the two named gaps have homes) |
 | [A106](asks/A106.md) | 2026-10-15 | Muse → Cursor | Pinchtab pilot: token-efficient browser control for agents | declined (Claude 10-15: agents already read pages as text) |
-| [A107](asks/A107.md) | 2026-10-15 | Muse → Cursor | GS Quant evaluation: borrow Goldman's derivatives toolkit | narrowed → folded into A54 (Claude 10-15: test the Greeks, skip GS Quant) |
+| [A107](asks/A107.md) | 2026-10-15 | Muse → Cursor | GS Quant evaluation: borrow Goldman's derivatives toolkit | declined (folded into A54 — Claude 10-15: offline Greeks test there; GS Quant needs Marquee) |
 | [A108](asks/A108.md) | 2026-10-15 | Muse → Cursor | OpenAlice teardown: borrow the lifecycle, not the autonomy | declined (Claude 10-15: exit rules are S017 + A92) |
 | [A109](asks/A109.md) | 2026-10-15 | Muse → Cursor | Market microstructure toolkit survey (gamma/dealer research) | parked (Claude 10-15: no index chains; tick data costs money) |
 | [A110](asks/A110.md) | 2026-10-15 | Muse → Cursor | option_history.py re-run hazards: optlab.bars schema has no migration; chain cache not keyed on ref | done (Claude fixed 10-15) |
 | [A111](asks/A111.md) | 2026-10-15 | Muse → Cursor | iv_rank min-history 120→60d changed silently in 9bee2472 — document or revert | done (Claude fixed 10-15) |
 | [A112](asks/A112.md) | 2026-10-15 | Muse → Cursor | pm_alerts.py DDL.split(';') runs a trailing empty statement (startup crash risk) | done (Claude fixed 10-15) |
 | [A115](asks/A115.md) | 2026-10-15 | Muse → Cursor | Trend-efficiency regime filter for premium selling | parked (Cursor 10-18: regime bake-off study with A117/A56 before filter) |
-| [A116](asks/A116.md) | 2026-10-15 | Muse → Cursor | Agent-tooling roundup: adopt the good skills, vet the rest | narrowed, merged with A118/A119 (Claude 10-16: adopt Trail of Bits audit; rest recorded) |
+| [A116](asks/A116.md) | 2026-10-15 | Muse → Cursor | Agent-tooling roundup: adopt the good skills, vet the rest | planned (Claude 10-16: Trail of Bits audit only; A118/A119 merged in) |
 | [A117](asks/A117.md) | 2026-10-15 | Muse → Cursor | Backend quant-algorithm inventory: map the classics to fildi gaps | done — PCA + early-assign + Cholesky MC (Cursor 10-18); regime bake-off → A115 |
-| [A118](asks/A118.md) | 2026-10-15 | Muse → Cursor | Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena) | merged into A116 (Claude 10-16) |
+| [A118](asks/A118.md) | 2026-10-15 | Muse → Cursor | Extended agent-tooling evaluation (archify, trail of bits, spec kit, taskmaster, serena) | declined (merged into A116 — Claude 10-16) |
 | [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | parked (Claude 10-16: Hermes vs SkillOpt waits on A103's trigger) |
 | [A120](asks/A120.md) | 2026-10-15 | Muse → Claude | [quant] Pattern-discovery research program: regimes, reversals, calendar, lead-lag, automated X/Y engine | declined — tracks done, X/Y engine declined; revisit at 3 y chain history (Claude 10-18) |
 | [A121](asks/A121.md) | 2026-10-15 | Muse → Cursor | scoreboard.py: exception path rolls back DDL + all earlier checks, then crashes | done (Cursor fix; Claude ran the failing-check test 10-16: pass) |
@@ -103,8 +103,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | parked (Cursor 10-18: 1m+5m shipped; Jamie UI eyeball) |
 | [A127](asks/A127.md) | 2026-10-16 | Muse → Cursor | UI motion polish (Lenis + react-bits) | done (Cursor 10-18: Lenis + AnimatedNumber on Profile + track-record ScoreCard) |
 | [A128](asks/A128.md) | 2026-10-16 | Muse → Cursor | Pilot codebase-memory-mcp (token reduction) | done (Claude 10-16: route-map + commit-impact scripts, no MCP) |
-| [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | local 26B live (Claude 10-16); first resolutions 10-17; pass test ≥ 50 resolved puts |
-| [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | step 1 done (Claude 10-16: all Haiku calls logged + AI spend line) |
+| [A129](asks/A129.md) | 2026-10-16 | Muse → Cursor | Pilot OpenJev calibrated-probability layer | accepted (pilot live since 10-16; pass test ≥ 50 resolved) |
+| [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | accepted (step 1 done 10-16: Haiku calls logged + AI spend line) |
 | [A131](asks/A131.md) | 2026-10-16 | Cursor → Claude | Backtest timestamp-leakage audit | done (Claude signed 10-18: S025 holds at t+1; S028 NFCI unsigned; S003 classify open) |
 | [A132](asks/A132.md) | 2026-10-16 | Muse → Cursor | Competitive teardown: FinceptTerminal vs fildi | done (Muse 10-18: steal VaR → A160; park node editor; skip rest) |
 | [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | parked (Cursor 10-18: blocked Jamie PentPort signup) |
@@ -116,7 +116,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | parked (Cursor 10-18: overlays shipped; S036 gates composite) |
 | [A140](asks/A140.md) | 2026-10-17 | Muse → Grok | Post-down-day setup flag for scanner + options-book brief | needs Jamie |
 | [A141](asks/A141.md) | 2026-10-16 | Cursor → Grok | Standing: Grok Bot devil’s-advocate reviews (GROK.md) | parked — standing (Grok review lane definition, not a task; aging-exempt) |
-| [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | decided 10-18 (Jamie GO; Claude plan + Muse review in file) — residue in A234; not aging work |
+| [A142](asks/A142.md) | 2026-10-17 | Grok → Claude | Grok Bot role + workflow proposals (Muse comment before any rule change) | done (decided 10-18: Jamie GO + Claude plan + Muse review; residue claims display → Cursor) |
 | [A143](asks/A143.md) | 2026-10-17 | Claude → Cursor | OpenJev overnight headline labels in Desk daily news (display only) | done (Cursor 10-18: smoke 72/72 labels in 52s; rollback fix) |
 | [A144](asks/A144.md) | 2026-10-17 | Grok → Cursor | Review + merge PR #2 (Grok Bot fixes) into cursor/mac-dev | done (Cursor 10-17: reviewed + merged ci-auth-inbox-asks-b665) |
 | [A145](asks/A145.md) | 2026-10-17 | Grok → Claude | CI phase 2 (from Grok Bot) | done (Cursor 10-21: gates 5–8 in ci.yml + ci-guards) |
@@ -174,7 +174,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A197](asks/A197.md) | 2026-10-20 | Muse → Cursor | ci-guards: brief-only (commentary/) commits fail Agent-trailer rule → CI red at tip | done |
 | [A198](asks/A198.md) | 2026-10-20 | Muse → Cursor | Stock Breakdown scroll fix — DONE (restored from A179 after ID collision) | done |
 | [A199](asks/A199.md) | 2026-10-20 | Muse → Cursor | Pre-Dec-11 build capacity plan (restored from A180 after ID collision) | done (matrix; Jamie kill/park tap) |
-| [A200](asks/A200.md) | 2026-10-20 | Muse → Cursor | [quant] Peer-group drift monitor (restored from A181 after ID collision) | auto-reviewed |
+| [A200](asks/A200.md) | 2026-10-20 | Muse → Cursor | [quant] Peer-group drift monitor (restored from A181 after ID collision) | planned (Claude 10-26: one alert over existing peers_review; no auto-move) |
 | [A201](asks/A201.md) | 2026-10-20 | Muse → Cursor | Model-version promotion protocol (restored from A182 after ID collision) | done (protocol; 1.2.0 hold) |
 | [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | declined (park; S045 + fetch-page A139) |
 | [A203](asks/A203.md) | 2026-10-20 | Muse → Claude | Jev corpus check — done by Muse: no corpus exists; fildi already runs the pattern (OpenJev) | done (killed at step 1) |

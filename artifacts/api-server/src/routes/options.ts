@@ -6,6 +6,7 @@ import { requireAdmin } from "../middleware/requireAdmin.js";
 import { readStructureBacktest } from "../lib/structure-backtest.js";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
 import { getLivePrices } from "../lib/live-quote.js";
+import { rankingsWantLivePrices } from "../lib/rankings-live-prices.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 
@@ -66,21 +67,21 @@ router.get("/options/candidates", async (req, res) => {
   }
 });
 
-// GET /api/options/rankings?side=put|call — Overall board from nightly snapshots.
-// Includes live equity prices (same Schwab→Yahoo cache as /live/prices) so the
-// board paints price + % vs snap in one round-trip — no second waterfall.
+// GET /api/options/rankings?side=put|call[&livePrices=1]
+// Overall board from nightly snapshots (DB). Default = DB only (A252) — no Schwab/Yahoo
+// fan-out on every load. Opt in with livePrices=1; UI day-% uses GET /live/prices instead.
 router.get("/options/rankings", async (req, res) => {
   const sideRaw = String(req.query.side ?? "put").toLowerCase();
   const side = sideRaw === "call" ? "call" : "put";
+  const wantPrices = rankingsWantLivePrices(req.query.livePrices);
   try {
     const { rows, asOf, computedAt } = await readLatestOptionRankings(side);
-    const tickers = rows.map((r) => r.ticker);
     const prices: Record<string, { price: number | null; changePercent: number | null }> = {};
-    if (tickers.length > 0) {
-      const live = await getLivePrices(tickers);
-      for (const t of tickers) {
-        const q = live.get(t);
-        prices[t] = { price: q?.price ?? null, changePercent: q?.changePercent ?? null };
+    if (wantPrices && rows.length > 0) {
+      const live = await getLivePrices(rows.map((r) => r.ticker));
+      for (const r of rows) {
+        const q = live.get(r.ticker);
+        prices[r.ticker] = { price: q?.price ?? null, changePercent: q?.changePercent ?? null };
       }
     }
     return res.json({ side, asOf, computedAt, rankings: rows, prices });
