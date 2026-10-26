@@ -15,6 +15,8 @@ GATE = Path("/tmp/fildi-logs/polygon.gate")
 
 
 def wait() -> None:
+    # Reserve the next slot under the lock, sleep after releasing it (10-26: sleeping inside the flock starved other
+    # callers into polygon-limiter.ts's lock timeout). The stamp is the reserved slot, same as the Node side.
     GATE.parent.mkdir(parents=True, exist_ok=True)
     with open(GATE, "a+") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
@@ -23,13 +25,14 @@ def wait() -> None:
             last = float(f.read().strip() or 0)
         except ValueError:
             last = 0.0
-        pause = last + GAP_S - time.time()
-        if pause > 0:
-            time.sleep(pause)
+        now = time.time()
+        slot = max(now, last + GAP_S)
         f.seek(0)
         f.truncate()
-        f.write(str(time.time()))
+        f.write(str(slot))
         f.flush()
+    if slot > now:
+        time.sleep(slot - now)
 
 
 def record(conn, n: int) -> None:

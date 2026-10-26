@@ -9,9 +9,14 @@ import { recordApiUsage } from "./api-usage.js";
 
 let chain: Promise<void> = Promise.resolve();
 
-/** Sleep until 12.5s after the last call from ANY process (Python flock), then stamp. */
+/**
+ * Reserve the next slot (12.5s after the last reservation from ANY process), release the flock, then sleep outside it.
+ * 10-26: sleeping while holding the flock let one process lose the (unfair) lock repeatedly → 120 s "lock timeout"
+ * with only two callers → refresh-unused-feeds exit 1. The lock is now held for milliseconds; the stamp is the slot.
+ */
 function crossProcessWait(): Promise<void> {
   return new Promise((resolve, reject) => {
+    let out = "";
     const py = spawn("python3", ["-c", `
 import fcntl, time
 from pathlib import Path
@@ -25,26 +30,28 @@ with open(p, "a+") as f:
         last = float(raw or 0)
     except ValueError:
         last = 0.0
-    pause = last + 12.5 - time.time()
-    if pause > 0:
-        time.sleep(pause)
+    now = time.time()
+    slot = max(now, last + 12.5)
     f.seek(0)
     f.truncate()
-    f.write(str(time.time()))
+    f.write(str(slot))
     f.flush()
-`], { stdio: "ignore" });
+print(slot - now)
+`], { stdio: ["ignore", "pipe", "ignore"] });
+    py.stdout.on("data", (d) => { out += String(d); });
     const timer = setTimeout(() => {
       py.kill();
       reject(new Error("polygon gate: lock timeout"));
-    }, 120_000);
+    }, 30_000);
     py.on("error", (err) => {
       clearTimeout(timer);
       reject(err);
     });
     py.on("exit", (code) => {
       clearTimeout(timer);
-      if (code === 0) resolve();
-      else reject(new Error(`polygon gate: python exit ${code}`));
+      if (code !== 0) return reject(new Error(`polygon gate: python exit ${code}`));
+      const pause = Number(out.trim());
+      setTimeout(resolve, Number.isFinite(pause) && pause > 0 ? pause * 1000 : 0);
     });
   });
 }

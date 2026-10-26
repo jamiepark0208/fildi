@@ -9,6 +9,7 @@
 - Working: iv-rank-resolver options-1.2.1, rankings-rules-tab, put+call-ladder-tab, s100-pairs, a271-structures-engine, hold-after-assignment-ladder
 - In progress: cursor: model-list-structures-unification + A271 UI fields
 - Blocked: jamie: default put band choice
+- 10-26 overnight-jobs fix (f0291366 + gate fix): unused-feeds exit 1 root cause **reproduced** = polygon.gate starvation (callers slept inside the flock → "polygon gate: lock timeout" at 120 s with 2 callers). Gate now reserves a slot + sleeps outside the lock (Node + Python); retry/soft-stop kept as backstop → **check 10-27 maintain log**: `unused_feeds_exit_0`. S077 retired (FAIL, display-only). Pythia hook removed (A124 declined). LSEG chip shows month datapoints. Open: pmset wake needs root (Jamie: sudoers entry or accept ~5:51 start).
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
 - **Unfinished, partial work uncommitted in tree (agents died at session limit):** cache monitor rebuild (ttl-cache.ts counters, cache-registry.ts, new cache-overview.ts) · A126 charts (early) · finish one at a time, inline or ONE sonnet agent (CLAUDE.md subagent budget rule). Not mine: GROK.md, A140, CONVENTIONS.md, cursor-usage-snap.mjs, A131/A122 edits.
