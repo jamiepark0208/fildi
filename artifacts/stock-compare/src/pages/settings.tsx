@@ -711,7 +711,8 @@ export default function Settings() {
   return (
     <div className="min-h-[100dvh] bg-zinc-900">
       <TopNav />
-      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden">
+      {/* min-h-0: flex child must shrink or overflow-y-auto never engages (content clipped, no scroll). */}
+      <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
         {/* Header */}
         <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2">
           <h1 className="text-sm font-bold tracking-tight leading-none text-white">Settings</h1>
@@ -736,8 +737,8 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Tab content — data-lenis-prevent: Lenis owns document wheel; without it, inner overflow never receives scroll. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4" data-lenis-prevent>
           {tab === "scorecard-guide" && <ScorecardGuideContent showHeader={false} />}
           {tab === "users"   && isAdmin && <UserMgmtTab />}
           {tab === "cache"       && isAdmin && <CacheMonitorTab />}
