@@ -78,9 +78,26 @@ export type ResearchOpsReport = {
     datasets: DatasetHealth[];
     overall: LaneStatus;
     lastError: PullError | null;
+    /** Binding LSEG cap = monthly datapoints (research/lseg/_session.py guard), not the 10k req/day grid row. */
+    month: { datapoints: number; limit: number; researchStopPct: number } | null;
   };
   fixHints: string[];
 };
+
+/** Mirrors research/lseg/_session.py LSEG_MONTHLY_DATAPOINTS / LSEG_BUDGET_FRACTION. */
+const LSEG_MONTHLY_DATAPOINTS = 10_000_000;
+const LSEG_RESEARCH_STOP = 0.8;
+
+async function lsegMonthDatapoints(): Promise<number | null> {
+  try {
+    const r = await pool.query<{ n: string }>(
+      `SELECT COALESCE(SUM(datapoints), 0)::text AS n FROM lseg_research.usage_daily WHERE date >= date_trunc('month', now())`,
+    );
+    return Number(r.rows[0]?.n ?? 0);
+  } catch {
+    return null;   // table appears on the first metered pull
+  }
+}
 
 function ageStatus(dataset: string, lastOkAt: Date | null): LaneStatus {
   if (!lastOkAt) return "missing";
@@ -279,6 +296,12 @@ export async function getResearchOpsReport(): Promise<ResearchOpsReport> {
   if (lsegLastError) {
     fixHints.push(`LSEG last pull error (${lsegLastError.dataset}): ${lsegLastError.error}`);
   }
+  const monthPts = lsegSchema ? await lsegMonthDatapoints() : null;
+  if (monthPts != null && monthPts >= LSEG_MONTHLY_DATAPOINTS * LSEG_RESEARCH_STOP) {
+    fixHints.push(
+      `LSEG month budget: ${(monthPts / 1e6).toFixed(1)}M of ${LSEG_MONTHLY_DATAPOINTS / 1e6}M datapoints — research pulls stopped until the 1st; production sync keeps its reserve.`,
+    );
+  }
 
   const wrdsOverall = rollup(wrdsSchema, wrdsDatasets);
   const lsegOverall = rollup(lsegSchema, lsegDatasets, !desktop.reachable);
@@ -312,6 +335,7 @@ export async function getResearchOpsReport(): Promise<ResearchOpsReport> {
       datasets: lsegDatasets,
       overall: lsegOverall,
       lastError: lsegLastError,
+      month: monthPts == null ? null : { datapoints: monthPts, limit: LSEG_MONTHLY_DATAPOINTS, researchStopPct: LSEG_RESEARCH_STOP * 100 },
     },
     fixHints,
   };

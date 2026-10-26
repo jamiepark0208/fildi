@@ -44,7 +44,7 @@ const SOURCE_META: Record<string, SourceMeta> = {
   cnn:    { label: "CNN",          limitKind: "none",    rateNote: "no hard limit" },
   nyfed:  { label: "NY Fed",       limitKind: "none",    rateNote: "no hard limit" },
   anthropic: { label: "Anthropic (Haiku)", limitKind: "none", rateNote: "30 req/15min per user" },
-  lseg:   { label: "LSEG Workspace", limitKind: "daily", dailyLimit: 10000, rateNote: "10k req/day · CLI sync only" },
+  lseg:   { label: "LSEG Workspace", limitKind: "daily", dailyLimit: 10000, rateNote: "10k req/day · binding cap = 10M datapoints/month (LSEG chip)" },
   wrds:   { label: "WRDS",         limitKind: "none",    rateNote: "CLI sync only · counts when you pull" },
   tastytrade: { label: "tastytrade", limitKind: "none",  rateNote: "no published cap · ~3 calls/day (daily.py) + backtests" },
 };
@@ -291,6 +291,7 @@ export function ApiMonitorTab() {
       desktopProxy: { reachable: boolean };
       datasets: { dataset: string; lastOkAt: string | null; status: string; lastRows: number | null; ageMs?: number | null }[];
       lastError: { dataset: string; error: string; finishedAt: string | null } | null;
+      month?: { datapoints: number; limit: number; researchStopPct: number } | null;
     };
     fixHints: string[];
   };
@@ -335,8 +336,11 @@ export function ApiMonitorTab() {
     : researchOps.wrds.overall === "ok" ? "ok"
     : researchOps.wrds.overall === "warn" ? "warn"
     : "down";
+  const lsegMonth = researchOps?.lseg.month ?? null;
+  const lsegMonthPct = lsegMonth ? (lsegMonth.datapoints / lsegMonth.limit) * 100 : null;
   const lsegTone: Tone =
     !researchOps ? "idle"
+    : lsegMonthPct != null && lsegMonth && lsegMonthPct >= lsegMonth.researchStopPct ? "warn"
     : researchOps.lseg.overall === "ok" && researchOps.lseg.desktopProxy.reachable ? "ok"
     : researchOps.lseg.overall === "down" ? "down"
     : "warn";
@@ -451,9 +455,12 @@ export function ApiMonitorTab() {
               )}
             />
             <Chip
-              label="LSEG"
+              label={lsegMonthPct != null ? `LSEG ${Math.round(lsegMonthPct)}% mo` : "LSEG"}
               tone={lsegTone}
               tip={tipJoin(
+                lsegMonth
+                  ? `month ${(lsegMonth.datapoints / 1e6).toFixed(1)}M / ${lsegMonth.limit / 1e6}M datapoints · research stops at ${lsegMonth.researchStopPct}%`
+                  : null,
                 `cache ${researchOps.lseg.overall}`,
                 researchOps.lseg.desktopProxy.reachable ? "desk on :9000" : "desk off",
                 `freshest ${ageLabel(ageFromLastOk(researchOps.lseg.datasets))}`,
@@ -611,9 +618,12 @@ export function ApiMonitorTab() {
               )}
             />
             <Chip
-              label="LSEG"
+              label={lsegMonthPct != null ? `LSEG ${Math.round(lsegMonthPct)}% mo` : "LSEG"}
               tone={lsegTone}
               tip={tipJoin(
+                lsegMonth
+                  ? `month ${(lsegMonth.datapoints / 1e6).toFixed(1)}M / ${lsegMonth.limit / 1e6}M datapoints · research stops at ${lsegMonth.researchStopPct}%`
+                  : null,
                 `cache ${researchOps.lseg.overall}`,
                 researchOps.lseg.desktopProxy.reachable ? "desk on" : "desk off",
                 `freshest ${ageLabel(ageFromLastOk(researchOps.lseg.datasets))}`,

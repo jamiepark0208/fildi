@@ -144,11 +144,26 @@ async function polygonJson(pathOrUrl: string): Promise<{ status: number; body: R
   if (!key) throw new PolygonStop("polygon key missing");
   let url = pathOrUrl.startsWith("http") ? pathOrUrl : `${HOST}${pathOrUrl.startsWith("/") ? "" : "/"}${pathOrUrl}`;
   if (!/[?&]apiKey=/.test(url)) url += `${url.includes("?") ? "&" : "?"}apiKey=${encodeURIComponent(key)}`;
-  let res = await polygonFetch(url);
+  // Gate lock timeout / fetch abort / network drop: one retry, then a clean stop (coverage is per name, next run resumes).
+  // Was uncaught → whole run exit 1 (maintain unused_feeds_exit_1, 10-25/10-26).
+  const fetchOnce = async (): Promise<Response> => {
+    try {
+      return await polygonFetch(url);
+    } catch (err) {
+      logger.warn({ path: pathOrUrl.split("?")[0], err: String(err) }, "unused-feeds: polygon transient — retry in 15s");
+      await new Promise((r) => setTimeout(r, 15_000));
+      try {
+        return await polygonFetch(url);
+      } catch (err2) {
+        throw new PolygonStop(`polygon transient: ${String(err2)}`);
+      }
+    }
+  };
+  let res = await fetchOnce();
   for (let attempt = 0; attempt < 2 && res.status === 429; attempt++) {
     logger.warn({ path: pathOrUrl.split("?")[0] }, "unused-feeds: polygon 429 — pause 60s");
     await new Promise((r) => setTimeout(r, 60_000));
-    res = await polygonFetch(url);
+    res = await fetchOnce();
   }
   let body: Record<string, unknown> | null = null;
   try {

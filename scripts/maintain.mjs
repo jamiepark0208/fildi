@@ -62,7 +62,8 @@ const LOCK = join(LOG_DIR, "maintain.lock");
 /** Resumable research fetches run after production: [name, script (from scripts/watchlist_sync), args, needs LSEG Workspace]. */
 const RESEARCH_QUEUE = [
   ["s078_bars5m", "analysis/s078_orb_in_play.py", ["--fetch"], false],
-  ["s077_implied_tail", "analysis/s077_implied_tail.py", ["--fetch", "--names=50"], true],
+  // s077_implied_tail retired 10-26: pre-registered read done on the cached sample (FAIL, display-only; A217) —
+  // a daily LSEG fetch for a closed study only tripped the monthly datapoint guard.
 ];
 /** Agentic plan reviews (Jamie 10-21): scripts/plan-review-queue.py at most every 6 h while awake, detached so the day's
  *  chain and its lock never wait on it. No rows → no reviewer launch ($0). Stamp written before spawn = its own throttle. */
@@ -882,6 +883,7 @@ async function main() {
     const feeds = runApiTsx("src/scripts/refresh-unused-feeds.ts", unusedFeedsArgs());
     timings.unusedFeeds = feeds.ms;
     actions.push(unusedFeedsAction(feeds));
+    if (feeds.status !== 0) console.error(`[maintain] unused-feeds pool failed: ${feeds.error ?? ""} ${feeds.stderrTail}`);
   }
 
   if (enrichIfDue && !dataDoneToday) {
@@ -981,6 +983,7 @@ async function main() {
         const u = runApiTsx("src/scripts/refresh-unused-feeds.ts", ["--scan=0", "--scope=universe"], 240);   // ~3 h at 5/min; resumes per name
         timings.unusedFeedsUniverse = u.ms;
         actions.push(`unused_feeds_universe_exit_${u.status ?? u.signal ?? "spawn_error"}`);
+        if (u.status !== 0) console.error(`[maintain] unused-feeds universe failed: ${u.error ?? ""} ${u.stderrTail}`);
       }
       for (const [name, rel, extra, needsLseg] of RESEARCH_QUEUE) {
         if (needsLseg && !lsegDesktopUp()) { actions.push(`research_${name}_skipped_no_lseg`); continue; }

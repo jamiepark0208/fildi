@@ -17,7 +17,12 @@ const { runUnusedFeeds, modelListPool } = await import("../lib/unused-feeds.js")
 const { fetchChainsForTickers } = await import("../lib/options-chain-batch.js");
 const { pool } = await import("@workspace/db");
 
-const summary = await runUnusedFeeds({ scope, limit });
+const summary = await runUnusedFeeds({ scope, limit }).catch(async (err) => {
+  // maintain keeps stderr's tail in its log — print the cause, not just exit 1.
+  console.error(`refresh-unused-feeds failed (${scope}): ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+  await pool.end().catch(() => undefined);
+  process.exit(1);
+});
 const names = (await modelListPool()).slice(0, Number.isFinite(scanN) && scanN > 0 ? scanN : 0);
 if (names.length > 0) {
   const scanned = await fetchChainsForTickers(names, { logLabel: "option-score-snapshots", concurrency: 1 });

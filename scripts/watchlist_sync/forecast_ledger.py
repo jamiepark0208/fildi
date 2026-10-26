@@ -1,6 +1,6 @@
 """Forecast ledger (A129 OpenJev / A124 Pythia / A74 calibration; Claude 10-16).
 
-One table of question · forecaster · probability · outcome, so any forecaster (market odds today, OpenJev / Pythia next)
+One table of question · forecaster · probability · outcome, so any forecaster (market odds today, OpenJev next)
 is scored on the same resolved questions with a Brier score. No new pricing math: every probability is reused.
 
   put_otm         open short puts in the live book · market_iv = 1 − pm_alerts P(assign)
@@ -449,60 +449,13 @@ def paired_vs_baseline(conn, forecaster: str = "openjev:local-26b", n_boot: int 
 
 
 
-def log_pythia(conn, now: dt.datetime | None = None) -> int:
-    """A124 — Ollama local forecaster on SPY/QQQ up-week (forecaster=pythia). Soft-fail if Ollama down."""
-    import urllib.request
-    now = now or dt.datetime.now(PT)
-    today = now.astimezone(PT).date()
-    if today.weekday() > 4:
-        return 0
-    fri = week_friday(today)
-    n = 0
-    for t in INDEXES:
-        prompt = (
-            f"Reply with ONLY a JSON object {{\"p\": <float 0-1>}} — probability that {t} "
-            f"closes the week ending {fri} above last Friday's close. No prose."
-        )
-        try:
-            req = urllib.request.Request(
-                "http://127.0.0.1:11434/api/generate",
-                data=json.dumps({"model": "llama3.2", "prompt": prompt, "stream": False, "format": "json"}).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                body = json.loads(resp.read().decode())
-            raw = body.get("response") or "{}"
-            try:
-                parsed = json.loads(raw) if isinstance(raw, str) else raw
-            except json.JSONDecodeError:
-                continue
-            p = float(parsed.get("p", parsed.get("prob", -1)))
-            if not (0 <= p <= 1):
-                continue
-            qid = f"upweek:{t}:{fri}"
-            q = f"Will {t} close the week of {fri} above last week's close?"
-            conn.execute(UPSERT, (qid, q, "index_up_week", t, "pythia", round(p, 4), now, today, fri,
-                                  json.dumps({"model": body.get("model") or "llama3.2", "src": "ollama"})))
-            n += 1
-        except Exception as e:
-            print(f"pythia: skip {t} ({e})", file=sys.stderr)
-            continue
-    if n:
-        conn.commit()
-    return n
-
-
 def run_after_pm_alerts(conn) -> None:
     """Hook for pm_alerts.py: log today's questions + resolve past ones. Never raises."""
     try:
         conn.execute(DDL)
         conn.commit()
         log(conn)
-        try:
-            log_pythia(conn)
-        except Exception as e:
-            print(f"forecast_ledger: pythia skipped ({e})", file=sys.stderr)
+        # A124 Pythia hook retired 10-26 (bare llama3.2 prompt, no inputs, Ollama never installed; 0 rows ever).
         resolve(conn)
     except Exception as e:  # ledger must never break the alerts run
         conn.rollback()
@@ -517,8 +470,6 @@ def main() -> None:
         print("backfill rows:", backfill(conn))
     if "--log" in sys.argv:
         print("logged:", log(conn))
-    if "--pythia" in sys.argv:
-        print("pythia rows:", log_pythia(conn))
     if "--resolve" in sys.argv:
         print("resolved questions:", resolve(conn))
     if "--report" in sys.argv:
