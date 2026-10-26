@@ -248,6 +248,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A272](asks/A272.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] College quant projects: MP cleaning, Kalman pairs, AS quoting, AC scheduling, tested | auto-reviewed |
 | [A273](asks/A273.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Every vol model: 7-model horse race (ARCH/GARCH/GJR/EGARCH/APARCH/EWMA/DCC), tested | auto-reviewed |
 | [A271](asks/A271.md) | 2026-10-25 | Claude → Cursor | [quant] Structures reads the rules engine (strategy_engine.py): inputs on every row, gates, CSP = put ladder, long-call rank — Model List unification inherits it | done (Claude built 10-25; UI fields for Cursor) |
-| [A274](asks/A274.md) | 2026-10-26 | Muse → Cursor | Repair: /api/options/rankings ignores livePrices — A252 done claim fails at HEAD | open |
-| [A275](asks/A275.md) | 2026-10-26 | Muse → Cursor | Surface snapshot age on DB-only option surfaces (Live table first) | open |
-| [A276](asks/A276.md) | 2026-10-26 | Muse → Cursor | A238 packet-split pilot: unblock oldest quant studies (A188 + A184) before Dec 11 | open |
+| [A274](asks/A274.md) | 2026-10-26 | Muse → Cursor | Repair: /api/options/rankings ignores livePrices — A252 done claim fails at HEAD | planned (Claude 10-26) |
+| [A275](asks/A275.md) | 2026-10-26 | Muse → Cursor | Surface snapshot age on DB-only option surfaces (Live table first) | planned (Claude 10-26) |
+| [A276](asks/A276.md) | 2026-10-26 | Muse → Cursor | A238 packet-split pilot: unblock oldest quant studies (A188 + A184) before Dec 11 | planned (Claude 10-26) |
