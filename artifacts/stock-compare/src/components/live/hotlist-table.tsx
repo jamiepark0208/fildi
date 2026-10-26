@@ -12,6 +12,7 @@ import { useHotlistSignalAccuracy } from "@/hooks/use-hotlist-signal-accuracy";
 import { num, pct, scoreColor } from "./live-format";
 import { RecConflictChip } from "./rec-conflict-chip";
 import type { RecConflict } from "@/lib/rec-conflicts";
+import { useActivePanicPutBadges } from "@/hooks/use-strategy-signals";
 
 export type HotlistSide = "dip" | "rally";
 
@@ -47,12 +48,16 @@ const VERDICT_STYLE: Record<EntryVerdict, string> = {
 export const VERDICT_LABEL: Record<EntryVerdict, string> = { enter: "Enter", wait: "Wait", avoid: "Avoid" };
 
 /** Entry-timing verdict pill + click-to-open factor breakdown, mirroring the regime banner popover. */
-function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: string | null }) {
+export function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: string | null }) {
   if (!signal) return <span className="text-amber-200/40">—</span>;
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className={cn("px-2 py-0.5 rounded border text-[11px] font-semibold transition-colors hover:brightness-125", VERDICT_STYLE[signal.verdict])}>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className={cn("px-2 py-0.5 rounded border text-[11px] font-semibold transition-colors hover:brightness-125", VERDICT_STYLE[signal.verdict])}
+        >
           {VERDICT_LABEL[signal.verdict]}
         </button>
       </PopoverTrigger>
@@ -108,6 +113,7 @@ export function HotlistTable({
   entryByTicker,
   entryAsOf,
   conflictsByTicker,
+  onTickerClick,
 }: {
   side: HotlistSide;
   entries: HotlistEntry[];
@@ -117,11 +123,14 @@ export function HotlistTable({
   entryByTicker: Map<string, EntrySignal>;
   entryAsOf: string | null;
   conflictsByTicker?: Map<string, RecConflict[]>;
+  onTickerClick?: (ticker: string) => void;
 }) {
   const isRally = side === "rally";
   const optSide = isRally ? "call" : "put";
   const { data: tickerRecords } = useTickerTrackRecord();
   const { data: signalAccuracy } = useHotlistSignalAccuracy();
+  // S054 panic+hiIV — shown on Oversold (put) side only.
+  const { byTicker: panicByTicker } = useActivePanicPutBadges(3);
   const levelTitle = isRally
     ? "Nearest resistance above price (swing highs / pivot R1)."
     : "Nearest support below price (swing lows / pivot S1).";
@@ -155,10 +164,26 @@ export function HotlistTable({
             const knife = !isRally && tech?.fallingKnife === 1;
             const rsiExtreme = isRally ? e.rsi > 70 : e.rsi < 30; // the setup on each side
             return (
-              <tr key={e.ticker} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+              <tr
+                key={e.ticker}
+                className={cn(
+                  "bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors",
+                  onTickerClick && "cursor-pointer",
+                )}
+                onClick={onTickerClick ? () => onTickerClick(e.ticker.toUpperCase()) : undefined}
+                title={onTickerClick ? "Click → session chart" : undefined}
+              >
                 <td className="px-3 py-1.5 font-mono font-semibold text-white">
                   {e.ticker}
                   {knife && <span className="ml-1 text-red-500" title="Falling knife: >2 ATR below MA50 and MA200 with MACD falling">⚠</span>}
+                  {!isRally && panicByTicker.get(e.ticker.toUpperCase()) && (
+                    <span
+                      className="ml-1 text-[9px] font-semibold text-fuchsia-300 border border-fuchsia-400/40 rounded px-0.5"
+                      title={panicByTicker.get(e.ticker.toUpperCase())?.trigger || "Panic put (S054 hi-IV)"}
+                    >
+                      panic
+                    </span>
+                  )}
                   <TickerRecordBadge
                     record={tickerRecords?.[e.ticker]?.[optSide]}
                     livePrice={e.price}
@@ -218,7 +243,7 @@ export function HotlistTable({
                   <SignalBadge signal={e.signal} />
                   <SignalAccuracyChip stat={signalAccuracy?.get(`${side}|${e.signal}`)} />
                 </td>
-                <td className="px-3 py-1.5 text-center"><EntryCell signal={entryByTicker.get(e.ticker)} asOf={entryAsOf} /></td>
+                <td className="px-3 py-1.5 text-center"><EntryCell signal={entryByTicker.get(e.ticker.toUpperCase())} asOf={entryAsOf} /></td>
               </tr>
             );
           })}

@@ -6,7 +6,10 @@ import { cn } from "@/lib/utils";
 import { type TechnicalRow } from "@/lib/technical-rankings";
 
 const MacroEmbedded = lazy(() => import("@/pages/macro"));
-import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint } from "@/components/live/regime-banner";
+import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint, type RegimeOutlook } from "@/components/live/regime-banner";
+import { RegimeSessionChart } from "@/components/live/regime-session-chart";
+import { formatMdYy } from "@/lib/format";
+import { DataTip } from "@/components/data-tip";
 import { PatternDigestCard } from "@/components/live/pattern-digest-card";
 import {
   HotlistTable,
@@ -20,6 +23,7 @@ import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers"
 import { IndexMoversStrip } from "@/components/live/index-movers-strip";
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
+import { MarketContextStrip } from "@/components/live/market-context-strip";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
@@ -31,6 +35,7 @@ interface MarketContextQuote {
   ticker: string;
   price: number | null;
   changePercent: number | null;
+  asOf?: string;
 }
 
 interface LiveState {
@@ -61,10 +66,16 @@ async function fetchMovers(): Promise<MoversResponse> {
   return r.json();
 }
 
-async function fetchRegime(): Promise<RegimeCheckpoint[]> {
+async function fetchRegime(): Promise<{ checkpoints: RegimeCheckpoint[]; outlook: RegimeOutlook }> {
   const r = await fetch("/api/live/regime", { credentials: "include" });
   if (!r.ok) throw new Error(await r.text());
-  return r.json();
+  const body = await r.json();
+  // Tolerate older array-shaped responses during rolling deploys.
+  if (Array.isArray(body)) return { checkpoints: body, outlook: {} };
+  return {
+    checkpoints: body.checkpoints ?? [],
+    outlook: body.outlook ?? {},
+  };
 }
 
 interface EntrySignalsSnapshot {
@@ -97,10 +108,13 @@ async function fetchEntryStats(): Promise<EntryStatsResponse> {
 
 function MarketContextChip({ quote, label }: { quote: MarketContextQuote; label?: string }) {
   const up = (quote.changePercent ?? 0) >= 0;
+  const priceStr = quote.price != null
+    ? quote.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
   return (
     <div className="flex items-center gap-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1.5 py-0.5 shrink-0">
       <span className="text-[11px] font-mono font-semibold text-white">{label ?? quote.ticker}</span>
-      <span className="text-[11px] font-mono text-sky-300/80">{quote.price != null ? quote.price.toFixed(2) : "—"}</span>
+      <span className="text-[11px] font-mono text-sky-300/80">{priceStr}</span>
       <span className={cn("text-[11px] font-mono font-medium", up ? "text-green-500" : "text-red-500")}>
         {pct(quote.changePercent)}
       </span>
@@ -124,7 +138,7 @@ function AsiaOvernightRow({
   const positive = changes.filter(c => c > 0).length;
   const negative = changes.filter(c => c < 0).length;
   let badgeLabel = "Asia: Mixed overnight";
-  let badgeClass = "text-zinc-300";
+  let badgeClass = "text-amber-50";
   if (changes.length > 0 && positive >= 2) { badgeLabel = "Asia: Risk-On overnight"; badgeClass = "text-emerald-400"; }
   else if (changes.length > 0 && negative >= 2) { badgeLabel = "Asia: Risk-Off overnight"; badgeClass = "text-red-400"; }
 
@@ -137,15 +151,34 @@ function AsiaOvernightRow({
       ? "— US catalyst today, may dominate"
       : "— no major US catalyst, Asia may lead";
 
+  // Freshest quote stamp among Asia indices — cache write time, not a daily memo.
+  const asOfIso = asiaContext
+    .map((q) => q.asOf)
+    .filter((v): v is string => !!v)
+    .sort()
+    .at(-1) ?? null;
+  const asOfLabel = asOfIso
+    ? `as of ${formatMdYy(asOfIso)} ${new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Los_Angeles",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(asOfIso))} PT`
+    : null;
+
+  const tip = [
+    catalystLabel.replace(/^—\s*/, ""),
+    asOfLabel,
+    "Display-only overnight read — does not feed Model List or regime.",
+  ].filter(Boolean).join("\n");
+
   return (
-    <div className="flex items-center gap-1.5 overflow-x-auto">
+    <div className="flex items-center gap-1.5 flex-nowrap">
       {asiaContext.map(q => (
         <MarketContextChip key={q.ticker} quote={q} label={ASIA_TICKER_LABELS[q.ticker] ?? q.ticker} />
       ))}
-      <span className={cn("text-[11px] font-medium shrink-0", badgeClass)}>{badgeLabel}</span>
-      <span className={cn("text-[11px] shrink-0", catalystCalendarStale ? "text-amber-200" : "text-zinc-300")}>
-        {catalystLabel}
-      </span>
+      <DataTip tip={tip}>
+        <span className={cn("text-[11px] font-medium shrink-0 cursor-default", badgeClass)}>{badgeLabel}</span>
+      </DataTip>
     </div>
   );
 }
@@ -210,12 +243,10 @@ function SubTabToggle({
   side,
   subTab,
   onChange,
-  candidateCount,
 }: {
   side: HotlistSide;
   subTab: SubTab;
   onChange: (t: SubTab) => void;
-  candidateCount: number;
 }) {
   const sellLabel = side === "rally" ? "Top Calls" : "Top Puts";
   const candidatesLabel = side === "rally" ? "Overbought" : "Oversold";
@@ -223,7 +254,7 @@ function SubTabToggle({
     <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
       {([
         ["sell", sellLabel],
-        ["candidates", `${candidatesLabel} (${candidateCount})`],
+        ["candidates", candidatesLabel],
       ] as const).map(([value, label]) => (
         <button
           key={value}
@@ -250,6 +281,9 @@ export default function Live() {
   });
   useEffect(() => { try { localStorage.setItem("fildi_live_side", side); } catch { /* private mode */ } }, [side]);
   const isRally = side === "rally";
+
+  /** Session chart symbol — SPY/QQQ toggles or click from movers/hotlist. */
+  const [chartSymbol, setChartSymbol] = useState("SPY");
 
   const [pageTab, setPageTab] = useState<PageTab>(() => {
     try {
@@ -304,21 +338,25 @@ export default function Live() {
   }, [movers]);
   const { data: moverFacts } = useMoverFacts(moverFactInputs.tickers, 5, moverFactInputs.pct);
 
-  const { data: regime } = useQuery({
+  const { data: regimePayload } = useQuery({
     queryKey: ["live-regime"],
     queryFn: fetchRegime,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
+  const regime = regimePayload?.checkpoints;
+  const regimeOutlook = regimePayload?.outlook;
 
   // Candidates / hotlist-only — defer until that sub-tab is open.
   const needCandidates = pageTab === "market" && subTab === "candidates";
+  // Entry verdicts also feed the session-chart header on ticker click (Market tab).
+  const needEntrySignals = pageTab === "market";
 
   const { data: entrySignals } = useQuery({
     queryKey: ["live-entry-signals"],
     queryFn: fetchEntrySignals,
     refetchInterval: 60_000,
-    enabled: needCandidates,
+    enabled: needEntrySignals,
     staleTime: 60_000,
   });
 
@@ -408,7 +446,7 @@ export default function Live() {
     () => new Map(
       (entrySignals?.signals ?? [])
         .filter(s => (s.side ?? "dip") === side)
-        .map(s => [s.ticker, s]),
+        .map(s => [s.ticker.toUpperCase(), s]),
     ),
     [entrySignals, side],
   );
@@ -427,7 +465,7 @@ export default function Live() {
       <TopNav />
       {/* px/pb only — never `p-*` with `pt-14` (Tailwind order can wipe top pad → tabs under fixed nav). */}
       <main className={cn("pt-14", pageTab === "macro" ? "px-0 pb-0" : "px-6 pb-6")}>
-        <div className={cn(pageTab === "macro" ? "w-full" : "max-w-5xl mx-auto space-y-3")}>
+        <div className={cn(pageTab === "macro" ? "w-full" : "max-w-5xl mx-auto space-y-2")}>
           <div className={cn(
             "flex items-center gap-2 flex-nowrap overflow-x-auto",
             pageTab === "macro" && "px-6 py-2 border-b border-[#d4af37]/15 bg-zinc-950",
@@ -436,13 +474,7 @@ export default function Live() {
             {pageTab === "market" && (
               <>
                 <SideToggle side={side} onChange={setSide} />
-                <span
-                  className="text-[10px] text-amber-200/40 whitespace-nowrap shrink-0 hidden sm:inline"
-                  title="Backtest 2020–26 (scorecard lab): oversold / reversal / short-term signals showed no edge, and dip-buying did worse in broad selloffs. Trade ideas: Watchlist → Model List."
-                >
-                  RSI-side extremes, unvalidated · Model List decides
-                </span>
-                <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} candidateCount={sortedHotlist.length} />
+                <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} />
                 <button
                   type="button"
                   onClick={() => refreshMutation.mutate()}
@@ -457,7 +489,7 @@ export default function Live() {
                   <RefreshCw className={cn("h-3.5 w-3.5", refreshMutation.isPending && "animate-spin")} />
                   Refresh
                 </button>
-                <span className="text-[10px] text-amber-200/40 whitespace-nowrap shrink-0 tabular-nums">
+                <span className="text-[10px] text-white whitespace-nowrap shrink-0 tabular-nums">
                   {lastRefreshedLabel}
                 </span>
                 {!isLoading && !data?.lastRefreshedAt && (
@@ -485,20 +517,29 @@ export default function Live() {
               <NewsInboxPanel />
             </div>
           ) : (
-            <>
+            <div className="space-y-1.5">
               <AsiaOvernightRow
                 asiaContext={data?.asiaContext ?? []}
                 hasCatalystToday={data?.hasCatalystToday ?? false}
                 catalystCalendarStale={data?.catalystCalendarStale ?? false}
               />
+              <MarketContextStrip />
 
-              <RegimeBanner checkpoints={regime} />
+              <RegimeBanner checkpoints={regime} outlook={regimeOutlook} />
+              <RegimeSessionChart
+                symbol={chartSymbol}
+                onSymbolChange={setChartSymbol}
+                checkpoints={regime}
+                outlook={regimeOutlook}
+                entrySignal={entryByTicker.get(chartSymbol.toUpperCase())}
+                entryAsOf={entryAsOf}
+              />
 
               <PatternDigestCard />
 
               <IndexMoversStrip />
 
-              <section className="space-y-1.5">
+              <section className="space-y-1">
                 {moversLoading && !movers ? (
                   <p className="text-[11px] text-amber-200/40">Loading movers…</p>
                 ) : (
@@ -506,9 +547,9 @@ export default function Live() {
                     {moversFetching && movers && (
                       <span className="absolute -top-4 right-0 text-[9px] text-amber-200/35 tabular-nums">updating…</span>
                     )}
-                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} facts={moverFacts} />
-                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} facts={moverFacts} />
-                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={moverFacts} />
+                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
+                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
+                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
                   </div>
                 )}
               </section>
@@ -563,10 +604,11 @@ export default function Live() {
                     entryByTicker={entryByTicker}
                     entryAsOf={entryAsOf}
                     conflictsByTicker={conflictsByTicker}
+                    onTickerClick={setChartSymbol}
                   />
                 )}
               </section>
-            </>
+            </div>
           )}
         </div>
       </main>

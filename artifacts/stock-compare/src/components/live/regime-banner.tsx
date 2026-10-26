@@ -16,6 +16,19 @@ export interface RegimeCheckpoint {
   factors: string[];
 }
 
+/** Empirical next-slot frequencies (n-gated). Null = not enough history. */
+export type SlotOutlook = {
+  pBull: number;
+  pMix: number;
+  pBear: number;
+  n: number;
+  mode?: "path" | "base";
+  fwdCloseP25?: number | null;
+  fwdCloseP75?: number | null;
+} | null;
+
+export type RegimeOutlook = Record<number, SlotOutlook>;
+
 // Market open is always 9:30 ET / 6:30 PT — both zones shift together on DST, so
 // these are safe to hardcode rather than trust a computed label round-trip.
 export const CHECKPOINT_TIME_PT: Record<number, string> = {
@@ -33,21 +46,59 @@ export const CHECKPOINT_TIME_PT: Record<number, string> = {
 };
 
 function regimeDotColor(c: RegimeCheckpoint): string {
+  if (c.status === "resolved" && c.direction == null && c.minAfterOpen === 15) return "bg-[#d4af37]/50";
   if (c.status === "pending" || c.direction == null) return "bg-amber-200/30";
   if (c.direction === "mixed") return "bg-yellow-500";
   return c.direction === "bullish" ? "bg-green-500" : "bg-red-500";
 }
 
 function regimeTextColor(c: RegimeCheckpoint): string {
+  if (c.status === "resolved" && c.direction == null && c.minAfterOpen === 15) return "text-[#d4af37]";
   if (c.status === "pending" || c.direction == null) return "text-amber-200/40";
   if (c.direction === "mixed") return "text-yellow-500";
   return c.direction === "bullish" ? "text-green-500" : "text-red-500";
 }
 
 function regimeShortLabel(c: RegimeCheckpoint): string {
+  // 15m slot always resolves as OR baseline (no breakout yet) — not a missed run.
+  if (c.status === "resolved" && c.direction == null && c.minAfterOpen === 15) return "OR";
   if (c.status === "pending" || c.direction == null) return "—";
   if (c.direction === "mixed") return "Mix";
   return c.direction === "bullish" ? "Bull" : "Bear";
+}
+
+function pendingCellLabel(c: RegimeCheckpoint, outlook: RegimeOutlook | undefined): string {
+  if (c.status !== "pending") return regimeShortLabel(c);
+  const slot = outlook?.[c.minAfterOpen];
+  if (!slot) return "—";
+  const best = Math.max(slot.pBull, slot.pMix, slot.pBear);
+  const dir = best === slot.pBull ? "Bull" : best === slot.pBear ? "Bear" : "Mix";
+  return `~${dir} ${best}%`;
+}
+
+function pendingCellTip(c: RegimeCheckpoint, outlook: RegimeOutlook | undefined): string {
+  const factors = (c.factors ?? []).join("\n");
+  const slot = outlook?.[c.minAfterOpen];
+  if (!slot) {
+    return [
+      "Not reached yet today.",
+      "Not enough graded history yet (need ≥8 sessions) — dash until then.",
+      factors,
+    ].filter(Boolean).join("\n");
+  }
+  const src = slot.mode === "path"
+    ? "days matching today's path so far"
+    : "unconditional historical rate (thin path match)";
+  const fwd =
+    slot.fwdCloseP25 != null && slot.fwdCloseP75 != null
+      ? `Fwd-to-close band (p25–p75): ${slot.fwdCloseP25}% … ${slot.fwdCloseP75}%`
+      : null;
+  return [
+    `Historical next-slot frequency · ${src} · n=${slot.n}`,
+    `Bull ${slot.pBull}% · Mix ${slot.pMix}% · Bear ${slot.pBear}%`,
+    fwd,
+    "Not a live forecast — empirical from past regime days.",
+  ].filter(Boolean).join("\n");
 }
 
 // User-triggered AI one-liner on the checkpoint pattern so far today — never
@@ -90,9 +141,9 @@ function RegimeAiInsight({ checkpoints }: { checkpoints: RegimeCheckpoint[] }) {
           Get AI insight on today's pattern
         </button>
       ) : isLoading ? (
-        <span className="text-amber-200/40 italic">Reading today's pattern…</span>
+        <span className="text-amber-50/50 italic">Reading today's pattern…</span>
       ) : isError ? (
-        <span className="text-amber-200/40 italic">AI insight unavailable right now.</span>
+        <span className="text-amber-50/50 italic">AI insight unavailable right now.</span>
       ) : (
         <span className="text-sky-200/90 font-mono">{insight}</span>
       )}
@@ -100,7 +151,13 @@ function RegimeAiInsight({ checkpoints }: { checkpoints: RegimeCheckpoint[] }) {
   );
 }
 
-export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] | undefined }) {
+export function RegimeBanner({
+  checkpoints,
+  outlook,
+}: {
+  checkpoints: RegimeCheckpoint[] | undefined;
+  outlook?: RegimeOutlook;
+}) {
   const [openMin, setOpenMin] = useState<number | null>(null);
   if (!checkpoints?.length) return null;
 
@@ -124,7 +181,7 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
             <span className={cn("font-semibold", regimeTextColor(latest))}>
               Now: {regimeShortLabel(latest)}{latest.confidence != null ? ` ${latest.confidence}%` : ""}
             </span>
-            <span className="text-amber-200/40">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
+            <span className="text-white">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
             {flipped && prev && (
               <span className="text-amber-400 font-semibold">
                 ⚠ flipped from {regimeShortLabel(prev)} at {CHECKPOINT_TIME_PT[prev.minAfterOpen] ?? prev.label}
@@ -134,22 +191,31 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
         )}
       </div>
       <div className="grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-        {checkpoints.map((c) => (
+        {checkpoints.map((c) => {
+          const pending = c.status === "pending";
+          const cellText = pending
+            ? pendingCellLabel(c, outlook)
+            : `${regimeShortLabel(c)}${c.confidence != null ? ` ${c.confidence}%` : ""}`;
+          const textClass = pending
+            ? (outlook?.[c.minAfterOpen] ? "text-amber-50/75" : "text-amber-50/45")
+            : regimeTextColor(c);
+          return (
           <Popover key={c.minAfterOpen} open={openMin === c.minAfterOpen} onOpenChange={open => setOpenMin(open ? c.minAfterOpen : null)}>
             <PopoverTrigger asChild>
               <button
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2 border-r border-[#d4af37]/10 last:border-r-0",
+                  "flex flex-col items-center gap-0.5 py-1.5 border-r border-[#d4af37]/10 last:border-r-0",
                   "even:bg-zinc-900/70 hover:bg-amber-500/10 transition-colors",
                 )}
+                title={pending ? pendingCellTip(c, outlook) : undefined}
               >
-                <span className="text-[10px] text-sky-300/70 font-mono whitespace-nowrap">
+                <span className="text-[10px] text-sky-300/80 font-mono whitespace-nowrap">
                   {CHECKPOINT_TIME_PT[c.minAfterOpen] ?? c.label}{c.computedLate ? "*" : ""}
                 </span>
                 <span className="flex items-center gap-1">
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", regimeDotColor(c))} />
-                  <span className={cn("text-[10px] font-semibold whitespace-nowrap", regimeTextColor(c))}>
-                    {regimeShortLabel(c)}{c.confidence != null ? ` ${c.confidence}%` : ""}
+                  <span className={cn("text-[10px] font-semibold whitespace-nowrap", textClass)}>
+                    {cellText}
                   </span>
                 </span>
               </button>
@@ -162,15 +228,20 @@ export function RegimeBanner({ checkpoints }: { checkpoints: RegimeCheckpoint[] 
                 </span>
               </div>
               <div className="p-3 flex flex-col gap-1.5">
-                {(c.factors ?? []).length > 0 ? (c.factors ?? []).map((f, i) => (
-                  <span key={i} className="text-sky-200/80 leading-snug font-mono text-[11px]">{f}</span>
+                {pending ? (
+                  <span className="text-amber-50/90 leading-snug font-mono text-[11px] whitespace-pre-wrap">
+                    {pendingCellTip(c, outlook)}
+                  </span>
+                ) : (c.factors ?? []).length > 0 ? (c.factors ?? []).map((f, i) => (
+                  <span key={i} className="text-sky-200/90 leading-snug font-mono text-[11px]">{f}</span>
                 )) : (
-                  <span className="text-amber-200/40 italic">No breakdown available.</span>
+                  <span className="text-amber-50/50 italic">No breakdown available.</span>
                 )}
               </div>
             </PopoverContent>
           </Popover>
-        ))}
+          );
+        })}
       </div>
       <RegimeAiInsight checkpoints={checkpoints} />
     </div>

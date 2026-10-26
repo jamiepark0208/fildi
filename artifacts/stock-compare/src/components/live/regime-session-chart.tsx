@@ -3,7 +3,7 @@
  * Domain = RTH open→close (PT labels); candles only through now; regime lines
  * drawn once on a canvas overlay (no separate snapped markers — those drifted).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   createChart,
@@ -26,6 +26,33 @@ import {
 } from "@/components/live/regime-banner";
 import { EntryCell, type EntrySignal } from "@/components/live/hotlist-table";
 import { formatVolume } from "@/components/live/live-format";
+
+/** Keep chart failures off the Live route ErrorBoundary. */
+class ChartIsolate extends Component<
+  { children: ReactNode; symbol: string },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override componentDidCatch() { /* already isolated */ }
+  override componentDidUpdate(prev: { symbol: string }) {
+    if (prev.symbol !== this.props.symbol && this.state.failed) {
+      this.setState({ failed: false });
+    }
+  }
+  override render() {
+    if (this.state.failed) {
+      return (
+        <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-6 text-[11px] font-mono text-white/70">
+          Session chart failed for {this.props.symbol} — pick another ticker or refresh.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type HistBar = {
   date: string;
@@ -163,7 +190,23 @@ type VertMark = {
   future: boolean;
 };
 
-export function RegimeSessionChart({
+export function RegimeSessionChart(props: {
+  symbol: string;
+  onSymbolChange: (s: string) => void;
+  checkpoints: RegimeCheckpoint[] | undefined;
+  outlook?: RegimeOutlook;
+  /** Hotlist entry-timing for this symbol (side-scoped). Null for SPY/QQQ / non-hotlist. */
+  entrySignal?: EntrySignal;
+  entryAsOf?: string | null;
+}) {
+  return (
+    <ChartIsolate symbol={props.symbol}>
+      <RegimeSessionChartInner {...props} />
+    </ChartIsolate>
+  );
+}
+
+function RegimeSessionChartInner({
   symbol,
   onSymbolChange,
   checkpoints,
@@ -175,7 +218,6 @@ export function RegimeSessionChart({
   onSymbolChange: (s: string) => void;
   checkpoints: RegimeCheckpoint[] | undefined;
   outlook?: RegimeOutlook;
-  /** Hotlist entry-timing for this symbol (side-scoped). Null for SPY/QQQ / non-hotlist. */
   entrySignal?: EntrySignal;
   entryAsOf?: string | null;
 }) {
@@ -521,6 +563,12 @@ export function RegimeSessionChart({
     // Clear hover — stale bar map from the previous ticker must not paint.
     setHoverBar(null);
 
+    // Drop prior price lines before setData — mid-swap remove can throw on empty series.
+    try {
+      priceLinesRef.current.forEach((pl) => series.removePriceLine(pl));
+    } catch { /* ignore */ }
+    priceLinesRef.current = [];
+
     try {
       series.setData(seriesData as any);
       volume?.setData(volumeData as any);
@@ -531,41 +579,44 @@ export function RegimeSessionChart({
 
     // Opening-range high/low lines — axis tags off (drawn on canvas right instead).
     try {
-      priceLinesRef.current.forEach((pl) => series.removePriceLine(pl));
-    } catch { /* series may already be empty mid-swap */ }
-    priceLinesRef.current = [];
-    if (orHigh != null && Number.isFinite(orHigh)) {
-      priceLinesRef.current.push(series.createPriceLine({
-        price: orHigh,
-        color: "rgba(212,175,55,0.55)",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: false,
-        title: "",
-      }));
-    }
-    if (orLow != null && Number.isFinite(orLow)) {
-      priceLinesRef.current.push(series.createPriceLine({
-        price: orLow,
-        color: "rgba(212,175,55,0.55)",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: false,
-        title: "",
-      }));
-    }
+      if (orHigh != null && Number.isFinite(orHigh)) {
+        priceLinesRef.current.push(series.createPriceLine({
+          price: orHigh,
+          color: "rgba(212,175,55,0.55)",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: false,
+          title: "",
+        }));
+      }
+      if (orLow != null && Number.isFinite(orLow)) {
+        priceLinesRef.current.push(series.createPriceLine({
+          price: orLow,
+          color: "rgba(212,175,55,0.55)",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: false,
+          title: "",
+        }));
+      }
+    } catch { /* createPriceLine can fail mid-swap */ }
 
-    // LWC setVisibleRange → ensureNotNull(timeToIndex). Throws "Value is null" when the
-    // time scale still has 0 points (ticker swap / empty setData). Never let that kill Live.
+    // Prefer logical range — setVisibleRange → ensureNotNull(timeToIndex) throws
+    // "Value is null" when the time scale has no index for from/to (rapid ticker swaps).
     const ts = chart.timeScale();
-    if (seriesData.length > 0) {
+    const last = seriesData.length - 1;
+    if (last >= 0) {
       try {
-        ts.setVisibleRange({
-          from: openSec as UTCTimestamp,
-          to: closeSec as UTCTimestamp,
-        });
+        ts.setVisibleLogicalRange({ from: 0, to: last });
       } catch {
-        try { ts.fitContent(); } catch { /* ignore */ }
+        try {
+          ts.setVisibleRange({
+            from: openSec as UTCTimestamp,
+            to: closeSec as UTCTimestamp,
+          });
+        } catch {
+          try { ts.fitContent(); } catch { /* ignore */ }
+        }
       }
     }
     requestAnimationFrame(drawOverlay);
