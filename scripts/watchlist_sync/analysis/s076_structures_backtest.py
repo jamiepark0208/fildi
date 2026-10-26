@@ -86,6 +86,7 @@ class Pricer:
         self.static = cal   # whole-history LSEG puts / one-day Schwab calls
         # point-in-time put ratios: previous month's median per cell
         hist = defaultdict(list)
+        whole, fine = defaultdict(list), defaultdict(list)
         closes = defaultdict(dict)
         for t, d, c, ivp in conn.execute("SELECT ticker, date, close::float, iv30_put::float FROM lseg_research.daily_history "
                                          "WHERE close > 0 AND iv30_put IS NOT NULL AND date >= '2020-12-01'"):
@@ -112,10 +113,39 @@ class Pricer:
             if model < 0.01:
                 continue
             sd = iv * math.sqrt(T)
-            db = bucket(1 - ncdf((math.log(S / K) + 0.5 * sd * sd) / sd), DELTA_B)
+            dl = 1 - ncdf((math.log(S / K) + 0.5 * sd * sd) / sd)
+            db = bucket(dl, DELTA_B)
             if db:
-                hist[(d.year, d.month, bucket(dte, DTE_B), db)].append((mid if mid and mid > 0 else (bid + ask) / 2) / model)
+                q = (mid if mid and mid > 0 else (bid + ask) / 2) / model
+                hist[(d.year, d.month, bucket(dte, DTE_B), db)].append(q)
+                whole[(bucket(dte, DTE_B), db)].append(q)
+                fine[(bucket(dte, DTE_B), int(dl * 100))].append((q, (ask - bid) / ((bid + ask) / 2)))
         self.monthly = {k: statistics.median(v) for k, v in hist.items() if len(v) >= 20}
+        # 10-26 (S101): ratios were a step function of |Δ| bucket (0.02–0.07 → 3.3×, 0.07–0.125 → 1.9×), so 0.06–0.07Δ puts
+        # were priced 52 % rich vs real quotes (2.19×) and 0.10–0.125Δ 12–21 % rich. Now: a 0.01Δ curve from the same quotes
+        # (shape) × the previous month's bucket level ÷ the bucket's whole-history level (point-in-time level).
+        whole_med = {k: statistics.median(v) for k, v in whole.items() if len(v) >= 20}
+        lv = defaultdict(list)   # one level per (month, DTE bucket): per-bucket levels would re-create the steps
+        for k, v in self.monthly.items():
+            if k[3] in DELTA_B and (k[2], k[3]) in whole_med:
+                lv[k[:3]].append(v / whole_med[(k[2], k[3])])
+        self.level = {k: statistics.median(v) for k, v in lv.items()}
+        self.curve = defaultdict(list)
+        for (dtb, c), v in sorted(fine.items()):
+            if len(v) >= 50:
+                self.curve[dtb].append(((c + 0.5) / 100, statistics.median(x for x, _ in v), statistics.median(y for _, y in v)))
+
+    def smooth(self, dtb, dl):
+        """(ratio, spread) interpolated on the 0.01Δ curve; None outside it."""
+        cv = self.curve.get(dtb)
+        if not cv:
+            return None
+        dl = min(max(dl, cv[0][0]), cv[-1][0])   # clamp to the measured range
+        for (x0, r0, s0), (x1, r1, s1) in zip(cv, cv[1:]):
+            if x0 <= dl <= x1:
+                w = (dl - x0) / (x1 - x0)
+                return r0 + w * (r1 - r0), s0 + w * (s1 - s0)
+        return None
 
     def cell(self, side, dte, dl):
         dtb, db = bucket(max(dte, 1), DTE_B) or DTE_B[-1], bucket(dl, DELTA_B)
@@ -135,7 +165,11 @@ class Pricer:
         ratio, spread = (st["ratio"], st["spread"]) if st else (1.0, 0.15)
         if side == "put":
             pm = (on.year, on.month - 1) if on.month > 1 else (on.year - 1, 12)
-            ratio = self.monthly.get((*pm, dtb, db), ratio)
+            sm = self.smooth(dtb, dl)
+            if sm:
+                ratio, spread = sm[0] * self.level.get((*pm, dtb), 1.0), sm[1]
+            else:
+                ratio = self.monthly.get((*pm, dtb, db), ratio)
         pr, cr = SCEN[scen]
         if side == "put" and dl < 0.175:
             ratio *= pr
