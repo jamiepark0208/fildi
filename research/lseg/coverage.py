@@ -189,7 +189,7 @@ def build(max_total: int, n_look: int):
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--max", type=int, default=600)   # 10-27: 300 cut chain names (~6.6k datapoints/day at 600 — ~2 % of the month)
+    p.add_argument("--max", type=int, default=1000)   # 10-27: 300 cut chain names; ~11 datapoints/name/day → ~3 % of the month at 1000
     p.add_argument("--lookalikes", type=int, default=40)
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()

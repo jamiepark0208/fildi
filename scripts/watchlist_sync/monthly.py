@@ -28,7 +28,10 @@ API = HERE.parents[1] / "artifacts" / "api-server"
 RUNS = HERE / "out" / "runs"
 PY = sys.executable
 MAX_AGE_DAYS = 28
+LSEG = HERE.parents[1] / "research" / "lseg"
 STEPS = [
+    # Jamie 10-27: every US-listed name ≥ $10B (+ AI build-out theme) in the app universe; nightly jobs fill the new rows
+    ("universe coverage review", [str(LSEG / ".venv" / "bin" / "python"), "universe_review.py", "--apply"], LSEG),
     ("lab replay (technicals)", ["pnpm", "exec", "tsx", "src/scripts/lab-replay-technicals.ts"], API),
     ("lab outcomes", [PY, "analysis/lab_outcomes.py"], HERE),
     ("lab fundamentals", [PY, "analysis/lab_fund_features.py"], HERE),

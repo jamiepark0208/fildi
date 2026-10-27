@@ -207,7 +207,7 @@ def load_ric_map(tickers: list[str]) -> dict[str, str]:
     return {t: r for t, r in rows}
 
 
-MAX_TICKERS = 600  # 10-27: = coverage --max (option-chain names). Was 300 — LSEG lane cap (Datastream budget ~10M pts/mo; 300 × ~30 fields/day is ~0.1%). 150 → 300 on 2026-10-05 for the model tier
+MAX_TICKERS = 1000  # 10-27: = coverage --max (universe ≥ $10B + option-chain names). Was 300 — LSEG lane cap (Datastream budget ~10M pts/mo; 300 × ~30 fields/day is ~0.1%). 150 → 300 on 2026-10-05 for the model tier
 
 
 def portfolio_tickers() -> list[str]:

@@ -39,8 +39,10 @@ SH = Path("/bin/sh")   # launchd PATH lacks /opt/homebrew/bin; a failed replay m
 
 STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "lseg": [
+        ("LSEG coverage", LPY, LSEG, ["coverage.py"]),   # 10-27: follows the universe + option chain (was never re-run → RDDT gap)
         ("signals", LPY, LSEG, ["sync_signals.py"]),
-        ("price/IV history", LPY, LSEG, ["sync_daily_history.py"]),
+        # new names start 2024-10 (~500 bars: put-edge, zones, band engine); 2020 for hundreds of new names ≈ 5.6M datapoints
+        ("price/IV history", LPY, LSEG, ["sync_daily_history.py", "--start", "2024-10-01"]),
         ("StarMine history", LPY, LSEG, ["sync_starmine_history.py"]),
         ("earnings history", LPY, LSEG, ["sync_earnings_moves.py", "--years", "6"]),
         ("CDS spreads", LPY, LSEG, ["sync_cds.py"]),   # S060: credit flag has no history → collect our own (~5 requests)
