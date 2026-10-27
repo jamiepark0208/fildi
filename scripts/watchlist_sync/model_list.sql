@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.fit_score_history (
 CREATE INDEX IF NOT EXISTS fit_score_history_ticker_idx ON watchlist_sync.fit_score_history (ticker, computed_at DESC);
 
 INSERT INTO watchlist_sync.model_folders (folder_key, name, description, kind, sort_order, max_items) VALUES
-  ('sell_puts',  'Sell Puts',     'Put ideas that passed Fildi checks (L1), live Robinhood checks (L2) and the verdict cross-check', 'action', 10, 15),
+  ('sell_puts',  'Sell Puts',     'Put ideas that passed Fildi checks (L1), live Robinhood checks (L2) and the verdict cross-check', 'action', 10, 25),  -- rules.MAX_ITEMS_PUTS (10-26)
+  ('rich_puts',  'Rich Puts (your rule)', 'Every put paying ≥ 0.9 %/wk at ≥ 10 % OTM, ranked by confidence (S109 real quotes); shadow: no live or account checks, graded at expiry', 'action', 12, NULL),
   ('sell_calls', 'Covered Calls', 'Call ideas on free shares that passed L1, L2 and the verdict cross-check', 'action', 20, 15),
   ('trim_risk',  'Trim / Risk',   'Held names with 2+ independent red flags', 'action', 30, 15),
   ('rebalance',  'Rebalance FILDI', 'FILDI holdings vs the per-name cap (15% of net), speculative share (40% of holdings), leverage, margin loan, crypto (display only)', 'action', 37, NULL),

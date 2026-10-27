@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -285,7 +286,46 @@ def pace_takes(conn) -> tuple:
             f"{len(d)} takes · {weeks} expiries", verdict, {"takes": d})
 
 
-CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark, engine_puts, pace_takes]
+def _perf(bps: list[float]) -> dict:
+    """n, bp/wk, kept %, Sharpe and Sortino (per-put, not annualised) — the learning view per tier / sector / name."""
+    n = len(bps)
+    m = sum(bps) / n
+    sd = (sum((x - m) ** 2 for x in bps) / max(n - 1, 1)) ** 0.5
+    dn = (sum(min(x, 0) ** 2 for x in bps) / n) ** 0.5
+    return {"n": n, "bp_wk": round(m, 1), "kept": round(100 * sum(x >= 0 for x in bps) / n), "worst": round(min(bps)),
+            "sharpe": round(m / sd, 2) if sd else None, "sortino": round(m / dn, 2) if dn else None}
+
+
+def rich_puts(conn) -> tuple:
+    """Rich-crash lane (S109, Jamie 10-27): graded shadow puts by confidence tier; a sector's puts in one week count as one bet;
+    per-name and per-sector records (Sharpe / Sortino) show which names the rule works on."""
+    rs = conn.execute("""SELECT ticker, ret::float8, detail FROM watchlist_sync.grades WHERE folder_key = 'rich_puts'
+                         AND horizon = 'expiry' AND jsonb_typeof(detail->'rich') = 'object'""").fetchall()
+    item, promised = "Rich puts — your rule (S109)", "high tier +185 / mid +87 / low +34 bp per collateral-week on real quotes, worst-5 % week −81 / −384 / −425"
+    if not rs:
+        return (item, "S109", promised, "no graded rich-lane puts yet (first expiry 10-30)", "0", "too early", {})
+    tier, sec, name, cl = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+    for t, ret, d in rs:
+        bp = 1e4 * ret / (max(d.get("days") or 7, 1) / 7)
+        x = d["rich"]
+        tier[x.get("tier") or "?"].append(bp)
+        sec[x.get("sector") or "?"].append(bp)
+        name[t].append(bp)
+        cl[(d.get("expiry"), x.get("sector") or t)].append(bp)
+    bets = [sum(v) / len(v) for v in cl.values()]   # sector-week = one bet
+    by = {k: _perf(v) for k, v in tier.items()}
+    weeks = len({k[0] for k in cl})
+    m = sum(bets) / len(bets)
+    se = (sum((x - m) ** 2 for x in bets) / max(len(bets) - 1, 1)) ** 0.5 / len(bets) ** 0.5
+    verdict = ("too early" if weeks < MIN_EXPIRIES else "failed" if m + 2 * se < 0 else
+               "holding" if (by.get("high") or {}).get("bp_wk", -1e9) >= (by.get("low") or {}).get("bp_wk", 1e9) else "drifting")
+    live = f"{m:+.1f} bp/wk per sector-week bet · " + " · ".join(f"{k} {v['bp_wk']:+.0f} (n {v['n']})" for k, v in sorted(by.items()))
+    return (item, "S109", promised, live, f"{len(rs)} puts · {len(bets)} sector-week bets · {weeks} expiries", verdict,
+            {"by_tier": by, "by_sector": {k: _perf(v) for k, v in sec.items()}, "by_name": {k: _perf(v) for k, v in name.items()}})
+
+
+CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark, engine_puts, pace_takes,
+          rich_puts]
 
 
 def main() -> None:

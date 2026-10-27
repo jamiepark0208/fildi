@@ -1111,7 +1111,8 @@ export function OptionsScannerContent({
                 snapRelaxed={rankingByTicker.get(ticker)?.relaxed === true}
                 enginePick={!isCallMode && rankingByTicker.get(ticker)?.engine
                   ? { strike: rankingByTicker.get(ticker)!.strike, expiry: rankingByTicker.get(ticker)!.expiry, why: rankingByTicker.get(ticker)!.engine!.why,
-                      tech: rankingByTicker.get(ticker)!.engine!.tech ?? null }
+                      tech: rankingByTicker.get(ticker)!.engine!.tech ?? null,
+                      blocked: rankingByTicker.get(ticker)!.engine!.pass ? null : (rankingByTicker.get(ticker)!.engine!.gates.join("; ") || "engine gate") }
                   : null}
                 heat={columnHeat}
               />

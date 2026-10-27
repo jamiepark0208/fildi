@@ -65,7 +65,8 @@ interface ScannerRowProps {
   /** A256: snapshot came from watchlist relaxed second-pass. */
   snapRelaxed?: boolean;
   /** A277 (puts): the engine's contract — the expanded row re-prices it on the live chain instead of re-picking. */
-  enginePick?: { strike: number; expiry: string; why: string; tech?: Record<string, number | string | null> | null } | null;
+  /** blocked = the engine's gate reasons (pass false): shown as ✕, not a rank (10-27: PLTR showed as #9 while gated). */
+  enginePick?: { strike: number; expiry: string; why: string; tech?: Record<string, number | string | null> | null; blocked?: string | null } | null;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
@@ -347,7 +348,10 @@ export function ScannerRow({
       >
         {/* Rank */}
         <div className="text-center">
-          {rank != null && (
+          {enginePick?.blocked ? (
+            <span className="inline-flex w-4 h-4 items-center justify-center font-bold text-[9px] text-red-400/80"
+                  title={`Engine blocks this put: ${enginePick.blocked}`}>✕</span>
+          ) : rank != null && (
             <span className={cn(
               "inline-flex w-4 h-4 rounded-full items-center justify-center font-bold text-[9px]",
               rank === 1 ? "bg-yellow-500 text-yellow-950" :

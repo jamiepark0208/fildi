@@ -67,6 +67,8 @@ def load_context(conn) -> dict:
         snap = os_day
         ctx["snapshot_date"] = snap
     ctx["model_date"] = snap
+    for r in ctx["recs"]:
+        r["spot_asof"] = snap   # spot_drift: a spot newer than the last close is a move, not staleness
     # Verdict cross-check at L1 too (10-20): the 15-slot cap used to fill with high-IV names the publish step then held back as
     # not ownable, so few real puts survived. Same rule as publish (one home: publish_model_list.held_back_reason).
     import publish_model_list as PL   # lazy: PL imports build_plan
@@ -227,7 +229,7 @@ def reprice_from_chains(conn, ctx: dict) -> None:
             continue
         rolled = exp != r["expiry"]
         r.update(expiry=exp, strike=pick["strike"], spot=pick["spot"], premium=pick["bid"], bid_is_live=True, delta=pick["delta"],
-                 strike_iv=pick["iv"], dte=pick["dte"],
+                 strike_iv=pick["iv"], dte=pick["dte"], spot_asof=as_of,
                  weekly_income_pct=100 * pick["bid"] / pick["strike"] * 7 / (pick["dte"] + _settle_offset(exp)),
                  repriced=f"{ctx['model_date']} model pick re-priced from {as_of} chain" + (" (rolled to next expiry, nearest delta)" if rolled else ""))
     ctx["snapshot_date"] = as_of
@@ -354,7 +356,7 @@ def put_far_reason(ticker: str, expiry, ctx: dict) -> str | None:
         if sn:
             return sn
         if (ctx["fit"].get(ticker) or {}).get("verdict") == "red":   # 10-26: red no longer blocks puts (S069) → farther + small
-            return "risk flag red: size small"
+            return "risk flag red (S069)"
     return None
 
 
@@ -395,10 +397,12 @@ def restrike_puts(conn, ctx: dict) -> None:
         r["engine_edge_q"] = e.get("put_edge_q")
         note = f"engine pick {e['strike']:g} {exp:%m-%d} ({-e['delta']:.2f}Δ, was {-(r.get('delta') or 0):.2f}Δ): {e['why']}"
         ref = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == exp]
-        if ref:
+        if e.get("name_income_pct") is not None:   # 10-27: the engine's number (one home; a second copy read NVDA 0.27 vs 0.31)
+            r["name_income_pct"] = e["name_income_pct"]
+        elif ref:
             ref = min(ref, key=lambda c: abs(-c["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))   # the name's income at the tested Δ
             r["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / (ref["dte"] + _settle_offset(ref["expiry"]))
-        r["restruck"] = True
+        r["restruck"], r["spot_asof"] = True, as_of
         r.update(strike=e["strike"], spot=e["spot"], premium=e["bid"], bid_is_live=True, delta=e["delta"], strike_iv=e["iv"],
                  expiry=exp, dte=e["dte"], weekly_income_pct=e["income_wk_pct"],
                  repriced=f"{r['repriced']}; {note}" if r.get("repriced") else note)
@@ -447,7 +451,8 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         drift = 100 * (cl["close"] / rec["spot"] - 1)
         # A243: carried ideas were re-struck to today's chain — drift vs a stale model spot is not an exit.
         # Drop only when edge/earnings/strike fail. Strategy picks are live-priced (same warn).
-        c.append(chk("spot_drift", abs(drift) <= R.MAX_SPOT_DRIFT_PCT, f"latest close {cl['close']:.2f} ({cl['date']}) vs model spot {rec['spot']:.2f}: {drift:+.1f}%",
+        newer = rec.get("spot_asof") and cl["date"] < rec["spot_asof"]   # 10-27: today's chain spot vs yesterday's close is a move, not staleness
+        c.append(chk("spot_drift", newer or abs(drift) <= R.MAX_SPOT_DRIFT_PCT, f"latest close {cl['close']:.2f} ({cl['date']}) vs model spot {rec['spot']:.2f}: {drift:+.1f}%",
                      "warn" if rec.get("strategy") or rec.get("carried") else "block"))
     else:
         c.append(chk("spot_drift", True, "no close in prices_historical", "warn"))

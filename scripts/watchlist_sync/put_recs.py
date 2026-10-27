@@ -6,16 +6,19 @@ Now this writer is the only picker; Model List (build_plan.restrike_puts), Struc
 Best strikes read `watchlist_sync.put_recs_daily` and only re-price the chosen contract.
 
 Per name, on the latest saved chain (option_chain_history, ~445 names):
-  expiry  listed expiry nearest 7 calendar days out, rules.DTE[0]–14 days (S088/S101: 1-week puts earn the most per week)
+  expiry  listed expiry nearest 7 calendar days out, rules.DTE[0]–14 days (S088/S101: 1-week puts earn the most per week);
+          one ending before the next earnings wins over a nearer-to-7 one that crosses it
   band    strategy_engine.engine_put_band (band_engine table: market state × stock state; panic → none;
           market state is per name: SPY's, or sector_drop when the name's sector ETF is ≥ 15 % off its high)
           + build_plan.put_far_reason (earnings before expiry · credit < 20 · put-risk / low-OWN) → never closer than 0.06–0.08Δ
-  strike  listed put nearest the band middle, bid ≥ rules.PUT_MIN_RESTRIKE_BID; empty band → one band farther, then one closer
+  strike  listed put nearest the band middle, bid ≥ rules.PUT_MIN_RESTRIKE_BID, OI/volume as verify_plan's liquidity; empty band → one band farther, then one closer
   gates   strategy_rules.json sell_put gates (verdict not red · put-edge Q ≥ 4, unknown = blocked · IV/RV ≥ 1.15) via
           strategy_engine.fit, plus the Model List's market-wide floors (10-26, one gate set for every surface):
           name pays ≥ rules.MIN_WEEKLY_INCOME_PCT at rules.PUT_NAME_INCOME_ABS_DELTA · chain spot within rules.MAX_SPOT_DRIFT_PCT of
           the latest close (else stale chain). Account checks (collateral, trim list, open positions) stay in build_plan.
   rank    strategy_rules.json sell_put rank (put-edge Q · ev_rv_cap = bid − realized-vol value, % of strike per week)
+  rich    second lane (rules lanes.rich_put, S109 real quotes, Jamie 10-27): every name's best put paying ≥ 0.9 %/wk at ≥ 10 % OTM,
+          ranked by confidence (income + OTM percentiles) → payload.rich; Model List folder rich_puts (shadow, graded per name/sector)
 
     .venv/bin/python put_recs.py            # writes today's rows (idempotent per as_of)
     .venv/bin/python put_recs.py --print    # no write
@@ -50,9 +53,17 @@ def bs_put(S, K, v, t):
     return K * _ncdf(-(d1 - sd)) - S * _ncdf(-d1)
 
 
-def pick_expiry(exps: list[date], as_of: date):
-    ok = [e for e in exps if R.DTE[0] <= (e - as_of).days <= 14]   # the band history is 1-week puts; monthlies only → none
-    return min(ok, key=lambda e: abs((e - as_of).days - 7)) if ok else None
+def pick_expiry(exps: list[date], as_of: date, earnings: date | None = None):
+    """Nearest 7 days out; one that ends before the next earnings wins (10-27: on a Tuesday 11-06 crossed earnings for most
+    names → far band → untraded strikes, while 10-30 was clean)."""
+    ok = sorted((e for e in exps if R.DTE[0] <= (e - as_of).days <= 14), key=lambda e: abs((e - as_of).days - 7))
+    clean = [e for e in ok if not (earnings and earnings <= e)]   # the band history is 1-week puts; monthlies only → none
+    return (clean or ok or [None])[0]
+
+
+def liquid(p: dict) -> bool:
+    """verify_plan's liquidity check on the saved chain (10-27: 19 of 23 picks failed it live — far strikes nobody trades)."""
+    return (p.get("open_interest") or 0) >= R.MIN_OPEN_INTEREST or (p.get("volume") or 0) >= R.MIN_VOLUME_IF_LOW_OI
 
 
 def pick_strike(puts: list[dict], band: str):
@@ -61,15 +72,56 @@ def pick_strike(puts: list[dict], band: str):
     i = order.index(band)
     for j in [i] + [k for k in (i - 1, i + 1) if 0 <= k < len(order) and SE.band_bounds(order[k])[1] <= 0.20 + 1e-9]:
         lo, hi = SE.band_bounds(order[j])
-        inb = [p for p in puts if lo <= -p["delta"] < hi and p["bid"] >= R.PUT_MIN_RESTRIKE_BID]
+        inb = [p for p in puts if max(lo, -R.PUT_DELTA[1]) <= -p["delta"] < hi and p["bid"] >= R.PUT_MIN_RESTRIKE_BID and liquid(p)]
         if inb:
             return min(inb, key=lambda p: abs(-p["delta"] - (lo + hi) / 2)), order[j]
     return None, None
 
 
+LANE = SE.ENGINE["lanes"]["rich_put"]
+
+
+def rich_pick(puts: list[dict], as_of: date, hi52: float | None, earnings: date | None) -> dict | None:
+    """Rich-crash lane (rules lanes.rich_put, S107/S109): the name's best put by confidence among income ≥ 0.9 %/wk, ≥ 10 % OTM,
+    2–14 days, liquid, bid ≥ $0.05. Confidence = mean of income and OTM percentiles vs S109's real rule puts → tier + its record.
+    Earnings inside the expiry are allowed (S109: +110 vs +96 bp/wk without, both halves) — when the pick crosses them, the best
+    pre-earnings contract rides along as `pre_earnings` (Jamie avoids them by choice)."""
+    if earnings:
+        pre = rich_pick([p for p in puts if p["expiry"] < earnings], as_of, hi52, None)
+    C = LANE["confidence"]
+    qs = np.linspace(0, 1, len(C["income_q"]))
+    best = None
+    for p in puts:
+        days = (p["expiry"] - as_of).days
+        if not LANE["dte"][0] <= days <= LANE["dte"][1] or p["bid"] < LANE["min_bid"] or not liquid(p) or not p["spot"]:
+            continue
+        otm = 100 * (p["spot"] - p["strike"]) / p["spot"]
+        inc = 100 * p["bid"] / p["strike"] * 7 / (days + BP._settle_offset(p["expiry"]))
+        if otm < LANE["min_otm_pct"] or inc < LANE["min_income_wk_pct"]:
+            continue
+        sc = (float(np.interp(inc, C["income_q"], qs)) + float(np.interp(otm, C["otm_q"], qs))) / 2
+        if best is None or sc > best["score"]:
+            best = {"strike": p["strike"], "expiry": str(p["expiry"]), "bid": p["bid"], "ask": p["ask"], "delta": p["delta"],
+                    "spot": p["spot"], "days": days, "oi": p.get("open_interest"), "iv": (p["iv"] / 100 if p["iv"] > 3 else p["iv"]) if p["iv"] else None, "income_wk_pct": round(inc, 3),
+                    "otm_pct": round(otm, 2), "score": round(sc, 3)}
+    if not best:
+        return None
+    tier = C["tiers"][sum(best["score"] > c for c in C["cuts"])]
+    gap = 1 - LANE["gap_loss_pct"] / 100
+    best.update(tier=tier["name"], tier_record=tier, earnings=str(earnings) if earnings else None,
+                earnings_in=bool(earnings and earnings <= date.fromisoformat(best["expiry"])),
+                off_high_pct=round(100 * (best["spot"] / hi52 - 1), 1) if hi52 else None,
+                gap_loss=round(100 * max(best["strike"] - gap * best["spot"], 0.0) - 100 * best["bid"], 0), premium=round(100 * best["bid"], 0))
+    best["crash"] = best["off_high_pct"] is not None and best["off_high_pct"] <= -LANE["crash_off_high_pct"]
+    if best["earnings_in"] and pre:
+        best["pre_earnings"] = {k: pre[k] for k in ("strike", "expiry", "bid", "income_wk_pct", "otm_pct", "score", "tier", "gap_loss", "premium")}
+    return best
+
+
 def compute(conn) -> tuple[date, list[dict], dict]:
     as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
-    chain = rows(conn, """SELECT ticker, expiry, strike::float8, dte, spot::float8, bid::float8, ask::float8, iv::float8, delta::float8
+    chain = rows(conn, """SELECT ticker, expiry, strike::float8, dte, spot::float8, bid::float8, ask::float8, iv::float8, delta::float8,
+                                 open_interest, volume
                           FROM option_chain_history WHERE as_of = %s AND side = 'put' AND bid > 0 AND delta < 0""", (as_of,))
     by = defaultdict(list)
     for r in chain:
@@ -83,18 +135,24 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                                  WHERE ticker = ANY(%s) AND date >= CURRENT_DATE - 45 AND close > 0 GROUP BY 1""", (names,)).fetchall():
         if len(cl) >= 21:
             rv[t] = float(np.std(np.diff(np.log(cl[:21][::-1]))) * math.sqrt(252))
-    close = {t: c for t, c in conn.execute("""SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker), close::float8 FROM prices_historical
+    close = {t: (c, d) for t, c, d in conn.execute("""SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker), close::float8, date FROM prices_historical
                                                WHERE UPPER(ticker) = ANY(%s) ORDER BY UPPER(ticker), date DESC""", (names,)).fetchall()}
+    hi52 = dict(conn.execute("""SELECT UPPER(ticker), MAX(COALESCE(high, close))::float8 FROM prices_historical
+                                 WHERE UPPER(ticker) = ANY(%s) AND date >= CURRENT_DATE - 365 GROUP BY 1""", (names,)).fetchall())
     tech = {t: x for t, x in conn.execute("""SELECT DISTINCT ON (ticker) ticker, payload FROM watchlist_sync.indicators_daily
                                              WHERE ticker = ANY(%s) ORDER BY ticker, as_of DESC""", (names,)).fetchall()} if conn.execute(
         "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else {}   # display only (S102: no put edge)
     out = []
     for t in names:
-        exp = pick_expiry(sorted({p["expiry"] for p in by[t]}), as_of)
+        exp = pick_expiry(sorted({p["expiry"] for p in by[t]}), as_of, ctx.get("earnings", {}).get(t))
         ms = (states.get(t) or {}).get("market_state", market["state"])
         rec = {"ticker": t, "as_of": str(as_of), "market_state": ms, "stock_state": (states.get(t) or {}).get("state"),
                "sector": (states.get(t) or {}).get("sector"), "tech": tech.get(t),
                "expiry": str(exp) if exp else None}
+        rich = rich_pick(by[t], as_of, hi52.get(t), ctx.get("earnings", {}).get(t))
+        if rich:
+            rich["credit"] = (ctx.get("lseg", {}).get(t) or {}).get("credit_combined_rank")
+            rec["rich"] = rich
         band, why = SE.engine_put_band(market, states.get(t))
         far = BP.put_far_reason(t, exp, ctx) if exp else None
         if band and far and SE.band_bounds(band)[0] >= SE.band_bounds(FAR_BAND)[1]:
@@ -114,7 +172,8 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                 rec.update(band_target=band, why=why)
         p, used = pick_strike([x for x in by[t] if x["expiry"] == exp], band)
         if not p:
-            rec.update(pass_=False, gates=[f"no listed put with bid ≥ {R.PUT_MIN_RESTRIKE_BID} within one band of {band}"])
+            rec.update(pass_=False, gates=[f"no listed put with bid ≥ {R.PUT_MIN_RESTRIKE_BID} and OI ≥ {R.MIN_OPEN_INTEREST} "
+                                           f"(or volume ≥ {R.MIN_VOLUME_IF_LOW_OI}) within one band of {band}"])
             out.append(rec)
             continue
         days = (exp - as_of).days + BP._settle_offset(exp)
@@ -133,9 +192,10 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         if rec["name_income_pct"] < R.MIN_WEEKLY_INCOME_PCT:
             ok = False
             gates.append(f"pays {rec['name_income_pct']:.2f} %/wk at {R.PUT_NAME_INCOME_ABS_DELTA}Δ (min {R.MIN_WEEKLY_INCOME_PCT})")
-        if close.get(t) and abs(100 * (close[t] / p["spot"] - 1)) > R.MAX_SPOT_DRIFT_PCT:
+        cl, cd = close.get(t) or (None, None)   # only a close as new as the chain can call it stale (10-27: a +4 % day was gated)
+        if cl and cd >= as_of and abs(100 * (cl / p["spot"] - 1)) > R.MAX_SPOT_DRIFT_PCT:
             ok = False
-            gates.append(f"stale chain: spot {p['spot']:.2f} on {as_of} vs close {close[t]:.2f} ({100 * (close[t] / p['spot'] - 1):+.1f} %)")
+            gates.append(f"stale chain: spot {p['spot']:.2f} on {as_of} vs close {cl:.2f} ({100 * (cl / p['spot'] - 1):+.1f} %)")
         rec.update(pass_=ok, gates=gates, put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
         out.append(rec)
     ranked = [r for r in out if r.get("strike") is not None]
@@ -143,6 +203,8 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     ranked.sort(key=lambda r: (not r["pass_"], -score.get(id(r), 0.0)))
     for i, r in enumerate(ranked, 1):
         r["rank"] = i
+    for i, r in enumerate(sorted((r for r in out if r.get("rich")), key=lambda r: -r["rich"]["score"]), 1):
+        r["rich"]["rank"] = i
     return as_of, out, market
 
 

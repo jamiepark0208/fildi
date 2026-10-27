@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.grades (
   graded_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (run_id, folder_key, ticker, horizon)
 )"""
-OPTION_FOLDERS = {"sell_puts", "sell_calls", "review"}
+OPTION_FOLDERS = {"sell_puts", "rich_puts", "sell_calls", "review"}
 VERDICT_FOLDERS = {"own": 1, "income": 1, "holdings": 1, "watch": 0, "avoid": -1}  # expected sign of vs-peers return
 HORIZONS = {"5d": 5, "10d": 10, "21d": 21}
 
@@ -113,7 +113,7 @@ def main() -> None:
                 intrinsic = max(0.0, K - st) if c["type"] == "put" else max(0.0, st - K)
                 ret = (fill - intrinsic) / (K if c["type"] == "put" else s0)  # return on collateral
                 premium_kept = (fill - intrinsic) / fill if fill and fill > 0 else None
-                iv = (src.get("live") or {}).get("iv") or 0.4
+                iv = (src.get("live") or {}).get("iv") or c.get("iv") or 0.4
                 days = max((exp - it["run_date"]).days, 1)
                 sigma_move = iv * math.sqrt(days / 365)
                 risk_adj = (ret / sigma_move) if sigma_move and sigma_move > 0 else None
@@ -157,7 +157,7 @@ def main() -> None:
                                         "sigma_move": sigma_move, "premium_kept": premium_kept, "risk_adj": risk_adj,
                                         "tier": tier, "earnings_in_window": er_in, "data_warnings": data_warn,
                                         "verdict": it["verdict"], "pillars": it["pillars"], "flags": it["flags"],
-                                        "days": days, "expiry": c["expiry"], "engine": c.get("engine")})))
+                                        "days": days, "expiry": c["expiry"], "engine": c.get("engine"), "rich": c.get("rich")})))
             elif f in VERDICT_FOLDERS:
                 for h, n in HORIZONS.items():
                     if (it["run_id"], f, t, h) in done:

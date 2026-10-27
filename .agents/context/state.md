@@ -6,6 +6,7 @@
 **build** — last updated 2026-10-26
 
 ## Active work
+- 10-27 put engine fixes + rich lane (rules-1.8.0): expiry before earnings wins (11-06 crossed earnings → far untraded strikes), strike must be liquid (OI ≥ 100 / vol ≥ 25), stale-chain/spot_drift only when the close is as new as the spot (46 false blocks), engine respects the 0.05Δ floor, Model List uses the engine's name income (chain dte = calendar + 1), sell_puts folder cap 15 → 25, Options Rankings shows ✕ for engine-blocked puts (PLTR #9 bug). Model List puts 4 → 16; consistency 0 mismatches. S109 real quotes: Jamie rule PASS (+101 bp/wk) → shadow lane `rich_puts` (45 names today, confidence tiers, gap loss, credit, sector, pre-earnings alt). Open: put-edge quintile flips day to day (PLTR Q3→Q4) — hard cutoff on a noisy score; 63 names lack LSEG history.
 - Working: iv-rank-resolver options-1.2.1, rankings-rules-tab, put+call-ladder-tab, s100-pairs, a271-structures-engine, hold-after-assignment-ladder
 - In progress: cursor: model-list-structures-unification + A271 UI fields
 - Blocked: jamie: default put band choice

@@ -30,6 +30,7 @@ import portfolio as PF
 import rebalance as RB
 import rules as R
 import setup as SU
+import strategy_engine as SE
 import wheel as WH
 import winrates as W
 
@@ -162,6 +163,46 @@ def engine_decisions(conn, day) -> dict[str, dict]:
     for t, pl in conn.execute("""SELECT ticker, payload FROM watchlist_sync.put_recs_daily WHERE as_of = (
                                    SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily WHERE as_of <= %s)""", (day,)):
         out[t] = {**{k: pl.get(k) for k in ENGINE_KEYS}, "tech": {k: (pl.get("tech") or {}).get(k) for k in TECH_KEYS}}
+    return out
+
+
+def rich_items(conn, day, fit: dict) -> list[dict]:
+    """Rich-crash put lane (put_recs.rich_pick, rules lanes.rich_put; Jamie 10-27: show every name, ranked by confidence — no peer
+    cap, no size advice). Shadow ideas: no L2 / account checks; graded at expiry like sell_puts (grade_ledger → scoreboard)."""
+    rs = conn.execute("""SELECT ticker, pass, payload FROM watchlist_sync.put_recs_daily WHERE payload ? 'rich' AND as_of = (
+                           SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily WHERE as_of <= %s)""", (day,)).fetchall()
+    rs.sort(key=lambda r: r[2]["rich"]["rank"])
+    per_sec = defaultdict(int)
+    for _, _, pl in rs:
+        per_sec[pl.get("sector") or "?"] += 1
+    out = []
+    for t, ok, pl in rs:
+        x, tr = pl["rich"], pl["rich"]["tier_record"]
+        sec = pl.get("sector")
+        why = [f"Confidence {x['tier']} ({x['score']:.2f}): {x['income_wk_pct']:.2f} %/wk at {x['otm_pct']:.1f} % OTM — this tier on real "
+               f"quotes: {tr['bp_wk']:+d} bp/wk, kept {tr['kept']} %, worst-5 % week {tr['w5']:+d} bp (S109, {tr['n']} puts)",
+               f"If it closes {SE.ENGINE['lanes']['rich_put']['gap_loss_pct']} % lower at expiry: −${x['gap_loss']:,.0f} per contract "
+               f"vs ${x['premium']:,.0f} premium",
+               f"Stock {x['off_high_pct']:+.1f} % off its 52-week high" + (" (your ≥ 25 % crash leg)" if x.get("crash") else "")
+               if x.get("off_high_pct") is not None else "52-week high unknown",
+               f"Sector {sec or 'unmapped'}: {per_sec[sec or '?']} names in this list move together"
+               + (f" · StarMine credit {x['credit']}/100 (default-risk rank: low = fatter tail, not lower return, S063)"
+                  if x.get("credit") is not None else "")]
+        if x.get("earnings_in"):
+            pe = x.get("pre_earnings")
+            why.append(f"Earnings {x['earnings']} before expiry (rule puts over earnings: +110 vs +96 bp/wk, S109)"
+                       + (f" · before earnings: {pe['strike']:g}p {pe['expiry'][5:]} {pe['income_wk_pct']:.2f} %/wk, {pe['otm_pct']:.1f} % OTM, "
+                          f"{pe['tier']}" if pe else " · no qualifying put expires before it"))
+        why.append(f"Engine: {'passes' if ok else 'blocks'} at {pl['strike']:g}p {str(pl['expiry'])[5:]}" if pl.get("strike") is not None and ok
+                   else f"Engine blocks: {'; '.join(pl.get('gates') or ['no strike'])}")
+        why.append(f"Quote {pl['as_of']} chain snapshot (~10:30 ET): re-check the live bid before selling")
+        contract = {"type": "put", "strike": x["strike"], "expiry": x["expiry"], "premium": x["bid"], "delta": x.get("delta"), "iv": x.get("iv"),
+                    "weekly_income_pct": x["income_wk_pct"], "rich": {**x, "sector": sec}}
+        if x.get("earnings"):
+            ed = date.fromisoformat(x["earnings"])
+            contract["earnings"] = {"date": x["earnings"], "inside": x["earnings_in"],
+                                    "days_after_expiry": (ed - date.fromisoformat(x["expiry"])).days}
+        out.append(item("rich_puts", fit.get(t), ticker=t, score=round(100 * x["score"]), status="shadow", why=why, contract=contract))
     return out
 
 
@@ -399,6 +440,7 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         if wl:
             mc["wall"] = wl
 
+    out += rich_items(conn, today, fit)
     for r in RB.items(snap, fit, P):  # FILDI concentration + margin (display only; account line first)
         out.append(item("rebalance", r.get("f") or None, ticker=r["ticker"], score=r["score"], status=r["status"], why=r["why"]))
 
@@ -420,7 +462,7 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         by[o["folder_key"]].append(o)
     final = []
     for k, items in by.items():
-        if k not in ("sell_puts", "sell_calls", "trim_risk", "review", "manage", "rebalance"):
+        if k not in ("sell_puts", "rich_puts", "sell_calls", "trim_risk", "review", "manage", "rebalance"):
             items.sort(key=lambda o: (-(o["score"] if o["score"] is not None else -1), o["ticker"]))
         for i, o in enumerate(items[: caps.get(k) or None], 1):
             final.append({**o, "rank": i})

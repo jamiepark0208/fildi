@@ -1,6 +1,6 @@
 {
-  "version": "rules-1.7.0",
-  "updated": "2026-10-26",
+  "version": "rules-1.8.0",
+  "updated": "2026-10-27",
   "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
   "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
   "strategies": [
@@ -350,6 +350,31 @@
       "long_strangle": "buy_vol",
       "calendar": "none",
       "collar": "none"
+    },
+    "lanes": {
+      "rich_put": {
+        "_doc": "Second sold-put lane (Jamie 10-26/27, S107 + S109 real quotes): Jamie's rule, ranked by confidence, every passing name shown (no peer cap, no hiding). Shadow-graded per name and per sector (grade_ledger folder rich_puts → scoreboard). Size is Jamie's call — the row shows the gap loss, not a size.",
+        "min_income_wk_pct": 0.9,
+        "min_otm_pct": 10,
+        "dte": [2, 14],
+        "min_bid": 0.05,
+        "_min_bid": "tick floor only; a $5 strike bidding $0.05 is 1 %/wk. Liquidity = verify_plan's OI ≥ 100 or volume ≥ 25",
+        "crash_off_high_pct": 25,
+        "_crash": "Jamie's third leg (≥ 25 % off the 52-week high) is shown as a tag, not required: S109 rule with it +101 bp/wk, without it +104 (same tail)",
+        "gap_loss_pct": 40,
+        "_gap_loss": "row shows $ lost per contract if the stock closes 40 % lower at expiry (a bad week for these names) next to the premium",
+        "confidence": {
+          "_how": "score = mean of the put's income percentile and OTM percentile against S109's real rule puts (2020-12 → 2026-10, 397 puts); both rose monotonically by tercile in both halves; kept % barely moved (81/85/89) — the payoff, not the hit rate, separates them",
+          "income_q": [0.904, 0.946, 0.986, 1.027, 1.078, 1.123, 1.156, 1.226, 1.269, 1.331, 1.417, 1.516, 1.612, 1.734, 1.913, 2.043, 2.233, 2.463, 2.78, 3.204, 16.147],
+          "otm_q": [10.0, 10.31, 10.56, 10.79, 11.06, 11.4, 11.79, 12.21, 12.74, 13.24, 13.71, 14.3, 14.65, 15.64, 16.13, 17.05, 18.02, 20.15, 22.8, 26.16, 42.78],
+          "cuts": [0.416, 0.598],
+          "tiers": [
+            {"name": "low", "bp_wk": 34, "kept": 81, "w5": -425, "sortino": 1.4, "halves": [37, 32], "n": 133},
+            {"name": "mid", "bp_wk": 87, "kept": 85, "w5": -384, "sortino": 3.4, "halves": [91, 83], "n": 131},
+            {"name": "high", "bp_wk": 185, "kept": 89, "w5": -81, "sortino": 14.4, "halves": [192, 179], "n": 133}
+          ]
+        }
+      }
     },
     "strategies": {
       "sell_put": {
