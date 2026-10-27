@@ -96,3 +96,5 @@ Claim | Evidence (path:symbol or endpoint) | Verify | Status (real|stale|needs-p
 
 Then do the specific ask in the latest ASKS row addressed to you (or the user’s latest message).
 ```
+
+**Indicators (10-26):** TradingView indicator set (UT Bot, SuperTrend cluster/divergence, SMC, Fear & Greed) is built once in `scripts/watchlist_sync/indicators.py`; tests, standing rules and the use-case map are in `.agents/context/indicators.md` (open row A281 asks for ideas/challenges).

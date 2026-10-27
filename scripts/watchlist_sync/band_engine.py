@@ -51,6 +51,7 @@ from sector_etfs import BROAD, ETFS as _ETFS  # noqa: E402
 # fires in 41/46 test months, no extra bp at 0.15–0.20Δ (+38/+44) and worst 5 % −550 → themes are where to look
 # (sector_etfs.py board), not how aggressive to be.
 SECTOR_ETFS = list(BROAD)
+BREADTH_WASHOUT = 0.25   # A281 #6 (10-26): ≤ 25 % of names in a UT Bot uptrend while SPY is calm → net bp rises with Δ, mild tails, both periods
 SECTOR_DD = -0.15   # S101 sector probe 10-26: ≥ 15 % off high passed both periods; 1m ≤ −8 % / QQQ 1m ≤ −5 % did not
 
 
@@ -91,6 +92,27 @@ def _etf_dd(px, e, d):
     return px[e][ds[-1]] / max(px[e][x] for x in ds) - 1 if len(ds) == 252 else None
 
 
+def breadth_series(conn, tickers=None) -> dict:
+    """{date: share of names with UT Bot long} over every LSEG name with ≥ 320 bars (indicators.py), point-in-time."""
+    import indicators as IND
+    up, n = defaultdict(int), defaultdict(int)
+    for t, b in IND.load_bars(conn, tickers).items():
+        if t in _ETFS or len(b[3]) < 320:
+            continue
+        s = IND.compute(*b)
+        for d, u in zip(b[0][300:], s["ut_dir"][300:]):
+            n[d] += 1
+            up[d] += u > 0
+    return {d: up[d] / n[d] for d in n if n[d] >= 50}
+
+
+def add_breadth(conn, rows):
+    br = breadth_series(conn)
+    for r in rows:
+        r["ut_breadth"] = br.get(r["d"])
+    return rows
+
+
 def add_sector(conn, rows):
     """Point-in-time sector ETF (prior calendar year's best correlation) + its drawdown on each row (sec, sec_dd52)."""
     names = sorted({r["t"] for r in rows})
@@ -128,6 +150,8 @@ def market_state(f):
         return "sharp_drop"
     if f["spy_dd52"] <= -0.10:
         return "bear_grind"
+    if f.get("ut_breadth") is not None and f["ut_breadth"] <= BREADTH_WASHOUT:
+        return "breadth_washout"
     if (f.get("sec_dd52") or 0) <= SECTOR_DD:
         return "sector_drop"
     if f["spy_6m"] >= 0.10 or f["spy_dd52"] >= -0.02:
@@ -241,6 +265,7 @@ def backtest():
     rows = [r for r in pickle.loads(CACHE.read_bytes()) if r["h"] == 1 and r.get("vix_ratio") == r.get("vix_ratio")]
     with connect() as c:
         add_sector(c, rows)
+        add_breadth(c, rows)
     tr = [r for r in rows if r["d"] < SPLIT]
     te = [r for r in rows if r["d"] >= SPLIT]
     table = fit(tr)
@@ -268,7 +293,7 @@ def backtest():
           "| market | name | standard band | aggressive band | train bp / worst 5 % (standard) | test bp / worst 5 % (standard band) | test months |",
           "|---|---|---|---|---|---|---|"]
     test_tab = fit(te)
-    for m in ("panic", "sharp_drop", "bear_grind", "sector_drop", "normal", "rally"):
+    for m in ("panic", "sharp_drop", "bear_grind", "breadth_washout", "sector_drop", "normal", "rally"):
         for n in ("crashed", "normal", "extended"):
             bs, ba = choose(table, m, n, FLOORS["standard"]), choose(table, m, n, FLOORS["aggressive"])
             a = table.get(f"{m}|{n}|{bs}") if bs else None
@@ -356,6 +381,7 @@ def refresh():
     rows = [r for r in rows if r["h"] == 1 and r.get("vix_ratio") == r.get("vix_ratio")]
     with connect() as c:
         add_sector(c, rows)
+        add_breadth(c, rows)
     TABLE.write_text(json.dumps({"fitted": str(date.today()), "rows": len(rows), "floors": FLOORS, "table": fit(rows)}, indent=1))
     print(f"band table: refit on {len(rows):,} rows → {TABLE}")
 

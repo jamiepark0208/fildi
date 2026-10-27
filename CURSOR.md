@@ -62,6 +62,7 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | DB schema / queries | `db-patterns.md` |
 | Trader strategy | `trader-context.md` |
 | Technical scorecard | `technical-scorecard.md` |
+| TradingView indicators (UT Bot, SuperTrend, SMC, Fear & Greed) — one home `indicators.py`, tests, use cases | `.agents/context/indicators.md` |
 | Feature planning | `feature-planner.md` |
 | Implementation plans | `writing-plans.md` |
 | Debugging | `systematic-debugging.md` |

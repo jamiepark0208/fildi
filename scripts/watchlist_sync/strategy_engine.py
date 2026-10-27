@@ -160,6 +160,11 @@ def band_states(conn, tickers) -> tuple[dict, dict]:
                             "WHERE index IN ('VIX','VIX3M') ORDER BY index, date DESC").fetchall())
     mf = {"spy_3m": m["3m"], "spy_6m": m["6m"], "spy_dd52": m["dd52"], "vix": vix.get("VIX"),
           "vix_ratio": vix["VIX"] / vix["VIX3M"] if vix.get("VIX") and vix.get("VIX3M") else 0.0}
+    br = conn.execute("""SELECT AVG(((payload->>'ut_dir')::float8 > 0)::int)::float8, COUNT(*) FROM watchlist_sync.indicators_daily
+                         WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.indicators_daily) AND ticker <> ALL(%s)""",
+                      (BE.SECTOR_ETFS + list(BE._ETFS),)).fetchone() if conn.execute(
+        "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else (None, 0)
+    mf["ut_breadth"] = br[0] if br and br[1] >= 50 else None   # A281: share of names in a UT Bot uptrend (breadth washout state)
     mf["state"] = BE.market_state(mf)
     names = {}
     sec = BE.sector_now(conn, tickers)
@@ -197,7 +202,9 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
     b = bands[i]
     h = tab.get(f"{ms}|{ns}|{b}") if tab else None
     hist = f" (history {h['bp']:+.0f} bp/wk, worst 5 % {h['w5']:+.0f})" if h else ""
-    if ms == "sector_drop":
+    if ms == "breadth_washout":
+        ms_txt = f"SPY {BE.market_state({k: v for k, v in market.items() if k != 'ut_breadth'})} but only {market['ut_breadth']:.0%} of names in an uptrend → breadth washout"
+    elif ms == "sector_drop":
         ms_txt = f"SPY {market['state']} but {name['sector']} {name['sec_dd52']:+.0%} off high → sector drop"
     else:
         ms_txt = f"market {ms.replace('_', ' ')}"

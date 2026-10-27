@@ -30,6 +30,7 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | DB schema and queries | .claude/skills/db-patterns.md |
 | Trader strategy (mental model) | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
+| TradingView indicators (UT Bot, SuperTrend, SMC, Fear & Greed): built, tested, use cases | .agents/context/indicators.md |
 | Feature planning | .claude/skills/feature-planner.md |
 | Implementation planning | .claude/skills/writing-plans.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |

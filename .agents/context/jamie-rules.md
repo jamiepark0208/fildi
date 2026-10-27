@@ -34,3 +34,5 @@
 - Token budget: no forks/parallel agents; one fresh agent per big build, else inline (10-16).
 - Probe the vendor and the feeding job before calling a source "down" (10-17).
 - Don't make him relay messages between agents (10-05).
+
+- **Indicators (Jamie 10-26):** Jamie uses TradingView indicators for regime, confidence, entry/close timing, context, momentum, RSI, liquidity, S/R and volume. Test an indicator in the role it was built for (timing, exits, re-sell, cross-name pick) — never reject it from a hold-to-expiry filter test; and give it a display/context use even when it has no measured edge. Map + results: `.agents/context/indicators.md`.

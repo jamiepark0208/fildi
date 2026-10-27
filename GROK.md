@@ -148,3 +148,5 @@ Steps:
 
 Fail closed: if the paste is missing critical bits, return blocked: need … instead of guessing.
 ```
+
+**Indicators (10-26):** TradingView indicator set (UT Bot, SuperTrend cluster/divergence, SMC, Fear & Greed) is built once in `scripts/watchlist_sync/indicators.py`; tests, standing rules and the use-case map are in `.agents/context/indicators.md` (open row A281 asks for ideas/challenges).
