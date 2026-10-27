@@ -23,6 +23,8 @@ Surfaces today: put_recs payload `tech` → Rankings › Sell Puts badge (cluste
 | S103b | which names to sell today (cross-section, same day) | no signal passes; SMC sweep-reclaim positive in every variant (t ≤ 1.5) → forward watch |
 | S103 real | fear / bear-cluster names held to expiry | earn far more, but across weeks (market state, = band engine), not within a week |
 | S105 (T3) | UT trail as a stop on held stock | FAIL: halves drawdown (−26 vs −38 %) but α vs hold −1.7 %/yr (t −0.9, β 0.48) — holding half the shares is cheaper |
+| S107 | all factors at once (GBM) | indicators are the model's top-2 inputs (UT trail distance, Fear & Greed) yet add no pick return (M1−M0 −1.8 bp, t −0.3) |
+| S108 (T1) | intraday order timing (15-min UT turn, 1-h sweep) | FAIL: random-time placebo = signal (+26.6 vs +26.6 bp) |
 | S106 (T2) | covered-call timing (greed ≥ 70 / bearish divergence) | FAIL: per written call −15…−17 bp vs Monday −13 (2023→); only "wins" by writing fewer calls |
 Standing rules from these: never close a sold put only because a trend indicator flipped; model marks overstate early buy-back value — judge exits on `optlab.lseg_opt_daily`; week-cluster comparisons so a market-state effect isn't read as name selection.
 
@@ -50,7 +52,7 @@ Status: **live** · **test** (needs a study with a pass bar) · **build** (displ
 ## Next tests (Grok A281, pass bars pre-registered; one-day signal lag — signals publish after the close)
 | id | Use | Test | Pass |
 |---|---|---|---|
-| T1 | Intraday order timing (map 7) — 5-min bars fetching to optlab.bars_5m (`t1_bars_5m.py`, 10-26) | same strike/expiry as the open sale; wait for a 15-min UT turn or a 1h low-sweep reclaim with the strike under that low; real quotes; T-bill if it never prints | more bp per collateral-day than selling at the open, breach no worse, same sign both halves, week-cluster t ≥ 2.5, shuffled-minute placebo ≈ 0 |
+| T1 ✗ S108 | Intraday order timing (map 7) | same strike/expiry as the open sale; wait for a 15-min UT turn or a 1h low-sweep reclaim with the strike under that low; real quotes; T-bill if it never prints | more bp per collateral-day than selling at the open, breach no worse, same sign both halves, week-cluster t ≥ 2.5, shuffled-minute placebo ≈ 0 |
 | T2 ✗ S106 | Covered-call timing on shares already held (map 9) | same Δ as Monday's call, written when F&G crosses 70 or a bearish divergence confirms | assignment-adjusted pnl beats holding the shares and the Monday write, both periods, t ≥ 2.5 (S088d: closer calls gave away the rally) |
 | T3 ✗ S105 | UT trail on stock already held (map 12; native instrument for a ratchet) | trail vs hold vs a vol-scaled smaller position (S064), real fills | higher return per unit of risk than both, same sign both halves, t ≥ 2.5; long-call version only if 2023–26 survives flip dates shuffled within IV |
 
