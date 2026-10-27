@@ -296,7 +296,8 @@ def compute(d, h, l, c, v=None, o=None) -> dict[str, np.ndarray]:
     if v is not None and np.nansum(v) > 0:
         va = np.convolve(v, np.ones(20) / 20, "full")[:N]
         volok = v >= va
-    recent_div = np.array([dv5[max(0, i - 10):i + 1][np.nonzero(dv[max(0, i - 10):i + 1])][-1:].sum() for i in range(N)])
+    # Luxy confidence engine: recent_div uses pivot-5 (dv5) for both values and mask; dv (pivot 2) stays in SuperTrend weighting only
+    recent_div = np.array([dv5[max(0, i - 10):i + 1][np.nonzero(dv5[max(0, i - 10):i + 1])][-1:].sum() for i in range(N)])
     sd = st0
     eng = np.vstack([np.ones(N),                                             # UT side itself
                      (sd == ut) * (0.5 + 0.5 * np.clip(np.abs(c - st0_line) / a, 0, 1)),

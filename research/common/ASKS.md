@@ -256,4 +256,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A279](asks/A279.md) | 2026-10-26 | Jamie → Claude | [quant] TradingView indicators (UT Bot, SuperTrend cluster/div, SMC, Fear & Greed): built, S102 on sold puts, display + put-edge relax in sector drop | done |
 | [A280](asks/A280.md) | 2026-10-26 | Claude → Cursor | Live › Portfolio alerts: show put_manage_daily (take + re-sell at ≥ 4× pace, hold, no trend stops; S103) | open |
 | [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | open |
-| [A282](asks/A282.md) | 2026-10-26 | Muse → Cursor | Repair: indicators.py recent_div mixes pivot-2 mask with pivot-5 values — ut_conf divergence engine silenced (3931405c) | planned |
+| [A282](asks/A282.md) | 2026-10-26 | Muse → Cursor | Repair: indicators.py recent_div mixes pivot-2 mask with pivot-5 values — ut_conf divergence engine silenced (3931405c) | done |
