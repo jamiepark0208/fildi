@@ -361,6 +361,20 @@
         "_min_bid": "tick floor only; a $5 strike bidding $0.05 is 1 %/wk. Liquidity = verify_plan's OI ≥ 100 or volume ≥ 25",
         "crash_off_high_pct": 25,
         "_crash": "Jamie's third leg (≥ 25 % off the 52-week high) is shown as a tag, not required: S109 rule with it +101 bp/wk, without it +104 (same tail)",
+        "near_low": {
+          "_why": "S110 (Jamie 10-27: ONDS/RKLB sit near 3-month lows): a 5–10 % OTM put paying ≥ 0.9 %/wk on a stock within 5 % of its 63-day low earned +89 bp/wk (kept 79 %, worst-5 % week −298; halves +51 / +122) vs +44 for the same distance off the low — passes the pre-set bar, but n = 81, so it is its own tier, below the rule's tiers",
+          "min_otm_pct": 5, "within_low_pct": 5, "lookback_days": 63,
+          "record": {"name": "near-low", "bp_wk": 89, "kept": 79, "w5": -298, "sortino": 4.1, "halves": [51, 122], "n": 81}
+        },
+        "closer": {
+          "_why": "S110 (Jamie 10-27: ONDS 6p / RKLB 51p): any 5–10 % OTM put paying ≥ 0.9 %/wk earned +57 bp/wk (kept 76 %, worst-5 % week −414; halves +42 / +72, 591 puts). A support zone does not separate them — strike under support +43 (−590), strike inside a zone +54 (−486), no zone +52 (−529) — so support is shown, not required. Last tier: visible and ranked, weakest record",
+          "record": {"name": "closer", "bp_wk": 57, "kept": 76, "w5": -414, "sortino": 1.9, "halves": [42, 72], "n": 591}
+        },
+        "flags": {
+          "_why": "S110: inside the rule these mark better puts, but blended into the score they did not improve the ranking in both halves (they overlap income + distance) → shown, not scored. As a substitute for the 10 % buffer: support FAIL (−28 bp/wk), analyst target FAIL (not both halves)",
+          "pt_upside_pct": 30, "pt": "rule puts with the street target ≥ 30 % above spot +131 bp/wk (worst-5 % −183) vs +62 (−436) without",
+          "support": "rule puts with a ≥ 2-method support zone between strike and spot +104 bp/wk (worst-5 % −238) vs +61 (−578) without"
+        },
         "gap_loss_pct": 40,
         "_gap_loss": "row shows $ lost per contract if the stock closes 40 % lower at expiry (a bad week for these names) next to the premium",
         "confidence": {

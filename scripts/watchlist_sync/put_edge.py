@@ -20,6 +20,7 @@ from weekly_put_calendar import HORIZON_VERSION, weekly_sessions
 HERE = Path(__file__).resolve().parent
 CAL = HERE / "put_edge_calibration.json"   # written by analysis/s059_option_factors.py (holdout only)
 MAX_TECH_AGE_DAYS = 10
+MIN_IV_OBS = 15   # vol-of-vol needs a few weeks of IV; < 40 obs is flagged by iv_obs (was a silent "unknown" block)
 MIN_QUINTILE = 4   # A196 net-of-fill holdout: Q1–Q3 lose −3…−7 bp/wk after fills, Q4 ≈ 0, Q5 +22 → weekly lane sells Q4–Q5 only
 FILL_SHARE = 0.23   # RH fill = bid + 23 % of the spread (state.md) → cost vs mid = (0.5 − 0.23) × spread
 # in-session relative spread (ask − bid) / mid of 2–9 DTE, 0.10–0.25Δ puts by premium ÷ strike (option_chain_history 7–12 PT, n 1,508, 10-19)
@@ -78,11 +79,11 @@ def scores(conn, as_of: date | None = None) -> dict[str, dict]:
         lr = [math.log(cl[k] / cl[k - 1]) for k in range(len(cl) - 20, len(cl))]
         rv20 = pstdev(lr) * math.sqrt(252) * 100
         ivs = [x[2] for x in b[-61:] if x[2]]
-        if not b[-1][2] or not rv20 or len(ivs) < 40:
+        if not b[-1][2] or not rv20 or len(ivs) < MIN_IV_OBS:   # 10-27: 40 → 15; RDDT/OKLO/SNDK/TEM's LSEG IV starts 9-30
             continue
         if not 0.3 <= b[-1][2] / rv20 <= 5:   # outside this = a data error (10-19: NVDY income ETF read 9.6×), not premium
             continue
-        rows.append((t, b[-1][2] / rv20, float(np.std(np.diff(np.log(ivs)))), tech[t]))
+        rows.append((t, b[-1][2] / rv20, float(np.std(np.diff(np.log(ivs)))), tech[t], len(ivs)))
     if len(rows) < 30:
         return {}
     calibration = json.loads(CAL.read_text())
@@ -94,6 +95,7 @@ def scores(conn, as_of: date | None = None) -> dict[str, dict]:
         q = min(5, int(p * 5) + 1)
         out[r[0]] = {"iv_rv": round(r[1], 2), "vol_of_vol": round(r[2], 4), "put_tech": round(r[3], 3), "pct": round(float(p), 3),
                      "quintile": q, "pnl_bp": cal[str(q)]["pnl_bp"], "breach": cal[str(q)]["breach"], "tech_asof": str(tech_asof),
+                     "iv_obs": r[4],
                      **horizon_status}
     return out
 

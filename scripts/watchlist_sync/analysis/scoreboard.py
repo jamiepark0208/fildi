@@ -311,7 +311,8 @@ def rich_puts(conn) -> tuple:
         tier[x.get("tier") or "?"].append(bp)
         sec[x.get("sector") or "?"].append(bp)
         name[t].append(bp)
-        cl[(d.get("expiry"), x.get("sector") or t)].append(bp)
+        g = (x.get("group") or {}).get("id")   # co-movement group (10-27) — one bet per group per expiry; sector before that
+        cl[(d.get("expiry"), f"g{g}" if g is not None else x.get("sector") or t)].append(bp)
     bets = [sum(v) / len(v) for v in cl.values()]   # sector-week = one bet
     by = {k: _perf(v) for k, v in tier.items()}
     weeks = len({k[0] for k in cl})

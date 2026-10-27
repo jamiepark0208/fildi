@@ -8,6 +8,7 @@ Tiers (priority order):
                ATM put IV, realized vol, beta, log market cap (+ same peer group bonus)
   5 book       shared research/common book (mega-cap context + WRDS loop A)
   7 benchmark  SPY/QQQ/IWM + SPDR sectors + SMH: market and sector baselines for backtests (market-adjusted returns)
+  6 options    every name in the latest saved option chain (the put engine's universe; 10-27 RDDT fix)
   6 model      every non-ETF name the watchlist-sync fit model scores (Model List), so no scored name runs on
                missing LSEG inputs (2026-10-05: 29 of 30 "missing credit" names were simply never synced)
 
@@ -61,6 +62,15 @@ def model_universe(conn) -> list[str]:
         return []
     return [r[0] for r in conn.execute(
         "SELECT ticker FROM watchlist_sync.fit_scores WHERE COALESCE(role, '') <> 'etf' AND color <> 'purple' ORDER BY ticker")]
+
+
+def option_universe(conn) -> list[str]:
+    """Every name the put engine prices (latest option_chain_history day). 10-27: RDDT + 62 others had chains but no LSEG
+    history → no put-edge → blocked as "unknown" on every surface."""
+    if not conn.execute("SELECT to_regclass('public.option_chain_history') IS NOT NULL").fetchone()[0]:
+        return []
+    return [r[0] for r in conn.execute("""SELECT DISTINCT UPPER(ticker) FROM option_chain_history
+                                          WHERE as_of = (SELECT MAX(as_of) FROM option_chain_history) ORDER BY 1""")]
 
 
 def features(conn) -> dict[str, dict]:
@@ -145,6 +155,7 @@ def build(max_total: int, n_look: int):
         wl = watchlist(conn)
         feats = features(conn)
         model = model_universe(conn)
+        opts = option_universe(conn)
     book = load_book()
 
     rows: dict[str, tuple[int, str, float, str]] = {}
@@ -167,6 +178,8 @@ def build(max_total: int, n_look: int):
         add(t, 5, "book", 0.1, "shared research book (mega-cap context)")
     for t in model:
         add(t, 6, "model", 0.05, "scored by the watchlist-sync fit model")
+    for t in opts:
+        add(t, 6, "options", 0.04, "priced by the put engine (option chain)")
     for t in BENCHMARKS:
         add(t, 7, "benchmark", 0.01, "market / sector baseline for backtests")
 
@@ -176,7 +189,7 @@ def build(max_total: int, n_look: int):
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--max", type=int, default=300)
+    p.add_argument("--max", type=int, default=600)   # 10-27: 300 cut chain names (~6.6k datapoints/day at 600 — ~2 % of the month)
     p.add_argument("--lookalikes", type=int, default=40)
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
@@ -185,7 +198,7 @@ def main() -> None:
     by_tier = defaultdict(list)
     for t, (tier, label, _, why) in ordered:
         by_tier[label].append(t if label != "lookalike" else f"{t}[{why}]")
-    for label in ("held", "traded", "watchlist", "lookalike", "book", "model", "benchmark"):
+    for label in ("held", "traded", "watchlist", "lookalike", "book", "model", "options", "benchmark"):
         print(f"{label:9s} {len(by_tier[label]):3d}  {', '.join(by_tier[label])}")
     print(f"total {len(ordered)} · lookalike IV floor {iv_floor:.0f}%")
     if args.dry_run:

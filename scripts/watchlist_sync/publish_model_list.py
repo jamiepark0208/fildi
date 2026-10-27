@@ -172,22 +172,34 @@ def rich_items(conn, day, fit: dict) -> list[dict]:
     rs = conn.execute("""SELECT ticker, pass, payload FROM watchlist_sync.put_recs_daily WHERE payload ? 'rich' AND as_of = (
                            SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily WHERE as_of <= %s)""", (day,)).fetchall()
     rs.sort(key=lambda r: r[2]["rich"]["rank"])
-    per_sec = defaultdict(int)
-    for _, _, pl in rs:
-        per_sec[pl.get("sector") or "?"] += 1
     out = []
     for t, ok, pl in rs:
         x, tr = pl["rich"], pl["rich"]["tier_record"]
         sec = pl.get("sector")
         why = [f"Confidence {x['tier']} ({x['score']:.2f}): {x['income_wk_pct']:.2f} %/wk at {x['otm_pct']:.1f} % OTM — this tier on real "
-               f"quotes: {tr['bp_wk']:+d} bp/wk, kept {tr['kept']} %, worst-5 % week {tr['w5']:+d} bp (S109, {tr['n']} puts)",
+               f"quotes: {tr['bp_wk']:+d} bp/wk, kept {tr['kept']} %, worst-5 % week {tr['w5']:+d} bp "
+               f"({'S109' if x['tier'] in ('high', 'mid', 'low') else 'S110'}, {tr['n']} puts)",
                f"If it closes {SE.ENGINE['lanes']['rich_put']['gap_loss_pct']} % lower at expiry: −${x['gap_loss']:,.0f} per contract "
                f"vs ${x['premium']:,.0f} premium",
                f"Stock {x['off_high_pct']:+.1f} % off its 52-week high" + (" (your ≥ 25 % crash leg)" if x.get("crash") else "")
                if x.get("off_high_pct") is not None else "52-week high unknown",
-               f"Sector {sec or 'unmapped'}: {per_sec[sec or '?']} names in this list move together"
+               (f"Moves with {', '.join(x['group']['with'])}" + (f" +{x['group']['size'] - 1 - len(x['group']['with'])} more" if x['group']['size'] - 1 > len(x['group']['with']) else "")
+                + f" (6-month corr {x['group']['corr']:.2f}; group of {x['group']['size']} in this list)"
+                if (x.get("group") or {}).get("corr") is not None else f"Moves on its own (no list name ≥ 0.5 corr) · sector {sec or 'unmapped'}")
                + (f" · StarMine credit {x['credit']}/100 (default-risk rank: low = fatter tail, not lower return, S063)"
                   if x.get("credit") is not None else "")]
+        facts = []
+        if x.get("pt_upside_pct") is not None:
+            facts.append(f"street target ${x['pt']:g} ({x['pt_upside_pct']:+.0f} %)" + (" ✓" if x.get("pt_flag") else ""))
+        if x.get("fair_value") is not None:
+            facts.append(f"Fildi fair value ${x['fair_value']:g} ({x['fv_gap_pct']:+.0f} %)")
+        if x.get("support"):
+            z = x["support"]
+            facts.append(f"support ${z['lo']:g}–{z['hi']:g} ({z['methods']} methods), strike {z['strike']} it" + (" ✓" if z["strike"] == "below" else ""))
+        if x.get("low63"):
+            facts.append(f"63-day low ${x['low63']:g} ({100 * (x['spot'] / x['low63'] - 1):+.0f} % above)")
+        if facts:
+            why.append(" · ".join(facts) + " (✓ = helped rule puts in S110; shown, not scored)")
         if x.get("earnings_in"):
             pe = x.get("pre_earnings")
             why.append(f"Earnings {x['earnings']} before expiry (rule puts over earnings: +110 vs +96 bp/wk, S109)"

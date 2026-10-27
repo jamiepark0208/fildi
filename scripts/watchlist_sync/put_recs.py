@@ -30,6 +30,7 @@ import math
 import sys
 from collections import defaultdict
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 
@@ -81,41 +82,114 @@ def pick_strike(puts: list[dict], band: str):
 LANE = SE.ENGINE["lanes"]["rich_put"]
 
 
-def rich_pick(puts: list[dict], as_of: date, hi52: float | None, earnings: date | None) -> dict | None:
+def rich_pick(puts: list[dict], as_of: date, hi52: float | None, earnings: date | None, low63: float | None = None
+) -> dict | None:
     """Rich-crash lane (rules lanes.rich_put, S107/S109): the name's best put by confidence among income ≥ 0.9 %/wk, ≥ 10 % OTM,
     2–14 days, liquid, bid ≥ $0.05. Confidence = mean of income and OTM percentiles vs S109's real rule puts → tier + its record.
     Earnings inside the expiry are allowed (S109: +110 vs +96 bp/wk without, both halves) — when the pick crosses them, the best
-    pre-earnings contract rides along as `pre_earnings` (Jamie avoids them by choice)."""
+    pre-earnings contract rides along as `pre_earnings` (Jamie avoids them by choice).
+    No rule put → a 5–10 % OTM put at ≥ 0.9 %/wk (S110): tier "near-low" when the stock is within 5 % of its 63-day low, else
+    "closer" (weakest record; support zones don't separate these, so they're shown, not required)."""
     if earnings:
-        pre = rich_pick([p for p in puts if p["expiry"] < earnings], as_of, hi52, None)
+        pre = rich_pick([p for p in puts if p["expiry"] < earnings], as_of, hi52, None, low63)
+    NL = LANE["near_low"]
     C = LANE["confidence"]
     qs = np.linspace(0, 1, len(C["income_q"]))
-    best = None
+    best, near = None, None
     for p in puts:
         days = (p["expiry"] - as_of).days
         if not LANE["dte"][0] <= days <= LANE["dte"][1] or p["bid"] < LANE["min_bid"] or not liquid(p) or not p["spot"]:
             continue
         otm = 100 * (p["spot"] - p["strike"]) / p["spot"]
         inc = 100 * p["bid"] / p["strike"] * 7 / (days + BP._settle_offset(p["expiry"]))
-        if otm < LANE["min_otm_pct"] or inc < LANE["min_income_wk_pct"]:
+        at_low = bool(low63 and p["spot"] <= low63 * (1 + NL["within_low_pct"] / 100))
+        if inc < LANE["min_income_wk_pct"] or otm < NL["min_otm_pct"]:
             continue
         sc = (float(np.interp(inc, C["income_q"], qs)) + float(np.interp(otm, C["otm_q"], qs))) / 2
-        if best is None or sc > best["score"]:
-            best = {"strike": p["strike"], "expiry": str(p["expiry"]), "bid": p["bid"], "ask": p["ask"], "delta": p["delta"],
+        cur = near if otm < LANE["min_otm_pct"] else best
+        if cur is near and near and near["path"] == "near-low" and not at_low:
+            continue   # a near-low candidate beats a plain closer one (stronger record)
+        if cur is None or sc > cur["score"] or (cur is near and at_low and cur["path"] != "near-low"):
+            cur = {"strike": p["strike"], "expiry": str(p["expiry"]), "bid": p["bid"], "ask": p["ask"], "delta": p["delta"],
                     "spot": p["spot"], "days": days, "oi": p.get("open_interest"), "iv": (p["iv"] / 100 if p["iv"] > 3 else p["iv"]) if p["iv"] else None, "income_wk_pct": round(inc, 3),
-                    "otm_pct": round(otm, 2), "score": round(sc, 3)}
-    if not best:
+                    "otm_pct": round(otm, 2), "score": round(sc, 3), "path": "near-low" if at_low else "closer"}
+            if otm < LANE["min_otm_pct"]:
+                near = cur
+            else:
+                best = cur
+    if best:
+        tier = C["tiers"][sum(best["score"] > c for c in C["cuts"])]
+    elif near:
+        best, tier = near, (NL if near["path"] == "near-low" else LANE["closer"])["record"]
+    else:
         return None
-    tier = C["tiers"][sum(best["score"] > c for c in C["cuts"])]
     gap = 1 - LANE["gap_loss_pct"] / 100
     best.update(tier=tier["name"], tier_record=tier, earnings=str(earnings) if earnings else None,
                 earnings_in=bool(earnings and earnings <= date.fromisoformat(best["expiry"])),
                 off_high_pct=round(100 * (best["spot"] / hi52 - 1), 1) if hi52 else None,
                 gap_loss=round(100 * max(best["strike"] - gap * best["spot"], 0.0) - 100 * best["bid"], 0), premium=round(100 * best["bid"], 0))
     best["crash"] = best["off_high_pct"] is not None and best["off_high_pct"] <= -LANE["crash_off_high_pct"]
+    best["low63"] = round(low63, 2) if low63 else None
     if best["earnings_in"] and pre:
         best["pre_earnings"] = {k: pre[k] for k in ("strike", "expiry", "bid", "income_wk_pct", "otm_pct", "score", "tier", "gap_loss", "premium")}
     return best
+
+
+def move_groups(conn, names: list[str], days: int = 126, min_corr: float = 0.5) -> dict[str, dict]:
+    """Names that actually move together (Jamie 10-27: semis ↔ data centers ↔ rare earths cut across sector labels): average-linkage
+    clusters on 6-month daily-return correlation, cut at corr ≥ min_corr. {ticker: {id, size, with: [top co-movers]}}."""
+    from scipy.cluster.hierarchy import fcluster, linkage
+    from scipy.spatial.distance import squareform
+    px = defaultdict(dict)
+    for t, d, c in conn.execute("""SELECT UPPER(ticker), date, close::float8 FROM prices_historical WHERE UPPER(ticker) = ANY(%s)
+                                   AND date >= CURRENT_DATE - %s AND close > 0""", (names, int(days * 1.5))):
+        px[t][d] = c
+    ds = sorted({d for v in px.values() for d in v})[-days - 1:]
+    ok = [t for t in names if sum(d in px[t] for d in ds) >= 0.8 * len(ds)]
+    if len(ok) < 3:
+        return {}
+    M = np.array([[px[t].get(d, np.nan) for d in ds] for t in ok])
+    R = np.diff(np.log(M), axis=1)
+    C = np.ma.corrcoef(np.ma.masked_invalid(R)).filled(0.0)
+    np.fill_diagonal(C, 1.0)
+    lab = fcluster(linkage(squareform(1 - C, checks=False), "average"), 1 - min_corr, "distance")
+    out = {}
+    for i, t in enumerate(ok):
+        mates = sorted((j for j in range(len(ok)) if lab[j] == lab[i] and j != i), key=lambda j: -C[i, j])
+        out[t] = {"id": int(lab[i]), "size": len(mates) + 1, "with": [ok[j] for j in mates[:4]],
+                  "corr": round(float(np.mean([C[i, j] for j in mates])), 2) if mates else None}
+    return out
+
+
+def rich_context(conn, recs: list[dict]) -> None:
+    """Display facts per rich-lane pick (S110: shown, not scored): street target upside, fair value, nearest ≥ 2-method support
+    zone below spot and where the strike sits vs it (S088 zones on LSEG daily bars, bars ≤ today)."""
+    if not recs:
+        return
+    names = [r["ticker"] for r in recs]
+    groups = move_groups(conn, names)
+    pt = dict(conn.execute("""SELECT DISTINCT ON (ticker) ticker, median_pt::float8 FROM street_pt_daily WHERE ticker = ANY(%s)
+                              AND as_of >= CURRENT_DATE - 60 ORDER BY ticker, as_of DESC""", (names,)).fetchall())
+    fv = dict(conn.execute("""SELECT DISTINCT ON (ticker) ticker, COALESCE(adjusted_fair_value, fair_value)::float8 FROM fair_value_snapshots
+                              WHERE ticker = ANY(%s) AND fair_value IS NOT NULL ORDER BY ticker, as_of DESC""", (names,)).fetchall())
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "analysis"))
+    import s088_sr_zones as Z
+    bars = Z.load(conn, set(names))
+    for r in recs:
+        x = r["rich"]
+        S, K = x["spot"], x["strike"]
+        x["group"] = groups.get(r["ticker"])
+        if pt.get(r["ticker"]):
+            x["pt"], x["pt_upside_pct"] = round(pt[r["ticker"]], 2), round(100 * (pt[r["ticker"]] / S - 1), 1)
+            x["pt_flag"] = x["pt_upside_pct"] >= LANE["flags"]["pt_upside_pct"]
+        if fv.get(r["ticker"]):
+            x["fair_value"], x["fv_gap_pct"] = round(fv[r["ticker"]], 2), round(100 * (fv[r["ticker"]] / S - 1), 1)
+        b = bars.get(r["ticker"])
+        if b and len(b["d"]) >= 301:
+            zs, _ = Z.zones(b, len(b["d"]) - 1)
+            sup = [z for z in zs if z["score"] >= 2 and z["hi"] < S]   # nearest support below spot; where the strike sits vs it
+            x["support"] = {"lo": round(sup[-1]["lo"], 2), "hi": round(sup[-1]["hi"], 2), "methods": sup[-1]["score"],
+                            "strike": "below" if K <= sup[-1]["lo"] else "inside" if K <= sup[-1]["hi"] else "above"} if sup else None
 
 
 def compute(conn) -> tuple[date, list[dict], dict]:
@@ -139,6 +213,10 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                                                WHERE UPPER(ticker) = ANY(%s) ORDER BY UPPER(ticker), date DESC""", (names,)).fetchall()}
     hi52 = dict(conn.execute("""SELECT UPPER(ticker), MAX(COALESCE(high, close))::float8 FROM prices_historical
                                  WHERE UPPER(ticker) = ANY(%s) AND date >= CURRENT_DATE - 365 GROUP BY 1""", (names,)).fetchall())
+    low63 = {t: v for t, v in conn.execute("""SELECT t, MIN(lo) FROM (SELECT UPPER(ticker) t, COALESCE(low, close)::float8 lo,
+                                                  ROW_NUMBER() OVER (PARTITION BY UPPER(ticker) ORDER BY date DESC) k FROM prices_historical
+                                                  WHERE UPPER(ticker) = ANY(%s) AND date >= CURRENT_DATE - 120) x WHERE k <= 63 GROUP BY t""",
+                                           (names,)).fetchall()}
     tech = {t: x for t, x in conn.execute("""SELECT DISTINCT ON (ticker) ticker, payload FROM watchlist_sync.indicators_daily
                                              WHERE ticker = ANY(%s) ORDER BY ticker, as_of DESC""", (names,)).fetchall()} if conn.execute(
         "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else {}   # display only (S102: no put edge)
@@ -149,7 +227,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         rec = {"ticker": t, "as_of": str(as_of), "market_state": ms, "stock_state": (states.get(t) or {}).get("state"),
                "sector": (states.get(t) or {}).get("sector"), "tech": tech.get(t),
                "expiry": str(exp) if exp else None}
-        rich = rich_pick(by[t], as_of, hi52.get(t), ctx.get("earnings", {}).get(t))
+        rich = rich_pick(by[t], as_of, hi52.get(t), ctx.get("earnings", {}).get(t), low63.get(t))
         if rich:
             rich["credit"] = (ctx.get("lseg", {}).get(t) or {}).get("credit_combined_rank")
             rec["rich"] = rich
@@ -203,7 +281,9 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     ranked.sort(key=lambda r: (not r["pass_"], -score.get(id(r), 0.0)))
     for i, r in enumerate(ranked, 1):
         r["rank"] = i
-    for i, r in enumerate(sorted((r for r in out if r.get("rich")), key=lambda r: -r["rich"]["score"]), 1):
+    rich_context(conn, [r for r in out if r.get("rich")])
+    last = {LANE["near_low"]["record"]["name"]: 1, LANE["closer"]["record"]["name"]: 2}   # S110 paths rank after the rule's tiers
+    for i, r in enumerate(sorted((r for r in out if r.get("rich")), key=lambda r: (last.get(r["rich"]["tier"], 0), -r["rich"]["score"])), 1):
         r["rich"]["rank"] = i
     return as_of, out, market
 
