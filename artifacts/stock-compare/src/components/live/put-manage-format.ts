@@ -1,0 +1,80 @@
+/** Pure helpers for Live › put_manage_daily alerts (A280 / S103). */
+
+export type PutManageResell = {
+  ticker: string;
+  strike: number;
+  expiry: string;
+  income_wk_pct?: number | null;
+};
+
+export type PutManageRow = {
+  as_of?: string;
+  ticker: string;
+  strike: number;
+  expiry: string;
+  captured_pct: number;
+  pace: number;
+  days_held?: number;
+  days_total?: number;
+  action: string;
+  why?: string;
+  notes?: string[];
+  resell?: PutManageResell[];
+};
+
+export const PUT_MANAGE_METHOD =
+  "S103: weekly take at ≥ 4× plan pace was the only early exit that beat holding on real LSEG quotes (+0.02 % of strike/trade, t≈1); trend-flip stops lost.";
+
+export function isTakeAction(action: string): boolean {
+  return action === "take + re-sell";
+}
+
+export function partitionPutManage(rows: PutManageRow[]): {
+  takes: PutManageRow[];
+  holds: PutManageRow[];
+} {
+  const takes: PutManageRow[] = [];
+  const holds: PutManageRow[] = [];
+  for (const r of rows) {
+    if (isTakeAction(r.action)) takes.push(r);
+    else holds.push(r);
+  }
+  return { takes, holds };
+}
+
+/** Expiry → m-d (UI dates). */
+export function fmtExpiryMd(expiry: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(expiry);
+  if (!m) return expiry;
+  return `${Number(m[2])}-${Number(m[3])}`;
+}
+
+function fmtStrike(strike: number): string {
+  return `${Number(strike)}p`;
+}
+
+function fmtResell(r: PutManageResell): string {
+  const wk =
+    r.income_wk_pct != null && Number.isFinite(r.income_wk_pct)
+      ? ` (${Number(r.income_wk_pct).toFixed(2)} %/wk)`
+      : "";
+  return `${r.ticker} ${fmtStrike(r.strike)}${wk}`;
+}
+
+/**
+ * Alert line for a take + re-sell row.
+ * e.g. "RGTI 10.5p 10-30: captured 62 % in 2 of 7 days (4.3× plan pace) → take profit, re-sell MRVL 205p (0.68 %/wk)"
+ */
+export function formatTakeAlert(row: PutManageRow): string | null {
+  if (!isTakeAction(row.action)) return null;
+  const held = row.days_held ?? "?";
+  const total = row.days_total ?? "?";
+  const pace = Number.isFinite(row.pace) ? row.pace.toFixed(1) : String(row.pace);
+  const cap = Number.isFinite(row.captured_pct)
+    ? Math.round(row.captured_pct)
+    : row.captured_pct;
+  const head = `${row.ticker} ${fmtStrike(row.strike)} ${fmtExpiryMd(row.expiry)}: captured ${cap} % in ${held} of ${total} days (${pace}× plan pace) → take profit`;
+  const first = row.resell?.[0];
+  if (!first) return head;
+  return `${head}, re-sell ${fmtResell(first)}`;
+}

@@ -25,6 +25,7 @@ import { TopOptionsTable } from "@/components/live/top-options-table";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { MarketContextStrip } from "@/components/live/market-context-strip";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
+import { PutManageAlerts } from "@/components/live/put-manage-alerts";
 import { NewsInboxPanel } from "@/components/live/news-inbox-panel";
 import { pct } from "@/components/live/live-format";
 import { queryKeys } from "@/lib/query-keys";
@@ -507,7 +508,10 @@ export default function Live() {
               </Suspense>
             </div>
           ) : pageTab === "alerts" ? (
-            <PortfolioAlertsPanel />
+            <div className="space-y-3">
+              <PortfolioAlertsPanel />
+              <PutManageAlerts />
+            </div>
           ) : pageTab === "news" ? (
             <div className="space-y-3">
               <DailyNewsPanel compact />
