@@ -10,7 +10,7 @@ skipped), existing closes never overwritten (COALESCE), monthly datapoint guard 
 Caveats: prices are split-adjusted; ACVOL_UNS is unadjusted primary-venue volume (fine for the engine's own-history percentiles,
 small artifacts around splits).
 
-Usage: .venv/bin/python backfill_ohlc.py [--start 2018-10-01] [--tickers A,B]
+Usage: .venv/bin/python backfill_ohlc.py [--start 2018-10-01] [--tickers A,B] [--missing-open]
 """
 from __future__ import annotations
 
@@ -38,6 +38,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--start", default="2018-10-01")
     p.add_argument("--tickers", default="")
+    p.add_argument("--missing-open", action="store_true", help="re-fetch tickers with days since --start that have no open")
     a = p.parse_args()
     end = date.today().isoformat()
     with connect_local() as conn:
@@ -51,6 +52,9 @@ def main() -> None:
         done = {r[0] for r in conn.execute(
             "SELECT ticker FROM lseg_research.daily_history WHERE high IS NOT NULL GROUP BY 1 HAVING MIN(date) <= %s::date + 30",
             (a.start,)).fetchall()}
+        if a.missing_open:
+            done = set(tickers) - {r[0] for r in conn.execute(
+                "SELECT DISTINCT ticker FROM lseg_research.daily_history WHERE open IS NULL AND date >= %s::date", (a.start,)).fetchall()}
     todo = [t for t in tickers if t not in done]
     ric_map = load_ric_map(todo)
     no_ric = [t for t in todo if t not in ric_map]

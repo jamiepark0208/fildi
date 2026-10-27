@@ -190,6 +190,9 @@ def main():
                 desc = regime_fit(c, rv[t], trend.get(t), edge.get(t))[1]
                 if SE.strategy_of(c["structure"]) == "none":
                     c["fit"], c["fit_why"] = regime_fit(c, rv[t], trend.get(t), edge.get(t))
+                elif c["structure"] == "csp":   # 10-26: the engine's verdict (its gates + sector-drop relax + floors), not a re-run
+                    g = (I.get(t, {}).get("put_rec") or {}).get("gates") or []
+                    c["fit"], c["fit_why"] = not g, desc + ("" if not g else " · " + "; ".join(g))
                 else:
                     ok, why = SE.fit(c, I, ctx)
                     c["fit"], c["fit_why"] = ok, desc + ("" if ok else " · " + "; ".join(why))

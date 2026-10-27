@@ -11,7 +11,10 @@ Per name, on the latest saved chain (option_chain_history, ~445 names):
           market state is per name: SPY's, or sector_drop when the name's sector ETF is ≥ 15 % off its high)
           + build_plan.put_far_reason (earnings before expiry · credit < 20 · put-risk / low-OWN) → never closer than 0.06–0.08Δ
   strike  listed put nearest the band middle, bid ≥ rules.PUT_MIN_RESTRIKE_BID; empty band → one band farther, then one closer
-  gates   strategy_rules.json sell_put gates (verdict not red · put-edge Q ≥ 4 · IV/RV ≥ 1.15) via strategy_engine.fit
+  gates   strategy_rules.json sell_put gates (verdict not red · put-edge Q ≥ 4, unknown = blocked · IV/RV ≥ 1.15) via
+          strategy_engine.fit, plus the Model List's market-wide floors (10-26, one gate set for every surface):
+          name pays ≥ rules.MIN_WEEKLY_INCOME_PCT at rules.PUT_NAME_INCOME_ABS_DELTA · chain spot within rules.MAX_SPOT_DRIFT_PCT of
+          the latest close (else stale chain). Account checks (collateral, trim list, open positions) stay in build_plan.
   rank    strategy_rules.json sell_put rank (put-edge Q · ev_rv_cap = bid − realized-vol value, % of strike per week)
 
     .venv/bin/python put_recs.py            # writes today's rows (idempotent per as_of)
@@ -80,6 +83,8 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                                  WHERE ticker = ANY(%s) AND date >= CURRENT_DATE - 45 AND close > 0 GROUP BY 1""", (names,)).fetchall():
         if len(cl) >= 21:
             rv[t] = float(np.std(np.diff(np.log(cl[:21][::-1]))) * math.sqrt(252))
+    close = {t: c for t, c in conn.execute("""SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker), close::float8 FROM prices_historical
+                                               WHERE UPPER(ticker) = ANY(%s) ORDER BY UPPER(ticker), date DESC""", (names,)).fetchall()}
     tech = {t: x for t, x in conn.execute("""SELECT DISTINCT ON (ticker) ticker, payload FROM watchlist_sync.indicators_daily
                                              WHERE ticker = ANY(%s) ORDER BY ticker, as_of DESC""", (names,)).fetchall()} if conn.execute(
         "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else {}   # display only (S102: no put edge)
@@ -103,9 +108,9 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         for g in SE.ENGINE["strategies"]["sell_put"]["gates"]:   # gate relaxed in this state → capped band (S102)
             rl = g.get("relax") or {}
             v = pe if g["input"] == "put_edge_q" else None
-            if ms in rl.get("market_state", []) and v is not None and v < g["min"] and \
+            if ms in rl.get("market_state", []) and (v is None or v < g["min"]) and \
                     SE.band_bounds(band)[0] >= SE.band_bounds(rl["max_band"])[1]:
-                band, why = rl["max_band"], f"{why} · put-edge Q{v} in a sector drop → {rl['max_band']}Δ (S102)"
+                band, why = rl["max_band"], f"{why} · put-edge {f'Q{v}' if v else 'unknown'} in a sector drop → {rl['max_band']}Δ (S102)"
                 rec.update(band_target=band, why=why)
         p, used = pick_strike([x for x in by[t] if x["expiry"] == exp], band)
         if not p:
@@ -123,6 +128,14 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         if h:
             rec.update(hist_bp=h["bp"], hist_w5=h["w5"], hist_kept=h["kept"])
         ok, gates = SE.fit({"ticker": t, "structure": "csp", "iv_rv": rec["iv_rv"], "market_state": ms}, I, {})
+        ref = min((x for x in by[t] if x["expiry"] == exp), key=lambda x: abs(-x["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))
+        rec["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / days   # the name's income at the tested Δ (S088-vs-ML)
+        if rec["name_income_pct"] < R.MIN_WEEKLY_INCOME_PCT:
+            ok = False
+            gates.append(f"pays {rec['name_income_pct']:.2f} %/wk at {R.PUT_NAME_INCOME_ABS_DELTA}Δ (min {R.MIN_WEEKLY_INCOME_PCT})")
+        if close.get(t) and abs(100 * (close[t] / p["spot"] - 1)) > R.MAX_SPOT_DRIFT_PCT:
+            ok = False
+            gates.append(f"stale chain: spot {p['spot']:.2f} on {as_of} vs close {close[t]:.2f} ({100 * (close[t] / p['spot'] - 1):+.1f} %)")
         rec.update(pass_=ok, gates=gates, put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
         out.append(rec)
     ranked = [r for r in out if r.get("strike") is not None]

@@ -1,6 +1,6 @@
 {
-  "version": "rules-1.5.0",
-  "updated": "2026-10-24",
+  "version": "rules-1.6.0",
+  "updated": "2026-10-26",
   "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
   "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
   "strategies": [
@@ -365,8 +365,9 @@
           {
             "input": "put_edge_q",
             "min": 4,
-            "if_known": true,
+            "if_known": false,
             "why": "S059: put-edge Q1–Q3 lose after fills",
+            "_unknown": "no put-edge inputs → blocked as \"put-edge unknown\" (Jamie 10-20 for the Model List; every surface since 10-26)",
             "relax": {
               "market_state": ["sector_drop"],
               "max_band": "0.12-0.15",

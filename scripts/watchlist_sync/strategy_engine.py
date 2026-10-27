@@ -72,7 +72,7 @@ def fit(c, I, ctx) -> tuple[bool, list[str]]:
             if g.get("if_known"):
                 continue
             ok = False
-            why.append(f"{g['input']} unknown")
+            why.append(f"{g['input'].removesuffix('_q').replace('_', '-')} unknown (no inputs)")
             continue
         if "not_in" in g and v in g["not_in"]:
             ok = False

@@ -78,6 +78,7 @@ def load_context(conn) -> dict:
         SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker) AS ticker, date, close::float8
         FROM prices_historical ORDER BY UPPER(ticker), date DESC""")}
     ctx.update(put_context(conn, with_fit=False))   # fit already loaded above
+    engine_pool_puts(conn, ctx)   # 10-26: every name the engine passes is a candidate here too (one pool, one gate set)
     restrike_puts(conn, ctx)   # needs earnings dates, fit (put risk / OWN) and LSEG credit: risky puts get the farther target
     ctx["tech"] = {r["ticker"].upper(): r for r in rows(conn, "SELECT ticker, falling_knife, rsi14::float8 AS rsi FROM ticker_technicals")}
     snap_id = conn.execute("SELECT MAX(id) FROM portfolio_snapshots").fetchone()[0]
@@ -289,6 +290,29 @@ def carry_forward_puts(conn, ctx: dict) -> int:
     return added
 
 
+def engine_pool_puts(conn, ctx: dict) -> int:
+    """10-26 (Jamie: "consistency"): names the engine (put_recs_daily) passes but the option-score pool lacks — index ETFs, names
+    without a snapshot row — join the pool; restrike_puts then gives them the engine contract. Before, Rankings / Live showed them
+    as picks while the Model List never saw them (11 of 41 on 10-26)."""
+    as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
+    have = {r["ticker"] for r in ctx["recs"] if r["side"] == "put"}
+    added = 0
+    for t, e in conn.execute("""SELECT ticker, payload FROM watchlist_sync.put_recs_daily WHERE as_of = %s AND pass
+                                AND payload->>'strike' IS NOT NULL ORDER BY rank""", (as_of,)).fetchall():
+        if t in have:
+            continue
+        ctx["recs"].append({
+            "ticker": t, "side": "put", "expiry": date.fromisoformat(e["expiry"]), "strike": e["strike"], "spot": e["spot"],
+            "premium": e["bid"], "bid_is_live": True, "weekly_income_pct": e["income_wk_pct"], "delta": e["delta"],
+            "strike_iv": e["iv"], "dte": float(e["dte"]), "option_score": None, "macro_regime": None, "vol_regime": None,
+            "repriced": "engine pick (not in the option-score pool)",
+        })
+        added += 1
+    if added:
+        print(f"  engine pool: +{added} engine-passing puts not in the option-score pool")
+    return added
+
+
 def put_context(conn, with_fit: bool = True) -> dict:
     """What the far-strike rule needs (one loader for build_plan and put_recs.py): next earnings date, LSEG credit/alpha ranks,
     champion fit rows + params."""
@@ -358,7 +382,8 @@ def restrike_puts(conn, ctx: dict) -> None:
         exp = date.fromisoformat(e["expiry"])
         r["far_why"], r["band_why"], r["engine_market"] = e.get("far"), e["why"], e.get("market_state")
         r["engine_rank"] = e.get("rank")
-        r["engine_gates"] = [g for g in (e.get("gates") or []) if not g.startswith("S059: put-edge")]   # put-edge has its own check here
+        r["engine_gates"] = list(e.get("gates") or [])   # 10-26: the engine's gate set is the only one (put-edge, income, stale chain)
+        r["engine_edge_q"] = e.get("put_edge_q")
         note = f"engine pick {e['strike']:g} {exp:%m-%d} ({-e['delta']:.2f}Δ, was {-(r.get('delta') or 0):.2f}Δ): {e['why']}"
         ref = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == exp]
         if ref:
@@ -442,7 +467,10 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         ls = ctx["lseg"].get(t)
         cr = ls and ls["credit_combined_rank"]
         e = ctx.get("edge", {}).get(t)
-        if not rec.get("strategy"):   # panic puts are their own tested lane (S049/S054); put edge ranks the weekly lane
+        if not rec.get("strategy") and rec.get("restruck"):   # 10-26: engine pick → put-edge already judged by the engine's gates
+            q = rec.get("engine_edge_q")
+            c.append(chk("put_edge", True, f"put edge {f'Q{q}' if q else 'unknown'} · judged by the engine (strategy_rules sell_put gates)"))
+        elif not rec.get("strategy"):   # panic puts are their own tested lane (S049/S054); put edge ranks the weekly lane
             relaxed = rec.get("engine_market") in _edge_relax()   # sector drop: Q1–Q3 earn (S102), engine already capped the band
             c.append(chk("put_edge", (e["quintile"] >= ctx.get("edge_min_q", 4) or relaxed) if e else bool(ctx.get("edge_demoted")),
                          (f"put edge Q{e['quintile']}: allowed in a sector drop at ≤ 0.15Δ (S102: Q1–Q3 +51…+89 bp/wk both periods)"
@@ -547,8 +575,8 @@ def build(show_rejected: bool) -> int:
                 # A243: weekly put lane needs put_edge (LSEG daily_history + lab_tech). ~66/180 candidates had no RIC in
                 # research_common.security_map → always "no put-edge inputs" and polluted the missing-input health check.
                 # Panic/strategy puts keep their own lane. Carried names stay for an explicit edge/exit check.
-                if (side == "put" and not rec.get("strategy") and not rec.get("carried") and not ctx.get("edge_demoted")
-                        and rec["ticker"] not in ctx.get("edge", {})):
+                if (side == "put" and not rec.get("strategy") and not rec.get("carried") and not rec.get("restruck")
+                        and not ctx.get("edge_demoted") and rec["ticker"] not in ctx.get("edge", {})):
                     continue
                 checks, account = option_checks(rec, ctx)
                 ok = all(c["pass"] or c["severity"] == "warn" for c in checks)
@@ -572,7 +600,8 @@ def build(show_rejected: bool) -> int:
                     if rank > cap:
                         b["ok"] = False
                         b["checks"].append(chk("list_cap", False, f"beyond top {cap}"))
-                reasons = [f"Fildi option score {r['option_score']:.0f}" if r["option_score"] is not None else "strategy pick (no option score)", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
+                reasons = [f"Fildi option score {r['option_score']:.0f}" if r["option_score"] is not None else
+                           "engine pick (no option score)" if r.get("restruck") else "strategy pick (no option score)", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
                 e = ctx.get("edge", {}).get(r["ticker"]) if side == "put" else None
                 if e:
                     reasons.append(f"put edge Q{e['quintile']}/5: simulated {e['pnl_bp']:+.0f} bp/wk, breach {100 * e['breach']:.0f} % "

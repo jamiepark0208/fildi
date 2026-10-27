@@ -133,8 +133,9 @@ def memo(today, odds, ctx, warn, lists):
                                       f"{'WIDE: drawdown warning, size down' if ctx['credit']['wide'] else 'normal'}" if "baa10y" in ctx["credit"] else "n/a"),
              f"**Catalysts on your book (14 days).** " + (", ".join(ctx["earnings_14d"]) or "none"),
              f"**Options board check (Focus = put edge Q4–Q5).** {ctx.get('board_check', 'n/a')}",
-             "**Richest put premium (S059 put edge Q5: simulated +22 bp/wk net of fills, breach 11 %).** " +
-             (", ".join(f"{t} (IV/RV {e['iv_rv']:.1f})" for t, e in ctx.get("edge_top", [])) or "n/a"),
+             "**Today's put picks (the engine — same strike and order as Model List, Rankings, Live).** " +
+             (", ".join(f"{e['ticker']} {e['strike']:g}p {e['expiry'][5:]} ({e['income_wk_pct']:.2f} %/wk, {e['market_state']})"
+                        for e in ctx.get("engine_top", [])) or "n/a"),
              "",
              "**Stance (rules, not vibes).** " +
              ("Credit wide → cut new put size; " if ctx["credit"].get("wide") else "") +
@@ -168,6 +169,8 @@ def main():
         if g[0] >= 20 and (g[1] or 0) < 0:
             warn.append(f"DRIFT: panic-puts-hiv live mean {100 * g[1]:+.2f} %/trade on {g[0]} graded (backtest +2.1 %) → demote")
         ctx["edge_top"] = sorted(((t, e) for t, e in edge.items() if e["quintile"] == 5), key=lambda x: -x[1]["pct"])[:8]
+        ctx["engine_top"] = [p for (p,) in conn.execute("""SELECT payload FROM watchlist_sync.put_recs_daily WHERE pass AND as_of = (
+                               SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) ORDER BY rank LIMIT 8""")]   # 10-26: one engine
         ctx["sim_logged"] = n_sim
         # board verification (Options › Focus = put edge Q4–Q5): last resolved sim week, focus vs rest breach
         v = conn.execute("""SELECT resolves_on, AVG(CASE WHEN outcome THEN 0 ELSE 1 END) FILTER (WHERE (meta->>'quintile')::int >= 4),
