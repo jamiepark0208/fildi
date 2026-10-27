@@ -46,6 +46,17 @@ export interface FairValueParams {
   /** Modes whose *profitable* members (forward EPS > 0 and FCF > 0) are valued with the standard methods: the cohort label
    *  (e.g. Enterprise Software = pre_revenue_ok) describes the group, not each stock — IBM/ADBE/CRM got no value under it. */
   profitableUseStandard?: string[];
+  /** fv-1.2.0 street anchor (research/fair_value/step3_prototype.py): the de-biased target is never trimmed; it is blended
+   *  with the trimmed internal + StarMine votes at this weight. Unset = target votes as an equal (fv-1.1.0). */
+  streetWeight?: number;
+  /** Street weight when the earnings multiple doesn't fit the stock: own forward P/E outside [1/x, x] × the peer (else
+   *  warranted) P/E, or > misfitPvgo of the price is growth (PVGO). 10-27: these were 72 % of the worst gaps. */
+  streetWeightMisfit?: number;
+  misfitPeRatio?: number;
+  misfitPvgo?: number;
+  /** No value unless ≥ this many internal votes or one earnings-based vote (a lone FCF DCF / EV-EBITDA on an
+   *  unprofitable name gave GH −85 %, NTRA −82 %). */
+  minInternalVotes?: number;
 }
 
 /**
@@ -402,6 +413,19 @@ export function computeFairValues(
   });
 }
 
+const EARNINGS_METHODS = new Set<FvVoterName>(["peerForwardPe", "warrantedPe", "grahamForward", "ohlsonJuettner", "peerPffo", "excessReturns"]);
+
+/** The earnings multiple doesn't describe this stock: P/E far from its peers' (growth, cycle peak, event) or mostly growth-priced. */
+function misfit(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: PeerStats): boolean {
+  if (!pos(t.price) || !pos(t.forwardEps)) return false;
+  const own = t.price / t.forwardEps;
+  const ref = peers.forwardPe.get(t.ticker) ?? peers.warrantedPe.get(t.ticker);
+  const r = p.misfitPeRatio;
+  if (r && ref && (own > r * ref || own < ref / r)) return true;
+  const pvgo = 1 - t.forwardEps / costOfEquity(t, m, p) / t.price;
+  return p.misfitPvgo != null && pvgo > p.misfitPvgo;
+}
+
 function computeOne(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: PeerStats): FairValueResult {
   const base: FairValueResult = {
     ticker: t.ticker, mode: t.mode, price: t.price, fairValue: null, low: null, high: null,
@@ -434,12 +458,27 @@ function computeOne(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: Pe
   if (raw.length < p.minVoters) {
     return { ...base, votes: raw.map((v) => ({ ...v, kept: false })), impliedGrowth: implied, nullReason: "too_few_votes" };
   }
+  const internal = raw.filter((v) => v.name !== "analystTarget" && v.name !== "starmine");
+  if (p.minInternalVotes && internal.length < p.minInternalVotes && !internal.some((v) => EARNINGS_METHODS.has(v.name))) {
+    return { ...base, votes: raw.map((v) => ({ ...v, kept: false })), impliedGrowth: implied, nullReason: "too_few_internal_votes" };
+  }
 
   const logs = raw.map((v) => Math.log(v.value / t.price!));
-  const { value, kept } = blendLogs(logs, p.blend);
+  const streetAt = raw.findIndex((v) => v.name === "analystTarget");
+  let value: number, kept: boolean[];
+  if (p.streetWeight != null && streetAt >= 0 && raw.length > 1) {
+    // Street anchor: trim the other votes, then blend the target in at a fixed weight (heavier when the multiple misfits).
+    const core = blendLogs(logs.filter((_, i) => i !== streetAt), p.blend);
+    const w = misfit(t, m, p, peers) ? p.streetWeightMisfit ?? p.streetWeight : p.streetWeight;
+    value = (1 - w) * core.value + w * logs[streetAt]!;
+    kept = raw.map((_, i) => (i === streetAt ? true : core.kept[i < streetAt ? i : i - 1]!));
+  } else {
+    ({ value, kept } = blendLogs(logs, p.blend));
+  }
   // A113: cyclicals with < 3 surviving votes (after outlier drop) → no number. Two trough-EPS
   // votes (e.g. MP grahamForward + peerEvEbitda) must not print a fake mid.
-  const keptCount = kept.filter(Boolean).length;
+  // The street anchor is always kept, so it doesn't count toward the 3 (CLF/HUN would print trough values).
+  const keptCount = kept.filter((k, i) => k && !(p.streetWeight != null && i === streetAt)).length;
   if (base.cyclical && keptCount < 3) {
     return {
       ...base,

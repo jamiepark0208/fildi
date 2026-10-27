@@ -76,12 +76,12 @@ def options_shadow(conn) -> tuple:
 
 
 def fair_value(conn) -> tuple:
-    """fv-1.1.0 is display-only (S009: cheapness gaps don't predict) → live check = health, not returns."""
+    """fv-1.2.0 is display-only (S009: cheapness gaps don't predict) → live check = health, not returns."""
     r = conn.execute("""WITH l AS (SELECT DISTINCT ON (ticker) * FROM fair_value_snapshots ORDER BY ticker, as_of DESC)
                         SELECT count(*), count(fair_value), count(*) FILTER (WHERE price_to_fair < 0.25 OR price_to_fair > 4) FROM l""").fetchone()
     tot, valued, extreme = r
     verdict = "holding" if extreme <= 0.01 * valued else "drifting"
-    return ("Fair value (fv-1.1.0)", "S009", "Display only; no return prediction. Health: few absurd values",
+    return ("Fair value (fv-1.2.0)", "S009", "Display only; no return prediction. Health: few absurd values",
             f"{valued}/{tot} valued · {extreme} outside 0.25–4× price (A102 list)", f"{valued} names", verdict,
             {"extreme": extreme})
 
@@ -153,7 +153,7 @@ def fv_spread(conn) -> tuple:
              f AS (SELECT s.*, (SELECT price::float FROM fair_value_snapshots x WHERE x.ticker = s.ticker AND x.price > 0
                                 AND x.as_of BETWEEN s.as_of + 28 AND s.as_of + 35 ORDER BY x.as_of LIMIT 1) p1 FROM s)
         SELECT as_of, ptf, p1 / p - 1 FROM f WHERE p1 IS NOT NULL""").fetchall()
-    item, promised = "Fair value cheap − rich (fv-1.1.0)", "Cheapest quintile beats richest over ~1 month (S009 says it won't — testing)"
+    item, promised = "Fair value cheap − rich (fv-1.2.0)", "Cheapest quintile beats richest over ~1 month (S009 says it won't — testing)"
     if not rows_:
         first = conn.execute("SELECT min(as_of) FROM fair_value_snapshots WHERE fair_value IS NOT NULL").fetchone()[0]
         return (item, "S044", promised, f"first 1-month read ~{first + __import__('datetime').timedelta(days=31)} "

@@ -214,3 +214,34 @@ describe("profitableUseStandard (cohort label vs the stock's own profitability)"
     assert.equal(r.get("BURN")!.fairValue, null);
   });
 });
+
+describe("fv-1.2.0 street anchor + vote floor", () => {
+  const P2: FairValueParams = { ...P, streetWeight: 1 / 3, streetWeightMisfit: 0.5, misfitPeRatio: 2, misfitPvgo: 0.6, minInternalVotes: 2 };
+  const one = (t: FvTickerInput, p = P2) => computeFairValues(universe([t]), M, p).find((r) => r.ticker === t.ticker)!;
+
+  it("off by default: the seed blends the target as an equal voter (fv-1.1.0 unchanged)", () => {
+    const t = stock({ ticker: "T", analystTarget: 400 });
+    assert.equal(one(t, P).votes.find((v) => v.name === "analystTarget")!.kept, false);
+  });
+  it("the target is never trimmed and enters at its weight", () => {
+    const r = one(stock({ ticker: "T", analystTarget: 400 }));
+    assert.equal(r.votes.find((v) => v.name === "analystTarget")!.kept, true);
+    const base = one(stock({ ticker: "T" }));
+    const street = Math.log(400 * Math.exp(-P.analystBias) / 100);
+    const expect = (2 / 3) * Math.log(base.fairValue! / 100) + (1 / 3) * street;
+    assert.ok(Math.abs(Math.log(r.fairValue! / 100) - expect) < 0.01);
+  });
+  it("a growth-priced stock (P/E far above peers) leans on the street at the misfit weight", () => {
+    const g = stock({ ticker: "G", price: 400, analystTarget: 440 });
+    const flat = one(g, { ...P2, streetWeightMisfit: 1 / 3 }).fairValue!;
+    assert.ok(one(g).fairValue! > flat * 1.2);
+    // a stock priced like its peers is not a misfit: the misfit weight changes nothing
+    const fit = stock({ ticker: "F", analystTarget: 110 });
+    assert.equal(one(fit).fairValue, one(fit, { ...P2, streetWeightMisfit: 1 / 3 }).fairValue);
+  });
+  it("one DCF vote on an unprofitable name gives no value", () => {
+    const r = one(stock({ ticker: "U", forwardEps: -1, eps2: -0.5, ebitda: -1e9, analystTarget: 120 }));
+    assert.equal(r.fairValue, null);
+    assert.equal(r.nullReason, "too_few_internal_votes");
+  });
+});

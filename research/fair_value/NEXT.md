@@ -1,5 +1,13 @@
 # Fair value — next session (Jamie 10-27)
 
+**Status 10-27 late:** steps 1–2 done (`gap_attribution.py`), step 3 shipped as **fv-1.2.0** (street anchor + vote floor;
+FINDINGS §7). Next, in order: (a) growth software in pre-revenue cohorts gets no P/E vote (PLTR/DDOG/PANW −60 %) →
+give profitable members the peer/warranted P/E; (b) cyclicals at peak EPS (MU/SNDK +150 %) → cap the multiple at the
+group's own-history median or lean on the street; (c) LSEG FY2/LTG for the ~600 names without IBES FY2 (growth inputs);
+(d) rebuild the 2020–26 panel (`bt_load.py`; workdir was temp, needs splits.json + FRED AAA/GS10) and confirm IC ≥ 0 for
+the anchored blend; (e) ops below.
+
+
 Goal: find the factors behind the biggest gaps between Fildi fair value (fv-1.1.0) and price by **reverse-engineering what the
 price implies**, then adjust the model dynamically per sector / pattern group. Start here; don't re-run the audit.
 

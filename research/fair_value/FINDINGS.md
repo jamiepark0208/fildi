@@ -134,3 +134,20 @@ Result 2026-10-06: 436/568 valued (77%), 0 negative, median fair/price 1.08, 51%
 - "Fair value 3-month change" on Breakdown (null until 85 days of snapshots), context only until validate_snapshots.py grades it.
 - Validation loop: once ~6–12 months of snapshots exist, re-run §3 on our own snapshots (including DCF and StarMine)
   before any weight change or any use as a score input.
+
+## 7. fv-1.2.0 (2026-10-27): street anchor + vote floor
+
+Gap attribution (`gap_attribution.py` → `out/gap_attribution.md`, 791 names): bad gaps (worst quintile and street disagrees
+> 0.4 log) concentrate where the earnings multiple doesn't fit the stock: own forward P/E > 2× the applied peer P/E
+(72 % bad, all too low), < 0.5× (62 %, all too high), PVGO > 60 % of price (31 % vs 10 %); and the trimmed blend dropped
+the street target in 34 % of bad cases vs 5 % otherwise. Worst groups: digital finance, autos & EVs, chip design, medical
+devices, software. Financials / REITs / utilities fine (2–5 %). The value-trap flag ranks top in the regression only
+because it is defined from the gap (circular). Two structural bugs: unprofitable names valued from one FCF DCF vote
+(GH −85 %, NTRA −82 %), profitable software in pre-revenue cohorts gets no P/E vote (PLTR, DDOG, PANW still −60 %).
+
+Fix (`step3_prototype.py`, out-of-fold, accuracy = |log FV/price|): street target never trimmed, weight 1/3, 1/2 on
+misfit (P/E outside 0.5–2× peer or PVGO > 60 %); no value without 2 internal votes or one earnings-based vote. A GBM
+warranted P/E added only 2 pts and was not shipped. Production before/after: valued 791 → 756 (dropped = no internal
+model: Chinese ADRs, NVO, ARE, one-DCF names), within ±25 % 52 → 64 %, > 50 % off 27 → 12 %, > 3× 4 → 0, < ⅓ 18 → 1.
+Caveat: anchoring pulls values toward price and target by construction; §3 found anchoring leaves IC unchanged.
+Left: cyclicals at peak EPS (MU +155 %, SNDK +153 %), levered low P/E (CHTR +188 %), growth software still −40…−60 %.
