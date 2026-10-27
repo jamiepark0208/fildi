@@ -29,6 +29,13 @@ from build_plan import connect, rows  # noqa: E402
 FRED = {"GDPPOT": "gdppot", "DGS10": "ust10", "DGS20": "ust20", "DGS30": "ust30", "T10YIE": "breakeven10", "DFII10": "real10",
         "BAMLC0A1CAAA": "oas_aaa", "BAMLC0A2CAA": "oas_aa", "BAMLC0A3CA": "oas_a", "BAMLC0A4CBBB": "oas_bbb",
         "BAMLH0A1HYBB": "oas_bb", "BAMLH0A2HYB": "oas_b", "BAMLH0A3HYC": "oas_ccc"}
+# Published long-term capital market assumptions, US large-cap equity, 10–15-y annualised (forecasts from today's prices;
+# they include expected valuation change). Reviewed by hand when a house publishes (JPM each October).
+LTCMA = {"jpm_2027": (0.075, "JPM 2027 LTCMA (Oct 2026): +80 bp on margins > 15 %"),
+         "jpm_2026": (0.067, "JPM 2026 LTCMA: 6.0 rev + 3.0 buybacks + 1.7 div − 1.5 dilution − 2.0 valuation − 0.5 margins"),
+         "northern_trust_2026": (0.068, "Northern Trust 10-y outlook 2026"),
+         "house_median": (0.063, "median of 14 houses (Portfolio Lab, 2026)"),
+         "vanguard_mid": (0.052, "Vanguard 4.2–6.2 % range (Jun 2026)")}
 KROLL_URL = "https://www.kroll.com/en/reports/cost-of-capital/recommended-us-equity-risk-premium-and-corresponding-risk-free-rates"
 KROLL_DEFAULT = {"erp": 0.050, "rf_floor": 0.035, "since": "2024-06-05"}
 DAMO_LABELS = {
@@ -132,6 +139,10 @@ def pairs(v: dict) -> dict:
         out["kroll"] = {"rf": max(v["ust20"], v["kroll_rf_floor"]), "erp": v["kroll_erp"], "basis": "max(20-y, 3.5 %) + Kroll ERP"}
     if "ust10" in v and "erp_avg10" in v:
         out["normal"] = {"rf": v["ust10"], "erp": v["erp_avg10"], "basis": "10-y spot + 10-y average implied ERP"}
+    if "ust10" in v:  # market-consistent view: published expected return at today's prices (JPM 2027) − rf
+        mr, why = LTCMA["jpm_2027"]
+        out["ltcma"] = {"rf": v["ust10"], "erp": round(mr - v["ust10"], 4), "basis": f"{why}; ERP = 7.5 % − 10-y",
+                        "houses": {k: x[0] for k, x in LTCMA.items()}}
     if "ust10" in v and {"erp_implied", "erp_long", "erp_avg10"} <= v.keys():
         lo, mode = v["erp_implied"], v["erp_long"]
         hi = max(v["erp_avg10"], v.get("kroll_erp", 0))

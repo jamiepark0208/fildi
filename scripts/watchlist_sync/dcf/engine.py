@@ -4,7 +4,9 @@ Per path (Monte Carlo, N draws):
   revenue  year 1 = consensus FY1 growth (LSEG, vs last FY); years 2–5 = base-rate 5-y CAGR for size × start growth at
            percentile u_g; years 6–10 = the matching 10-y base rate, fading to terminal g      (S112 base_rates_growth)
   margin   current operating margin → base-rate margin 5 y later for sector × start margin at u_m (ρ 0.5 with u_g)
-  reinvest Δrevenue ÷ sales-to-capital (sector P25–P75)                                        (S112 base_rates_roic)
+  reinvest Δrevenue ÷ sales-to-capital: the company's own 3-y Δrevenue ÷ Σ reinvestment (NOPAT − FCFF ex-SBC) from its
+           filings, capped 0.3–8, blended with the sector P25–P75 when own history is missing or noisy  (audit 10-27:
+           sector-only S2C made AAPL reinvest 80 % of NOPAT vs 1 % actual)
   tax      effective → 25 % marginal by year 10
   discount Ke = rf + β·ERP; β = Blume(own) for years 1–5 → clamp(β, 0.8, 1.2) by year 10; ERP ~ cma base triangular;
            Kd = rf + OAS(rating; synthetic from interest coverage when unrated); WACC on market weights
@@ -120,6 +122,33 @@ def rating_letter(raw: str | None, coverage: float | None) -> tuple[str, str]:
     return "CCC", "synthetic"
 
 
+def own_s2c(h: dict, tax: float, ttm: dict | None = None) -> float | None:
+    """Own sales-to-capital: Δrevenue over the last 3 fiscal years ÷ (median yearly reinvestment rate × NOPAT), with the
+    TTM year included in the median. Reinvestment = NOPAT − FCFF ex-SBC (net capex + working capital, from the filings).
+    Yearly rates swing with working capital and tax timing (AAPL), hence the median; < 15 % of NOPAT = asset-light → 8."""
+    rev = h.get("revenue") or {}
+    ends = sorted(rev)
+    if len(ends) < 4:
+        return None
+    rates, nopats = [], []
+    periods = [{k: (h.get(k) or {}).get(e) for k in ("operating_income", "ocf", "capex", "sbc", "interest_expense")} for e in ends[-3:]]
+    if ttm:
+        periods.append(ttm)
+    for g in periods:
+        if g["operating_income"] is None or g["ocf"] is None or g["capex"] is None or g["operating_income"] <= 0:
+            continue
+        nopat = g["operating_income"] * (1 - tax)
+        fcff = g["ocf"] + (g["interest_expense"] or 0) * (1 - tax) - g["capex"] - (g["sbc"] or 0)
+        rates.append((nopat - fcff) / nopat); nopats.append(nopat)
+    if len(rates) < 2:
+        return None
+    rr = float(np.median(rates))
+    d_rev = (rev[ends[-1]] - rev[ends[-4]]) / 3
+    if rr < 0.15 or d_rev <= 0:
+        return 8.0 if rr < 0.15 else None
+    return float(np.clip(d_rev / (rr * float(np.mean(nopats))), 0.3, 8.0))
+
+
 def inputs(conn, t: str, base: dict | None = None) -> dict:
     if base is None:
         base = ttm_base(conn, t)
@@ -145,10 +174,12 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
     if gold_debt > 0 and debt_sec > 3 * gold_debt + 1e9:
         debt_sec, flags = gold_debt, flags + ["SEC debt > 3× vendor → vendor"]
     debt = debt_sec + leases
-    cash = v("cash") + v("st_investments")
+    cash = v("cash") + v("st_investments") + v("lt_investments")  # non-operating assets in the equity bridge
     ic = v("equity") + debt - cash
     pre = v("pretax_income")
     eff = v("tax") / pre if pre > 0 else 0.21
+    s2c_own = own_s2c(base.get("history") or {}, min(max(eff, 0.05), 0.30),
+                      {k: v(k) for k in ("operating_income", "ocf", "capex", "sbc", "interest_expense")})
     gid = f["g"] or "unknown.x"
     sec = "50" if gid in COMM_GROUPS else GICS.get(gid.split(".")[0], "45")
     ie = v("interest_expense")
@@ -165,7 +196,7 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
             "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
-            "flags": flags, "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
+            "s2c_own": s2c_own, "flags": flags, "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
 
 
 def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict | None = None, scenario: str = "base") -> dict:
@@ -212,7 +243,12 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     margin = x["m0"] + (m_t[:, None] - x["m0"]) * w[None, :]
     tax = x["tax0"] + (0.25 - x["tax0"]) * (years / 10)
     nopat = rev * margin * (1 - tax)
-    s2c = np.full(n, fx["s2c"]) if "s2c" in fx else np.maximum(qs(u_s), 0.2)
+    if "s2c" in fx:
+        s2c = np.full(n, fx["s2c"])
+    elif x.get("s2c_own") is not None:  # own history, ±30 % noise; sector rate only as a 25 % anchor
+        s2c = np.exp(0.75 * np.log(x["s2c_own"]) + 0.25 * np.log(np.maximum(qs(u_s), 0.2)) + rng.normal(0, 0.3, n) * (0 if fx else 1))
+    else:
+        s2c = np.maximum(qs(u_s), 0.2)
     prev = np.c_[np.full(n, x["rev"]), rev[:, :-1]]
     reinv = (rev - prev) / s2c[:, None]
     fcff = nopat - reinv
@@ -227,9 +263,15 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     ke = rf + beta[None, :] * erp[:, None]
     wacc = (1 - wd) * ke + wd * kd * (1 - 0.25)
     disc = np.cumprod(1 + wacc, axis=1)
-    pv = (fcff / disc).sum(axis=1)
+    pv = (fcff / (disc / np.sqrt(1 + wacc))).sum(axis=1)  # mid-year convention: cash arrives through each year
     wT = wacc[:, -1]
-    roicT = np.full(n, fx["roicT"]) if "roicT" in fx else np.maximum(qr(u_r), wT)
+    if "roicT" in fx:
+        roicT = np.full(n, fx["roicT"])
+    else:
+        # terminal return on new capital: geometric mean of the base-rate fade and the company's own RONIC
+        # (sales-to-capital × after-tax margin), never below WACC, capped at 60 %
+        ronic_own = s2c * m_t * (1 - 0.25)
+        roicT = np.clip(np.sqrt(np.maximum(qr(u_r), 0.01) * np.maximum(ronic_own, 0.01)), wT, 0.60)
     nopat11 = nopat[:, -1] * (1 + g_T)
     tv = nopat11 * (1 - g_T / roicT) / np.maximum(wT - g_T, 0.01)
     pv_tv = tv / disc[:, -1]
@@ -242,6 +284,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     vps = equity / x["shares"]
     return {"vps": vps, "tv_share": float(np.median(pv_tv / ev)), "why": {"growth": gwhy, "margin": mwhy, "roic": rwhy},
             "b0": b0, "bT": bT, "kd": kd, "wd": wd, "p_fail": p_fail, "rf": rf,
+            "parts": {"nopat1": float(np.median(nopat[:, 0])), "reinv1": float(np.median(reinv[:, 0])), "fcff1": float(np.median(fcff[:, 0])),
+                      "pv_explicit": float(np.median(pv)), "pv_tv": float(np.median(pv_tv)), "ev": float(np.median(ev)),
+                      "tv_mult_nopat11": float(np.median(tv / nopat11)), "disc10": float(np.median(disc[:, -1]))},
             "path": {"rev10": float(np.median(rev[:, -1])), "m_target": float(np.median(m_t)), "g25": float(np.median(r25)),
                      "wacc1": float(np.median(wacc[:, 0])), "waccT": float(np.median(wT))}}
 

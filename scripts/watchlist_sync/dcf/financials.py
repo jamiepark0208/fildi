@@ -37,6 +37,7 @@ FLOWS = {
 BALANCES = {
     "cash": ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"],
     "st_investments": ["ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesDebtSecuritiesCurrent"],
+    "lt_investments": ["MarketableSecuritiesNoncurrent", "AvailableForSaleSecuritiesDebtSecuritiesNoncurrent", "LongTermInvestments"],
     "debt_lt": ["LongTermDebtNoncurrent", "LongTermDebt", "LongTermDebtAndCapitalLeaseObligations"],
     "debt_current": ["LongTermDebtCurrent", "DebtCurrent", "LongTermDebtAndCapitalLeaseObligationsCurrent"],
     "st_borrowings": ["ShortTermBorrowings", "CommercialPaper"],
@@ -153,6 +154,21 @@ def shares(facts: dict) -> dict | None:
     return {"value": tot, "concept": "dei:EntityCommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
 
 
+def fy_history(facts: dict, concepts: list[str], n: int = 5) -> dict[str, float]:
+    """Last n fiscal-year values {fy_end: value}, from the concept with the newest annual period."""
+    best = {}
+    for c in concepts:
+        # 10-K full years only: AMZN's 10-Qs carry trailing-12-month cash-flow lines that look like one-year periods
+        fy = {u["end"]: u["val"] for u in _units(facts, c) if u.get("start") and 350 <= _days(u["start"], u["end"]) <= 380
+              and u.get("form", "").startswith(("10-K", "20-F", "40-F")) and u.get("fp") == "FY"}
+        if fy and (not best or max(fy) > max(best)):
+            best = fy
+    return dict(sorted(best.items())[-n:])
+
+
+HIST = ("revenue", "operating_income", "ocf", "capex", "sbc", "interest_expense", "tax", "pretax_income")
+
+
 def ttm_base(conn, ticker: str) -> dict | None:
     facts = companyfacts(conn, ticker)
     if not facts:
@@ -161,6 +177,7 @@ def ttm_base(conn, ticker: str) -> dict | None:
     asof = (out.get("revenue") or {}).get("end") or date.today().isoformat()
     out.update({k: balance(facts, v, asof) for k, v in BALANCES.items()})
     out["shares"] = shares(facts)
+    out["history"] = {k: fy_history(facts, FLOWS[k]) for k in HIST}
     return out
 
 
@@ -200,5 +217,7 @@ if __name__ == "__main__":
                 print(t, "no CIK / facts"); continue
             print(t)
             for k, v in b.items():
+                if k == "history":
+                    continue
                 if v:
                     print(f"  {k:16s} {v['value'] / 1e6:>12,.0f}m  {v['concept'][:48]:48s} end {v['end']} filed {v['filed']} {v.get('how', '')}")

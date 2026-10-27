@@ -179,3 +179,28 @@ La Porta (1996), Chan–Karceski–Lakonishok (2003) on growth persistence and L
   far below 1, add one documented market-consistency setting (excess-return fade) so the market as a whole values at
   ~1× under the implied pair, and keep the pure base-rate view as a scenario; (3) sector rules (utilities 0.04 and
   energy need rate-base / mid-cycle methods; brokers; cyclicals; SBC-heavy software); (4) LSEG FY2/FY3 revenue.
+
+## Mechanics audit + LTCMA research 10-27 (watchlist-first; `dcf_watch.py`, `dcf_audit.py`)
+
+**Long-term capital market assumptions (Jamie: "JPM says ~7.x %").** US large-cap 10–15-y forecasts: JPM 2027 LTCMA
+(Oct 2026) 7.5 % (2026 ed. 6.7 % = 6.0 revenue + 3.0 buybacks + 1.7 dividends − 1.5 dilution − **2.0 valuation −
+0.5 margins**); Northern Trust 6.8 %; 14-house median ~6.3 %; Vanguard 4.2–6.2 %; Research Affiliates 3.1 %; BlackRock
+9.0 % (aggregator, unverified). These are *expected returns from today's prices* and include multiple compression; JPM ex
+valuation/margin drag ≈ 9.2 %, which is where Damodaran (8.7–9.0 % implied) and Kroll (10.35 %) sit. So: discounting at
+~7.5 % treats today's market multiples as fair (market-consistent); ~9–10 % assumes they revert. Both are shown:
+`cma.py` pair `ltcma` (rf + (7.5 % − rf)) next to implied / base / normal / kroll; houses listed with sources.
+
+**Mechanics bug found: reinvestment.** Year-1 reinvestment (share of NOPAT) model vs filings: AAPL 80 % vs 1 %,
+NVDA 85 % vs 28 %, NFLX 75 % vs 11 %, PLTR 111 % vs −1 %. Cause: one sector sales-to-capital (Compustat ~1.1) for every
+company. Working capital (AR, AP, deferred revenue, accruals), D&A and capex are inside operating cash flow; the model
+folds them into reinvestment = Δrevenue ÷ sales-to-capital, so that ratio must be the company's own. Fix: own
+sales-to-capital from 3 fiscal years + TTM (median reinvestment rate; < 15 % = asset-light), 75/25 blend with the sector;
+terminal return on new capital = geometric mean of base-rate ROIC fade and own RONIC (≥ WACC, ≤ 60 %). After the fix:
+AAPL 11 % vs 1 %, MSFT 56 vs 54, GOOGL 82 vs 80, AMZN 129 vs 139, NVDA 32 vs 28, NFLX 11 vs 11. Also added: mid-year
+discounting, long-term investments in the equity bridge (AAPL $84B), 10-K-only fiscal history (AMZN 10-Q TTM lines).
+EV → equity bridge, Gordon terminal value and discounting checked by hand on the audit output.
+
+**10 watchlist names after the fixes (median value, base 9.25 % / LTCMA 7.5 %):** AAPL 174 / 265 (price 344),
+MSFT 294 / 457 (533), GOOGL 159 / 249 (317), AMZN 87 / 155 (249), NVDA 139 / 224 (216), NFLX 56 / 91 (64),
+TTD 16 / 23 (13). Still structurally low: NOW (GAAP margin ≪ FCF margin, SBC), MRVL (no own S2C), PLTR (growth beyond
+base rates) → next fixes. No universe rerun until the watchlist looks right (Jamie 10-27).
