@@ -237,11 +237,16 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     gr[:, 1:5] = r25[:, None]
     for k in range(5, 10):
         gr[:, k] = r610 + (g_T - r610) * ((k - 4) / 5)
+    if "analyst_g" in fx:  # analyst-style path: years 2–5 at the given growth, then linear fade to terminal by year 10
+        ga = fx["analyst_g"]
+        gr[:, 1:5] = ga
+        for k in range(5, 10):
+            gr[:, k] = ga + (g_T - ga) * ((k - 4) / 6)
     rev = x["rev"] * np.cumprod(1 + gr, axis=1)
     m_t = np.full(n, x["m0"]) if fx.get("hold_margin") else qm(u_m)
     w = np.clip(years / 5, 0, 1)
     margin = x["m0"] + (m_t[:, None] - x["m0"]) * w[None, :]
-    tax = x["tax0"] + (0.25 - x["tax0"]) * (years / 10)
+    tax = np.full(10, x["tax0"]) if fx.get("hold_tax") else x["tax0"] + (0.25 - x["tax0"]) * (years / 10)
     nopat = rev * margin * (1 - tax)
     if "s2c" in fx:
         s2c = np.full(n, fx["s2c"])

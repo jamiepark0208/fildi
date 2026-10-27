@@ -153,7 +153,7 @@ La Porta (1996), Chan–Karceski–Lakonishok (2003) on growth persistence and L
 3. **Market assumptions today:** 10-y 5.00 %, 20-y 5.35 %, breakeven 2.35 %, CBO potential real growth 1.93 %.
    Expected market return: implied 8.7 % · base 9.25 % (ERP 3.7–5.1 %, mode 4.25 %) · normal 10.1 % · Kroll 10.35 %.
    fv-1.x used rf + 5 % ≈ 10 % (the "normal" end). Terminal growth centres on 4.3 % (≤ rf), not 2–3 %.
-4. **Base-rate growth vs prices:** megacaps and fast growers are priced above what base rates support. Reverse DCF:
+4. **[RETRACTED 10-27 night — made while the reinvestment bug was live; see § Assessment]** Base-rate growth vs prices: megacaps and fast growers are priced above what base rates support. Reverse DCF:
    MSFT needs P95 growth, KO P93, AAPL > P98 (41× NOPAT needs ~6.5 % cost of capital or record growth persistence);
    MU P42, CHTR P15 (priced for decline). This is what the DCF should show (percentile + implied growth), not hide.
 5. **Margins: model the ratio, not the level.** Future/current margin medians: staples ≈ 1.0, tech 30–40 % → 0.87,
@@ -204,3 +204,40 @@ EV → equity bridge, Gordon terminal value and discounting checked by hand on t
 MSFT 294 / 457 (533), GOOGL 159 / 249 (317), AMZN 87 / 155 (249), NVDA 139 / 224 (216), NFLX 56 / 91 (64),
 TTD 16 / 23 (13). Still structurally low: NOW (GAAP margin ≪ FCF margin, SBC), MRVL (no own S2C), PLTR (growth beyond
 base rates) → next fixes. No universe rerun until the watchlist looks right (Jamie 10-27).
+
+## Assessment 10-27 night (Jamie: "why so far from price and from analysts, why so wide?")
+
+Evidence: walk from analyst-style to ours on AAPL / MSFT / NVDA / NFLX / GOOGL (deterministic median path), outside
+estimates (street PT, LSEG StarMine intrinsic value, Morningstar fair value), and range-width decomposition.
+
+| step (cumulative) | AAPL | MSFT | NVDA | NFLX | GOOGL |
+|---|---|---|---|---|---|
+| ours (base-rate growth, margin fade, tax → 25 %, ERP 4.25 %) | 149 | 252 | 115 | 45 | 154 |
+| + tax held at effective | 161 | 267 | 125 | 49 | 165 |
+| + margins held | 188 | 317 | 160 | 58 | 198 |
+| + years 2–5 at analyst LTG, fade by year 10 | 301 | 537 | 640 | 131 | 287 |
+| price · street PT · StarMine IV | 344 · 327 · 151 | 533 · 600 · 377 | 216 · 325 · 250 | 64 · 86 · 58 | 317 · 427 · 263 |
+
+What we are doing wrong (most → least):
+1. **Growth after year 1 comes from history, not the company.** Years 2–10 use the base-rate CAGR of all
+   similar-size, similar-growth firms (megacaps ≈ 5–8 %/y), lightly tilted toward analysts. Analysts and the market
+   use company forecasts (consensus FY2–FY3 revenue, guidance). Base rates should be the *prior* the company forecast
+   is shrunk toward, weighted by coverage and forecast quality — not the centre. We also lack FY2/FY3 revenue
+   consensus, and IBES LTG is EPS growth (NVDA 52 %, NFLX 21 %), the wrong unit for revenue → over-shoots when used raw.
+2. **Margin fade from the cross-section.** Median future/current ratio 0.87 for 30–40 % tech margins is an average of
+   all such firms; applied to every company it cuts stable franchises by 13 %+ and adds most of the width.
+3. **Tax stepped to 25 %** for companies with long-run 15–18 % effective rates (−7 %).
+4. **Discount rate is a real choice, not an error:** ERP 2.5 % (JPM-consistent) vs 4.25 % moves values ~60 %.
+5. **Width = cross-sectional dispersion used as company uncertainty.** P90/P10 with one input random: margin 2.3–2.7×
+   (NVDA 13×), growth 1.6–2.3×, ERP 1.15×, terminal g 1.1×, reinvestment ≈ 1.05×. The spread of *all* firms in a
+   bucket is not the uncertainty about AAPL. Uncertainty should come from the company's own forecast dispersion
+   (analyst high/low, own margin/growth volatility) — base-rate dispersion only for thinly covered names.
+6. **Street targets are not fair values.** They are 12-month price forecasts, mostly multiple-based, optimistic by
+   ~10–15 % on average (FINDINGS §2). Public intrinsic values exist: Morningstar FV (MSFT 600, NFLX 80), LSEG StarMine IV
+   (in our DB). Intrinsic estimates sitting below megacap prices is normal (StarMine AAPL 151), not a sign of a bug.
+
+Fix order (watchlist only): (a) revenue + EBIT consensus FY1–FY3 per company (IBES SAL/EBI via WRDS for the watchlist,
+LSEG after 11-01) as the growth/margin centre, shrunk toward base rates by analyst count and dispersion, fading to base
+rate by year 10; (b) margin centre = consensus/own, uncertainty = own history + analyst dispersion; (c) tax → company's
+3-y effective, partial convergence; (d) width check vs Morningstar uncertainty bands (fair value ±20–50 %);
+(e) compare with StarMine IV / Morningstar as plausibility bounds, not targets.
