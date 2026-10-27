@@ -23,6 +23,8 @@ FLOWS = {
     "revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet",
                 "RevenueFromContractWithCustomerIncludingAssessedTax", "RevenuesNetOfInterestExpense"],
     "operating_income": ["OperatingIncomeLoss"],
+    "gross_profit": ["GrossProfit"],
+    "cost_of_revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
     "pretax_income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
                       "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments"],
     "tax": ["IncomeTaxExpenseBenefit"],
@@ -87,16 +89,19 @@ def _days(a: str, b: str) -> int:
 
 def ttm_flow(facts: dict, concepts: list[str]) -> dict | None:
     """Pick the concept with the newest period, then TTM = FY, or FY + YTD − prior YTD."""
-    best = None
+    cands = []
     for c in concepts:
         vals = [u for u in _units(facts, c) if u.get("start")]
-        if not vals:
-            continue
-        newest = max(u["end"] for u in vals)
-        if best is None or newest > best[1]:
-            best = (c, newest, vals)
-    if best is None:
+        if vals:
+            cands.append((c, max(u["end"] for u in vals), vals))
+    if not cands:
         return None
+    # current concepts only (newest end within ~1 quarter of the newest), then the largest annual total: REITs/banks tag
+    # small sub-lines with recent periods (ESS, RF picked a $0.1B line)
+    top = max(e for _, e, _ in cands)
+    cur = [x for x in cands if _days(x[1], top) <= 100]
+    fy_size = lambda vals: max((u["val"] for u in vals if 350 <= _days(u["start"], u["end"]) <= 380), default=0)
+    best = max(cur, key=lambda x: (fy_size(x[2]), x[1]))
     c, newest, vals = best
     fy = [u for u in vals if 350 <= _days(u["start"], u["end"]) <= 380]
     if not fy:

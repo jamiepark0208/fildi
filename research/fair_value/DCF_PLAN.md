@@ -161,3 +161,21 @@ La Porta (1996), Chan–Karceski–Lakonishok (2003) on growth persistence and L
 6. **Next:** universe calibration run; SBC-heavy software (DDOG GAAP margin 0 %, FCF margin 23 %) and brokers (HOOD)
    need sector rules; MU's LTG is EPS growth off a boom (cyclical rule); consensus revenue FY2/FY3 (LSEG) instead of
    only FY1 + LTG.
+
+## Calibration 10-27 (universe run, `dcf/engine.py --universe`, `research/fair_value/dcf_calibration.py`)
+
+- SEC TTM base: 838/906 names. On 619 clean non-financial names our stored revenue is > 10 % off the latest TTM for 35 %,
+  > 20 % for 15 % (80 of 94 big gaps = SEC higher → stale growth names: MU, BE, IONQ). SEC-side traps fixed/flagged:
+  foreign filers in local currency (TM, XPEV), REIT/bank sub-line revenue tags (largest current tag now wins), one
+  mis-scaled tag (BWXT leases $44.2B) → cross-check vs vendor, leases > revenue dropped, equity floored at 0.
+- **Generic engine is biased low:** 688 names valued, median value/price 0.32 (≥ $10B caps: 0.43); price above our P90
+  for 54 %. Lever test on 523 large caps (cumulative): g = rf 0.47 → implied ERP 0.55 → margins held 0.60 →
+  terminal ROIC 25 % 0.78 → growth P75 0.92. Biggest single lever = terminal ROIC / reinvestment (0.43 → 0.56).
+- Why: median large cap trades at 24× NOPAT; base-rate ROIC on *book* capital (10–15 %) makes the model reinvest
+  35–45 % of NOPAT, which supports ~11–13×. Book capital omits intangible investment (R&D, brands, software), so measured
+  ROIC and reinvestment needs are distorted for most of today's large caps.
+- **Next (in order):** (1) capitalise R&D (Damodaran: amortise over 3–10 y by sector; XBRL ResearchAndDevelopmentExpense)
+  and use each company's own sales-to-capital history blended with the sector base rate; (2) if the aggregate is still
+  far below 1, add one documented market-consistency setting (excess-return fade) so the market as a whole values at
+  ~1× under the implied pair, and keep the pure base-rate view as a scenario; (3) sector rules (utilities 0.04 and
+  energy need rate-base / mid-cycle methods; brokers; cyclicals; SBC-heavy software); (4) LSEG FY2/FY3 revenue.

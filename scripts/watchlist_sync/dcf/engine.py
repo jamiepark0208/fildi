@@ -60,6 +60,7 @@ class BaseRates:
         self.g = pd.read_pickle(BR / "base_rates_growth.pkl")
         self.m = pd.read_pickle(BR / "base_rates_margin.pkl")
         self.r = pd.read_pickle(BR / "base_rates_roic.pkl")
+        self.mg = pd.read_pickle(BR / "base_rates_margin_gross.pkl")
 
     def growth(self, size: float, g_start: float):
         sz = _bucket(size / 1e6, [2000, 10000, 50000, 1e18], ["1: $0.5-2B", "2: $2-10B", "3: $10-50B", "4: >$50B"])
@@ -67,7 +68,16 @@ class BaseRates:
         row = self.g[(self.g["size"] == sz) & (self.g.start_growth == st)].iloc[0]
         return _q(json.loads(row.g5)), _q(json.loads(row.g10)), f"{sz} × {st}"
 
-    def margin(self, sector: str, m0: float):
+    def margin(self, sector: str, m0: float, gm: float | None = None, fast: bool = False):
+        """Tech/health/comm under 20 % margin with a gross margin: level by start margin × gross margin × growth (room to
+        scale: 0–10 % margin at GM > 75 % → median 11–12 % in 5 y vs 4–5 % at GM < 40 %). Else m5 = m0 × ratio"""
+        if gm is not None and sector in ("45", "35", "50") and m0 < 0.20:
+            sm = _bucket(m0, [0, .10, .20], ["1: <0%", "2: 0-10%", "3: 10-20%"])
+            gb = _bucket(gm, [.40, .60, .75, 9], ["1: GM<40%", "2: GM 40-60%", "3: GM 60-75%", "4: GM>75%"])
+            row = self.mg[(self.mg.start_margin == sm) & (self.mg.gross == gb) & (self.mg.growth == ("fast" if fast else "slow"))]
+            if not row.empty and row.iloc[0].n >= 25:
+                q = _q(json.loads(row.iloc[0].m5))
+                return (lambda u, q=q: np.maximum(q(u), m0 if m0 > 0 else -1)), f"{sm} × {gb} × {'fast' if fast else 'slow'}"
         """m5 = m0 × ratio (sector × margin bucket, ≥ 30 firms else the next bucket down); level-based below 5 % margin."""
         labels = ["1: <0%", "2: 0-5%", "3: 5-10%", "4: 10-20%", "5: 20-30%", "6: 30-40%", "7: 40-50%", "8: >50%"]
         st = _bucket(m0, [0, .05, .10, .20, .30, .40, .50, 1e9], labels)
@@ -126,7 +136,15 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
     fy1 = float(s["revenue_mean_fy1"]) if s.get("revenue_mean_fy1") else None
     g1 = (fy1 / rev_fy - 1) if fy1 and rev_fy > 0 and 0.3 < fy1 / rev_fy < 4 else None
     oi = v("operating_income") or (v("pretax_income") + v("interest_expense"))
-    debt = v("debt_lt") + v("debt_current") + v("st_borrowings") + v("op_leases")
+    # sanity vs vendor gold: one mis-scaled XBRL tag (BWXT operating leases $44.2B vs ~$44M) wipes out the equity
+    gold = rows(conn, "SELECT total_debt FROM ticker_fundamentals WHERE ticker = %s", (t,))
+    gold_debt = float(gold[0]["total_debt"] or 0) if gold else 0.0
+    leases = v("op_leases") if v("op_leases") <= rev else 0.0
+    debt_sec = v("debt_lt") + v("debt_current") + v("st_borrowings")
+    flags = [] if v("op_leases") <= rev else ["leases > revenue → dropped"]
+    if gold_debt > 0 and debt_sec > 3 * gold_debt + 1e9:
+        debt_sec, flags = gold_debt, flags + ["SEC debt > 3× vendor → vendor"]
+    debt = debt_sec + leases
     cash = v("cash") + v("st_investments")
     ic = v("equity") + debt - cash
     pre = v("pretax_income")
@@ -143,10 +161,11 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
     letter, why = rating_letter(s.get("issuer_rating"), cov)
     return {"ticker": t, "price": float(f["price"]), "shares": v("shares"), "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),
-            "m0": oi / rev if rev else 0.0, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
+            "m0": oi / rev if rev else 0.0,
+            "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
-            "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
+            "flags": flags, "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
 
 
 def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict | None = None, scenario: str = "base") -> dict:
@@ -177,7 +196,7 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
 
     g1 = x["g1"] if x["g1"] is not None else 0.05
     q5, q10, gwhy = br.growth(x["rev"], g1)
-    qm, mwhy = br.margin(x["sector"], x["m0"])
+    qm, mwhy = br.margin(x["sector"], x["m0"], x.get("gm"), (x["g1"] or 0) > 0.20)
     qr, qs, rwhy = br.roic_and_s2c(x["sector"], x["roic0"])
     r25, r10 = q5(u_g), q10(u_g)
     r610 = ((1 + r10) ** 10 / (1 + r25) ** 5) ** (1 / 5) - 1
@@ -188,12 +207,12 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     for k in range(5, 10):
         gr[:, k] = r610 + (g_T - r610) * ((k - 4) / 5)
     rev = x["rev"] * np.cumprod(1 + gr, axis=1)
-    m_t = qm(u_m)
+    m_t = np.full(n, x["m0"]) if fx.get("hold_margin") else qm(u_m)
     w = np.clip(years / 5, 0, 1)
     margin = x["m0"] + (m_t[:, None] - x["m0"]) * w[None, :]
     tax = x["tax0"] + (0.25 - x["tax0"]) * (years / 10)
     nopat = rev * margin * (1 - tax)
-    s2c = np.maximum(qs(u_s), 0.2)
+    s2c = np.full(n, fx["s2c"]) if "s2c" in fx else np.maximum(qs(u_s), 0.2)
     prev = np.c_[np.full(n, x["rev"]), rev[:, :-1]]
     reinv = (rev - prev) / s2c[:, None]
     fcff = nopat - reinv
@@ -210,7 +229,7 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     disc = np.cumprod(1 + wacc, axis=1)
     pv = (fcff / disc).sum(axis=1)
     wT = wacc[:, -1]
-    roicT = np.maximum(qr(u_r), wT)
+    roicT = np.full(n, fx["roicT"]) if "roicT" in fx else np.maximum(qr(u_r), wT)
     nopat11 = nopat[:, -1] * (1 + g_T)
     tv = nopat11 * (1 - g_T / roicT) / np.maximum(wT - g_T, 0.01)
     pv_tv = tv / disc[:, -1]
@@ -219,7 +238,7 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         p_fail = 0.002
     else:
         p_fail = P_FAIL[x["rating"]] if x["m0"] > 0 else max(P_FAIL[x["rating"]], 0.15)
-    equity = (ev - x["debt"] + x["cash"] - x["minority"]) * (1 - p_fail)
+    equity = np.maximum(ev - x["debt"] + x["cash"] - x["minority"], 0) * (1 - p_fail)  # limited liability
     vps = equity / x["shares"]
     return {"vps": vps, "tv_share": float(np.median(pv_tv / ev)), "why": {"growth": gwhy, "margin": mwhy, "roic": rwhy},
             "b0": b0, "bT": bT, "kd": kd, "wd": wd, "p_fail": p_fail, "rf": rf,
@@ -287,6 +306,9 @@ def universe(conn, br: BaseRates) -> None:
             x = inputs(conn, t, b["base"])
             if x["sector"] in SKIP_SECTORS or x["rev"] <= 0 or x["shares"] <= 0 or not x["price"]:
                 continue
+            ours = rows(conn, "SELECT total_revenue FROM ticker_fundamentals WHERE ticker = %s", (t,))
+            if ours and ours[0]["total_revenue"] and x["rev"] < 0.5 * float(ours[0]["total_revenue"]):
+                continue  # SEC base implausible (foreign filer in local currency, odd revenue tag) → not valued here
             v = simulate(x, br, n=1000)["vps"]
             u = reverse(x, br)
         except Exception as e:

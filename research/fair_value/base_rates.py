@@ -18,7 +18,7 @@ SECTOR = {"10": "energy", "15": "materials", "20": "industrials", "25": "cons. d
 
 BASE = """
 WITH f AS (
-  SELECT a.gvkey, a.fyear, a.sale, a.oiadp,
+  SELECT a.gvkey, a.fyear, a.sale, a.oiadp, a.gp,
          COALESCE(a.ceq,0) + COALESCE(a.dltt,0) + COALESCE(a.dlc,0) - COALESCE(a.che,0) AS ic,
          c.gsector, c.dlrsn
   FROM comp.funda a JOIN comp.company c ON c.gvkey = a.gvkey
@@ -37,7 +37,7 @@ WITH f AS (
 ), b AS (
   SELECT g.*, POWER(sale / s_m3, 1/3.0) - 1 AS g_back,
     CASE WHEN sale < 2000 THEN '1: $0.5-2B' WHEN sale < 10000 THEN '2: $2-10B' WHEN sale < 50000 THEN '3: $10-50B' ELSE '4: >$50B' END AS size,
-    oiadp / sale AS margin, CASE WHEN ic > 0 THEN 0.75 * oiadp / ic END AS roic
+    oiadp / sale AS margin, gp / sale AS gmargin, CASE WHEN ic > 0 THEN 0.75 * oiadp / ic END AS roic
   FROM g WHERE sale >= 500 AND s_m3 > 0 AND fyear BETWEEN 1990 AND 2020
 )
 """
@@ -79,10 +79,23 @@ FROM b WHERE roic IS NOT NULL GROUP BY ROLLUP (1, 2) ORDER BY 1, 2
 """
 
 
+Q2B = BASE + """
+SELECT CASE WHEN margin < 0 THEN '1: <0%' WHEN margin < .10 THEN '2: 0-10%' WHEN margin < .20 THEN '3: 10-20%' ELSE '4: >20%' END AS start_margin,
+  CASE WHEN gmargin < .40 THEN '1: GM<40%' WHEN gmargin < .60 THEN '2: GM 40-60%' WHEN gmargin < .75 THEN '3: GM 60-75%' ELSE '4: GM>75%' END AS gross,
+  CASE WHEN g_back > .20 THEN 'fast' ELSE 'slow' END AS growth,
+  COUNT(*) FILTER (WHERE s_p5 > 0) n,
+  PERCENTILE_CONT(ARRAY[.02,.05,.1,.25,.5,.75,.9,.95,.98]) WITHIN GROUP (ORDER BY oi_p5/s_p5) FILTER (WHERE s_p5 > 0) m5
+FROM b WHERE margin IS NOT NULL AND gmargin IS NOT NULL AND gsector IN ('45','35','50') GROUP BY 1, 2, 3 ORDER BY 1, 2, 3
+"""
+
+
 def main():
     db = connect()
     OUT.mkdir(exist_ok=True)
-    for name, q in (("growth", Q1), ("margin", Q2), ("roic", Q3)):
+    only = sys.argv[1:] or ["growth", "margin", "roic", "margin_gross"]
+    for name, q in (("growth", Q1), ("margin", Q2), ("roic", Q3), ("margin_gross", Q2B)):
+        if name not in only:
+            continue
         df = db.raw_sql(q.replace("%", "%%"))
         df.to_pickle(OUT / f"base_rates_{name}.pkl")
         print(name, len(df), "rows")
