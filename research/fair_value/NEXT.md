@@ -1,5 +1,7 @@
 # Fair value — round 3 plan (Jamie 10-27 late) — START HERE
 
+**Full plan: `DCF_PLAN.md` (section by section, phases 1–9). Start with phase 1.**
+
 **Goal (Jamie):** fair value built the way an analyst builds it — explicit per-stock assumptions (growth, margins,
 reinvestment, discount rate, terminal growth) with sector defaults taken from published practice, stock overrides where a
 company doesn't fit its sector (PLTR), and street targets used carefully (live, median, weighted by sample size).
