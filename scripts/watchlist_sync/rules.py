@@ -34,6 +34,7 @@ MAX_SPOT_DRIFT_PCT = 3.0               # model spot vs latest close
 MIN_CREDIT_RANK_PUTS = 20              # StarMine credit (LSEG); missing → warn, not block
 MIN_COVERED_SHARES = 100
 MAX_ITEMS = 15
+MAX_ITEMS_PUTS = 25                    # Jamie 10-26: more sell-put candidates; ranked by the engine (put_recs rank), not option score
 
 # ── L2 (live Robinhood) ─────────────────────────────────────────────────────────
 QUOTE_MAX_AGE_MIN_OPEN = 20            # during regular hours

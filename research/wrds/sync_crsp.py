@@ -72,24 +72,26 @@ def main() -> int:
                 """,
                 (tickers,),
             ).fetchall()
-            permno_list = [int(p) for _, p in mapped]
-            if not permno_list:
-                ticker_sql = ",".join(repr(t) for t in tickers)
+            # security_map first; tickers it doesn't map fall back to crsp.stocknames (10-26: only 46 of the LSEG
+            # coverage were mapped and `latest` was never built on that path → NameError on every mapped run)
+            latest = pd.DataFrame([(int(p_), t_) for t_, p_ in mapped], columns=["permno", "ticker"])
+            rest = sorted(set(tickers) - set(latest["ticker"]))
+            if rest:
+                ticker_sql = ",".join(repr(t) for t in rest)
                 names = db.raw_sql(f"""
                     SELECT DISTINCT permno, ticker, nameenddt
                     FROM crsp.stocknames
                     WHERE UPPER(ticker) IN ({ticker_sql})
                 """)
-                if names is None or names.empty:
-                    print("no permnos — run fill_security_map_wrds.py")
-                    return 2
-                latest = (
-                    names.sort_values("nameenddt")
-                    .drop_duplicates("permno", keep="last")[["permno", "ticker"]]
-                )
-                permno_list = [int(x) for x in latest["permno"].unique()]
-            else:
-                print(f"using security_map permnos ({len(permno_list)})")
+                if names is not None and not names.empty:
+                    names = names.sort_values("nameenddt").drop_duplicates("permno", keep="last")[["permno", "ticker"]]
+                    names["ticker"] = names["ticker"].str.upper()
+                    latest = pd.concat([latest, names], ignore_index=True).drop_duplicates("permno", keep="first")
+            if latest.empty:
+                print("no permnos — run fill_security_map_wrds.py")
+                return 2
+            permno_list = [int(x) for x in latest["permno"].unique()]
+            print(f"permnos: {len(mapped)} from security_map, {len(permno_list) - len(mapped)} from stocknames")
             permnos = ",".join(str(x) for x in permno_list)
             mx = db.raw_sql(
                 f"SELECT MAX(date) AS mx FROM crsp.dsf WHERE permno IN ({permnos})"
@@ -105,7 +107,7 @@ def main() -> int:
 
             print(f"{DATASET}: {start} → {max_date}", flush=True)
             dsf = db.raw_sql(f"""
-                SELECT permno, date, prc, ret, retx, vol, shrout
+                SELECT permno, date, prc, openprc, ret, retx, vol, shrout
                 FROM crsp.dsf
                 WHERE permno IN ({permnos})
                   AND date >= '{start}'
@@ -125,16 +127,16 @@ def main() -> int:
                     int(r.permno),
                     None if pd.isna(r.ticker) else str(r.ticker).upper(),
                     r.date,
-                    _f(r.prc), _f(r.ret), _f(r.retx), _f(r.vol), _f(r.shrout),
+                    _f(r.prc), _f(r.ret), _f(r.retx), _f(r.vol), _f(r.shrout), _f(r.openprc),
                 ))
 
             sql = """
                 INSERT INTO wrds_research.crsp_dsf
-                  (permno, ticker, date, prc, ret, retx, vol, shrout, fetched_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s, now())
+                  (permno, ticker, date, prc, ret, retx, vol, shrout, openprc, fetched_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s, now())
                 ON CONFLICT (permno, date) DO UPDATE SET
                   ticker = EXCLUDED.ticker, prc = EXCLUDED.prc, ret = EXCLUDED.ret,
-                  retx = EXCLUDED.retx, vol = EXCLUDED.vol, shrout = EXCLUDED.shrout,
+                  retx = EXCLUDED.retx, vol = EXCLUDED.vol, shrout = EXCLUDED.shrout, openprc = EXCLUDED.openprc,
                   fetched_at = now()
             """
             n = execute_values(local, sql, rows)

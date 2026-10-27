@@ -9,6 +9,7 @@
 - Working: iv-rank-resolver options-1.2.1, rankings-rules-tab, put+call-ladder-tab, s100-pairs, a271-structures-engine, hold-after-assignment-ladder
 - In progress: cursor: model-list-structures-unification + A271 UI fields
 - Blocked: jamie: default put band choice
+- 10-26 Model List: sell puts ranked by the engine (put_recs rank), engine gates applied (IREN off), cap 15 → 25 (rules.MAX_ITEMS_PUTS); plan #48 → 23 pass L1 (was 8 at 07:31), published run #60. Open prices: daily_history.open added + backfilled (CRSP 2017–24, prices_historical 2024→; 95–97 % of rows, 2025 at 56 %). **blocked: LSEG proxy → run `research/lseg/backfill_ohlc.py --start 2025-01-01`** (now fetches OPEN_PRC) to fill 2025. sync_crsp: --force full backfill, security_map + stocknames mapping fix, openprc.
 - 10-26 indicators on author defaults (page metadata): ST-div pivot 2, cluster = Zeiierman's 5 members; S102/S103 re-run, conclusions unchanged.
 - 10-26 A281: indicators.md (shared map/results/rules) + jamie-rules + adapters updated; breadth_washout state live (S104 PASS); Grok dispatched on A281, Muse/Cursor asked via ASKS.
 - 10-26 A279 v2 / S103: indicators as timing; real-quote exits: weekly pace ≥ 4× take is the only positive exit (t≈1), trend stops lose; put_manage.py live (nightly). A280 → Cursor for the Live panel. SMC reclaim forward-watch.

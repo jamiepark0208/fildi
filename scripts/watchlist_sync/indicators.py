@@ -13,7 +13,8 @@ source not copied. Every value at bar i uses bars ≤ i only (pivots count from 
                                  bull share of weight 0–1; regime flips only when share ≥ 0.6 and the base member (3rd) agrees
   SMC (Liquidity Hunter PRO)     5/5 swing pivots; sweep = wick through the last swing low/high and close back inside; BOS =
                                  close through the last swing high/low; MSS = BOS within 10 bars after a sweep on a candle in that
-                                 direction; nearest unfilled bullish FVG and last bullish order block below price (ATR units)
+                                 direction (body ≥ 0.15 ATR vs the open; no open → close > prior close); nearest unfilled bullish FVG and
+                                 last bullish order block (last down candle, close < open) below price (ATR units)
   Fear & Greed (BigBeluga)       mean of RSI(14), percentile of close ÷ SMA(50) over 252 days, 20-day up-volume share (× 100);
                                  without volume → mean of the first two
 
@@ -181,7 +182,7 @@ def run_lengths(pos):
     return since, surv
 
 
-def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
+def compute(d, h, l, c, v=None, o=None) -> dict[str, np.ndarray]:
     """Every indicator series for one name (arrays aligned to the bars)."""
     c, h, l = np.asarray(c, float), np.asarray(h, float), np.asarray(l, float)
     N = len(c)
@@ -219,6 +220,16 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
         reg[i] = 1 if bull[i] >= 0.6 and dirs[2][i] > 0 else -1 if bull[i] <= 0.4 and dirs[2][i] < 0 else prev
     out.update(stc_bull=bull, stc_regime=reg)
     # SMC
+    op = np.asarray(o, float) if o is not None else np.full(N, np.nan)
+
+    def bull_body(i):   # open known → close − open ≥ 0.15 ATR (Liquidity Hunter default); else close above the prior close
+        if not np.isnan(op[i]) and not np.isnan(a[i]):
+            return c[i] - op[i] >= 0.15 * a[i]
+        return i > 0 and c[i] > c[i - 1]
+
+    def down(j):
+        return c[j] < op[j] if not np.isnan(op[j]) else (j > 0 and c[j] < c[j - 1])
+
     lows, highs = pivots(l, "low"), pivots(h, "high")
     sl = sh = None
     last_sweep = last_mss = last_bos = None
@@ -236,9 +247,9 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
             last_sweep, swept_low[i] = i, sl
         if sh is not None and c[i] > sh and (i == 0 or c[i - 1] <= sh):
             last_bos = 1
-            if last_sweep is not None and i - last_sweep <= 10 and c[i] > (np.r_[c[0], c][i]):
+            if last_sweep is not None and i - last_sweep <= 10 and bull_body(i):   # author: reversal body ≥ 0.15 ATR
                 last_mss = i
-            k = next((j for j in range(i - 1, max(i - 15, -1), -1) if c[j] < (c[j - 1] if j else c[j])), None)
+            k = next((j for j in range(i - 1, max(i - 15, -1), -1) if down(j)), None)   # last down candle = bullish order block
             ob = l[k] if k is not None else ob
             sh = None
         if sl is not None and c[i] < sl:
@@ -301,21 +312,22 @@ FIELDS = ["ut_dir", "ut_bars", "ut_surv", "ut_dist", "ut_conf", "stdiv_dir", "di
 
 
 def load_bars(conn, tickers=None):
-    q = """SELECT ticker, date, close::float8, COALESCE(high, close)::float8, COALESCE(low, close)::float8, volume::float8
+    q = """SELECT ticker, date, close::float8, COALESCE(high, close)::float8, COALESCE(low, close)::float8, volume::float8, open::float8
            FROM lseg_research.daily_history WHERE close > 0""" + (" AND ticker = ANY(%s)" if tickers else "") + " ORDER BY ticker, date"
-    by = defaultdict(lambda: ([], [], [], [], []))
-    for t, d, c, h, l, v in conn.execute(q, (list(tickers),) if tickers else ()):
+    by = defaultdict(lambda: ([], [], [], [], [], []))
+    for t, d, c, h, l, v, o in conn.execute(q, (list(tickers),) if tickers else ()):
         b = by[t]
         b[0].append(d); b[1].append(h); b[2].append(l); b[3].append(c); b[4].append(v if v is not None else np.nan)
+        b[5].append(o if o is not None else np.nan)
     return by
 
 
 def today(conn, tickers=None) -> dict[str, dict]:
     out = {}
-    for t, (d, h, l, c, v) in load_bars(conn, tickers).items():
+    for t, (d, h, l, c, v, o) in load_bars(conn, tickers).items():
         if len(c) < 320:
             continue
-        s = compute(d, h, l, c, v)
+        s = compute(d, h, l, c, v, o)
         out[t] = {"date": str(d[-1]), **{k: (None if np.isnan(s[k][-1]) else round(float(s[k][-1]), 4)) for k in FIELDS}}
     return out
 

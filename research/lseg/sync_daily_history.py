@@ -25,9 +25,9 @@ BATCH = 20
 OVERLAP = 5
 ACTION_TOL = 0.01
 IV_FETCH = {"30D_A_IM_P": "iv30_put", "30D_A_IM_C": "iv30_call", "60D_A_IM_P": "iv60_put"}
-COLS = ["close", "iv30_put", "iv30_call", "iv60_put", "iv60_call", "iv90_put", "iv90_call", "high", "low", "volume"]
+COLS = ["close", "iv30_put", "iv30_call", "iv60_put", "iv60_call", "iv90_put", "iv90_call", "high", "low", "volume", "open"]
 # 10-19: high/low/volume came only from the one-off backfill_ohlc.py → every bar after 10-05 had none (ATR / volume engines blind).
-OHLC = {"HIGH_1": "high", "LOW_1": "low", "ACVOL_UNS": "volume"}
+OHLC = {"HIGH_1": "high", "LOW_1": "low", "ACVOL_UNS": "volume", "OPEN_PRC": "open"}   # open: 10-26 (SMC candle body / order blocks)
 UPSERT = f"""
 INSERT INTO lseg_research.daily_history (ticker, date, {", ".join(COLS)}, fetched_at)
 VALUES (%s, %s, {", ".join(["%s"] * len(COLS))}, now())

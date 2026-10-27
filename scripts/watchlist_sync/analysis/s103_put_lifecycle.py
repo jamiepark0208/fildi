@@ -124,10 +124,10 @@ def build_paths(conn, tickers=None):
     for t, d in conn.execute("SELECT ticker, report_date FROM lseg_research.earnings_moves"):
         rep[t].append(d)
     out = {}
-    for t, (d, h, l, c, v) in bars.items():
+    for t, (d, h, l, c, v, o) in bars.items():
         if len(c) < 400 or t not in iv:
             continue
-        s = IND.compute(d, h, l, c, v)
+        s = IND.compute(d, h, l, c, v, o)
         c = np.asarray(c, float)
         ivs = np.array([iv[t].get(x, np.nan) for x in d])
         for k in range(1, len(ivs)):   # carry IV ≤ 3 days over gaps

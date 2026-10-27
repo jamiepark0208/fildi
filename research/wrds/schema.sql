@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS wrds_research.crsp_dsf (
 
 CREATE INDEX IF NOT EXISTS idx_wrds_crsp_dsf_ticker_date
   ON wrds_research.crsp_dsf (ticker, date DESC);
+ALTER TABLE wrds_research.crsp_dsf ADD COLUMN IF NOT EXISTS openprc double precision;   -- 10-26: daily open (SMC candle body)
 
 -- A265: CBOE vol indexes (VIX, VIX9D, VIX3M, VVIX, SKEW) — research only.
 -- Primary feed: CBOE public daily CSVs (WRDS cboe.cboe has VIX/VXN/VXD only;

@@ -357,6 +357,8 @@ def restrike_puts(conn, ctx: dict) -> None:
             continue
         exp = date.fromisoformat(e["expiry"])
         r["far_why"], r["band_why"], r["engine_market"] = e.get("far"), e["why"], e.get("market_state")
+        r["engine_rank"] = e.get("rank")
+        r["engine_gates"] = [g for g in (e.get("gates") or []) if not g.startswith("S059: put-edge")]   # put-edge has its own check here
         note = f"engine pick {e['strike']:g} {exp:%m-%d} ({-e['delta']:.2f}Δ, was {-(r.get('delta') or 0):.2f}Δ): {e['why']}"
         ref = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == exp]
         if ref:
@@ -451,6 +453,8 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                          # the old warn fallback applies only when the drift check has demoted put edge for everyone
                          "block" if e or not ctx.get("edge_demoted") else "warn"))
         c.append(chk("market_not_panic", not rec.get("engine_pause"), rec.get("engine_pause") or "vol curve normal (VIX < VIX3M)"))   # S101
+        if rec.get("engine_gates"):   # A277 consistency: the engine's own gates (verdict, IV/RV) block here too
+            c.append(chk("engine_gates", False, "engine gates: " + "; ".join(rec["engine_gates"])))
         if rec.get("engine_none") and not rec.get("carried"):   # A277: no engine put for this name → not on the list
             c.append(chk("engine_pick", False, f"no engine put: {rec['engine_none']}"))
         c.append(chk("not_on_trim", t not in ctx.get("trim", ()), "on your trim list today: no new puts" if t in ctx.get("trim", ()) else "ok"))
@@ -553,16 +557,21 @@ def build(show_rejected: bool) -> int:
                 if prev is None or (ok and not prev["ok"]):
                     best[rec["ticker"]] = {"rec": rec, "checks": checks, "ok": ok, "account": account}
             # S059: rank weekly puts by simulated edge quintile first (option_score alone ≈ IV, S014), then option_score
-            ranked = sorted(best.values(), key=lambda b: (not b["ok"], not b["rec"].get("strategy"), -_edge_q(ctx, b["rec"]),
-                                                          -(b["rec"]["option_score"] or 0)))
+            if side == "put":   # A277 (Jamie 10-26): one order everywhere — the engine's rank (put_recs: put-edge Q, ev_rv_cap)
+                ranked = sorted(best.values(), key=lambda b: (not b["ok"], not b["rec"].get("strategy"),
+                                                              b["rec"].get("engine_rank") or 10 ** 6, -_edge_q(ctx, b["rec"])))
+            else:
+                ranked = sorted(best.values(), key=lambda b: (not b["ok"], not b["rec"].get("strategy"), -_edge_q(ctx, b["rec"]),
+                                                              -(b["rec"]["option_score"] or 0)))
+            cap = R.MAX_ITEMS_PUTS if side == "put" else R.MAX_ITEMS
             rank = 0
             for b in ranked:
                 r = b["rec"]
                 if b["ok"]:
                     rank += 1
-                    if rank > R.MAX_ITEMS:
+                    if rank > cap:
                         b["ok"] = False
-                        b["checks"].append(chk("list_cap", False, f"beyond top {R.MAX_ITEMS}"))
+                        b["checks"].append(chk("list_cap", False, f"beyond top {cap}"))
                 reasons = [f"Fildi option score {r['option_score']:.0f}" if r["option_score"] is not None else "strategy pick (no option score)", f"{r['weekly_income_pct']:.2f}%/week at ${r['strike']:g} ({r['dte']:.0f} DTE, Δ {r['delta']:+.2f})"]
                 e = ctx.get("edge", {}).get(r["ticker"]) if side == "put" else None
                 if e:

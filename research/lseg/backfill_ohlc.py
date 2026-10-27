@@ -23,14 +23,15 @@ from sync_daily_history import fetch, series_of
 
 DATASET = "daily_history_ohlc"
 BATCH = 20
-FIELDS = {"TRDPRC_1": "close", "HIGH_1": "high", "LOW_1": "low", "ACVOL_UNS": "volume"}
+FIELDS = {"TRDPRC_1": "close", "HIGH_1": "high", "LOW_1": "low", "ACVOL_UNS": "volume", "OPEN_PRC": "open"}
 DDL = """ALTER TABLE lseg_research.daily_history ADD COLUMN IF NOT EXISTS high real;
 ALTER TABLE lseg_research.daily_history ADD COLUMN IF NOT EXISTS low real;
-ALTER TABLE lseg_research.daily_history ADD COLUMN IF NOT EXISTS volume double precision;"""
-UPSERT = """INSERT INTO lseg_research.daily_history (ticker, date, close, high, low, volume, fetched_at)
-VALUES (%s, %s, %s, %s, %s, %s, now())
+ALTER TABLE lseg_research.daily_history ADD COLUMN IF NOT EXISTS volume double precision;
+ALTER TABLE lseg_research.daily_history ADD COLUMN IF NOT EXISTS open real;"""
+UPSERT = """INSERT INTO lseg_research.daily_history (ticker, date, close, high, low, volume, open, fetched_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, now())
 ON CONFLICT (ticker, date) DO UPDATE SET close = COALESCE(daily_history.close, EXCLUDED.close),
-  high = EXCLUDED.high, low = EXCLUDED.low, volume = EXCLUDED.volume, fetched_at = now()"""
+  high = EXCLUDED.high, low = EXCLUDED.low, volume = EXCLUDED.volume, open = COALESCE(EXCLUDED.open, daily_history.open), fetched_at = now()"""
 
 
 def main() -> None:
@@ -71,7 +72,7 @@ def main() -> None:
                     if not any("high" in v for v in day.values()):
                         empty.append(t)
                         continue
-                    rows += [(t, d, v.get("close"), v.get("high"), v.get("low"), v.get("volume")) for d, v in day.items()]
+                    rows += [(t, d, v.get("close"), v.get("high"), v.get("low"), v.get("volume"), v.get("open")) for d, v in day.items()]
                 with conn.cursor() as cur:
                     cur.executemany(UPSERT, rows)
                 conn.commit()  # resumable
