@@ -208,7 +208,7 @@ def load_ric_map(tickers: list[str]) -> dict[str, str]:
     return {t: r for t, r in rows}
 
 
-MAX_TICKERS = 1000  # 10-27: = coverage --max (universe ≥ $10B + option-chain names). Was 300 — LSEG lane cap (Datastream budget ~10M pts/mo; 300 × ~30 fields/day is ~0.1%). 150 → 300 on 2026-10-05 for the model tier
+MAX_TICKERS = 1500  # 10-27: = coverage --max (whole app universe, tier 8). Was 300 — LSEG lane cap (Datastream budget ~10M pts/mo; 300 × ~30 fields/day is ~0.1%). 150 → 300 on 2026-10-05 for the model tier
 
 
 def portfolio_tickers() -> list[str]:
@@ -246,7 +246,7 @@ def add_lseg_universe_args(p) -> None:
                    help="Shared book only (skip coverage table / holdings)")
 
 
-def resolve_lseg_universe(args) -> list[str]:
+def resolve_lseg_universe(args, max_tier: int = 7) -> list[str]:
     """--tickers wins; --no-holdings = shared book; else coverage table (held/traded/watchlist/lookalike/book),
     falling back to holdings ∪ book if coverage.py hasn't run. Cap MAX_TICKERS."""
     from common.universe import resolve_universe
@@ -254,7 +254,7 @@ def resolve_lseg_universe(args) -> list[str]:
     base = resolve_universe(args)
     if getattr(args, "tickers", None) or getattr(args, "no_holdings", False):
         return base
-    cov = coverage_tickers()
+    cov = coverage_tickers(max_tier)
     if cov:
         return list(dict.fromkeys(cov + base))[:MAX_TICKERS]
     try:

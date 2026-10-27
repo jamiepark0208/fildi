@@ -157,9 +157,16 @@ export async function loadInputs(): Promise<FvTickerInput[]> {
     // Forward EPS sources are sometimes in the ADR's local currency (LSEG FY1 for BABA/HMC, vendor forward
     // P/E for PDD = 0.97), so every source must agree with USD trailing EPS. LSEG gets a wider band
     // (genuine boom-cycle jumps); with no positive trailing EPS only LSEG is accepted.
-    const lsegOk = lsegFy1 != null && lsegFy1 > 0 && (trailing == null || trailing <= 0 || consistent(lsegFy1, trailing, 0.25, 5));
-    const ibesTrusted = lsegOk ? consistent(ibesFy1, lsegFy1) : consistent(ibesFy1, trailing);
     const fromFpe = price != null && fpe != null && fpe > 0 ? price / fpe : null;
+    // 10-27: check LSEG FY1 against the other *forward* source when there is one: GAAP trailing EPS with one-off charges
+    // rejected good consensus (GM 2.24 vs FY1 13.4), while its 0.25–5× band let a local-currency FY1 through once LSEG
+    // covered the whole universe (BAP: PEN 100.75 vs USD 26.55 trailing, 34.8 forward). Implied P/E ≥ 3 also rejects
+    // ADR values in CNY/JPY (BABA ~1.7, HMC ~0.15) even when the vendor's forward P/E shares the mistake (PDD 0.97).
+    const saneFwd = (eps: number | null) => price != null && eps != null && eps > 0 && price / eps >= 3 && price / eps <= 150;
+    const lsegOk = lsegFy1 != null && lsegFy1 > 0 && (fromFpe != null
+      ? consistent(lsegFy1, fromFpe, 0.5, 2) && saneFwd(lsegFy1)
+      : trailing == null || trailing <= 0 || consistent(lsegFy1, trailing, 0.25, 5));
+    const ibesTrusted = lsegOk ? consistent(ibesFy1, lsegFy1) : consistent(ibesFy1, trailing);
     const forwardEps = (lsegOk ? lsegFy1 : null) ?? (ibesTrusted ? ibesFy1 : null) ?? (consistent(fromFpe, trailing) ? fromFpe : null);
     let eps2 = ibesTrusted ? num(r.ibes_fy2) : null;
     if (eps2 != null && !consistent(eps2, forwardEps)) eps2 = null;

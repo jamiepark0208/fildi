@@ -11,6 +11,9 @@ Tiers (priority order):
   6 options    every name in the latest saved option chain (the put engine's universe; 10-27 RDDT fix)
   6 model      every non-ETF name the watchlist-sync fit model scores (Model List), so no scored name runs on
                missing LSEG inputs (2026-10-05: 29 of 30 "missing credit" names were simply never synced)
+  8 universe   every other app-universe name (ticker_registry active + fetch_fundamentals): fair value and fund scores need
+               consensus EPS / targets for all of them (10-27: LSEG FY1 for 245 of 906 → GIS/KHC/GM had no forward EPS).
+               History is fetched once and then 5-day increments, so the daily cost is ~11 points a name.
 
 Reads only local app tables (no vendor calls). Sync scripts read this table as their default universe.
 
@@ -71,6 +74,11 @@ def option_universe(conn) -> list[str]:
         return []
     return [r[0] for r in conn.execute("""SELECT DISTINCT UPPER(ticker) FROM option_chain_history
                                           WHERE as_of = (SELECT MAX(as_of) FROM option_chain_history) ORDER BY 1""")]
+
+
+def universe(conn) -> list[str]:
+    return [r[0] for r in conn.execute(
+        "SELECT UPPER(ticker) FROM ticker_registry WHERE is_active AND fetch_fundamentals ORDER BY 1")]
 
 
 def features(conn) -> dict[str, dict]:
@@ -156,6 +164,7 @@ def build(max_total: int, n_look: int):
         feats = features(conn)
         model = model_universe(conn)
         opts = option_universe(conn)
+        uni = universe(conn)
     book = load_book()
 
     rows: dict[str, tuple[int, str, float, str]] = {}
@@ -182,6 +191,8 @@ def build(max_total: int, n_look: int):
         add(t, 6, "options", 0.04, "priced by the put engine (option chain)")
     for t in BENCHMARKS:
         add(t, 7, "benchmark", 0.01, "market / sector baseline for backtests")
+    for t in uni:
+        add(t, 8, "universe", 0.0, "app universe (fair value / fund score consensus inputs)")
 
     ordered = sorted(rows.items(), key=lambda kv: (kv[1][0], -kv[1][2]))[:max_total]
     return ordered, iv_floor
@@ -189,7 +200,7 @@ def build(max_total: int, n_look: int):
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--max", type=int, default=1000)   # 10-27: 300 cut chain names; ~11 datapoints/name/day → ~3 % of the month at 1000
+    p.add_argument("--max", type=int, default=1500)   # 10-27: whole app universe (~930); 300 had cut chain names
     p.add_argument("--lookalikes", type=int, default=40)
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
@@ -198,7 +209,7 @@ def main() -> None:
     by_tier = defaultdict(list)
     for t, (tier, label, _, why) in ordered:
         by_tier[label].append(t if label != "lookalike" else f"{t}[{why}]")
-    for label in ("held", "traded", "watchlist", "lookalike", "book", "model", "options", "benchmark"):
+    for label in ("held", "traded", "watchlist", "lookalike", "book", "model", "options", "benchmark", "universe"):
         print(f"{label:9s} {len(by_tier[label]):3d}  {', '.join(by_tier[label])}")
     print(f"total {len(ordered)} · lookalike IV floor {iv_floor:.0f}%")
     if args.dry_run:

@@ -122,7 +122,9 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     add_lseg_universe_args(p)
     args = p.parse_args()
-    tickers = resolve_lseg_universe(args)
+    # tier 8 = whole app universe: one cheap snapshot a day (consensus EPS / targets / StarMine) for fair value and
+    # fund scores; history syncs stay on tiers ≤ 7 (10-27)
+    tickers = resolve_lseg_universe(args, max_tier=8)
     today = date.today()
 
     with connect_local() as conn:
