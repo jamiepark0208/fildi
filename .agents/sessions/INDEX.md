@@ -5,6 +5,7 @@ Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
 ## Recent (last 30 days)
 
+- [2026-10-27](claude-2026-10-27.md) — Universe +351 audited: peer groups reviewed for all 906, empty-fundamentals + auto-downgrade + no-RIC bugs fixed, LSEG consensus for whole universe, FV review table; next: reverse-engineer price per research/fair_value/NEXT.md | build | next: research/fair_value/NEXT.md, universe-removal-rule, check-10-28-run
 - [2026-10-26](claude-2026-10-26.md) — One rules engine: IV-rank resolver, strategy_rules.json + strategy_engine.py driving Structures, put/call ladder with hold-after-assignment, S100 pairs; default put band awaits Jamie. | build | next: set default put band per Jamie, other cutoff ladders if any, trim S088 runtime
 - [2026-10-21](claude-2026-10-21.md) — Pipeline drill: 5 maintain bugs + OpenJev/transcripts timing + FMP 402 waste fixed; A229 tells all agents; Jamie approved remaining fixes + lid-closed. | build | next: verify-10-22-0500-run, finnhub-limit-9999, cache-audit-rest
 - [2026-10-20](claude-2026-10-20.md) — 10-20: Model List filters reworked per S069 (earnings/risk → farther strike, no regime pause, scanner 450, morning live scan); own trades removed from rules; S070 rescue + S072 catalysts null; S071 interim. Next session: holistic app/ops review. | build | next: Holistic honest review of whole Fildi app + ops (Jamie 10-20), verify 10-21 7 AM run (option scan + plan), S071 daily rerun
