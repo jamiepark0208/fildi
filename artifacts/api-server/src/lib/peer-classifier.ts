@@ -36,6 +36,7 @@ const KEYWORD_MAP: Array<{ keywords: string[]; groupId: string }> = [
   { keywords: ["biotechnology"],                        groupId: "healthcare.large_biotech" },
   { keywords: ["drug manufacturers", "pharmaceuticals"], groupId: "healthcare.large_pharma" },
   { keywords: ["healthcare plans", "managed care"],     groupId: "healthcare.health_insurance_managed_care" },
+  { keywords: ["medical care facilities", "medical distribution"], groupId: "healthcare.providers_services" },
   { keywords: ["medical devices", "medical instruments", "diagnostics"], groupId: "healthcare.medical_devices_equipment" },
   // Consumer Cyclical
   { keywords: ["auto manufacturers", "auto & truck"],   groupId: "consumer_discretionary.autos_evs" },
@@ -120,7 +121,9 @@ async function ensureGroupMembership(
     .values({ groupId, ticker, source, removedAt: null })
     .onConflictDoUpdate({
       target: [peerGroupMembers.groupId, peerGroupMembers.ticker],
-      set: { removedAt: null, source },
+      // 10-27: an "auto" touch (classifyTicker on every enrichment) must not downgrade a reviewed membership —
+      // it had wiped 108 seed + every hand/vote-verified mark back to auto (peer_verify.py).
+      set: { removedAt: null, source: sql`CASE WHEN excluded.source = 'auto' THEN ${peerGroupMembers.source} ELSE excluded.source END` },
     });
 }
 

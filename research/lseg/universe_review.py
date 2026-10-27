@@ -40,7 +40,6 @@ TRBC_GROUP = {
     "Insurance": "financials.insurance",
     "Banking Services": "financials.banks",
     "Healthcare Equipment & Supplies": "healthcare.medical_devices_equipment",
-    "Healthcare Providers & Services": "healthcare.health_insurance_managed_care",
     "Pharmaceuticals": "healthcare.large_pharma",
     "Electric Utilities & IPPs": "utilities.electric_utilities",
     "Multiline Utilities": "utilities.water_gas_multi_utilities",

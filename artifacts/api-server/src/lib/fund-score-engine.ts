@@ -177,6 +177,13 @@ export function scoreUniverse(
     });
   }
 
+  // 10-27: cohort norms come from reviewed members with enough metric coverage; unreviewed / thin rows are scored against them
+  // (a new auto-classified or half-empty name no longer moves its peers' scores). Undefined when every row qualifies.
+  const required = metrics.filter((m) => !m.optional);
+  const isRef = rows.map((r, i) =>
+    r.peerReviewed !== false && required.filter((m) => raw[m.key][i] != null).length / required.length >= totalMinCov);
+  const ref = isRef.every(Boolean) ? undefined : isRef;
+
   // Group indices by peer group
   const groups = new Map<string, number[]>();
   rows.forEach((r, i) => {
@@ -191,7 +198,7 @@ export function scoreUniverse(
     peerNorm[m.key] = rows.map(() => null);
     for (const [, idxs] of groups) {
       const vals = idxs.map((i) => raw[m.key][i]);
-      const norms = normalizeCohort(vals, m.higherIsBetter);
+      const norms = normalizeCohort(vals, m.higherIsBetter, ref && idxs.map((i) => ref[i]!));
       idxs.forEach((ri, k) => {
         peerNorm[m.key][ri] = norms[k];
       });
@@ -211,7 +218,7 @@ export function scoreUniverse(
     for (const [, idxs] of sectorGroups) {
       if (idxs.length < 3) continue; // too thin — leave null, peer-only
       const vals = idxs.map((i) => raw[m.key][i]);
-      const norms = normalizeCohort(vals, m.higherIsBetter);
+      const norms = normalizeCohort(vals, m.higherIsBetter, ref && idxs.map((i) => ref[i]!));
       idxs.forEach((ri, k) => {
         sectorNorm[m.key][ri] = norms[k];
       });
@@ -221,7 +228,7 @@ export function scoreUniverse(
   // Universe norms (absolute quality / soft-peer dampening)
   const universeNorm: Record<MetricKey, (number | null)[]> = {} as any;
   for (const m of metrics) {
-    universeNorm[m.key] = normalizeCohort(raw[m.key], m.higherIsBetter);
+    universeNorm[m.key] = normalizeCohort(raw[m.key], m.higherIsBetter, ref);
   }
 
   // Peer sizes for per-ticker blend weights

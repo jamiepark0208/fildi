@@ -621,6 +621,11 @@ export async function runMergeTrusted() {
     applyDerived("ffoProxy", ffoProxy);
 
     if (Object.keys(update).length === 0 && clearProvenanceFields.length === 0) continue;
+    // 10-27: no vendor value at all and no gold data yet → don't create/stamp an empty "fetched" row (289 universe adds were
+    // stamped at 11:34 with every field null, so enrich-missing-fundamentals skipped them for good).
+    const hasGold = existing != null && (["totalRevenue", "peRatio", "sharesOutstanding", "netIncome"] as const)
+      .some((k) => (existing as Record<string, unknown>)[k] != null);
+    if (!hasGold && Object.values(update).every((v) => v == null)) continue;
 
     const divergentFields = provenanceBatch
       .filter(({ result }) => result.divergent)

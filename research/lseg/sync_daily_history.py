@@ -101,8 +101,6 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     add_lseg_universe_args(p)
     p.add_argument("--start", default="2020-01-01")
-    p.add_argument("--new-max", type=int, default=25,
-                   help="names with no stored history backfilled per run (10-27: a universe add of ~350 × ~5.7k points would hit the monthly guard)")
     args = p.parse_args()
     tickers = resolve_lseg_universe(args)
     end = date.today().isoformat()
@@ -116,13 +114,12 @@ def main() -> None:
                                     (tickers, OVERLAP)).fetchall():
             stored.setdefault(t, {})[d] = c
         first = dict(conn.execute("SELECT ticker, MIN(date) FROM lseg_research.daily_history WHERE ticker = ANY(%s) GROUP BY 1", (tickers,)).fetchall())
+        # 10-27 learn: ≥ 60 stored days and never an IV value → LSEG has no option IV for it; ask again only on the 1st of the month
+        no_iv_known = set() if args.force or date.today().day == 1 else {r[0] for r in conn.execute(
+            """SELECT ticker FROM lseg_research.daily_history WHERE ticker = ANY(%s) GROUP BY 1
+               HAVING count(*) >= 60 AND count(iv30_put) = 0""", (tickers,))}
     ric_map = load_ric_map(tickers)
     # one date range per batch: new/forced tickers from --start; existing ones from their overlap window
-    fresh = [t for t in tickers if t not in stored and not args.force]
-    if len(fresh) > args.new_max:
-        print(f"new names: backfilling {args.new_max} of {len(fresh)} this run; the rest follow on later runs")
-        later = set(fresh[args.new_max:])
-        tickers = [t for t in tickers if t not in later]
     groups: dict[str, list[str]] = {}
     for t in tickers:
         s = args.start if args.force or t not in stored else (min(stored[t]) - timedelta(days=1)).isoformat()
@@ -136,7 +133,8 @@ def main() -> None:
                     px = fetch(ld, [ric_map[t] for t in batch if t in ric_map], ["TRDPRC_1", *OHLC], start, end)
                     missing = [ric_map[t] for t in batch if t in ric_map and not series_of(px.get(ric_map[t]), ric_map[t], "TRDPRC_1")]
                     fb = fallback_closes(ld, missing, start, end)
-                    ivs = fetch(ld, [atmiv_ric(t) for t in batch], list(IV_FETCH), start, end)
+                    iv_batch = [atmiv_ric(t) for t in batch if t not in no_iv_known]
+                    ivs = fetch(ld, iv_batch, list(IV_FETCH), start, end) if iv_batch else {}
                     rows, refetch = [], []
                     for t in batch:
                         ric = ric_map.get(t)

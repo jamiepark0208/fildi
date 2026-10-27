@@ -22,7 +22,12 @@ async function main() {
     .where(
       and(
         eq(tickerRegistry.fetchFundamentals, true),
-        or(isNull(tickerFundamentals.ticker), isNull(tickerFundamentals.fundamentalsLastFetched)),
+        or(
+          isNull(tickerFundamentals.ticker),
+          isNull(tickerFundamentals.fundamentalsLastFetched),
+          // 10-27: a gold row with no core field is "fetched" in name only (see merge-trusted empty-row guard)
+          and(isNull(tickerFundamentals.totalRevenue), isNull(tickerFundamentals.peRatio), isNull(tickerFundamentals.sharesOutstanding)),
+        ),
       ),
     )
     .orderBy(sql`${tickerRegistry.addedAt} desc nulls last`)

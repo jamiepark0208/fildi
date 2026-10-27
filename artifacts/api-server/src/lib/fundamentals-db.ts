@@ -2,7 +2,7 @@ import { eq, sql, inArray } from "drizzle-orm";
 import {
   db, tickerFundamentals, tickerRegistry, peerGroups, finnhubFundamentals,
   type TickerFundamentalsRow, type TickerRegistryRow,
-  peerGroupOverrides,
+  peerGroupOverrides, peerGroupMembers,
 } from "@workspace/db";
 import { recordApiUsage } from "./api-usage.js";
 import type { FMPFundamentalsData } from "./fmp-client.js";
@@ -320,7 +320,7 @@ export async function computeAndPersistFundamentalScores(
   regime: string | null,
   trigger: ScoreTrigger = "admin_recompute",
   /** Before/after tooling (scripts/compare-fund-params.ts): score with these params and/or skip all writes. */
-  opts?: { paramsOverride?: { version: string; params: Record<string, unknown> }; dryRun?: boolean },
+  opts?: { paramsOverride?: { version: string; params: Record<string, unknown> }; dryRun?: boolean; peerReference?: boolean },
 ): Promise<FundScoreResult[]> {
   const rows = await getAllFundamentalsRows();
   if (rows.length === 0) return [];
@@ -376,8 +376,18 @@ export async function computeAndPersistFundamentalScores(
   const inputs: FundRowInput[] = scoreRows.map(row => {
     const gid = peerGroupByTicker.get(row.ticker) ?? null;
     const mode = modeByTicker.get(row.ticker) ?? (gid ? (modeByGroup.get(gid) ?? null) : null);
-    return enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
+    const input = enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
+    return reviewedRows ? { ...input, peerReviewed: reviewed.has(`${row.ticker}|${gid}`) } : input;
   });
+  // 10-27: reviewed mapping = seed taxonomy, manual, override, or scripts/watchlist_sync/peer_verify.py ('verified').
+  // Auto-classified names are scored but don't set the cohort norms (fund-score-engine).
+  const reviewedRows = opts?.peerReference === false ? null : await db
+    .select({ ticker: peerGroupMembers.ticker, groupId: peerGroupMembers.groupId })
+    .from(peerGroupMembers)
+    .where(sql`${peerGroupMembers.removedAt} IS NULL AND ${peerGroupMembers.source} IN ('taxonomy', 'manual', 'verified')`);
+  const reviewed = new Set((reviewedRows ?? []).map(r => `${r.ticker}|${r.groupId}`));
+  for (const r of modeOverrideRows) reviewed.add(`${r.ticker}|${peerGroupByTicker.get(r.ticker)}`);
+
 
   const [history, surprises, ibesSignals, fundChamp] = await Promise.all([
     loadHistoryByTicker(tickers),

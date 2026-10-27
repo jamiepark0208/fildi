@@ -4,6 +4,7 @@ Loop D in research/LSEG_WRDS_SYNC.md: WRDS joins IBES/CRSP on the CUSIPs written
 Never touches ibes_oftic / crsp_permno (WRDS-owned).
 
 Usage: .venv/bin/python sync_ids.py [--tickers NVDA,BRK.B | --universe book|registry] [--force]
+       .venv/bin/python sync_ids.py --missing     # daily: every universe name without a RIC (10-27: 422 had none → no LSEG data)
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from db import ensure_schema, get_last_ok, log_pull, upsert_sync_state
 DATASET = "security_map_ids"
 US_VENUES = ("NASDAQ", "NYSE", "CBOE", "BATS")
 TTL = timedelta(days=30)
+MISS_RETRY_DAYS = 30   # a name LSEG can't resolve is remembered (ric NULL row) and retried monthly, not daily
 
 UPSERT = """
 INSERT INTO research_common.security_map (ticker, ric, cusip, isin, updated_by_lseg, updated_at)
@@ -125,11 +127,29 @@ def resolve(ld, tickers: list[str]) -> dict[str, tuple[str, str | None, str]]:
     return found
 
 
+def missing_tickers(conn) -> list[str]:
+    """Active universe names with no RIC, skipping ones that failed to resolve in the last MISS_RETRY_DAYS."""
+    return [r[0] for r in conn.execute("""
+        SELECT r.ticker FROM ticker_registry r LEFT JOIN research_common.security_map s ON s.ticker = r.ticker
+        WHERE r.is_active AND r.fetch_fundamentals AND s.ric IS NULL
+          AND (s.updated_by_lseg IS NULL OR s.updated_by_lseg < now() - make_interval(days => %s))
+        ORDER BY 1""", (MISS_RETRY_DAYS,))]
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     add_lseg_universe_args(p)
+    p.add_argument("--missing", action="store_true", help="only universe names without a RIC (no TTL, no cap)")
     args = p.parse_args()
-    tickers = resolve_lseg_universe(args)
+    if args.missing:
+        with connect_local() as conn:
+            tickers = missing_tickers(conn)
+        if not tickers:
+            print("no universe names missing a RIC")
+            return
+        args.tickers = ",".join(tickers)   # bypass the TTL skip below
+    else:
+        tickers = resolve_lseg_universe(args)
 
     with connect_local() as conn:
         ensure_schema(conn)
@@ -152,6 +172,10 @@ def main() -> None:
     with connect_local() as conn:
         with conn.cursor() as cur:
             cur.executemany(UPSERT, [(t, *found[t]) for t in found])
+            # remember misses so --missing retries them monthly, not every day
+            cur.executemany("""INSERT INTO research_common.security_map (ticker, updated_by_lseg, updated_at) VALUES (%s, now(), now())
+                               ON CONFLICT (ticker) DO UPDATE SET updated_by_lseg = now()
+                               WHERE research_common.security_map.ric IS NULL""", [(t,) for t in missing])
         # Soft partial still advances last_ok_at so Settings does not stay red forever.
         upsert_sync_state(conn, dataset=DATASET, watermark=datetime.now(timezone.utc).date().isoformat(),
                           rows=len(found), tickers=tickers, notes=notes)

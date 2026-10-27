@@ -30,7 +30,7 @@ LSEG_BUDGET_FRACTION = 0.8  # refuse to start a run once 80% of today's requests
 # 2026-10-19: research backfills burned 9.5k/10k and blocked the 07:00 Model List sync (~40 requests).
 # Production jobs (daily.py sets LSEG_PRIORITY=1) keep the last 20% for themselves.
 LSEG_PRIORITY_FRACTION = 0.98
-LSEG_MONTHLY_DATAPOINTS = 10_000_000  # Datastream-style monthly allowance (self-imposed guard; history pulls are the big users)
+LSEG_MONTHLY_DATAPOINTS = 10_000_000  # self-imposed yardstick (warn only, 10-27); vendor limits are daily: 10k requests, 5 GB
 LSEG_MIN_INTERVAL_S = 0.25  # ≤4 req/s, leaves headroom for Workspace's own Excel/UI calls
 RETRYABLE = ("429", "timeout", "timed out", "temporarily", "503", "502", "connection reset", "too many")
 
@@ -144,10 +144,11 @@ def lseg_session() -> Iterator[Any]:
     # 10-21: the monthly check used the research fraction for every caller → research reaching 80 % of the month would have
     # blocked the production sync (~40k datapoints/day) for the rest of the month. Production keeps the reserve above 80 %.
     frac = LSEG_PRIORITY_FRACTION if os.environ.get("LSEG_PRIORITY") == "1" else LSEG_BUDGET_FRACTION
+    # 10-27: LSEG's real desktop limits are per day (10k requests, 5 GB) — enforced below. The monthly datapoint figure is our
+    # own yardstick, not a vendor cap, so it only warns (it had capped onboarding of new universe names for no reason).
     if month_pts >= LSEG_MONTHLY_DATAPOINTS * frac:
-        raise RuntimeError(
-            f"LSEG budget guard: ~{month_pts:,} datapoints used this month (stop at {int(frac * 100)}% of "
-            f"{LSEG_MONTHLY_DATAPOINTS:,}). Narrow the pull or wait for next month.")
+        print(f"LSEG note: ~{month_pts:,} datapoints this month (> {int(frac * 100)}% of our {LSEG_MONTHLY_DATAPOINTS:,} yardstick; "
+              "not a vendor limit)")
     if used >= LSEG_DAILY_REQUESTS * frac:
         raise RuntimeError(
             f"LSEG budget guard: {used}/{LSEG_DAILY_REQUESTS} requests already used today "

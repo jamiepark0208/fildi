@@ -54,6 +54,8 @@ export type FundRowInput = {
   ffoProxy: number | null;
   peerGroupId: string | null;
   scoringMode: string | null;
+  /** 10-27: false = peer mapping not reviewed (auto-classified) → scored, but kept out of the cohort norms. Unset = reviewed. */
+  peerReviewed?: boolean;
 };
 
 export type MetricKey =

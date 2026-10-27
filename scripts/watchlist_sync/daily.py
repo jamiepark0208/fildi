@@ -39,7 +39,9 @@ SH = Path("/bin/sh")   # launchd PATH lacks /opt/homebrew/bin; a failed replay m
 
 STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "lseg": [
+        ("LSEG ids", LPY, LSEG, ["sync_ids.py", "--missing"]),   # 10-27: 422 universe names had no RIC → every LSEG sync skipped them
         ("LSEG coverage", LPY, LSEG, ["coverage.py"]),   # 10-27: follows the universe + option chain (was never re-run → RDDT gap)
+        ("peer profiles", LPY, LSEG, ["peer_profiles.py"]),   # 10-27: LSEG description + TRBC for names without a reviewed peer group
         ("signals", LPY, LSEG, ["sync_signals.py"]),
         # new names start 2024-10 (~500 bars: put-edge, zones, band engine); 2020 for hundreds of new names ≈ 5.6M datapoints
         ("price/IV history", LPY, LSEG, ["sync_daily_history.py", "--start", "2024-10-01"]),
@@ -49,6 +51,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     ],
     "integrity": [("split repair", PY, HERE, ["split_repair.py", "--apply"])],
     "model": [
+        ("peer check", PY, HERE, ["peer_verify.py", "--apply"]),   # 10-27: OpenJev + TRBC + co-movement; 2 of 3 agree → verified (enters peer norms)
         # S096 tastytrade IV rank/pctile + liquidity → tasty_metrics_daily (+ verify vs LSEG); then the IV-rank resolver
         # (LSEG → tastytrade → none → iv_rank_daily) read by the option scan + fit below. Soft (pipe → exit 0): a failure must not stop the plan; its last line (✗ CHECK / traceback) shows in the log.
         ("tastytrade metrics", SH, HERE, ["-c", f"{PY} tastytrade.py universe 2>&1 | tail -1"]),
