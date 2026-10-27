@@ -53,6 +53,13 @@ def main():
             if r["fit"] is not None and r["fit"] != (r["ticker"] in ok):
                 print(f"WARN put consistency: Structures CSP {r['ticker']} fit={r['fit']} vs engine pass={r['ticker'] in ok}"); bad += 1
         print(f"put consistency: {sum(len(v) for v in surfaces.values())} surface rows vs {len(eng)} engine picks · {bad} mismatch(es)")
+        # 10-27 (RDDT): a name blocked only because an input is missing is a data gap, not a judgment — say so every day
+        gap = [t for t, g in conn.execute("""SELECT ticker, payload->'gates' FROM watchlist_sync.put_recs_daily
+                                            WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily)""")
+               if any("unknown" in x for x in g or [])]
+        if gap:
+            print(f"WARN put data gap: {len(gap)} names blocked only by a missing input (LSEG history / IV / tech): {', '.join(sorted(gap))}"
+                  " → research/lseg/coverage.py + sync_daily_history.py")
 
 
 if __name__ == "__main__":
