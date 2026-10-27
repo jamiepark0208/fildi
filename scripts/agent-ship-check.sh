@@ -20,12 +20,19 @@ if [ -z "$base" ]; then
   fi
 fi
 
-files="$(
-  { git diff --name-only "$base"..."$head" 2>/dev/null || true
-    git diff --name-only
-    git diff --cached --name-only
-  } | sort -u
-)"
+# Push path (explicit range from agent-git-sync): only what is being pushed — another agent's unsaved edit in the shared
+# tree must not block an unrelated push (10-26: dirty quarantine-delisted.ts blocked a Python-only push). Manual run: also
+# the working tree, so an agent checks its own edits before committing.
+if [ -n "${1:-}" ]; then
+  files="$(git diff --name-only "$base"..."$head" 2>/dev/null | sort -u || true)"
+else
+  files="$(
+    { git diff --name-only "$base"..."$head" 2>/dev/null || true
+      git diff --name-only
+      git diff --cached --name-only
+    } | sort -u
+  )"
+fi
 
 need_api=0
 need_ui=0
