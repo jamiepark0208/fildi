@@ -93,12 +93,38 @@ export async function backfillStreetPtFromFundamentals(): Promise<number> {
   return n;
 }
 
-/** Full street PT refresh: LSEG (primary) + events + fundamentals gap-fill. */
-export async function backfillStreetPt(): Promise<{ lseg: number; events: number; fundamentals: number }> {
+/**
+ * 10-26 (Jamie: AAOI showed a $15 target): names with no LSEG consensus in 30 days fell back to their newest analyst_events
+ * day — for AAOI one target from 2025-11. Today's row = median of each firm's latest target in the last 180 days
+ * (yahoo_analyst_actions), so a stale single event can't be the newest row.
+ */
+export async function backfillStreetPtFromYahooActions(): Promise<number> {
+  await ensure();
+  const res = await db.execute(sql`
+    INSERT INTO street_pt_daily (ticker, as_of, median_pt, n, source)
+    SELECT ticker, CURRENT_DATE, percentile_cont(0.5) WITHIN GROUP (ORDER BY pt), count(*)::int, 'yahoo_actions'
+    FROM (SELECT DISTINCT ON (UPPER(ticker), firm) UPPER(ticker) AS ticker, (raw->>'currentPriceTarget')::float8 AS pt
+          FROM yahoo_analyst_actions
+          WHERE event_date >= CURRENT_DATE - 180 AND (raw->>'currentPriceTarget')::float8 > 0
+          ORDER BY UPPER(ticker), firm, event_date DESC) f
+    WHERE NOT EXISTS (SELECT 1 FROM street_pt_daily s WHERE s.ticker = f.ticker AND s.source = 'lseg_signals'
+                      AND s.as_of >= CURRENT_DATE - 30)
+    GROUP BY ticker
+    ON CONFLICT (ticker, as_of) DO UPDATE SET median_pt = excluded.median_pt, n = excluded.n, source = excluded.source,
+      fetched_at = now()
+      WHERE street_pt_daily.source <> 'lseg_signals'`);
+  const n = rowCount(res);
+  logger.info({ rows: n }, "street-pt: backfill from yahoo analyst actions (no fresh LSEG consensus)");
+  return n;
+}
+
+/** Full street PT refresh: LSEG (primary) + events + Yahoo firm targets + fundamentals gap-fill. */
+export async function backfillStreetPt(): Promise<{ lseg: number; events: number; yahoo: number; fundamentals: number }> {
   const lseg = await backfillStreetPtFromLseg();
   const events = await backfillStreetPtFromEvents();
+  const yahoo = await backfillStreetPtFromYahooActions();
   const fundamentals = await backfillStreetPtFromFundamentals();
-  return { lseg, events, fundamentals };
+  return { lseg, events, yahoo, fundamentals };
 }
 
 /** Largest |Fildi FV − street PT| / street among latest snapshots (review queue, not alert). */

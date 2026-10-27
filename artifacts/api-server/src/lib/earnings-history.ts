@@ -200,6 +200,11 @@ async function getModelListPoolTickers(): Promise<string[]> {
     UNION
     SELECT DISTINCT UPPER(ticker) AS ticker FROM option_score_snapshots
     WHERE as_of = (SELECT MAX(as_of) FROM option_score_snapshots)
+    UNION
+    -- 10-26: the put engine (put_recs.py) prices every saved-chain name; 39 of them had no earnings date at all, so the
+    -- "farther strike before earnings" rule could never fire for them
+    SELECT DISTINCT UPPER(ticker) AS ticker FROM option_chain_history
+    WHERE as_of = (SELECT MAX(as_of) FROM option_chain_history)
   `);
   const list = (Array.isArray(res) ? res : (res as unknown as { rows?: { ticker: string }[] }).rows) ?? [];
   return list.map((r) => String((r as { ticker: string }).ticker).toUpperCase());

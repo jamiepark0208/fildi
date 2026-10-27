@@ -118,3 +118,5 @@ No repo caller, no env key. Local Claude plugin `sp-global` is installed (Kensho
 - Finnhub economic calendar is wired and rejected (403).
 - (10-24 eve) `ticker_technicals.iv_rank` / tech Volatility State uses a realized-vol proxy, not IV rank — Spearman 0.22 vs tastytrade real IV rank, half the names off > 30 pts. The "upgrade after ~60 d of atmPutIv" note in technical-scorecard.md never happened (snapshots since 09-29).
 - 10-26 Polygon /v2/aggs day (adjusted) for 35 theme ETFs → vendor_raw (source polygon, endpoint aggs/day) + watchlist_sync.sector_etf_daily close (sector_etfs.py, A277). CRSP dsf for the same ETFs 2017–2024 (sync_crsp.py --force now does a full --days backfill).
+
+- **optlab.bars_5m (10-26, Claude):** Polygon 5-minute aggs, 2 years, shared by s078 / intraday_1m_backfill / T1. Stores OHLCV only; Polygon's `vw` and `n` fields are dropped to fit the existing 7-column table (not used by any study).

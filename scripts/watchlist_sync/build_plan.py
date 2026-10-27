@@ -323,6 +323,9 @@ def put_context(conn, with_fit: bool = True) -> dict:
               UNION ALL
               SELECT UPPER(ticker), report_date::date FROM earnings_calendar WHERE report_date::date >= CURRENT_DATE
             ) x GROUP BY ticker""")},
+        # 10-26: operating companies (reported revenue) — an unknown earnings date on one of these is a data gap, not "no event"
+        "stocks": {r["t"] for r in rows(conn, """SELECT UPPER(ticker) t FROM ticker_fundamentals WHERE total_revenue IS NOT NULL
+                                                 UNION SELECT UPPER(ticker) FROM fmp_fundamentals WHERE fmp_total_revenue IS NOT NULL""")},
         "lseg": {r["ticker"]: r for r in rows(conn, """
             SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, arm_rank, combined_alpha_rank, pred_surprise_pct_fq1,
                    short_interest, free_float
@@ -341,11 +344,17 @@ def put_far_reason(ticker: str, expiry, ctx: dict) -> str | None:
     er = ctx.get("earnings", {}).get(ticker)
     if er and expiry and er <= expiry:
         return "earnings before expiry"
+    if not er and ticker in ctx.get("stocks", ()):
+        return "earnings date unknown"   # 10-26: 39 names had none (feed gap) — treat as possibly inside the week
     cr = (ctx.get("lseg", {}).get(ticker) or {}).get("credit_combined_rank")
     if cr is not None and cr < R.MIN_CREDIT_RANK_PUTS:
         return f"StarMine credit {cr} < {R.MIN_CREDIT_RANK_PUTS}"
     if "fit" in ctx:
-        return __import__("publish_model_list").put_size_note(ctx["fit"].get(ticker), ctx["fit_params"])
+        sn = __import__("publish_model_list").put_size_note(ctx["fit"].get(ticker), ctx["fit_params"])
+        if sn:
+            return sn
+        if (ctx["fit"].get(ticker) or {}).get("verdict") == "red":   # 10-26: red no longer blocks puts (S069) → farther + small
+            return "risk flag red: size small"
     return None
 
 

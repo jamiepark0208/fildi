@@ -1,5 +1,5 @@
 {
-  "version": "rules-1.6.0",
+  "version": "rules-1.7.0",
   "updated": "2026-10-26",
   "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
   "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
@@ -353,15 +353,8 @@
     },
     "strategies": {
       "sell_put": {
+        "_verdict": "10-26 (Jamie OK, S069 / S063): the red risk flag no longer blocks sold puts — flagged names earned more per week (S069 +4.5 vs −3.1 bp, t 2.7; low credit +13.1, t 4.15) with a fatter tail → the far rule (build_plan.put_far_reason: credit < 20 / put-risk note / red flag) moves the strike to 0.06–0.08Δ and the reason says size small",
         "gates": [
-          {
-            "input": "verdict",
-            "not_in": [
-              "red"
-            ],
-            "why": "Model List risk flag (red) → no bullish premium",
-            "if_known": true
-          },
           {
             "input": "put_edge_q",
             "min": 4,
