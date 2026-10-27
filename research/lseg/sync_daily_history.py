@@ -101,6 +101,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     add_lseg_universe_args(p)
     p.add_argument("--start", default="2020-01-01")
+    p.add_argument("--new-max", type=int, default=25,
+                   help="names with no stored history backfilled per run (10-27: a universe add of ~350 × ~5.7k points would hit the monthly guard)")
     args = p.parse_args()
     tickers = resolve_lseg_universe(args)
     end = date.today().isoformat()
@@ -116,6 +118,11 @@ def main() -> None:
         first = dict(conn.execute("SELECT ticker, MIN(date) FROM lseg_research.daily_history WHERE ticker = ANY(%s) GROUP BY 1", (tickers,)).fetchall())
     ric_map = load_ric_map(tickers)
     # one date range per batch: new/forced tickers from --start; existing ones from their overlap window
+    fresh = [t for t in tickers if t not in stored and not args.force]
+    if len(fresh) > args.new_max:
+        print(f"new names: backfilling {args.new_max} of {len(fresh)} this run; the rest follow on later runs")
+        later = set(fresh[args.new_max:])
+        tickers = [t for t in tickers if t not in later]
     groups: dict[str, list[str]] = {}
     for t in tickers:
         s = args.start if args.force or t not in stored else (min(stored[t]) - timedelta(days=1)).isoformat()

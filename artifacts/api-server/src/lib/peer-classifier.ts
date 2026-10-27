@@ -54,6 +54,9 @@ const KEYWORD_MAP: Array<{ keywords: string[]; groupId: string }> = [
   { keywords: ["waste management"],                     groupId: "industrials.industrial_conglomerates_machinery" },
   { keywords: ["railroads", "trucking", "air freight", "freight & logistics"], groupId: "industrials.transportation_logistics" },
   { keywords: ["staffing", "consulting", "financial exchanges", "research & consulting"], groupId: "industrials.professional_services" },
+  { keywords: ["residential construction", "building products"], groupId: "industrials.homebuilders_building_products" },
+  { keywords: ["engineering & construction", "building materials"], groupId: "industrials.construction_engineering_materials" },
+  { keywords: ["packaging & containers"],               groupId: "materials.containers_packaging" },
   { keywords: ["specialty industrial", "farm & heavy construction", "electrical equipment", "industrial machinery"], groupId: "industrials.industrial_conglomerates_machinery" },
   // Energy
   { keywords: ["oil & gas midstream"],                  groupId: "energy.midstream_pipelines" },
