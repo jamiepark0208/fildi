@@ -65,7 +65,7 @@ interface ScannerRowProps {
   /** A256: snapshot came from watchlist relaxed second-pass. */
   snapRelaxed?: boolean;
   /** A277 (puts): the engine's contract — the expanded row re-prices it on the live chain instead of re-picking. */
-  enginePick?: { strike: number; expiry: string; why: string } | null;
+  enginePick?: { strike: number; expiry: string; why: string; tech?: Record<string, number | string | null> | null } | null;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
@@ -314,6 +314,27 @@ export function ScannerRow({
         <span className={flagCls} title="In today's Live tab oversold (dip) hotlist">OS</span>
       );
 
+  // A279: TradingView-style trend read (indicators.py). S102: trend lowers tails but is priced in → display only, not a gate.
+  const tech = enginePick?.tech;
+  const num = (k: string) => (typeof tech?.[k] === "number" ? (tech[k] as number) : null);
+  const bull = num("stc_bull");
+  const techBadge = bull != null && (
+    <span
+      className={cn(flagCls, bull >= 0.6 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+        : bull <= 0.4 ? "border-red-500/40 bg-red-500/10 text-red-400" : "border-zinc-600 bg-zinc-700/30 text-zinc-400")}
+      title={[
+        `SuperTrend cluster ${Math.round(bull * 100)} % bullish`,
+        num("ut_dir") != null && `UT Bot ${num("ut_dir")! > 0 ? "up" : "down"} ${num("ut_bars")} bars` +
+          (num("ut_surv") != null ? ` · ${Math.round(num("ut_surv")! * 100)} % of past same-side trends ran longer` : "") +
+          (num("ut_conf") != null ? ` · confidence ${Math.round(num("ut_conf")!)}` : ""),
+        num("fear_greed") != null && `Fear & Greed ${Math.round(num("fear_greed")!)}`,
+        num("bos_dir") != null && `SMC: last break of structure ${num("bos_dir")! > 0 ? "up" : num("bos_dir")! < 0 ? "down" : "none"}` +
+          (num("sweep_age") != null && num("sweep_age")! <= 5 ? ` · swing-low sweep ${num("sweep_age")} d ago` : ""),
+        "Display only — S102: trend is priced into puts",
+      ].filter(Boolean).join("\n")}
+    >{bull >= 0.6 ? "▲" : bull <= 0.4 ? "▼" : "◆"}{Math.round(bull * 100)}</span>
+  );
+
   return (
     <div className={cn("border-b border-zinc-800 last:border-b-0", rowIndex % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60")}>
       {/* Collapsed header row — same grid track as column headers */}
@@ -348,6 +369,7 @@ export function ScannerRow({
             {ticker}
           </span>
           {oversoldOverboughtBadge}
+          {techBadge}
           {modelAvoid && (
             <RecConflictChip
               compact

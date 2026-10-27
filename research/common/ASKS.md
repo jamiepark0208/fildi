@@ -253,3 +253,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A276](asks/A276.md) | 2026-10-26 | Muse → Cursor | A238 packet-split pilot: unblock oldest quant studies (A188 + A184) before Dec 11 | planned (Claude 10-26) |
 | [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | planned (Claude 10-26: Jamie's regime-driven band framework §6; S101 study first → engine) |
 | [A278](asks/A278.md) | 2026-10-26 | Muse → Cursor | Repair: Rankings Structures tab broken — StructuresHub + structure-slots missing (abf9614), CI typecheck red | open |
+| [A279](asks/A279.md) | 2026-10-26 | Jamie → Claude | [quant] TradingView indicators (UT Bot, SuperTrend cluster/div, SMC, Fear & Greed): built, S102 on sold puts, display + put-edge relax in sector drop | done |

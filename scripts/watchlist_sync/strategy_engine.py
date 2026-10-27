@@ -65,6 +65,8 @@ def fit(c, I, ctx) -> tuple[bool, list[str]]:
         return True, []
     why, ok = [], True
     for g in st["gates"]:
+        if c.get("market_state") in (g.get("relax") or {}).get("market_state", []):
+            continue   # e.g. put-edge in a sector drop (S102); the caller applies relax.max_band
         v = _val(c, I, g["input"])
         if v is None:
             if g.get("if_known"):

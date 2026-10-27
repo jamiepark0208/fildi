@@ -200,7 +200,8 @@ export function OptionsScannerContent({
         /** A256: watchlist second-pass — not a strict Overall hit. */
         relaxed?: boolean;
         /** A277 (puts): the one sold-put pick (put_recs.py) — strike/expiry/rank are the engine's. */
-        engine?: { band: string | null; why: string; pass: boolean; gates: string[]; histBp: number | null; histW5: number | null } | null;
+        engine?: { band: string | null; why: string; pass: boolean; gates: string[]; histBp: number | null; histW5: number | null;
+                   tech?: Record<string, number | string | null> | null } | null;
         rank?: number;
       }>;
       asOf: string | null;
@@ -1109,7 +1110,8 @@ export function OptionsScannerContent({
                 snapSpot={rankingByTicker.get(ticker)?.spot ?? null}
                 snapRelaxed={rankingByTicker.get(ticker)?.relaxed === true}
                 enginePick={!isCallMode && rankingByTicker.get(ticker)?.engine
-                  ? { strike: rankingByTicker.get(ticker)!.strike, expiry: rankingByTicker.get(ticker)!.expiry, why: rankingByTicker.get(ticker)!.engine!.why }
+                  ? { strike: rankingByTicker.get(ticker)!.strike, expiry: rankingByTicker.get(ticker)!.expiry, why: rankingByTicker.get(ticker)!.engine!.why,
+                      tech: rankingByTicker.get(ticker)!.engine!.tech ?? null }
                   : null}
                 heat={columnHeat}
               />

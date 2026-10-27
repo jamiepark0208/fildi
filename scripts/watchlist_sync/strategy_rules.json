@@ -1,5 +1,5 @@
 {
-  "version": "rules-1.4.0",
+  "version": "rules-1.5.0",
   "updated": "2026-10-24",
   "principle": "Same inputs for every strategy; the direction flips with the trade. Selling options wants the richest options, buying wants the cheapest. Bullish trades (sell put, long call) want strong names; bearish trades (long put, sell call on a weak name) want weak ones. Each cell says what the strategy wants, where it is live, and the evidence — untested cells are the study queue.",
   "how_to_change": "Edit this file (one home, AGENTS rule 5). A cell moves to 'works' only with a study row in research/studies/INDEX.md; a live weight change also needs a before/after (rule 7).",
@@ -366,7 +366,12 @@
             "input": "put_edge_q",
             "min": 4,
             "if_known": true,
-            "why": "S059: put-edge Q1–Q3 lose after fills"
+            "why": "S059: put-edge Q1–Q3 lose after fills",
+            "relax": {
+              "market_state": ["sector_drop"],
+              "max_band": "0.12-0.15",
+              "_why": "S102 (10-26): inside a sector drop Q1–Q3 earn +51…+89 bp/wk both periods (vs normal-market Q5 +34/+48 at 0.06–0.10Δ); their 0.15–0.20Δ tail is too fat (worst 5 % −166/−237) but 0.10–0.15Δ holds (+62/+52 bp, worst 5 % +21/−60) → allowed, one band nearer than Q4–5"
+            }
           },
           {
             "input": "iv_rv",

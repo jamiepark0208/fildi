@@ -9,6 +9,7 @@ Status: **live** = in that layer today · **proposed** = A25 deferred · **shipp
 |---|---|---|---|
 | Long-term trend: price vs MA200 (ATR units), 12-1 momentum | Technicals: TREND | proposed (T3) | IC +0.042, t 2.6 (63d vs peers); off in broad selloffs |
 | Short-term: oversold depth, reversal, MA50 context, VWAP, volume, relative pressure | Technicals: entry timing (display, weight 0) | live, proposed demote (T4) | no edge, all \|t\| < 2 |
+| TradingView set: UT Bot trail + confidence + trend survival, SuperTrend cluster / divergence-weighted, SMC (sweep, BOS, MSS, FVG, order block), Fear & Greed (per name) | indicators.py → indicators_daily; Rankings › Sell Puts badge (display) | live, display only | S102: 17/17 splits fail on sold puts (trend priced) |
 | Price risk: idio vol, beta | Technicals (risk) | proposed | sizes moves, not direction (raw-drop IC is mechanical) |
 | Falling knife | Technicals (flag) | live | Step 4: no harm to put sellers; severity 0.15 in Model List |
 | IV vs realized vol, IV rank (true 1y IV percentile: **one resolver** `iv_rank.py` → `watchlist_sync.iv_rank_daily`, LSEG → tastytrade → none, 578/586 app names 10-24) | Options: PRICING | IV rank **live** via the resolver in Options score ivRelative (options-1.2.1, 10-24) + Model List PREMIUM; IV/RV live in Model List PREMIUM + shadow options-1.3.0 | VRP IC +0.137, t 10.1; true IV rank +0.084 |

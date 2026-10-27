@@ -80,12 +80,15 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                                  WHERE ticker = ANY(%s) AND date >= CURRENT_DATE - 45 AND close > 0 GROUP BY 1""", (names,)).fetchall():
         if len(cl) >= 21:
             rv[t] = float(np.std(np.diff(np.log(cl[:21][::-1]))) * math.sqrt(252))
+    tech = {t: x for t, x in conn.execute("""SELECT DISTINCT ON (ticker) ticker, payload FROM watchlist_sync.indicators_daily
+                                             WHERE ticker = ANY(%s) ORDER BY ticker, as_of DESC""", (names,)).fetchall()} if conn.execute(
+        "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else {}   # display only (S102: no put edge)
     out = []
     for t in names:
         exp = pick_expiry(sorted({p["expiry"] for p in by[t]}), as_of)
         ms = (states.get(t) or {}).get("market_state", market["state"])
         rec = {"ticker": t, "as_of": str(as_of), "market_state": ms, "stock_state": (states.get(t) or {}).get("state"),
-               "sector": (states.get(t) or {}).get("sector"),
+               "sector": (states.get(t) or {}).get("sector"), "tech": tech.get(t),
                "expiry": str(exp) if exp else None}
         band, why = SE.engine_put_band(market, states.get(t))
         far = BP.put_far_reason(t, exp, ctx) if exp else None
@@ -96,6 +99,14 @@ def compute(conn) -> tuple[date, list[dict], dict]:
             rec.update(pass_=False, gates=["panic: no new puts" if not band else "no weekly expiry 2–14 days out"])
             out.append(rec)
             continue
+        pe = I.get(t, {}).get("put_edge_q")
+        for g in SE.ENGINE["strategies"]["sell_put"]["gates"]:   # gate relaxed in this state → capped band (S102)
+            rl = g.get("relax") or {}
+            v = pe if g["input"] == "put_edge_q" else None
+            if ms in rl.get("market_state", []) and v is not None and v < g["min"] and \
+                    SE.band_bounds(band)[0] >= SE.band_bounds(rl["max_band"])[1]:
+                band, why = rl["max_band"], f"{why} · put-edge Q{v} in a sector drop → {rl['max_band']}Δ (S102)"
+                rec.update(band_target=band, why=why)
         p, used = pick_strike([x for x in by[t] if x["expiry"] == exp], band)
         if not p:
             rec.update(pass_=False, gates=[f"no listed put with bid ≥ {R.PUT_MIN_RESTRIKE_BID} within one band of {band}"])
@@ -111,7 +122,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         h = SE.band_table().get(f"{ms}|{rec['stock_state'] or 'normal'}|{used}")
         if h:
             rec.update(hist_bp=h["bp"], hist_w5=h["w5"], hist_kept=h["kept"])
-        ok, gates = SE.fit({"ticker": t, "structure": "csp", "iv_rv": rec["iv_rv"]}, I, {})
+        ok, gates = SE.fit({"ticker": t, "structure": "csp", "iv_rv": rec["iv_rv"], "market_state": ms}, I, {})
         rec.update(pass_=ok, gates=gates, put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
         out.append(rec)
     ranked = [r for r in out if r.get("strike") is not None]

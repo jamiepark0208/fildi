@@ -81,7 +81,8 @@ export interface OptionRankingRow {
   /** A256: watchlist second-pass (relaxed income/SQ) — not a strict Overall hit. */
   relaxed?: boolean;
   /** A277 (puts): the one sold-put pick — watchlist_sync.put_recs_daily (put_recs.py). Strike/expiry/rank on this row are the engine's. */
-  engine?: { band: string | null; why: string; pass: boolean; gates: string[]; histBp: number | null; histW5: number | null } | null;
+  engine?: { band: string | null; why: string; pass: boolean; gates: string[]; histBp: number | null; histW5: number | null;
+            tech?: Record<string, number | string | null> | null } | null;   // A279 indicators (display only, S102)
 }
 
 /** A277: engine put picks (put_recs.py), rank order. Empty if the table is missing or not yet written. */
@@ -148,7 +149,8 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
           dataQuality: s ? num(s.dataQuality) : null, atmPutIv: s ? num(s.atmPutIv) : null, ivVsRealized: num(p.iv_rv as number | null),
           computedAt: e.computedAt, rank: e.rank, relaxed: false,
           engine: { band: (p.band as string) ?? null, why: String(p.why ?? ""), pass: e.pass, gates: (p.gates as string[]) ?? [],
-                    histBp: num(p.hist_bp as number | null), histW5: num(p.hist_w5 as number | null) },
+                    histBp: num(p.hist_bp as number | null), histW5: num(p.hist_w5 as number | null),
+                    tech: (p.tech as Record<string, number | string | null> | null) ?? null },
         };
       });
       await attachFocus(rows, side);

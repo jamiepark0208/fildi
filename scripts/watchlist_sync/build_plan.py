@@ -356,7 +356,7 @@ def restrike_puts(conn, ctx: dict) -> None:
                 r["carry_no_strike"] = True
             continue
         exp = date.fromisoformat(e["expiry"])
-        r["far_why"], r["band_why"] = e.get("far"), e["why"]
+        r["far_why"], r["band_why"], r["engine_market"] = e.get("far"), e["why"], e.get("market_state")
         note = f"engine pick {e['strike']:g} {exp:%m-%d} ({-e['delta']:.2f}Δ, was {-(r.get('delta') or 0):.2f}Δ): {e['why']}"
         ref = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == exp]
         if ref:
@@ -366,6 +366,13 @@ def restrike_puts(conn, ctx: dict) -> None:
         r.update(strike=e["strike"], spot=e["spot"], premium=e["bid"], bid_is_live=True, delta=e["delta"], strike_iv=e["iv"],
                  expiry=exp, dte=e["dte"], weekly_income_pct=e["income_wk_pct"],
                  repriced=f"{r['repriced']}; {note}" if r.get("repriced") else note)
+
+
+def _edge_relax() -> list[str]:
+    """Market states where strategy_rules' put-edge gate is relaxed (put_recs caps the band there)."""
+    import strategy_engine as SE
+    g = next((g for g in SE.ENGINE["strategies"]["sell_put"]["gates"] if g["input"] == "put_edge_q"), {})
+    return (g.get("relax") or {}).get("market_state", [])
 
 
 def _edge_q(ctx: dict, rec: dict) -> int:
@@ -434,8 +441,11 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
         cr = ls and ls["credit_combined_rank"]
         e = ctx.get("edge", {}).get(t)
         if not rec.get("strategy"):   # panic puts are their own tested lane (S049/S054); put edge ranks the weekly lane
-            c.append(chk("put_edge", e["quintile"] >= ctx.get("edge_min_q", 4) if e else bool(ctx.get("edge_demoted")),
-                         f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk net of fills, breach {100 * e['breach']:.0f} % (S059, Q1–Q3 lose after fills)"
+            relaxed = rec.get("engine_market") in _edge_relax()   # sector drop: Q1–Q3 earn (S102), engine already capped the band
+            c.append(chk("put_edge", (e["quintile"] >= ctx.get("edge_min_q", 4) or relaxed) if e else bool(ctx.get("edge_demoted")),
+                         (f"put edge Q{e['quintile']}: allowed in a sector drop at ≤ 0.15Δ (S102: Q1–Q3 +51…+89 bp/wk both periods)"
+                          if relaxed and e["quintile"] < ctx.get("edge_min_q", 4) else
+                          f"put edge Q{e['quintile']}: simulated {e['pnl_bp']:+.1f} bp/wk net of fills, breach {100 * e['breach']:.0f} % (S059, Q1–Q3 lose after fills)")
                          if e else "no put-edge inputs (or demoted by drift check)",
                          # 10-20 (Jamie OK): no inputs = unknown edge, and S059 says most weekly puts lose after fills → block;
                          # the old warn fallback applies only when the drift check has demoted put edge for everyone
