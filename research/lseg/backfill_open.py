@@ -6,7 +6,7 @@ history comes from:
   1. public.prices_historical (open/close, 2024-10 →, nightly)          open × LSEG close ÷ source close (same day)
   2. wrds_research.crsp_dsf openprc (2017 → 2024-12, unadjusted)        |openprc| × LSEG close ÷ |prc|
   3. --polygon: Polygon adjusted daily aggs (free 2-year window) for names still missing opens; raw kept in vendor_raw (rule 4c);
-     12.5 s between calls (5/min). For when the LSEG monthly datapoint guard blocks backfill_ohlc.py --missing-open.
+     5/min via the shared polygon_gate (option_history.get). For when the LSEG monthly datapoint guard blocks backfill_ohlc.py --missing-open.
 Scaling by the same day's close ratio puts the open on LSEG's share basis (splits). A row is kept only if the scaled open sits
 inside that day's LSEG low…high (± 1 %); several CRSP permnos on one ticker/date → the one whose close ratio is nearest the
 previous kept day's. Never overwrites an LSEG open.
@@ -18,7 +18,6 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
-import time
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
@@ -52,7 +51,6 @@ def polygon(conn) -> None:
         conn.commit()
         if i % 25 == 0:
             print(f"  {i + 1}/{len(todo)} {t}", flush=True)
-        time.sleep(12.5)
 
 
 def main() -> None:

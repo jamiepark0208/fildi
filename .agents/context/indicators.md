@@ -22,6 +22,8 @@ Surfaces today: put_recs payload `tech` → Rankings › Sell Puts badge (cluste
 | S103 | entry timing × exits × re-sell, per-name lane; exits re-checked on real LSEG bid/ask | weekly take at ≥ 4× plan pace = only positive exit (+25 %, t ≈ 1) → `put_manage.py`; 50/65 % takes lose on real fills; 3-week early exits lose; **trend-flip stops lose (t −1.8…−3.7)** |
 | S103b | which names to sell today (cross-section, same day) | no signal passes; SMC sweep-reclaim positive in every variant (t ≤ 1.5) → forward watch |
 | S103 real | fear / bear-cluster names held to expiry | earn far more, but across weeks (market state, = band engine), not within a week |
+| S105 (T3) | UT trail as a stop on held stock | FAIL: halves drawdown (−26 vs −38 %) but α vs hold −1.7 %/yr (t −0.9, β 0.48) — holding half the shares is cheaper |
+| S106 (T2) | covered-call timing (greed ≥ 70 / bearish divergence) | FAIL: per written call −15…−17 bp vs Monday −13 (2023→); only "wins" by writing fewer calls |
 Standing rules from these: never close a sold put only because a trend indicator flipped; model marks overstate early buy-back value — judge exits on `optlab.lseg_opt_daily`; week-cluster comparisons so a market-state effect isn't read as name selection.
 
 ## Use-case map (Claude 10-26; A281 asks Muse / Cursor / Grok to add and challenge)
@@ -36,10 +38,10 @@ Status: **live** · **test** (needs a study with a pass bar) · **build** (displ
 | 6 | Breadth washout: ≤ 25 % of names in a UT Bot uptrend | UT (breadth) | reason-string label (`breadth_washout` flag in band_states) | **label + forward watch** — S104: +5.7 bp on the 9 test weeks it fires, t 0.8, tail worse → not a band state (Grok A281 ablation) |
 | 7 | Intraday order timing: on a day the engine already chose, sell on the 1h SMC sweep-reclaim / 15-min UT turn → better premium | SMC, UT (intraday) | Live › Best strikes | test (Polygon 1-min backfill, ~2 y) |
 | 8 | Tenor (narrowed, Grok): skip the 3-week put only in the first week after a UT down flip; grade breach | UT | put_recs | test (fail → drop tenor use) |
-| 9 | Covered calls / call side: greed ≥ 70, bearish divergence, cluster topping → sell calls closer | F&G, div, cluster | call_recs (S101c) | test |
+| 9 | Covered calls / call side: greed ≥ 70, bearish divergence, cluster topping → sell calls closer | F&G, div, cluster | call_recs (S101c) | **failed** S106 (T2) — no call timing rule |
 | 10 | Directional entries (native use): UT flip + confidence + cluster agreement → long call / buy stock; UT trail as stop | UT, cluster | long options (A244), Model List Own | test |
 | 11 | Wheel after assignment: keep the fixed hold (S088e); a UT flip line on the shares, stating that flip stops lost on puts | UT, F&G | Model List assigned shares | build (context) |
-| 12 | Holdings risk: UT trail as trailing stop on long stock (drawdown vs return) | UT | Portfolio | test |
+| 12 | Holdings risk: UT trail as trailing stop on long stock (drawdown vs return) | UT | Portfolio | **failed** S105 (T3) — display the trail as context only; a smaller position cuts risk cheaper |
 | 13 | Per-name reliability: puts kept vs breached after each signal, past bars only, with n and both periods (never a stock-direction win rate) | all | tooltips | build |
 | 14 | ~~Confidence as put-edge tie-break~~ | — | — | **killed** (Grok): no same-day signal (S103b), cluster already in the premium; ties break on the spread |
 | 15 | Alerts: sold puts → pace take only (`put_manage.py`); sweeps / BOS / F&G extremes / UT flips as info on long shares + watchlist, never "close the put" | SMC, F&G, UT | Live alerts (A280) | build |
@@ -48,9 +50,9 @@ Status: **live** · **test** (needs a study with a pass bar) · **build** (displ
 ## Next tests (Grok A281, pass bars pre-registered; one-day signal lag — signals publish after the close)
 | id | Use | Test | Pass |
 |---|---|---|---|
-| T1 | Intraday order timing (map 7) | same strike/expiry as the open sale; wait for a 15-min UT turn or a 1h low-sweep reclaim with the strike under that low; real quotes; T-bill if it never prints | more bp per collateral-day than selling at the open, breach no worse, same sign both halves, week-cluster t ≥ 2.5, shuffled-minute placebo ≈ 0 |
-| T2 | Covered-call timing on shares already held (map 9) | same Δ as Monday's call, written when F&G crosses 70 or a bearish divergence confirms | assignment-adjusted pnl beats holding the shares and the Monday write, both periods, t ≥ 2.5 (S088d: closer calls gave away the rally) |
-| T3 | UT trail on stock already held (map 12; native instrument for a ratchet) | trail vs hold vs a vol-scaled smaller position (S064), real fills | higher return per unit of risk than both, same sign both halves, t ≥ 2.5; long-call version only if 2023–26 survives flip dates shuffled within IV |
+| T1 | Intraday order timing (map 7) — 5-min bars fetching to optlab.bars_5m (`t1_bars_5m.py`, 10-26) | same strike/expiry as the open sale; wait for a 15-min UT turn or a 1h low-sweep reclaim with the strike under that low; real quotes; T-bill if it never prints | more bp per collateral-day than selling at the open, breach no worse, same sign both halves, week-cluster t ≥ 2.5, shuffled-minute placebo ≈ 0 |
+| T2 ✗ S106 | Covered-call timing on shares already held (map 9) | same Δ as Monday's call, written when F&G crosses 70 or a bearish divergence confirms | assignment-adjusted pnl beats holding the shares and the Monday write, both periods, t ≥ 2.5 (S088d: closer calls gave away the rally) |
+| T3 ✗ S105 | UT trail on stock already held (map 12; native instrument for a ratchet) | trail vs hold vs a vol-scaled smaller position (S064), real fills | higher return per unit of risk than both, same sign both halves, t ≥ 2.5; long-call version only if 2023–26 survives flip dates shuffled within IV |
 
 ## Implementation gaps (Grok A281) — change answers if fixed
 Daily series only: swings confirm 5 bars late (a fresh daily sweep is ~a week old) and SMC/UT are tuned for 1h/15m → intraday run needed for T1. "Weekly" engine = daily EMA 45/105, no real weekly bars. No stacked zones (FVG, order block, trail are separate distances) and no liquidity above highs (calls). Jamie runs author defaults (10-26) → settings now match the scripts' published inputs (pulled from page metadata 10-26); remaining gaps: timeframe (daily vs the guides' 1h/15m) and Luxy's adaptive chop formula.
