@@ -71,7 +71,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("sector ETFs", PY, HERE, ["sector_etfs.py"]),   # A277: 49 sector/theme ETF closes (SOXX, REMX, SRVR …) → per-name sector_drop state
         ("band table", PY, HERE, ["band_engine.py", "refresh"]),   # A277 §8 / S101: weekly refit of the sold-put band table (~5 min) — read by build_plan + structures
         ("indicators", PY, HERE, ["indicators.py"]),   # A279: UT Bot / SuperTrend cluster / SMC / Fear & Greed per name → indicators_daily (display; S102)
-        ("put recs", PY, HERE, ["put_recs.py"]),   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)
+        ("put recs", PY, HERE, ["put_recs.py"]),
+        ("put manage", PY, HERE, ["put_manage.py"]),   # A279 / S103: open short puts → take + re-sell at ≥ 4× pace (weeklies), else hold; never trend stops   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)
         ("plan (L1)", PY, HERE, ["build_plan.py"]),
     ],
     "verify": [("evaluate quotes (L2)", PY, HERE, ["verify_plan.py", "evaluate"])],  # quotes come from the export session (Step 13)

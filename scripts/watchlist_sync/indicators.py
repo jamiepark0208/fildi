@@ -205,7 +205,7 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
     sl = sh = None
     last_sweep = last_mss = last_bos = None
     bos_dir = np.zeros(N)
-    swept_low = np.full(N, np.nan)
+    swept_low, sweep_low = np.full(N, np.nan), np.full(N, np.nan)
     mss_age, sweep_age = np.full(N, np.nan), np.full(N, np.nan)
     fvg_dist, ob_dist = np.full(N, np.nan), np.full(N, np.nan)
     fvgs, ob = [], None
@@ -230,13 +230,14 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
         fvgs = [(lo, hi) for lo, hi in fvgs if l[i] > lo][-20:]   # filled once price trades through the gap's bottom
         bos_dir[i] = last_bos or 0
         sweep_age[i] = i - last_sweep if last_sweep is not None else np.nan
+        sweep_low[i] = swept_low[last_sweep] if last_sweep is not None else np.nan   # the swept swing low (SMC stop level)
         mss_age[i] = i - last_mss if last_mss is not None else np.nan
         below = [hi for lo, hi in fvgs if hi <= c[i]]
         if below and a[i] > 0:
             fvg_dist[i] = (c[i] - max(below)) / a[i]
         if ob is not None and ob <= c[i] and a[i] > 0:
             ob_dist[i] = (c[i] - ob) / a[i]
-    out.update(bos_dir=bos_dir, sweep_age=sweep_age, mss_age=mss_age, fvg_dist=fvg_dist, ob_dist=ob_dist)
+    out.update(bos_dir=bos_dir, sweep_age=sweep_age, sweep_low=sweep_low, mss_age=mss_age, fvg_dist=fvg_dist, ob_dist=ob_dist)
     # Fear & Greed
     sma50 = np.convolve(c, np.ones(50) / 50, "full")[:N]
     sma50[:49] = np.nan
@@ -278,7 +279,7 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
 
 
 FIELDS = ["ut_dir", "ut_bars", "ut_surv", "ut_dist", "ut_conf", "stdiv_dir", "div_against", "stc_bull", "stc_regime",
-          "bos_dir", "sweep_age", "mss_age", "fvg_dist", "ob_dist", "fear_greed"]
+          "bos_dir", "sweep_age", "sweep_low", "mss_age", "fvg_dist", "ob_dist", "fear_greed"]
 
 
 def load_bars(conn, tickers=None):
