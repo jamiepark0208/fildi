@@ -241,3 +241,7 @@ LSEG after 11-01) as the growth/margin centre, shrunk toward base rates by analy
 rate by year 10; (b) margin centre = consensus/own, uncertainty = own history + analyst dispersion; (c) tax → company's
 3-y effective, partial convergence; (d) width check vs Morningstar uncertainty bands (fair value ±20–50 %);
 (e) compare with StarMine IV / Morningstar as plausibility bounds, not targets.
+
+Built 10-28 (a)–(c), watchlist only: LSEG consensus FY1–FY3 (`consensus_annual`) drives years 1–3; margin = GAAP +
+consensus margin change; tax halfway to 25 %. Megacap P50 now near StarMine IV (NVDA 241 vs 250, MSFT 359 vs 377,
+GOOGL 238 vs 263). Before/after per name in A283 status notes. Next: (d) width, loss-maker path-to-profit, SBC scenario.

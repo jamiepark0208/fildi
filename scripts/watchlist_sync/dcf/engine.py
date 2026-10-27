@@ -1,13 +1,18 @@
 """DCF v2 engine prototype (A283, DCF_PLAN §A–§F): FCFF DCF with base-rate distributions, lifecycle cost of capital,
 scenarios and a reverse DCF. Generic rules only (sector rules and stock overrides come later).
 Per path (Monte Carlo, N draws):
-  revenue  year 1 = consensus FY1 growth (LSEG, vs last FY); years 2–5 = base-rate 5-y CAGR for size × start growth at
-           percentile u_g; years 6–10 = the matching 10-y base rate, fading to terminal g      (S112 base_rates_growth)
-  margin   current operating margin → base-rate margin 5 y later for sector × start margin at u_m (ρ 0.5 with u_g)
+  revenue  with consensus (LSEG FY1–FY3, consensus_annual; 10-27 assessment fix a): years 1–3 = consensus revenue path
+           interpolated to our TTM dates, ± analyst high/low, shrunk toward the base-rate path by n/(n + 3k);
+           years 4–5 = half consensus year-3 growth, half base rate; years 6–10 fade to terminal g.
+           Without: year 1 = FY1 growth, years 2–5 = base-rate 5-y CAGR for size × start growth at percentile u_g;
+           years 6–10 = the matching 10-y base rate, fading to terminal g      (S112 base_rates_growth)
+  margin   with consensus: GAAP margin + the consensus street-EBIT margin change from FY0 (street EBIT excludes SBC → only
+           the change is used), same shrinkage; then 75 % own year-3 margin / 25 % base rate by year 10 (fix b).
+           Without: current operating margin → base-rate margin 5 y later for sector × start margin at u_m (ρ 0.5 with u_g)
   reinvest Δrevenue ÷ sales-to-capital: the company's own 3-y Δrevenue ÷ Σ reinvestment (NOPAT − FCFF ex-SBC) from its
            filings, capped 0.3–8, blended with the sector P25–P75 when own history is missing or noisy  (audit 10-27:
            sector-only S2C made AAPL reinvest 80 % of NOPAT vs 1 % actual)
-  tax      effective → 25 % marginal by year 10
+  tax      effective → halfway to 25 % marginal by year 10 (above 25 % → 25 %; fix c)
   discount Ke = rf + β·ERP; β = Blume(own) for years 1–5 → clamp(β, 0.8, 1.2) by year 10; ERP ~ cma base triangular;
            Kd = rf + OAS(rating; synthetic from interest coverage when unrated); WACC on market weights
   terminal NOPAT₁₁ · (1 − g/ROIC_T) / (WACC_T − g); g ~ cma g_dist (breakeven + CBO potential real growth, ≤ rf); ROIC_T = base-rate ROIC 5 y
@@ -149,6 +154,40 @@ def own_s2c(h: dict, tax: float, ttm: dict | None = None) -> float | None:
     return float(np.clip(d_rev / (rr * float(np.mean(nopats))), 0.3, 8.0))
 
 
+def consensus(conn, t: str, ttm_end: str | None) -> dict | None:
+    """Consensus revenue/margin path at our TTM dates (years 0–3): log-revenue and street margin interpolated in time
+    between FY0 actual and FY1–FY3 means, extrapolated past FY3 at the FY2→FY3 rate. None without FY0 + 2 estimates."""
+    r = rows(conn, """SELECT fiscal_end, actual, rev_avg, rev_low, rev_high, ebit_avg, ebit_low, ebit_high, n_rev, as_of
+                      FROM watchlist_sync.consensus_annual WHERE ticker = %s AND source = 'lseg'
+                      AND as_of = (SELECT max(as_of) FROM watchlist_sync.consensus_annual WHERE ticker = %s AND source = 'lseg')
+                      ORDER BY fiscal_end""", (t, t))
+    a = [q for q in r if q["actual"]]
+    e = [q for q in r if not q["actual"] and q["rev_avg"] and q["rev_avg"] > 0 and (not a or q["fiscal_end"] > a[-1]["fiscal_end"])]
+    if not a or not a[-1]["rev_avg"] or a[-1]["rev_avg"] <= 0 or len(e) < 2 or not ttm_end:
+        return None
+    pts = [a[-1]] + e
+    ts = np.array([pd.Timestamp(q["fiscal_end"]).toordinal() for q in pts], float)
+    lr = np.log([q["rev_avg"] for q in pts])
+    have_m = all(q["ebit_avg"] is not None for q in pts)
+    sm = np.array([q["ebit_avg"] / q["rev_avg"] for q in pts]) if have_m else None
+    sd_r = np.array([0.0] + [math.log(q["rev_high"] / q["rev_low"]) / 4 if q["rev_low"] and q["rev_high"] and q["rev_low"] > 0 else 0.1 for q in e])
+    sd_m = np.array([0.0] + [(q["ebit_high"] - q["ebit_low"]) / q["rev_avg"] / 4 if q["ebit_high"] is not None and q["ebit_low"] is not None else 0.03 for q in e])
+    nn = np.array([0] + [q["n_rev"] or 1 for q in e], float)
+    t0 = pd.Timestamp(ttm_end).toordinal()
+    at = lambda arr, tt: float(np.interp(tt, ts, arr)) if tt <= ts[-1] else float(arr[-1] + (arr[-1] - arr[-2]) * (tt - ts[-1]) / (ts[-1] - ts[-2]))
+    yrs = [t0 + 365.25 * k for k in range(4)]
+    lv = np.array([at(lr, tt) for tt in yrs])
+    out = {"g": np.exp(np.diff(lv)) - 1, "sd": np.array([max(at(sd_r, tt), 0.03 * k) for k, tt in enumerate(yrs)][1:]),
+           "n": np.array([max(float(np.interp(min(tt, ts[-1]), ts, nn)), 1.0) for tt in yrs[1:]]),
+           "dm": None, "sdm": None, "fy": [str(q["fiscal_end"]) for q in pts], "as_of": str(r[0]["as_of"])}
+    out["n"][0] = max(out["n"][0], float(nn[1]))  # year 1 sits between FY0 (actual) and FY1 → FY1's coverage
+    if have_m:
+        m = np.array([at(sm, tt) for tt in yrs])
+        out["dm"] = m[1:] - m[0]
+        out["sdm"] = np.array([max(at(sd_m, tt), 0.01 * k) for k, tt in enumerate(yrs)][1:])
+    return out
+
+
 def inputs(conn, t: str, base: dict | None = None) -> dict:
     if base is None:
         base = ttm_base(conn, t)
@@ -196,7 +235,7 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
             "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
-            "s2c_own": s2c_own, "flags": flags, "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
+            "s2c_own": s2c_own, "flags": flags, "cons": consensus(conn, t, (base.get("revenue") or {}).get("end")), "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
 
 
 def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict | None = None, scenario: str = "base") -> dict:
@@ -206,7 +245,8 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     g1_ = x["g1"] if x["g1"] is not None else 0.05
     q5_, _, _ = br.growth(x["rev"], g1_)
     center = 0.5
-    if x.get("ltg") is not None:  # analysts' long-term growth → its base-rate percentile, shrunk halfway (LTG optimism)
+    cons = x.get("cons")
+    if x.get("ltg") is not None and cons is None:  # consensus path replaces LTG (EPS growth, wrong unit for revenue)  # analysts' long-term growth → its base-rate percentile, shrunk halfway (LTG optimism)
         grid = np.linspace(0.01, 0.99, 99)
         center = 0.5 + 0.5 * (float(np.interp(x["ltg"], q5_(grid), grid)) - 0.5)
     u_g = np.full(n, fx["u_g"]) if "u_g" in fx else np.clip(norm.cdf(norm.ppf(center) + rng.standard_normal(n)), 0.01, 0.99)
@@ -237,6 +277,18 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     gr[:, 1:5] = r25[:, None]
     for k in range(5, 10):
         gr[:, k] = r610 + (g_T - r610) * ((k - 4) / 5)
+    if cons is not None:  # consensus years 1–3, shrunk toward the base-rate path by coverage; 4–5 half/half; 6–10 fade
+        zg = norm.ppf(u_g)
+        k = np.arange(1, 4)
+        w = cons["n"] / (cons["n"] + 3 * k)
+        lc = np.cumsum(np.log1p(cons["g"]))[None, :] + zg[:, None] * cons["sd"][None, :]
+        lb = np.log1p(r25)[:, None] * k[None, :]
+        lv = w[None, :] * lc + (1 - w[None, :]) * lb
+        gr[:, 0:3] = np.exp(np.diff(np.c_[np.zeros(n), lv], axis=1)) - 1
+        g45 = 0.5 * gr[:, 2] + 0.5 * r25
+        gr[:, 3:5] = g45[:, None]
+        for j in range(5, 10):
+            gr[:, j] = g45 + (g_T - g45) * ((j - 4) / 5)
     if "analyst_g" in fx:  # analyst-style path: years 2–5 at the given growth, then linear fade to terminal by year 10
         ga = fx["analyst_g"]
         gr[:, 1:5] = ga
@@ -246,7 +298,16 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     m_t = np.full(n, x["m0"]) if fx.get("hold_margin") else qm(u_m)
     w = np.clip(years / 5, 0, 1)
     margin = x["m0"] + (m_t[:, None] - x["m0"]) * w[None, :]
-    tax = np.full(10, x["tax0"]) if fx.get("hold_tax") else x["tax0"] + (0.25 - x["tax0"]) * (years / 10)
+    if cons is not None and cons["dm"] is not None and not fx.get("hold_margin"):
+        wk = cons["n"] / (cons["n"] + 3 * np.arange(1, 4))
+        zm = norm.ppf(np.clip(u_m, 0.01, 0.99))
+        mc = x["m0"] + cons["dm"][None, :] + zm[:, None] * cons["sdm"][None, :]
+        margin[:, 0:3] = wk[None, :] * mc + (1 - wk[None, :]) * margin[:, 0:3]
+        m3 = margin[:, 2]
+        m_t = 0.75 * m3 + 0.25 * m_t
+        margin[:, 3:] = m3[:, None] + (m_t - m3)[:, None] * ((years[3:] - 3) / 7)[None, :]
+    tax_T = 0.25 if x["tax0"] >= 0.25 else x["tax0"] + 0.5 * (0.25 - x["tax0"])
+    tax = np.full(10, x["tax0"]) if fx.get("hold_tax") else x["tax0"] + (tax_T - x["tax0"]) * (years / 10)
     nopat = rev * margin * (1 - tax)
     if "s2c" in fx:
         s2c = np.full(n, fx["s2c"])

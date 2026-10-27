@@ -51,10 +51,10 @@ def _key() -> str | None:
     return os.environ.get("FMP_API_KEY")
 
 
-def _fmp(conn, path: str, t: str) -> tuple[dict | None, str | None]:
+def _fmp(conn, path: str, t: str, extra: str = "", whole: bool = False) -> tuple[dict | list | None, str | None]:
     key = _key()
     try:
-        raw = urllib.request.urlopen(f"{FMP}/{path}?symbol={t}&apikey={key}", timeout=30).read().decode()
+        raw = urllib.request.urlopen(f"{FMP}/{path}?symbol={t}{extra}&apikey={key}", timeout=30).read().decode()
     except urllib.error.HTTPError as e:  # 402 = symbol not on our plan (small/mid caps)
         raw = f"Premium HTTP {e.code}" if e.code in (401, 402, 403) else f"HTTP {e.code}"
         if not raw.startswith("Premium"):
@@ -68,7 +68,9 @@ def _fmp(conn, path: str, t: str) -> tuple[dict | None, str | None]:
         d = json.loads(raw)
     except ValueError:
         return None, "bad_json"
-    return (d[0], None) if isinstance(d, list) and d else (None, "empty")
+    if not (isinstance(d, list) and d):
+        return None, "empty"
+    return (d if whole else d[0]), None
 
 
 def fmp(conn, tickers: list[str], max_calls: int) -> int:

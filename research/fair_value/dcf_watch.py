@@ -46,6 +46,6 @@ with connect() as c:
             mod = sim["parts"]["reinv1"] / sim["parts"]["nopat1"]
             print(f"{t:6s} {x['price']:7.2f} | {p10:6.0f} {p50:6.0f} {p90:6.0f} P{(v < x['price']).mean() * 100:02.0f} | "
                   f"{sc['normal']:6.0f} {sc['base']:5.0f} {sc['implied']:7.0f} {sc['ltcma']:6.0f} | "
-                  f"{'> P98' if u is None else f'P{u * 100:.0f}':>18s} | {mod:5.0%} / {act:4.0%}" + (f"  ⚠ {x['flags']}" if x.get("flags") else ""))
+                  f"{'> P98' if u is None else f'P{u * 100:.0f}':>18s} | {mod:5.0%} / {act:4.0%}" + (f"  cons y1–3 {'/'.join(f'{g:+.0%}' for g in x['cons']['g'])}" if x.get("cons") else "  no consensus") + (f"  ⚠ {x['flags']}" if x.get("flags") else ""))
         except Exception as e:
             c.rollback(); print(f"{t:6s} failed: {str(e)[:70]}")

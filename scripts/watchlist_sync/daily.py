@@ -43,6 +43,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("LSEG coverage", LPY, LSEG, ["coverage.py"]),   # 10-27: follows the universe + option chain (was never re-run → RDDT gap)
         ("peer profiles", LPY, LSEG, ["peer_profiles.py"]),   # 10-27: LSEG description + TRBC for names without a reviewed peer group
         ("signals", LPY, LSEG, ["sync_signals.py"]),
+        ("consensus by year", LPY, LSEG, ["sync_consensus.py"]),   # A283: FY0 actual + FY1–FY3 revenue/EBIT → consensus_annual (DCF years 1–3; ~19 requests)
         # new names start 2024-10 (~500 bars: put-edge, zones, band engine); 2020 for hundreds of new names ≈ 5.6M datapoints
         ("price/IV history", LPY, LSEG, ["sync_daily_history.py", "--start", "2024-10-01"]),
         ("StarMine history", LPY, LSEG, ["sync_starmine_history.py"]),
