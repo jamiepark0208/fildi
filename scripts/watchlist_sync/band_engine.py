@@ -51,7 +51,7 @@ from sector_etfs import BROAD, ETFS as _ETFS  # noqa: E402
 # fires in 41/46 test months, no extra bp at 0.15–0.20Δ (+38/+44) and worst 5 % −550 → themes are where to look
 # (sector_etfs.py board), not how aggressive to be.
 SECTOR_ETFS = list(BROAD)
-BREADTH_WASHOUT = 0.25   # A281 #6 (10-26): ≤ 25 % of names in a UT Bot uptrend while SPY is calm → net bp rises with Δ, mild tails, both periods
+BREADTH_WASHOUT = 0.25   # A281 #6 / S104: ≤ 25 % of names in a UT Bot uptrend. Ablation (Grok): +5.7 bp t 0.8 on 9 test weeks, tail worse → a label, not a state
 SECTOR_DD = -0.15   # S101 sector probe 10-26: ≥ 15 % off high passed both periods; 1m ≤ −8 % / QQQ 1m ≤ −5 % did not
 
 
@@ -150,8 +150,6 @@ def market_state(f):
         return "sharp_drop"
     if f["spy_dd52"] <= -0.10:
         return "bear_grind"
-    if f.get("ut_breadth") is not None and f["ut_breadth"] <= BREADTH_WASHOUT:
-        return "breadth_washout"
     if (f.get("sec_dd52") or 0) <= SECTOR_DD:
         return "sector_drop"
     if f["spy_6m"] >= 0.10 or f["spy_dd52"] >= -0.02:

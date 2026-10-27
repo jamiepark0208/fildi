@@ -164,8 +164,9 @@ def band_states(conn, tickers) -> tuple[dict, dict]:
                          WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.indicators_daily) AND ticker <> ALL(%s)""",
                       (BE.SECTOR_ETFS + list(BE._ETFS),)).fetchone() if conn.execute(
         "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else (None, 0)
-    mf["ut_breadth"] = br[0] if br and br[1] >= 50 else None   # A281: share of names in a UT Bot uptrend (breadth washout state)
-    mf["state"] = BE.market_state(mf)
+    ub = br[0] if br and br[1] >= 50 else None   # A281: share of names in a UT Bot uptrend
+    mf["state"] = BE.market_state(mf)            # band state stays SPY / sector (breadth not in it — S104 label only)
+    mf["ut_breadth"], mf["breadth_washout"] = ub, ub is not None and ub <= BE.BREADTH_WASHOUT
     names = {}
     sec = BE.sector_now(conn, tickers)
     for t in tickers:
@@ -185,6 +186,7 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
     import band_engine as BE
     s = ENGINE["strategies"]["sell_put"]["strike"]
     ms, ns = (name or {}).get("market_state", market["state"]), (name or {}).get("state", "normal")
+    washout = market.get("breadth_washout")   # S104 ablation (Grok A281): +5.7 bp t 0.8 on 9 test weeks, tail worse → label only
     tab = band_table()
     b = BE.choose(tab, ms, ns, BE.FLOORS[s.get("risk", "standard")]) if tab else s["default_band"]
     if b is None:
@@ -202,12 +204,12 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
     b = bands[i]
     h = tab.get(f"{ms}|{ns}|{b}") if tab else None
     hist = f" (history {h['bp']:+.0f} bp/wk, worst 5 % {h['w5']:+.0f})" if h else ""
-    if ms == "breadth_washout":
-        ms_txt = f"SPY {BE.market_state({k: v for k, v in market.items() if k != 'ut_breadth'})} but only {market['ut_breadth']:.0%} of names in an uptrend → breadth washout"
-    elif ms == "sector_drop":
+    if ms == "sector_drop":
         ms_txt = f"SPY {market['state']} but {name['sector']} {name['sec_dd52']:+.0%} off high → sector drop"
     else:
         ms_txt = f"market {ms.replace('_', ' ')}"
+    if washout:
+        ms_txt += f" · breadth washout ({market['ut_breadth']:.0%} of names in an uptrend; label only, S104)"
     return b, f"{ms_txt} · stock {ns} → {b}Δ{hist}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
 
 

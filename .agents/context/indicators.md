@@ -30,17 +30,27 @@ Status: **live** · **test** (needs a study with a pass bar) · **build** (displ
 |---|---|---|---|---|
 | 1 | Chart overlays (UT trail, cluster line + %, SMC FVG/OB/swept lows, BOS/MSS labels, divergence dots, F&G pane) | all | A93 TradingView-class chart | build |
 | 2 | "Trend read" card: regime, confidence, trend age + survival, RSI, last liquidity event, nearest S/R, volume flow, one plain sentence | all | Breakdown › Technicals | build |
-| 3 | Strike context on every pick: strike vs UT trail / swept low / nearest OB-FVG in ATR ("below last week's swept low") | UT, SMC | Model List, Rankings, Structures | build (S088: placement adds no return → context, not a rule) |
-| 4 | Against-the-trend chip: Fildi rec vs trend engines disagree | UT, cluster | Model List, Rankings | build |
+| 3 | Strike context on every pick: strike vs UT trail / swept low / nearest OB-FVG in ATR ("below last week's swept low") — words only | UT, SMC | Model List, Rankings, Structures | build (context only; S088: zone placement ≈ 0 once distance is in the model; a strike moves only if test T1 passes) |
+| 4 | Engines-disagree line: "trend engines disagree; the book still follows put-edge" — never a skip | UT, cluster | Model List, Rankings | build (wording per Grok: disagreement failed as a filter, S102) |
 | 5 | Regime board: cluster % + F&G per sector ETF; breadth = % of universe with UT up / cluster bull | cluster, F&G, UT | Macro / sector board | build |
-| 6 | Breadth washout as a market state: ≤ 25 % of names in a UT Bot uptrend while SPY calm → sell closer (0.12–0.20Δ) | UT (breadth) | band_engine `breadth_washout` | **live** 10-26: OOS +30.1 vs +29.6 bp/wk, Sharpe 5.31 vs 4.84, max DD −4.5 vs −5.0 %; cells +72/−17 (crashed 0.12–0.15) · +47/−77 (normal 0.20) |
+| 6 | Breadth washout: ≤ 25 % of names in a UT Bot uptrend | UT (breadth) | reason-string label (`breadth_washout` flag in band_states) | **label + forward watch** — S104: +5.7 bp on the 9 test weeks it fires, t 0.8, tail worse → not a band state (Grok A281 ablation) |
 | 7 | Intraday order timing: on a day the engine already chose, sell on the 1h SMC sweep-reclaim / 15-min UT turn → better premium | SMC, UT (intraday) | Live › Best strikes | test (Polygon 1-min backfill, ~2 y) |
-| 8 | Tenor by trend-duration forecast (long expected downtrend left → shorter put) | UT survival | put_recs | test |
+| 8 | Tenor (narrowed, Grok): skip the 3-week put only in the first week after a UT down flip; grade breach | UT | put_recs | test (fail → drop tenor use) |
 | 9 | Covered calls / call side: greed ≥ 70, bearish divergence, cluster topping → sell calls closer | F&G, div, cluster | call_recs (S101c) | test |
 | 10 | Directional entries (native use): UT flip + confidence + cluster agreement → long call / buy stock; UT trail as stop | UT, cluster | long options (A244), Model List Own | test |
-| 11 | Wheel after assignment: hold shares while UT up, sell calls on flip or greed | UT, F&G | Model List assigned shares | test |
+| 11 | Wheel after assignment: keep the fixed hold (S088e); a UT flip line on the shares, stating that flip stops lost on puts | UT, F&G | Model List assigned shares | build (context) |
 | 12 | Holdings risk: UT trail as trailing stop on long stock (drawdown vs return) | UT | Portfolio | test |
-| 13 | Per-name signal reliability (Luxy-style win-rate table, honest, from Fildi's own history) | all | tooltips | build |
-| 14 | Setup-agreement score as tie-break inside equal put-edge | UT conf, cluster | put_recs rank | test |
-| 15 | Alerts on holdings/watchlist: sweep + reclaim, BOS through support, F&G extreme, UT flip (with the tested stance) | SMC, F&G, UT | Live alerts (A280) | build |
-| 16 | Volume flow spikes as unusual activity | F&G volume part | Live movers | test (overlaps S094) |
+| 13 | Per-name reliability: puts kept vs breached after each signal, past bars only, with n and both periods (never a stock-direction win rate) | all | tooltips | build |
+| 14 | ~~Confidence as put-edge tie-break~~ | — | — | **killed** (Grok): no same-day signal (S103b), cluster already in the premium; ties break on the spread |
+| 15 | Alerts: sold puts → pace take only (`put_manage.py`); sweeps / BOS / F&G extremes / UT flips as info on long shares + watchlist, never "close the put" | SMC, F&G, UT | Live alerts (A280) | build |
+| 16 | Volume-flow spikes | F&G volume part | Live movers | test only if the residual after S094 flags + IV still pays |
+
+## Next tests (Grok A281, pass bars pre-registered; one-day signal lag — signals publish after the close)
+| id | Use | Test | Pass |
+|---|---|---|---|
+| T1 | Intraday order timing (map 7) | same strike/expiry as the open sale; wait for a 15-min UT turn or a 1h low-sweep reclaim with the strike under that low; real quotes; T-bill if it never prints | more bp per collateral-day than selling at the open, breach no worse, same sign both halves, week-cluster t ≥ 2.5, shuffled-minute placebo ≈ 0 |
+| T2 | Covered-call timing on shares already held (map 9) | same Δ as Monday's call, written when F&G crosses 70 or a bearish divergence confirms | assignment-adjusted pnl beats holding the shares and the Monday write, both periods, t ≥ 2.5 (S088d: closer calls gave away the rally) |
+| T3 | UT trail on stock already held (map 12; native instrument for a ratchet) | trail vs hold vs a vol-scaled smaller position (S064), real fills | higher return per unit of risk than both, same sign both halves, t ≥ 2.5; long-call version only if 2023–26 survives flip dates shuffled within IV |
+
+## Implementation gaps (Grok A281) — change answers if fixed
+Daily series only: swings confirm 5 bars late (a fresh daily sweep is ~a week old) and SMC/UT are tuned for 1h/15m → intraday run needed for T1. "Weekly" engine = daily EMA 45/105, no real weekly bars. No stacked zones (FVG, order block, trail are separate distances) and no liquidity above highs (calls). Cluster weights + the 7-engine blend are our recipe — Jamie's own TradingView settings are untested (ask him for them).
