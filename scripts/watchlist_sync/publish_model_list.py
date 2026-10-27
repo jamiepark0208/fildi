@@ -151,6 +151,20 @@ def contract_context(conn) -> tuple[dict, dict, dict]:
     return rv, er, rec
 
 
+ENGINE_KEYS = ("market_state", "sector", "stock_state", "band_target", "band", "strike", "expiry", "delta", "rank", "put_edge_q",
+               "iv_rv", "hist_bp", "hist_kept", "income_wk_pct", "why")
+TECH_KEYS = ("ut_dir", "stc_bull", "fear_greed", "sweep_age", "bos_dir")
+
+
+def engine_decisions(conn, day) -> dict[str, dict]:
+    """The band engine's decision per name on the plan's day (put_recs_daily): state, band, rank, put-edge, history promise."""
+    out = {}
+    for t, pl in conn.execute("""SELECT ticker, payload FROM watchlist_sync.put_recs_daily WHERE as_of = (
+                                   SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily WHERE as_of <= %s)""", (day,)):
+        out[t] = {**{k: pl.get(k) for k in ENGINE_KEYS}, "tech": {k: (pl.get("tech") or {}).get(k) for k in TECH_KEYS}}
+    return out
+
+
 def portfolio_context(puts: list[dict], snap: dict, fit: dict, P: dict) -> None:
     """Display only (doesn't change which ideas are kept): for a put idea over the soft budget, show (a) the account's put share after
     open puts that expire first and are out of the money now, and (b) red / risk-flagged holdings in that account that could fund it."""
@@ -263,6 +277,7 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
     atm = W.atm_iv(conn)
     rv20, next_er, record = contract_context(conn)
     today = datetime.now().date()
+    engine = engine_decisions(conn, plan["created_at"].date())
 
     for p in rows(conn, """SELECT * FROM watchlist_sync.plan_items WHERE plan_id = %s AND l1_pass
                            ORDER BY list_key, rank NULLS LAST""", (plan["id"],)):
@@ -304,6 +319,9 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
             contract["earnings"] = {"date": str(ed), "inside": ed <= p["expiry"], "days_after_expiry": (ed - p["expiry"]).days}
         if record.get((p["ticker"], p["option_type"])):
             contract["record"] = record[(p["ticker"], p["option_type"])]
+        if p["option_type"] == "put" and engine.get(p["ticker"]):   # grade_ledger keeps it → scoreboard grades each engine decision
+            contract["engine"] = {**engine[p["ticker"]], "is_pick": engine[p["ticker"]]["strike"] == float(p["strike"])
+                                  and engine[p["ticker"]]["expiry"] == str(p["expiry"])}
         status = "provisional" if p["verify_status"] == "pass_after_hours" else "ok"
         held_back = held_back_reason(p["list_key"], f, P, spy20)
         v = contract.get("vol")

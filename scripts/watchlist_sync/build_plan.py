@@ -576,7 +576,9 @@ def build(show_rejected: bool) -> int:
                 e = ctx.get("edge", {}).get(r["ticker"]) if side == "put" else None
                 if e:
                     reasons.append(f"put edge Q{e['quintile']}/5: simulated {e['pnl_bp']:+.0f} bp/wk, breach {100 * e['breach']:.0f} % "
-                                   f"(IV/RV {e['iv_rv']:.2f}, S059 holdout)")
+                                   f"(IV/RV {e['iv_rv']:.2f}, S059 holdout, all markets)"
+                                   + (" · in a sector drop Q1–Q3 earn too (S102) → band capped instead"
+                                      if e["quintile"] < 4 and r.get("engine_market") in _edge_relax() else ""))
                 if r.get("repriced"):
                     reasons.append(r["repriced"])
                 if news_why.get(r["ticker"]):

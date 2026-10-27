@@ -156,7 +156,8 @@ def main() -> None:
                             json.dumps({"fill": fill, "strike": K, "close_expiry": st, "spot_entry": s0, "move": move, "spy_move": spy_move,
                                         "sigma_move": sigma_move, "premium_kept": premium_kept, "risk_adj": risk_adj,
                                         "tier": tier, "earnings_in_window": er_in, "data_warnings": data_warn,
-                                        "verdict": it["verdict"], "pillars": it["pillars"], "flags": it["flags"]})))
+                                        "verdict": it["verdict"], "pillars": it["pillars"], "flags": it["flags"],
+                                        "days": days, "expiry": c["expiry"], "engine": c.get("engine")})))
             elif f in VERDICT_FOLDERS:
                 for h, n in HORIZONS.items():
                     if (it["run_id"], f, t, h) in done:

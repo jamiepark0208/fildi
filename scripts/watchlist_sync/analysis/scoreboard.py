@@ -240,7 +240,52 @@ def ira_vs_benchmark(conn) -> tuple:
             {"ira_bp": jm * 1e4, "bench_bp": bm * 1e4, "ira_sd_bp": js * 1e4, "bench_sd_bp": bs * 1e4, "ira_rr": jr, "bench_rr": br})
 
 
-CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark]
+def engine_puts(conn) -> tuple:
+    """Band engine (S101): graded Model List puts per collateral-week, by the market state the engine saw (from 10-26 publishes)."""
+    rs = conn.execute("""SELECT ret::float8, detail FROM watchlist_sync.grades WHERE folder_key = 'sell_puts' AND horizon = 'expiry'
+                         AND bucket <> 'data' AND jsonb_typeof(detail->'engine') = 'object'""").fetchall()
+    wk, st = {}, {}
+    for ret, d in rs:
+        bp = 1e4 * ret / (max(d.get("days") or 7, 1) / 7)
+        wk.setdefault(d.get("expiry"), []).append(bp)
+        s = st.setdefault(d["engine"].get("market_state") or "?", {"n": 0, "bp": 0.0, "kept": 0})
+        s["n"] += 1; s["bp"] += bp; s["kept"] += (d.get("premium_kept") or 0) >= 0.999
+    means = [sum(v) / len(v) for v in wk.values()]
+    item, promised = "Band engine sell puts (S101)", "+29.6 bp per collateral-week OOS, worst week -31 bp (S101 standard band)"
+    if not means:
+        return (item, "S101", promised, "no graded engine picks yet (first expiry 10-30)", "0", "too early", {})
+    m = sum(means) / len(means)
+    se = (sum((x - m) ** 2 for x in means) / max(len(means) - 1, 1)) ** 0.5 / len(means) ** 0.5
+    by = {k: {"n": v["n"], "bp_wk": round(v["bp"] / v["n"], 1), "kept": round(v["kept"] / v["n"], 2)} for k, v in st.items()}
+    live = f"{m:+.1f} bp/wk, worst week {min(means):+.0f} · " + " · ".join(f"{k} {v['bp_wk']:+.0f} (n {v['n']})" for k, v in by.items())
+    verdict = ("too early" if len(means) < MIN_EXPIRIES else "failed" if m + 2 * se < 0 else
+               "holding" if m >= 29.6 - 2 * se else "drifting")
+    return (item, "S101", promised, live, f"{len(rs)} puts · {len(means)} expiries", verdict,
+            {"by_state": by, "weeks": {str(k): round(sum(v) / len(v), 1) for k, v in wk.items()}})
+
+
+def pace_takes(conn) -> tuple:
+    """put_manage (S103): a weekly take at ≥ 4× plan pace vs holding the same put to expiry (excludes the re-sell's income)."""
+    item, promised = "Sold-put pace takes (S103)", "taking beats holding by +0.018-0.021 % of strike per trade on real quotes"
+    if not conn.execute("SELECT to_regclass('watchlist_sync.put_manage_daily')").fetchone()[0]:
+        return (item, "S103", promised, "put_manage not run yet", "0", "too early", {})
+    rs = conn.execute("""SELECT DISTINCT ON (m.ticker, m.strike, m.expiry) m.ticker, m.strike, m.expiry, (m.payload->>'buy_back')::float8,
+                           (SELECT h.close::float8 FROM lseg_research.daily_history h WHERE h.ticker = m.ticker AND h.date <= m.expiry
+                            ORDER BY h.date DESC LIMIT 1)
+                         FROM watchlist_sync.put_manage_daily m WHERE m.payload->>'action' = 'take + re-sell' AND m.expiry < CURRENT_DATE
+                         ORDER BY m.ticker, m.strike, m.expiry, m.as_of""").fetchall()
+    d = [{"ticker": t, "strike": k, "expiry": str(e), "gain_pct": round(100 * (max(0.0, k - c) - b) / k, 3)}
+         for t, k, e, b, c in rs if c is not None and b is not None]
+    if not d:
+        return (item, "S103", promised, "no expired takes yet", "0", "too early", {})
+    g = sum(x["gain_pct"] for x in d) / len(d)
+    weeks = len({x["expiry"] for x in d})
+    verdict = "too early" if weeks < MIN_EXPIRIES else "holding" if g > 0 else "drifting"
+    return (item, "S103", promised, f"take − hold {g:+.3f} % of strike per trade (re-sell income not counted)",
+            f"{len(d)} takes · {weeks} expiries", verdict, {"takes": d})
+
+
+CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark, engine_puts, pace_takes]
 
 
 def main() -> None:
