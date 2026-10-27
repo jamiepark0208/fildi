@@ -7,11 +7,11 @@
 Daily bars, point-in-time (pivots counted from their confirm bar). `compute(d, h, l, c, v)` returns full series for charts/tests.
 | Source guide | Fields | Notes |
 |---|---|---|
-| Luxy UT God Mode (UT Bot) | `ut_dir` `ut_bars` `ut_dist` (ATR) `ut_surv` (share of past same-side trends that ran longer) `ut_conf` (7-engine 0–100) | ATR(14)×2 ratchet + Kaufman ER chop; Luxy's adaptive layer approximated |
-| SuperTrend Weighted by Divergence | `stdiv_dir` `div_against` `rsi_div` | ST(10,3), multiplier −30 % ≤ 200 bars after an against-trend divergence; MPO4 (proprietary) → RSI(14) |
-| SuperTrend Cluster (Zeiierman) | `stc_bull` (0–1 weighted agreement) `stc_regime` | 5 members, weights/lengths ours (author's not published) |
-| Liquidity Hunter PRO (SMC) | `bos_dir` `sweep_age` `sweep_low` `mss_age` `fvg_dist` `ob_dist` (ATR) | 5/5 pivots on daily (author tunes for 1h → MSS rare) |
-| Fear & Greed (BigBeluga) | `fear_greed` 0–100 | RSI + close/SMA50 percentile + 20-day up-volume share |
+| Luxy UT God Mode (UT Bot) | `ut_dir` `ut_bars` `ut_dist` (ATR) `ut_surv` (share of past same-side trends that ran longer) `ut_conf` (7-engine 0–100) | current guide default = Auto preset → daily Swing: sensitivity 2.0, ATR 14, filters off, Smart Chop (Kaufman ER) on; divergence RSI 14 / pivot 5. Page metadata still carries the July-16 v1 inputs (1.2 / ATR 7, swing + full-candle filters on) — superseded by the Jul-17/20 release notes. Chop widening formula approximated |
+| SuperTrend Weighted by Divergence | `stdiv_dir` `div_against` `rsi_div` | author defaults (page metadata): ATR 10, base × 3, pivot 2, sensitivity 0.3, 200 bars; MPO4 (proprietary) → RSI(14) |
+| SuperTrend Cluster (Zeiierman) | `stc_bull` (0–1 weighted agreement) `stc_regime` | author defaults: EMA3/ATR7/1.5/w1 · EMA5/10/2/1 · SMA8/14/2.5/1.2 · WMA13/21/3/1.4 · HMA21/34/4/1.6; consensus 0.6, base member 3 |
+| Liquidity Hunter PRO (SMC) | `bos_dir` `sweep_age` `sweep_low` `mss_age` `fvg_dist` `ob_dist` (ATR) | author defaults: swing 5, max 10 bars after sweep, OB search 15, ATR 14; reversal-body ≥ 0.15 ATR not applied (no open price in LSEG daily) — guide suggests 1h, we run daily |
+| Fear & Greed (BigBeluga) | `fear_greed` 0–100 | author defaults: RSI 14, SMA 50, volume flow 20, 70 / 30 (exact) |
 Also: `sector_etfs.py` (49 sector/theme ETFs, `board`), market/sector/breadth state in `band_engine.py` (breadth = share of names with `ut_dir` > 0, from indicators_daily).
 Surfaces today: put_recs payload `tech` → Rankings › Sell Puts badge (cluster %, tooltip); `put_manage.py` → `put_manage_daily`.
 
@@ -53,4 +53,4 @@ Status: **live** · **test** (needs a study with a pass bar) · **build** (displ
 | T3 | UT trail on stock already held (map 12; native instrument for a ratchet) | trail vs hold vs a vol-scaled smaller position (S064), real fills | higher return per unit of risk than both, same sign both halves, t ≥ 2.5; long-call version only if 2023–26 survives flip dates shuffled within IV |
 
 ## Implementation gaps (Grok A281) — change answers if fixed
-Daily series only: swings confirm 5 bars late (a fresh daily sweep is ~a week old) and SMC/UT are tuned for 1h/15m → intraday run needed for T1. "Weekly" engine = daily EMA 45/105, no real weekly bars. No stacked zones (FVG, order block, trail are separate distances) and no liquidity above highs (calls). Cluster weights + the 7-engine blend are our recipe — Jamie's own TradingView settings are untested (ask him for them).
+Daily series only: swings confirm 5 bars late (a fresh daily sweep is ~a week old) and SMC/UT are tuned for 1h/15m → intraday run needed for T1. "Weekly" engine = daily EMA 45/105, no real weekly bars. No stacked zones (FVG, order block, trail are separate distances) and no liquidity above highs (calls). Jamie runs author defaults (10-26) → settings now match the scripts' published inputs (pulled from page metadata 10-26); remaining gaps: timeframe (daily vs the guides' 1h/15m) and Luxy's adaptive chop formula.

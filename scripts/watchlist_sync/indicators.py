@@ -9,7 +9,7 @@ source not copied. Every value at bar i uses bars ≤ i only (pivots count from 
                                  ADX(14) ≥ 15, weekly EMA 9/21 agreement, volume ≥ 20-day average, RSI divergence that agrees
   SuperTrend weighted by div.    SuperTrend(10, 3) whose multiplier drops 30 % for ≤ 200 bars after a confirmed RSI divergence
                                  against the trend (cancelled by a flip or a trend-aligned divergence); MPO4 → RSI(14)
-  SuperTrend cluster (Zeiierman) 5 members (EMA 3/5/8/13/21 source, ATR 7/10/14/20/30, factor 1.5/2/2.5/3/4, weight 1/1/1.5/1.5/2);
+  SuperTrend cluster (Zeiierman) author defaults: EMA3/ATR7/1.5/w1 · EMA5/10/2/1 · SMA8/14/2.5/1.2 · WMA13/21/3/1.4 · HMA21/34/4/1.6;
                                  bull share of weight 0–1; regime flips only when share ≥ 0.6 and the base member (3rd) agrees
   SMC (Liquidity Hunter PRO)     5/5 swing pivots; sweep = wick through the last swing low/high and close back inside; BOS =
                                  close through the last swing high/low; MSS = BOS within 10 bars after a sweep on a candle in that
@@ -48,6 +48,23 @@ def ema(x, n):
     for i in range(1, len(x)):
         out[i] = out[i - 1] + a * (x[i] - out[i - 1])
     return out
+
+
+def sma(x, n):
+    out = np.full(len(x), np.nan)
+    cs = np.cumsum(np.r_[0.0, x])
+    out[n - 1:] = (cs[n:] - cs[:-n]) / n
+    return np.where(np.isnan(out), x, out)   # warm-up bars = the raw source
+
+
+def wma(x, n):
+    w = np.arange(1, n + 1, dtype=float)
+    out = np.array([x[i - n + 1:i + 1] @ w / w.sum() if i >= n - 1 else x[i] for i in range(len(x))])
+    return out
+
+
+def hma(x, n):
+    return wma(2 * wma(x, max(n // 2, 1)) - wma(x, n), max(int(round(n ** 0.5)), 1))
 
 
 def atr(h, l, c, n):
@@ -101,22 +118,22 @@ def supertrend(src, h, l, c, n, f, mult_scale=None):
     return d, line
 
 
-def pivots(x, kind):
-    """Confirmed pivot list per bar: at bar i, the pivots (index, value) confirmed by bar i (pivot bar = i − PIV)."""
+def pivots(x, kind, piv=PIV):
+    """Confirmed pivot list per bar: at bar i, the pivots (index, value) confirmed by bar i (pivot bar = i − piv)."""
     conf = {}
-    for p in range(PIV, len(x) - PIV):
-        w = x[p - PIV:p + PIV + 1]
+    for p in range(piv, len(x) - piv):
+        w = x[p - piv:p + piv + 1]
         if (kind == "low" and x[p] == w.min()) or (kind == "high" and x[p] == w.max()):
-            conf[p + PIV] = (p, x[p])
+            conf[p + piv] = (p, x[p])
     return conf
 
 
-def divergences(c, r):
+def divergences(c, r, piv=PIV):
     """(+1 bullish / −1 bearish / 0) at the bar a divergence is confirmed: price lower low + RSI higher low (and mirror)."""
     out = np.zeros(len(c))
     for kind, sgn in (("low", 1), ("high", -1)):
         prev = None
-        for i, (p, v) in sorted(pivots(c, kind).items()):
+        for i, (p, v) in sorted(pivots(c, kind, piv).items()):
             if prev is not None and p - prev[0] <= 60:
                 if sgn > 0 and v < prev[1] and r[p] > r[prev[0]]:
                     out[i] = 1
@@ -174,8 +191,9 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
     ut, trail, a = ut_bot(h, l, c)
     since, surv = run_lengths(ut)
     out.update(ut_dir=ut, ut_bars=since, ut_surv=surv, ut_dist=(c - trail) / a)
-    # SuperTrend weighted by divergence
-    dv = divergences(c, r)
+    # SuperTrend weighted by divergence (author defaults: ATR 10, ×3, pivot 2, sensitivity 0.3, 200 bars)
+    dv5 = divergences(c, r)        # Luxy confidence engine: RSI 14 / pivot 5
+    dv = divergences(c, r, piv=2)
     st0, st0_line = supertrend((h + l) / 2, h, l, c, 10, 3.0)
     scale, left, side = np.ones(N), 0, 0
     for i in range(N):   # one pass: track the active against-trend divergence (uses st direction as of i − 1)
@@ -189,11 +207,11 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
         scale[i] = 0.7 if left > 0 else 1.0
         left = max(left - 1, 0)
     stw, _ = supertrend((h + l) / 2, h, l, c, 10, 3.0, scale)
-    out.update(stdiv_dir=stw, div_against=(scale < 1).astype(float), rsi_div=dv)
-    # SuperTrend cluster
-    members = [(3, 7, 1.5, 1.0), (5, 10, 2.0, 1.0), (8, 14, 2.5, 1.5), (13, 20, 3.0, 1.5), (21, 30, 4.0, 2.0)]
-    dirs = [supertrend(ema(c, s), h, l, c, n, f)[0] for s, n, f, _ in members]
-    wts = np.array([m[3] for m in members])
+    out.update(stdiv_dir=stw, div_against=(scale < 1).astype(float), rsi_div=dv5)
+    # SuperTrend cluster — author defaults (Zeiierman, page metadata 10-26): smoothing, length, ATR, factor, weight
+    members = [(ema, 3, 7, 1.5, 1.0), (ema, 5, 10, 2.0, 1.0), (sma, 8, 14, 2.5, 1.2), (wma, 13, 21, 3.0, 1.4), (hma, 21, 34, 4.0, 1.6)]
+    dirs = [supertrend(fn(c, ln), h, l, c, n, f)[0] for fn, ln, n, f, _ in members]
+    wts = np.array([m[4] for m in members])
     bull = (np.array([(x > 0) for x in dirs]).T * wts).sum(1) / wts.sum()
     reg = np.zeros(N)
     for i in range(N):
@@ -267,7 +285,7 @@ def compute(d, h, l, c, v=None) -> dict[str, np.ndarray]:
     if v is not None and np.nansum(v) > 0:
         va = np.convolve(v, np.ones(20) / 20, "full")[:N]
         volok = v >= va
-    recent_div = np.array([dv[max(0, i - 10):i + 1][np.nonzero(dv[max(0, i - 10):i + 1])][-1:].sum() for i in range(N)])
+    recent_div = np.array([dv5[max(0, i - 10):i + 1][np.nonzero(dv[max(0, i - 10):i + 1])][-1:].sum() for i in range(N)])
     sd = st0
     eng = np.vstack([np.ones(N),                                             # UT side itself
                      (sd == ut) * (0.5 + 0.5 * np.clip(np.abs(c - st0_line) / a, 0, 1)),
