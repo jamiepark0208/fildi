@@ -5,7 +5,7 @@
  * maintain report flags it. (2026-10-09: the old 4-calendar-day rule skipped 1–3 day gaps → ~265 names stale.)
  *
  *   pnpm exec tsx src/scripts/backfill-stale-prices.ts
- *   pnpm exec tsx src/scripts/backfill-stale-prices.ts --max=60
+ *   pnpm exec tsx src/scripts/backfill-stale-prices.ts --max=60 --new-max=60   # new-max: never-priced universe adds per run
  *   pnpm exec tsx src/scripts/backfill-stale-prices.ts --tickers=AMD,JPM,SPY
  */
 import { pool } from "@workspace/db";
@@ -18,6 +18,8 @@ const ACTIVE_DAYS = 30;
 const maxArg = process.argv.find((a) => a.startsWith("--max="));
 const tickersArg = process.argv.find((a) => a.startsWith("--tickers="));
 const MAX = maxArg ? Number(maxArg.split("=")[1]) : 1000;
+const newMaxArg = process.argv.find((a) => a.startsWith("--new-max="));
+const NEW_MAX = newMaxArg ? Number(newMaxArg.split("=")[1]) : 60;
 
 async function main() {
   const expected = lastCompletedSessionYmd();
@@ -39,6 +41,16 @@ async function main() {
       [expected, ACTIVE_DAYS, Math.max(1, MAX)],
     );
     tickers = r.rows.map((row) => row.ticker);
+    // 10-27: names just added to the universe have no bar at all → the query above never sees them. Onboard ≤ NEW_MAX a day
+    // (full history + technicals below), so a 300-name universe add spreads over ~5 days instead of one Yahoo burst.
+    const nr = await pool.query<{ ticker: string }>(
+      `SELECT r.ticker FROM ticker_registry r
+       WHERE r.is_active AND r.fetch_fundamentals
+         AND NOT EXISTS (SELECT 1 FROM prices_historical p WHERE p.ticker = r.ticker)
+       ORDER BY r.added_at, r.ticker LIMIT $1`,
+      [NEW_MAX],
+    );
+    tickers.push(...nr.rows.map((row) => row.ticker));
   }
 
   if (tickers.length === 0) {

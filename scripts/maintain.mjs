@@ -657,11 +657,10 @@ print(w.astimezone().strftime("%m/%d/%y %H:%M:%S"))
 function printMorningChain() {
   const feed = `refresh-unused-feeds.ts ${unusedFeedsArgs().join(" ")} (after data steps, polygon.gate)`;
   const steps = [
-    "backfill-stale-prices.ts",
+    "backfill-stale-prices.ts (+ ≤ 60 never-priced universe adds/day: history + technicals)",
     "enrich-earnings-window.ts --max=40",
     "enrich-missing-fundamentals.ts --max=30",
     "enrich-unscored-fundamentals.ts --max=20",
-    "backfill-missing-technicals.ts (new universe names)",
     "backfill-market-breadth.ts --days=5",
     "nightly-enrichment.ts (if last success ≥ 4d)",
     "drain-needs-review.ts",
@@ -832,11 +831,6 @@ async function main() {
 
     enrichUnscored = runApiTsx("src/scripts/enrich-unscored-fundamentals.ts", ["--max=20"]);
     actions.push(`enrich_unscored_exit_${enrichUnscored.status}`);
-
-    // 10-27: names added to the universe (research/lseg/universe_review.py, monthly) need technicals before the option-chain
-    // snapshot can consider them — nothing else fills a registry name that has no ticker_technicals row.
-    const missingTech = runApiTsx("src/scripts/backfill-missing-technicals.ts");
-    actions.push(`backfill_missing_technicals_exit_${missingTech.status ?? missingTech.signal ?? "spawn_error"}`);
 
     const breadth = runApiTsx("src/scripts/backfill-market-breadth.ts", ["--days=5"]);
     actions.push(`backfill_market_breadth_exit_${breadth.status ?? breadth.signal ?? "spawn_error"}`);
