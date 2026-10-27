@@ -245,4 +245,35 @@ router.get("/fair-value/:ticker/vs-street", async (req, res, next) => {
   }
 });
 
+const EXTERNAL_LABELS: Record<string, { label: string; method: string }> = {
+  starmine: { label: "LSEG StarMine intrinsic value", method: "LSEG model on bias-corrected consensus (StarMine IV ÷ price)" },
+  fmp_dcf: { label: "FMP DCF", method: "FMP discounted cash flow (unlevered; levered in detail)" },
+};
+
+/** A283 — outside intrinsic-value estimates for display next to Fildi fair value (watchlist_sync.external_intrinsic). */
+router.get("/fair-value/:ticker/external", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (source) source, value, price, as_of::text AS as_of, detail
+       FROM watchlist_sync.external_intrinsic WHERE ticker = $1 AND value IS NOT NULL AND as_of >= CURRENT_DATE - 45
+       ORDER BY source, as_of DESC`, [t]).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    const estimates = rows.map((r) => {
+      const value = Number(r.value);
+      const price = r.price != null ? Number(r.price) : null;
+      const meta = EXTERNAL_LABELS[String(r.source)] ?? { label: String(r.source), method: "" };
+      return { source: r.source, label: meta.label, method: meta.method, value, price, asOf: r.as_of,
+        gapVsItsPrice: price && price > 0 ? value / price - 1 : null, detail: r.detail ?? null };
+    });
+    return res.json({
+      ticker: t,
+      estimates,
+      note: "Outside intrinsic values, display only. Each gap is vs the price that source used. Not blended beyond the existing StarMine vote.",
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 export default router;

@@ -56,6 +56,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         # (LSEG → tastytrade → none → iv_rank_daily) read by the option scan + fit below. Soft (pipe → exit 0): a failure must not stop the plan; its last line (✗ CHECK / traceback) shows in the log.
         ("tastytrade metrics", SH, HERE, ["-c", f"{PY} tastytrade.py universe 2>&1 | tail -1"]),
         ("IV rank resolver", SH, HERE, ["-c", f"{PY} iv_rank.py 2>&1 | tail -1"]),
+        # A283: outside intrinsic values (StarMine from today's LSEG signals; FMP DCF weekly, ≤ 40 calls) → external_intrinsic. Soft.
+        ("outside intrinsic values", SH, HERE, ["-c", f"{PY} dcf/external_iv.py --max 40 2>&1 | tail -1"]),
         # Jamie 10-20: the noon-PT scan only reached the NEXT morning's plan (~19 h stale) → re-scan with live Schwab quotes first
         ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts 2>&1 "
                                          "| grep -o 'persisted.*' | tail -1 || echo 'option scan skipped (plan uses the last scan)'"]),
