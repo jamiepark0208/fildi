@@ -1,3 +1,27 @@
+# Fair value — round 3 plan (Jamie 10-27 late) — START HERE
+
+**Goal (Jamie):** fair value built the way an analyst builds it — explicit per-stock assumptions (growth, margins,
+reinvestment, discount rate, terminal growth) with sector defaults taken from published practice, stock overrides where a
+company doesn't fit its sector (PLTR), and street targets used carefully (live, median, weighted by sample size).
+Judge = sensible + explainable + stable, **not** "match the price". fv-1.2.0's street weight is a stopgap.
+
+1. **Street targets.** Today: LSEG `pt_mean` (mean, no count, no dates); per-broker targets with dates only for 196
+   names (`analyst_events`, median 4 brokers live in 90 d). Fetch per-broker targets + dates, median, count, high/low
+   for the universe from LSEG after the Nov 1 budget reset. Rules: drop targets older than ~6 months or set before the
+   last earnings; median; recency weight; weight shrinks with n (n = 1 small, n ≥ 10 full); dispersion → confidence.
+2. **Sector playbook.** Web research (Damodaran, McKinsey *Valuation*, Morningstar methodology, CFA, sell-side
+   primers) per sector: main method, key ratio, normal growth/margin/terminal. Table: practice vs our method → gaps.
+3. **Class-style DCF (FCFF).** Revenue path (consensus 2–3 yrs → fade to terminal over 10), operating margin path to a
+   target margin (sector default or guidance), tax, reinvestment (sales-to-capital), WACC (CAPM + after-tax debt,
+   target weights), terminal FCFF₍ₙ₊₁₎ / (WACC − g), EV − debt + cash − minorities → ÷ diluted shares. Every assumption
+   shown with its source in Breakdown › DCF; sector defaults; stock overrides via the existing `fv_assumptions` ledger.
+   Reverse DCF on the same model: which growth/margin the price implies vs our assumption → explains each gap.
+4. **Hand tests:** PLTR (hyper-growth), MU (cyclical peak), CHTR (levered), KO (quality), JPM (bank → excess returns,
+   not DCF), O (REIT → P/FFO/NAV). Compare with public analyst/Morningstar DCFs. Jamie's class method = reference.
+5. **Blend:** DCF becomes the main vote where it applies; peer P/E only after growth adjustment; target per step 1.
+
+---
+
 # Fair value — next session (Jamie 10-27)
 
 **Status 10-27 late:** steps 1–2 done (`gap_attribution.py`), step 3 shipped as **fv-1.2.0** (street anchor + vote floor;
