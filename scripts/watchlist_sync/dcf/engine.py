@@ -196,6 +196,9 @@ def consensus(conn, t: str, ttm_end: str | None, asof=None) -> dict | None:
     e = [q for q in r if not q["actual"] and q["rev_avg"] and q["rev_avg"] > 0 and (not a or q["fiscal_end"] > a[-1]["fiscal_end"])]
     if not a or not a[-1]["rev_avg"] or a[-1]["rev_avg"] <= 0 or len(e) < 2 or not ttm_end:
         return None
+    e = [q for k, q in enumerate(e) if all(q["fiscal_end"] != p["fiscal_end"] for p in e[:k])]  # IBES can repeat a period end
+    if len(e) < 2:
+        return None
     pts = [a[-1]] + e
     ts = np.array([pd.Timestamp(q["fiscal_end"]).toordinal() for q in pts], float)
     lr = np.log([q["rev_avg"] for q in pts])

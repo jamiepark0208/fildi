@@ -68,6 +68,9 @@ def detail(x: dict, b: dict, sim: dict, v, sc: dict, u: float | None) -> dict:
             "assumptions": [{"key": k, "label": l, "value": val, "unit": un, "source": src} for k, l, val, un, src in a],
             "path": {"growth": P["g"], "margin": P["margin"], "fcff": P["fcff"]}, "tv_share": sim["tv_share"],
             "consensus_fy": cons["fy"] if cons else None, "flags": x.get("flags") or [], "version": VERSION,
+            "risk": {"expensive": bool(np.percentile(v, 50) / x["price"] <= 0.38), "cutoff_vp": 0.38,
+                     "read": "Value/price in the dearest 20 % (≤ 0.38): 2017–23, 24 % of such names fell ≥ 20 % within 6 months vs 13 % "
+                             "of the rest, beyond implied vol and earnings yield (S116). Risk flag only — it did not predict returns."},
             "inputs_asof": {"ttm_end": x["ttm_end"], "consensus": cons["as_of"] if cons else None,
                             "cma": str(x["cma"].get("as_of")) if x["cma"].get("as_of") else None}}
 with connect() as c:
