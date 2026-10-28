@@ -1,5 +1,6 @@
 /**
- * Live › index movers — Schwab $SPX / $COMPX / $DJI up and down. One line. Display only.
+ * Live › index movers — Schwab $SPX / $COMPX / $DJI up and down.
+ * Compact tags (matches Asia overnight chips) — display only.
  */
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -30,30 +31,51 @@ export function IndexMoversStrip() {
     },
     staleTime: 5 * 60_000,
   });
-  if (isLoading) return <p className="text-[11px] text-amber-100">Loading index movers…</p>;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1.5 py-0.5 shrink-0">
+        <span className="text-[11px] font-mono text-amber-100/50">Index…</span>
+      </div>
+    );
+  }
+
   const any = data?.indexes.some((i) => i.up.length || i.down.length);
   if (!any && data?.marketOpen === false) {
-    return <p className="text-[11px] text-amber-100">Index movers — market closed</p>;
+    return (
+      <div className="flex items-center gap-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1.5 py-0.5 shrink-0">
+        <span className="text-[11px] font-mono text-amber-100/50">Index closed</span>
+      </div>
+    );
   }
-  if (!any) return <p className="text-[11px] text-amber-100">No index movers yet.</p>;
+  if (!any) return null;
+
   return (
-    <div className="flex flex-nowrap items-baseline gap-x-3 overflow-x-auto text-[11px] text-amber-100">
-      <span className="shrink-0 uppercase tracking-widest text-[#d4af37]">Index</span>
-      {data!.indexes.map((idx) => (
-        <span key={idx.id} className="shrink-0 whitespace-nowrap">
-          <span className="text-[#d4af37]">{idx.label}</span>
-          {idx.up.slice(0, 2).map((r) => (
-            <span key={`u-${r.symbol}`} className={cn("ml-1.5", (r.percent ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
-              {r.symbol} {pct(r.percent)}{vol(r.volume)}
-            </span>
-          ))}
-          {idx.down.slice(0, 1).map((r) => (
-            <span key={`d-${r.symbol}`} className="ml-1.5 text-red-400">
-              {r.symbol} {pct(r.percent)}{vol(r.volume)}
-            </span>
-          ))}
-        </span>
-      ))}
-    </div>
+    <>
+      {data!.indexes.map((idx) => {
+        const up = idx.up[0];
+        const down = idx.down[0];
+        if (!up && !down) return null;
+        return (
+          <div
+            key={idx.id}
+            className="flex items-center gap-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1.5 py-0.5 shrink-0"
+            title={`${idx.label} index movers`}
+          >
+            <span className="text-[11px] font-mono font-semibold text-white">{idx.label}</span>
+            {up && (
+              <span className={cn("text-[11px] font-mono", (up.percent ?? 0) >= 0 ? "text-green-400" : "text-red-400")}>
+                {up.symbol} {pct(up.percent)}{vol(up.volume)}
+              </span>
+            )}
+            {down && down.symbol !== up?.symbol && (
+              <span className="text-[11px] font-mono text-red-400">
+                {down.symbol} {pct(down.percent)}{vol(down.volume)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }

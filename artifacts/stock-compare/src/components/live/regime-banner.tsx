@@ -67,10 +67,18 @@ function regimeShortLabel(c: RegimeCheckpoint): string {
   return c.direction === "bullish" ? "Bull" : "Bear";
 }
 
-function pendingCellLabel(c: RegimeCheckpoint, outlook: RegimeOutlook | undefined): string {
+function fmtFwd(n: number): string {
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
+}
+
+/** Pending slots: probabilistic range (fwd p25–p75) or ~Bull/Mix/Bear %. */
+export function pendingCellLabel(c: RegimeCheckpoint, outlook: RegimeOutlook | undefined): string {
   if (c.status !== "pending") return regimeShortLabel(c);
   const slot = outlook?.[c.minAfterOpen];
   if (!slot) return "—";
+  if (slot.fwdCloseP25 != null && slot.fwdCloseP75 != null) {
+    return `~${fmtFwd(slot.fwdCloseP25)}…${fmtFwd(slot.fwdCloseP75)}`;
+  }
   const best = Math.max(slot.pBull, slot.pMix, slot.pBear);
   const dir = best === slot.pBull ? "Bull" : best === slot.pBear ? "Bear" : "Mix";
   return `~${dir} ${best}%`;
@@ -196,9 +204,6 @@ export function RegimeBanner({
           const cellText = pending
             ? pendingCellLabel(c, outlook)
             : `${regimeShortLabel(c)}${c.confidence != null ? ` ${c.confidence}%` : ""}`;
-          const textClass = pending
-            ? (outlook?.[c.minAfterOpen] ? "text-amber-50/75" : "text-amber-50/45")
-            : regimeTextColor(c);
           return (
           <Popover key={c.minAfterOpen} open={openMin === c.minAfterOpen} onOpenChange={open => setOpenMin(open ? c.minAfterOpen : null)}>
             <PopoverTrigger asChild>
@@ -209,12 +214,15 @@ export function RegimeBanner({
                 )}
                 title={pending ? pendingCellTip(c, outlook) : undefined}
               >
-                <span className="text-[10px] text-sky-300/80 font-mono whitespace-nowrap">
+                <span className="text-[10px] font-mono whitespace-nowrap text-white">
                   {CHECKPOINT_TIME_PT[c.minAfterOpen] ?? c.label}{c.computedLate ? "*" : ""}
                 </span>
                 <span className="flex items-center gap-1">
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", regimeDotColor(c))} />
-                  <span className={cn("text-[10px] font-semibold whitespace-nowrap", textClass)}>
+                  <span className={cn(
+                    "text-[10px] font-semibold whitespace-nowrap text-white",
+                    pending && "italic font-normal",
+                  )}>
                     {cellText}
                   </span>
                 </span>

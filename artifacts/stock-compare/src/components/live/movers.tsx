@@ -81,7 +81,12 @@ export function MoverHeatmapGrid({
                   <td className="py-0 px-2 font-mono font-bold text-white whitespace-nowrap leading-6">
                     <DataTip tip={tip}>{m.ticker}</DataTip>
                   </td>
-                  <td className="py-0 px-2 text-right font-mono text-sky-300/80 tabular-nums whitespace-nowrap leading-6">
+                  <td
+                    className={cn(
+                      "py-0 px-2 text-right font-mono font-semibold tabular-nums whitespace-nowrap leading-6",
+                      up ? "text-green-500" : "text-red-500",
+                    )}
+                  >
                     <DataTip tip={tip}>
                       {m.price != null
                         ? `$${m.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`

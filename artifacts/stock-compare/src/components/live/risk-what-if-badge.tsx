@@ -1,10 +1,18 @@
 /**
- * A136 — on-demand book-risk badge (same MC as Portfolio Alerts › What-if).
+ * A136 — on-demand portfolio book impact (same MC as Portfolio Alerts › What-if).
  * Advisory only; Override logs to watchlist_sync.pm_risk_overrides.
+ *
+ * Compact by default: one chip in the action row — not a full-width "BOOK RISK" card.
  */
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type WhatIfResult = {
   badge: string;
@@ -31,21 +39,23 @@ export type RiskWhatIfInput = {
 };
 
 function badgeCls(badge: string | undefined) {
-  if (badge === "red") return "border-red-400/50 text-red-200 bg-red-500/15";
-  if (badge === "amber") return "border-amber-400/50 text-amber-200 bg-amber-500/15";
-  return "border-emerald-400/50 text-emerald-200 bg-emerald-500/15";
+  if (badge === "red") return "border-red-400/60 text-red-200 bg-red-500/20";
+  if (badge === "amber") return "border-amber-400/60 text-amber-100 bg-amber-500/20";
+  return "border-emerald-400/60 text-emerald-100 bg-emerald-500/20";
 }
 
 export function RiskWhatIfBadge({
   input,
-  compact = false,
+  compact = true,
   className,
 }: {
   input: RiskWhatIfInput | null;
+  /** Always chip-first; kept for call-site compat. */
   compact?: boolean;
   className?: string;
 }) {
   const [note, setNote] = useState("");
+  const [open, setOpen] = useState(false);
   const run = useMutation({
     mutationFn: async (): Promise<WhatIfResult> => {
       if (!input) throw new Error("missing contract");
@@ -68,6 +78,7 @@ export function RiskWhatIfBadge({
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
       return r.json();
     },
+    onSuccess: () => setOpen(true),
   });
   const override = useMutation({
     mutationFn: async () => {
@@ -99,51 +110,86 @@ export function RiskWhatIfBadge({
 
   if (!input) return null;
   const ready = input.strike > 0 && input.iv > 0 && input.spot > 0 && /^\d{4}-\d{2}-\d{2}$/.test(input.expiry);
+  const label = run.isPending
+    ? "…"
+    : run.data && !run.data.error
+      ? run.data.badge.toUpperCase()
+      : "Book?";
 
   return (
-    <div className={cn("rounded border border-[#d4af37]/20 bg-zinc-950/80 p-2 space-y-1.5", className)}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]">
-          Book risk
-        </span>
-        <span className="text-[9px] text-amber-200/40">A136 · on demand · you decide</span>
-        <button
-          type="button"
-          disabled={!ready || run.isPending}
-          onClick={() => run.mutate()}
-          className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-[#d4af37]/20 text-[#d4af37] hover:bg-[#d4af37]/30 disabled:opacity-40"
-        >
-          {run.isPending ? "…" : run.data ? "Re-run" : "Check"}
-        </button>
-      </div>
-      {!compact && (
-        <div className="text-[10px] font-mono text-zinc-500">
-          {input.account} {input.ticker} {input.strike}P {input.expiry}
-          {input.qty && input.qty > 1 ? ` ×${input.qty}` : ""}
-        </div>
-      )}
+    <div className={cn("inline-flex flex-col items-start gap-1 max-w-full", className)}>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              disabled={!ready || run.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (run.data && !run.isPending) {
+                  setOpen((o) => !o);
+                  return;
+                }
+                run.mutate();
+              }}
+              className={cn(
+                "text-[10px] font-bold px-2 py-0.5 rounded border transition-colors disabled:opacity-40",
+                run.data && !run.data.error
+                  ? badgeCls(run.data.badge)
+                  : "border-[#d4af37]/50 bg-zinc-900 text-white hover:bg-zinc-800",
+              )}
+            >
+              {label}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-[11px] leading-snug">
+            <p className="font-semibold text-white">Portfolio book impact</p>
+            <p className="text-white/85 mt-0.5">
+              Runs the same Monte Carlo as Portfolio Alerts › What-if: if you sell this put,
+              how does crash / risk change vs your current book. On demand — you decide (A136).
+            </p>
+            {!compact && (
+              <p className="font-mono text-white/70 mt-1">
+                {input.account} {input.ticker} {input.strike}P {input.expiry}
+                {input.qty && input.qty > 1 ? ` ×${input.qty}` : ""}
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
       {run.error && <p className="text-[10px] text-red-300">{(run.error as Error).message}</p>}
-      {run.data?.error && <p className="text-[10px] text-red-300">{run.data.error}</p>}
-      {run.data && !run.data.error && (
-        <div className={cn("rounded border px-1.5 py-1 text-[10px] space-y-0.5", badgeCls(run.data.badge))}>
-          <div className="font-bold uppercase tracking-wide">{run.data.badge}</div>
+      {open && run.data?.error && <p className="text-[10px] text-red-300">{run.data.error}</p>}
+      {open && run.data && !run.data.error && (
+        <div className={cn("rounded border px-1.5 py-1 text-[10px] space-y-0.5 w-full max-w-md", badgeCls(run.data.badge))}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold uppercase tracking-wide">{run.data.badge}</span>
+            <button
+              type="button"
+              className="text-white/70 hover:text-white text-[9px]"
+              onClick={(e) => { e.stopPropagation(); run.mutate(); }}
+            >
+              Re-run
+            </button>
+          </div>
           {(run.data.reasons ?? []).slice(0, 4).map((r, i) => (
-            <div key={i}>{r}</div>
+            <div key={i} className="text-white/90">{r}</div>
           ))}
-          {run.data.note && <div className="opacity-70">{run.data.note}</div>}
+          {run.data.note && <div className="text-white/70">{run.data.note}</div>}
           {(run.data.badge === "red" || run.data.badge === "amber") && (
             <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-white/10 mt-1">
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Why override?"
-                className="flex-1 min-w-[8rem] bg-black/40 border border-zinc-700 rounded px-1 py-0.5 text-[10px]"
+                className="flex-1 min-w-[8rem] bg-black/40 border border-white/30 rounded px-1 py-0.5 text-[10px] text-white placeholder:text-white/40"
+                onClick={(e) => e.stopPropagation()}
               />
               <button
                 type="button"
                 disabled={override.isPending || override.isSuccess}
-                onClick={() => override.mutate()}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-white/20 hover:bg-white/10 disabled:opacity-50"
+                onClick={(e) => { e.stopPropagation(); override.mutate(); }}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-white/30 hover:bg-white/10 disabled:opacity-50 text-white"
               >
                 {override.isSuccess ? "Logged" : override.isPending ? "…" : "Override · log"}
               </button>

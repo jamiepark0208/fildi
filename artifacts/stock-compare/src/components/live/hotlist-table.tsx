@@ -77,9 +77,11 @@ export function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; a
 }
 
 function SignalBadge({ signal }: { signal: HotlistEntry["signal"] }) {
-  const variant = signal === "GO" ? "default" : signal === "WATCH" ? "secondary" : "outline";
-  const color = signal === "GO" ? "bg-green-600 text-white" : signal === "WATCH" ? "bg-yellow-500 text-black" : "text-amber-200/40";
-  return <Badge variant={variant} className={cn("text-xs", color)}>{signal}</Badge>;
+  const color =
+    signal === "GO" ? "bg-zinc-900 text-white border-emerald-400/70" :
+    signal === "WATCH" ? "bg-zinc-900 text-white border-amber-400/70" :
+    "bg-zinc-900 text-zinc-300 border-zinc-500/50";
+  return <Badge variant="outline" className={cn("text-xs font-bold", color)}>{signal}</Badge>;
 }
 
 // Nearest level between spot and an ~8% OTM strike, from levels the nightly technicals

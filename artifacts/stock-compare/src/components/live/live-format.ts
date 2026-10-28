@@ -69,7 +69,8 @@ export function trustDayPct(
   if (changePercent == null || !Number.isFinite(changePercent)) {
     return { text: "—", flagged: false };
   }
-  const pct = Math.abs(changePercent) <= 1 ? changePercent * 100 : changePercent;
+  // Yahoo/live quotes already send percent points (0.21 = +0.21%). Never ×100.
+  const pct = changePercent;
   const absCap = opts?.absCap ?? 25;
   const rth = isLikelyRthEt(opts?.now);
   if (!rth && Math.abs(pct) >= absCap) {

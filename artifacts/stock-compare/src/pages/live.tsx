@@ -1,8 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { AppPage } from "@/components/app-page";
 import { cn } from "@/lib/utils";
+import {
+  subTabClass,
+  guideSubTabClass,
+} from "@/lib/sub-tabs";
 import { type TechnicalRow } from "@/lib/technical-rankings";
 
 const MacroEmbedded = lazy(() => import("@/pages/macro"));
@@ -134,7 +138,13 @@ function AsiaOvernightRow({
   hasCatalystToday: boolean;
   catalystCalendarStale: boolean;
 }) {
-  if (asiaContext.length === 0) return null;
+  if (asiaContext.length === 0) {
+    return (
+      <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
+        <IndexMoversStrip />
+      </div>
+    );
+  }
   const changes = asiaContext.map(q => q.changePercent).filter((v): v is number => v != null);
   const positive = changes.filter(c => c > 0).length;
   const negative = changes.filter(c => c < 0).length;
@@ -173,7 +183,8 @@ function AsiaOvernightRow({
   ].filter(Boolean).join("\n");
 
   return (
-    <div className="flex items-center gap-1.5 flex-nowrap">
+    <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto">
+      <IndexMoversStrip />
       {asiaContext.map(q => (
         <MarketContextChip key={q.ticker} quote={q} label={ASIA_TICKER_LABELS[q.ticker] ?? q.ticker} />
       ))}
@@ -184,33 +195,11 @@ function AsiaOvernightRow({
   );
 }
 
-/** Oversold vs Overbought — page-level mode (mirrors the scanner's puts/calls toggle). */
-function SideToggle({ side, onChange }: { side: HotlistSide; onChange: (s: HotlistSide) => void }) {
-  return (
-    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
-      {([
-        ["dip", "Oversold"],
-        ["rally", "Overbought"],
-      ] as const).map(([value, label]) => (
-        <button
-          key={value}
-          onClick={() => onChange(value)}
-          className={cn(
-            "px-2 py-1 transition-colors",
-            side === value
-              ? value === "dip" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-              : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 type PageTab = "market" | "macro" | "news" | "alerts";
 type SubTab = "sell" | "candidates";
+type MarketSection = "puts" | "oversold" | "calls" | "overbought";
+type NewsSection = "daily" | "inbox";
+type AlertsSection = "book" | "manage";
 
 const PAGE_TABS: { id: PageTab; label: string }[] = [
   { id: "market", label: "Market" },
@@ -219,52 +208,56 @@ const PAGE_TABS: { id: PageTab; label: string }[] = [
   { id: "alerts", label: "Portfolio Alerts" },
 ];
 
+const LIVE_TAB_HUE = { market: "sky", macro: "violet", news: "amber", alerts: "rose" } as const;
+
+const MARKET_SECTIONS: { id: MarketSection; label: string; side: HotlistSide; sub: SubTab }[] = [
+  { id: "puts", label: "Top Puts", side: "dip", sub: "sell" },
+  { id: "oversold", label: "Oversold", side: "dip", sub: "candidates" },
+  { id: "calls", label: "Top Calls", side: "rally", sub: "sell" },
+  { id: "overbought", label: "Overbought", side: "rally", sub: "candidates" },
+];
+
+const NEWS_SECTIONS: { id: NewsSection; label: string }[] = [
+  { id: "daily", label: "Daily Brief" },
+  { id: "inbox", label: "Inbox" },
+];
+
+const ALERTS_SECTIONS: { id: AlertsSection; label: string }[] = [
+  { id: "book", label: "Book Risk" },
+  { id: "manage", label: "Put Manage" },
+];
+
+function marketSectionFrom(side: HotlistSide, sub: SubTab): MarketSection {
+  return MARKET_SECTIONS.find((t) => t.side === side && t.sub === sub)?.id ?? "puts";
+}
+
+/** Shared L2 strip chrome — matches Macro section tabs. */
+function SectionTabStrip({
+  children,
+  trailing,
+}: {
+  children: ReactNode;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="shrink-0 px-6 py-1.5 overflow-x-auto">
+      <div className="flex items-center gap-2 flex-nowrap min-w-0">
+        <div className="inline-flex items-center gap-0.5 flex-wrap shrink-0">{children}</div>
+        {trailing != null && <div className="ml-auto flex items-center gap-2 shrink-0">{trailing}</div>}
+      </div>
+    </div>
+  );
+}
+
 function PageTabToggle({ tab, onChange }: { tab: PageTab; onChange: (t: PageTab) => void }) {
   return (
-    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold shrink-0">
+    <div className="inline-flex items-center gap-0.5 flex-wrap shrink-0">
       {PAGE_TABS.map(({ id, label }) => (
         <button
           key={id}
           type="button"
           onClick={() => onChange(id)}
-          className={cn(
-            "px-2.5 py-1 transition-colors",
-            tab === id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
-          )}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Sub-tabs inside Market — labels flip with side. */
-function SubTabToggle({
-  side,
-  subTab,
-  onChange,
-}: {
-  side: HotlistSide;
-  subTab: SubTab;
-  onChange: (t: SubTab) => void;
-}) {
-  const sellLabel = side === "rally" ? "Top Calls" : "Top Puts";
-  const candidatesLabel = side === "rally" ? "Overbought" : "Oversold";
-  return (
-    <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
-      {([
-        ["sell", sellLabel],
-        ["candidates", candidatesLabel],
-      ] as const).map(([value, label]) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => onChange(value)}
-          className={cn(
-            "px-2 py-1 transition-colors",
-            subTab === value ? "bg-[#d4af37]/80 text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
-          )}
+          className={subTabClass(tab === id, LIVE_TAB_HUE[id], "md")}
         >
           {label}
         </button>
@@ -303,6 +296,28 @@ export default function Live() {
   }, []);
 
   const [subTab, setSubTab] = useState<SubTab>("sell");
+  const marketSection = marketSectionFrom(side, subTab);
+  const [newsSection, setNewsSection] = useState<NewsSection>(() => {
+    try {
+      const v = localStorage.getItem("fildi_live_news");
+      return NEWS_SECTIONS.some((t) => t.id === v) ? (v as NewsSection) : "daily";
+    } catch { return "daily"; }
+  });
+  useEffect(() => { try { localStorage.setItem("fildi_live_news", newsSection); } catch { /* */ } }, [newsSection]);
+  const [alertsSection, setAlertsSection] = useState<AlertsSection>(() => {
+    try {
+      const v = localStorage.getItem("fildi_live_alerts");
+      return ALERTS_SECTIONS.some((t) => t.id === v) ? (v as AlertsSection) : "book";
+    } catch { return "book"; }
+  });
+  useEffect(() => { try { localStorage.setItem("fildi_live_alerts", alertsSection); } catch { /* */ } }, [alertsSection]);
+
+  function selectMarketSection(id: MarketSection) {
+    const t = MARKET_SECTIONS.find((x) => x.id === id);
+    if (!t) return;
+    setSide(t.side);
+    setSubTab(t.sub);
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["live-state"],
@@ -462,24 +477,25 @@ export default function Live() {
   const { byTicker: conflictsByTicker } = useRecConflicts(dipTickers, rallyTickers);
 
   return (
-    <AppPage contentClassName={pageTab === "macro" ? "px-0 pb-0" : "px-6 pb-6"}>
-        <div className={cn(pageTab === "macro" ? "w-full" : "max-w-5xl mx-auto space-y-2")}>
-          <div className={cn(
-            "flex items-center gap-2 flex-nowrap overflow-x-auto",
-            pageTab === "macro" && "px-6 py-2 border-b border-[#d4af37]/15 bg-zinc-950",
-          )}>
-            <PageTabToggle tab={pageTab} onChange={setPageTab} />
-            {pageTab === "market" && (
+    <AppPage contentClassName="px-0 pb-0">
+      <div className="w-full flex flex-col min-h-0">
+        {/* L1 — page tabs (Market / Macro / News / Alerts) */}
+        <div className="shrink-0 border-b border-[#d4af37]/15 bg-zinc-950 px-6 py-2 overflow-x-auto">
+          <PageTabToggle tab={pageTab} onChange={setPageTab} />
+        </div>
+
+        {/* L2 — section tabs (Macro owns its own strip inside MacroEmbedded) */}
+        {pageTab === "market" && (
+          <SectionTabStrip
+            trailing={
               <>
-                <SideToggle side={side} onChange={setSide} />
-                <SubTabToggle side={side} subTab={subTab} onChange={setSubTab} />
                 <button
                   type="button"
                   onClick={() => refreshMutation.mutate()}
                   disabled={refreshMutation.isPending}
                   className={cn(
                     "inline-flex items-center gap-1 h-7 px-2.5 shrink-0 rounded border border-[#d4af37]/20",
-                    "bg-zinc-950 text-[11px] font-semibold text-amber-200/70 hover:text-[#d4af37] transition-colors",
+                    "bg-zinc-950 text-[11px] font-semibold text-white/80 hover:text-white hover:bg-white/10 transition-colors",
                     "disabled:opacity-50 disabled:pointer-events-none",
                   )}
                   title="Refresh hotlist + live prices"
@@ -494,124 +510,158 @@ export default function Live() {
                   <span className="text-[10px] text-amber-200/60 whitespace-nowrap">No data yet</span>
                 )}
               </>
-            )}
+            }
+          >
+            {MARKET_SECTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => selectMarketSection(t.id)}
+                className={guideSubTabClass(marketSection === t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </SectionTabStrip>
+        )}
+        {pageTab === "news" && (
+          <SectionTabStrip>
+            {NEWS_SECTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setNewsSection(t.id)}
+                className={guideSubTabClass(newsSection === t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </SectionTabStrip>
+        )}
+        {pageTab === "alerts" && (
+          <SectionTabStrip>
+            {ALERTS_SECTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setAlertsSection(t.id)}
+                className={guideSubTabClass(alertsSection === t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </SectionTabStrip>
+        )}
+
+        {pageTab === "macro" ? (
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[40vh]">
+              <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
+            </div>
+          }>
+            <MacroEmbedded embedded />
+          </Suspense>
+        ) : pageTab === "alerts" ? (
+          <div className="px-6 py-3 max-w-5xl mx-auto w-full space-y-3">
+            {alertsSection === "book" ? <PortfolioAlertsPanel /> : <PutManageAlerts />}
           </div>
+        ) : pageTab === "news" ? (
+          <div className="px-4 pt-1 pb-3 max-w-6xl mx-auto w-full space-y-2">
+            {newsSection === "daily" ? <DailyNewsPanel compact /> : <NewsInboxPanel />}
+          </div>
+        ) : (
+          <div className="px-6 py-3 max-w-5xl mx-auto w-full space-y-1.5">
+            <AsiaOvernightRow
+              asiaContext={data?.asiaContext ?? []}
+              hasCatalystToday={data?.hasCatalystToday ?? false}
+              catalystCalendarStale={data?.catalystCalendarStale ?? false}
+            />
+            <MarketContextStrip />
 
-          {pageTab === "macro" ? (
-            <div className="px-6 pt-3">
-              <Suspense fallback={
-                <div className="flex items-center justify-center min-h-[40vh]">
-                  <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
+            <RegimeBanner checkpoints={regime} outlook={regimeOutlook} />
+            <RegimeSessionChart
+              symbol={chartSymbol}
+              onSymbolChange={setChartSymbol}
+              checkpoints={regime}
+              outlook={regimeOutlook}
+              entrySignal={entryByTicker.get(chartSymbol.toUpperCase())}
+              entryAsOf={entryAsOf}
+            />
+
+            <PatternDigestCard />
+
+            <section className="space-y-1">
+              {moversLoading && !movers ? (
+                <p className="text-[11px] text-amber-200/40">Loading movers…</p>
+              ) : (
+                <div className="relative grid grid-cols-3 gap-3">
+                  {moversFetching && movers && (
+                    <span className="absolute -top-4 right-0 text-[9px] text-amber-200/35 tabular-nums">updating…</span>
+                  )}
+                  <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
+                  <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
+                  <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
                 </div>
-              }>
-                <MacroEmbedded embedded />
-              </Suspense>
-            </div>
-          ) : pageTab === "alerts" ? (
-            <div className="space-y-3">
-              <PortfolioAlertsPanel />
-              <PutManageAlerts />
-            </div>
-          ) : pageTab === "news" ? (
-            <div className="space-y-3">
-              <DailyNewsPanel compact />
-              <NewsInboxPanel />
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <AsiaOvernightRow
-                asiaContext={data?.asiaContext ?? []}
-                hasCatalystToday={data?.hasCatalystToday ?? false}
-                catalystCalendarStale={data?.catalystCalendarStale ?? false}
-              />
-              <MarketContextStrip />
+              )}
+            </section>
 
-              <RegimeBanner checkpoints={regime} outlook={regimeOutlook} />
-              <RegimeSessionChart
-                symbol={chartSymbol}
-                onSymbolChange={setChartSymbol}
-                checkpoints={regime}
-                outlook={regimeOutlook}
-                entrySignal={entryByTicker.get(chartSymbol.toUpperCase())}
-                entryAsOf={entryAsOf}
-              />
-
-              <PatternDigestCard />
-
-              <IndexMoversStrip />
-
-              <section className="space-y-1">
-                {moversLoading && !movers ? (
-                  <p className="text-[11px] text-amber-200/40">Loading movers…</p>
-                ) : (
-                  <div className="relative grid grid-cols-3 gap-3">
-                    {moversFetching && movers && (
-                      <span className="absolute -top-4 right-0 text-[9px] text-amber-200/35 tabular-nums">updating…</span>
-                    )}
-                    <MoverHeatmapGrid title="Gainers" movers={movers?.global.gainers ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
-                    <MoverHeatmapGrid title="Losers" movers={movers?.global.losers ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
-                    <MoverHeatmapGrid title="Most Active" movers={movers?.global.mostActive ?? []} showVolume facts={moverFacts} onTickerClick={setChartSymbol} />
-                  </div>
-                )}
-              </section>
-
-              <section className="space-y-1.5">
-                {subTab === "candidates" && sideStats && entryStats && entryStats.gradedDays > 0 && (
-                  <span
-                    className="block text-[10px] font-mono text-sky-300/60"
-                    title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days).`}
-                  >
-                    {(["enter", "wait", "avoid"] as const).map((v, i) => {
-                      const s = sideStats[v];
-                      if (!s || s.n === 0) return null;
-                      return (
-                        <span key={v}>
-                          {i > 0 && " · "}
-                          <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
-                            {VERDICT_LABEL[v]}
-                          </span>
-                          {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
+            <section className="space-y-1.5">
+              {subTab === "candidates" && sideStats && entryStats && entryStats.gradedDays > 0 && (
+                <span
+                  className="block text-[10px] font-mono text-sky-300/60"
+                  title={`Forward returns of past Entry verdicts over the last ${entryStats.days} days (${entryStats.gradedDays} graded days).`}
+                >
+                  {(["enter", "wait", "avoid"] as const).map((v, i) => {
+                    const s = sideStats[v];
+                    if (!s || s.n === 0) return null;
+                    return (
+                      <span key={v}>
+                        {i > 0 && " · "}
+                        <span className={v === "enter" ? "text-green-400" : v === "wait" ? "text-yellow-400" : "text-red-400"}>
+                          {VERDICT_LABEL[v]}
                         </span>
-                      );
-                    })}
-                    {isRally && <span className="text-amber-200/30"> (↓ fwd = good)</span>}
-                  </span>
-                )}
-                {subTab === "sell" ? (
-                  <TopOptionsTable
-                    side={isRally ? "call" : "put"}
-                    n={7}
-                    conflictsByTicker={conflictsByTicker}
-                    regimeDirection={
-                      [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.direction ?? null
-                    }
-                    regimeConfidence={
-                      [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.confidence ?? null
-                    }
-                  />
-                ) : sortedHotlist.length === 0 ? (
-                  !isLoading && (
-                    <p className="text-[11px] text-amber-200/40">
-                      Waiting for scanner data — click Refresh once rankings are cached.
-                    </p>
-                  )
-                ) : (
-                  <HotlistTable
-                    side={side}
-                    entries={sortedHotlist}
-                    techRowMap={techRowMap}
-                    fundScoreMap={fundScoreMap}
-                    techScoreMap={techScoreMap}
-                    entryByTicker={entryByTicker}
-                    entryAsOf={entryAsOf}
-                    conflictsByTicker={conflictsByTicker}
-                    onTickerClick={setChartSymbol}
-                  />
-                )}
-              </section>
-            </div>
-          )}
-        </div>
+                        {` ${s.avgFwd1dPct != null ? `${s.avgFwd1dPct >= 0 ? "+" : ""}${s.avgFwd1dPct}% 1d` : "—"}${s.avgFwd5dPct != null ? ` / ${s.avgFwd5dPct >= 0 ? "+" : ""}${s.avgFwd5dPct}% 5d` : ""} (n=${s.n})`}
+                      </span>
+                    );
+                  })}
+                  {isRally && <span className="text-amber-200/30"> (↓ fwd = good)</span>}
+                </span>
+              )}
+              {subTab === "sell" ? (
+                <TopOptionsTable
+                  side={isRally ? "call" : "put"}
+                  n={7}
+                  conflictsByTicker={conflictsByTicker}
+                  regimeDirection={
+                    [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.direction ?? null
+                  }
+                  regimeConfidence={
+                    [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.confidence ?? null
+                  }
+                />
+              ) : sortedHotlist.length === 0 ? (
+                !isLoading && (
+                  <p className="text-[11px] text-amber-200/40">
+                    Waiting for scanner data — click Refresh once rankings are cached.
+                  </p>
+                )
+              ) : (
+                <HotlistTable
+                  side={side}
+                  entries={sortedHotlist}
+                  techRowMap={techRowMap}
+                  fundScoreMap={fundScoreMap}
+                  techScoreMap={techScoreMap}
+                  entryByTicker={entryByTicker}
+                  entryAsOf={entryAsOf}
+                  conflictsByTicker={conflictsByTicker}
+                  onTickerClick={setChartSymbol}
+                />
+              )}
+            </section>
+          </div>
+        )}
+      </div>
     </AppPage>
   );
 }

@@ -109,7 +109,7 @@ export function TopOptionsTable({
                     <TickerRecordBadge record={tickerRecords?.[r.ticker]?.[side]} livePrice={r.spot} side={side} />
                     <RecConflictChip compact conflicts={conflictsByTicker?.get(r.ticker.toUpperCase()) ?? []} />
                   </td>
-                  <td className={cn(TD, "text-right text-white/90")}>
+                  <td className={cn(TD, "text-right text-green-500 font-semibold")}>
                     {r.spot.toLocaleString("en-US", {
                       minimumFractionDigits: r.spot < 10 ? 2 : 1,
                       maximumFractionDigits: r.spot < 10 ? 2 : 1,
@@ -127,7 +127,7 @@ export function TopOptionsTable({
                   <td className={cn(TD, "text-right text-sky-300/70")} title={r.bidIsLive ? "Live bid" : "No live bid"}>
                     {r.bidIsLive && r.bid > 0 ? r.bid.toFixed(2) : "—"}
                   </td>
-                  <td className={cn(TD, "text-right text-green-400 font-semibold")}>{r.weeklyIncomePct.toFixed(2)}</td>
+                  <td className={cn(TD, "text-right text-green-500 font-semibold")}>{r.weeklyIncomePct.toFixed(2)}</td>
                   <td className={cn(TD, "text-right text-white/80")}>{r.otmPct.toFixed(1)}</td>
                   <td className={cn(TD, "text-right text-sky-300/70")}>{r.delta != null ? r.delta.toFixed(2) : "—"}</td>
                   <td className={cn(TD, "text-right text-sky-300/70")}>{r.bufferSigmas != null ? `${r.bufferSigmas.toFixed(1)}σ` : "—"}</td>

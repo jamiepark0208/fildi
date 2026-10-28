@@ -17,4 +17,11 @@ describe("trustDayPct (A179)", () => {
     expect(r.flagged).toBe(false);
     expect(r.text).toBe("-45%");
   });
+
+  it("does not ×100 small Yahoo percent points (SPY +0.21%)", () => {
+    const rth = new Date("2026-10-27T19:00:00Z");
+    const r = trustDayPct(0.21, { now: rth });
+    expect(r.flagged).toBe(false);
+    expect(r.text).toBe("—"); // rounds to 0 → flat
+  });
 });

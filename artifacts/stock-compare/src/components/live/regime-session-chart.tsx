@@ -11,16 +11,16 @@ import {
   HistogramSeries,
   ColorType,
   CrosshairMode,
-  LineStyle,
+  type AutoscaleInfo,
   type IChartApi,
   type ISeriesApi,
-  type IPriceLine,
   type MouseEventParams,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 import {
+  pendingCellLabel,
   type RegimeCheckpoint,
   type RegimeOutlook,
 } from "@/components/live/regime-banner";
@@ -129,10 +129,19 @@ function markerLabel(c: RegimeCheckpoint): string {
   return c.confidence != null ? `${dir} ${c.confidence}%` : dir;
 }
 
-function outlookLabel(slot: NonNullable<RegimeOutlook[number]>): string {
-  const best = Math.max(slot.pBull, slot.pMix, slot.pBear);
-  const dir = best === slot.pBull ? "Bull" : best === slot.pBear ? "Bear" : "Mix";
-  return `~${dir} ${best}%`;
+function outlookLabel(slot: NonNullable<RegimeOutlook[number]>, minAfterOpen: number): string {
+  return pendingCellLabel(
+    {
+      minAfterOpen,
+      status: "pending",
+      direction: null,
+      confidence: null,
+      label: "",
+      computedLate: false,
+      factors: [],
+    },
+    { [minAfterOpen]: slot },
+  );
 }
 
 /** Always h:mm PT — "7:00 AM". */
@@ -274,8 +283,7 @@ function RegimeSessionChartInner({
     const vols: Array<{ time: UTCTimestamp; value: number; color: string }> = [];
     // Opening range = first 30 minutes of RTH (6 bars × 5m).
     const orEnd = openSec + 30 * 60;
-    let orH: number | null = null;
-    let orL: number | null = null;
+    const orBars: Array<{ high: number; low: number; close: number }> = [];
 
     for (let t = openSec; t <= closeSec; t += BAR_SEC) {
       const bar = bySec.get(t);
@@ -293,12 +301,27 @@ function RegimeSessionChartInner({
           value: bar.volume,
           color: up ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.45)",
         });
-        if (t < orEnd) {
-          orH = orH == null ? bar.high : Math.max(orH, bar.high);
-          orL = orL == null ? bar.low : Math.min(orL, bar.low);
-        }
+        if (t < orEnd) orBars.push({ high: bar.high, low: bar.low, close: bar.close });
       } else {
         out.push({ time: t as UTCTimestamp });
+      }
+    }
+
+    // Drop OR outliers (bad vendor lows ~50pts below session) so ORH/ORL stay near price.
+    let orH: number | null = null;
+    let orL: number | null = null;
+    if (orBars.length > 0) {
+      const closes = orBars.map((b) => b.close).sort((a, b) => a - b);
+      const mid = closes[Math.floor(closes.length / 2)]!;
+      const band = mid * 0.04; // 4% of mid-price
+      for (const b of orBars) {
+        if (b.high > mid + band * 3 || b.low < mid - band * 3) continue;
+        orH = orH == null ? b.high : Math.max(orH, b.high);
+        orL = orL == null ? b.low : Math.min(orL, b.low);
+      }
+      if (orH == null || orL == null) {
+        orH = Math.max(...orBars.map((b) => b.high));
+        orL = Math.min(...orBars.map((b) => b.low));
       }
     }
     return { seriesData: out, volumeData: vols, orHigh: orH, orLow: orL };
@@ -353,9 +376,9 @@ function RegimeSessionChartInner({
         const slot = outlook?.[c.minAfterOpen];
         list.push({
           tSec,
-          color: "#d6d3d1",
+          color: "rgba(255,255,255,0.88)",
           dashed: true,
-          label: slot ? outlookLabel(slot) : "—",
+          label: slot ? outlookLabel(slot, c.minAfterOpen) : "—",
           future: true,
         });
       }
@@ -377,7 +400,8 @@ function RegimeSessionChartInner({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const priceLinesRef = useRef<IPriceLine[]>([]);
+  /** Candle OHLC only — OR lines / volume must not stretch the left price scale. */
+  const candlesRef = useRef<Array<{ high: number; low: number }>>([]);
   const vertMarksRef = useRef(vertMarks);
   const barBySecRef = useRef(barBySec);
   const orRef = useRef<{ high: number | null; low: number | null; openSec: number; orEndSec: number }>({
@@ -385,6 +409,9 @@ function RegimeSessionChartInner({
   });
   vertMarksRef.current = vertMarks;
   barBySecRef.current = barBySec;
+  candlesRef.current = seriesData
+    .filter((d): d is { time: UTCTimestamp; open: number; high: number; low: number; close: number } => "close" in d)
+    .map((d) => ({ high: d.high, low: d.low }));
   orRef.current = {
     high: orHigh,
     low: orLow,
@@ -418,19 +445,25 @@ function RegimeSessionChartInner({
       const x1 = ts.timeToCoordinate(or.orEndSec as UTCTimestamp);
       const yH = series.priceToCoordinate(or.high);
       const yL = series.priceToCoordinate(or.low);
-      if (
-        x0 != null && x1 != null && yH != null && yL != null
-        && Number.isFinite(x0) && Number.isFinite(x1)
+      const paneBottom = Math.round(h * 0.72);
+      // Skip OR paint when levels sit outside the candle-fit scale (bad lows used to
+      // stretch the axis; now they just fall off-pane — don't draw a huge band).
+      const orOnPane =
+        yH != null && yL != null
         && Number.isFinite(yH) && Number.isFinite(yL)
+        && yH >= 0 && yL >= 0 && yH <= paneBottom && yL <= paneBottom;
+      if (
+        orOnPane
+        && x0 != null && x1 != null
+        && Number.isFinite(x0) && Number.isFinite(x1)
       ) {
         ctx.fillStyle = "rgba(212,175,55,0.10)";
-        ctx.fillRect(x0, Math.min(yH, yL), Math.max(4, x1 - x0), Math.abs(yL - yH));
-        // OR labels on the right — keep left y-axis readable.
+        ctx.fillRect(x0, Math.min(yH!, yL!), Math.max(4, x1 - x0), Math.abs(yL! - yH!));
         ctx.font = "600 9px ui-monospace, monospace";
         ctx.textAlign = "right";
         ctx.fillStyle = "rgba(212,175,55,0.95)";
-        ctx.fillText("ORH", w - 6, yH + 3);
-        ctx.fillText("ORL", w - 6, yL + 3);
+        ctx.fillText("ORH", w - 6, yH! + 3);
+        ctx.fillText("ORL", w - 6, yL! + 3);
       }
     }
 
@@ -454,10 +487,14 @@ function RegimeSessionChartInner({
       ctx.font = "600 9px ui-monospace, monospace";
       ctx.textAlign = "center";
       if (m.future) {
+        ctx.font = "italic 600 9px ui-monospace, monospace";
+        ctx.fillStyle = "rgba(255,255,255,0.88)";
         const y = labelFloor - 2 - (futureLane % 2) * 11;
         ctx.fillText(m.label, x, y);
         futureLane += 1;
       } else {
+        ctx.font = "600 9px ui-monospace, monospace";
+        ctx.fillStyle = m.color;
         const y = 11 + (pastLane % 2) * 10;
         ctx.fillText(m.label, x, y);
         pastLane += 1;
@@ -513,13 +550,34 @@ function RegimeSessionChartInner({
       lastValueVisible: true,
       priceLineVisible: true,
       priceScaleId: "left",
+      // Fit candles only — OR price-lines used to pull the domain down to ~700.
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const res = original();
+        const bars = candlesRef.current;
+        if (!res?.priceRange || !bars.length) return res;
+        let min = Infinity;
+        let max = -Infinity;
+        for (const c of bars) {
+          if (c.low < min) min = c.low;
+          if (c.high > max) max = c.high;
+        }
+        if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) return res;
+        const pad = Math.max((max - min) * 0.08, max * 0.0015);
+        return {
+          priceRange: { minValue: min - pad, maxValue: max + pad },
+          margins: res.margins,
+        };
+      },
     });
     const volume = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
       priceScaleId: "",
     });
     chart.priceScale("").applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
-    chart.priceScale("left").applyOptions({ scaleMargins: { top: 0.16, bottom: 0.28 } });
+    chart.priceScale("left").applyOptions({
+      autoScale: true,
+      scaleMargins: { top: 0.08, bottom: 0.28 },
+    });
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -550,7 +608,6 @@ function RegimeSessionChartInner({
       chartRef.current = null;
       seriesRef.current = null;
       volumeRef.current = null;
-      priceLinesRef.current = [];
     };
   }, []);
 
@@ -563,12 +620,6 @@ function RegimeSessionChartInner({
     // Clear hover — stale bar map from the previous ticker must not paint.
     setHoverBar(null);
 
-    // Drop prior price lines before setData — mid-swap remove can throw on empty series.
-    try {
-      priceLinesRef.current.forEach((pl) => series.removePriceLine(pl));
-    } catch { /* ignore */ }
-    priceLinesRef.current = [];
-
     try {
       series.setData(seriesData as any);
       volume?.setData(volumeData as any);
@@ -576,30 +627,6 @@ function RegimeSessionChartInner({
       // Bad OHLC from a vendor bar — leave prior frame rather than crash the Live route.
       return;
     }
-
-    // Opening-range high/low lines — axis tags off (drawn on canvas right instead).
-    try {
-      if (orHigh != null && Number.isFinite(orHigh)) {
-        priceLinesRef.current.push(series.createPriceLine({
-          price: orHigh,
-          color: "rgba(212,175,55,0.55)",
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: false,
-          title: "",
-        }));
-      }
-      if (orLow != null && Number.isFinite(orLow)) {
-        priceLinesRef.current.push(series.createPriceLine({
-          price: orLow,
-          color: "rgba(212,175,55,0.55)",
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: false,
-          title: "",
-        }));
-      }
-    } catch { /* createPriceLine can fail mid-swap */ }
 
     // Prefer logical range — setVisibleRange → ensureNotNull(timeToIndex) throws
     // "Value is null" when the time scale has no index for from/to (rapid ticker swaps).
@@ -619,6 +646,7 @@ function RegimeSessionChartInner({
         }
       }
     }
+    // ORH/ORL drawn on canvas overlay only (createPriceLine stretched Y to include bad ORL).
     requestAnimationFrame(drawOverlay);
   }, [seriesData, volumeData, orHigh, orLow, openSec, closeSec, vertMarks]);
 
