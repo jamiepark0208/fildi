@@ -7,6 +7,67 @@ import { logApiCall } from "./api-logger.js";
 // effective concurrency against Yahoo. Import this instead of constructing a new one.
 export const yahooFinance = new YahooFinanceClass();
 
+/** Race a promise against a wall-clock deadline (undici connect can hang ~10s). */
+export async function withDeadline<T>(p: Promise<T>, ms: number, label = "op"): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, rej) => {
+        timer = setTimeout(() => rej(new Error(`${label} timeout ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+// When Yahoo/DNS is wedged (ConnectTimeout), fail fast for a cooldown instead of
+// stacking 10s hangs on every /stocks/breakdown + /live/prices and freezing tab nav.
+let yahooCircuitOpenUntil = 0;
+let yahooFailStreak = 0;
+const YAHOO_CIRCUIT_MS = 60_000;
+const YAHOO_FAIL_OPEN_AFTER = 2;
+
+export function isYahooCircuitOpen(): boolean {
+  return Date.now() < yahooCircuitOpenUntil;
+}
+
+export function noteYahooSuccess(): void {
+  yahooFailStreak = 0;
+}
+
+export function noteYahooFailure(err: unknown): void {
+  const msg = String((err as { message?: string })?.message ?? err);
+  if (!/fetch failed|ConnectTimeout|UND_ERR|ECONN|ENOTFOUND|timeout/i.test(msg)) return;
+  yahooFailStreak += 1;
+  if (yahooFailStreak >= YAHOO_FAIL_OPEN_AFTER) {
+    yahooCircuitOpenUntil = Date.now() + YAHOO_CIRCUIT_MS;
+    yahooFailStreak = 0;
+    logger.warn({ until: new Date(yahooCircuitOpenUntil).toISOString() }, "yahoo: circuit open — skip Yahoo for 60s (DB/Schwab only)");
+  }
+}
+
+export function assertYahooAvailable(label = "yahoo"): void {
+  if (isYahooCircuitOpen()) {
+    throw new Error(`${label}: Yahoo circuit open (connect timeouts)`);
+  }
+}
+
+/** Settings / Maintain snapshot — circuit state only (no network). */
+export function getYahooCircuitSnapshot(): {
+  open: boolean;
+  openUntil: string | null;
+  failStreak: number;
+} {
+  const open = isYahooCircuitOpen();
+  return {
+    open,
+    openUntil: open ? new Date(yahooCircuitOpenUntil).toISOString() : null,
+    failStreak: yahooFailStreak,
+  };
+}
+
 export interface YahooFundamentalsData {
   yahoo_grossMargins?: number;
   yahoo_operatingMargins?: number;

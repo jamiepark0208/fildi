@@ -125,9 +125,13 @@ export async function getShortInterest(rawTicker: string): Promise<ShortInterest
   let refreshing = false;
   if (stale) {
     if (rows.length === 0) {
-      await refresh(ticker);
-      rows = await readInterest();
-      vol = await readVolume();
+      // First view of a ticker: Polygon's 5/min limiter can queue ~12 s+. Wait ≤ 3 s, then answer `refreshing`
+      // (the panel re-polls) instead of holding the request (10-28).
+      const done = await Promise.race([refresh(ticker).then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 3_000))]);
+      if (done) {
+        rows = await readInterest();
+        vol = await readVolume();
+      } else refreshing = true;
     } else {
       refreshing = true;
       void refresh(ticker);

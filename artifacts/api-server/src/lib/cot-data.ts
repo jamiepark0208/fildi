@@ -174,12 +174,28 @@ export async function fetchAllCOTData(weeks = 52): Promise<Record<string, COTRec
   return records;
 }
 
+// Stale-while-revalidate (10-28): a stale cache is served at once and refreshed in the background, one refresh at a
+// time, with a 30 min back-off after a failure. Before, every request waited ~45 s on a failing CFTC fetch.
+let refreshing: Promise<Record<string, COTRecord[]>> | null = null;
+let lastFailAt = 0;
+const FAIL_BACKOFF_MS = 30 * 60_000;
+
+function refreshCOT(weeks: number): Promise<Record<string, COTRecord[]>> {
+  refreshing ??= fetchAllCOTData(Math.max(weeks, 52))
+    .then((records) => { saveCache({ fetchedAt: Date.now(), records }); return records; })
+    .catch((err) => { lastFailAt = Date.now(); throw err; })
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
+
 export async function getCOTData(weeks = 52): Promise<Record<string, COTRecord[]>> {
   const cached = loadCache();
   if (cached && !isCotCacheStale(cached)) return cached.records;
-  const records = await fetchAllCOTData(weeks);
-  saveCache({ fetchedAt: Date.now(), records });
-  return records;
+  if (cached) {
+    if (Date.now() - lastFailAt > FAIL_BACKOFF_MS) refreshCOT(weeks).catch(() => { /* logged by fetcher; stale served */ });
+    return cached.records;
+  }
+  return refreshCOT(weeks);
 }
 
 export function buildSummary(records: Record<string, COTRecord[]>): COTSummary[] {

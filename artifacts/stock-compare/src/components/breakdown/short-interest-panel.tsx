@@ -36,6 +36,7 @@ export function ShortInterestPanel({ ticker }: { ticker: string }) {
       return r.json();
     },
     staleTime: 60 * 60_000,
+    refetchInterval: (q) => (q.state.data?.refreshing ? 10_000 : false), // first view: server answers before Polygon lands
   });
   const pts = useMemo(() => {
     const cutoff = Date.now() - range * 86_400_000;
