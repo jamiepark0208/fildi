@@ -10,6 +10,7 @@ import { fetchSectorRotation, type SectorRotationPoint } from "./macro-data.js";
 import { _cache as macroRegimeCache, type MacroRegime } from "../routes/macro-regime.js";
 import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
+import { themesBrief, type ThemesBrief } from "./macro/macro-themes.js";
 
 export const tickerNewsCache = new TTLCache<NewsItem[]>(30 * 60 * 1000, "ticker-news", 500);
 
@@ -35,6 +36,8 @@ export interface StockEventContext {
 
 export interface MarketEventContext {
   volRegime: MacroRegime | null;
+  /** Macro › Key Themes brief (tested market state + active playbook + theme leans). */
+  keyThemes?: ThemesBrief | null;
   sector: {
     label: string;
     quadrant: SectorRotationPoint["quadrant"];
@@ -81,7 +84,7 @@ export async function assembleContext(
 
   if (opts.include.includes("marketEvent")) {
     tasks.push((async () => {
-      const [peers, sectorRotation] = await Promise.all([
+      const [peers, sectorRotation, keyThemes] = await Promise.all([
         resolvePeers(upper).catch(err => {
           logger.warn({ ticker: upper, err: String(err) }, "explain-context: resolvePeers failed");
           return { ticker: upper, sector: null, industry: null, peers: [] as string[] };
@@ -90,11 +93,16 @@ export async function assembleContext(
           logger.warn({ err: String(err) }, "explain-context: sector rotation failed");
           return [] as SectorRotationPoint[];
         }),
+        themesBrief().catch(err => {
+          logger.warn({ err: String(err) }, "explain-context: key themes failed");
+          return null;
+        }),
       ]);
       const match = sectorRotation.find(s => s.label === peers.industry) ??
         sectorRotation.find(s => s.label === peers.sector) ?? null;
       bundle.marketEvent = {
         volRegime: macroRegimeCache?.regime ?? null,
+        keyThemes,
         sector: match ? { label: match.label, quadrant: match.quadrant, rs1m: match.rs1m, rs1w: match.rs1w } : null,
       };
     })());

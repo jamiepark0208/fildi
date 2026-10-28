@@ -1,128 +1,996 @@
 {
   "_doc": "Key Themes registry (Macro › Key Themes; Jamie 10-28). One home for themes, signposts, scenarios and theme baskets. Claude maintains it in every market-thesis session (.agents/skills/fildi-market-thesis § Themes). Signpost kinds: chart (macro-charts cache series), fred (macro-data series field), revision (median LSEG 30-day EPS drift of a basket, %), flow (basket market-cap change minus whole-universe change, pp), cds (LSEG 5y CDS bp: level or change), gov (Treasury cash flows), manual (value typed here with as_of; stale after stale_days). bull_if / bear_if = [op, value]; neither → neutral. share_overrides = company-wide share count for dual-class names priced on one line (GOOGL = A+B+C, BRK.B in B-equivalents; approximate, re-check yearly). Thresholds are judgment calls labelled as such, not fitted — grading lives in theme_snapshots + LOG.md.",
   "updated": "2026-10-27",
-  "share_overrides": { "GOOGL": 12100000000, "BRK.B": 2157000000 },
+  "share_overrides": {
+    "GOOGL": 12100000000,
+    "BRK.B": 2157000000
+  },
   "baskets": {
-    "megacaps": ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "AVGO", "TSLA"],
-    "ai_spenders": ["MSFT", "GOOGL", "AMZN", "META", "ORCL"],
-    "chips": ["NVDA", "AMD", "AVGO", "MRVL", "TSM"],
-    "memory": ["MU", "WDC", "STX", "SNDK"],
-    "optics": ["ANET", "CIEN", "COHR", "LITE", "AAOI"],
-    "power": ["VRT", "ETN", "GEV", "CEG", "VST", "PWR"],
-    "nuclear": ["OKLO", "SMR", "LEU", "CEG", "VST", "NNE", "CCJ"],
-    "neoclouds": ["CRWV", "IREN", "NBIS", "CIFR", "WULF"],
-    "defense_tech": ["RKLB", "ONDS", "KTOS", "AVAV", "PLTR"],
-    "rare_earths": ["MP", "USAR"],
-    "banks": ["JPM", "BAC", "WFC", "C", "GS", "MS"],
-    "homebuilders": ["DHI", "LEN", "PHM", "TOL"]
+    "megacaps": [
+      "AAPL",
+      "MSFT",
+      "NVDA",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "AVGO",
+      "TSLA"
+    ],
+    "ai_spenders": [
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "ORCL"
+    ],
+    "chips": [
+      "NVDA",
+      "AMD",
+      "AVGO",
+      "MRVL",
+      "TSM"
+    ],
+    "memory": [
+      "MU",
+      "WDC",
+      "STX",
+      "SNDK"
+    ],
+    "optics": [
+      "ANET",
+      "CIEN",
+      "COHR",
+      "LITE",
+      "AAOI"
+    ],
+    "power": [
+      "VRT",
+      "ETN",
+      "GEV",
+      "CEG",
+      "VST",
+      "PWR"
+    ],
+    "nuclear": [
+      "OKLO",
+      "SMR",
+      "LEU",
+      "CEG",
+      "VST",
+      "NNE",
+      "CCJ"
+    ],
+    "neoclouds": [
+      "CRWV",
+      "IREN",
+      "NBIS",
+      "CIFR",
+      "WULF"
+    ],
+    "defense_tech": [
+      "RKLB",
+      "ONDS",
+      "KTOS",
+      "AVAV",
+      "PLTR"
+    ],
+    "rare_earths": [
+      "MP",
+      "USAR"
+    ],
+    "banks": [
+      "JPM",
+      "BAC",
+      "WFC",
+      "C",
+      "GS",
+      "MS"
+    ],
+    "homebuilders": [
+      "DHI",
+      "LEN",
+      "PHM",
+      "TOL"
+    ]
   },
   "themes": [
     {
-      "id": "ai_capex", "name": "AI capex super-cycle", "horizon": "secular", "weight": 1.5,
+      "id": "ai_capex",
+      "name": "AI capex super-cycle",
+      "horizon": "secular",
+      "weight": 1.5,
       "thesis": "Hyperscaler capex (~$700–800 B in 2026, > $1 T consensus 2027) keeps flowing to suppliers: chips, memory, optics, power.",
-      "view": { "stance": "bull", "p": 0.7, "text": "Demand is real; money lands on suppliers, not spenders (A293).", "check": "2027-01-31" },
-      "refs": ["THESIS_2026-10-27.md#3", "LOG V2", "A293"],
+      "view": {
+        "stance": "bull",
+        "p": 0.7,
+        "text": "Demand is real; money lands on suppliers, not spenders (A293).",
+        "check": "2027-01-31"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#3",
+        "LOG V2",
+        "A293"
+      ],
       "signposts": [
-        { "id": "rev_chips", "label": "Chip EPS revisions (30 d median)", "kind": "revision", "basket": "chips", "bull_if": [">", 1], "bear_if": ["<", -1], "unit": "%", "tab": "themes" },
-        { "id": "rev_memory", "label": "Memory EPS revisions", "kind": "revision", "basket": "memory", "bull_if": [">", 1], "bear_if": ["<", -1], "unit": "%" },
-        { "id": "rev_optics", "label": "Optics/networking EPS revisions", "kind": "revision", "basket": "optics", "bull_if": [">", 1], "bear_if": ["<", -1], "unit": "%" },
-        { "id": "flow_chips_1m", "label": "Chips market-cap flow vs market, 1 m", "kind": "flow", "basket": "chips", "window": "1m", "bull_if": [">", 2], "bear_if": ["<", -5], "unit": "pp" },
-        { "id": "capex_2027", "label": "Hyperscaler 2027 capex consensus ($B)", "kind": "manual", "value": 1000, "as_of": "2026-10-27", "stale_days": 30, "bull_if": [">=", 1000], "bear_if": ["<", 850], "unit": "$B", "note": "FactSet/Street; update after each hyperscaler print (this week)" }
+        {
+          "id": "rev_chips",
+          "label": "Chip EPS revisions (30 d median)",
+          "kind": "revision",
+          "basket": "chips",
+          "bull_if": [
+            ">",
+            1
+          ],
+          "bear_if": [
+            "<",
+            -1
+          ],
+          "unit": "%",
+          "tab": "themes"
+        },
+        {
+          "id": "rev_memory",
+          "label": "Memory EPS revisions",
+          "kind": "revision",
+          "basket": "memory",
+          "bull_if": [
+            ">",
+            1
+          ],
+          "bear_if": [
+            "<",
+            -1
+          ],
+          "unit": "%"
+        },
+        {
+          "id": "rev_optics",
+          "label": "Optics/networking EPS revisions",
+          "kind": "revision",
+          "basket": "optics",
+          "bull_if": [
+            ">",
+            1
+          ],
+          "bear_if": [
+            "<",
+            -1
+          ],
+          "unit": "%"
+        },
+        {
+          "id": "flow_chips_1m",
+          "label": "Chips market-cap flow vs market, 1 m",
+          "kind": "flow",
+          "basket": "chips",
+          "window": "1m",
+          "bull_if": [
+            ">",
+            2
+          ],
+          "bear_if": [
+            "<",
+            -5
+          ],
+          "unit": "pp"
+        },
+        {
+          "id": "capex_2027",
+          "label": "Hyperscaler 2027 capex consensus ($B)",
+          "kind": "manual",
+          "value": 1000,
+          "as_of": "2026-10-27",
+          "stale_days": 30,
+          "bull_if": [
+            ">=",
+            1000
+          ],
+          "bear_if": [
+            "<",
+            850
+          ],
+          "unit": "$B",
+          "note": "FactSet/Street; update after each hyperscaler print (this week)"
+        }
       ]
     },
     {
-      "id": "ai_credit", "name": "AI financing & credit", "horizon": "cyclical", "weight": 1.5,
+      "id": "ai_credit",
+      "name": "AI financing & credit",
+      "horizon": "cyclical",
+      "weight": 1.5,
       "thesis": "The risk is the cost of money, not demand: debt-funded builders (neoclouds, ORCL) are the weak link, as in telecom 2000.",
-      "view": { "stance": "bear", "p": 0.55, "text": "Cash-funded megacaps over debt-funded neoclouds (claim 10).", "check": "2027-01-31" },
-      "refs": ["THESIS_2026-10-27.md#3", "THESIS_2026-10-27.md#10", "LOG V4", "LOG C1"],
+      "view": {
+        "stance": "bear",
+        "p": 0.55,
+        "text": "Cash-funded megacaps over debt-funded neoclouds (claim 10).",
+        "check": "2027-01-31"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#3",
+        "THESIS_2026-10-27.md#10",
+        "LOG V4",
+        "LOG C1"
+      ],
       "signposts": [
-        { "id": "hy_oas", "label": "High-yield spread (OAS)", "kind": "chart", "series": "hySpreadHistory", "transform": "last", "bull_if": ["<", 3.0], "bear_if": [">", 4.0], "unit": "%", "tab": "volatility" },
-        { "id": "ig_oas", "label": "Investment-grade spread (OAS)", "kind": "chart", "series": "igSpreadHistory", "transform": "last", "bull_if": ["<", 0.85], "bear_if": [">", 1.2], "unit": "%", "tab": "volatility" },
-        { "id": "orcl_cds_1m", "label": "Oracle 5y CDS change, 1 m", "kind": "cds", "ticker": "ORCL", "transform": "chg_21d", "bull_if": ["<", -20], "bear_if": [">", 25], "unit": "bp" },
-        { "id": "neo_vs_mega_3m", "label": "Neoclouds vs megacaps cap flow, 3 m", "kind": "flow", "basket": "neoclouds", "vs": "megacaps", "window": "3m", "bull_if": [">", 10], "bear_if": ["<", -10], "unit": "pp" }
+        {
+          "id": "hy_oas",
+          "label": "High-yield spread (OAS)",
+          "kind": "chart",
+          "series": "hySpreadHistory",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            3.0
+          ],
+          "bear_if": [
+            ">",
+            4.0
+          ],
+          "unit": "%",
+          "tab": "volatility"
+        },
+        {
+          "id": "ig_oas",
+          "label": "Investment-grade spread (OAS)",
+          "kind": "chart",
+          "series": "igSpreadHistory",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            0.85
+          ],
+          "bear_if": [
+            ">",
+            1.2
+          ],
+          "unit": "%",
+          "tab": "volatility"
+        },
+        {
+          "id": "orcl_cds_1m",
+          "label": "Oracle 5y CDS change, 1 m",
+          "kind": "cds",
+          "ticker": "ORCL",
+          "transform": "chg_21d",
+          "bull_if": [
+            "<",
+            -20
+          ],
+          "bear_if": [
+            ">",
+            25
+          ],
+          "unit": "bp"
+        },
+        {
+          "id": "neo_vs_mega_3m",
+          "label": "Neoclouds vs megacaps cap flow, 3 m",
+          "kind": "flow",
+          "basket": "neoclouds",
+          "vs": "megacaps",
+          "window": "3m",
+          "bull_if": [
+            ">",
+            10
+          ],
+          "bear_if": [
+            "<",
+            -10
+          ],
+          "unit": "pp"
+        }
       ]
     },
     {
-      "id": "rates_valuation", "name": "Expensive market × rising rates", "horizon": "cyclical", "weight": 1.5,
+      "id": "rates_valuation",
+      "name": "Expensive market × rising rates",
+      "horizon": "cyclical",
+      "weight": 1.5,
       "thesis": "CAPE ~41 is survivable; CAPE > 30 with the 10y up ≥ 75 bp in 12 m is the one historically bad mix (median −2 %, S122).",
-      "view": { "stance": "bear", "p": 0.45, "text": "~45 % odds of a ≥ 10 % drawdown first, even with a bullish 12 m view.", "check": "2027-10-27" },
-      "refs": ["THESIS_2026-10-27.md#7", "S121", "S122"],
+      "view": {
+        "stance": "bear",
+        "p": 0.45,
+        "text": "~45 % odds of a ≥ 10 % drawdown first, even with a bullish 12 m view.",
+        "check": "2027-10-27"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#7",
+        "S121",
+        "S122"
+      ],
       "signposts": [
-        { "id": "t10_level", "label": "10-year yield", "kind": "chart", "series": "tenYearHistory", "transform": "last", "bull_if": ["<", 4.5], "bear_if": [">", 5.25], "unit": "%", "tab": "regime" },
-        { "id": "t10_12m", "label": "10-year change, 12 m", "kind": "chart", "series": "tenYearHistory", "transform": "chg_252d", "scale": 100, "bull_if": ["<", 0], "bear_if": [">=", 75], "unit": "bp", "tab": "regime" },
-        { "id": "move", "label": "MOVE (bond vol)", "kind": "chart", "series": "moveHistory", "transform": "last", "bull_if": ["<", 90], "bear_if": [">", 120], "unit": "", "tab": "volatility" }
+        {
+          "id": "t10_level",
+          "label": "10-year yield",
+          "kind": "chart",
+          "series": "tenYearHistory",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            4.5
+          ],
+          "bear_if": [
+            ">",
+            5.25
+          ],
+          "unit": "%",
+          "tab": "regime"
+        },
+        {
+          "id": "t10_12m",
+          "label": "10-year change, 12 m",
+          "kind": "chart",
+          "series": "tenYearHistory",
+          "transform": "chg_252d",
+          "scale": 100,
+          "bull_if": [
+            "<",
+            0
+          ],
+          "bear_if": [
+            ">=",
+            75
+          ],
+          "unit": "bp",
+          "tab": "regime"
+        },
+        {
+          "id": "move",
+          "label": "MOVE (bond vol)",
+          "kind": "chart",
+          "series": "moveHistory",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            90
+          ],
+          "bear_if": [
+            ">",
+            120
+          ],
+          "unit": "",
+          "tab": "volatility"
+        }
       ]
     },
     {
-      "id": "inflation_fed", "name": "Inflation & the Fed", "horizon": "cyclical", "weight": 1.0,
+      "id": "inflation_fed",
+      "name": "Inflation & the Fed",
+      "horizon": "cyclical",
+      "weight": 1.0,
       "thesis": "Fed hiked in Sept (first since 2023). 1997 vs 2000/2018 split = whether the Fed keeps hiking.",
-      "view": { "stance": "neutral", "p": 0.5, "text": "One-and-done is the A-path; a Dec hike moves weight to B.", "check": "2026-12-17" },
-      "refs": ["THESIS_2026-10-27.md#history"],
+      "view": {
+        "stance": "neutral",
+        "p": 0.5,
+        "text": "One-and-done is the A-path; a Dec hike moves weight to B.",
+        "check": "2026-12-17"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#history"
+      ],
       "signposts": [
-        { "id": "core_cpi", "label": "Core CPI y/y", "kind": "fred", "series": "coreCpi", "field": "yoy", "bull_if": ["<", 2.8], "bear_if": [">", 3.5], "unit": "%", "tab": "regime" },
-        { "id": "cpi", "label": "Headline CPI y/y", "kind": "fred", "series": "cpi", "field": "yoy", "bull_if": ["<", 3.0], "bear_if": [">", 4.0], "unit": "%", "tab": "regime" },
-        { "id": "ffr_3m", "label": "Fed funds change, 3 m", "kind": "chart", "series": "fedFundsHistory", "transform": "chg_63d", "scale": 100, "bull_if": ["<", 0], "bear_if": [">", 0], "unit": "bp", "tab": "policy" }
+        {
+          "id": "core_cpi",
+          "label": "Core CPI y/y",
+          "kind": "fred",
+          "series": "coreCpi",
+          "field": "yoy",
+          "bull_if": [
+            "<",
+            2.8
+          ],
+          "bear_if": [
+            ">",
+            3.5
+          ],
+          "unit": "%",
+          "tab": "regime"
+        },
+        {
+          "id": "cpi",
+          "label": "Headline CPI y/y",
+          "kind": "fred",
+          "series": "cpi",
+          "field": "yoy",
+          "bull_if": [
+            "<",
+            3.0
+          ],
+          "bear_if": [
+            ">",
+            4.0
+          ],
+          "unit": "%",
+          "tab": "regime"
+        },
+        {
+          "id": "ffr_3m",
+          "label": "Fed funds change, 3 m",
+          "kind": "chart",
+          "series": "fedFundsHistory",
+          "transform": "chg_63d",
+          "scale": 100,
+          "bull_if": [
+            "<",
+            0
+          ],
+          "bear_if": [
+            ">",
+            0
+          ],
+          "unit": "bp",
+          "tab": "policy"
+        },
+        {
+          "id": "oil_pass",
+          "label": "Brent change, 12 m (inflation pass-through)",
+          "kind": "series",
+          "series": "brent",
+          "transform": "pct_chg_252d",
+          "bull_if": [
+            "<",
+            0
+          ],
+          "bear_if": [
+            ">",
+            25
+          ],
+          "unit": "%"
+        }
       ]
     },
     {
-      "id": "fiscal_liquidity", "name": "Government pump & liquidity", "horizon": "cyclical", "weight": 1.0,
+      "id": "geopolitics",
+      "name": "Geopolitical tension & oil",
+      "horizon": "cyclical",
+      "weight": 1.25,
+      "thesis": "Conflict risk (Middle East / Iran, Russia–Ukraine, US–China trade and chips) reaches markets through oil → inflation → the Fed, and through supply chains (rare earths, chips).",
+      "view": {
+        "stance": "bear",
+        "p": 0.55,
+        "text": "GPR ~94th percentile since 2000 and WTI ~$108: oil is the channel that can turn scenario A into B (an Iran deal is the D-path trigger).",
+        "check": "2027-01-31"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#scenarios",
+        "Caldara & Iacoviello (2022) AER: high GPR → lower investment, higher disaster risk"
+      ],
+      "signposts": [
+        {
+          "id": "gpr_pctile",
+          "label": "Geopolitical Risk index, 30 d avg (percentile since 2000)",
+          "kind": "series",
+          "series": "gprd_ma30",
+          "transform": "pctile",
+          "bull_if": [
+            "<",
+            50
+          ],
+          "bear_if": [
+            ">",
+            90
+          ],
+          "unit": "pctile",
+          "note": "Caldara–Iacoviello GPR (Fed Board), newspaper share; 1985–2019 = 100"
+        },
+        {
+          "id": "gpr_1m",
+          "label": "GPR 30 d avg change, 1 m",
+          "kind": "series",
+          "series": "gprd_ma30",
+          "transform": "chg_21d",
+          "bull_if": [
+            "<",
+            -25
+          ],
+          "bear_if": [
+            ">",
+            25
+          ],
+          "unit": "pts"
+        },
+        {
+          "id": "wti",
+          "label": "WTI crude",
+          "kind": "series",
+          "series": "wti",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            80
+          ],
+          "bear_if": [
+            ">",
+            100
+          ],
+          "unit": "$",
+          "note": "scenario D needs oil < $80"
+        },
+        {
+          "id": "wti_3m",
+          "label": "WTI change, 3 m",
+          "kind": "series",
+          "series": "wti",
+          "transform": "pct_chg_63d",
+          "bull_if": [
+            "<",
+            -10
+          ],
+          "bear_if": [
+            ">",
+            15
+          ],
+          "unit": "%"
+        }
+      ]
+    },
+    {
+      "id": "fiscal_liquidity",
+      "name": "Government pump & liquidity",
+      "horizon": "cyclical",
+      "weight": 1.0,
       "thesis": "FY26 deficit ~$2 T keeps cash flowing, but $1.1 T is interest paid to bond holders; TGA rebuilds drain reserves.",
-      "view": { "stance": "bull", "p": 0.6, "text": "Stimulative in dollars; the twist is who receives it.", "check": "2027-03-31" },
-      "refs": ["THESIS_2026-10-27.md#5"],
+      "view": {
+        "stance": "bull",
+        "p": 0.6,
+        "text": "Stimulative in dollars; the twist is who receives it.",
+        "check": "2027-03-31"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#5"
+      ],
       "signposts": [
-        { "id": "deficit_3m", "label": "Cash deficit, last 3 m vs a year ago", "kind": "gov", "metric": "deficit_3m_yoy", "bull_if": [">", 0], "bear_if": ["<", -100], "unit": "$B" },
-        { "id": "tga_1m", "label": "TGA change, 1 m (rise = drain)", "kind": "gov", "metric": "tga_chg_1m", "bull_if": ["<", -50], "bear_if": [">", 150], "unit": "$B" },
-        { "id": "netliq_3m", "label": "Net liquidity change, 3 m", "kind": "chart", "series": "netLiquidityHistory", "transform": "chg_13w", "bull_if": [">", 100], "bear_if": ["<", -200], "unit": "$B", "tab": "liquidity" },
-        { "id": "mmf", "label": "Money-fund assets change, 3 m (cash on sidelines)", "kind": "chart", "series": "moneyMarketHistory", "transform": "pct_chg_13w", "bull_if": ["<", -2], "bear_if": [">", 5], "unit": "%", "tab": "liquidity", "note": "weak signal: balances rose through rallies and selloffs (claim 8)" }
+        {
+          "id": "deficit_3m",
+          "label": "Cash deficit, last 3 m vs a year ago",
+          "kind": "gov",
+          "metric": "deficit_3m_yoy",
+          "bull_if": [
+            ">",
+            0
+          ],
+          "bear_if": [
+            "<",
+            -100
+          ],
+          "unit": "$B"
+        },
+        {
+          "id": "tga_1m",
+          "label": "TGA change, 1 m (rise = drain)",
+          "kind": "gov",
+          "metric": "tga_chg_1m",
+          "bull_if": [
+            "<",
+            -50
+          ],
+          "bear_if": [
+            ">",
+            150
+          ],
+          "unit": "$B"
+        },
+        {
+          "id": "netliq_3m",
+          "label": "Net liquidity change, 3 m",
+          "kind": "chart",
+          "series": "netLiquidityHistory",
+          "transform": "chg_13w",
+          "bull_if": [
+            ">",
+            100
+          ],
+          "bear_if": [
+            "<",
+            -200
+          ],
+          "unit": "$B",
+          "tab": "liquidity"
+        },
+        {
+          "id": "mmf",
+          "label": "Money-fund assets change, 3 m (cash on sidelines)",
+          "kind": "chart",
+          "series": "moneyMarketHistory",
+          "transform": "pct_chg_13w",
+          "bull_if": [
+            "<",
+            -2
+          ],
+          "bear_if": [
+            ">",
+            5
+          ],
+          "unit": "%",
+          "tab": "liquidity",
+          "note": "weak signal: balances rose through rallies and selloffs (claim 8)"
+        }
       ]
     },
     {
-      "id": "earnings", "name": "Earnings carry the market", "horizon": "cyclical", "weight": 1.5,
+      "id": "earnings",
+      "name": "Earnings carry the market",
+      "horizon": "cyclical",
+      "weight": 1.5,
       "thesis": "Q3 blended +29.5 % y/y, 3rd quarter > 25 %; forward P/E ~20 is earnings-backed, not 1999.",
-      "view": { "stance": "bull", "p": 0.7, "text": "Earnings are doing the work; misses still move ~3× beats (S120).", "check": "2027-02-15" },
-      "refs": ["THESIS_2026-10-27.md#1", "S120", "LOG V7"],
+      "view": {
+        "stance": "bull",
+        "p": 0.7,
+        "text": "Earnings are doing the work; misses still move ~3× beats (S120).",
+        "check": "2027-02-15"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#1",
+        "S120",
+        "LOG V7"
+      ],
       "signposts": [
-        { "id": "rev_all", "label": "Universe EPS revision breadth (30 d, up − down)", "kind": "revision", "basket": "*", "stat": "breadth", "bull_if": [">", 10], "bear_if": ["<", -10], "unit": "pp", "tab": "heatmap" },
-        { "id": "rev_megacaps", "label": "Megacap EPS revisions", "kind": "revision", "basket": "megacaps", "bull_if": [">", 1], "bear_if": ["<", -1], "unit": "%" }
+        {
+          "id": "rev_all",
+          "label": "Universe EPS revision breadth (30 d, up − down)",
+          "kind": "revision",
+          "basket": "*",
+          "stat": "breadth",
+          "bull_if": [
+            ">",
+            10
+          ],
+          "bear_if": [
+            "<",
+            -10
+          ],
+          "unit": "pp",
+          "tab": "heatmap"
+        },
+        {
+          "id": "rev_megacaps",
+          "label": "Megacap EPS revisions",
+          "kind": "revision",
+          "basket": "megacaps",
+          "bull_if": [
+            ">",
+            1
+          ],
+          "bear_if": [
+            "<",
+            -1
+          ],
+          "unit": "%"
+        }
       ]
     },
     {
-      "id": "midterms", "name": "Midterms & policy", "horizon": "event", "weight": 0.5,
+      "id": "midterms",
+      "name": "Midterms & policy",
+      "horizon": "event",
+      "weight": 0.5,
       "thesis": "Kalshi: House D 91 %, D sweep 63 % → mostly priced; the cost is policy (defense reconciliation), not volatility.",
-      "view": { "stance": "neutral", "p": 0.6, "text": "Clearing event, little surprise left (LOG V3).", "check": "2026-11-30" },
-      "refs": ["THESIS_2026-10-27.md#6", "LOG V3"],
+      "view": {
+        "stance": "neutral",
+        "p": 0.6,
+        "text": "Clearing event, little surprise left (LOG V3).",
+        "check": "2026-11-30"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#6",
+        "LOG V3"
+      ],
       "signposts": [
-        { "id": "vix", "label": "VIX (wrong if > 25 into 11-30)", "kind": "chart", "series": "vixHistory", "transform": "last", "bull_if": ["<", 18], "bear_if": [">", 25], "unit": "", "tab": "volatility" },
-        { "id": "dsweep", "label": "Kalshi: Democratic sweep", "kind": "manual", "value": 63, "as_of": "2026-10-27", "stale_days": 7, "bull_if": [">", 80], "bear_if": ["<", 40], "unit": "%", "note": "high = priced (less surprise); update from Macro › Policy Kalshi strip" }
+        {
+          "id": "vix",
+          "label": "VIX (wrong if > 25 into 11-30)",
+          "kind": "chart",
+          "series": "vixHistory",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            18
+          ],
+          "bear_if": [
+            ">",
+            25
+          ],
+          "unit": "",
+          "tab": "volatility"
+        },
+        {
+          "id": "dsweep",
+          "label": "Kalshi: Democratic sweep",
+          "kind": "manual",
+          "value": 63,
+          "as_of": "2026-10-27",
+          "stale_days": 7,
+          "bull_if": [
+            ">",
+            80
+          ],
+          "bear_if": [
+            "<",
+            40
+          ],
+          "unit": "%",
+          "note": "high = priced (less surprise); update from Macro › Policy Kalshi strip"
+        }
       ]
     },
     {
-      "id": "power_nuclear", "name": "Power & nuclear for AI", "horizon": "secular", "weight": 0.75,
+      "id": "power_nuclear",
+      "name": "Power & nuclear for AI",
+      "horizon": "secular",
+      "weight": 0.75,
       "thesis": "AI power demand is real (power revisions +4.8 %), but small nuclear trades as a long-duration rates bet with dilution risk.",
-      "view": { "stance": "neutral", "p": 0.5, "text": "Utilities/turbines over pre-revenue reactors (LOG V8 first pass).", "check": "2027-04-30" },
-      "refs": ["LOG V8", "A293"],
+      "view": {
+        "stance": "neutral",
+        "p": 0.5,
+        "text": "Utilities/turbines over pre-revenue reactors (LOG V8 first pass).",
+        "check": "2027-04-30"
+      },
+      "refs": [
+        "LOG V8",
+        "A293"
+      ],
       "signposts": [
-        { "id": "rev_power", "label": "Power/electrical EPS revisions", "kind": "revision", "basket": "power", "bull_if": [">", 1], "bear_if": ["<", -1], "unit": "%" },
-        { "id": "flow_nuclear_1m", "label": "Nuclear cap flow vs market, 1 m", "kind": "flow", "basket": "nuclear", "window": "1m", "bull_if": [">", 5], "bear_if": ["<", -5], "unit": "pp" }
+        {
+          "id": "rev_power",
+          "label": "Power/electrical EPS revisions",
+          "kind": "revision",
+          "basket": "power",
+          "bull_if": [
+            ">",
+            1
+          ],
+          "bear_if": [
+            "<",
+            -1
+          ],
+          "unit": "%"
+        },
+        {
+          "id": "flow_nuclear_1m",
+          "label": "Nuclear cap flow vs market, 1 m",
+          "kind": "flow",
+          "basket": "nuclear",
+          "window": "1m",
+          "bull_if": [
+            ">",
+            5
+          ],
+          "bear_if": [
+            "<",
+            -5
+          ],
+          "unit": "pp"
+        }
       ]
     },
     {
-      "id": "policy_supply", "name": "Rare earths & defense tech", "horizon": "secular", "weight": 0.5,
+      "id": "policy_supply",
+      "name": "Rare earths & defense tech",
+      "horizon": "secular",
+      "weight": 0.5,
       "thesis": "Government stakes and floors (MP: DoD 15 %, $110/kg NdPr) protect earnings; $350 B of the FY27 defense ask needs reconciliation.",
-      "view": { "stance": "neutral", "p": 0.5, "text": "MP over USAR; defense-tech upside hinges on reconciliation (LOG V5).", "check": "2027-01-31" },
-      "refs": ["THESIS_2026-10-27.md#5", "LOG V5"],
+      "view": {
+        "stance": "neutral",
+        "p": 0.5,
+        "text": "MP over USAR; defense-tech upside hinges on reconciliation (LOG V5).",
+        "check": "2027-01-31"
+      },
+      "refs": [
+        "THESIS_2026-10-27.md#5",
+        "LOG V5"
+      ],
       "signposts": [
-        { "id": "flow_rare_1m", "label": "Rare earths cap flow vs market, 1 m", "kind": "flow", "basket": "rare_earths", "window": "1m", "bull_if": [">", 5], "bear_if": ["<", -5], "unit": "pp" },
-        { "id": "flow_def_1m", "label": "Defense tech cap flow vs market, 1 m", "kind": "flow", "basket": "defense_tech", "window": "1m", "bull_if": [">", 5], "bear_if": ["<", -5], "unit": "pp" },
-        { "id": "dod_spend_3m", "label": "DoD cash outlays, 3 m vs a year ago", "kind": "gov", "metric": "defense_3m_yoy_pct", "bull_if": [">", 5], "bear_if": ["<", -5], "unit": "%" }
+        {
+          "id": "flow_rare_1m",
+          "label": "Rare earths cap flow vs market, 1 m",
+          "kind": "flow",
+          "basket": "rare_earths",
+          "window": "1m",
+          "bull_if": [
+            ">",
+            5
+          ],
+          "bear_if": [
+            "<",
+            -5
+          ],
+          "unit": "pp"
+        },
+        {
+          "id": "flow_def_1m",
+          "label": "Defense tech cap flow vs market, 1 m",
+          "kind": "flow",
+          "basket": "defense_tech",
+          "window": "1m",
+          "bull_if": [
+            ">",
+            5
+          ],
+          "bear_if": [
+            "<",
+            -5
+          ],
+          "unit": "pp"
+        },
+        {
+          "id": "dod_spend_3m",
+          "label": "DoD cash outlays, 3 m vs a year ago",
+          "kind": "gov",
+          "metric": "defense_3m_yoy_pct",
+          "bull_if": [
+            ">",
+            5
+          ],
+          "bear_if": [
+            "<",
+            -5
+          ],
+          "unit": "%"
+        }
       ]
     }
   ],
   "scenarios": [
-    { "id": "A", "name": "1997 path", "path": "Fed stops after one hike, oil eases, earnings carry", "spx_12m": "+10 to +20 %", "p": 0.40, "up_if": ["capex_2027", "core_cpi", "ffr_3m"] },
-    { "id": "B", "name": "2018 path", "path": "Fed hikes again / 10y > 5.25 %, AI-credit wobble, recovers", "spx_12m": "−5 to +5 %, ≥ 10 % dip", "p": 0.30, "up_if": ["t10_level", "hy_oas", "orcl_cds_1m"] },
-    { "id": "C", "name": "2000 / 2022 path", "path": "Financing breaks the capex cycle + inflation re-accelerates", "spx_12m": "−20 % or worse", "p": 0.12, "up_if": ["hy_oas", "capex_2027", "cpi"] },
-    { "id": "D", "name": "Melt-up", "path": "Capex > $1 T, Fed cuts, oil < $80", "spx_12m": "> +20 %", "p": 0.18, "up_if": ["capex_2027", "ffr_3m", "rev_all"] }
+    {
+      "id": "A",
+      "name": "1997 path",
+      "path": "Fed stops after one hike, oil eases, earnings carry",
+      "spx_12m": "+10 to +20 %",
+      "p": 0.4,
+      "up_if": [
+        "capex_2027",
+        "core_cpi",
+        "ffr_3m"
+      ]
+    },
+    {
+      "id": "B",
+      "name": "2018 path",
+      "path": "Fed hikes again / 10y > 5.25 %, AI-credit wobble, recovers",
+      "spx_12m": "−5 to +5 %, ≥ 10 % dip",
+      "p": 0.3,
+      "up_if": [
+        "t10_level",
+        "hy_oas",
+        "orcl_cds_1m",
+        "wti_3m"
+      ]
+    },
+    {
+      "id": "C",
+      "name": "2000 / 2022 path",
+      "path": "Financing breaks the capex cycle + inflation re-accelerates",
+      "spx_12m": "−20 % or worse",
+      "p": 0.12,
+      "up_if": [
+        "hy_oas",
+        "capex_2027",
+        "cpi"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "Melt-up",
+      "path": "Capex > $1 T, Fed cuts, oil < $80",
+      "spx_12m": "> +20 %",
+      "p": 0.18,
+      "up_if": [
+        "capex_2027",
+        "wti",
+        "ffr_3m",
+        "rev_all"
+      ]
+    }
   ],
-  "scenario_source": "THESIS_2026-10-27.md § Scenarios (judgment-weighted from analogs, S122)"
+  "scenario_source": "THESIS_2026-10-27.md § Scenarios (judgment-weighted from analogs, S122)",
+  "playbook": [
+    {
+      "id": "panic_pause",
+      "when": {
+        "market_state": [
+          "panic"
+        ]
+      },
+      "do": "Pause new short puts until VIX ÷ VIX3M < 1 (selloff still running); size nothing up on conviction.",
+      "tier": "tested",
+      "evidence": "S101: panic loses at every band 2019–22 (−35..−74 bp/wk)"
+    },
+    {
+      "id": "sharp_drop_closer",
+      "when": {
+        "market_state": [
+          "sharp_drop"
+        ]
+      },
+      "do": "After a V-shaped drop with the vol curve back in contango, sell puts closer (higher Δ): net bp rises steeply with Δ.",
+      "tier": "tested",
+      "evidence": "S101: +45→+101 / +40→+90 bp/wk from 0.03→0.20Δ, both periods"
+    },
+    {
+      "id": "rally_far",
+      "when": {
+        "market_state": [
+          "rally"
+        ]
+      },
+      "do": "In a rally keep puts far (low Δ): premium barely rises with Δ but tail loss rises 4–40×. Don't short calls into expected run-ups.",
+      "tier": "tested",
+      "evidence": "S101 (rally flat in bp, tail ×4–40); S087 (short calls lose −30..−36 bp/wk when a run-up is forecast)"
+    },
+    {
+      "id": "bear_grind_small",
+      "when": {
+        "market_state": [
+          "bear_grind"
+        ]
+      },
+      "do": "Slow bear: edge is thin (≤ +7 bp/wk 2019–22) → engine band, smaller book, no closer strikes.",
+      "tier": "tested",
+      "evidence": "S101 bear grind ≤ +7 bp/wk 2019–22"
+    },
+    {
+      "id": "structures",
+      "when": {
+        "always": true
+      },
+      "do": "Structures with edge: cash-secured puts (best return per risk) and jade lizards. Put spreads, call spreads, condors, iron flies, calendars, debit spreads and long straddles fail regardless of regime.",
+      "tier": "tested",
+      "evidence": "S076 (781k trades 2021→): CSP +0.51 %/trade t 5.1; jade lizard t 6.5; calendar −7 % t −4.1"
+    },
+    {
+      "id": "index_tails_rich",
+      "when": {
+        "always": true
+      },
+      "do": "Index options price ~2× the drop risk that shows up → selling index put premium is paid; buying index protection is expensive insurance.",
+      "tier": "tested",
+      "evidence": "S057: model vs VIX barrier odds +0.205 skill (holdout 29 % implied vs 14 % realized)"
+    },
+    {
+      "id": "macro_no_timing",
+      "when": {
+        "always": true
+      },
+      "do": "Don't time collateral, band or size off macro direction, themes, or the cycle label — use them to explain and to pick which themes to look at.",
+      "tier": "avoid",
+      "evidence": "S006, S027 (0/12 regimes pass), S057 direction = base rate, S087 (drawdowns unforecastable)"
+    },
+    {
+      "id": "earnings_asym",
+      "when": {
+        "signpost": "rev_all",
+        "status": [
+          "bear"
+        ]
+      },
+      "do": "Revisions turning down: misses move ~3× beats, so short puts through earnings carry the bigger side of the asymmetry → use the engine's far-strike earnings rule.",
+      "tier": "hint",
+      "evidence": "S120 (asymmetry real, every year); revision-regime × structure test pending (earnings-cycle study)"
+    },
+    {
+      "id": "credit_wide",
+      "when": {
+        "signpost": "hy_oas",
+        "status": [
+          "bear"
+        ]
+      },
+      "do": "High-yield spread > 4 %: AI-credit stress spreading → favor cash-funded megacaps over levered names for new puts.",
+      "tier": "hint",
+      "evidence": "Thesis claim 10 (telecom 2000 analog); not backtested on our puts"
+    },
+    {
+      "id": "geo_oil",
+      "when": {
+        "signpost": "wti",
+        "status": [
+          "bear"
+        ]
+      },
+      "do": "Oil > $100: inflation risk keeps the Fed hiking (scenario B) → keep the band on Auto, watch energy-sensitive names (airlines, cruise, chemicals) for far strikes only.",
+      "tier": "hint",
+      "evidence": "Untested; geopolitics × structure test pending (GPR study)"
+    }
+  ]
 }

@@ -24,10 +24,11 @@ interface Theme {
   bull: number; bear: number; neutral: number; missing: number; divergence: boolean; checkDue: boolean;
 }
 interface Scenario { id: string; name: string; path: string; spx_12m: string; p: number; signals: number; pointing: number }
-interface ReadPart { key: string; label: string; score: number | null; readout: string; tab: string }
+interface ReadLayer { key: string; label: string; tier: "tested" | "untested" | "context"; readout: string; why: string; tab: string }
+interface PlayRule { id: string; do: string; tier: "tested" | "hint" | "avoid"; evidence: string; active: boolean }
 interface ThemesResp {
   updated: string; registryAgeDays: number; themes: Theme[]; scenarios: Scenario[]; scenarioSource: string;
-  read: { score: number | null; label: string; parts: ReadPart[]; pUp12m: number; putBook: string };
+  read: { marketState: string | null; sectorDrop: number; themeLean: number | null; layers: ReadLayer[]; pUp12m: number; playbook: PlayRule[]; note: string };
   asOf: Record<string, string | null>;
 }
 type Win = "1w" | "1m" | "3m";
@@ -96,29 +97,39 @@ function Section({ title, tip, right, children }: { title: string; tip?: string;
 
 // ── Unified read ────────────────────────────────────────────────────────────────────────────────
 
+const TIER_CHIP = { tested: "bg-emerald-700 text-white", untested: "bg-zinc-700 text-white", context: "bg-zinc-800 text-white", hint: "bg-amber-800 text-white", avoid: "bg-red-800 text-white" } as const;
+
 function ReadStrip({ t, onJump }: { t: ThemesResp; onJump: (tab: MacroTab) => void }) {
   const r = t.read;
+  const active = r.playbook.filter((p) => p.active);
   return (
-    <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-md px-2 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-      <DataTip tip="Weighted blend: themes ×2, Volatility, Liquidity, house view (S057 21-day drop odds vs base rate). ≥ +0.33 Constructive, ≤ −0.33 Defensive. Display only.">
-        <span className={cn("px-2 py-0.5 rounded font-bold", READ_CHIP[r.label] ?? "bg-zinc-700 text-white")}>
-          Macro read: {r.label} {r.score != null && `(${fmtSigned(r.score, 2)})`}
+    <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-md px-2 py-1.5 space-y-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {r.layers.map((l) => (
+          <DataTip key={l.key} tip={l.why}>
+            <button onClick={() => l.tab !== "themes" && onJump(l.tab as MacroTab)} className="flex items-center gap-1 text-white hover:text-[#d4af37]">
+              <span className={cn("px-1 rounded text-[9px] font-bold uppercase", TIER_CHIP[l.tier])}>{l.tier}</span>
+              <span className="font-semibold">{l.label}:</span><span>{l.readout}</span>
+            </button>
+          </DataTip>
+        ))}
+        <DataTip tip={`Scenario odds from ${t.scenarioSource}: A + D + half of B.`}>
+          <span className="text-white"><span className="font-semibold">P(S&P up 12 m):</span> {(r.pUp12m * 100).toFixed(0)} %</span>
+        </DataTip>
+        <span className="ml-auto text-white">
+          Registry {formatMdYy(t.updated)}{t.registryAgeDays > 14 && <span className="text-amber-400"> · stale {t.registryAgeDays} d</span>}
         </span>
-      </DataTip>
-      {r.parts.map((p) => (
-        <button key={p.key} onClick={() => p.tab !== "themes" && onJump(p.tab as MacroTab)}
-          className="flex items-center gap-1 text-white hover:text-[#d4af37]">
-          <span className="font-semibold">{p.label}:</span>
-          <span className={tone(p.score)}>{p.readout}</span>
-        </button>
-      ))}
-      <DataTip tip={`Scenario odds from ${t.scenarioSource}: A + D + half of B.`}>
-        <span className="text-white"><span className="font-semibold">P(S&P up 12 m):</span> {(r.pUp12m * 100).toFixed(0)} %</span>
-      </DataTip>
-      <DataTip tip={r.putBook}><span className="text-amber-100">Put band: Auto</span></DataTip>
-      <span className="ml-auto text-white">
-        Registry {formatMdYy(t.updated)}{t.registryAgeDays > 14 && <span className="text-amber-400"> · stale {t.registryAgeDays} d</span>}
-      </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {active.map((p) => (
+          <DataTip key={p.id} tip={p.evidence}>
+            <div className="flex items-start gap-1.5 text-white">
+              <span className={cn("px-1 rounded text-[9px] font-bold uppercase shrink-0", TIER_CHIP[p.tier])}>{p.tier}</span>
+              <span>{p.do}</span>
+            </div>
+          </DataTip>
+        ))}
+      </div>
     </div>
   );
 }

@@ -16,7 +16,8 @@ async function main() {
       console.log(`${th.name} [${th.horizon}] view=${th.view.stance} lean=${th.lean} ${th.bull}↑ ${th.bear}↓ ${th.neutral}= ${th.missing}?${th.divergence ? "  ⚠ view ≠ signposts" : ""}`);
       for (const s of th.signposts) console.log(`   ${s.status.padEnd(7)} ${s.label}: ${s.current == null ? "—" : s.current.toFixed(2)} ${s.unit ?? ""} (${s.asOf ?? "?"}) ${s.detail ?? ""}`);
     }
-    console.log(`READ ${t.read.label} ${t.read.score?.toFixed(2)} | ${t.read.parts.map((p) => `${p.label}: ${p.readout} (${p.score?.toFixed(2) ?? "—"})`).join(" · ")}`);
+    for (const l of t.read.layers) console.log(`LAYER [${l.tier}] ${l.label}: ${l.readout}`);
+    for (const r of t.read.playbook.filter((r) => r.active)) console.log(`PLAY [${r.tier}] ${r.id}: ${r.do}`);
     console.log("as of", JSON.stringify(t.asOf));
   }
   await pool.query(`CREATE TABLE IF NOT EXISTS watchlist_sync.theme_snapshots (
@@ -25,8 +26,9 @@ async function main() {
     PRIMARY KEY (snap_date, theme_id))`);
   const rows: unknown[][] = t.themes.map((th) => [th.id, th.view.stance, th.view.p, th.lean, th.score, th.divergence,
     JSON.stringify(th.signposts.map((s) => ({ id: s.id, v: s.current, status: s.status, asOf: s.asOf })))]);
-  rows.push(["_read", null, t.read.pUp12m, t.read.label, t.read.score, false,
-    JSON.stringify({ parts: t.read.parts.map((p) => ({ key: p.key, score: p.score, readout: p.readout })), scenarios: t.scenarios.map((s) => ({ id: s.id, p: s.p, pointing: s.pointing })) })]);
+  rows.push(["_read", null, t.read.pUp12m, t.read.marketState, t.read.themeLean, false,
+    JSON.stringify({ layers: t.read.layers.map((l) => ({ key: l.key, tier: l.tier, readout: l.readout })),
+      playbook: t.read.playbook.filter((r) => r.active).map((r) => r.id), scenarios: t.scenarios.map((s) => ({ id: s.id, p: s.p, pointing: s.pointing })) })]);
   for (const r of rows) {
     await pool.query(`INSERT INTO watchlist_sync.theme_snapshots (snap_date, theme_id, view_stance, view_p, lean, score, divergence, signposts)
       VALUES (CURRENT_DATE, $1, $2, $3, $4, $5, $6, $7::jsonb)
@@ -36,7 +38,7 @@ async function main() {
   const div = t.themes.filter((th) => th.divergence).map((th) => th.id);
   const due = t.themes.filter((th) => th.checkDue).map((th) => th.id);
   const stale = t.themes.flatMap((th) => th.signposts).filter((s) => s.status === "stale" || s.status === "missing").map((s) => s.id);
-  console.log(`themes snapshot: ${t.themes.length} themes, read ${t.read.label}; diverging ${div.join(",") || "none"}; ` +
+  console.log(`themes snapshot: ${t.themes.length} themes, state ${t.read.marketState}; diverging ${div.join(",") || "none"}; ` +
     `check due ${due.join(",") || "none"}; stale/missing ${stale.join(",") || "none"}; registry ${t.registryAgeDays} d old`);
 }
 

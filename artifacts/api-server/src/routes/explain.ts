@@ -271,7 +271,7 @@ function optionsHash(bundle: ContextBundle, e: OptionsExtra): string {
   // Round to the UTC day so market/sector context regenerates at most once a day —
   // this is a daily-summary surface, not a live feed (see plan risk #2).
   const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
-  return `v1_${dayBucket}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
+  return `v1_${dayBucket}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.keyThemes?.marketState ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
 }
 
 function buildOptionsPrompt(bundle: ContextBundle, e: OptionsExtra): string {
@@ -291,6 +291,11 @@ function buildOptionsPrompt(bundle: ContextBundle, e: OptionsExtra): string {
     : "Sector context unavailable.";
 
   const volLine = me?.volRegime ? `Market volatility regime: ${me.volRegime.replace("_", " ").toLowerCase()}.` : "";
+  // Key Themes: tested state + playbook drive the advice; themes only explain (macro timing failed, S087/S027)
+  const kt = me?.keyThemes;
+  const themesLine = kt
+    ? `Market state (tested, S101): ${kt.marketState ?? "unknown"}.\nPlaybook today:\n${kt.playbook.map((p) => `- ${p}`).join("\n")}\nMacro themes (context only, not a timing signal):\n${kt.themes.map((t) => `- ${t}`).join("\n")}`
+    : "";
 
   return `You explain a cash-secured-put candidate to an options seller who wants recent, specific context — not a repeat of numbers they can already see on screen. Be concrete about WHY this ticker looks interesting right now, not just that a threshold was crossed.
 
@@ -300,6 +305,7 @@ ${e.ivCurrent != null ? `IV: ${e.ivCurrent.toFixed(0)}%` : ""}${e.vsSpy20d != nu
 ${zscoreLine}
 ${sectorLine}
 ${volLine}
+${themesLine}
 Recent news:
 ${newsLines}
 

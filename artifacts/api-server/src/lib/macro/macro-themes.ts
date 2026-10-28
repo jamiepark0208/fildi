@@ -31,7 +31,7 @@ type Rule = [Op, number];
 export type Status = "bull" | "bear" | "neutral" | "stale" | "missing";
 
 export interface Signpost {
-  id: string; label: string; kind: "chart" | "fred" | "revision" | "flow" | "cds" | "gov" | "manual";
+  id: string; label: string; kind: "chart" | "fred" | "revision" | "flow" | "cds" | "gov" | "series" | "manual";
   series?: string; transform?: string; scale?: number; field?: string; basket?: string; vs?: string;
   stat?: "median" | "breadth"; window?: "1w" | "1m" | "3m"; ticker?: string; metric?: string; value?: number; as_of?: string;
   stale_days?: number; bull_if?: Rule; bear_if?: Rule; unit?: string; tab?: string; note?: string;
@@ -45,6 +45,13 @@ interface Registry {
   updated: string; baskets: Record<string, string[]>; themes: ThemeDef[];
   scenarios: { id: string; name: string; path: string; spx_12m: string; p: number; up_if: string[] }[];
   scenario_source: string;
+  playbook?: PlayRule[];
+}
+/** Structure guidance keyed on a tested state or a signpost (themes.json playbook). tier: tested = a study passed;
+ *  hint = consistent but unproven; avoid = a study failed (don't use this input for that decision). */
+interface PlayRule {
+  id: string; when: { market_state?: string[]; signpost?: string; status?: Status[]; always?: boolean };
+  do: string; tier: "tested" | "hint" | "avoid"; evidence: string;
 }
 
 const fileCache = new Map<string, { mtimeMs: number; body: unknown }>();
@@ -127,6 +134,7 @@ interface Ctx {
   charts: MacroCharts | null; macro: MacroData | null; reg: Registry; caps: CapPanel | null;
   drift: Map<string, number>; driftAsOf: string | null; cds: Map<string, { date: string; bp: number }[]>;
   gov: Record<string, number | null>; govAsOf: string | null;
+  series: Map<string, { date: string; value: number }[]>;
 }
 
 function chartValue(pts: ChartPoint[] | undefined, transform = "last"): { v: number | null; asOf: string | null } {
@@ -192,6 +200,20 @@ function resolve1(sp: Signpost, ctx: Ctx): { v: number | null; asOf: string | nu
     }
     case "gov":
       return { v: ctx.gov[sp.metric ?? ""] ?? null, asOf: ctx.govAsOf };
+    case "series": {
+      const s = ctx.series.get(sp.series ?? "") ?? [];
+      if (!s.length) return { v: null, asOf: null };
+      const last = s[s.length - 1];
+      if (!sp.transform || sp.transform === "last") return { v: last.value, asOf: last.date };
+      if (sp.transform === "pctile") {   // percentile of today's value since 2000 (where it sits in 26 years of history)
+        const below = s.filter((x) => x.value < last.value).length;
+        return { v: (below / s.length) * 100, asOf: last.date, detail: `now ${last.value.toFixed(1)}` };
+      }
+      const m = /^(pct_)?chg_(\d+)d$/.exec(sp.transform);
+      const back = m ? s[s.length - 1 - Number(m[2])] : undefined;
+      if (!back) return { v: null, asOf: last.date };
+      return { v: m![1] ? (last.value / back.value - 1) * 100 : last.value - back.value, asOf: last.date, detail: `now ${last.value.toFixed(1)}` };
+    }
     case "manual":
       return { v: sp.value ?? null, asOf: sp.as_of ?? null };
   }
@@ -243,6 +265,7 @@ async function loadGov(): Promise<{ m: Record<string, number | null>; asOf: stri
 
 async function loadContext(reg: Registry, caps: CapPanel | null): Promise<Ctx> {
   const { pool } = await import("@workspace/db");
+  const seriesNames = [...new Set(reg.themes.flatMap((t) => t.signposts).filter((s) => s.kind === "series").map((s) => s.series!))];
   const cdsTickers = [...new Set(reg.themes.flatMap((t) => t.signposts).filter((s) => s.kind === "cds").map((s) => s.ticker!))];
   const [dr, cr, gov] = await Promise.all([
     pool.query(`SELECT ticker, eps_drift_30d_pct::float8 AS d, as_of::text AS as_of FROM lseg_research.signals_daily
@@ -251,6 +274,13 @@ async function loadContext(reg: Registry, caps: CapPanel | null): Promise<Ctx> {
                 WHERE ticker = ANY($1) AND date > CURRENT_DATE - 120 ORDER BY ticker, date`, [cdsTickers]),
     loadGov(),
   ]);
+  const sr = await pool.query(`SELECT series, date::text AS date, value FROM watchlist_sync.macro_daily
+                               WHERE series = ANY($1) AND date >= '2000-01-01' AND value IS NOT NULL ORDER BY series, date`, [seriesNames])
+    .catch(() => null);
+  const series = new Map<string, { date: string; value: number }[]>();
+  for (const x of (sr?.rows ?? []) as { series: string; date: string; value: number }[]) {
+    (series.get(x.series) ?? series.set(x.series, []).get(x.series)!).push({ date: x.date, value: x.value });
+  }
   const drift = new Map<string, number>();
   for (const x of dr.rows as { ticker: string; d: number }[]) drift.set(x.ticker, x.d);
   const cds = new Map<string, { date: string; bp: number }[]>();
@@ -260,14 +290,29 @@ async function loadContext(reg: Registry, caps: CapPanel | null): Promise<Ctx> {
   return {
     charts: loadChartsCache() ?? readChartsCacheFile(), macro: loadMacroCache() ?? readMacroCacheFile(),
     reg, caps, drift, driftAsOf: (dr.rows[0] as { as_of?: string } | undefined)?.as_of ?? null, cds,
-    gov: gov.m, govAsOf: gov.asOf,
+    gov: gov.m, govAsOf: gov.asOf, series,
   };
+}
+
+const fmtLean = (x: number) => (x >= 0.34 ? "bull" : x <= -0.34 ? "bear" : "mixed") + ` ${x >= 0 ? "+" : ""}${x.toFixed(2)}`;
+
+/** Compact Key Themes context for AI explanations (explain-context): tested state, active playbook, theme leans. */
+export interface ThemesBrief { marketState: string | null; playbook: string[]; themes: string[] }
+let briefCache: { at: number; v: ThemesBrief | null } | null = null;
+export async function themesBrief(): Promise<ThemesBrief | null> {
+  if (briefCache && Date.now() - briefCache.at < 15 * 60_000) return briefCache.v;
+  const t = await buildThemes(await loadCapPanel());
+  const v = t && {
+    marketState: t.read.marketState,
+    playbook: t.read.playbook.filter((r) => r.active).map((r) => `[${r.tier}] ${r.do}`),
+    themes: t.themes.map((th) => `${th.name}: data ${th.lean}, Claude ${th.view.stance} ${Math.round(th.view.p * 100)} %`),
+  };
+  briefCache = { at: Date.now(), v };
+  return v;
 }
 
 // ── themes + unified read ───────────────────────────────────────────────────────────────────────
 
-const VOL_SCORE: Record<string, number> = { calm: 0.5, normal: 0.25, elevated: -0.5, stress: -1 };
-const LIQ_SCORE: Record<string, number> = { supportive: 1, neutral: 0, draining: -0.5, stress: -1 };
 const STANCE_SCORE = { bull: 1, neutral: 0, bear: -1 } as const;
 
 export async function buildThemes(caps: CapPanel | null) {
@@ -303,34 +348,61 @@ export async function buildThemes(caps: CapPanel | null) {
   });
 
   const { pool } = await import("@workspace/db");
-  const hv = await pool.query(`SELECT view_date::text AS d, view FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`)
-    .catch(() => null);
+  const [hv, ms, cyc] = await Promise.all([
+    pool.query(`SELECT view_date::text AS d, view FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`).catch(() => null),
+    // tested market state = the band engine's (S101), as stamped on today's put recs; sector_drop is a per-name override
+    pool.query(`SELECT as_of::text AS d, payload->>'market_state' AS s, count(*)::int AS n FROM watchlist_sync.put_recs_daily
+                WHERE as_of = (SELECT max(as_of) FROM watchlist_sync.put_recs_daily) GROUP BY 1, 2 ORDER BY 3 DESC`).catch(() => null),
+    pool.query(`SELECT regime, confidence FROM market_regime ORDER BY id DESC LIMIT 1`).catch(() => null),
+  ]);
   const hvRow = hv?.rows[0] as { d: string; view: { odds?: { up?: Record<string, number>; tail?: Record<string, number> } } } | undefined;
   const tail = hvRow?.view.odds?.tail;
+  const msRows = (ms?.rows ?? []) as { d: string; s: string; n: number }[];
+  const marketState = msRows.find((r) => r.s !== "sector_drop")?.s ?? null;
+  const sectorDrop = msRows.find((r) => r.s === "sector_drop")?.n ?? 0;
+  const cycle = cyc?.rows[0] as { regime: string; confidence: number } | undefined;
 
   const wsum = themes.reduce((a, t) => a + (t.score == null ? 0 : t.weight), 0);
   const themeScore = wsum ? themes.reduce((a, t) => a + (t.score ?? 0) * t.weight, 0) / wsum : null;
   const volLvl = ctx.charts?.volatilityImplications?.overall.level;
   const liqLvl = ctx.charts?.liquidityImplications?.overall.level;
-  const tailEdge = tail?.s057_logit != null && tail.base_rate != null ? Math.max(-1, Math.min(1, (tail.base_rate - tail.s057_logit) / tail.base_rate)) : null;
-  const parts = [
-    { key: "themes", label: "Themes", score: themeScore, readout: themeScore == null ? "—" : `${themes.filter((t) => t.lean === "bull").length} bull · ${themes.filter((t) => t.lean === "bear").length} bear`, weight: 2, tab: "themes" },
-    { key: "volatility", label: "Volatility", score: volLvl ? VOL_SCORE[volLvl] ?? null : null, readout: volLvl ?? "—", weight: 1, tab: "volatility" },
-    { key: "liquidity", label: "Liquidity", score: liqLvl ? LIQ_SCORE[liqLvl] ?? null : null, readout: liqLvl ?? "—", weight: 1, tab: "liquidity" },
-    { key: "house", label: "House view (S057)", score: tailEdge, readout: tail ? `P(≥ 5 % drop, 21 d) ${(tail.s057_logit * 100).toFixed(0)} % vs base ${(tail.base_rate * 100).toFixed(0)} %` : "—", weight: 1, tab: "regime" },
-  ];
-  const have = parts.filter((p) => p.score != null);
-  const score = have.length ? have.reduce((a, p) => a + p.score! * p.weight, 0) / have.reduce((a, p) => a + p.weight, 0) : null;
-  const label = score == null ? "No data" : score >= 0.33 ? "Constructive" : score <= -0.33 ? "Defensive" : "Mixed";
   const pUp = scenarios.filter((s) => s.id === "A" || s.id === "D").reduce((a, s) => a + s.p, 0)
     + 0.5 * (scenarios.find((s) => s.id === "B")?.p ?? 0);
+
+  // Layers, strongest evidence first. Only the market state and S057 tail odds have passed tests; the rest is context.
+  const layers = [
+    { key: "state", label: "Market state", tier: "tested", tab: "regime",
+      readout: marketState ? `${marketState.replace("_", " ")}${sectorDrop ? ` · ${sectorDrop} names in sector drops` : ""}` : "—",
+      why: "Band engine (S101): panic / sharp drop / bear grind / rally / normal from SPY drawdown, 3–6 m return, VIX ÷ VIX3M. Changes which put band wins." },
+    { key: "tail", label: "Drop odds (S057)", tier: "tested", tab: "regime",
+      readout: tail ? `P(−5 % leg, 21 d) ${(tail.s057_logit * 100).toFixed(0)} % · base ${(tail.base_rate * 100).toFixed(0)} % · VIX-implied ${((tail.market_vix ?? 0) * 100).toFixed(0)} %` : "—",
+      why: "Beats VIX barrier odds (+0.205 skill): options price index tails ~2× what happens → index put premium rich. Direction odds = base rate." },
+    { key: "cycle", label: "Business cycle", tier: "untested", tab: "regime",
+      readout: cycle ? `${cycle.regime.replace("_", " ")} (${cycle.confidence})` : "—",
+      why: "regime-classifier (VIX, Fed lean, bank notes): no earnings/credit inputs, said 'expansion' 20 of 21 days; being rebuilt (earnings-led cycle study)." },
+    { key: "themes", label: "Themes lean", tier: "untested", tab: "themes",
+      readout: themeScore == null ? "—" : `${fmtLean(themeScore)} · ${themes.filter((t) => t.lean === "bull").length} bull / ${themes.filter((t) => t.lean === "bear").length} bear`,
+      why: "Judgment thresholds on signposts; graded on each view's check date (theme_snapshots)." },
+    { key: "volatility", label: "Volatility", tier: "context", tab: "volatility", readout: volLvl ?? "—", why: "Macro › Volatility read." },
+    { key: "liquidity", label: "Liquidity", tier: "context", tab: "liquidity", readout: liqLvl ?? "—", why: "Macro › Liquidity read." },
+  ];
+
+  // playbook: rules whose condition holds today
+  const byStatus = new Map(themes.flatMap((t) => t.signposts).map((s) => [s.id, s.status]));
+  const playbook = (reg.playbook ?? []).map((r) => {
+    const w = r.when;
+    const active = !!w.always
+      || (w.market_state != null && marketState != null && w.market_state.includes(marketState))
+      || (w.signpost != null && (w.status ?? ["bear"]).includes(byStatus.get(w.signpost) as Status));
+    return { ...r, active };
+  });
 
   return {
     updated: reg.updated, registryAgeDays: Math.round((Date.now() - Date.parse(reg.updated)) / 86_400_000),
     themes, scenarios, scenarioSource: reg.scenario_source,
     read: {
-      score, label, parts, pUp12m: pUp,
-      putBook: "Display only: put band stays on Auto (engine sets strike by market state, S101; macro timing failed as a band input, S087/S027).",
+      marketState, sectorDrop, themeLean: themeScore, layers, pUp12m: pUp, playbook,
+      note: "Macro direction (themes, cycle, house-view up odds) failed as a timing or sizing input (S006, S027, S057, S087): it explains, it does not trade. Trades key off the tested market state and the playbook.",
     },
     asOf: { prices: caps?.asOf ?? null, revisions: ctx.driftAsOf, gov: ctx.govAsOf, charts: ctx.charts?.fetchedAt ?? null, houseView: hvRow?.d ?? null },
   };

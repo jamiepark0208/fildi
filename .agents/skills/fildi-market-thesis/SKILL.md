@@ -65,8 +65,13 @@ A thesis ends in the app, not only in a markdown file. Every thesis session:
 3. **AI money web** → `research/market-views/ai_deals.json`: new deals (from/to/type/$/date/note), private valuations > 90 d old re-checked.
 4. **Grade**: on a view's check date read `watchlist_sync.theme_snapshots` (daily, `snapshot-themes.ts`) → fill LOG.md outcome. `view ≠ data`
    (stance disagrees with its own signposts) and stale signposts show in agent_start 6d → re-check the view or the signpost, don't ignore.
-5. The unified read (`/api/macro/themes` read) is display only: macro timing failed as a band input (S087/S027); the band engine decides (S101).
-Data behind it: `gov_flows.py` (Treasury DTS/MTS → gov_flows_daily/monthly), market-cap flows (prices × LSEG shares, peer-group sectors).
+5. The read is layered by evidence: **tested** (S101 market state, S057 drop odds) → **untested** (cycle label, themes lean) → context.
+   Trade advice comes from the `playbook` in themes.json (each rule cites its study; tier tested / hint / avoid) and reaches the AI
+   explain prompt via `themesBrief()`. A hint becomes tested only when a study passes (A295 / S123 for earnings-cycle and geopolitics).
+6. **Find themes, don't only test Jamie's:** monthly sweep of `research/market-views/SOURCES.md` (A296) → `theme_sweeps/<YYYY-MM>.md`.
+   Missing themes get signposts from our data; checkable calls go to `figure_views` (A85) to be scored.
+Data behind it: `gov_flows.py` (Treasury DTS/MTS → gov_flows_daily/monthly), `geo_risk.py` (GPR + WTI/Brent → macro_daily),
+market-cap flows (prices × LSEG shares, peer-group sectors).
 
 ## 4. Lessons (append; each from a real miss)
 - 10-28: IBES FY1/FY2 revisions across a fiscal-year end look like +85 % (NVDA). Match on identical `fpedats` at both dates.

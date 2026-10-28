@@ -95,6 +95,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         # Key Themes (Jamie 10-28): Treasury cash flows → gov_flows_*; then the themes snapshot (signposts + unified read →
         # theme_snapshots, graded on each view's check date). Soft: a failure must not stop the plan.
         ("gov flows", SH, HERE, ["-c", f"{PY} gov_flows.py 2>&1 | tail -1"]),
+        ("geo risk + oil", SH, HERE, ["-c", f"{PY} geo_risk.py 2>&1 | tail -1"]),   # GPR index (Fed Board) + FRED WTI/Brent → macro_daily
         ("key themes snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-themes.ts 2>&1 | tail -1"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
         ("strategies board", PY, HERE, ["structures.py"]),
