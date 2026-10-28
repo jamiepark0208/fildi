@@ -80,7 +80,9 @@ export interface CapPanel { asOf: string; d1w: string; d1m: string; d3m: string;
 export async function loadCapPanel(): Promise<CapPanel | null> {
   const { pool } = await import("@workspace/db");
   const r = await pool.query(`
-    WITH d AS (SELECT DISTINCT date FROM prices_historical WHERE date > CURRENT_DATE - 140),
+    -- only fully loaded days (a lone early print for today must not become the anchor)
+    WITH c AS (SELECT date, count(*) AS n FROM prices_historical WHERE date > CURRENT_DATE - 140 GROUP BY date),
+    d AS (SELECT date FROM c WHERE n >= 0.8 * (SELECT max(n) FROM c)),
     pts AS (SELECT (SELECT max(date) FROM d) d0,
                    (SELECT date FROM d ORDER BY date DESC OFFSET 5 LIMIT 1) d1w,
                    (SELECT date FROM d ORDER BY date DESC OFFSET 21 LIMIT 1) d1m,
