@@ -829,6 +829,79 @@
           "unit": "%"
         }
       ]
+    },
+    {
+      "id": "sentiment",
+      "name": "Crowd sentiment (contrarian)",
+      "horizon": "tactical",
+      "weight": 1.0,
+      "thesis": "Crowd fear and greed run to extremes before turns: extreme fear = premium is rich and forced sellers leave cheap longs; extreme greed = premium is thin and run-ups are crowded. Read it contrarian.",
+      "view": {
+        "stance": "neutral",
+        "p": 0.5,
+        "text": "Fear & Greed 35 and 5-day put/call 0.96 (median): fear side of neutral, no extreme yet. At an extreme, look for opportunity (fear) or get careful (greed); the market-state engine decides the timing.",
+        "check": "2026-11-30"
+      },
+      "refs": [
+        "S101 (sharp_drop / rally states)",
+        "S057 (index tails rich)",
+        "Jamie 10-28 opportunity mindset"
+      ],
+      "signposts": [
+        {
+          "id": "fear_greed",
+          "label": "CNN Fear & Greed (contrarian: fear = bull)",
+          "kind": "chart",
+          "series": "fearGreedHistory",
+          "transform": "last",
+          "bull_if": [
+            "<",
+            25
+          ],
+          "bear_if": [
+            ">",
+            75
+          ],
+          "unit": "",
+          "tab": "volatility",
+          "note": "1 y range p10 20 · p50 41 · p90 64 (10-28)"
+        },
+        {
+          "id": "fear_greed_chg",
+          "label": "Fear & Greed change, 1 m",
+          "kind": "chart",
+          "series": "fearGreedHistory",
+          "transform": "chg_21d",
+          "bull_if": [
+            "<",
+            -25
+          ],
+          "bear_if": [
+            ">",
+            25
+          ],
+          "unit": "pts",
+          "tab": "volatility"
+        },
+        {
+          "id": "put_call_5d",
+          "label": "Put/call ratio, 5-day avg ×100 (contrarian: high = bull)",
+          "kind": "chart",
+          "series": "putCallHistory",
+          "transform": "last",
+          "bull_if": [
+            ">",
+            110
+          ],
+          "bear_if": [
+            "<",
+            85
+          ],
+          "unit": "",
+          "tab": "volatility",
+          "note": "CNN/CBOE; 2 y p10 88 · p50 97 · p90 116"
+        }
+      ]
     }
   ],
   "scenarios": [
@@ -892,7 +965,7 @@
           "panic"
         ]
       },
-      "do": "Pause new short puts until VIX ÷ VIX3M < 1 (selloff still running); size nothing up on conviction.",
+      "do": "Panic sets up the best put weeks: wait for VIX ÷ VIX3M < 1 (selloff done), then sell closer — that turn is where sharp-drop weeks earn +45→+101 bp/wk. Until then new puts lose at every band, so hold cash and build the list.",
       "tier": "tested",
       "evidence": "S101: panic loses at every band 2019–22 (−35..−74 bp/wk)"
     },
@@ -914,7 +987,7 @@
           "rally"
         ]
       },
-      "do": "In a rally keep puts far (low Δ): premium barely rises with Δ but tail loss rises 4–40×. Don't short calls into expected run-ups.",
+      "do": "Rally: premium barely rises with Δ but tail loss rises 4–40× → far strikes keep the pay with a fraction of the risk. Upside belongs to shares held, not short calls into run-ups.",
       "tier": "tested",
       "evidence": "S101 (rally flat in bp, tail ×4–40); S087 (short calls lose −30..−36 bp/wk when a run-up is forecast)"
     },
@@ -925,16 +998,16 @@
           "bear_grind"
         ]
       },
-      "do": "Slow bear: edge is thin (≤ +7 bp/wk 2019–22) → engine band, smaller book, no closer strikes.",
+      "do": "Slow bear: market-wide edge is thin (≤ +7 bp/wk 2019–22), so keep the engine band and a smaller book; where it still pays: put-edge Q1–3 names inside sector drops (+51…+89 bp/wk, S102).",
       "tier": "tested",
-      "evidence": "S101 bear grind ≤ +7 bp/wk 2019–22"
+      "evidence": "S101 bear grind ≤ +7 bp/wk 2019–22; S102 put-edge inside sector_drop"
     },
     {
       "id": "structures",
       "when": {
         "always": true
       },
-      "do": "Structures with edge: cash-secured puts (best return per risk) and jade lizards. Put spreads, call spreads, condors, iron flies, calendars, debit spreads and long straddles fail regardless of regime.",
+      "do": "Edge lives in cash-secured puts (best return per risk) and jade lizards. Spreads, condors, iron flies, calendars, debit spreads and long straddles lost as single trades 2021→; combos and the long side are being re-tested (A297) before any use.",
       "tier": "tested",
       "evidence": "S076 (781k trades 2021→): CSP +0.51 %/trade t 5.1; jade lizard t 6.5; calendar −7 % t −4.1"
     },
@@ -952,9 +1025,33 @@
       "when": {
         "always": true
       },
-      "do": "Don't time collateral, band or size off macro direction, themes, or the cycle label — use them to explain and to pick which themes to look at.",
+      "do": "Use macro, themes and the cycle label to pick where to look (sectors, baskets, which names to research) and to explain; time collateral, band and size off the tested market state instead — macro timing failed every test.",
       "tier": "avoid",
       "evidence": "S006, S027 (0/12 regimes pass), S057 direction = base rate, S087 (drawdowns unforecastable)"
+    },
+    {
+      "id": "fear_opportunity",
+      "when": {
+        "signpost": "fear_greed",
+        "status": [
+          "bull"
+        ]
+      },
+      "do": "Extreme fear (F&G < 25): look for opportunity — index put premium is richest (S057), and once the vol curve is back in contango the engine sells closer (S101 sharp drop). Build the long list from names whose revisions hold up.",
+      "tier": "hint",
+      "evidence": "S057, S101 (states tested; the F&G cut itself untested on our puts — S102/S107 per-stock F&G added nothing)"
+    },
+    {
+      "id": "greed_careful",
+      "when": {
+        "signpost": "fear_greed",
+        "status": [
+          "bear"
+        ]
+      },
+      "do": "Extreme greed (F&G > 75): premium is thin and run-ups crowded → keep puts far, no adding size, no short calls into the run; trim winners rather than chase.",
+      "tier": "hint",
+      "evidence": "S101 rally (flat bp, tail ×4–40), S087/S106 (short calls lose into run-ups); F&G cut untested"
     },
     {
       "id": "earnings_asym",
@@ -976,7 +1073,7 @@
           "bear"
         ]
       },
-      "do": "High-yield spread > 4 %: AI-credit stress spreading → favor cash-funded megacaps over levered names for new puts.",
+      "do": "High-yield spread > 4 %: stress spreads to levered names → their puts pay more, so take them only far and small; cash-funded megacaps are where closer strikes still fit.",
       "tier": "hint",
       "evidence": "Thesis claim 10 (telecom 2000 analog); not backtested on our puts"
     },
