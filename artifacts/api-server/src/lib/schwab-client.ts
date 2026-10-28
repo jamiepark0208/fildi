@@ -125,12 +125,32 @@ function throttle(): Promise<void> {
   });
 }
 
+/** Network circuit (10-28): 3 network failures within 60 s → skip Schwab for 60 s (callers already fall back to
+ *  Yahoo / saved data). Before, every queued call waited its rate-limit slot and then timed out — one outage backed up
+ *  the whole app (260 "fetch threw" in a day). HTTP errors (401/429/5xx) don't count: they're answers, not outages. */
+const SCHWAB_FETCH_TIMEOUT_MS = 15_000;
+let netFails: number[] = [];
+let circuitOpenUntil = 0;
+export function schwabCircuitOpen(): boolean { return Date.now() < circuitOpenUntil; }
+function noteNetFail(): void {
+  const now = Date.now();
+  netFails = [...netFails.filter((t) => now - t < 60_000), now];
+  if (netFails.length >= 3 && !schwabCircuitOpen()) {
+    circuitOpenUntil = now + 60_000;
+    netFails = [];
+    logger.warn({ until: new Date(circuitOpenUntil).toISOString() }, "schwab: circuit open — network failures, skipping Schwab for 60 s");
+  }
+}
+
 async function schwabFetch(url: URL, token: string, retried401 = false, retried429 = false): Promise<Response | null> {
+  if (schwabCircuitOpen()) return null;
   await throttle();
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(SCHWAB_FETCH_TIMEOUT_MS),
     });
+    netFails = [];
     bumpUsage(url.pathname, res.status);
 
     if (res.status === 401 && !retried401) {
@@ -150,6 +170,7 @@ async function schwabFetch(url: URL, token: string, retried401 = false, retried4
   } catch (err) {
     bumpUsage(url.pathname, null, String(err));
     logger.warn({ path: url.pathname, err: String(err) }, "schwab: fetch threw");
+    noteNetFail();
     return null;
   }
 }

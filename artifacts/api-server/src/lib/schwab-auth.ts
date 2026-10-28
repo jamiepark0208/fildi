@@ -31,6 +31,7 @@ let memory: SchwabTokenFile | null = null;
 /** mtime of the file `memory` came from — re-read when schwab-oauth.mjs writes new tokens. */
 let memoryMtimeMs = 0;
 let refreshInFlight: Promise<string | null> | null = null;
+let lastRefreshFailAt = 0;
 
 function clientId(): string | undefined {
   return process.env["SCHWAB_CLIENT_ID"] || process.env["SCHWAB_APP_KEY"];
@@ -212,6 +213,7 @@ async function refreshAccessToken(t: SchwabTokenFile): Promise<string | null> {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
+      signal: AbortSignal.timeout(10_000),
     });
     const json = (await res.json().catch(() => ({}))) as {
       access_token?: string;
@@ -264,10 +266,15 @@ export async function getSchwabAccessToken(): Promise<string | null> {
   if (!t?.refresh_token) return null;
   if (accessStillValid(t)) return t.access_token;
 
+  // 10-28: after a failed refresh, wait 60 s before the next attempt (callers fall back). Before, each request
+  // started a new refresh the moment the previous one failed — 20 refresh attempts in a minute during an outage.
+  if (!refreshInFlight && Date.now() - lastRefreshFailAt < 60_000) return null;
   if (!refreshInFlight) {
-    refreshInFlight = refreshAccessToken(t).finally(() => {
-      refreshInFlight = null;
-    });
+    refreshInFlight = refreshAccessToken(t)
+      .then((tok) => { if (!tok) lastRefreshFailAt = Date.now(); return tok; })
+      .finally(() => {
+        refreshInFlight = null;
+      });
   }
   return refreshInFlight;
 }

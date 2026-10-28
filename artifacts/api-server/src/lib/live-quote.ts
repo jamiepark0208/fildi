@@ -5,6 +5,9 @@ import {
   noteYahooFailure,
   noteYahooSuccess,
 } from "./yahoo-client.js";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
 import { getSchwabQuotes } from "./schwab-client.js";
@@ -46,13 +49,42 @@ const lastGood = new Map<string, { v: LivePrice; at: number }>();
 const STALE_OK_MS = 10 * 60_000;
 const bgInFlight = new Set<string>();
 
+// lastGood survives an API restart (10-28): saved to disk at most once a minute, loaded on first use, so the first
+// Live / board load after a restart shows prices < 10 min old at once instead of ~2 s of cold Schwab calls.
+const SNAPSHOT = join(homedir(), ".fildi", "live-prices.json");
+let snapshotLoaded = false;
+let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+function loadSnapshot(): void {
+  if (snapshotLoaded) return;
+  snapshotLoaded = true;
+  try {
+    const rows = JSON.parse(readFileSync(SNAPSHOT, "utf8")) as Record<string, { v: LivePrice; at: number }>;
+    for (const [k, g] of Object.entries(rows)) if (Date.now() - g.at < STALE_OK_MS && !lastGood.has(k)) lastGood.set(k, g);
+  } catch { /* no snapshot yet */ }
+}
+function scheduleSnapshot(): void {
+  if (snapshotTimer) return;
+  snapshotTimer = setTimeout(() => {
+    snapshotTimer = null;
+    try {
+      mkdirSync(dirname(SNAPSHOT), { recursive: true });
+      const fresh = Object.fromEntries([...lastGood].filter(([, g]) => Date.now() - g.at < STALE_OK_MS));
+      writeFileSync(`${SNAPSHOT}.tmp`, JSON.stringify(fresh));
+      renameSync(`${SNAPSHOT}.tmp`, SNAPSHOT);
+    } catch (err) { logger.warn({ err: String(err) }, "live-quote: snapshot save failed"); }
+  }, 60_000);
+  snapshotTimer.unref();
+}
+
 function remember(key: string, entry: LivePrice): void {
   livePriceCache.set(key, entry);
   lastGood.set(key, { v: entry, at: Date.now() });
+  scheduleSnapshot();
 }
 
 /** Batched live price + change% lookup, per-ticker cached; stale-while-revalidate up to STALE_OK_MS. */
 export async function getLivePrices(tickers: string[]): Promise<Map<string, LivePrice>> {
+  loadSnapshot();
   const result = new Map<string, LivePrice>();
   const blocking: string[] = [];
   const background: string[] = [];

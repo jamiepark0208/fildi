@@ -80,15 +80,40 @@ describe("TTLCache.getOrCompute", () => {
     assert.equal(cache.get("k"), 42);  // result cached for later callers
   });
 
-  it("does not cache on rejection and lets the next caller retry", async () => {
+  it("does not cache on rejection; fails fast during the cooldown, then the next caller retries", async () => {
     const cache = new TTLCache<number>(60_000, "test");
     let calls = 0;
     const flaky = async () => { calls++; if (calls === 1) throw new Error("boom"); return 7; };
 
     await assert.rejects(cache.getOrCompute("k", flaky));
     assert.equal(cache.get("k"), undefined); // failure left nothing cached
-    assert.equal(await cache.getOrCompute("k", flaky), 7); // retry succeeds
+    await assert.rejects(cache.getOrCompute("k", flaky), /boom/); // inside cooldown: same error, no vendor call
+    assert.equal(calls, 1);
+    const saved = TTLCache.FAIL_COOLDOWN_MS;
+    TTLCache.FAIL_COOLDOWN_MS = 0;
+    try {
+      assert.equal(await cache.getOrCompute("k", flaky), 7); // after cooldown: retry succeeds
+    } finally { TTLCache.FAIL_COOLDOWN_MS = saved; }
     assert.equal(calls, 2);
+  });
+
+  it("serves the last good value when a refresh fails after expiry", async () => {
+    const cache = new TTLCache<number>(200, "test");          // grace 1.2 s, cooldown 200 ms
+    assert.equal(await cache.getOrCompute("k", async () => 1), 1);
+    await new Promise(r => setTimeout(r, 250));               // expired
+    let calls = 0;
+    const down = async () => { calls++; throw new Error("vendor down"); };
+    assert.equal(await cache.getOrCompute("k", down), 1);     // last good instead of an error
+    assert.equal(await cache.getOrCompute("k", down), 1);     // cooldown: still last good, no new call
+    assert.equal(calls, 1);
+    assert.deepEqual(cache.getFailureStats(), { staleServed: 2, failFast: 1 });
+  });
+
+  it("delete() drops the last good value too", async () => {
+    const cache = new TTLCache<number>(1, "test");
+    await cache.getOrCompute("k", async () => 1);
+    cache.delete("k");
+    await assert.rejects(cache.getOrCompute("k", async () => { throw new Error("x"); }));
   });
 
   it("does not write back a result computed across clear()", async () => {
@@ -108,6 +133,10 @@ describe("TTLCache.getOrCompute", () => {
     const cache = new TTLCache<number>(60_000, "test");
     const syncThrow = (() => { throw new Error("sync"); }) as () => Promise<number>;
     await assert.rejects(cache.getOrCompute("k", syncThrow));
-    assert.equal(await cache.getOrCompute("k", async () => 5), 5);
+    const saved = TTLCache.FAIL_COOLDOWN_MS;
+    TTLCache.FAIL_COOLDOWN_MS = 0;
+    try {
+      assert.equal(await cache.getOrCompute("k", async () => 5), 5);
+    } finally { TTLCache.FAIL_COOLDOWN_MS = saved; }
   });
 });
