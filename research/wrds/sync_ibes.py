@@ -83,36 +83,9 @@ def _skip_ttl(conn, dataset: str, force: bool) -> bool:
     return datetime.now(timezone.utc) - last < timedelta(days=TTL_DAYS)
 
 
-def sync_statsum(db, local, tickers: list[str], force: bool, since: str | None = None) -> int:
-    if _skip_ttl(local, DATASET_STAT, force):
-        print(f"skip {DATASET_STAT}: within {TTL_DAYS}d TTL (use --force)")
-        log_pull(local, dataset=DATASET_STAT, status="skipped", tickers=tickers)
-        local.commit()
-        return 0
-
-    wm = None if since else get_watermark(local, DATASET_STAT)
-    start = since or wm or (date.today() - timedelta(days=730)).isoformat()
-    oftics = oftic_for_tickers(local, tickers)
-    ticker_sql = ",".join(repr(t) for t in oftics)
-    print(f"{DATASET_STAT}: since={start} n={len(tickers)} oftic={len(oftics)}", flush=True)
-
-    df = db.raw_sql(f"""
-        SELECT oftic, ticker, measure, fiscalp, fpi, statpers, fpedats,
-               numest, numup, numdown, medest, meanest, stdev, highest, lowest
-        FROM tr_ibes.statsumu_epsus
-        WHERE UPPER(oftic) IN ({ticker_sql})
-          AND measure = 'EPS'
-          AND statpers >= '{start}'
-    """)
+def _upsert_statsum_df(local, df: pd.DataFrame, tickers: list[str], start: str, notes: str) -> int:
     if df is None or df.empty:
-        log_pull(
-            local, dataset=DATASET_STAT, status="ok", tickers=tickers,
-            rows=0, watermark_from=start, watermark_to=start,
-        )
-        local.commit()
-        print("  0 rows")
         return 0
-
     rows = []
     for r in df.itertuples(index=False):
         oftic = str(r.oftic).upper() if r.oftic else None
@@ -131,7 +104,6 @@ def sync_statsum(db, local, tickers: list[str], force: bool, since: str | None =
             _float(r.medest), _float(r.meanest), _float(r.stdev),
             _float(r.highest), _float(r.lowest),
         ))
-
     sql = """
         INSERT INTO wrds_research.ibes_statsum (
           source_key, oftic, ticker, measure, fiscalp, fpi, statpers, fpedats,
@@ -144,11 +116,72 @@ def sync_statsum(db, local, tickers: list[str], force: bool, since: str | None =
           medest = EXCLUDED.medest, meanest = EXCLUDED.meanest, stdev = EXCLUDED.stdev,
           highest = EXCLUDED.highest, lowest = EXCLUDED.lowest, fetched_at = now()
     """
-    n = execute_values(local, sql, rows)
+    return execute_values(local, sql, rows)
+
+
+def sync_statsum(
+    db,
+    local,
+    tickers: list[str],
+    force: bool,
+    since: str | None = None,
+    *,
+    sal_eps_fpi12: bool = False,
+) -> int:
+    if _skip_ttl(local, DATASET_STAT, force):
+        print(f"skip {DATASET_STAT}: within {TTL_DAYS}d TTL (use --force)")
+        log_pull(local, dataset=DATASET_STAT, status="skipped", tickers=tickers)
+        local.commit()
+        return 0
+
+    wm = None if since else get_watermark(local, DATASET_STAT)
+    start = since or wm or (date.today() - timedelta(days=730)).isoformat()
+    oftics = oftic_for_tickers(local, tickers)
+    ticker_sql = ",".join(repr(t) for t in oftics)
+    print(f"{DATASET_STAT}: since={start} n={len(tickers)} oftic={len(oftics)}", flush=True)
+
+    if sal_eps_fpi12:
+        eps = db.raw_sql(f"""
+            SELECT oftic, ticker, measure, fiscalp, fpi, statpers, fpedats,
+                   numest, numup, numdown, medest, meanest, stdev, highest, lowest
+            FROM tr_ibes.statsumu_epsus
+            WHERE UPPER(oftic) IN ({ticker_sql})
+              AND measure = 'EPS' AND fiscalp = 'ANN' AND fpi IN ('1', '2')
+              AND statpers >= '{start}'
+        """)
+        sal = db.raw_sql(f"""
+            SELECT oftic, ticker, measure, fiscalp, fpi, statpers, fpedats,
+                   numest, numup, numdown, medest, meanest, stdev, highest, lowest
+            FROM ibes.statsum_xepsus
+            WHERE UPPER(oftic) IN ({ticker_sql})
+              AND measure = 'SAL' AND fiscalp = 'ANN' AND fpi IN ('1', '2', '3')
+              AND statpers >= '{start}'
+        """)
+        df = pd.concat([eps, sal], ignore_index=True) if (eps is not None and sal is not None) else (eps or sal)
+    else:
+        df = db.raw_sql(f"""
+            SELECT oftic, ticker, measure, fiscalp, fpi, statpers, fpedats,
+                   numest, numup, numdown, medest, meanest, stdev, highest, lowest
+            FROM tr_ibes.statsumu_epsus
+            WHERE UPPER(oftic) IN ({ticker_sql})
+              AND measure = 'EPS'
+              AND statpers >= '{start}'
+        """)
+    if df is None or df.empty:
+        log_pull(
+            local, dataset=DATASET_STAT, status="ok", tickers=tickers,
+            rows=0, watermark_from=start, watermark_to=start,
+        )
+        local.commit()
+        print("  0 rows")
+        return 0
+
+    n = _upsert_statsum_df(local, df, tickers, start, "statsum")
     max_stat = str(max(df["statpers"]))[:10]
+    note = "statsumu_epsus+statsum_xepsus SAL fpi1-3 EPS fpi1-2" if sal_eps_fpi12 else "tr_ibes.statsumu_epsus EPS"
     upsert_sync_state(
         local, dataset=DATASET_STAT, watermark=max_stat, rows=n, tickers=tickers,
-        notes="tr_ibes.statsumu_epsus EPS",
+        notes=note,
     )
     log_pull(
         local, dataset=DATASET_STAT, status="ok", tickers=tickers, rows=n,
@@ -278,6 +311,16 @@ def main() -> int:
         default=None,
         help="Force watermark start date YYYY-MM-DD (ignores sync_state watermark; use with --force)",
     )
+    p.add_argument(
+        "--sal-eps-fpi12",
+        action="store_true",
+        help="Pull SAL+EPS annual FY1–FY2 (fpi 1–2) in one statsum pass (A293 flows)",
+    )
+    p.add_argument(
+        "--no-surpsum",
+        action="store_true",
+        help="Skip ibes_surpsum pull (single-purpose statsum refresh)",
+    )
     args = p.parse_args()
     tickers = resolve_universe(args)
     watch: list[str] = []
@@ -302,15 +345,19 @@ def main() -> int:
         with connect_local() as local:
             ensure_schema(local)
             try:
-                n1 = sync_statsum(db, local, tickers, args.force, since=args.since)
+                n1 = sync_statsum(
+                    db, local, tickers, args.force, since=args.since,
+                    sal_eps_fpi12=args.sal_eps_fpi12,
+                )
             except Exception as e:
                 failed_ds = DATASET_STAT
                 raise
-            try:
-                n2 = sync_surpsum(db, local, tickers, args.force, since=args.since)
-            except Exception as e:
-                failed_ds = DATASET_SURP
-                raise
+            if not args.no_surpsum:
+                try:
+                    n2 = sync_surpsum(db, local, tickers, args.force, since=args.since)
+                except Exception as e:
+                    failed_ds = DATASET_SURP
+                    raise
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         try:
