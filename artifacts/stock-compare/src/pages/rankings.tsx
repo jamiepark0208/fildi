@@ -7,13 +7,13 @@ import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
 import { OptionsScannerContent, OPTIONS_FILTER_SLOT_ID } from "@/pages/options-scanner";
 import { type StockScore } from "@/lib/rankings";
 import { type TechnicalRow, computeTechnicalRankingsV2 } from "@/lib/technical-rankings";
-import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { queryKeys } from "@/lib/query-keys";
 import { StructuresHub } from "@/components/options-structures/StructuresHub";
 import { STRUCTURES_META_SLOT_ID } from "@/components/options-structures/structure-slots";
 import { RankingsRules } from "@/components/rankings-rules";
 import { PutLadder } from "@/components/options-structures/PutLadder";
+import { RANKINGS_TAB_HUE, scopePairClass, subTabClass } from "@/lib/sub-tabs";
 
 const RANKINGS_TABS: { id: "fundamental" | "technical" | "options" | "strategies" | "ladder" | "rules"; label: string }[] = [
   { id: "fundamental", label: "Fundamentals" },
@@ -147,64 +147,44 @@ export default function Rankings() {
   return (
     <AppPage className="bg-background selection:bg-primary/30" contentClassName="p-3">
           <div className="flex items-center gap-1 mb-2 flex-wrap">
-            <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+            {/* L1 — colored page tabs (same as Live Market/Macro/News) */}
+            <div className="inline-flex items-center gap-0.5 flex-wrap">
               {RANKINGS_TABS.map((t) => (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => setTab(t.id)}
-                  className={cn(
-                    "px-2 py-1 transition-colors",
-                    tab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
-                  )}
+                  className={subTabClass(tab === t.id, RANKINGS_TAB_HUE[t.id] ?? "gold", "md")}
                 >
                   {t.label}
                 </button>
               ))}
             </div>
 
+            {/* L2 — gold scope / side (same as Live Sell Puts · Oversold strip) */}
+            {(tab === "options" || tab === "technical") && (
+              <span className="mx-0.5 h-4 w-px bg-[#d4af37]/25 shrink-0 self-center" aria-hidden />
+            )}
+
             {/* Fixed order on Options: Scope → Sell Puts/Calls → filters (portal).
                 Sell Puts also shows on Technical. Never reshuffle when flipping scope. */}
             {tab === "options" && (
-              <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 shrink-0">
-                <button
-                  onClick={() => setOptionsScope("watchlist")}
-                  className={cn(
-                    "px-2 h-5 rounded-full transition-colors font-semibold",
-                    optionsScope === "watchlist" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-                  )}
-                >
+              <div className="inline-flex items-center gap-0.5 shrink-0">
+                <button type="button" onClick={() => setOptionsScope("watchlist")} className={scopePairClass(optionsScope === "watchlist")}>
                   Watchlist
                 </button>
-                <button
-                  onClick={() => setOptionsScope("overall")}
-                  className={cn(
-                    "px-2 h-5 rounded-full transition-colors font-semibold",
-                    optionsScope === "overall" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-                  )}
-                >
+                <button type="button" onClick={() => setOptionsScope("overall")} className={scopePairClass(optionsScope === "overall")}>
                   Overall
                 </button>
               </div>
             )}
 
             {(tab === "technical" || tab === "options") && (
-              <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 shrink-0">
-                <button
-                  onClick={() => setTechSide("puts")}
-                  className={cn(
-                    "px-2 h-5 rounded-full transition-colors font-semibold",
-                    techSide === "puts" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-                  )}
-                >
+              <div className="inline-flex items-center gap-0.5 shrink-0">
+                <button type="button" onClick={() => setTechSide("puts")} className={scopePairClass(techSide === "puts")}>
                   Sell Puts
                 </button>
-                <button
-                  onClick={() => setTechSide("calls")}
-                  className={cn(
-                    "px-2 h-5 rounded-full transition-colors font-semibold",
-                    techSide === "calls" ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-                  )}
-                >
+                <button type="button" onClick={() => setTechSide("calls")} className={scopePairClass(techSide === "calls")}>
                   Sell Calls
                 </button>
               </div>

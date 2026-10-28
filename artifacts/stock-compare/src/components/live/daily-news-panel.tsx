@@ -16,10 +16,40 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { formatMdYy } from "@/lib/format";
+import { formatMd, formatMdYy } from "@/lib/format";
 import { VERDICT_COLORS, VERDICT_LABELS } from "@/hooks/use-model-list";
 import { trustDayPct } from "@/components/live/live-format";
-import { parseSections } from "./daily-news-parse";
+import {
+  compressImplicationBullet,
+  compressMuseBullet,
+  parseSections,
+  singleNameLead,
+  splitImplicationLead,
+  splitMuseSoWhat,
+  synthesizeSingleNameSoWhats,
+} from "./daily-news-parse";
+
+/** Drop Muse sections/bullets already covered elsewhere on Daily News. */
+function dedupeMuseSections(
+  sections: Array<{ title: string; bullets: string[] }>,
+): Array<{ title: string; bullets: string[] }> {
+  const hasMoving = sections.some((s) => /what'?s moving/i.test(s.title));
+  return sections
+    .filter((s) => {
+      // Data = rehash of What's moving (Tue close / overnight / rates)
+      if (/^data$/i.test(s.title.trim()) && hasMoving) return false;
+      return true;
+    })
+    .map((s) => {
+      if (!/what to watch/i.test(s.title)) return s;
+      // Earnings laundry lists → Earnings · 14d strip
+      const bullets = s.bullets.filter(
+        (b) => !/^Earnings\s+(BMO|AMC)\b/i.test(b) && !/^Earnings\s+\([^)]*reported/i.test(b),
+      );
+      return { ...s, bullets };
+    })
+    .filter((s) => s.bullets.length > 0);
+}
 
 interface DigFact {
   ticker: string;
@@ -62,12 +92,18 @@ interface DailyNewsSummary {
   modelContracts?: ModelContractRow[];
 }
 
+interface MuseBriefSection {
+  title: string;
+  bullets: string[];
+}
+
 interface MuseBrief {
   edition: "am" | "pm";
   file: string;
   title: string;
   banner: string;
   bullets: string[];
+  sections?: MuseBriefSection[];
   asOfYmd?: string | null;
   contentHash?: string;
   stale?: boolean;
@@ -93,6 +129,8 @@ interface DailyNewsResponse {
   marketEarningsRows?: EarningsNearRow[];
   modelContracts?: ModelContractRow[];
   museBrief?: MuseBrief | null;
+  /** AM + PM when both exist for the session */
+  museBriefs?: MuseBrief[];
   /** Prior-day brief when today's isn't ready yet (A62) — status line carries the signal */
   museBriefStale?: MuseBrief | null;
   message?: string;
@@ -128,25 +166,26 @@ const SECTOR_RE =
 /** Signed %/bps/levels — leading +/- and commas so overnight lines don't fragment on - / &. */
 const NUM_RE =
   /(?:\$[\d,.]+(?:\s?(?:bn|mm|m|k|trillion|billion|million))?|[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?%?|[+-]?\d+(?:\.\d+)?%|[+-]?\d+(?:\.\d+)?\s?bps?\b|[+-]?\d+(?:\.\d+)?\s?x\b)/gi;
-const TICKER_RE = /\b([A-Z]{1,5})\b/g;
+/** Min 2 letters — never paint "T" in Tuesday / "A" in Alphabet. */
+const TICKER_RE = /\b([A-Z]{2,5})\b/g;
 const TICKER_STOP = new Set([
   "A", "I", "AM", "AN", "AS", "AT", "BE", "BY", "DO", "GO", "IF", "IN", "IS", "IT",
-  "ME", "MY", "NO", "OF", "OK", "ON", "OR", "SO", "TO", "UP", "US", "WE",
+  "ME", "MY", "NO", "OF", "OK", "ON", "OR", "PM", "SO", "TO", "UP", "US", "WE",
   "CEO", "CFO", "CTO", "CPI", "PPI", "GDP", "FED", "FOMC", "PCE", "NFP", "PMI",
   "ISM", "ETF", "IPO", "USD", "JPY", "EUR", "GBP", "OPEC", "NATO", "SEC", "FDA",
   "AI", "TV", "VS", "AND", "THE", "FOR", "BUT", "NOT", "ALL", "ANY",
   "PT", "ET", "EST", "PST", "UTC", "YOY", "QOQ", "MOM", "ATM", "OTM", "ITM",
-  "CSP", "CC", "IV", "RV", "DTE", "APR", "YTD",
+  "CSP", "CC", "IV", "RV", "DTE", "APR", "YTD", "SK", "ADR", "BMO", "AMC",
 ]);
 
 type Frag =
   | { kind: "text" | "bold" | "italic" | "ticker" | "num" | "risk" | "opp" | "sector" | "bull" | "bear" | "neut"; text: string };
 
-/** Rewrite ISO YYYY-MM-DD inside free text to m/d/yy; soften em-dashes that break scanning. */
+/** Rewrite ISO YYYY-MM-DD inside free text to m/d/yy; em-dash asides → ·. Keep en-dash ranges (0.1–0.2%). */
 function displayDatesInText(text: string): string {
   return text
     .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => formatMdYy(`${y}-${m}-${d}`))
-    .replace(/\s*[—–]\s*/g, " · ");
+    .replace(/\s+—\s+/g, " · ");
 }
 
 /** Sort dig chips: largest upgrades → largest downgrades. */
@@ -251,19 +290,48 @@ function tickerize(out: Frag[], text: string) {
   }
 }
 
-function parseInline(raw: string): Frag[] {
+function pushPlainLean(out: Frag[], text: string) {
+  /** Muse path: nums + tickers only — no paint on hold/PM/sector fluff. */
+  if (!text) return;
+  let last = 0;
+  const hits: Array<{ start: number; end: number }> = [];
+  for (const m of text.matchAll(NUM_RE)) {
+    if (m.index == null) continue;
+    hits.push({ start: m.index, end: m.index + m[0].length });
+  }
+  hits.sort((a, b) => a.start - b.start);
+  const merged: typeof hits = [];
+  for (const h of hits) {
+    const prev = merged[merged.length - 1];
+    if (prev && h.start < prev.end) continue;
+    merged.push(h);
+  }
+  if (merged.length === 0) {
+    tickerize(out, text);
+    return;
+  }
+  for (const h of merged) {
+    if (h.start > last) tickerize(out, text.slice(last, h.start));
+    out.push({ kind: "num", text: text.slice(h.start, h.end) });
+    last = h.end;
+  }
+  if (last < text.length) tickerize(out, text.slice(last));
+}
+
+function parseInline(raw: string, opts?: { lean?: boolean }): Frag[] {
   const out: Frag[] = [];
   raw = displayDatesInText(raw);
+  const push = opts?.lean ? pushPlainLean : pushPlain;
   const re = /(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g;
   let last = 0;
   for (const m of raw.matchAll(re)) {
     if (m.index == null) continue;
-    if (m.index > last) pushPlain(out, raw.slice(last, m.index));
+    if (m.index > last) push(out, raw.slice(last, m.index));
     const tok = m[0];
     if (tok.startsWith("**")) {
       const inner = tok.slice(2, -2);
       const nested: Frag[] = [];
-      pushPlain(nested, inner);
+      push(nested, inner);
       if (nested.length === 1 && nested[0]!.kind === "text") out.push({ kind: "bold", text: inner });
       else for (const n of nested) out.push(n.kind === "text" ? { kind: "bold", text: n.text } : n);
     } else {
@@ -271,7 +339,7 @@ function parseInline(raw: string): Frag[] {
     }
     last = m.index + tok.length;
   }
-  if (last < raw.length) pushPlain(out, raw.slice(last));
+  if (last < raw.length) push(out, raw.slice(last));
   return out;
 }
 
@@ -312,11 +380,31 @@ function renderFrags(frags: Frag[]): ReactNode[] {
   });
 }
 
-/** Orange header border, dark fill — never wash text in same hue as the box. */
-const CARD_TONE = "border-[#d4af37]/40 bg-zinc-950";
+/** Invisible card chrome — div for structure only, no border waste. */
+const CARD_TONE = "border-transparent bg-transparent";
+const SECTION_HDR =
+  "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]";
 
 function sectionMeta(_title: string) {
   return { tone: CARD_TONE };
+}
+
+function fmtTapeLevel(n: number | null, kind: "price" | "yield" | "vix" | "oil" = "price"): string | undefined {
+  if (n == null || !Number.isFinite(n)) return undefined;
+  if (kind === "yield") return `${n.toFixed(2)}%`;
+  if (kind === "vix") return n.toFixed(1);
+  if (kind === "oil") return `$${n >= 100 ? n.toFixed(0) : n.toFixed(1)}`;
+  if (n >= 1000) return n.toFixed(0);
+  if (n >= 100) return n.toFixed(1);
+  return n.toFixed(2);
+}
+
+function isEmptyDeskFiller(bullets: string[]): boolean {
+  if (bullets.length === 0) return true;
+  if (bullets.length > 2) return false;
+  return bullets.every((b) =>
+    /no material|muse covers|muse brief stands|no confirmed rating/i.test(b),
+  );
 }
 
 function digKindLabel(kind: string): string {
@@ -325,10 +413,10 @@ function digKindLabel(kind: string): string {
 
 function digKindClass(kind: string): string {
   if (kind.includes("upgrade") || kind.includes("price")) {
-    return "text-emerald-300 border-[#d4af37]/35 bg-zinc-950";
+    return "text-emerald-300 border-transparent bg-transparent";
   }
-  if (kind.includes("downgrade")) return "text-rose-300 border-[#d4af37]/35 bg-zinc-950";
-  return "text-amber-50/85 border-[#d4af37]/35 bg-zinc-950";
+  if (kind.includes("downgrade")) return "text-rose-300 border-transparent bg-transparent";
+  return "text-white border-transparent bg-transparent";
 }
 
 const BULL_WORD =
@@ -337,26 +425,37 @@ const BEAR_WORD =
   /\b(downgraded?|downgrade|cut|lowered?|underweight|underperform|strong sell|sell|miss(?:ed)?|slashed?)\b/gi;
 const NEUT_WORD = /\b(maintain(?:s|ed)?|reiterate[ds]?|hold|neutral|equal[-\s]?weight|market perform)\b/gi;
 
-/** Tape % → whole number; flat → "-". */
+/** Tape % — Yahoo already sends percent points (0.21 = +0.21%). Never ×100. */
 function fmtTapePct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "-";
-  const pct = Math.abs(n) <= 1 ? n * 100 : n;
-  const r = Math.round(pct);
-  if (r === 0) return "-";
+  if (Math.abs(n) < 0.05) return "-";
+  if (Math.abs(n) < 1) return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
+  const r = Math.round(n);
   return `${r > 0 ? "+" : ""}${r}%`;
 }
 
 function roundPctToken(raw: string): string {
-  const n = parseFloat(raw.replace(/[\u2212\u2013]/g, "-").replace(/%/g, ""));
+  const n = parseFloat(raw.replace(/[\u2212\u2013]/g, "-").replace(/[~%]/g, ""));
   if (!Number.isFinite(n)) return "-";
+  if (Math.abs(n) < 0.05) return "-";
+  // Keep one decimal under 10% (futures/oil); whole number for bigger moves
+  if (Math.abs(n) < 10) return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
   const r = Math.round(n);
-  if (r === 0) return "-";
   return `${r > 0 ? "+" : ""}${r}%`;
 }
 
-type TapeRow = { key: string; label: string; value: string; up: boolean | null; title?: string };
+type TapeRow = {
+  key: string;
+  label: string;
+  /** Absolute level when known (price / yield / VIX) */
+  level?: string;
+  /** DoD % change (or empty when level-only) */
+  value: string;
+  up: boolean | null;
+  title?: string;
+};
 
-/** Muse banner → same chip shape as Yahoo tape (label + % / level). */
+/** Muse banner → level + % when both present. */
 function parseBannerTape(banner: string): TapeRow[] {
   const parts = banner
     .split(/\s*[·|]\s*/)
@@ -365,47 +464,79 @@ function parseBannerTape(banner: string): TapeRow[] {
   const out: TapeRow[] = [];
   for (const part of parts) {
     const is10y = /\b10\s*y|\b10yr|\btnx\b/i.test(part);
-    const pct = part.match(/([+\u2212\u2013\-]\s*\d+(?:\.\d+)?\s*%)/);
+    const rangePct = part.match(
+      /([+\u2212\u2013\-])\s*~?\d+(?:\.\d+)?\s*[\u2013\-]\s*~?(\d+(?:\.\d+)?)\s*%/,
+    );
+    const parenPct = part.match(/\(([+\u2212\u2013\-]\s*~?\d+(?:\.\d+)?\s*%)\)/);
+    const pct = parenPct
+      ?? (!rangePct ? part.match(/([+\u2212\u2013\-]\s*~?\d+(?:\.\d+)?\s*%)/) : null);
     const unch = /\(~?unch\)|unchanged/i.test(part);
     let label = part;
     let value = "";
+    let level: string | undefined;
     let up: boolean | null = null;
     if (is10y) {
-      // Keep actual yield (not day-change %).
       const lvl = part.match(/(\d+\.\d+)\s*%?/);
       label = "10Y";
-      value = lvl ? `${lvl[1]}%` : "-";
+      level = lvl ? `${lvl[1]}%` : undefined;
+      value = "";
       up = null;
+    } else if (rangePct) {
+      value = roundPctToken(`${rangePct[1]}${rangePct[2]}%`);
+      label = part.slice(0, rangePct.index).trim().replace(/[(\[]\s*$/, "").trim();
+      up = value === "-" ? null : value.startsWith("-") ? false : true;
     } else if (pct) {
       value = roundPctToken(pct[1]!);
-      label = part.slice(0, pct.index).trim().replace(/[(\[]\s*$/, "").trim();
-      // Drop trailing level noise before the signed % (e.g. "Brent $102.9")
-      label = label.replace(/\s*\$?[\d,.]+$/, "").trim() || label;
+      // Level before paren %: Brent ~$115 (+~1.5%)
+      const before = part.slice(0, pct.index);
+      const lvlM = before.match(/~?(\$?[\d,.]+)\s*$/);
+      if (lvlM) level = lvlM[1]!.startsWith("$") ? lvlM[1]! : lvlM[1]!;
+      label = before.replace(/\s*~?\$?[\d,.]+$/, "").trim().replace(/[(\[]\s*$/, "").trim();
       up = value === "-" ? null : value.startsWith("-") ? false : true;
     } else if (unch) {
-      value = "-";
+      value = "";
       label = part.replace(/\s*\(~?unch\)/i, "").trim();
       up = null;
     } else {
-      const lvl = part.match(/^(.+?)\s+(\$?[\d,.]+%?(?:\s*\([^)]+\))?)\s*$/);
+      const lvl = part.match(/^(.+?)\s+~?(\$?[\d,.]+%?)\s*$/);
       if (lvl) {
         label = lvl[1]!.trim();
-        value = lvl[2]!.trim();
+        level = lvl[2]!.trim();
+        value = "";
       } else {
         label = part;
       }
     }
     label = label
-      .replace(/^S&P\s*fut(?:ures)?$/i, "ES")
-      .replace(/^Dow\s*fut(?:ures)?$/i, "YM")
-      .replace(/^Nasdaq(?:\s*100)?\s*fut(?:ures)?$/i, "NQ")
+      .replace(/^S&P\s*fut(?:ures)?.*$/i, "ES")
+      .replace(/^Dow\s*fut(?:ures)?.*$/i, "YM")
+      .replace(/^Nasdaq(?:\s*100)?\s*fut(?:ures)?.*$/i, "NQ")
       .replace(/^Brent\b.*/i, "Brent")
       .replace(/^VIX\b.*/i, "VIX");
     if (!label) continue;
-    const key = label.toLowerCase();
-    out.push({ key, label, value: value || "-", up, title: part });
+    if ((!value || value === "-") && !level) continue;
+    if (label === "Brent" && level && !level.startsWith("$")) level = `$${level}`;
+    out.push({ key: label.toLowerCase(), label, level, value: value === "-" ? "" : value, up, title: part });
   }
   return out;
+}
+
+/** Pull ES/YM/NQ print levels from Muse "near 7,767" prose when banner lacks them. */
+function enrichFuturesLevels(rows: TapeRow[], prose: string): TapeRow[] {
+  if (!prose) return rows;
+  const picks: Array<{ lab: string; re: RegExp }> = [
+    { lab: "ES", re: /S&P\s*500\s*futures[^.]{0,100}?near\s+([\d,]+)/i },
+    { lab: "YM", re: /Dow\s*futures[^.]{0,80}?near\s+([\d,]+)/i },
+    { lab: "NQ", re: /Nasdaq(?:\s*100)?\s*futures[^.]{0,100}?near\s+([\d,]+)/i },
+  ];
+  return rows.map((r) => {
+    if (r.level || !["ES", "YM", "NQ"].includes(r.label)) return r;
+    const hit = picks.find((p) => p.lab === r.label);
+    if (!hit) return r;
+    const m = prose.match(hit.re);
+    if (!m) return r;
+    return { ...r, level: m[1]!.replace(/,/g, "") };
+  });
 }
 
 const YAHOO_TAPE_ORDER = ["SPY", "QQQ", "^VIX", "^TNX"] as const;
@@ -419,6 +550,8 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   /** After a materiality skip, next Regen click forces Haiku. */
   const [forceNext, setForceNext] = useState(false);
+  /** Muse AM vs prior/same-day EOD commentary */
+  const [museTab, setMuseTab] = useState<"am" | "pm">("am");
 
   const { data, isLoading } = useQuery({
     queryKey: ["desk-daily-news"],
@@ -568,32 +701,40 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
 
   const modelContracts = data?.modelContracts ?? summary?.modelContracts ?? [];
   const museBrief = data?.museBrief ?? null;
+  const museBriefs = useMemo(() => {
+    const list = data?.museBriefs?.length ? data.museBriefs : (museBrief ? [museBrief] : []);
+    return list.filter((b) => (b.sections?.length ?? 0) > 0 || b.bullets.length > 0);
+  }, [data?.museBriefs, museBrief]);
+  const museAm = useMemo(() => museBriefs.find((b) => b.edition === "am") ?? null, [museBriefs]);
+  const musePm = useMemo(() => museBriefs.find((b) => b.edition === "pm") ?? null, [museBriefs]);
+  const activeMuse = museTab === "pm" ? (musePm ?? museAm) : (museAm ?? musePm);
 
   const yahooTape: TapeRow[] = useMemo(() => {
     const by = new Map((tape?.marketContext ?? []).map((c) => [c.ticker, c]));
     return YAHOO_TAPE_ORDER.flatMap((t): TapeRow[] => {
       const c = by.get(t);
       if (!c) return [];
-      // TNX: show actual yield; others: whole-number 1d %.
       if (t === "^TNX") {
-        const y = c.price != null && Number.isFinite(c.price) ? `${c.price.toFixed(2)}%` : "-";
+        const level = fmtTapeLevel(c.price, "yield");
         return [{
           key: t,
           label: "10Y",
-          value: y,
+          level,
+          value: "",
           up: null,
           title: "10Y treasury yield",
         }];
       }
-      // A179: VIX absurd off-hours % → "stale", not a fake session move.
       if (t === "^VIX") {
         const tr = trustDayPct(c.changePercent);
+        const pct = tr.flagged || tr.text === "—" ? "" : tr.text;
         return [{
           key: t,
           label: "VIX",
-          value: tr.flagged ? "stale" : tr.text === "—" ? "-" : tr.text,
-          up: tr.flagged || tr.text === "—" ? null : (c.changePercent ?? 0) >= 0,
-          title: tr.title ?? "VIX session 1d change",
+          level: fmtTapeLevel(c.price, "vix"),
+          value: pct,
+          up: pct ? (c.changePercent ?? 0) >= 0 : null,
+          title: tr.title ?? "VIX level + session 1d %",
         }];
       }
       const up = c.changePercent == null ? null : c.changePercent >= 0;
@@ -601,28 +742,56 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
       return [{
         key: t,
         label: t.replace("^", ""),
-        value,
-        up: value === "-" ? null : up,
-        title: `${t.replace("^", "")} session 1d change`,
+        level: fmtTapeLevel(c.price, "price"),
+        value: value === "-" ? "" : value,
+        up: value === "-" || !value ? null : up,
+        title: `${t.replace("^", "")} last + session 1d %`,
       }];
     });
   }, [tape?.marketContext]);
 
   const bannerTape: TapeRow[] = useMemo(() => {
-    if (!museBrief?.banner) return [];
-    const rows = parseBannerTape(museBrief.banner);
-    // Drop banner rows already covered by Yahoo tape (VIX / 10Y≈TNX)
-    const skip = new Set<string>();
-    if (yahooTape.some((r) => r.key === "^VIX")) skip.add("vix");
-    if (yahooTape.some((r) => r.key === "^TNX")) {
-      skip.add("10y");
-      skip.add("10yr");
-      skip.add("ust 10y");
-    }
-    return rows.filter((r) => !skip.has(r.key) && !r.key.startsWith("vix"));
-  }, [museBrief?.banner, yahooTape]);
+    const banner = activeMuse?.banner ?? museAm?.banner ?? museBrief?.banner;
+    if (!banner) return [];
+    const prose = (activeMuse?.bullets ?? museBriefs.flatMap((b) => b.bullets)).join(" ");
+    return enrichFuturesLevels(parseBannerTape(banner), prose);
+  }, [activeMuse, museAm, museBriefs, museBrief?.banner]);
 
-  const liveTape = useMemo(() => [...yahooTape, ...bannerTape], [yahooTape, bannerTape]);
+  /** Muse banner wins futures/Brent/VIX/10Y; Yahoo fills SPY/QQQ (+ prices). */
+  const liveTape = useMemo(() => {
+    const order = ["SPY", "QQQ", "VIX", "10Y", "ES", "YM", "NQ", "Brent"] as const;
+    const by = new Map<string, TapeRow>();
+    const put = (r: TapeRow, prefer = false) => {
+      if (r.value === "stale") return;
+      if (!r.level && !r.value) return;
+      const lab = r.label === "10Y" ? "10Y"
+        : r.label === "VIX" || r.key === "^VIX" || r.key === "vix" ? "VIX"
+          : r.label;
+      const prev = by.get(lab);
+      if (!prev || prefer) {
+        by.set(lab, {
+          ...r,
+          label: lab,
+          key: lab.toLowerCase(),
+          level: r.level ?? prev?.level,
+          value: r.value || prev?.value || "",
+        });
+      } else {
+        by.set(lab, {
+          ...prev,
+          level: prev.level ?? r.level,
+          value: prev.value || r.value,
+          up: prev.up ?? r.up,
+        });
+      }
+    };
+    for (const r of yahooTape) put(r, false);
+    for (const r of bannerTape) put(r, true);
+    return order.flatMap((lab) => {
+      const r = by.get(lab);
+      return r ? [r] : [];
+    });
+  }, [yahooTape, bannerTape]);
 
   const sectionByKey = useMemo(() => {
     const map = new Map<string, { title: string; bullets: string[] }>();
@@ -663,30 +832,29 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
 
   const renderSectionCard = (
     sec: { title: string; bullets: string[] } | undefined,
-    opts?: { className?: string; span2?: boolean; sourceHint?: string },
+    opts?: { className?: string; span2?: boolean; sourceHint?: string; hideFiller?: boolean },
   ) => {
     if (!sec) return null;
+    if (opts?.hideFiller && isEmptyDeskFiller(sec.bullets)) return null;
     const meta = sectionMeta(sec.title);
     return (
       <div
         className={cn(
-          "rounded-md border p-2.5",
+          "rounded-md border px-0 py-1",
           meta.tone,
           opts?.span2 && "sm:col-span-2",
           opts?.className,
         )}
       >
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <TrendingUp className="w-3 h-3 text-[#d4af37]/80" />
-          <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]">
-            {sec.title}
-          </h3>
+        <div className={cn(SECTION_HDR, "mb-1")}>
+          <TrendingUp className="w-3 h-3 shrink-0" />
+          <h3>{sec.title}</h3>
         </div>
-        <ul className="space-y-1.5">
+        <ul className="space-y-1">
           {sec.bullets.map((b, i) => (
             <li key={i} className="group flex items-start gap-1.5" title={opts?.sourceHint ?? digSourceTitle(summary?.sources ?? [])}>
               <span className="mt-[6px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
-              <p className="flex-1 text-[12px] text-amber-50/90 leading-[1.35]">
+              <p className="flex-1 text-[12px] text-white leading-[1.35]">
                 {renderFrags(parseInline(b))}
               </p>
               {isAdmin && (
@@ -700,7 +868,7 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                       setError(String(e?.message ?? e)),
                     );
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-600 hover:text-red-400"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 text-white hover:text-red-400"
                 >
                   <ThumbsDown className="w-3 h-3" />
                 </button>
@@ -713,21 +881,19 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
   };
 
   const modelContractsCard = modelContracts.length > 0 ? (
-    <div className={cn("rounded-md border p-2.5", CARD_TONE)}>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <TrendingUp className="w-3 h-3 text-[#d4af37]/80" />
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]">
-          Model contracts
-        </h3>
+    <div className={cn("rounded-md border px-0 py-1 h-full min-h-0 flex flex-col", CARD_TONE)}>
+      <div className={cn(SECTION_HDR, "mb-1 shrink-0")}>
+        <TrendingUp className="w-3 h-3 shrink-0" />
+        <h3>Model contracts</h3>
       </div>
-      <ul className="space-y-1.5">
+      <ul className="space-y-1 overflow-y-auto min-h-0 flex-1">
         {modelContracts.map((c) => {
           const tip = [c.folder, c.verdict ? (VERDICT_LABELS[c.verdict] ?? c.verdict) : "", c.status]
             .filter(Boolean)
             .join(" · ");
           const color = VERDICT_COLORS[c.verdict] ?? "#d4af37";
           return (
-            <li key={`${c.ticker}-${c.folder}`} className="text-[12px] leading-snug text-amber-50/90">
+            <li key={`${c.ticker}-${c.folder}`} className="text-[12px] leading-snug text-white">
               <span
                 className="font-mono font-bold underline decoration-current/30 underline-offset-2"
                 style={{ color }}
@@ -738,11 +904,11 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
               {": sell "}
               <span className={c.side === "put" ? "text-emerald-400" : "text-sky-300"}>{c.side}</span>
               {" "}
-              <span className="font-mono tabular-nums text-sky-300/90">
+              <span className="font-mono tabular-nums text-sky-300">
                 {c.strike != null ? `$${c.strike}` : "?"}
               </span>
               {" exp "}
-              <span className="font-mono tabular-nums">{formatMdYy(c.expiry)}</span>
+              <span className="font-mono tabular-nums">{formatMd(c.expiry)}</span>
               {c.premium != null && Number.isFinite(c.premium) && (
                 <span className="font-mono tabular-nums text-emerald-400">
                   {" @ $"}
@@ -757,19 +923,65 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
   ) : null;
 
   const headerDate = data?.date ? formatMdYy(data.date) : null;
+  const asOfStamp = [headerDate, genTime].filter(Boolean).join(" · ");
+  const tabCls = (on: boolean) =>
+    cn(
+      "px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border",
+      on
+        ? "border-[#d4af37]/50 bg-[#d4af37]/15 text-[#d4af37]"
+        : "border-transparent text-white hover:text-[#d4af37]",
+    );
+
+  const overnightBlock = !!ojLabels?.items?.length ? (
+    <div
+      className="space-y-0.5 min-h-0 flex-1 flex flex-col"
+      title={ojLabels.note || "OpenJev overnight headlines (rel>0.5) — display only, not a forecast"}
+    >
+      <div className={cn(SECTION_HDR, "shrink-0")} title="Local OpenJev labels on overnight headlines (A143). Not desk synthesis.">
+        Overnight · OpenJev
+      </div>
+      <ul className="space-y-0.5 overflow-y-auto min-h-0 flex-1">
+        {ojLabels.items.slice(0, 12).map((it, i) => {
+          const tone = it.dir > 0.15 ? "text-emerald-300" : it.dir < -0.15 ? "text-rose-300" : "text-white";
+          return (
+            <li key={`${it.ticker}-${i}`} className="text-[10px] flex gap-1.5 min-w-0">
+              <span className="font-semibold text-white shrink-0 w-10">{it.ticker}</span>
+              <span className={cn("shrink-0 rounded-full px-1.5 border border-white/20", tone)}>{it.cat}</span>
+              {it.url ? (
+                <a href={it.url} target="_blank" rel="noreferrer" className={cn("truncate hover:underline", tone)}>{it.headline}</a>
+              ) : (
+                <span className={cn("truncate", tone)}>{it.headline}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  ) : null;
 
   return (
     <div className={cn(
-      "rounded-md border border-[#d4af37]/25 bg-zinc-950 overflow-hidden",
-      !compact && "shadow-lg shadow-black/60",
+      "rounded-md border border-transparent bg-zinc-950 overflow-hidden",
+      !compact && "shadow-none",
     )}>
-      <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-[#d4af37]/15 gap-2">
+      <div className="px-1 py-1 flex items-center justify-between gap-2">
         <div className="min-w-0 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#d4af37]">
           <Sparkles className="w-3 h-3 shrink-0" />
           Daily News
-          {headerDate && (
-            <span className="text-[10px] font-mono font-normal text-white normal-case tracking-normal">
-              · {headerDate}
+          {(museAm || musePm) && (
+            <span className="inline-flex items-center gap-0.5 normal-case tracking-normal ml-0.5">
+              <button type="button" className={tabCls(museTab === "am")} onClick={() => setMuseTab("am")} disabled={!museAm}>
+                AM
+              </button>
+              <button
+                type="button"
+                className={tabCls(museTab === "pm")}
+                onClick={() => setMuseTab("pm")}
+                disabled={!musePm}
+                title={musePm?.stale ? `Prior EOD · ${musePm.asOfYmd ?? ""}` : "End of day"}
+              >
+                EOD{musePm?.stale ? "*" : ""}
+              </button>
             </span>
           )}
           {newCount > 0 && (
@@ -779,10 +991,11 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          {summary && genTime && (
-            <span className="text-[10px] text-white/80 flex items-center gap-1 mr-1">
-              <Clock className="w-3 h-3" />{genTime}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {asOfStamp && (
+            <span className="text-[10px] text-white flex items-center gap-1 font-mono" title="Session date · last Desk adds">
+              <Clock className="w-3 h-3" />
+              {asOfStamp}
             </span>
           )}
           {isAdmin && (
@@ -810,40 +1023,41 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {data?.statusLine && (
-        <p className="px-2.5 py-1 text-[10px] font-mono text-white/75 border-b border-[#d4af37]/10 truncate" title={data.statusLine}>
-          {data.statusLine}
-        </p>
-      )}
-
-      <div className="px-3 py-2.5 space-y-3">
-        {/* Compact tape: SPY QQQ VIX 10Y then ES YM NQ … — one space between names */}
+      <div className="px-1 py-1 space-y-2">
+        {/* Oval tape: LABEL level pct */}
         {liveTape.length > 0 && (
-          <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-1.5 py-0.5 flex flex-nowrap items-baseline gap-x-1 overflow-hidden whitespace-nowrap text-[10px] font-mono tabular-nums">
+          <div className="flex flex-wrap items-center gap-1">
             {liveTape.map((row, i) => (
-              <span key={`${row.key}-${i}`} className="inline-flex items-baseline gap-px shrink-0" title={row.title ?? row.label}>
-                <span className="text-white/75">{row.label}</span>
-                <span
-                  className={cn(
-                    row.up === true && "text-emerald-400",
-                    row.up === false && "text-rose-400",
-                    row.up == null && "text-amber-50/90",
-                  )}
-                >
-                  {row.value}
-                </span>
+              <span
+                key={`${row.key}-${i}`}
+                className="inline-flex items-baseline gap-1 shrink-0 rounded-full border border-[#d4af37]/35 bg-zinc-950 px-2 py-0.5 text-[10px] font-mono tabular-nums"
+                title={row.title ?? row.label}
+              >
+                <span className="text-white">{row.label}</span>
+                {row.level && <span className="text-white">{row.level}</span>}
+                {row.value && (
+                  <span
+                    className={cn(
+                      row.up === true && "text-emerald-400",
+                      row.up === false && "text-rose-400",
+                      row.up == null && "text-white",
+                    )}
+                  >
+                    {row.value}
+                  </span>
+                )}
               </span>
             ))}
           </div>
         )}
 
-        {/* A82 — Kalshi FOMC / CPI / 15m up-down (internal only) */}
+        {/* A82 — one Kalshi tag wrapping FOMC + CPI + 15m */}
         {(predMarkets?.fomc || predMarkets?.cpi || predMarkets?.btc15m || predMarkets?.ndq15m) && (
           <div
-            className="rounded-md border border-cyan-400/25 bg-zinc-950 px-1.5 py-0.5 flex flex-nowrap items-baseline gap-x-2 overflow-hidden whitespace-nowrap text-[10px] font-mono tabular-nums text-cyan-100/90"
+            className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5 max-w-full rounded-full border border-cyan-400/40 bg-zinc-950 px-2.5 py-0.5 text-[10px] font-mono tabular-nums text-white"
             title={predMarkets.intradayNote || "Kalshi market odds · internal use only · not advice"}
           >
-            <span className="text-cyan-400/70 shrink-0">Kalshi</span>
+            <span className="text-cyan-300 shrink-0 font-semibold">Kalshi</span>
             {predMarkets.btc15m && (
               <span
                 className={cn(
@@ -883,106 +1097,165 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
           </div>
         )}
 
-        {/* A143 — OpenJev overnight headlines (rel>0.5), display only */}
-        {!!ojLabels?.items?.length && (
-          <div className="rounded-md border border-[#fb7185]/30 bg-zinc-950 px-1.5 py-1 space-y-0.5" title={ojLabels.note}>
-            <div className="text-[9px] uppercase tracking-wide text-[#fb7185]/80">Overnight · OpenJev labels</div>
-            <ul className="space-y-0.5 max-h-28 overflow-y-auto">
-              {ojLabels.items.slice(0, 12).map((it, i) => {
-                const tone = it.dir > 0.15 ? "text-emerald-300" : it.dir < -0.15 ? "text-rose-300" : "text-amber-100/70";
-                return (
-                  <li key={`${it.ticker}-${i}`} className="text-[10px] flex gap-1.5 min-w-0">
-                    <span className="font-semibold text-amber-100 shrink-0 w-10">{it.ticker}</span>
-                    <span className={cn("shrink-0 rounded px-1 border border-white/10", tone)}>{it.cat}</span>
-                    {it.url ? (
-                      <a href={it.url} target="_blank" rel="noreferrer" className={cn("truncate hover:underline", tone)}>{it.headline}</a>
-                    ) : (
-                      <span className={cn("truncate", tone)}>{it.headline}</span>
-                    )}
-                  </li>
+        {/* Active Muse tab (AM | EOD) — sections only; title lives in header tabs */}
+        {activeMuse && (
+          <div className="space-y-2">
+            {activeMuse.stale && (
+              <p className="text-[10px] text-amber-300 font-mono">
+                Prior session · {activeMuse.asOfYmd ? formatMdYy(activeMuse.asOfYmd) : activeMuse.file}
+              </p>
+            )}
+            {dedupeMuseSections(
+              activeMuse.sections?.length
+                ? activeMuse.sections
+                : [{ title: activeMuse.edition === "am" ? "What's moving" : "Recap", bullets: activeMuse.bullets }],
+            ).map((sec) => {
+              const isSingles = /single names/i.test(sec.title);
+              const isImpl = /implications/i.test(sec.title);
+              const split =
+                (/what'?s moving|why it matters|what to watch|single names|implications/i.test(sec.title)
+                  && sec.bullets.length >= 2);
+
+              if (isSingles) {
+                const splitRows = sec.bullets.map((b) => {
+                  const { fact, soWhat } = splitMuseSoWhat(b);
+                  const factC = compressMuseBullet(fact);
+                  return {
+                    fact: factC,
+                    lead: singleNameLead(factC) || singleNameLead(fact),
+                    soWhat,
+                    raw: b,
+                  };
+                });
+                const soWhatSyn = synthesizeSingleNameSoWhats(
+                  splitRows
+                    .filter((r): r is typeof r & { soWhat: string } => !!r.soWhat)
+                    .map((r) => ({ lead: r.lead, soWhat: r.soWhat })),
                 );
-              })}
-            </ul>
+                return (
+                  <div key={sec.title} className="space-y-2">
+                    <div className="space-y-1">
+                      <div className={SECTION_HDR}>{sec.title}</div>
+                      <ul className={cn("gap-x-4 gap-y-1.5", split ? "grid sm:grid-cols-2" : "space-y-1")}>
+                        {splitRows.map((r, i) => (
+                          <li
+                            key={i}
+                            className="flex items-start gap-1.5 text-[11px] text-white leading-snug"
+                            title={r.raw}
+                          >
+                            <span className="mt-[5px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
+                            <span className="min-w-0 flex-1">
+                              {renderFrags(parseInline(r.fact, { lean: true }))}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    {soWhatSyn.length > 0 && (
+                      <div className="space-y-1">
+                        <div className={SECTION_HDR}>So what?</div>
+                        <ul className="grid sm:grid-cols-2 gap-x-4 gap-y-1">
+                          {soWhatSyn.map((line, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-[11px] text-white leading-snug">
+                              <span className="mt-[5px] w-1 h-1 rounded-full bg-amber-400/70 shrink-0" />
+                              <span className="min-w-0 flex-1">
+                                {renderFrags(parseInline(line, { lean: true }))}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div key={sec.title} className="space-y-1">
+                  <div className={SECTION_HDR}>{sec.title}</div>
+                  <ul
+                    className={cn(
+                      "gap-x-4 gap-y-1.5",
+                      split ? "grid sm:grid-cols-2" : "space-y-1",
+                    )}
+                  >
+                    {sec.bullets.map((b, i) => {
+                      const text = isImpl ? compressImplicationBullet(b) : compressMuseBullet(b);
+                      const lead = isImpl ? splitImplicationLead(text) : null;
+                      return (
+                        <li
+                          key={i}
+                          className="flex items-start gap-1.5 text-[11px] text-white leading-snug"
+                          title={b}
+                        >
+                          <span className="mt-[5px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            {lead ? (
+                              <>
+                                <span className="font-semibold text-[#d4af37]">{lead.lead}:</span>
+                                {" "}
+                                {renderFrags(parseInline(lead.body, { lean: true }))}
+                              </>
+                            ) : (
+                              renderFrags(parseInline(text, { lean: true }))
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {!activeMuse && data?.museBriefStale && (
+          <div className="py-1">
+            <div className={cn(SECTION_HDR, "text-amber-300")}>
+              <Sparkles className="w-3 h-3" />
+              No brief yet today
+            </div>
+            <p className="mt-1 text-[11px] text-white">
+              Last Muse {data.museBriefStale.edition.toUpperCase()}
+              {data.museBriefStale.asOfYmd ? ` · ${formatMdYy(data.museBriefStale.asOfYmd)}` : ""}{" "}
+              is from a prior session — waiting for today’s brief.
+            </p>
           </div>
         )}
 
         {isLoading && !data && (
-          <p className="text-[11px] text-amber-200/40">Loading…</p>
+          <p className="text-[11px] text-white">Loading…</p>
         )}
         {error && <p className="text-[11px] text-red-400">{error}</p>}
-        {feedbackMsg && <p className="text-[10px] text-emerald-400/80">{feedbackMsg}</p>}
+        {feedbackMsg && <p className="text-[10px] text-emerald-400">{feedbackMsg}</p>}
         {generating && !summary && (
-          <p className="text-[11px] text-amber-200/50">Digging links + summarizing session…</p>
+          <p className="text-[11px] text-white">Digging links + summarizing session…</p>
         )}
         {!generating && !summary && (data?.todayCount ?? 0) === 0 && (
-          <p className="text-[11px] text-amber-200/40">
+          <p className="text-[11px] text-white">
             No emails in {data?.sessionLabel ?? "this session"} yet. Label with{" "}
-            <code className="text-[#d4af37]/70">tradedash-brief</code>.
+            <code className="text-[#d4af37]">tradedash-brief</code>.
           </p>
         )}
         {!generating && !summary && (data?.todayCount ?? 0) > 0 && (
-          <p className="text-[11px] text-amber-200/50">
+          <p className="text-[11px] text-white">
             {data!.includedCount ?? data!.todayCount} emails ready
             {(data!.excludedCount ?? 0) > 0 ? ` (${data!.excludedCount} noise)` : ""}.
           </p>
         )}
 
-        {(summary || earningsRows.length > 0 || marketEarningsRows.length > 0 || modelContracts.length > 0 || museBrief) && (
-          <div className="min-h-[360px] max-h-[min(72vh,780px)] overflow-y-auto pr-1 space-y-3">
+        {(summary || earningsRows.length > 0 || marketEarningsRows.length > 0 || modelContracts.length > 0) && (
+          <div className="min-h-[240px] max-h-[min(72vh,780px)] overflow-y-auto pr-1 space-y-3">
             {summary && data?.materialSuggested && newCount > 0 && (
               <p className="text-[11px] font-semibold text-red-400">
-                Material update ready — Regen for Desk adds
-                {data.materialReasons?.length ? ` (${data.materialReasons.slice(0, 2).join(", ")})` : ""}.
+                Updates ready ({newCount} new)
               </p>
-            )}
-
-            {/* Muse English brief — bullets only (levels live in LIVE strip) */}
-            {museBrief && museBrief.bullets.length > 0 && (
-              <div className={cn("rounded-md border p-2.5", CARD_TONE)}>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]">
-                    <Sparkles className="w-3 h-3" />
-                    {museBrief.edition === "am" ? "Morning brief" : "Evening recap"}
-                  </div>
-                  <span
-                    className="text-[9px] font-mono text-white truncate"
-                    title={museBrief.title}
-                  >
-                    {museBrief.asOfYmd
-                      ? `as of ${Number(museBrief.asOfYmd.slice(5, 7))}/${Number(museBrief.asOfYmd.slice(8, 10))}`
-                      : museBrief.file}
-                  </span>
-                </div>
-                <ul className="space-y-1">
-                  {museBrief.bullets.map((b, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-[12px] text-amber-50/90 leading-[1.35]">
-                      <span className="mt-[6px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
-                      <span>{renderFrags(parseInline(b))}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {!museBrief && data?.museBriefStale && (
-              <div className={cn("rounded-md border border-amber-500/30 p-2.5", CARD_TONE)}>
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
-                  <Sparkles className="w-3 h-3" />
-                  No brief yet today
-                </div>
-                <p className="mt-1 text-[11px] text-white/85">
-                  Last Muse {data.museBriefStale.edition.toUpperCase()}
-                  {data.museBriefStale.asOfYmd
-                    ? ` · ${Number(data.museBriefStale.asOfYmd.slice(5, 7))}/${Number(data.museBriefStale.asOfYmd.slice(8, 10))}`
-                    : ""}{" "}
-                  is from a prior session — waiting for today’s brief.
-                </p>
-              </div>
             )}
 
             {/* Dig — source on hover (title), not a grey column */}
             {digFacts.length > 0 && (
-              <div className={cn("rounded-md border p-2", CARD_TONE)}>
-                <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]">
+              <div className={cn("rounded-md border px-0 py-1", CARD_TONE)}>
+                <div className={cn(SECTION_HDR, "mb-1")}>
                   <Activity className="w-3 h-3" />
                   Desk dig
                 </div>
@@ -999,8 +1272,8 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                         )}
                       >
                         <span className="font-mono font-bold shrink-0 text-[#d4af37]">{f.ticker}</span>
-                        <span className="text-[9px] uppercase text-white/70 shrink-0 pt-0.5">{digKindLabel(f.kind)}</span>
-                        <span className="text-amber-50/90 min-w-0 flex-1 break-words">
+                        <span className="text-[9px] uppercase text-white shrink-0 pt-0.5">{digKindLabel(f.kind)}</span>
+                        <span className="text-white min-w-0 flex-1 break-words">
                           {renderFrags(parseInline(f.detail))}
                         </span>
                       </li>
@@ -1010,55 +1283,60 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
               </div>
             )}
 
-            {/* One earnings list — book gold, majors violet; sorted by date */}
-            {earningsMerged.length > 0 && (
-              <div className={cn("rounded-md border px-2 py-1.5", CARD_TONE)}>
-                <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]">
-                  <Target className="w-3 h-3" />
-                  Earnings · 14d
-                </div>
-                <ul className="space-y-1">
-                  {earningsMerged.map((row) => (
-                    <li key={row.date} className="flex items-baseline gap-2 text-[11px]">
-                      <span className="font-mono tabular-nums text-sky-300 shrink-0 w-12">
-                        {formatMdYy(row.date)}
-                      </span>
-                      <span className="flex flex-wrap gap-1.5">
-                        {row.tickers.map(({ ticker, book }) => (
-                          <span
-                            key={ticker}
-                            title={book ? "book" : "market major"}
-                            className={cn(
-                              "font-mono font-bold underline underline-offset-2",
-                              book
-                                ? "text-[#d4af37] decoration-[#d4af37]/35"
-                                : "text-violet-300 decoration-violet-400/35",
-                            )}
-                          >
-                            {ticker}
-                          </span>
+            {/* Left: Earnings + Overnight (stacked, shared height) | Right: Model contracts */}
+            {(earningsMerged.length > 0 || modelContractsCard || overnightBlock) && (
+              <div className="grid gap-3 sm:grid-cols-2 items-stretch min-h-[280px]">
+                <div className="flex flex-col gap-2 min-h-0 h-full">
+                  {earningsMerged.length > 0 && (
+                    <div className={cn("rounded-md border px-0 py-1 shrink-0", CARD_TONE)}>
+                      <div className={cn(SECTION_HDR, "mb-1")}>
+                        <Target className="w-3 h-3" />
+                        Earnings · 14d
+                      </div>
+                      <ul className="space-y-1 max-h-40 overflow-y-auto">
+                        {earningsMerged.map((row) => (
+                          <li key={row.date} className="flex items-baseline gap-2 text-[11px]">
+                            <span className="font-mono tabular-nums text-sky-300 shrink-0 w-8">
+                              {formatMd(row.date)}
+                            </span>
+                            <span className="flex flex-wrap gap-1.5">
+                              {row.tickers.map(({ ticker, book }) => (
+                                <span
+                                  key={ticker}
+                                  title={book ? "book" : "market major"}
+                                  className={cn(
+                                    "font-mono font-bold underline underline-offset-2",
+                                    book
+                                      ? "text-[#d4af37] decoration-[#d4af37]/35"
+                                      : "text-violet-300 decoration-violet-400/35",
+                                  )}
+                                >
+                                  {ticker}
+                                </span>
+                              ))}
+                            </span>
+                          </li>
                         ))}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                      </ul>
+                    </div>
+                  )}
+                  {overnightBlock}
+                </div>
+                {modelContractsCard}
               </div>
             )}
 
-            {/* Desk adds + sector | contracts + takeaway */}
+            {/* Desk adds + sector + takeaway (hide empty Sector filler) */}
             {summary && sections.length > 0 ? (
               <div className="space-y-2">
                 {renderSectionCard(sectionByKey.get("adds"), {
                   sourceHint: digSourceTitle(summary.sources ?? []),
                 })}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {renderSectionCard(sectionByKey.get("sector"), {
-                    sourceHint: digSourceTitle(summary.sources ?? []),
-                  })}
-                  {modelContractsCard}
-                </div>
+                {renderSectionCard(sectionByKey.get("sector"), {
+                  sourceHint: digSourceTitle(summary.sources ?? []),
+                  hideFiller: true,
+                })}
                 {renderSectionCard(sectionByKey.get("take"), {
-                  span2: true,
                   sourceHint: digSourceTitle(summary.sources ?? []),
                 })}
                 {[...sectionByKey.entries()]
@@ -1066,20 +1344,18 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                   .map(([k, sec]) => (
                     <div key={k}>
                       {renderSectionCard(sec, {
-                        span2: true,
+                        hideFiller: true,
                         sourceHint: digSourceTitle(summary.sources ?? []),
                       })}
                     </div>
                   ))}
               </div>
             ) : summary?.content ? (
-              <div className="text-[12px] text-amber-50/90 space-y-1">
+              <div className="text-[12px] text-white space-y-1">
                 {summary.content.split("\n").map((line, i) => (
                   <p key={i}>{line}</p>
                 ))}
               </div>
-            ) : modelContractsCard ? (
-              <div className="grid gap-2 sm:grid-cols-2">{modelContractsCard}</div>
             ) : null}
           </div>
         )}
