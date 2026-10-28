@@ -38,6 +38,7 @@ import {
   digDeskItem,
   filterDisplayDigFacts,
   formatDigFactsForPrompt,
+  resetDeskCrawlBudget,
   type DigFact,
 } from "../lib/desk-link-dig.js";
 import { enrichShallowDigFacts } from "../lib/desk-dig-enrich.js";
@@ -45,6 +46,7 @@ import {
   assessDailyNewsQuality,
   sanitizeDailyNewsContent,
 } from "../lib/desk-daily-news-quality.js";
+import { themesBrief } from "../lib/macro/macro-themes.js";
 
 export interface EarningsNearRow {
   date: string;
@@ -282,8 +284,13 @@ function rowTickers(r: DeskRowLite): string[] {
   return [...new Set([...fromText, ...fromJson])].filter((t) => /^[A-Z]{1,5}$/.test(t));
 }
 
-/** Rank for packing: book hits + diggable activity + category priors. */
-function rankForPack(r: DeskRowLite, book: Set<string>, digCount: number): number {
+/** Rank for packing: book hits + diggable activity + theme/playbook + category priors (A301). */
+function rankForPack(
+  r: DeskRowLite,
+  book: Set<string>,
+  digCount: number,
+  themeTokens: string[] = [],
+): number {
   const tickers = rowTickers(r);
   const hits = tickers.filter((t) => book.has(t)).length;
   let score = hits * 40 + digCount * 25;
@@ -293,8 +300,42 @@ function rankForPack(r: DeskRowLite, book: Set<string>, digCount: number): numbe
   if (r.category === "politics") score += 8;
   if (r.category === "earnings") score += 10;
   if (r.source === "factset_streetaccount" || r.source === "factset") score += 8;
+  if (themeTokens.length) {
+    const blob = `${r.subject}\n${r.synopsis ?? ""}`.toLowerCase();
+    let themeHits = 0;
+    for (const tok of themeTokens) {
+      if (tok.length >= 3 && blob.includes(tok)) themeHits += 1;
+    }
+    if (themeHits > 0) score += 30 + Math.min(40, (themeHits - 1) * 20);
+  }
   score -= Math.min(30, (r.noiseScore ?? 0) / 4);
   return score;
+}
+
+/** Compact Muse levels block for Haiku (A301) — skip when brief is stale. */
+export function buildMuseLevelsBlock(
+  muse: {
+    banner: string;
+    sections?: Array<{ title: string; bullets: string[] }>;
+    bullets?: string[];
+    stale?: boolean;
+  } | null | undefined,
+): string {
+  if (!muse || muse.stale) return "";
+  const lines: string[] = ["## Muse levels"];
+  if (muse.banner?.trim()) lines.push(`- ${muse.banner.trim().slice(0, 220)}`);
+  const hasDigit = (s: string) => /\d/.test(s);
+  for (const sec of muse.sections ?? []) {
+    for (const b of sec.bullets.filter(hasDigit).slice(0, 2)) {
+      lines.push(`- [${sec.title}] ${b.slice(0, 180)}`);
+    }
+  }
+  if (lines.length <= 1) {
+    for (const b of (muse.bullets ?? []).filter(hasDigit).slice(0, 6)) {
+      lines.push(`- ${b.slice(0, 180)}`);
+    }
+  }
+  return lines.length > 1 ? lines.join("\n") : "";
 }
 
 const router = Router();
@@ -304,13 +345,21 @@ const CACHE_PATH = join(__dir, "..", "..", "desk-daily-news.json");
 /** Repo-root `commentary/` — Muse AM/PM briefs (A45). */
 const COMMENTARY_DIR = join(__dir, "..", "..", "..", "..", "commentary");
 
+export interface MuseBriefSection {
+  /** Short UI header, e.g. "What's moving" */
+  title: string;
+  bullets: string[];
+}
+
 export interface MuseBrief {
   edition: "am" | "pm";
   file: string;
   title: string;
   banner: string;
-  /** Concise bullets for the Daily News top strip */
+  /** Flat bullets (compat); prefer `sections` in UI */
   bullets: string[];
+  /** Muse headers preserved — full bullets, no ellipsis trim */
+  sections: MuseBriefSection[];
   /** Truncated raw markdown for Haiku skeleton (not full file) */
   promptExcerpt: string;
   /** Brief calendar day YYYY-MM-DD (from dated filename or title) */
@@ -377,6 +426,121 @@ function resolveBriefAsOfYmd(edition: "am" | "pm", title: string, contentHash: s
 }
 
 /** Prefer PM after 1pm PT; fall back to the other edition if missing. */
+/** Muse uses `## H` or `**H**` section titles. */
+function museHeading(line: string): string | null {
+  const h2 = line.match(/^##\s+(.+)$/);
+  if (h2) return h2[1]!.trim();
+  const bold = line.match(/^\*\*([^*]+)\*\*\s*$/);
+  if (bold) return bold[1]!.trim();
+  return null;
+}
+
+function parseOneMuseFile(
+  edition: "am" | "pm",
+  path: string,
+  sessionDateKey?: string,
+): MuseBrief | null {
+  const raw = readFileSync(path, "utf8");
+  if (raw.trim().length < 80) return null;
+  const contentHash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
+  const lines = raw.split("\n");
+  const file = edition === "am" ? "latest-am.md" : "latest-pm.md";
+  const title = (lines.find((l) => l.startsWith("# ")) ?? "").replace(/^#\s+/, "").trim()
+    || (edition === "am" ? "Morning market brief" : "Evening market recap");
+  const bannerLine = lines.find((l) => /^\*\*Banner:\*\*/i.test(l) || /^\*\*S&P\b/i.test(l))
+    ?? lines.find((l) => l.startsWith("**") && l.includes("·"));
+  const banner = (bannerLine ?? "")
+    .replace(/^\*\*Banner:\*\*\s*/i, "")
+    .replace(/^\*\*|\*\*$/g, "")
+    .trim();
+
+  // Ordered sections — keep Muse structure; full text (no … trim).
+  // No "Data" section — it rehashes What's moving (closes / overnight / rates).
+  const wantSecs: Array<{ re: RegExp; title: string }> = [
+    { re: /what'?s moving|what moved|banner/i, title: "What's moving" },
+    { re: /why it matters/i, title: "Why it matters" },
+    { re: /what to watch/i, title: "What to watch" },
+    { re: /single names/i, title: "Single names" },
+    { re: /implications/i, title: "Implications" },
+  ];
+  const skipHead = /^(Data|Context|Breadth|Sources)\b/i;
+  /** Earnings BMO/AMC laundry lists → Earnings · 14d panel owns that. */
+  const dropWatchBullet = (t: string) =>
+    /^Earnings\s+(BMO|AMC)\b/i.test(t)
+    || /^Earnings\s+\([^)]*reported/i.test(t);
+  const sections: MuseBriefSection[] = [];
+  let cur: MuseBriefSection | null = null;
+  for (const line of lines) {
+    const head = museHeading(line);
+    if (head != null) {
+      if (skipHead.test(head)) {
+        cur = null;
+        continue;
+      }
+      const match = wantSecs.find((s) => s.re.test(head));
+      if (match) {
+        cur = { title: match.title, bullets: [] };
+        sections.push(cur);
+      } else {
+        cur = null;
+      }
+      continue;
+    }
+    if (!cur) continue;
+    const m = line.match(/^-\s+\*\*(.+?)\*\*\.?\s*(.*)$/) ?? line.match(/^-\s+(.+)$/);
+    if (!m) continue;
+    const text = m[2] != null
+      ? `${m[1]}${m[2] ? ` — ${m[2].replace(/\s*\[[^\]]+\]/g, "").trim()}` : ""}`
+      : m[1]!.replace(/\s*\[[^\]]+\]/g, "").trim();
+    const clean = text.replace(/\s+/g, " ").trim();
+    if (clean.length < 12) continue;
+    if (cur.title === "What to watch" && dropWatchBullet(clean)) continue;
+    cur.bullets.push(clean);
+  }
+  // Drop empty section shells
+  const nonempty = sections.filter((s) => s.bullets.length > 0);
+  const bullets = nonempty.flatMap((s) => s.bullets);
+  if (!bullets.length && !banner) return null;
+
+  const keepHeadings = /^(# |\*\*Banner|\*\*S&P|\*\*What|\*\*Why|\*\*Single|\*\*Data|## |\s*- )/i;
+  const stopHead = /^(Context|Breadth|Sources)\b/i;
+  const excerptLines: string[] = [];
+  let chars = 0;
+  for (const line of lines) {
+    const head = museHeading(line);
+    if (head != null && stopHead.test(head)) break;
+    if (!keepHeadings.test(line) && !line.startsWith("- ") && head == null) continue;
+    excerptLines.push(line);
+    chars += line.length;
+    if (chars > 8000) break;
+  }
+
+  const asOfYmd = resolveBriefAsOfYmd(edition, title, contentHash)
+    ?? (() => {
+      try {
+        const d = new Date(statSync(path).mtimeMs);
+        return d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+      } catch {
+        return null;
+      }
+    })();
+  const stale = !!sessionDateKey && (!asOfYmd || asOfYmd < sessionDateKey);
+
+  return {
+    edition,
+    file,
+    title,
+    banner,
+    bullets,
+    sections: nonempty,
+    promptExcerpt: excerptLines.join("\n").slice(0, 6000),
+    asOfYmd,
+    contentHash,
+    stale,
+  };
+}
+
+/** Primary brief for materiality (PM after 1pm PT, else AM). */
 function loadMuseBrief(sessionDateKey?: string): MuseBrief | null {
   try {
     if (!existsSync(COMMENTARY_DIR)) return null;
@@ -386,90 +550,36 @@ function loadMuseBrief(sessionDateKey?: string): MuseBrief | null {
       const file = edition === "am" ? "latest-am.md" : "latest-pm.md";
       const path = join(COMMENTARY_DIR, file);
       if (!existsSync(path)) continue;
-      const raw = readFileSync(path, "utf8");
-      if (raw.trim().length < 80) continue;
-      const contentHash = createHash("sha256").update(raw).digest("hex").slice(0, 16);
-      const lines = raw.split("\n");
-      const title = (lines.find((l) => l.startsWith("# ")) ?? "").replace(/^#\s+/, "").trim()
-        || (edition === "am" ? "Morning market brief" : "Evening market recap");
-      const bannerLine = lines.find((l) => /^\*\*Banner:\*\*/i.test(l) || /^\*\*S&P\b/i.test(l))
-        ?? lines.find((l) => l.startsWith("**") && l.includes("·"));
-      const banner = (bannerLine ?? "")
-        .replace(/^\*\*Banner:\*\*\s*/i, "")
-        .replace(/^\*\*|\*\*$/g, "")
-        .trim();
-
-      const sectionBullets = (headingRe: RegExp, max: number): string[] => {
-        const out: string[] = [];
-        let inSec = false;
-        for (const line of lines) {
-          if (line.startsWith("## ")) {
-            inSec = headingRe.test(line);
-            continue;
-          }
-          if (!inSec) continue;
-          if (line.startsWith("## ")) break;
-          const m = line.match(/^-\s+\*\*(.+?)\*\*\.?\s*(.*)$/) ?? line.match(/^-\s+(.+)$/);
-          if (!m) continue;
-          const text = m[2] != null
-            ? `${m[1]}${m[2] ? ` — ${m[2].replace(/\s*\[[^\]]+\]/g, "").trim()}` : ""}`
-            : m[1]!.replace(/\s*\[[^\]]+\]/g, "").trim();
-          const clean = text.replace(/\s+/g, " ").trim();
-          if (clean.length >= 20) out.push(clean.length > 180 ? `${clean.slice(0, 177)}…` : clean);
-          if (out.length >= max) break;
-        }
-        return out;
-      };
-
-      const moving = sectionBullets(/what'?s moving|what moved/i, 3);
-      const why = sectionBullets(/why it matters/i, 2);
-      const impl = sectionBullets(/implications/i, 2);
-      const bullets = [...moving, ...why, ...impl].slice(0, 6);
-      if (!bullets.length && !banner) continue;
-
-      // Skeleton for Haiku: banner + moving + why + implications (cap size)
-      const keepHeadings = /^(# |## What's moving|## What moved|## Why it matters|## Implications|\*\*Banner|\*\*S&P|- )/i;
-      const excerptLines: string[] = [];
-      let chars = 0;
-      for (const line of lines) {
-        if (!keepHeadings.test(line) && !line.startsWith("- ")) {
-          if (line.startsWith("## ")) {
-            if (/^##\s+(Data|Single|Context|Breadth|What to watch)/i.test(line)) break;
-          }
-          continue;
-        }
-        if (/^##\s+(Data|Single|Context|Breadth|What to watch|Sources)/i.test(line)) break;
-        excerptLines.push(line);
-        chars += line.length;
-        if (chars > 2200) break;
-      }
-
-      const asOfYmd = resolveBriefAsOfYmd(edition, title, contentHash)
-        ?? (() => {
-          try {
-            const d = new Date(statSync(path).mtimeMs);
-            return d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-          } catch {
-            return null;
-          }
-        })();
-      const stale = !!sessionDateKey && (!asOfYmd || asOfYmd < sessionDateKey);
-
-      return {
-        edition,
-        file,
-        title,
-        banner,
-        bullets,
-        promptExcerpt: excerptLines.join("\n").slice(0, 2400),
-        asOfYmd,
-        contentHash,
-        stale,
-      };
+      const brief = parseOneMuseFile(edition, path, sessionDateKey);
+      if (brief) return brief;
     }
     return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * AM + PM for UI tabs. Include prior-day EOD (stale) so the EOD tab can show
+ * yesterday's recap until today's PM lands.
+ */
+function loadMuseBriefs(sessionDateKey?: string): MuseBrief[] {
+  try {
+    if (!existsSync(COMMENTARY_DIR)) return [];
+    const out: MuseBrief[] = [];
+    for (const edition of ["am", "pm"] as const) {
+      const file = edition === "am" ? "latest-am.md" : "latest-pm.md";
+      const path = join(COMMENTARY_DIR, file);
+      if (!existsSync(path)) continue;
+      const brief = parseOneMuseFile(edition, path, sessionDateKey);
+      if (!brief) continue;
+      // Keep stale PM for EOD tab; drop stale AM (morning is session-specific).
+      if (sessionDateKey && brief.stale && edition === "am") continue;
+      out.push(brief);
+    }
+    return out;
+  } catch {
+    return [];
   }
 }
 
@@ -741,10 +851,14 @@ router.get("/desk-commentaries/daily-news", requireAuth, async (req, res) => {
       ? await loadModelContracts(book.all).catch(() => null)
       : null;
     const museBriefRaw = loadMuseBrief(win.dateKey);
+    const museBriefsAll = loadMuseBriefs(win.isWeekendPack ? undefined : win.dateKey);
     // A62: don't present a prior-day brief as today's — null it on weekday sessions when stale.
     const museBrief = museBriefRaw && museBriefRaw.stale && !win.isWeekendPack
       ? null
       : museBriefRaw;
+    const museBriefs = museBriefsAll.length > 0
+      ? museBriefsAll
+      : (museBrief ? [museBrief] : []);
     const material = assessMateriality({
       cache,
       rows,
@@ -795,6 +909,7 @@ router.get("/desk-commentaries/daily-news", requireAuth, async (req, res) => {
       marketEarningsRows: liveEarn?.marketRows ?? [],
       modelContracts: liveModel?.rows ?? [],
       museBrief,
+      museBriefs,
       museBriefStale: museBriefRaw?.stale ? museBriefRaw : null,
     });
   } catch (err: any) {
@@ -910,17 +1025,31 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
       )
       .slice(0, 10);
 
+    const themesCtx = await themesBrief().catch(() => null);
+    const themeTokens = [
+      ...(themesCtx?.themes ?? []).map((t) => (t.split(":")[0] ?? "").trim().toLowerCase()).filter((t) => t.length >= 3),
+      ...(themesCtx?.playbook ?? []).map((p) => p.replace(/^\[[^\]]+\]\s*/, "").slice(0, 24).toLowerCase()).filter((t) => t.length >= 4),
+    ];
+    resetDeskCrawlBudget(4);
+
     const digById = new Map<number, DigFact[]>();
     let allDigFacts: DigFact[] = [];
     for (const r of digCandidates) {
       const meta = (r.meta ?? {}) as { contentLinks?: Array<{ url: string }> };
-      const facts = await digDeskItem({
-        source: r.source,
-        subject: r.subject,
-        bodyPlain: r.bodyPlain,
-        synopsis: r.synopsis,
-        contentLinks: meta.contentLinks,
-      });
+      const tickers = rowTickers(r);
+      const bookHit = tickers.some((t) => book.all.has(t));
+      const blob = `${r.subject}\n${r.synopsis ?? ""}`.toLowerCase();
+      const themeHit = themeTokens.some((tok) => blob.includes(tok));
+      const facts = await digDeskItem(
+        {
+          source: r.source,
+          subject: r.subject,
+          bodyPlain: r.bodyPlain,
+          synopsis: r.synopsis,
+          contentLinks: meta.contentLinks,
+        },
+        { allowCrawl: bookHit || themeHit },
+      );
       digById.set(r.id, facts);
       allDigFacts.push(...facts);
     }
@@ -946,7 +1075,7 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
     }
 
     const ranked = [...included]
-      .map((r) => ({ r, score: rankForPack(r, book.all, digById.get(r.id)?.length ?? 0) }))
+      .map((r) => ({ r, score: rankForPack(r, book.all, digById.get(r.id)?.length ?? 0, themeTokens) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 18)
       .map(({ r }) => r);
@@ -954,7 +1083,7 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
     const pack = ranked
       .map((r) => {
         const when = (r.articlePublishedAt ?? r.receivedAt).toISOString().replace("T", " ").slice(0, 16);
-        const body = (r.synopsis || r.bodyPlain || "").slice(0, 720);
+        const body = (r.synopsis || r.bodyPlain || "").slice(0, 1400);
         const tickers = rowTickers(r);
         const dig = digById.get(r.id) ?? [];
         const digLine = dig.length
@@ -988,16 +1117,22 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
     const digBlock = formatDigFactsForPrompt(allDigFacts);
     const bookHits = [...new Set(allDigFacts.map((f) => f.ticker).filter((t) => book.all.has(t)))];
     const bookCtx = book.promptBlock;
+    const museLevelsBlock = buildMuseLevelsBlock(museBrief);
+    const themesLine = themeTokens.length
+      ? `Active themes/playbook tokens (prefer desk facts that hit these): ${themeTokens.slice(0, 12).join(", ")}.`
+      : "Active themes: (none loaded — rank by book/DIG only).";
     const promptBase = `You APPEND desk-email findings to an existing Muse market brief for a ${DESK_BRIEF_PREFS.role}.
 The UI already shows Muse's brief. Your job is NOT to rewrite or paraphrase that brief.
 
 Session: ${win.label} (PT date ${win.dateKey}).
 
 Process (in order):
-1) Read MUSE BRIEF below (already published).
+1) Read MUSE LEVELS (if present) + MUSE BRIEF below (already published). Keep those numbers; do not restate them as Desk adds.
 2) Read DESK EMAILS + DIG. Keep only facts that are (a) material to a put-seller and (b) NOT already covered by Muse (same event/level/story).
 3) If a desk fact updates a Muse level (new print, revised figure), one short "update" bullet is OK.
-4) If nothing material is new, write one bullet under Desk adds: **No material desk adds** (Muse brief stands).
+4) If nothing material is new under Desk adds, one bullet: **No material desk adds** (Muse brief stands). Never put that sentence under Sector & tickers.
+5) Dig emails deeply — firm/grade/PT, event timing, levels. Prefer DIG + email bodies over "nothing new".
+6) ${themesLine}
 
 WANT:
 ${DESK_BRIEF_PREFS.want.map((w) => `- ${w}`).join("\n")}
@@ -1009,8 +1144,9 @@ ${DESK_BRIEF_PREFS.avoid.map((w) => `- ${w}`).join("\n")}
 - Vague "lean into HOOD/NVDA/OPEN" without put|call, strike, expiry, premium from MODEL CONTRACTS.
 - Em-dashes (—). Use parentheses for asides, e.g. **Lead** (detail with number).
 - Starting the output with "# " or restating "Morning market brief".
+- Empty filler under Sector & tickers ("No material…", "Muse covers…").
 
-MUSE BRIEF (do not rewrite; only ADD beyond this):
+${museLevelsBlock ? `${museLevelsBlock}\n\n` : ""}MUSE BRIEF (do not rewrite; only ADD beyond this):
 ${museBrief?.promptExcerpt ?? "(no Muse brief file — then Desk adds may include light macro from emails only)"}
 
 BOOK CONTEXT:
@@ -1029,14 +1165,14 @@ User feedback:
 ${feedbackBlock}
 
 Rules:
-- 3–8 bullets total. Prefer fewer high-signal adds.
+- 6–14 bullets total across sections. Pull real desk-email + DIG facts Muse skipped.
 - Bullet form: "- **Lead with number** (one clause ≤28 words)."
 - Tickers CAPS. Dates YYYY-MM-DD (UI → m/d/yy).
-- Sector & tickers: upgrades/downgrades/PTs from DIG/emails that Muse did not cover.
+- Sector & tickers: only upgrades/downgrades/PTs/events from DIG/emails Muse did not cover. Omit the section header if empty.
 - Put-seller takeaway: one bullet per named ticker using MODEL CONTRACTS:
   **- TICKER: sell put|call $STRIKE exp YYYY-MM-DD @ $PREMIUM** (why). Else "no model contract".
 - ${excludedN} emails already noise-filtered.
-- Keep under 180 words.
+- Keep under 320 words.
 
 Structure exactly:
 ## Desk adds
@@ -1049,7 +1185,7 @@ ${pack || "(all emails filtered as noise — say so briefly)"}`;
     let content = (
       await callHaiku({
         prompt: promptBase,
-        maxTokens: 560,
+        maxTokens: 900,
         trigger: "desk-daily-news",
         surfaceType: "desk-daily-news",
         userId: req.session.userId,
@@ -1146,6 +1282,7 @@ ${content.slice(0, 600)}`,
       },
       marketEarningsRows,
       museBrief,
+      museBriefs: loadMuseBriefs(win.isWeekendPack ? undefined : win.dateKey),
     });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

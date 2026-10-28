@@ -54,4 +54,32 @@ Vol compressed.`;
     assert.doesNotMatch(out, /1 new analyst rating/);
     assert.doesNotMatch(out, /Monitor TipRanks/);
   });
+
+  it("allows ## Muse levels alongside Desk adds (A301)", () => {
+    const good = `## Muse levels
+- S&P futures ~6770 (+0.2%)
+
+## Desk adds
+- **GS raises NVDA PT to $200 (2026-10-28).** Book watch.
+
+## Sector & tickers
+- **NVDA — Goldman raise.**
+
+## Put-seller takeaway
+- **NVDA: no model contract** (see strip).`;
+    assert.equal(assessDailyNewsQuality(good).ok, true);
+  });
+
+  it("still rejects pasted Morning market brief title", () => {
+    const bad = `# Morning market brief
+## Desk adds
+- **S&P +0.2%.** Foo.
+
+## Put-seller takeaway
+- Stay light.`;
+    const q = assessDailyNewsQuality(bad);
+    assert.equal(q.ok, false);
+    assert.ok(q.reasons.some((r) => /Muse|banner|title|paraphrase/i.test(r)));
+  });
 });
+

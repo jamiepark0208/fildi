@@ -6,6 +6,8 @@
  * Shallow TipRanks teasers ("1 new analyst rating(s)") are NOT actionable —
  * callers must enrich via Yahoo/DB (see desk-dig-enrich.ts) before prompting.
  */
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { unwrapRedirectUrl } from "./desk-commentary-normalize.js";
 import { logger } from "./logger.js";
 
@@ -160,6 +162,17 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+/** Per Regen crawl budget (A301) — shared across digDeskItem calls. */
+let crawlBudgetLeft = 0;
+
+export function resetDeskCrawlBudget(n = 4): void {
+  crawlBudgetLeft = Math.max(0, n);
+}
+
+export function deskCrawlBudgetLeft(): number {
+  return crawlBudgetLeft;
+}
+
 async function fetchText(url: string, timeoutMs = 8_000): Promise<string | null> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -187,10 +200,33 @@ async function fetchText(url: string, timeoutMs = 8_000): Promise<string | null>
   }
 }
 
+/** Crawl4AI via scripts/fetch-page.sh — only when plain fetch empty/JS-walled (A301). */
+async function fetchTextViaCrawl(url: string): Promise<string | null> {
+  if (crawlBudgetLeft <= 0) return null;
+  crawlBudgetLeft -= 1;
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+    const script = join(root, "scripts", "fetch-page.sh");
+    const { stdout } = await execFileAsync(script, [url, "--max-chars", "8000"], {
+      timeout: 45_000,
+      maxBuffer: 2 * 1024 * 1024,
+      env: process.env,
+    });
+    const text = (stdout ?? "").trim();
+    return text.length >= 80 ? text.slice(0, 12_000) : null;
+  } catch (err) {
+    logger.debug({ err, url }, "desk-link-dig: crawl fetch failed");
+    return null;
+  }
+}
+
 /** Dig content links (max few) for PT/rating facts when body is thin. */
 export async function digContentLinks(
   links: Array<{ url: string }>,
-  opts?: { maxLinks?: number; sourceHint?: string },
+  opts?: { maxLinks?: number; sourceHint?: string; allowCrawl?: boolean },
 ): Promise<DigFact[]> {
   const maxLinks = opts?.maxLinks ?? 3;
   const facts: DigFact[] = [];
@@ -201,7 +237,10 @@ export async function digContentLinks(
     .slice(0, maxLinks);
 
   for (const url of candidates) {
-    const text = await fetchText(url);
+    let text = await fetchText(url);
+    if ((!text || text.length < 80) && opts?.allowCrawl) {
+      text = await fetchTextViaCrawl(url);
+    }
     if (!text || text.length < 80) continue;
     const dug = extractDigFactsFromText(text, opts?.sourceHint ?? "link");
     for (const f of dug) facts.push({ ...f, url });
@@ -220,8 +259,12 @@ export interface DeskDigInput {
 /**
  * Body-first dig; fetch links when body is thin OR only yields shallow
  * TipRanks count teasers (pages often 403 — enrich step covers the rest).
+ * `allowCrawl`: spend Regen crawl budget only for book/theme hits (A301).
  */
-export async function digDeskItem(row: DeskDigInput): Promise<DigFact[]> {
+export async function digDeskItem(
+  row: DeskDigInput,
+  opts?: { allowCrawl?: boolean },
+): Promise<DigFact[]> {
   const text = `${row.subject}\n${row.synopsis ?? ""}\n${row.bodyPlain ?? ""}`;
   let facts = extractDigFactsFromText(text, row.source);
   const allShallow = facts.length > 0 && facts.every(isShallowDigFact);
@@ -231,7 +274,11 @@ export async function digDeskItem(row: DeskDigInput): Promise<DigFact[]> {
       `${row.subject} ${row.synopsis ?? ""}`,
     );
   if (needsFetch && row.contentLinks?.length) {
-    const dug = await digContentLinks(row.contentLinks, { maxLinks: 3, sourceHint: row.source });
+    const dug = await digContentLinks(row.contentLinks, {
+      maxLinks: 3,
+      sourceHint: row.source,
+      allowCrawl: !!opts?.allowCrawl && facts.every(isShallowDigFact),
+    });
     facts = mergePreferRichDigFacts(facts, dug);
   }
   const seen = new Set<string>();
