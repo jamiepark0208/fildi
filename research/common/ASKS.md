@@ -268,7 +268,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A286](asks/A286.md) | 2026-10-27 | Claude → Cursor | [quant] DCF segment sum-of-the-parts from full XBRL (per-segment growth/margin) | planned |
 | [A287](asks/A287.md) | 2026-10-27 | Claude → Cursor | [quant] S119: does the DCF "expensive" flag improve short-put breach/P&L beyond IV? | verified (Claude ran S119 subset: FAIL) |
 | [A288](asks/A288.md) | 2026-10-27 | Claude → Cursor | [quant] DCF bridge — in-the-money convertibles as shares, not debt | planned |
-| [A294](asks/A294.md) | 2026-10-28 | Muse → Cursor | Repair: model-list-panel uses VERDICT_CHIPS + fields the model-list hook never exports — CI typecheck red | planned |
+| [A294](asks/A294.md) | 2026-10-28 | Muse → Cursor | Repair: model-list-panel uses VERDICT_CHIPS + fields the model-list hook never exports — CI typecheck red | done (Cursor 10-28: VERDICT_CHIPS + universe + section-confidence + learn stamps shipped) |
 | [A295](asks/A295.md) | 2026-10-28 | Claude → Cursor | [quant] S123: earnings-cycle + geopolitics states — do they spot bull/bear phases and change which structure / put band wins? | open |
 | [A296](asks/A296.md) | 2026-10-28 | Claude → Cursor | Monthly theme sweep: what research houses are watching (source × theme table → Key Themes) | open |
 | [A297](asks/A297.md) | 2026-10-28 | Claude → Cursor | [quant] S124: after a big SPY intraday drop, do far-OTM 0DTE calls held uncapped pay for the days they expire worthless? | open |

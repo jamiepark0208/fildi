@@ -81,6 +81,19 @@ export type ModelListItem = {
     n: number;
     titles: string[];
   } | null;
+  /** Universe sell-put option score (Rankings › Options); sell_puts only. */
+  universeScore?: number | null;
+  /** Universe sell-put rank (1 = best); sell_puts only. */
+  universeRank?: number | null;
+  /** Denominator for universe rank tooltip. */
+  universeN?: number;
+  /** Section-native confidence for sell_calls / trim_risk / manage. */
+  confidence?: {
+    score: number;
+    rank: number;
+    basis: string;
+    kind: "setup" | "trim" | "urgency";
+  };
   close: number | null;
   prevClose: number | null;
   closeDate: string | null;
@@ -105,6 +118,10 @@ export type ModelListHealth = {
   prices_universe_date?: string | null;
   grades?: number;
   last_graded_at?: string | null; split_repairs?: number;
+  /** Last learn.py challenger propose (null = none open). */
+  learn_proposed_at?: string | null;
+  /** When current champion was promoted. */
+  learn_promoted_at?: string | null;
   /** A74: resolved Model List pick P(OTM) vs actual (forecast_ledger model_winrate). */
   calibration?: { n: number; pred: number; real: number; byWeek?: { week: 1 | 2; n: number; pred: number; real: number }[] } | null;
 };
@@ -115,7 +132,7 @@ export type ModelList = {
   folders: ModelListFolder[];
 };
 
-/** Verdict → tag color; matches PRESET_COLORS in use-watchlist.ts. */
+/** Model-view colors (Fildi fit verdict — not My List user tags). */
 export const VERDICT_COLORS: Record<string, string> = {
   green: "#22c55e",
   yellow: "#eab308",
@@ -123,12 +140,21 @@ export const VERDICT_COLORS: Record<string, string> = {
   purple: "#a855f7",
 };
 
+/** Short chip on Model List rows — Model's judgment from fund/credit/street/premium. */
+export const VERDICT_CHIPS: Record<string, { code: string; className: string }> = {
+  green: { code: "OWN", className: "bg-emerald-500/25 text-emerald-300" },
+  yellow: { code: "INC", className: "bg-yellow-500/25 text-yellow-200" },
+  red: { code: "AVD", className: "bg-red-500/25 text-red-300" },
+  purple: { code: "ETF", className: "bg-purple-500/25 text-purple-300" },
+  "": { code: "WCH", className: "bg-white/10 text-white/50" },
+};
+
 export const VERDICT_LABELS: Record<string, string> = {
-  green: "Own: would happily hold",
-  yellow: "Income: wheel target",
-  red: "Avoid: risk flags",
-  purple: "Market context (ETF)",
-  "": "Watch-only: nothing stands out",
+  green: "Model OWN — would happily hold (fund+credit+street pass)",
+  yellow: "Model INC — wheel / income target (rich premium, ownable)",
+  red: "Model AVD — avoid / risk flags (distress, cuts, weak OWN+STREET)",
+  purple: "Model ETF — market context only, never peer-scored",
+  "": "Model WCH — watch-only; on this list for the trade, not a full OWN/INC call",
 };
 
 export function useModelList() {

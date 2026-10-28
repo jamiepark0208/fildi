@@ -6,6 +6,8 @@ import { classifyTicker } from "../lib/peer-classifier.js";
 import { isExcludedEtf, isEtfQuoteType } from "../lib/etf-exclusions.js";
 import { yahooFinance } from "../lib/yahoo-client.js";
 import { warmWatchlistTicker } from "../lib/warm-watchlist-ticker.js";
+import { readLatestOptionRankings } from "../lib/option-score-snapshots.js";
+import { attachSectionConfidence } from "../lib/section-confidence.js";
 
 const router = Router();
 
@@ -235,6 +237,42 @@ router.get("/watchlist/model", async (req, res) => {
       }
     } catch { /* shortlist table may not exist yet */ }
 
+    // Universe sell-put option score/rank (same board as Rankings › Options).
+    try {
+      const { rows: putRankings } = await readLatestOptionRankings("put");
+      const byTicker = new Map(
+        putRankings.map((r) => [String(r.ticker).toUpperCase(), r]),
+      );
+      const universeN = putRankings.length;
+      const puts = folders.get("sell_puts");
+      if (puts) {
+        for (const it of puts.items as Array<{
+          ticker: string;
+          universeScore?: number | null;
+          universeRank?: number | null;
+          universeN?: number;
+        }>) {
+          const row = byTicker.get(String(it.ticker).toUpperCase());
+          it.universeN = universeN;
+          if (row) {
+            it.universeScore = Number.isFinite(row.optionScore) ? Math.round(row.optionScore * 10) / 10 : null;
+            it.universeRank = Number.isFinite(row.rank) ? row.rank : null;
+          } else {
+            it.universeScore = null;
+            it.universeRank = null;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[watchlist] universe put ranks unavailable:", err);
+    }
+
+    // Section-native confidence for folders without a put-style score framework.
+    for (const key of ["sell_calls", "trim_risk", "manage"] as const) {
+      const f = folders.get(key);
+      if (f) attachSectionConfidence(key, f.items as Parameters<typeof attachSectionConfidence>[1]);
+    }
+
     // Pipeline health strip: is everything behind this list fresh and working? (one round trip; each part is optional)
     const healthRows = rowsOf(await db.execute(sql`
       SELECT
@@ -257,7 +295,10 @@ router.get("/watchlist/model", async (req, res) => {
         (SELECT MAX(date) FROM prices_historical) AS prices_universe_date,
         (SELECT COUNT(*) FROM watchlist_sync.grades)::int AS grades,
         (SELECT MAX(graded_at) FROM watchlist_sync.grades) AS last_graded_at,
-        (SELECT COUNT(*) FROM watchlist_sync.price_repairs)::int AS split_repairs`) as SqlRows<Record<string, unknown>>);
+        (SELECT COUNT(*) FROM watchlist_sync.price_repairs)::int AS split_repairs,
+        -- Learning cycle: last challenger propose + last champion promote (learn.py / daily.py)
+        (SELECT MAX(created_at) FROM watchlist_sync.model_params WHERE status = 'challenger') AS learn_proposed_at,
+        (SELECT promoted_at FROM watchlist_sync.model_params WHERE status = 'champion') AS learn_promoted_at`) as SqlRows<Record<string, unknown>>);
     const health = healthRows[0] ?? {};
 
     // A74: Model List P(OTM) calibration from forecast_ledger (model_winrate on model_pick_otm).
