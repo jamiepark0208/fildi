@@ -1,5 +1,6 @@
 // Core FRED fetch helpers. Extracted verbatim from macro-data.ts — no behavior change.
 import { logApiCall } from "../api-logger.js";
+import { circuitFor } from "../http-client.js";
 import type { FredSeries, ChartPoint } from "../macro-data.js";
 
 export function nullSeries(unit = ""): FredSeries {
@@ -10,6 +11,10 @@ async function fetchFredSeriesData(
   seriesId: string,
   observationStart?: string
 ): Promise<{ date: string; val: number }[]> {
+  // FRED unreachable → skip at once (callers keep the saved series). Before, a refresh during an outage made ~60
+  // failing calls per run, again on every restart (63 failures in one minute on 10-27). Policy: VENDOR_POLICY.FRED.
+  const circuit = circuitFor("FRED");
+  if (circuit.isOpen()) return [];
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
@@ -20,6 +25,8 @@ async function fetchFredSeriesData(
       signal: controller.signal,
     });
     clearTimeout(timer);
+    if (res.status >= 500) circuit.noteFailure(new Error(`HTTP ${res.status}`));
+    else circuit.noteSuccess();
     if (!res.ok) {
       logApiCall({ source: "fred", fn: "fetchFredSeriesData", trigger: "macro data refresh", outcome: "failure", error: `HTTP ${res.status}`, requestedFields: seriesId });
       return [];
@@ -37,6 +44,7 @@ async function fetchFredSeriesData(
     logApiCall({ source: "fred", fn: "fetchFredSeriesData", trigger: "macro data refresh", outcome: "success", fieldsReturned: valid.length });
     return valid;
   } catch (err: any) {
+    circuit.noteFailure(err);
     logApiCall({ source: "fred", fn: "fetchFredSeriesData", trigger: "macro data refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: seriesId });
     return [];
   }

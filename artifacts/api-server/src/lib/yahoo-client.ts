@@ -1,5 +1,6 @@
 import YahooFinanceClass from "yahoo-finance2";
 import { logger } from "./logger.js";
+import { circuitFor } from "./http-client.js";
 import { logApiCall } from "./api-logger.js";
 
 // The ONE Yahoo client for the server: each instance carries its own cookie/crumb
@@ -22,30 +23,20 @@ export async function withDeadline<T>(p: Promise<T>, ms: number, label = "op"): 
   }
 }
 
-// When Yahoo/DNS is wedged (ConnectTimeout), fail fast for a cooldown instead of
-// stacking 10s hangs on every /stocks/breakdown + /live/prices and freezing tab nav.
-let yahooCircuitOpenUntil = 0;
-let yahooFailStreak = 0;
-const YAHOO_CIRCUIT_MS = 60_000;
-const YAHOO_FAIL_OPEN_AFTER = 2;
+// When Yahoo/DNS is wedged (ConnectTimeout), fail fast for a cooldown instead of stacking 10s hangs on every
+// /stocks/breakdown + /live/prices and freezing tab nav. Shared breaker + policy: http-client VENDOR_POLICY.Yahoo (A303).
+const yahooCircuit = () => circuitFor("Yahoo");
 
 export function isYahooCircuitOpen(): boolean {
-  return Date.now() < yahooCircuitOpenUntil;
+  return yahooCircuit().isOpen();
 }
 
 export function noteYahooSuccess(): void {
-  yahooFailStreak = 0;
+  yahooCircuit().noteSuccess();
 }
 
 export function noteYahooFailure(err: unknown): void {
-  const msg = String((err as { message?: string })?.message ?? err);
-  if (!/fetch failed|ConnectTimeout|UND_ERR|ECONN|ENOTFOUND|timeout/i.test(msg)) return;
-  yahooFailStreak += 1;
-  if (yahooFailStreak >= YAHOO_FAIL_OPEN_AFTER) {
-    yahooCircuitOpenUntil = Date.now() + YAHOO_CIRCUIT_MS;
-    yahooFailStreak = 0;
-    logger.warn({ until: new Date(yahooCircuitOpenUntil).toISOString() }, "yahoo: circuit open — skip Yahoo for 60s (DB/Schwab only)");
-  }
+  yahooCircuit().noteFailure(err);
 }
 
 export function assertYahooAvailable(label = "yahoo"): void {
@@ -60,12 +51,8 @@ export function getYahooCircuitSnapshot(): {
   openUntil: string | null;
   failStreak: number;
 } {
-  const open = isYahooCircuitOpen();
-  return {
-    open,
-    openUntil: open ? new Date(yahooCircuitOpenUntil).toISOString() : null,
-    failStreak: yahooFailStreak,
-  };
+  const c = yahooCircuit().snapshot();
+  return { open: c.open, openUntil: c.openUntil, failStreak: c.recentFailures };
 }
 
 export interface YahooFundamentalsData {

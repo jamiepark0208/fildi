@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from build_plan import connect, rows  # noqa: E402
 
 DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.external_intrinsic (
@@ -54,6 +55,7 @@ def _key() -> str | None:
 def _fmp(conn, path: str, t: str, extra: str = "", whole: bool = False) -> tuple[dict | list | None, str | None]:
     key = _key()
     try:
+        vendor_gate.wait("FMP")
         raw = urllib.request.urlopen(f"{FMP}/{path}?symbol={t}{extra}&apikey={key}", timeout=30).read().decode()
     except urllib.error.HTTPError as e:  # 402 = symbol not on our plan (small/mid caps)
         raw = f"Premium HTTP {e.code}" if e.code in (401, 402, 403) else f"HTTP {e.code}"

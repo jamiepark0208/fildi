@@ -16,6 +16,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from build_plan import connect, rows  # noqa: E402
 
 UA = "TradeDash/1.0 jamiepark0208@gmail.com"  # same declared agent as artifacts/api-server/src/lib/edgar-client.ts
@@ -73,6 +74,8 @@ WEIGHTED = {"diluted": "WeightedAverageNumberOfDilutedSharesOutstanding", "basic
 
 
 def _get(url: str) -> dict:
+    if "sec.gov" in url:
+        vendor_gate.wait("EDGAR")
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
 

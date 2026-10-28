@@ -24,6 +24,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from build_plan import connect  # noqa: E402
 from openjev_news import env  # noqa: E402
 
@@ -33,6 +34,7 @@ DATA = ROOT / "research/openjev/controls"   # gitignored cache
 def fmp_profile(t: str) -> dict:
     url = f"https://financialmodelingprep.com/stable/profile?symbol={t}&apikey={env('FMP_API_KEY')}"
     try:
+        vendor_gate.wait("FMP")
         with urllib.request.urlopen(url, timeout=20) as r:
             a = json.loads(r.read())
         x = a[0] if isinstance(a, list) and a else {}

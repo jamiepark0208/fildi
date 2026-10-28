@@ -20,6 +20,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from datetime import date, datetime
 
 from build_plan import connect, rows
@@ -113,6 +114,7 @@ _AI_USAGE: list[tuple[str, int, int]] = []  # (ticker, in, out) per Haiku call â
 
 def latest_quarter(ticker: str) -> str | None:
     _CALLS["finnhub"] = _CALLS.get("finnhub", 0) + 1
+    vendor_gate.wait("Finnhub")
     d = get_json(f"https://finnhub.io/api/v1/stock/earnings?symbol={urllib.parse.quote(ticker)}&token={env('FINNHUB_API_KEY')}", 30)
     done = [x for x in d if isinstance(x, dict) and x.get("actual") is not None and x.get("year") and x.get("quarter")] if isinstance(d, list) else []
     return f"{done[0]['year']}Q{done[0]['quarter']}" if done else None

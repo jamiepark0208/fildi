@@ -20,6 +20,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "scripts"))
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 
 PT = ZoneInfo("America/Los_Angeles")
 DDL = """
@@ -79,6 +80,7 @@ def finnhub_news(ticker: str, since: dt.date, until: dt.date) -> list[dict]:
         f"&from={since.isoformat()}&to={until.isoformat()}&token={key}"
     )
     try:
+        vendor_gate.wait("Finnhub")
         with urllib.request.urlopen(url, timeout=20) as r:
             body = json.loads(r.read().decode())
     except Exception:

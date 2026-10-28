@@ -31,7 +31,9 @@ Amplifier: the API restarted ~10×/h on agents' edits (watch mode), wiping every
 - COT and short-interest SWR; Asia chart deadline (in Cursor's WIP → A302).
 - **Detection:** `scripts/perf-watch.mjs` every 30 min (LaunchAgent) → agent_start 5c. **Prevention:** `scripts/perf-guards.sh` on every push; AGENTS.md 8c.
 
-## Still to do (A303)
+## Done later 10-28 (A303, Claude) — was "still to do"
 1. **One vendor policy table** (`http-client.ts`): per vendor {timeout, retries, rate limit, circuit, cross-process?}. Yahoo, Schwab, FRED and CNN each hand-roll theirs today; FRED/CNN have no circuit.
 2. **Cross-process budgets** for Finnhub (60/min), FMP, SEC (10/s): generalize the Polygon flock gate (`polygon-limiter.ts` + `polygon_gate.py`) into one `vendor_gate` used by Node and Python.
 3. **Macro merge-with-prior for every field** (today only the yield curve and 20 chart series): an empty fresh series never overwrites a good saved one. `routes/macro.ts` holds uncommitted WIP; do it after that lands.
+
+All three built and tested (see asks/A303.md status note): VENDOR_POLICY + one VendorCircuit; cross-process vendor_gate (Node + Python); mergeWithPrior on every macro field. Remaining: Cursor's uncommitted macro-charts fetcher adopts the shared circuit when committed (A302).

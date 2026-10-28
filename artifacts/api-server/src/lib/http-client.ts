@@ -1,4 +1,6 @@
 import { logger } from "./logger.js";
+import { DEFAULT_CIRCUIT, vendorCircuit, type CircuitPolicy, type VendorCircuit } from "./vendor-circuit.js";
+import { acquireCrossProcessSlot } from "./vendor-gate.js";
 
 /** Shared sleep — re-exported so callers can pace batch loops without re-declaring it. */
 export function sleep(ms: number): Promise<void> {
@@ -36,14 +38,33 @@ export function retryAfterMs(res: Response, fallbackMs = 2_000): number {
 // enrich, peer resolver, earnings calendar, ...). Batch scripts keep their own sleeps; this
 // only binds when several paths hit the same provider at once. Set just under the
 // published free-tier limits noted in the backfill scripts.
-const PROVIDER_LIMITS: Record<string, { max: number; windowMs: number }> = {
-  Finnhub: { max: 55, windowMs: 60_000 }, // 60/min free tier
-  Polygon: { max: 5,  windowMs: 60_000 }, // 5/min free tier
-  AV:      { max: 5,  windowMs: 60_000 }, // 5/min free tier (daily cap enforced by AV_MAX_DAILY_CALLS)
-  EDGAR:   { max: 9,  windowMs: 1_000 },  // SEC fair-access: 10 req/s
+/**
+ * One policy table for every vendor (A303, runtime audit 10-28) — the single home for how hard we may hit a vendor.
+ *  rate          in-process window limit (acquireProviderSlot)
+ *  crossGapMs    min gap shared by EVERY process on the Mac (vendor-gate.ts; Python: scripts/watchlist_sync/vendor_gate.py
+ *                keeps the same numbers). Polygon's cross-process gate is its own flock (polygon-limiter.ts, A267).
+ *  circuit       outage breaker (vendor-circuit.ts); every vendor gets DEFAULT_CIRCUIT unless set here.
+ * Vendors with their own client read their circuit from here too: Yahoo (yahoo-client.ts), Schwab (schwab-client.ts),
+ * FRED (macro/macro-fred.ts).
+ */
+export const VENDOR_POLICY: Record<string, { rate?: { max: number; windowMs: number }; crossGapMs?: number; circuit?: CircuitPolicy }> = {
+  Finnhub: { rate: { max: 55, windowMs: 60_000 }, crossGapMs: 1_100 }, // 60/min free tier
+  Polygon: { rate: { max: 5, windowMs: 60_000 } },                      // 5/min free tier
+  AV:      { rate: { max: 5, windowMs: 60_000 } },                      // 5/min free tier (daily cap: AV_MAX_DAILY_CALLS)
+  EDGAR:   { rate: { max: 9, windowMs: 1_000 }, crossGapMs: 115 },      // SEC fair access 10 req/s
   // FMP starter ~300/min published; book quota ~220/day (A46). Cap burst, not daily.
-  FMP:     { max: 8,  windowMs: 1_000 },  // ~8/s — replaces ad-hoc 300–400ms sleeps (A83)
+  FMP:     { rate: { max: 8, windowMs: 1_000 }, crossGapMs: 130 },      // ~8/s (A83)
+  Yahoo:   { circuit: { fails: 2, windowMs: 60_000, openMs: 60_000 } },
+  Schwab:  { circuit: { fails: 3, windowMs: 60_000, openMs: 60_000 } },
+  FRED:    { circuit: { fails: 3, windowMs: 60_000, openMs: 5 * 60_000 } },
 };
+const PROVIDER_LIMITS: Record<string, { max: number; windowMs: number }> = Object.fromEntries(
+  Object.entries(VENDOR_POLICY).flatMap(([k, v]) => (v.rate ? [[k, v.rate]] : [])),
+);
+/** The shared outage breaker for a vendor, with its policy from VENDOR_POLICY. */
+export function circuitFor(provider: string): VendorCircuit {
+  return vendorCircuit(provider, VENDOR_POLICY[provider]?.circuit ?? DEFAULT_CIRCUIT);
+}
 
 /** Run `fn` over items with at most `concurrency` in flight (order preserved). */
 export async function mapWithConcurrency<T, R>(
@@ -116,18 +137,25 @@ export async function fetchJsonWithRetry<T = any>(url: string, opts: FetchJsonOp
 export async function fetchJsonWithRetry<T = any>(url: string, opts: FetchJsonOptions): Promise<T | null> {
   const { provider, maxRetries = 3, timeoutMs = 15_000, baseDelayMs = 1000, init, nullOn404 = false } = opts;
   const safeUrl = redactUrl(url);
+  const circuit = circuitFor(provider);
   let delay = baseDelayMs;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Vendor unreachable → fail at once (callers fall back to saved data) instead of retrying into the outage.
+    if (circuit.isOpen()) throw new Error(`${provider} circuit open (vendor unreachable) for ${safeUrl}`);
     await acquireProviderSlot(provider);
+    await acquireCrossProcessSlot(provider, VENDOR_POLICY[provider]?.crossGapMs);
     let res: Response;
     try {
       res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     } catch (err) {
-      if (attempt === maxRetries) throw err;
+      circuit.noteFailure(err);
+      if (attempt === maxRetries || circuit.isOpen()) throw err;
       await sleep(jitter(delay));
       delay *= 2;
       continue;
     }
+    if (res.status >= 500) circuit.noteFailure(new Error(`HTTP ${res.status}`));
+    else circuit.noteSuccess();
     if (res.status === 429 || res.status === 503) {
       if (attempt === maxRetries) throw new Error(`${provider} HTTP ${res.status} (rate limited) after ${maxRetries} retries for ${safeUrl}`);
       const wait = res.headers.has("retry-after") ? retryAfterMs(res) : jitter(delay);

@@ -21,6 +21,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 sys.path.insert(0, str(HERE))
 from build_plan import connect, rows  # noqa: E402
 from financials import UA  # noqa: E402
@@ -45,6 +46,8 @@ DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.dcf_segments (
 
 
 def _get(url: str) -> bytes:
+    if "sec.gov" in url:
+        vendor_gate.wait("EDGAR")
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
     with urllib.request.urlopen(req, timeout=120) as r:
         return r.read()

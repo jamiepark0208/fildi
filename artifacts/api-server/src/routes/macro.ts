@@ -40,6 +40,7 @@ import {
   fallbackPayload,
   isLegacyHighlights,
 } from "../lib/macro-highlights.js";
+import { mergeWithPrior } from "../lib/macro/macro-merge.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -64,7 +65,8 @@ router.get("/data", async (_req: Request, res: Response) => {
   let cached = loadMacroCache();
   if (cached && !isCacheStale(cached, 4)) return res.json(cached);
   try {
-    const fresh = await fetchMacroData();
+    // A303: an empty/failed series never replaces a good saved one
+    const fresh = mergeWithPrior(await fetchMacroData(), cached);
     saveMacroCache(fresh);
     return res.json(fresh);
   } catch (err) {
@@ -76,7 +78,7 @@ router.get("/data", async (_req: Request, res: Response) => {
 
 router.post("/refresh", requireAdmin, async (_req: Request, res: Response) => {
   try {
-    const fresh = await fetchMacroData();
+    const fresh = mergeWithPrior(await fetchMacroData(), loadMacroCache());
     saveMacroCache(fresh);
     return res.json(fresh);
   } catch (err) {
@@ -91,7 +93,7 @@ router.get("/charts", async (_req: Request, res: Response) => {
   let cached = loadChartsCache();
   if (cached && !isChartsCacheStale(cached, 4)) return res.json(cached);
   try {
-    const fresh = await fetchMacroCharts();
+    const fresh = mergeWithPrior(await fetchMacroCharts(), cached);
     saveChartsCache(fresh);
     return res.json(fresh);
   } catch (err) {

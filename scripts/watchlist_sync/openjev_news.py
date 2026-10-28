@@ -32,6 +32,7 @@ from zoneinfo import ZoneInfo
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
+import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from build_plan import connect  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
@@ -51,6 +52,7 @@ def fh(path: str) -> object:
     url = f"https://finnhub.io/api/v1/{path}&token={env('FINNHUB_API_KEY')}"
     for i in range(4):
         try:
+            vendor_gate.wait("Finnhub")
             with urllib.request.urlopen(url, timeout=30) as r:
                 return json.loads(r.read())
         except Exception as e:  # 429 / transient
