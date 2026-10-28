@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RADIX_TAB_TRIGGER } from "@/lib/sub-tabs";
 import {
   crossCheck,
   interpretLseg,
@@ -86,10 +87,10 @@ const TONE_BOX: Record<Tone, string> = {
 };
 
 const TONE_BADGE: Record<Tone, string> = {
-  good: "border-green-500/40 bg-green-500/10 text-green-300",
-  bad: "border-red-500/40 bg-red-500/10 text-red-300",
-  warn: "border-amber-400/40 bg-amber-400/10 text-amber-300",
-  neutral: "border-zinc-500/40 bg-zinc-800/80 text-zinc-300",
+  good: "border-emerald-400/70 bg-zinc-900 text-white",
+  bad: "border-rose-400/70 bg-zinc-900 text-white",
+  warn: "border-amber-400/70 bg-zinc-900 text-white",
+  neutral: "border-zinc-500/50 bg-zinc-900 text-white",
 };
 
 const TONE_ICON: Record<Tone, typeof Info> = {
@@ -107,9 +108,6 @@ const EVENT_LABEL: Record<string, string> = {
   GuidanceCalls: "Guidance call",
   MergersAndAcquisitions: "M&A",
 };
-
-const TAB =
-  "text-[10px] font-semibold px-2 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black";
 
 function Gauge({ value, tone }: { value: number; tone: Tone }) {
   return (
@@ -247,11 +245,11 @@ function LsegReport({
   return (
     <Tabs defaultValue="verdict" className="w-full">
       <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-x-auto w-full justify-start mb-2 sticky top-0 z-10">
-        <TabsTrigger value="verdict" className={TAB}>Verdict</TabsTrigger>
-        <TabsTrigger value="signals" className={TAB}>Signals</TabsTrigger>
-        <TabsTrigger value="peers" className={TAB}>Peers</TabsTrigger>
-        <TabsTrigger value="trade" className={TAB}>Trade</TabsTrigger>
-        <TabsTrigger value="more" className={TAB}>More</TabsTrigger>
+        <TabsTrigger value="verdict" className={RADIX_TAB_TRIGGER}>Verdict</TabsTrigger>
+        <TabsTrigger value="signals" className={RADIX_TAB_TRIGGER}>Signals</TabsTrigger>
+        <TabsTrigger value="peers" className={RADIX_TAB_TRIGGER}>Peers</TabsTrigger>
+        <TabsTrigger value="trade" className={RADIX_TAB_TRIGGER}>Trade</TabsTrigger>
+        <TabsTrigger value="more" className={RADIX_TAB_TRIGGER}>More</TabsTrigger>
       </TabsList>
 
       <TabsContent value="verdict" className="space-y-3 mt-0">

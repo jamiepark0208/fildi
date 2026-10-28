@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RADIX_TAB_TRIGGER } from "@/lib/sub-tabs";
 import { ResearchOpsBanner } from "@/components/research-ops-banner";
 import { ResearchPeerPanel } from "@/components/research-peer-panel";
 import { ReportSection, ResearchReportShell } from "@/components/research-report-shell";
@@ -51,9 +52,6 @@ const TONE_BOX = {
   warn: "border-amber-400/30 bg-amber-400/5 text-amber-200",
   neutral: "border-[#d4af37]/15 bg-zinc-900/50 text-zinc-200",
 } as const;
-
-const TAB =
-  "text-[10px] font-semibold px-2 h-6 rounded text-amber-200/50 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black";
 
 function MiniSpark({ data }: { data: WrdsPayload }) {
   const rev = revisionChartData(data).slice(-8);
@@ -94,19 +92,19 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
   return (
     <Tabs defaultValue="verdict" className="w-full">
       <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-x-auto w-full justify-start mb-2 sticky top-0 z-10">
-        <TabsTrigger value="verdict" className={TAB}>
+        <TabsTrigger value="verdict" className={RADIX_TAB_TRIGGER}>
           Verdict
         </TabsTrigger>
-        <TabsTrigger value="street" className={TAB}>
+        <TabsTrigger value="street" className={RADIX_TAB_TRIGGER}>
           Street
         </TabsTrigger>
-        <TabsTrigger value="peers" className={TAB}>
+        <TabsTrigger value="peers" className={RADIX_TAB_TRIGGER}>
           Peers
         </TabsTrigger>
-        <TabsTrigger value="trade" className={TAB}>
+        <TabsTrigger value="trade" className={RADIX_TAB_TRIGGER}>
           Trade
         </TabsTrigger>
-        <TabsTrigger value="more" className={TAB}>
+        <TabsTrigger value="more" className={RADIX_TAB_TRIGGER}>
           More
         </TabsTrigger>
       </TabsList>

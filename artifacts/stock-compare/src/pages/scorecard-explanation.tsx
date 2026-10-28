@@ -7,15 +7,19 @@ import { GuideMetricGrid } from "@/components/scorecard-guide/guide-metric-grid"
 import { DataTransparencyBar } from "@/components/scorecard-guide/data-transparency-bar";
 import { TabStatusHeader } from "@/components/scorecard-guide/tab-status-header";
 import { FundamentalTreatmentPanel } from "@/components/scorecard-guide/fundamental-treatment-panel";
+import { TechnicalTreatmentPanel } from "@/components/scorecard-guide/technical-treatment-panel";
+import { OptionsTreatmentPanel } from "@/components/scorecard-guide/options-treatment-panel";
+import { WalkthroughControls } from "@/components/scorecard-guide/score-walkthrough-shared";
 import {
-  TECHNICAL_GUIDE_ROWS, OPTIONS_STOCK_ROWS, OPTIONS_STRIKE_ROWS,
+  TECHNICAL_GUIDE_ROWS,
+  OPTIONS_STOCK_ROWS,
+  OPTIONS_STRIKE_ROWS,
 } from "@/lib/scorecard-guide-metadata";
 import { useGuideStatus } from "@/hooks/use-guide-status";
 import { useAuth } from "@/context/AuthContext";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
-import { validateScoringWeights, SCORING_PRESETS, type ScoringWeightsConfig } from "@/lib/scoring-weights";
+import { validateScoringWeights, type ScoringWeightsConfig } from "@/lib/scoring-weights";
 import { BookOpen } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export function ScorecardGuideContent({ showHeader = true }: { showHeader?: boolean }) {
   const status = useGuideStatus();
@@ -27,7 +31,8 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
   const [draft, setDraft] = useState<ScoringWeightsConfig>(weights);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [preset, setPreset] = useState<string | null>(null);
+  const [walkInput, setWalkInput] = useState("HOOD");
+  const [walkTicker, setWalkTicker] = useState("HOOD");
 
   useEffect(() => {
     if (!dirty) setDraft(weights);
@@ -48,25 +53,10 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
     return () => clearTimeout(t);
   }, [tab]);
 
-  const applyPreset = (key: string) => {
-    const p = SCORING_PRESETS[key];
-    if (!p) return;
-    const err = validateScoringWeights(p.config);
-    if (err) { setError(err); return; }
-    setPreset(key);
-    setDraft(p.config);
-    setDirty(true);
-    setError(null);
-  };
-
-  const techCov = status.coverageFor("technicals");
-  const techNoteSuffix = status.noteSuffix("technicals");
-
   const onDraftChange = (next: ScoringWeightsConfig) => {
     setDraft(next);
     setDirty(true);
     setError(null);
-    setPreset(null);
   };
 
   const handleSave = async () => {
@@ -83,7 +73,6 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
     if (saveErr) { setError(saveErr); return; }
     setDirty(false);
     setError(null);
-    setPreset(null);
   };
 
   return (
@@ -105,13 +94,13 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
           </div>
         )}
 
-        <div className={showHeader ? "p-4 max-w-6xl pb-20" : "max-w-6xl pb-8"}>
+        <div className={showHeader ? "p-4 max-w-6xl pb-8" : "max-w-6xl pb-3"}>
           <Tabs value={tab} onValueChange={setTab}>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <TabsList className="h-7 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded overflow-hidden">
-                <TabsTrigger value="fundamental" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Fundamental</TabsTrigger>
-                <TabsTrigger value="technical" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Technical</TabsTrigger>
-                <TabsTrigger value="options" className="text-[11px] font-semibold px-2.5 h-6 rounded text-white/70 data-[state=active]:bg-[#d4af37] data-[state=active]:text-black">Options</TabsTrigger>
+              <TabsList>
+                <TabsTrigger value="fundamental">Fundamental</TabsTrigger>
+                <TabsTrigger value="technical">Technical</TabsTrigger>
+                <TabsTrigger value="options">Options</TabsTrigger>
               </TabsList>
 
               {/* As-of sits with the layer tabs — not a lonely grey line under them */}
@@ -139,66 +128,67 @@ export function ScorecardGuideContent({ showHeader = true }: { showHeader?: bool
                 />
               )}
 
-              {/* Tech/options weight drafts only — never the persisted fund-score engine */}
-              {isAdmin && (tab === "technical" || tab === "options") && (
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <span className="text-[11px] text-white" title="Draft weights for Technical/Options grids. Save to persist. Does not change fundamental engine scores.">
-                    Presets:
-                  </span>
-                  <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden">
-                    {Object.entries(SCORING_PRESETS).map(([key, p]) => (
-                      <button
-                        key={key}
-                        onClick={() => applyPreset(key)}
-                        className={cn(
-                          "text-[11px] font-semibold px-2 h-6 transition-colors",
-                          preset === key
-                            ? "bg-[#d4af37] text-black"
-                            : "bg-zinc-950 text-white hover:text-[#d4af37]",
-                        )}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <WalkthroughControls
+                input={walkInput}
+                onInput={setWalkInput}
+                onLoad={() => {
+                  const t = walkInput.trim().toUpperCase();
+                  if (t) setWalkTicker(t);
+                }}
+              />
             </div>
 
             <TabsContent value="fundamental" className="mt-0 space-y-2">
-              <FundamentalTreatmentPanel />
+              <FundamentalTreatmentPanel ticker={walkTicker} />
             </TabsContent>
 
             <TabsContent value="technical" className="mt-0 space-y-2">
-              <GuideMetricGrid
-                rows={TECHNICAL_GUIDE_ROWS}
-                coverageLabel={techCov.label}
-                coverageTone={techCov.tone}
-                config={draft}
-                noteSuffix={techNoteSuffix}
-                editable={isAdmin}
-                onConfigChange={onDraftChange}
-              />
+              <TechnicalTreatmentPanel ticker={walkTicker} />
+              {isAdmin && (
+                <details className="rounded-sm border border-white/10 bg-black/30">
+                  <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white hover:text-[#d4af37]">
+                    Edit technical weights (admin)
+                  </summary>
+                  <div className="px-2 pb-2 pt-1">
+                    <GuideMetricGrid
+                      rows={TECHNICAL_GUIDE_ROWS}
+                      coverageLabel={status.coverageFor("technicals").label}
+                      coverageTone={status.coverageFor("technicals").tone}
+                      config={draft}
+                      noteSuffix={status.noteSuffix("technicals")}
+                      editable
+                      onConfigChange={onDraftChange}
+                    />
+                  </div>
+                </details>
+              )}
             </TabsContent>
 
             <TabsContent value="options" className="mt-0 space-y-2">
-              <p className="text-xs text-white">Rank stocks → score strikes → liquidity warning + macro regime</p>
-              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock rank layer</p>
-              <GuideMetricGrid
-                rows={OPTIONS_STOCK_ROWS}
-                coverageLabel="DB daily/weekly"
-                config={draft}
-                editable={isAdmin}
-                onConfigChange={onDraftChange}
-              />
-              <p className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Strike pick layer (BEST)</p>
-              <GuideMetricGrid
-                rows={OPTIONS_STRIKE_ROWS}
-                coverageLabel="On scan"
-                config={draft}
-                editable={isAdmin}
-                onConfigChange={onDraftChange}
-              />
+              <OptionsTreatmentPanel ticker={walkTicker} />
+              {isAdmin && (
+                <details className="rounded-sm border border-white/10 bg-black/30">
+                  <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white hover:text-[#d4af37]">
+                    Edit options weights (admin)
+                  </summary>
+                  <div className="px-2 pb-2 pt-1 space-y-2">
+                    <GuideMetricGrid
+                      rows={OPTIONS_STOCK_ROWS}
+                      coverageLabel="DB daily/weekly"
+                      config={draft}
+                      editable
+                      onConfigChange={onDraftChange}
+                    />
+                    <GuideMetricGrid
+                      rows={OPTIONS_STRIKE_ROWS}
+                      coverageLabel="On scan"
+                      config={draft}
+                      editable
+                      onConfigChange={onDraftChange}
+                    />
+                  </div>
+                </details>
+              )}
             </TabsContent>
           </Tabs>
 
