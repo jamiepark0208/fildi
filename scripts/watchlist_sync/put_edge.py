@@ -198,3 +198,12 @@ def is_demoted(conn) -> bool:
     conn.execute(STATUS_DDL)
     r = conn.execute("SELECT demoted FROM watchlist_sync.put_edge_status ORDER BY as_of DESC LIMIT 1").fetchone()
     return bool(r and r[0])
+
+
+if __name__ == "__main__":
+    # daily.py "put edge" (Jamie 10-28): today's grades must exist before put_recs.py reads max(as_of) — they were only
+    # written by house_view after publish, so the engine ranked/capped on yesterday's quintiles (ARM Q3 → Q4 at 0.12–0.15Δ).
+    from build_plan import connect
+    with connect() as conn:
+        e = scores(conn)
+        print(f"put edge {date.today()}: {persist(conn, e)} names")

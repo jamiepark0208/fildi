@@ -3,6 +3,7 @@
  * Overall options rankings snapshot — run by the Model List each morning (daily.py) with live quotes.
  *   cd artifacts/api-server && npx tsx src/scripts/snapshot-option-scores.ts
  *   npx tsx src/scripts/snapshot-option-scores.ts --dry-run --limit=20
+ *   npx tsx src/scripts/snapshot-option-scores.ts --engine-pins   # after put_recs.py: score each engine pick's own contract
  */
 import { computeAndPersistOptionScores } from "../lib/option-score-snapshots.js";
 import { db } from "@workspace/db";
@@ -45,6 +46,12 @@ async function main() {
   const limitArg = process.argv.find((a) => a.startsWith("--limit="));
   const limit = limitArg ? parseInt(limitArg.split("=")[1]!, 10) : undefined;
 
+  if (process.argv.includes("--engine-pins")) {
+    const r = await computeAndPersistOptionScores({ dryRun, enginePins: true });
+    console.log(`engine pins: scored ${r.persisted}/${r.candidates} picks (${r.asOf})${r.failures ? ` · ${r.failures} without a contract in their chain` : ""}`);
+    if (r.failures) process.exitCode = 2;
+    return;
+  }
   if (!dryRun) await ensureTable();
 
   const result = await computeAndPersistOptionScores({ dryRun, limit });

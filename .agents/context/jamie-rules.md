@@ -9,6 +9,10 @@
 - Show opportunities with their cost; he decides (10-14).
 - **Free cash never filters or flags an opportunity** (repeated; 10-22). He frees cash by selling stock or closing puts. Show the collateral needed as plain info, never as a warn/block/size-down (A243).
 
+- **Fix the producer, never paper over it (10-28):** a blank/0 score, a different strike on another tab, a stale input = find why the
+  producer skipped it and make it compute before anything reads it. "Show — instead of 0" is not a fix. Every surface (Model List,
+  Rankings, Structures, Live) shows the same contract from the same run. Classes + guards: `.agents/context/recurring-bugs.md`.
+
 ## Research and verdicts
 - **Opportunity mindset (10-28, the frame for every study and trade idea):** buy low / sell high — buy when fear is high, trim when greed is high.
   By the time news reports bad news, most of it is priced; a crash with everyone bearish is where to *look for* opportunity, a big rally with

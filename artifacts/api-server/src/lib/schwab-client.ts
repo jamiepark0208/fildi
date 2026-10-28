@@ -634,6 +634,22 @@ export async function getSchwabOptionChains(ticker: string): Promise<OptionsChai
   }
 }
 
+/** One expiry's chain (live), e.g. the engine's pick when the 2-nearest default set skipped it (10-28: GOOGL 11-02). */
+export async function getSchwabChainForExpiry(ticker: string, expiry: string): Promise<OptionsChainResult | null> {
+  if (!schwabCredentialsConfigured()) return null;
+  try {
+    const raw = await Promise.race([   // 10 s deadline, like the chain budget (rule 8c)
+      schwabGet<SchwabChainResponse>("/chains", {
+        symbol: ticker.toUpperCase(), contractType: "PUT", includeUnderlyingQuote: "true", fromDate: expiry, toDate: expiry,
+      }),
+      new Promise<null>((done) => setTimeout(() => done(null), 10_000).unref()),
+    ]);
+    return (raw && mapChainResponse(ticker.toUpperCase(), raw)?.find((c) => c.expiry === expiry && c.puts.length > 0)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function schwabAvailable(): boolean {
   return schwabCredentialsConfigured();
 }

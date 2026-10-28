@@ -82,6 +82,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("sector ETFs", PY, HERE, ["sector_etfs.py"]),   # A277: 49 sector/theme ETF closes (SOXX, REMX, SRVR …) → per-name sector_drop state
         ("band table", PY, HERE, ["band_engine.py", "refresh"]),   # A277 §8 / S101: weekly refit of the sold-put band table (~5 min) — read by build_plan + structures
         ("indicators", PY, HERE, ["indicators.py"]),   # A279: UT Bot / SuperTrend cluster / SMC / Fear & Greed per name → indicators_daily (display; S102)
+        ("put edge", PY, HERE, ["put_edge.py"]),   # today's quintiles before the engine reads them (10-28: it read yesterday's)
         ("put recs", PY, HERE, ["put_recs.py"]),
         ("put manage", PY, HERE, ["put_manage.py"]),   # A279 / S103: open short puts → take + re-sell at ≥ 4× pace (weeklies), else hold; never trend stops   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)
         ("plan (L1)", PY, HERE, ["build_plan.py"]),
@@ -189,6 +190,8 @@ def main() -> None:
             r = run(name, py, cwd, args)
             log["steps"].append(r)
             print(f"{'✓' if r['ok'] else '✗'} {st:<9} {name:<24} {r['seconds']:>6}s  {r['tail'].splitlines()[-1] if r['tail'] else ''}"[:220])
+            # 10-28: a surface showing another put / an unscored pick must reach the run log, not scroll by
+            log.setdefault("warnings", []).extend(l for l in (r["tail"] or "").splitlines() if l.startswith("WARN put consistency"))
             if not r["ok"] and st == "lseg":
                 # LSEG Workspace must be running for these; without it, continue on the last synced data (logged)
                 log.setdefault("warnings", []).append(f"{name} failed; continuing on last synced LSEG data")

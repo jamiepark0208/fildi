@@ -364,7 +364,7 @@ interface CurrentPick {
 /** Latest Overall Options Rankings row for this ticker/side (same board as Rankings page). */
 interface RankPick {
   strike: number; expiry: string; spot: number; premium: number;
-  optionScore: number; rank: number; dte: number | null; delta: number | null;
+  optionScore: number | null; rank: number; dte: number | null; delta: number | null;
   asOf: string;
 }
 interface TickerSummaryRow {

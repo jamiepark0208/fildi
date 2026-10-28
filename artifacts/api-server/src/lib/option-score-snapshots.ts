@@ -9,7 +9,7 @@ import {
   db, optionScoreSnapshots, type InsertOptionScoreSnapshot,
 } from "@workspace/db";
 import {
-  pickBestStrike, selectPremiumCandidates,
+  pickBestStrike, selectPremiumCandidates, buildCandidate, computeOptionScore, applyCalibrationToScore,
   isViablePremiumIncome, CALL_STRIKE_WEIGHTS, CALL_INCOME_FLOOR, INCOME_FLOOR,
   applyPolicy,
   collectSideIVsFromChainMap, RELAXED_COMPONENT, isRelaxedComponentScores,
@@ -17,7 +17,7 @@ import {
 } from "@workspace/option-scoring";
 import { type OptionsChainResult, type OptionRow } from "./options.js";
 import { fetchChainsForTickers } from "./options-chain-batch.js";
-import { persistChainHistory } from "./option-chain-history.js";
+import { persistChainHistory, loadChainsFromHistory } from "./option-chain-history.js";
 import { getAllTechnicalsRows } from "./technicals-db.js";
 import { readPersistedScores, computeAndPersistFundamentalScores } from "./fundamentals-db.js";
 import { getMacroRegimeResult } from "../routes/macro-regime.js";
@@ -63,7 +63,8 @@ export interface OptionRankingRow {
   delta: number | null;
   strikeIv: number | null;
   dte: number | null;
-  optionScore: number;
+  /** null only when the enginePins step has not scored this pick yet (put_consistency flags it). */
+  optionScore: number | null;
   componentScores: Record<string, unknown>;
   earningsDaysOut: number | null;
   earningsRisk: boolean;
@@ -94,6 +95,18 @@ async function readPutRecs(): Promise<{ asOf: string | null; rows: Array<{ ticke
     computedAt: r.computed_at instanceof Date ? r.computed_at.toISOString() : String(r.computed_at),
   }));
   return { asOf: rs[0] ? String(rs[0].p.as_of) : null, rows: rs };
+}
+
+/** Engine picks to score (latest put_recs_daily): ticker → its exact contract; chainAsOf = the chain day it picked from. */
+async function readEnginePins(): Promise<{ asOf: string; chainAsOf: string; byTicker: Map<string, { strike: number; expiry: string }> } | null> {
+  const eng = await readPutRecs();
+  if (!eng.rows.length || !eng.asOf) return null;
+  const byTicker = new Map<string, { strike: number; expiry: string }>();
+  for (const e of eng.rows) {
+    const strike = Number(e.p.strike), expiry = String(e.p.expiry ?? "").slice(0, 10);
+    if (strike > 0 && expiry) byTicker.set(e.ticker.toUpperCase(), { strike, expiry });
+  }
+  return { asOf: eng.asOf, chainAsOf: eng.asOf, byTicker };
 }
 
 const FOCUS_PUTS = 15;
@@ -140,15 +153,20 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
       const rows: OptionRankingRow[] = eng.rows.map((e) => {
         const p = e.p, s = snap.get(e.ticker);
         const strike = Number(p.strike), spot = Number(p.spot);
+        // Score = the engine contract's own (enginePins step). The nightly snapshot only counts when it scored that same contract.
+        const same = s != null && Number(s.strike) === strike && String(s.expiry).slice(0, 10) === String(p.expiry).slice(0, 10) ? s : null;
         return {
           ticker: e.ticker, side: "put", asOf: String(p.as_of), strike, expiry: String(p.expiry), spot, premium: Number(p.bid),
-          weeklyIncomePct: num(p.income_wk_pct as number | null), otmPct: spot > 0 ? (spot - strike) / spot * 100 : null,
+          weeklyIncomePct: num(p.income_wk_pct as number | null), otmPct: spot > 0 ? (spot - strike) / spot : null,   // fraction, like snapshot rows
           delta: num(p.delta as number | null), strikeIv: num(p.iv as number | null), dte: num(p.dte as number | null),
-          optionScore: s ? Number(s.optionScore) : 0, componentScores: (s?.componentScores ?? {}) as Record<string, unknown>,
+          optionScore: num(p.option_score as number | null) ?? (same ? Number(same.optionScore) : null),
+          componentScores: ((p.option_components as Record<string, unknown> | undefined) ?? same?.componentScores ?? {}) as Record<string, unknown>,
           earningsDaysOut: s?.earningsDaysOut ?? null, earningsRisk: p.far === "earnings before expiry", bidIsLive: true, quoteStale: false,
-          dataQuality: s ? num(s.dataQuality) : null, atmPutIv: s ? num(s.atmPutIv) : null, ivVsRealized: num(p.iv_rv as number | null),
+          dataQuality: num(p.option_dq as number | null) ?? (same ? num(same.dataQuality) : null), atmPutIv: s ? num(s.atmPutIv) : null, ivVsRealized: num(p.iv_rv as number | null),
           computedAt: e.computedAt, rank: e.rank, relaxed: false,
-          engine: { band: (p.band as string) ?? null, why: String(p.why ?? ""), pass: e.pass, gates: (p.gates as string[]) ?? [],
+          engine: { band: (p.band as string) ?? null, why: String(p.why ?? ""), pass: e.pass,
+                    // verify_plan writes the live-quote result onto the row (live_check); a fail shows as a gate like the engine's own
+                    gates: [...((p.gates as string[]) ?? []), ...(p.live_check && p.live_check !== "pass" ? [`live check — ${String(p.live_check)}`] : [])],
                     histBp: num(p.hist_bp as number | null), histW5: num(p.hist_w5 as number | null),
                     tech: (p.tech as Record<string, number | string | null> | null) ?? null },
         };
@@ -223,7 +241,7 @@ async function attachFocus(rows: OptionRankingRow[], side: "put" | "call"): Prom
         return;
       }
       const pick = rows.filter((r) => (r.edge?.quintile ?? 0) >= 4 && !trim.has(r.ticker))
-        .sort((a, b) => (b.edge!.quintile - a.edge!.quintile) || (b.optionScore - a.optionScore)).slice(0, FOCUS_PUTS);
+        .sort((a, b) => (b.edge!.quintile - a.edge!.quintile) || ((b.optionScore ?? 0) - (a.optionScore ?? 0))).slice(0, FOCUS_PUTS);
       // Missing coverage may use plain scores; observed ineligibility must stay empty.
       const hasCoverage = rows.some((r) => r.edge !== null);
       const fallback = rows.filter((r) => !trim.has(r.ticker)).slice(0, FOCUS_PUTS);
@@ -251,6 +269,9 @@ export async function computeAndPersistOptionScores(opts?: {
   chainsByTicker?: Map<string, OptionsChainResult[]>;
   /** Score only these tickers (gap backfill). Still requires technicals rows. */
   onlyTickers?: string[];
+  /** Score the engine's own sold put (put_recs_daily) on the chain it picked from → payload.option_score.
+   *  No strike re-pick, no floors: every engine pick gets a score (Jamie 10-28: a blank score is a pipeline bug). */
+  enginePins?: boolean;
 }): Promise<{
   asOf: string;
   candidates: number;
@@ -307,6 +328,9 @@ export async function computeAndPersistOptionScores(opts?: {
     .map((t) => t.toUpperCase())
     .filter((t) => techSet.has(t));
   let candidates = [...new Set([...premium, ...watchlistInTech])];
+  const pins = opts?.enginePins ? await readEnginePins() : null;
+  if (opts?.enginePins && !pins) throw new Error("option-score engine pins: put_recs_daily is empty");
+  if (pins) candidates = [...pins.byTicker.keys()];
   if (opts?.onlyTickers?.length) {
     const only = new Set(opts.onlyTickers.map((t) => t.toUpperCase()));
     candidates = candidates.filter((t) => only.has(t));
@@ -356,6 +380,10 @@ export async function computeAndPersistOptionScores(opts?: {
   if (opts?.chainsByTicker) {
     chainsByTicker = opts.chainsByTicker;
     failures = 0;
+  } else if (pins) {
+    // Same quotes the engine read (option_chain_history, its as_of) — never a later live chain.
+    chainsByTicker = await loadChainsFromHistory(pins.chainAsOf, candidates);
+    failures = 0;
   } else {
     const fetched = await fetchChainsForTickers(candidates, {
       concurrency: CHAIN_CONCURRENCY,
@@ -381,14 +409,16 @@ export async function computeAndPersistOptionScores(opts?: {
   const WATCHLIST_INCOME_FLOOR = 0.02;
 
   const inserts: InsertOptionScoreSnapshot[] = [];
+  const pinned: Array<{ ticker: string; score: number; comp: Record<string, unknown>; dq: number | null }> = [];
   let liveBidCount = 0;
   let watchlistRelaxed = 0;
   for (const [ticker, chains] of chainsByTicker) {
-    const techRow = techRowMap.get(ticker);
+    // Pins score every engine pick; a name without a technicals row scores on chain + fundamentals only.
+    const techRow = techRowMap.get(ticker) ?? (pins ? ({ ticker } as TechnicalRow) : undefined);
     if (!techRow || chains.length === 0) continue;
     const onWatchlist = watchlistSet.has(ticker.toUpperCase());
 
-    for (const side of ["put", "call"] as const) {
+    for (const side of pins ? (["put"] as const) : (["put", "call"] as const)) {
       const isCall = side === "call";
       const sideIVs = isCall ? callIVs : putIVs;
       const incomeFloor = isCall ? CALL_INCOME_FLOOR : INCOME_FLOOR;
@@ -410,6 +440,24 @@ export async function computeAndPersistOptionScores(opts?: {
         volumeNodes:           volumeNodes.get(ticker) ?? null,
       };
       const policy = isCall ? callPolicy : putPolicy;
+      if (pins) {
+        const pin = pins.byTicker.get(ticker.toUpperCase())!;
+        const chain = chains.find((c) => c.expiry === pin.expiry);
+        const opt = chain?.puts.find((o) => Math.abs(o.strike - pin.strike) < 1e-6);
+        if (!chain || !opt) continue;   // reported as a miss below
+        const eh = policy.earningsHaircut;
+        const result = computeOptionScore(buildCandidate(opt, chain, false), stockCtx, volRegime, sideIVs, policy.weights, false,
+          eh != null ? { earningsHaircutDeep: Math.min(0.99, eh + 0.06), earningsHaircutNear: eh } : undefined);
+        const cal = applyCalibrationToScore(result.optionScore, "put", calibration);
+        pinned.push({
+          ticker: ticker.toUpperCase(),
+          // A hard-skip bucket keeps the raw score + flag (a 0 would read as "no score"); a haircut applies as on the scanner.
+          score: !cal.skip && cal.multiplier < 1 ? Math.round(result.optionScore * cal.multiplier * 10) / 10 : result.optionScore,
+          comp: { ...result.componentScores, ...(cal.skip ? { calibrationSkip: true } : {}) },
+          dq: result.dataQuality ?? null,
+        });
+        continue;
+      }
       const sideChains = chains.map((c) => ({ ...c, options: isCall ? c.calls : c.puts }));
       let best = pickBestStrike(
         sideChains,
@@ -526,6 +574,25 @@ export async function computeAndPersistOptionScores(opts?: {
         computedAt: new Date(),
       });
     }
+  }
+
+  if (pins) {
+    const missed = [...pins.byTicker.keys()].filter((t) => !pinned.some((r) => r.ticker === t));
+    if (!dryRun && pinned.length) {
+      await pool.query(
+        `UPDATE watchlist_sync.put_recs_daily d
+            SET payload = d.payload || jsonb_build_object('option_score', x.score, 'option_components', x.comp,
+                                                          'option_dq', x.dq, 'option_model', $2::text)
+           FROM jsonb_to_recordset($3::jsonb) AS x(ticker text, score float8, comp jsonb, dq float8)
+          WHERE d.as_of = $1::date AND d.ticker = x.ticker`,
+        [pins.asOf, optChamp.version, JSON.stringify(pinned)],
+      );
+    }
+    if (missed.length) logger.warn({ missed }, "option-score engine pins: picks with no contract in the chain they came from");
+    return {
+      asOf: pins.asOf, candidates: pins.byTicker.size, persisted: pinned.length, failures: missed.length, liveBidCount: pinned.length,
+      top: pinned.slice().sort((a, b) => b.score - a.score).slice(0, 15).map((r) => ({ ticker: r.ticker, side: "put", score: r.score, weekly: null })),
+    };
   }
 
   if (!dryRun && inserts.length > 0) {

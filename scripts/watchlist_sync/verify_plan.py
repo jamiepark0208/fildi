@@ -219,6 +219,23 @@ def store_schwab_raw(conn, pid: int, instruments: dict, oquotes: dict, equotes: 
         )
 
 
+def live_check_to_engine(conn, pid: int) -> None:
+    """Jamie 10-28: one answer per put on every tab. The live-quote result for each sold put lands on its engine row
+    (put_recs_daily, same day + contract): pass = the engine's own pass AND live ok, so Rankings / Live / Structures drop what the
+    Model List dropped. engine_pass keeps the engine's verdict, so a later passing re-check restores the pick."""
+    for it in rows(conn, """SELECT pi.ticker, pi.strike::float8 strike, pi.expiry::text expiry, pi.verify_status, pi.verify_checks, p.close_date
+                            FROM watchlist_sync.plan_items pi JOIN watchlist_sync.plans p ON p.id = pi.plan_id
+                            WHERE pi.plan_id = %s AND pi.list_key = 'sell_puts' AND pi.l1_pass AND pi.option_type = 'put'""", (pid,)):
+        ok = it["verify_status"] != "fail"
+        why = "pass" if ok else "; ".join(f"{x['check']}: {x.get('detail', '')}" for x in it["verify_checks"] or [] if not x["pass"])
+        conn.execute("""UPDATE watchlist_sync.put_recs_daily
+                          SET pass = COALESCE((payload->>'engine_pass')::bool, pass) AND %s,
+                              payload = payload || jsonb_build_object('engine_pass', COALESCE((payload->>'engine_pass')::bool, pass),
+                                                                      'live_check', %s::text)
+                        WHERE as_of = %s AND ticker = %s AND (payload->>'strike')::float8 = %s AND payload->>'expiry' = %s""",
+                     (ok, why, it["close_date"], it["ticker"], it["strike"], it["expiry"][:10]))
+
+
 def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> tuple[str, list[dict], dict]:
     c: list[dict] = []
     src = it.get("_src", "Robinhood")
@@ -358,6 +375,7 @@ def cmd_evaluate(conn, pid: int, force_schwab: bool = False) -> None:
         conn.execute("UPDATE watchlist_sync.plan_items SET verify_status = %s, verify_checks = %s, live = %s WHERE id = %s",
                      (status, json.dumps(checks), json.dumps(live), it["id"]))
     conn.execute("UPDATE watchlist_sync.plans SET status = 'verified', verified_at = now() WHERE id = %s", (pid,))
+    live_check_to_engine(conn, pid)
     conn.commit()
     print(f"plan #{pid} verified: {counts}")
     for it in rows(conn, """SELECT list_key, ticker, option_type, strike::float8, expiry, verify_status, verify_checks, live

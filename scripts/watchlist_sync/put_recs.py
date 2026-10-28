@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
 from collections import defaultdict
 from datetime import date
@@ -68,10 +69,11 @@ def liquid(p: dict) -> bool:
 
 
 def pick_strike(puts: list[dict], band: str):
-    """Listed put nearest the band middle; empty band → one band farther, then one closer (≤ 0.20Δ). (row, band used)."""
+    """Listed put nearest the band middle; empty band → one band farther (never below the 0.05Δ floor band), then one closer
+    (≤ 0.20Δ). (row, band used)."""
     order = SE.ENGINE["strategies"]["sell_put"]["strike"]["bands"]
-    i = order.index(band)
-    for j in [i] + [k for k in (i - 1, i + 1) if 0 <= k < len(order) and SE.band_bounds(order[k])[1] <= 0.20 + 1e-9]:
+    i, lo = order.index(band), SE.put_band_floor(order)
+    for j in [i] + [k for k in (i - 1, i + 1) if lo <= k < len(order) and SE.band_bounds(order[k])[1] <= 0.20 + 1e-9]:
         lo, hi = SE.band_bounds(order[j])
         inb = [p for p in puts if max(lo, -R.PUT_DELTA[1]) <= -p["delta"] < hi and p["bid"] >= R.PUT_MIN_RESTRIKE_BID and liquid(p)]
         if inb:
@@ -267,10 +269,14 @@ def compute(conn) -> tuple[date, list[dict], dict]:
             rec.update(hist_bp=h["bp"], hist_w5=h["w5"], hist_kept=h["kept"])
         ok, gates = SE.fit({"ticker": t, "structure": "csp", "iv_rv": rec["iv_rv"], "market_state": ms}, I, {})
         ref = min((x for x in by[t] if x["expiry"] == exp), key=lambda x: abs(-x["delta"] - R.PUT_NAME_INCOME_ABS_DELTA))
-        rec["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / days   # the name's income at the tested Δ (S088-vs-ML)
-        if rec["name_income_pct"] < R.MIN_WEEKLY_INCOME_PCT:
+        rec["name_income_pct"] = 100 * ref["bid"] / ref["strike"] * 7 / days   # the name's income at the tested Δ (display)
+        # Jamie 10-28: the floor judges the put we sell, not the name at 0.15Δ — GOOGL/PLTR/NVDA passed paying 0.19–0.27 %/wk.
+        if rec["income_wk_pct"] < R.MIN_WEEKLY_INCOME_PCT:
             ok = False
-            gates.append(f"pays {rec['name_income_pct']:.2f} %/wk at {R.PUT_NAME_INCOME_ABS_DELTA}Δ (min {R.MIN_WEEKLY_INCOME_PCT})")
+            gates.append(f"pays {rec['income_wk_pct']:.2f} %/wk at the {p['strike']:g} strike (min {R.MIN_WEEKLY_INCOME_PCT})")
+        if far == "earnings before expiry":   # Jamie 10-28 (GOOGL 10-28): no new put across the print by default
+            ok = False
+            gates.append(f"earnings before the {exp} expiry")
         cl, cd = close.get(t) or (None, None)   # only a close as new as the chain can call it stale (10-27: a +4 % day was gated)
         if cl and cd >= as_of and abs(100 * (cl / p["spot"] - 1)) > R.MAX_SPOT_DRIFT_PCT:
             ok = False
@@ -313,6 +319,21 @@ def main():
         if "--print" not in sys.argv[1:]:
             write(conn, as_of, recs)
             print("→ watchlist_sync.put_recs_daily")
+            score_picks()
+
+
+def score_picks():
+    """Option score of each pick's own contract, on the chain it was picked from (Jamie 10-28: every surface showed a score from
+    a different strike, or 0). Runs on every write so no caller can publish unscored picks; put_consistency fails on a gap."""
+    import subprocess
+    api = Path(__file__).resolve().parents[2] / "artifacts" / "api-server"
+    try:
+        p = subprocess.run(["pnpm", "exec", "tsx", "src/scripts/snapshot-option-scores.ts", "--engine-pins"], cwd=api,
+                           capture_output=True, text=True, timeout=180, env={**os.environ, "PATH": f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"})
+        line = next((l for l in p.stdout.splitlines() if l.startswith("engine pins")), (p.stderr or p.stdout).strip()[-300:])
+        print(("" if p.returncode == 0 else "WARN put recs: ") + line)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"WARN put recs: option scores not written ({e})")
 
 
 if __name__ == "__main__":

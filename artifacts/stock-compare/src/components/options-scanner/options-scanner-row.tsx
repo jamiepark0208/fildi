@@ -286,8 +286,10 @@ export function ScannerRow({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- enginePick is a fresh object per render; its values are the key
   }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall, enginePick?.strike, enginePick?.expiry]);
 
+  // An engine pick is the only "best" strike: if its contract isn't in the live chain, highlight nothing rather than
+  // a max-income stand-in (10-28: GOOGL board 290 vs ladder ★ 287.5).
   const bestStrike = newScorerBest
-    ?? (strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
+    ?? (!enginePick && strikes.length > 0 ? strikes.reduce((a, b) => a.weeklyIncome > b.weeklyIncome ? a : b) : null);
 
   // Override: show the best strike even when no viable strikes exist at the current minIncome threshold
   const canOverride = strikes.length === 0 && optionsData !== null && !optionsLoading;

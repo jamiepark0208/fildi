@@ -7,6 +7,7 @@
 3. **[`.agents/AGENTS.md`](.agents/AGENTS.md)** — subagent routing (verifier / data-agent / ui-agent)
 4. **[`research/studies/INDEX.md`](research/studies/INDEX.md)** — every study / backtest and its answer. Check it before any analysis; add a row after. How to run one: [`PLAYBOOK.md`](research/studies/PLAYBOOK.md)
 5. **[`.agents/context/jamie-rules.md`](.agents/context/jamie-rules.md)** — Jamie's standing rules for every agent (decisions, verdict wording, no personal trades in rules). Add new ones there; never make him repeat one.
+6. **[`.agents/context/recurring-bugs.md`](.agents/context/recurring-bugs.md)** — bug classes that keep coming back (stand-in 0s, two pickers, ticker joins, step order, units). Read before any fix to recs/scores/surfaces; fix the producer, add the case to its row.
 
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).

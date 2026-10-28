@@ -9,7 +9,8 @@ import { getLivePrices } from "../lib/live-quote.js";
 import { rankingsWantLivePrices } from "../lib/rankings-live-prices.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
-import { chainIsFresh, chainUniverse, inMarketHours, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
+import { chainIsFresh, chainUniverse, engineExpiry, inMarketHours, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
+import { getSchwabChainForExpiry } from "../lib/schwab-client.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -46,6 +47,12 @@ router.get("/options/position-quote", async (req, res) => {
 function refreshChain(ticker: string): Promise<OptionsChainResult[]> {
   return optionsCache.getOrCompute(ticker, async () => {
     const chains = await getOptionsChain(ticker);
+    // The engine's expiry can fall outside the 2 nearest (Mon expiry, same-day listing) → the ladder re-picked a strike (10-28).
+    const exp = await engineExpiry(ticker).catch(() => null);
+    if (exp && !chains.some((c) => c.expiry === exp)) {
+      const extra = await getSchwabChainForExpiry(ticker, exp);
+      if (extra) chains.push(extra);
+    }
     void saveChainSnapshot(ticker, chains);
     return chains;
   });

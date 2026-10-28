@@ -435,14 +435,12 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     c.append(chk("iv_sane", iv is not None and R.IV_SANE[0] <= iv <= R.IV_SANE[1], f"IV {iv}"))
     c.append(chk("premium_plausible", rec["premium"] <= rec["strike"] * R.MAX_PREMIUM_TO_STRIKE,
                  f"premium is {100 * rec['premium'] / rec['strike']:.1f}% of strike"))
-    # 10-24: a re-struck put is judged by the name's income at PUT_NAME_INCOME_ABS_DELTA; `scale` lets L2 scale its floor the same way
+    # Jamie 10-28: judged at the strike sold (same as put_recs' gate) — the name's 0.15Δ income let 0.19–0.27 %/wk puts through
     ni = rec.get("name_income_pct")
     wk = rec["weekly_income_pct"] or 0
-    c.append(chk("min_income", (ni if ni is not None else wk) >= R.MIN_WEEKLY_INCOME_PCT,
-                 f"{wk:.2f}%/week" + (f" at this strike; name pays {ni:.2f}% at {R.PUT_NAME_INCOME_ABS_DELTA}Δ" if ni is not None else "")
+    c.append(chk("min_income", wk >= R.MIN_WEEKLY_INCOME_PCT,
+                 f"{wk:.2f}%/week at this strike" + (f"; name pays {ni:.2f}% at {R.PUT_NAME_INCOME_ABS_DELTA}Δ" if ni is not None else "")
                  + f" (min {R.MIN_WEEKLY_INCOME_PCT})"))
-    if ni:
-        c[-1]["scale"] = round(wk / ni, 4)
     if side == "put" and not rec.get("strategy"):   # the S088-vs-ML test only sold strikes bidding ≥ $0.10 (10-24)
         c.append(chk("min_bid", (rec["premium"] or 0) >= R.PUT_MIN_RESTRIKE_BID,
                      f"bid ${rec['premium'] or 0:.2f} (min ${R.PUT_MIN_RESTRIKE_BID:.2f})"))
@@ -469,7 +467,7 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                      f"model spot {rec['spot']:.2f} ≠ {snap} close {c_today:.2f}" + (" (= an earlier close: stale)" if stale else ""), "warn"))
     er = ctx["earnings"].get(t)
     inside = bool(er and er <= rec["expiry"])
-    far = side == "put" and rec["delta"] is not None and -rec["delta"] <= R.PUT_EARNINGS_ABS_DELTA[0]
+    far = False   # Jamie 10-28 (GOOGL): no new put across earnings, at any Δ — same as put_recs' gate
     c.append(chk("no_earnings_before_expiry", not inside or far,   # puts: allowed at ≤ 0.12Δ (S066/S069; Jamie 10-20), calls unchanged
                  (f"next earnings {er} vs expiry {rec['expiry']}" + (f": put struck at {-rec['delta']:.2f}Δ for the event" if inside and far else ""))
                  if er else "no earnings date known", "warn" if not er or (inside and far) else "block"))

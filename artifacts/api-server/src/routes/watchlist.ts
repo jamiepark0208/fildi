@@ -255,7 +255,7 @@ router.get("/watchlist/model", async (req, res) => {
           const row = byTicker.get(String(it.ticker).toUpperCase());
           it.universeN = universeN;
           if (row) {
-            it.universeScore = Number.isFinite(row.optionScore) ? Math.round(row.optionScore * 10) / 10 : null;
+            it.universeScore = row.optionScore != null && Number.isFinite(row.optionScore) ? Math.round(row.optionScore * 10) / 10 : null;
             it.universeRank = Number.isFinite(row.rank) ? row.rank : null;
           } else {
             it.universeScore = null;

@@ -204,7 +204,7 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None, pref: dic
             return None, f"panic (VIX ÷ VIX3M {market['vix_ratio']:.2f} ≥ 1) → no new puts until the curve normalises (S101)"
         b = s["default_band"]
     bands = s["bands"]
-    lo_cap = 0
+    lo_cap = put_band_floor(bands)
     hi_cap = max(i for i, x in enumerate(bands) if band_bounds(x)[1] <= 0.20 + 1e-9)
     mode, you = (pref or {}).get("mode", "auto"), ""
     i = min(max(bands.index(b), lo_cap), hi_cap)
@@ -230,6 +230,14 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None, pref: dic
     if washout:
         ms_txt += f" · breadth washout ({market['ut_breadth']:.0%} of names in an uptrend; label only, S104)"
     return b, f"{ms_txt} · stock {ns} → {b}Δ{hist}{you}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
+
+
+def put_band_floor(bands) -> int:
+    """Index of the nearest-OTM band a sold put may target: lower edge ≥ rules.PUT_DELTA's 0.05Δ floor (Jamie 10-28: 0.03–0.06Δ pays
+    ~0.2 %/wk on mega-caps; in a rally on an extended stock it is also the weakest band, +24 vs +31 bp/wk at 0.06–0.08, S101 table).
+    Farther bands stay on the ladder for display."""
+    import rules as R
+    return next(i for i, x in enumerate(bands) if band_bounds(x)[0] >= -R.PUT_DELTA[1] - 1e-9)
 
 
 def csp_band_legs(chain, pick, leg, front):

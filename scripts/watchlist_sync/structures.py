@@ -191,7 +191,8 @@ def main():
                 if SE.strategy_of(c["structure"]) == "none":
                     c["fit"], c["fit_why"] = regime_fit(c, rv[t], trend.get(t), edge.get(t))
                 elif c["structure"] == "csp":   # 10-26: the engine's verdict (its gates + sector-drop relax + floors), not a re-run
-                    g = (I.get(t, {}).get("put_rec") or {}).get("gates") or []
+                    pr = I.get(t, {}).get("put_rec") or {}   # + the Model List's live-quote result (verify_plan → live_check, 10-28)
+                    g = (pr.get("gates") or []) + ([f"live check — {pr['live_check']}"] if pr.get("live_check") not in (None, "pass") else [])
                     c["fit"], c["fit_why"] = not g, desc + ("" if not g else " · " + "; ".join(g))
                 else:
                     ok, why = SE.fit(c, I, ctx)

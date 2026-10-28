@@ -86,6 +86,14 @@ export async function chainUniverse(): Promise<string[]> {
   return [...new Set(rows.map((r) => r.ticker.toUpperCase()).filter((t) => /^[A-Z]{1,10}$/.test(t)))];
 }
 
+/** The engine's sold-put expiry per ticker (latest put_recs_daily) — chains for the app must include it. */
+export async function engineExpiry(ticker: string): Promise<string | null> {
+  const r = rowsOf<{ expiry: string | null }>((await db.execute(sql`
+    SELECT payload->>'expiry' AS expiry FROM watchlist_sync.put_recs_daily
+    WHERE as_of = (SELECT max(as_of) FROM watchlist_sync.put_recs_daily) AND ticker = ${ticker.toUpperCase()}`)) as SqlRows<never>)[0];
+  return r?.expiry ? r.expiry.slice(0, 10) : null;
+}
+
 /** US regular session ± 10 min, weekdays (ET). Chains don't move outside it, so the warmer sleeps. */
 export function inMarketHours(now = new Date()): boolean {
   const et = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false })
