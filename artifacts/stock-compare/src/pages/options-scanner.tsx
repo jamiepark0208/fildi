@@ -775,7 +775,7 @@ export function OptionsScannerContent({
   const CHAIN_FETCH_MS = 12_000;
 
   /** Priority single-ticker chain fetch (expand / admin refresh). Hard timeout — thin names must not spin forever. */
-  const ensureTickerChain = useCallback(async (ticker: string) => {
+  const ensureTickerChain = useCallback(async (ticker: string, attempt = 0): Promise<void> => {
     setChainFailed((prev) => {
       if (!prev.has(ticker)) return prev;
       const next = new Map(prev);
@@ -789,12 +789,17 @@ export function OptionsScannerContent({
       if (!res.ok) throw new Error(`options fetch failed: ${ticker}`);
       const data = await res.json() as OptionsChainResult[];
       setRefreshedOptions(prev => new Map(prev).set(ticker, data));
+      // Saved chain while the server refreshes it → re-ask shortly so fresh quotes replace it without a reload (10-28).
+      if (data.some((c) => c.stale) && attempt < 3) {
+        setTimeout(() => { void ensureTickerChain(ticker, attempt + 1); }, 4_000 * (attempt + 1));
+      }
       queryClient.setQueryData(
         queryKeys.optionsBatch(displayTickersKey),
         (old: Record<string, OptionsChainResult[] | { error: string }> | undefined) =>
           old ? { ...old, [ticker]: data } : { [ticker]: data },
       );
     } catch (err) {
+      if (attempt > 0) return; // a failed re-ask keeps the saved chain already on screen
       const msg = err instanceof Error && err.name === "AbortError"
         ? "Options chain timed out (thin/illiquid name?)"
         : "No usable options chain";

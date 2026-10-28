@@ -46,13 +46,51 @@ export async function saveChainSnapshot(ticker: string, chains: OptionsChainResu
   }
 }
 
-/** Tickers whose snapshot is missing or older than CHAIN_FRESH_MS (keeps input order). */
+/** Tickers whose snapshot is missing or not fresh (keeps input order). */
 export async function staleChainTickers(tickers: string[]): Promise<string[]> {
   if (!tickers.length) return [];
   await ensureTable();
-  const fresh = new Set(rowsOf<{ ticker: string }>((await db.execute(sql`
-    SELECT ticker FROM options_chain_snapshot
-    WHERE ticker = ANY(${`{${tickers.join(",")}}`}::text[]) AND fetched_at > now() - make_interval(secs => ${CHAIN_FRESH_MS / 1000})`)) as SqlRows<never>)
-    .map((r) => r.ticker));
+  const fresh = new Set(rowsOf<{ ticker: string; fetched_at: string }>((await db.execute(sql`
+    SELECT ticker, fetched_at::text FROM options_chain_snapshot
+    WHERE ticker = ANY(${`{${tickers.join(",")}}`}::text[])`)) as SqlRows<never>)
+    .filter((r) => chainIsFresh(Date.parse(r.fetched_at))).map((r) => r.ticker));
   return tickers.filter((t) => !fresh.has(t));
+}
+
+/** Last minute the market was open, cached 5 min (walks back in 10-min steps; ≤ 4 days → covers weekends). */
+let lastOpenCache: { at: number; v: number } | null = null;
+function lastOpenMinute(now = Date.now()): number {
+  if (lastOpenCache && Math.abs(now - lastOpenCache.at) < 5 * 60_000) return lastOpenCache.v;
+  let t = now;
+  for (let i = 0; i < 4 * 144 && !inMarketHours(new Date(t)); i++) t -= 10 * 60_000;
+  lastOpenCache = { at: now, v: t };
+  return t;
+}
+
+/** In market hours: < CHAIN_FRESH_MS old. Outside: taken at/after the last open minute (quotes can't have moved since). */
+export function chainIsFresh(fetchedAt: number, now = Date.now()): boolean {
+  if (inMarketHours(new Date(now))) return now - fetchedAt < CHAIN_FRESH_MS;
+  return fetchedAt >= lastOpenMinute(now) - 10 * 60_000;
+}
+
+/** Names the app shows chains for: watchlist, today's sold-put picks, latest Model List option folders (not the
+ *  588-name watch / own folders — ~900 names would be ~40 Schwab calls/min). Ranked names are added by the caller. */
+export async function chainUniverse(): Promise<string[]> {
+  await ensureTable();
+  const rows = rowsOf<{ ticker: string }>((await db.execute(sql`
+    SELECT ticker FROM public.watchlist
+    UNION SELECT ticker FROM watchlist_sync.put_recs_daily
+      WHERE as_of = (SELECT max(as_of) FROM watchlist_sync.put_recs_daily) AND pass
+    UNION SELECT ticker FROM watchlist_sync.model_items WHERE run_id = (SELECT max(run_id) FROM watchlist_sync.model_items)
+      AND folder_key IN ('income', 'sell_puts', 'sell_calls', 'manage', 'holdings', 'trim_risk')`)) as SqlRows<never>);
+  return [...new Set(rows.map((r) => r.ticker.toUpperCase()).filter((t) => /^[A-Z]{1,10}$/.test(t)))];
+}
+
+/** US regular session ± 10 min, weekdays (ET). Chains don't move outside it, so the warmer sleeps. */
+export function inMarketHours(now = new Date()): boolean {
+  const et = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false })
+    .formatToParts(now).reduce<Record<string, string>>((m, p) => ({ ...m, [p.type]: p.value }), {});
+  if (et.weekday === "Sat" || et.weekday === "Sun") return false;
+  const mins = Number(et.hour) * 60 + Number(et.minute);
+  return mins >= 9 * 60 + 20 && mins <= 16 * 60 + 10;
 }

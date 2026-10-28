@@ -9,7 +9,7 @@ import { getLivePrices } from "../lib/live-quote.js";
 import { rankingsWantLivePrices } from "../lib/rankings-live-prices.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
-import { CHAIN_FRESH_MS, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
+import { chainIsFresh, chainUniverse, inMarketHours, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -57,25 +57,55 @@ async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> 
   if (mem) return withFreshDte(mem);
   const snap = await readChainSnapshot(ticker).catch(() => null);
   if (snap) {
-    if (Date.now() - snap.fetchedAt > CHAIN_FRESH_MS) {
+    // stale → answer with the saved chain flagged `stale`, refresh behind it; the page re-asks and gets the fresh one
+    if (!chainIsFresh(snap.fetchedAt)) {
       refreshChain(ticker).catch((err) => logger.warn({ ticker, err: String(err) }, "options: background chain refresh failed"));
-    } else optionsCache.set(ticker, snap.chains);
+      return withFreshDte(snap.chains).map((c) => ({ ...c, stale: true }));
+    }
+    optionsCache.set(ticker, snap.chains);
     return withFreshDte(snap.chains);
   }
   return withFreshDte(await refreshChain(ticker));
 }
 
-/** Rankings tab opened → refresh saved chains for the top names that are stale, 2 at a time, at most every 10 min. */
-let lastWarmAt = 0;
-async function warmRankedChains(tickers: string[]): Promise<void> {
-  if (Date.now() - lastWarmAt < 10 * 60_000) return;
-  lastWarmAt = Date.now();
-  const queue = await staleChainTickers(tickers.slice(0, 40));
-  const worker = async () => {
-    for (let t = queue.shift(); t; t = queue.shift()) await refreshChain(t).catch(() => undefined);
-  };
-  await Promise.all([worker(), worker()]);
+/** Background chain warmer (10-28): one vendor call at a time (~4/min vs Schwab's 100/min), stale names only.
+ *  A ticker whose chain fails is skipped for 2 h (no options / thin name) so it isn't retried every cycle. */
+const warmFailedAt = new Map<string, number>();
+let warming: Promise<void> | null = null;
+function warmChains(tickers: string[]): Promise<void> {
+  warming ??= (async () => {
+    const queue = (await staleChainTickers(tickers)).filter((t) => Date.now() - (warmFailedAt.get(t) ?? 0) > 2 * 3_600_000);
+    for (const t of queue) {
+      await refreshChain(t).then(() => warmFailedAt.delete(t), () => { warmFailedAt.set(t, Date.now()); });
+    }
+  })().finally(() => { warming = null; });
+  return warming;
 }
+
+/** Rankings tab opened → warm its top 40 now (at most every 10 min). */
+let lastRankWarmAt = 0;
+async function warmRankedChains(tickers: string[]): Promise<void> {
+  if (Date.now() - lastRankWarmAt < 10 * 60_000) return;
+  lastRankWarmAt = Date.now();
+  await warmChains(tickers.slice(0, 40));
+}
+
+/** Every 10 min in market hours: watchlist + picks + Model List + top 40 put / 20 call ranks. Started by the first
+ *  /options request so scripts that import this module never schedule vendor calls. unref → never holds a process open. */
+let warmerStarted = false;
+function startChainWarmer(): void {
+  if (warmerStarted || process.env.NODE_ENV === "test" || process.env.DISABLE_CHAIN_WARMER === "1") return;
+  warmerStarted = true;
+  const tick = async () => {
+    if (!inMarketHours()) return;
+    const [uni, puts, calls] = await Promise.all([chainUniverse(), readLatestOptionRankings("put"), readLatestOptionRankings("call")]);
+    await warmChains([...new Set([...puts.rows.slice(0, 40).map((r) => r.ticker), ...calls.rows.slice(0, 20).map((r) => r.ticker), ...uni])]);
+  };
+  const run = () => { tick().catch((err) => logger.warn({ err: String(err) }, "options: chain warmer tick failed")); };
+  setTimeout(run, 5_000).unref();
+  setInterval(run, 10 * 60_000).unref();
+}
+router.use("/options", (_req, _res, next) => { startChainWarmer(); next(); });
 
 // GET /api/options/candidates — premium-IV universe for Overall (same filter as nightly job).
 // Declared before /options/:ticker so "candidates" is not captured as a ticker.

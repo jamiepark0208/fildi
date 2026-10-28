@@ -44,6 +44,8 @@ export interface OptionsChainResult {
   fetchedAt: number;
   /** Provenance — schwab preferred; yahoo fallback. */
   source?: "schwab" | "yahoo";
+  /** Served from the saved DB snapshot while a vendor refresh runs (10-28). */
+  stale?: boolean;
 }
 
 // Raw shape we read from yf2 (validateResult: false)

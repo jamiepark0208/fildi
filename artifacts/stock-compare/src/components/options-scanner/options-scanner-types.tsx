@@ -33,6 +33,8 @@ export interface OptionsChainResult {
   fetchedAt: number;
   /** Vendor that produced this chain — Yahoo usually means Schwab miss/fallback. */
   source?: "schwab" | "yahoo";
+  /** Saved DB snapshot served while the server refreshes it (re-asked automatically). */
+  stale?: boolean;
 }
 
 export interface IvTermPoint {
