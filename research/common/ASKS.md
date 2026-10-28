@@ -260,7 +260,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A283](asks/A283.md) | 2026-10-27 | Jamie → Claude | [quant] Fair value v2 — analyst-style probabilistic DCF (sector defaults, stock overrides, scenarios) | revise |
 | [A284](asks/A284.md) | 2026-10-27 | Claude → Cursor | Breakdown — show outside intrinsic values (StarMine, FMP DCF) next to Fildi fair value | done (Cursor 10-28: Outside estimates in FairValueBadge on open) |
 | [A285](asks/A285.md) | 2026-10-27 | Muse → Cursor | Repair: fundamentals-db TDZ crash — reviewedRows/reviewed used before declaration, score recompute throws | done (Cursor 10-27: hoist kept + attachPeerReviewed test + dry-run ok) |
-| [A289](asks/A289.md) | 2026-10-27 | Claude → Cursor | Breakdown › Assumptions — DCF v2 (lab) block: range vs price, reverse DCF, assumptions with sources | open |
+| [A289](asks/A289.md) | 2026-10-27 | Claude → Cursor | Breakdown › Assumptions — DCF v2 (lab) block: range vs price, reverse DCF, assumptions with sources | done (Cursor 10-28: DCF lab block on Assumptions tab) |
 | [A290](asks/A290.md) | 2026-10-28 | Claude → Cursor | Put-band selector in the app (auto · closer/farther · fixed) — UI for /strategies/put-band | done |
 | [A291](asks/A291.md) | 2026-10-28 | Claude → Cursor | [quant] S120: is bad earnings news punished more than good news is rewarded lately? (extends S018) | verified (Claude ran S120: asymmetry always ~3×, not worse in 2026) |
 | [A292](asks/A292.md) | 2026-10-28 | Claude → Cursor | [quant] S121: does the DCF expensive flag hurt puts only when rates rise? (S119 follow-up) | verified (Claude ran S121 stock-level: hint only) |

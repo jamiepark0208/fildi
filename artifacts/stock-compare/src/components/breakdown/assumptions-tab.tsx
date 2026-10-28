@@ -10,6 +10,7 @@ import { History, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { FvVsStreetChart } from "./fv-vs-street-chart";
+import { DcfLabBlock } from "./dcf-lab-block";
 
 type Unit = "usd" | "pct" | "usd_total" | "count" | "x";
 type Input = { field: string; label: string; unit: Unit; source: string; value: number | null; lastChanged: string | null; overridable: boolean; versions: number };
@@ -99,7 +100,7 @@ function FieldHistoryRow({ ticker, input }: { ticker: string; input: Input }) {
           <span className="tabular-nums">{fmtUnit(o.value, input.unit)}</span><span className={cn("rounded border px-1 text-[9px] uppercase", STATUS[o.status])}>{o.status}</span>
           <span className="text-amber-100/60 truncate">{o.reason}</span></div>
       ))}
-      <p className="text-[9.5px] text-amber-200/30">Data history starts {data.changes[0]?.date ?? "—"} (recorded when the inputs change).</p>
+      <p className="text-[9.5px] text-zinc-400">Data history starts {data.changes[0]?.date ?? "—"} (recorded when the inputs change).</p>
     </div>
   );
 }
@@ -134,6 +135,7 @@ export function AssumptionsTab({ ticker }: { ticker: string }) {
 
   return (
     <div className="space-y-2.5 text-[11px] text-amber-100/80">
+      <DcfLabBlock ticker={ticker} />
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span><span className="text-amber-200/50">Base fair value</span> <b className="text-amber-100">{L?.fair_value != null ? `$${L.fair_value.toFixed(2)}` : "—"}</b>
           {L?.confidence && <span className="text-amber-200/40"> ({L.confidence})</span>}</span>
