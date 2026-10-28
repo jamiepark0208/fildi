@@ -13,7 +13,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ChartPoint, MacroCharts, MacroData } from "../macro-data.js";
-import { loadChartsCache, loadMacroCache, readChartsCacheFile, readMacroCacheFile } from "./macro-cache.js";
+import { loadChartsCache, loadMacroCache } from "./macro-cache.js";
 
 // dev (tsx, src/lib/macro) and bundle (dist/) sit at different depths → walk up to the workspace root
 function repoRoot(): string {
@@ -288,7 +288,7 @@ async function loadContext(reg: Registry, caps: CapPanel | null): Promise<Ctx> {
     (cds.get(x.ticker) ?? cds.set(x.ticker, []).get(x.ticker)!).push({ date: x.date, bp: x.bp });
   }
   return {
-    charts: loadChartsCache() ?? readChartsCacheFile(), macro: loadMacroCache() ?? readMacroCacheFile(),
+    charts: loadChartsCache(), macro: loadMacroCache(),
     reg, caps, drift, driftAsOf: (dr.rows[0] as { as_of?: string } | undefined)?.as_of ?? null, cds,
     gov: gov.m, govAsOf: gov.asOf, series,
   };
