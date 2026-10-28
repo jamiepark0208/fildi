@@ -13,11 +13,14 @@ import {
   fetchIndicatorHistory,
   fetchSectorRotation,
   loadMacroCache,
+  readMacroCacheFile,
   saveMacroCache,
   isCacheStale,
   loadChartsCache,
   saveChartsCache,
   isChartsCacheStale,
+  readChartsCacheFile,
+  chartsSeriesOk,
   loadSectorRotationCache,
   saveSectorRotationCache,
   isSectorRotationCacheStale,
@@ -28,6 +31,7 @@ import {
   SEP_DATE,
   INDICATOR_SERIES,
   MacroData,
+  MacroCharts,
   BankResearch,
 } from "../lib/macro-data.js";
 import { TTLCache } from "../lib/ttl-cache.js";
@@ -61,25 +65,43 @@ const router = Router();
 
 // ── Macro data ────────────────────────────────────────────────────────────────
 
+function yieldCurveOk(data: MacroData | null | undefined): boolean {
+  return !!data?.yieldCurve?.some((p) => p.current != null);
+}
+
+function withPriorYieldCurve(fresh: MacroData, prior: MacroData | null): MacroData {
+  if (yieldCurveOk(fresh) || !yieldCurveOk(prior)) return fresh;
+  return { ...fresh, yieldCurve: prior!.yieldCurve, yield2y: prior!.yield2y, yieldSpread: prior!.yieldSpread };
+}
+
+function persistMacroData(fresh: MacroData, prior: MacroData | null): MacroData {
+  const merged = mergeWithPrior(withPriorYieldCurve(fresh, prior), prior); // A303: every other field too
+  // Never write a blank curve — that poisoned the 4h cache and made Regime spin for ~30s every open.
+  if (yieldCurveOk(merged)) saveMacroCache(merged);
+  else console.warn("[macro] skip cache save — yield curve still empty after refresh");
+  return merged;
+}
+
 router.get("/data", async (_req: Request, res: Response) => {
   let cached = loadMacroCache();
   if (cached && !isCacheStale(cached, 4)) return res.json(cached);
+  // Disk may hold a prior good curve even when loadMacroCache rejects a poisoned/empty file.
+  const prior = cached ?? readMacroCacheFile();
   try {
-    // A303: an empty/failed series never replaces a good saved one
-    const fresh = mergeWithPrior(await fetchMacroData(), cached);
-    saveMacroCache(fresh);
+    const fresh = persistMacroData(await fetchMacroData(), prior);
     return res.json(fresh);
   } catch (err) {
     console.error("[macro] fetchMacroData failed:", err);
     if (cached) return res.json(cached);
+    if (yieldCurveOk(prior)) return res.json(prior!);
     return res.status(500).json({ error: "Failed to fetch macro data and no cache available" });
   }
 });
 
 router.post("/refresh", requireAdmin, async (_req: Request, res: Response) => {
+  const prior = loadMacroCache() ?? readMacroCacheFile();
   try {
-    const fresh = mergeWithPrior(await fetchMacroData(), loadMacroCache());
-    saveMacroCache(fresh);
+    const fresh = persistMacroData(await fetchMacroData(), prior);
     return res.json(fresh);
   } catch (err) {
     console.error("[macro] refresh failed:", err);
@@ -89,16 +111,64 @@ router.post("/refresh", requireAdmin, async (_req: Request, res: Response) => {
 
 // ── Charts data ───────────────────────────────────────────────────────────────
 
+const CHART_SERIES_KEYS = [
+  "vixHistory", "fedFundsHistory", "tenYearHistory", "fearGreedHistory",
+  "hySpreadHistory", "igSpreadHistory", "putCallHistory", "putCallRatioHistory",
+  "gscpiHistory", "moneyMarketHistory", "nfciHistory", "copperGoldHistory",
+  "dxyHistory", "fedAssetsHistory", "tgaHistory", "rrpHistory", "reservesHistory",
+  "netLiquidityHistory", "sofrIorbSpreadHistory", "moveHistory",
+] as const;
+
+function withPriorChartSeries(fresh: MacroCharts, prior: MacroCharts | null): MacroCharts {
+  if (!prior) return fresh;
+  const merged = { ...fresh };
+  for (const k of CHART_SERIES_KEYS) {
+    const cur = fresh[k];
+    const old = prior[k];
+    if (Array.isArray(cur) && cur.length === 0 && Array.isArray(old) && old.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (merged as any)[k] = old;
+    }
+  }
+  // Recompute implications when we salvaged liquidity/vol inputs from prior.
+  if (merged.hySpreadHistory !== fresh.hySpreadHistory
+    || merged.nfciHistory !== fresh.nfciHistory
+    || merged.fedAssetsHistory !== fresh.fedAssetsHistory
+    || merged.netLiquidityHistory !== fresh.netLiquidityHistory
+    || merged.sofrIorbSpreadHistory !== fresh.sofrIorbSpreadHistory) {
+    // leave prior implications if present — avoid blank overall when series salvaged
+    if (!fresh.liquidityImplications?.signals?.length && prior.liquidityImplications) {
+      merged.liquidityImplications = prior.liquidityImplications;
+    }
+  }
+  if (merged.hySpreadHistory !== fresh.hySpreadHistory
+    || merged.moveHistory !== fresh.moveHistory
+    || merged.putCallRatioHistory !== fresh.putCallRatioHistory) {
+    if (!fresh.volatilityImplications?.signals?.length && prior.volatilityImplications) {
+      merged.volatilityImplications = prior.volatilityImplications;
+    }
+  }
+  return merged;
+}
+
+function persistMacroCharts(fresh: MacroCharts, prior: MacroCharts | null): MacroCharts {
+  const merged = mergeWithPrior(withPriorChartSeries(fresh, prior), prior); // A303: every other field too
+  if (chartsSeriesOk(merged)) saveChartsCache(merged);
+  else console.warn("[macro] skip charts cache save — critical series still empty after refresh");
+  return merged;
+}
+
 router.get("/charts", async (_req: Request, res: Response) => {
   let cached = loadChartsCache();
   if (cached && !isChartsCacheStale(cached, 4)) return res.json(cached);
+  const prior = cached ?? readChartsCacheFile();
   try {
-    const fresh = mergeWithPrior(await fetchMacroCharts(), cached);
-    saveChartsCache(fresh);
+    const fresh = persistMacroCharts(await fetchMacroCharts(), prior);
     return res.json(fresh);
   } catch (err) {
     console.error("[macro] fetchMacroCharts failed:", err);
     if (cached) return res.json(cached);
+    if (chartsSeriesOk(prior)) return res.json(prior!);
     return res.status(500).json({ error: "Failed to fetch macro charts" });
   }
 });

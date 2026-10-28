@@ -1,4 +1,7 @@
 // Charts data assembly. Extracted verbatim from macro-data.ts — no behavior change.
+import dns from "node:dns";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { yahooFinance } from "../yahoo-client.js";
 import * as XLSX from "xlsx";
 import { logApiCall } from "../api-logger.js";
@@ -8,6 +11,28 @@ import { fetchVixCurve } from "./macro-vix.js";
 import { fetchFedFundsCurve } from "./macro-fed-funds.js";
 import { computeLiquidityImplications } from "./macro-liquidity.js";
 import { computeVolatilityImplications } from "./macro-volatility.js";
+import { circuitFor } from "../http-client.js";
+
+const execFileAsync = promisify(execFile);
+
+// Mac Node often prefers broken IPv6 AAAA → undici "fetch failed" while curl (happy-eyeballs) works.
+try { dns.setDefaultResultOrder("ipv4first"); } catch { /* node <17 */ }
+
+function errDetail(err: unknown): string {
+  const e = err as { message?: string; cause?: { code?: string; message?: string } };
+  const cause = e?.cause?.code || e?.cause?.message;
+  return cause ? `${e?.message ?? err} (${cause})` : String(e?.message ?? err);
+}
+
+/** curl --http1.1 fallback when undici hits UND_ERR_CONNECT_TIMEOUT / HTTP2 stream errors to FRED. */
+async function curlText(url: string, timeoutSec = 30): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "curl",
+    ["-sS", "--http1.1", "--max-time", String(timeoutSec), "-A", "TradeDash/1.0", "-L", url],
+    { maxBuffer: 20_000_000 },
+  );
+  return stdout;
+}
 
 export async function fetchMacroCharts(): Promise<MacroCharts> {
   const period1 = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
@@ -23,33 +48,70 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
       }));
   };
 
-  const fetchFredCSV = async (seriesId: string): Promise<ChartPoint[]> => {
-    const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) return [];
-    const text = await res.text();
-    if (text.trimStart().startsWith("<")) return []; // guard against HTML error pages
-    const lines = text.trim().split("\n");
-    // skip header row (could be "DATE,..." or "observation_date,...")
-    return lines.slice(1).flatMap(line => {
+  const parseFredCsvText = (text: string): ChartPoint[] => {
+    if (text.trimStart().startsWith("<")) return [];
+    return text.trim().split("\n").slice(1).flatMap(line => {
       const [date, val] = line.trim().split(",");
       const v = parseFloat(val);
       return date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(v) ? [{ date, value: v }] : [];
     });
   };
 
+  const fetchFredCSV = async (seriesId: string): Promise<ChartPoint[]> => {
+    const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`;
+    const circuit = circuitFor("FRED");
+    if (circuit.isOpen()) return [];
+    try {
+      let points: ChartPoint[] = [];
+      try {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(30_000),
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; TradeDash/1.0)", Accept: "text/csv,*/*" },
+        });
+        if (res.status >= 500) circuit.noteFailure(new Error(`HTTP ${res.status}`));
+        else circuit.noteSuccess();
+        if (res.ok) points = parseFredCsvText(await res.text());
+        else logApiCall({ source: "fred", fn: "fetchFredCSV", trigger: "macro chart refresh", outcome: "failure", error: `HTTP ${res.status}`, requestedFields: seriesId });
+      } catch (err) {
+        circuit.noteFailure(err);
+        // undici connect timeout / HTTP2 stream errors → curl --http1.1 (--max-time deadline)
+        const text = await curlText(url, 35);
+        points = parseFredCsvText(text);
+        if (!points.length) throw err;
+        circuit.noteSuccess();
+      }
+      if (!points.length) {
+        logApiCall({ source: "fred", fn: "fetchFredCSV", trigger: "macro chart refresh", outcome: "failure", error: "empty/HTML", requestedFields: seriesId });
+        return [];
+      }
+      logApiCall({ source: "fred", fn: "fetchFredCSV", trigger: "macro chart refresh", outcome: "success", fieldsReturned: points.length, requestedFields: seriesId });
+      return points;
+    } catch (err: unknown) {
+      circuit.noteFailure(err);
+      logApiCall({ source: "fred", fn: "fetchFredCSV", trigger: "macro chart refresh", outcome: "failure", error: errDetail(err), requestedFields: seriesId });
+      return [];
+    }
+  };
+
   // CNN's fear & greed endpoint bundles its sub-indicators in one response, including
   // a CBOE-sourced put/call ratio series (put_call_options) — reuse the single fetch
   // for both rather than hitting a second (dead) source for put/call.
   const fetchCnnFearGreedAndPutCall = async (): Promise<{ fearGreed: ChartPoint[]; putCall: ChartPoint[] }> => {
+    const cnnUrl = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
+    const circuit = circuitFor("CNN");
+    if (circuit.isOpen()) return { fearGreed: [], putCall: [] };
     try {
-      const res = await fetch("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", {
+      const res = await fetch(cnnUrl, {
+        signal: AbortSignal.timeout(20_000),
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           "Referer": "https://www.cnn.com/",
           "Accept": "application/json",
         },
       });
+      if (res.status >= 500) circuit.noteFailure(new Error(`HTTP ${res.status}`));
+      else circuit.noteSuccess();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as {
         fear_and_greed_historical?: { data?: { x: number; y: number }[] };
         put_call_options?: { data?: { x: number; y: number }[] };
@@ -62,8 +124,9 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
       const putCall = toPoints(json.put_call_options?.data ?? [], 3);
       logApiCall({ source: "cnn", fn: "fetchCnnFearGreedAndPutCall", trigger: "macro chart refresh", outcome: "success", fieldsReturned: fearGreed.length + putCall.length });
       return { fearGreed, putCall };
-    } catch (err: any) {
-      logApiCall({ source: "cnn", fn: "fetchCnnFearGreedAndPutCall", trigger: "macro chart refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: "fear_and_greed/graphdata" });
+    } catch (err: unknown) {
+      circuit.noteFailure(err);
+      logApiCall({ source: "cnn", fn: "fetchCnnFearGreedAndPutCall", trigger: "macro chart refresh", outcome: "failure", error: String((err as Error)?.message ?? err), requestedFields: "fear_and_greed/graphdata" });
       return { fearGreed: [], putCall: [] };
     }
   };
@@ -71,9 +134,13 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
   // NY Fed GSCPI — downloaded directly from NY Fed as xlsx (FRED blocks server IPs)
   const fetchGSCPI = async (): Promise<ChartPoint[]> => {
     try {
-      const res = await fetch("https://www.newyorkfed.org/medialibrary/research/interactives/gscpi/downloads/gscpi_data.xlsx", {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; TradeDash/1.0)" },
-      });
+      const res = await fetch(
+        "https://www.newyorkfed.org/medialibrary/research/interactives/gscpi/downloads/gscpi_data.xlsx",
+        {
+          signal: AbortSignal.timeout(45_000),
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; TradeDash/1.0)" },
+        },
+      );
       if (!res.ok) {
         logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "failure", error: `HTTP ${res.status}`, requestedFields: "gscpi_data.xlsx" });
         return [];
@@ -101,7 +168,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
       logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "success", fieldsReturned: result.length });
       return result;
     } catch (err: any) {
-      logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "failure", error: String(err?.message ?? err), requestedFields: "gscpi_data.xlsx" });
+      logApiCall({ source: "nyfed", fn: "fetchGSCPI", trigger: "macro chart refresh", outcome: "failure", error: errDetail(err), requestedFields: "gscpi_data.xlsx" });
       return [];
     }
   };
@@ -188,7 +255,7 @@ export async function fetchMacroCharts(): Promise<MacroCharts> {
     () => fetchFredCSV("SOFR"),       // Secured Overnight Financing Rate (daily, %)
     () => fetchFredCSV("IORB"),       // Interest on Reserve Balances (daily, %)
     () => yahooFinance.chart("^MOVE", { period1, interval: "1d" }, { validateResult: false }), // ICE BofA MOVE — bond market vol
-  ], 5);
+  ], 3); // keep concurrency low — undici pool + flaky FRED DNS under load → empty poison
 
   const fedAssetsHistory = walclResult.status === "fulfilled" ? (walclResult.value as ChartPoint[]) : [];
   const tgaHistory       = tgaResult.status   === "fulfilled" ? (tgaResult.value   as ChartPoint[]) : [];
