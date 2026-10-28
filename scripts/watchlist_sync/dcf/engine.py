@@ -3,11 +3,13 @@ scenarios and a reverse DCF. Generic rules only (sector rules and stock override
 Per path (Monte Carlo, N draws):
   revenue  with consensus (LSEG FY1–FY3, consensus_annual; 10-27 assessment fix a): years 1–3 = consensus revenue path
            interpolated to our TTM dates, ± analyst high/low, shrunk toward the base-rate path by n/(n + 3k);
-           years 4–5 = half consensus year-3 growth, half base rate; years 6–10 fade to terminal g.
+           years 4–5 = half consensus year-3 growth, half base rate; years 6–10 = the 10-y base rate fading to terminal g
+           (S113: consensus narrows years 1–3 spread ~9 %, years 4–10 not at all → ranges stay base-rate wide).
            Without: year 1 = FY1 growth, years 2–5 = base-rate 5-y CAGR for size × start growth at percentile u_g;
            years 6–10 = the matching 10-y base rate, fading to terminal g      (S112 base_rates_growth)
   margin   with consensus: GAAP margin + the consensus street-EBIT margin change from FY0 (street EBIT excludes SBC → only
-           the change is used), same shrinkage; then 75 % own year-3 margin / 25 % base rate by year 10 (fix b).
+           the change is used) × S115 pass-through (0.9 losses / 0.35 for 0–20 % / 0.1 above), rest base-rate path;
+           then 75 % own year-3 margin / 25 % base rate from the year-3 level by year 10 (fix b).
            Without: current operating margin → base-rate margin 5 y later for sector × start margin at u_m (ρ 0.5 with u_g)
   reinvest Δrevenue ÷ sales-to-capital: the company's own 3-y Δrevenue ÷ Σ reinvestment (NOPAT − FCFF ex-SBC) from its
            filings, capped 0.3–8, blended with the sector P25–P75 when own history is missing or noisy  (audit 10-27:
@@ -17,7 +19,9 @@ Per path (Monte Carlo, N draws):
            Kd = rf + OAS(rating; synthetic from interest coverage when unrated); WACC on market weights
   terminal NOPAT₁₁ · (1 − g/ROIC_T) / (WACC_T − g); g ~ cma g_dist (breakeven + CBO potential real growth, ≤ rf); ROIC_T = base-rate ROIC 5 y
            later for sector × current ROIC, never below WACC_T
-  failure  value × (1 − p): p from rating / losses when debt > cash; net-cash and profitable → 0.2 % (equity distress value = 0)
+  failure  value × (1 − p): p from rating / losses when debt > cash; net-cash and profitable → 0.2 %; net-cash loss-maker →
+           2 % (FCF ≥ 0) / 5 % (≥ 3 y runway) / 15 % (equity distress value = 0)
+  SBC      stock pay ÷ revenue fades to the S114 10-y median for its starting bucket; the saving lifts the GAAP margin
 Usage: .venv/bin/python dcf/engine.py PLTR MU KO ..."""
 from __future__ import annotations
 
@@ -43,6 +47,8 @@ RATING_OAS = [("AAA", "oas_aaa"), ("AA", "oas_aa"), ("A", "oas_a"), ("BBB", "oas
 MOODY = {"Aaa": "AAA", "Aa": "AA", "A": "A", "Baa": "BBB", "Ba": "BB", "B": "B", "Caa": "CCC", "Ca": "CCC", "C": "CCC"}
 # Damodaran synthetic rating from interest coverage (large firms)
 COVERAGE = [(8.5, "AAA"), (6.5, "AA"), (4.25, "A"), (2.5, "BBB"), (2.0, "BB"), (1.25, "B"), (-1e9, "CCC")]
+# S114 (Compustat 2006–19): median SBC ÷ revenue 10 y later by starting share — stock pay shrinks with scale
+SBC_10Y = [(0.02, None), (0.05, 0.026), (0.10, 0.055), (0.20, 0.09), (9.0, 0.063)]
 P_FAIL = {"AAA": 0.0, "AA": 0.002, "A": 0.004, "BBB": 0.01, "BB": 0.04, "B": 0.10, "CCC": 0.25}  # ~5–10-y default rates, rounded
 
 
@@ -184,6 +190,7 @@ def consensus(conn, t: str, ttm_end: str | None) -> dict | None:
     if have_m:
         m = np.array([at(sm, tt) for tt in yrs])
         out["dm"] = m[1:] - m[0]
+        out["sm"] = m  # street-basis margin, years 0–3
         out["sdm"] = np.array([max(at(sd_m, tt), 0.01 * k) for k, tt in enumerate(yrs)][1:])
     return out
 
@@ -229,13 +236,21 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
     ltg = rows(conn, """SELECT meanest FROM wrds_research.ibes_statsum WHERE UPPER(oftic) = %s AND measure = 'EPS' AND fpi = '0'
                         AND statpers >= CURRENT_DATE - 180 ORDER BY statpers DESC LIMIT 1""", (t,))
     letter, why = rating_letter(s.get("issuer_rating"), cov)
+    cons = consensus(conn, t, (base.get("revenue") or {}).get("end"))
+    s2c_capex = None
+    if s2c_own is None and rev > 0:  # loss years / no history: Δrevenue at the near-term growth rate ÷ net capex (no working capital)
+        g_near = float(cons["g"][0]) if cons else g1
+        if g_near is not None and g_near > 0 and v("capex"):
+            net_capex = v("capex") - v("da")
+            s2c_capex = 8.0 if net_capex <= 0.01 * rev else float(np.clip(g_near * rev / net_capex, 0.3, 8.0))
+    fcf = v("ocf") - v("capex")
     return {"ticker": t, "price": float(f["price"]), "shares": v("shares"), "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),
             "m0": oi / rev if rev else 0.0,
             "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
-            "s2c_own": s2c_own, "flags": flags, "cons": consensus(conn, t, (base.get("revenue") or {}).get("end")), "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
+            "s2c_own": s2c_own, "s2c_capex": s2c_capex, "sbc0": v("sbc") / rev if rev else 0.0, "fcf": fcf, "flags": flags, "cons": cons, "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
 
 
 def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict | None = None, scenario: str = "base") -> dict:
@@ -284,10 +299,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         dsd = np.maximum(np.diff(np.r_[0.0, cons["sd"]]), 0.03)  # analyst range on the level → per-year increment
         lg = w[None, :] * (np.log1p(cons["g"])[None, :] + zg[:, None] * dsd[None, :]) + (1 - w[None, :]) * np.log1p(r25)[:, None]
         gr[:, 0:3] = np.expm1(lg)  # blend each year's growth (blending levels piled all shrinkage into year 3)
-        g45 = 0.5 * gr[:, 2] + 0.5 * r25
-        gr[:, 3:5] = g45[:, None]
-        for j in range(5, 10):
-            gr[:, j] = g45 + (g_T - g45) * ((j - 4) / 5)
+        gr[:, 3:5] = (0.5 * gr[:, 2] + 0.5 * r25)[:, None]
+        # years 6–10 keep the size × start-growth 10-y base rate (set above): S113 — realized growth in years 6–10 is
+        # 3–6 % in every consensus decile (ρ ≈ 0.05), so consensus says nothing about them
     if "analyst_g" in fx:  # analyst-style path: years 2–5 at the given growth, then linear fade to terminal by year 10
         ga = fx["analyst_g"]
         gr[:, 1:5] = ga
@@ -298,20 +312,26 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     w = np.clip(years / 5, 0, 1)
     margin = x["m0"] + (m_t[:, None] - x["m0"]) * w[None, :]
     if cons is not None and cons["dm"] is not None and not fx.get("hold_margin"):
-        wk = cons["n"] / (cons["n"] + 3 * np.arange(1, 4))
+        # S115 (Compustat × IBES 2003–19, same street basis): share of the consensus margin change that is realized by
+        # yr 2 — losses ≈ 0.9–1.0, margins 0–20 % ≈ 0.25–0.5, > 20 % ≈ 0.1 (they fade regardless) → weight by level, not count
+        wk = np.full(3, 0.9 if x["m0"] < 0 else 0.35 if x["m0"] < 0.20 else 0.1)
         zm = norm.ppf(np.clip(u_m, 0.01, 0.99))
         mc = x["m0"] + cons["dm"][None, :] + zm[:, None] * cons["sdm"][None, :]
         margin[:, 0:3] = wk[None, :] * mc + (1 - wk[None, :]) * margin[:, 0:3]
         m3 = margin[:, 2]
-        m_t = 0.75 * m3 + 0.25 * m_t
+        qm3, _ = br.margin(x["sector"], float(np.median(m3)), x.get("gm"), (x["g1"] or 0) > 0.20)  # base rate from the yr-3 level
+        m_t = 0.75 * m3 + 0.25 * qm3(u_m)
         margin[:, 3:] = m3[:, None] + (m_t - m3)[:, None] * ((years[3:] - 3) / 7)[None, :]
+    sbc_T = next(tg for hi, tg in SBC_10Y if x.get("sbc0", 0) < hi)
+    if sbc_T is not None and x.get("sbc0", 0) > sbc_T and not fx.get("hold_margin"):  # S114: stock pay shrinks → GAAP margin gains
+        margin = margin + (x["sbc0"] - sbc_T) * np.minimum(years / 10, 1)[None, :]
     tax_T = 0.25 if x["tax0"] >= 0.25 else x["tax0"] + 0.5 * (0.25 - x["tax0"])
     tax = np.full(10, x["tax0"]) if fx.get("hold_tax") else x["tax0"] + (tax_T - x["tax0"]) * (years / 10)
     nopat = rev * margin * (1 - tax)
     if "s2c" in fx:
         s2c = np.full(n, fx["s2c"])
-    elif x.get("s2c_own") is not None:  # own history, ±30 % noise; sector rate only as a 25 % anchor
-        s2c = np.exp(0.75 * np.log(x["s2c_own"]) + 0.25 * np.log(np.maximum(qs(u_s), 0.2)) + rng.normal(0, 0.3, n) * (0 if fx else 1))
+    elif (x.get("s2c_own") or x.get("s2c_capex")) is not None:  # own history (or net capex), ±30 % noise; sector rate a 25 % anchor
+        s2c = np.exp(0.75 * np.log(x.get("s2c_own") or x["s2c_capex"]) + 0.25 * np.log(np.maximum(qs(u_s), 0.2)) + rng.normal(0, 0.3, n) * (0 if fx else 1))
     else:
         s2c = np.maximum(qs(u_s), 0.2)
     prev = np.c_[np.full(n, x["rev"]), rev[:, :-1]]
@@ -343,6 +363,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     ev = pv + pv_tv
     if x["cash"] >= x["debt"] and x["m0"] > 0:
         p_fail = 0.002
+    elif x["cash"] >= x["debt"]:  # net-cash loss-maker: runway, not a synthetic rating from negative coverage (S112: ≤ 2 % / 5 y)
+        burn = max(-x.get("fcf", 0.0), 0.0)
+        p_fail = 0.02 if burn == 0 else 0.05 if (x["cash"] - x["debt"]) >= 3 * burn else 0.15
     else:
         p_fail = P_FAIL[x["rating"]] if x["m0"] > 0 else max(P_FAIL[x["rating"]], 0.15)
     equity = np.maximum(ev - x["debt"] + x["cash"] - x["minority"], 0) * (1 - p_fail)  # limited liability

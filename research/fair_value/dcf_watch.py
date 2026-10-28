@@ -45,13 +45,15 @@ def detail(x: dict, b: dict, sim: dict, v, sc: dict, u: float | None) -> dict:
          ("growth_y1_3", "Revenue growth yr 1 / 2 / 3", P["g"][:3], "pct_list",
           f"LSEG consensus FY1–FY3 ({cons['n'][0]:.0f} analysts), shrunk toward base rate by coverage; as of {cons['as_of']}" if cons
           else "Consensus FY1 growth; years 2–5 base rate (S112) — no multi-year consensus"),
-         ("growth_y4_10", "Revenue growth yr 5 → yr 10", [P["g"][4], P["g"][9]], "pct_list", "Half consensus / half base rate, fading to terminal growth"),
+         ("growth_y4_10", "Revenue growth yr 5 → yr 10", [P["g"][4], P["g"][9]], "pct_list", "Yr 4–5 half consensus / half base rate; yr 6–10 base rate → terminal (S113: consensus has no signal past yr 5)"),
          ("margin_now", "Operating margin now (GAAP)", x["m0"], "pct", sec),
          ("margin_y3", "Operating margin yr 3", P["margin"][2], "pct",
-          "GAAP margin + consensus margin change (street EBIT excludes stock pay)" if cons and cons["dm"] is not None else "Base-rate margin path (S112)"),
+          "GAAP margin + consensus margin change × S115 realized share (0.9 losses / 0.35 / 0.1 above 20 %)" if cons and cons["dm"] is not None else "Base-rate margin path (S112)"),
          ("margin_y10", "Operating margin yr 10", P["margin"][9], "pct", "75 % own yr-3 margin / 25 % sector base rate"),
          ("tax", "Tax rate now → yr 10", [x["tax0"], P["tax"][9]], "pct_list", "3-y effective rate, halfway to 25 % marginal"),
-         ("s2c", "Sales-to-capital (reinvestment)", P["s2c"], "x", "Own 3-y Δrevenue ÷ reinvestment, 25 % sector anchor"),
+         ("s2c", "Sales-to-capital (reinvestment)", P["s2c"], "x", "Own 3-y Δrevenue ÷ reinvestment, 25 % sector anchor" if x.get("s2c_own")
+          else "Near-term Δrevenue ÷ net capex (capex − D&A), 25 % sector anchor" if x.get("s2c_capex") else "Sector base rate (no own history)"),
+         ("sbc", "Stock pay ÷ revenue now", x["sbc0"], "pct", "SEC filings TTM; fades to the S114 10-y median for its level (GAAP margin gains the difference)"),
          ("beta", "Beta yr 1 → terminal", [sim["b0"], sim["bT"]], "x_list", "Blume-adjusted own beta → 0.8–1.2"),
          ("rf", "Risk-free rate", sim["rf"], "pct", f"cma_monthly base pair (10-y Treasury)"),
          ("erp", "Equity risk premium", P["erp"], "pct", "cma_monthly base (Damodaran implied / Kroll range)"),
@@ -85,8 +87,16 @@ with connect() as c:
             x = inputs(c, t, b)
             if x["sector"] in ("40", "60"):
                 print(f"{t:6s} financial/REIT → sector method (not built)"); store(c, t, False, {"reason": "Bank / insurer / REIT — cash-flow DCF does not apply (sector method not built)"}); continue
-            if x["m0"] <= 0:
-                print(f"{t:6s} {x['price']:7.2f} | operating loss (margin {x['m0']:.0%}) → needs path-to-profit rule"); store(c, t, False, {"reason": f"Operating loss (margin {x['m0']:.0%}) — path-to-profit rule not built", "price": x["price"]}); continue
+            cons = x.get("cons")
+            sm = cons.get("sm") if cons else None
+            gap_ok = sm is not None and abs(x["m0"] - sm[0]) <= x["sbc0"] + 0.25  # filings vs street margin must reconcile (ASTS −2 % vs −406 %)
+            path_ok = sm is not None and sm[3] > 0 and x["rev"] >= 1e8 and x["m0"] > -1.0 and gap_ok
+            if x["m0"] <= 0 and not path_ok:
+                why = ("pre-revenue / deep loss — option-like, cash-flow DCF does not apply" if x["rev"] < 1e8 or x["m0"] <= -1.0
+                       else "filings vs street margin don't reconcile — data check" if sm is not None and not gap_ok
+                       else "street sees no profit by year 3" if sm is not None else "no multi-year consensus")
+                print(f"{t:6s} {x['price']:7.2f} | operating loss (margin {x['m0']:.0%}) → {why}")
+                store(c, t, False, {"reason": f"Operating loss (margin {x['m0']:.0%}): {why}", "price": x["price"]}); continue
             sim = simulate(x, br, n=3000)
             v = sim["vps"]
             sc = {k: float(np.median(simulate(x, br, n=1500, scenario=k)["vps"])) for k in ("normal", "base", "implied", "ltcma")}
