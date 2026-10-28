@@ -226,6 +226,24 @@ def consensus(conn, t: str, ttm_end: str | None, asof=None) -> dict | None:
     return out
 
 
+
+def load_segment_mix(conn, t: str) -> list[dict] | None:
+    """A286: latest 10-K segment revenues (≥2 members, ≥90% of sum). Display / future SOTP."""
+    pe = rows(conn, """SELECT period_end FROM watchlist_sync.dcf_segments WHERE ticker = %s AND form = '10-K'
+                       AND metric = 'revenue' ORDER BY period_end DESC LIMIT 1""", (t,))
+    if not pe:
+        return None
+    period = pe[0]["period_end"]
+    segs = rows(conn, """SELECT member, value FROM watchlist_sync.dcf_segments WHERE ticker = %s AND form = '10-K'
+                         AND metric = 'revenue' AND period_end = %s ORDER BY value DESC""", (t, period))
+    if len(segs) < 2:
+        return None
+    tot = sum(float(s["value"]) for s in segs)
+    if tot <= 0:
+        return None
+    return [{"member": s["member"], "revenue": float(s["value"]), "mix": float(s["value"]) / tot,
+             "period_end": str(period)} for s in segs]
+
 def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> dict:
     """pit = {"asof", "price", "beta", "rf"} → point-in-time inputs for the S116 backtest (IBES consensus, no LSEG
     signals / vendor sanity checks, which are today's); base must then be the as-of SEC base."""
@@ -341,7 +359,15 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
             dil_out["options (treasury method)"] = opt_net
     if convert_sh > 0:
         dil_out["ITM convertibles (if-converted)"] = convert_sh
+    seg_mix = None
+    try:
+        seg_mix = load_segment_mix(conn, t)
+        if seg_mix:
+            flags = flags + [f"segments {len(seg_mix)} (10-K) cover mix ready for SOTP"]
+    except Exception:
+        conn.rollback()
     return {"ticker": t, "price": float(f["price"]), "shares": v("shares") + extra_sh, "shares_basic": v("shares"),
+            "segments": seg_mix,
             "dilution": dil_out,
             "claims": claims, "assets": assets, "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),

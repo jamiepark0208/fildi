@@ -5,11 +5,10 @@ Skip parked quant zoo (A195,A221,A222,A230,A232,A237,A244,A246,A262,A273 unless 
 
 ## Keep (priority)
 3. A277 — one rec/structure (parked: sell-put engine done by Claude; leftovers = calls/S101c + N-of-M header)
-4. A286 — DCF SOTP segments
 5. A250 — 0.09Δ diagnostic packet
 
 ## Done this drain
-A285 A186 A278 A121 A257 A294 A251 A129 A284 A289 A179 A200 A288
+A285 A186 A278 A121 A257 A294 A251 A129 A284 A289 A179 A200 A288 A286
 
 ## Next action
-Pull next on keep list (A286); claim `.agents/claims/dispatch-A###.json`; ship; update this file; continue.
+Keep-list empty of easy rows; A277 leftovers + A250 FYI only; claim `.agents/claims/dispatch-A###.json`; ship; update this file; continue.
