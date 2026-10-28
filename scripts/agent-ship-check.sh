@@ -89,5 +89,8 @@ if [ "$need_api" -eq 1 ]; then
   fi
 fi
 
+# 10-28: advisory perf-guards on the lines being pushed (timeouts, unref'd intervals, poll/hover storms, watch mode).
+"$(dirname "$0")/perf-guards.sh" "$(git merge-base "$base" "$head" 2>/dev/null || echo "$base")" "$head" || true
+
 echo "agent-ship-check: ok"
 exit 0
