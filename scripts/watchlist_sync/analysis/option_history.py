@@ -179,8 +179,15 @@ def fetch_bars(conn, occ: str, exp: date) -> None:
     d = get(f"/v2/aggs/ticker/{occ}/range/1/day/{lo}/{min(exp, TODAY)}?adjusted=false&sort=asc&limit=50000")
     res = d.get("results") or []
     with conn.cursor() as cur:
-        cur.executemany("INSERT INTO optlab.bars (occ, date, h, c, v) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                        [(occ, day(r["t"]), r.get("h"), r.get("c"), r.get("v")) for r in res])
+        # o stored for overnight/intraday splits (S125 / A188 #1); ALTER ADD COLUMN IF NOT EXISTS o real
+        cur.execute("ALTER TABLE optlab.bars ADD COLUMN IF NOT EXISTS o real")
+        cur.executemany(
+            """INSERT INTO optlab.bars (occ, date, o, h, c, v) VALUES (%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (occ, date) DO UPDATE SET o = COALESCE(EXCLUDED.o, optlab.bars.o),
+                 h = COALESCE(EXCLUDED.h, optlab.bars.h), c = COALESCE(EXCLUDED.c, optlab.bars.c),
+                 v = COALESCE(EXCLUDED.v, optlab.bars.v)""",
+            [(occ, day(r["t"]), r.get("o"), r.get("h"), r.get("c"), r.get("v")) for r in res],
+        )
         cur.execute("INSERT INTO optlab.bars_fetched (occ, n) VALUES (%s,%s) ON CONFLICT (occ) DO UPDATE SET "
                     "n = optlab.bars_fetched.n + EXCLUDED.n, fetched_at = now()", (occ, len(res)))
     conn.commit()
