@@ -92,6 +92,18 @@ def main() -> None:
         inv_ts = subprocess.run(["git", "log", "-1", "--format=%ct", "--", str(inv)], cwd=ROOT, capture_output=True, text=True).stdout.strip()
         if not inv_ts or time.time() - int(inv_ts) > 30 * 86400:
             say("6c data inventory > 30 d old (or missing) → re-run A263 audit: unused endpoints + dropped fields, then fix them (AGENTS 4c)")
+        # Key Themes (Jamie 10-28): views that disagree with their own signposts, grades due, stale manual inputs
+        th = subprocess.run(["sh", "-c", "export $(grep -h '^DATABASE_URL=' .env.local | xargs) && psql \"$DATABASE_URL\" -Atc "
+                             "\"SELECT string_agg(DISTINCT theme_id, ',') FILTER (WHERE divergence), "
+                             "string_agg(s->>'id', ',') FILTER (WHERE s->>'status' IN ('stale','missing')) "
+                             "FROM watchlist_sync.theme_snapshots t LEFT JOIN LATERAL jsonb_array_elements("
+                             "CASE WHEN theme_id <> '_read' THEN signposts ELSE '[]' END) s ON true "
+                             "WHERE snap_date = (SELECT max(snap_date) FROM watchlist_sync.theme_snapshots)\""],
+                            cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        if th and th != "|":
+            div, stale = (th.split("|") + [""])[:2]
+            say(f"6d key themes: view ≠ signposts [{div or 'none'}] · stale/missing signposts [{stale or 'none'}] "
+                "→ update research/market-views/themes.json (fildi-market-thesis § 5)")
         # 10-24 (Jamie): A228 sat in 'revise' 3 days with no owner action → new work duplicated it. Untouched > 3 days = stalled.
         stalled = []
         for l in open_rows:

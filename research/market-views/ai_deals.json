@@ -1,0 +1,43 @@
+{
+  "_doc": "AI money web (Key Themes › Money flows; Jamie 10-28, CraftedCharts-style map). Public nodes are sized by live market cap from our DB; private nodes by last reported round (value_b, as_of). Edges = announced deals: investment (equity/warrants), hardware (chip/system purchases), compute (cloud/capacity contracts), vc (venture stakes). amount_b = headline $B as reported (often multi-year, conditional, or 'up to'); null = undisclosed. Maintained by Claude in market-thesis sessions: add new deals, mark status changes, re-check valuations > 90 days old.",
+  "updated": "2026-10-27",
+  "private": {
+    "OpenAI": { "value_b": 500, "as_of": "2025-10", "note": "employee secondary" },
+    "Anthropic": { "value_b": 183, "as_of": "2025-09", "note": "Series F" },
+    "xAI": { "value_b": 200, "as_of": "2025-09", "note": "reported raise" },
+    "Mistral": { "value_b": 14, "as_of": "2025-09", "note": "Series C (ASML-led)" },
+    "Nscale": { "value_b": null, "as_of": "2025-09" },
+    "Figure AI": { "value_b": 39, "as_of": "2025-09", "note": "Series C" },
+    "Anysphere": { "value_b": 29, "as_of": "2025-11", "note": "Cursor" },
+    "Harvey": { "value_b": 8, "as_of": "2025-10" }
+  },
+  "deals": [
+    { "from": "MSFT", "to": "OpenAI", "type": "investment", "amount_b": 13, "date": "2023-01", "note": "~27 % stake after 2025 recap" },
+    { "from": "NVDA", "to": "OpenAI", "type": "investment", "amount_b": 100, "date": "2025-09", "note": "up to $100 B, paid per GW deployed (LOI)" },
+    { "from": "OpenAI", "to": "NVDA", "type": "hardware", "amount_b": null, "date": "2025-09", "note": "≥ 10 GW of NVIDIA systems" },
+    { "from": "OpenAI", "to": "ORCL", "type": "compute", "amount_b": 300, "date": "2025-09", "note": "~5-year cloud contract (reported)" },
+    { "from": "ORCL", "to": "NVDA", "type": "hardware", "amount_b": 40, "date": "2025-05", "note": "GB200s for Stargate Abilene (reported)" },
+    { "from": "OpenAI", "to": "AMD", "type": "hardware", "amount_b": null, "date": "2025-10", "note": "6 GW of Instinct GPUs" },
+    { "from": "AMD", "to": "OpenAI", "type": "investment", "amount_b": null, "date": "2025-10", "note": "warrant for up to 160 M AMD shares" },
+    { "from": "OpenAI", "to": "AVGO", "type": "hardware", "amount_b": null, "date": "2025-10", "note": "10 GW custom accelerators" },
+    { "from": "OpenAI", "to": "CRWV", "type": "compute", "amount_b": 22.4, "date": "2025-09", "note": "contracts to date" },
+    { "from": "OpenAI", "to": "AMZN", "type": "compute", "amount_b": 38, "date": "2025-11", "note": "AWS, 7 years" },
+    { "from": "NVDA", "to": "CRWV", "type": "investment", "amount_b": null, "date": "2023-04", "note": "~6–7 % stake" },
+    { "from": "NVDA", "to": "CRWV", "type": "compute", "amount_b": 6.3, "date": "2025-09", "note": "unsold-capacity backstop through 2032" },
+    { "from": "MSFT", "to": "CRWV", "type": "compute", "amount_b": 10, "date": "2024-06", "note": "largest customer (reported)" },
+    { "from": "MSFT", "to": "NBIS", "type": "compute", "amount_b": 17.4, "date": "2025-09", "note": "up to $19.4 B" },
+    { "from": "NVDA", "to": "INTC", "type": "investment", "amount_b": 5, "date": "2025-09", "note": "~4 % stake + joint x86/RTX products" },
+    { "from": "NVDA", "to": "xAI", "type": "investment", "amount_b": 2, "date": "2025-10", "note": "equity in the GPU-backed raise (reported)" },
+    { "from": "NVDA", "to": "Anthropic", "type": "investment", "amount_b": 10, "date": "2025-11", "note": "up to $10 B" },
+    { "from": "MSFT", "to": "Anthropic", "type": "investment", "amount_b": 5, "date": "2025-11", "note": "up to $5 B" },
+    { "from": "Anthropic", "to": "MSFT", "type": "compute", "amount_b": 30, "date": "2025-11", "note": "Azure capacity" },
+    { "from": "AMZN", "to": "Anthropic", "type": "investment", "amount_b": 8, "date": "2024-11" },
+    { "from": "GOOGL", "to": "Anthropic", "type": "investment", "amount_b": 3, "date": "2025-01", "note": "~14 % stake (reported)" },
+    { "from": "Anthropic", "to": "GOOGL", "type": "hardware", "amount_b": null, "date": "2025-10", "note": "up to 1 M TPUs, > 1 GW (tens of $B)" },
+    { "from": "NVDA", "to": "Nscale", "type": "vc", "amount_b": null, "date": "2025-09" },
+    { "from": "NVDA", "to": "Mistral", "type": "vc", "amount_b": null, "date": "2025-09" },
+    { "from": "NVDA", "to": "Figure AI", "type": "vc", "amount_b": null, "date": "2025-09" },
+    { "from": "OpenAI", "to": "Anysphere", "type": "vc", "amount_b": null, "date": "2023-10", "note": "OpenAI Startup Fund" },
+    { "from": "OpenAI", "to": "Harvey", "type": "vc", "amount_b": null, "date": "2023-04", "note": "OpenAI Startup Fund" }
+  ]
+}

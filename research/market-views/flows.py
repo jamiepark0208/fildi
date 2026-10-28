@@ -8,6 +8,7 @@ Writes: research/market-views/out/flows.md
 """
 from __future__ import annotations
 
+import json
 import statistics
 import sys
 from datetime import date
@@ -17,16 +18,12 @@ WRDS = Path(__file__).resolve().parents[1] / "wrds"
 sys.path.insert(0, str(WRDS))
 from db import connect_local  # noqa: E402
 
-BUCKETS: dict[str, list[str]] = {
-    "spenders": ["MSFT", "GOOGL", "AMZN", "META", "ORCL"],
-    "chips": ["NVDA", "AMD", "AVGO", "MRVL", "TSM"],
-    "memory/storage": ["MU", "WDC", "STX", "SNDK"],
-    "networking/optics": ["ANET", "CIEN", "COHR", "LITE", "AAOI"],
-    "power/electrical": ["VRT", "ETN", "GEV", "CEG", "VST", "PWR"],
-    "neoclouds/miners": ["CRWV", "IREN", "NBIS", "CIFR", "WULF"],
-    "defense tech": ["RKLB", "ONDS", "KTOS", "AVAV", "PLTR"],
-    "rare earths/materials": ["MP", "USAR"],
-}
+# one home for theme baskets: themes.json (Key Themes signposts read the same lists); labels kept from A293's report
+LABELS = {"ai_spenders": "spenders", "chips": "chips", "memory": "memory/storage", "optics": "networking/optics",
+          "power": "power/electrical", "neoclouds": "neoclouds/miners", "defense_tech": "defense tech",
+          "rare_earths": "rare earths/materials"}
+_BASKETS = json.loads((Path(__file__).with_name("themes.json")).read_text())["baskets"]
+BUCKETS: dict[str, list[str]] = {label: _BASKETS[k] for k, label in LABELS.items()}
 def min_names_for_bucket(tickers: list[str]) -> int:
     return min(3, len(tickers))
 

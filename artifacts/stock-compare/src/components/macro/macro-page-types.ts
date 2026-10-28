@@ -215,9 +215,10 @@ export interface SepActuals {
 
 export type CurvePeriod = "current" | "1wk" | "1mo" | "3mo";
 export type SepMetric = "fedRate" | "gdp" | "unemployment" | "corePce";
-export type MacroTab = "regime" | "liquidity" | "volatility" | "policy" | "heatmap" | "calendar" | "scenario";
+export type MacroTab = "themes" | "regime" | "liquidity" | "volatility" | "policy" | "heatmap" | "calendar" | "scenario";
 
 export const MACRO_TABS: { id: MacroTab; label: string }[] = [
+  { id: "themes",     label: "Key Themes" },
   { id: "regime",     label: "Macro & Regime Health" },
   { id: "liquidity",  label: "Liquidity" },
   { id: "volatility", label: "Volatility & Sentiment" },

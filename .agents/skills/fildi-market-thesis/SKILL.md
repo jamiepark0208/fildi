@@ -56,6 +56,18 @@ Worked example: `research/market-views/THESIS_2026-10-27.md` (graded "really goo
 Each scenario names 2–4 signposts with a threshold and a date (e.g. 10y > 5.25 %, HY OAS > 4 %, hyperscaler capex cut, Dec FOMC hike).
 When a signpost fires: update odds in a new dated section of the THESIS (never edit old numbers), and say what changed.
 
+## 5. Key Themes registry (Macro › Key Themes; Jamie 10-28)
+A thesis ends in the app, not only in a markdown file. Every thesis session:
+1. **Themes** → `research/market-views/themes.json`: add/close themes (cyclical · secular · event), set Claude's stance + p + check date,
+   map each sub-claim's signposts to data we already have (kinds: chart · fred · revision · flow · cds · gov · manual). Prefer existing
+   series over new fetches; a `manual` value needs `as_of` + `stale_days`. Thresholds are judgment — say so; never fit them to today.
+2. **Scenarios** → same file (probabilities sum to 1; `up_if` = signpost ids). Never edit old numbers in a THESIS; the registry holds the current ones.
+3. **AI money web** → `research/market-views/ai_deals.json`: new deals (from/to/type/$/date/note), private valuations > 90 d old re-checked.
+4. **Grade**: on a view's check date read `watchlist_sync.theme_snapshots` (daily, `snapshot-themes.ts`) → fill LOG.md outcome. `view ≠ data`
+   (stance disagrees with its own signposts) and stale signposts show in agent_start 6d → re-check the view or the signpost, don't ignore.
+5. The unified read (`/api/macro/themes` read) is display only: macro timing failed as a band input (S087/S027); the band engine decides (S101).
+Data behind it: `gov_flows.py` (Treasury DTS/MTS → gov_flows_daily/monthly), market-cap flows (prices × LSEG shares, peer-group sectors).
+
 ## 4. Lessons (append; each from a real miss)
 - 10-28: IBES FY1/FY2 revisions across a fiscal-year end look like +85 % (NVDA). Match on identical `fpedats` at both dates.
 - 10-28: "Correction" felt by Jamie was in his themes (CRWV −61 %, SMH −19 %), not the index (SPY −2 %). Always split index vs his names.

@@ -6,6 +6,7 @@ import optionsRouter from "./options";
 import technicalRouter from "./technical";
 import dailyBriefRouter from "./daily-brief";
 import macroRouter from "./macro";
+import macroThemesRouter from "./macro-themes";
 import fundamentalsRouter from "./fundamentals";
 import fundamentalsProvenanceRouter from "./fundamentals-provenance";
 import peerOverridesRouter from "./peer-overrides";
@@ -79,6 +80,7 @@ router.use(agentsDrillRouter);
 // Loopback quote helpers for local scripts. No session cookie. Each handler 403s non-loopback.
 router.use(schwabMachineRouter);
 router.use("/macro", macroRouter);
+router.use("/macro", macroThemesRouter);   // Key Themes + money flows (Jamie 10-28)
 router.use(fundamentalsRouter);
 router.use(fundamentalsProvenanceRouter);
 router.use(peerOverridesRouter);

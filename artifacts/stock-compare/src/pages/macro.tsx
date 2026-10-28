@@ -36,6 +36,7 @@ import { VoicesPanel } from "@/components/macro/voices-panel";
 import { StreetGapsPanel } from "@/components/macro/street-gaps-panel";
 import { EventRow, CotSection } from "@/components/macro/macro-events-cot";
 import { ScenarioExposurePanel } from "@/components/macro/scenario-exposure-panel";
+import { KeyThemesTab } from "@/components/macro/key-themes-tab";
 import {
   TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/macro-tradingview-embeds";
@@ -361,6 +362,9 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
         {/* ── Tab content ─────────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2" data-lenis-prevent>
+
+          {/* ── Key Themes (Jamie 10-28): themes, scenarios, unified read, money flows ── */}
+          {activeTab === "themes" && <KeyThemesTab onJump={setActiveTab} />}
 
           {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
           {activeTab === "regime" && (

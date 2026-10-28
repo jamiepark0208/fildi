@@ -324,6 +324,8 @@ routes/watchlist.ts        → /api/watchlist/*
 | GET | /api/macro/etf-flows | macro.ts |
 | GET | /api/macro/etf-bid | macro.ts |
 | GET | /api/macro/revision-breadth | macro.ts |
+| GET | /api/macro/themes | macro-themes.ts (Key Themes: themes.json signposts + scenarios + unified read) |
+| GET | /api/macro/money-flows?w=1w\|1m\|3m | macro-themes.ts (cap flows by sector/players/baskets, AI money web, gov cash flows) |
 | GET | /api/options/mover-facts | mover-facts.ts |
 | GET | /api/research/scoreboard | options-history.ts |
 | GET | /api/options/candidates | options.ts |

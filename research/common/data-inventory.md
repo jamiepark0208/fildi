@@ -24,6 +24,7 @@ Prior field notes in `.agents/context/data-source-fields/` (2026-09-29 / 10-14) 
 | Alpha Vantage | Cap 25/day. Today 20 before this audit — **no probe** | OVERVIEW (14 names stored), earnings-call transcript | EARNINGS_CALENDAR, TOP_GAINERS, INSIDER, ANALYTICS (entitled 2026-10-14, not in code) | 25/day is already the transcript budget |
 | FRED | Keyless CSV | CPI, payrolls, GDP, SOFR, HY/IG OAS, NFCI, Fed balance sheet, DGS10, DTB3 (studies) | No high-value series missing from macro or the study cache | — |
 | Kalshi | Public, no key | FOMC, CPI YoY, BTC/NDQ 15m | Macro series catalog not listed (unfiltered `/events` returned novelty markets) | Display only |
+| Treasury Fiscal Data | Public, no key (added 10-28) | DTS deposits/withdrawals (TGA totals, debt cash issues/redemptions, interest, DoD), DTS TGA closing balance, MTS table 1 monthly receipts/outlays/deficit → `gov_flows.py` → `watchlist_sync.gov_flows_daily/monthly`; raw pages in vendor_raw | Auctions (`od/auctions_query`: bid-to-cover, tails), outlays by function (MTS table 9), debt to the penny — next if a theme needs them | TGA weekly also in FRED WTREGEN (Liquidity tab) |
 | CNN | Keyless site JSON | fear-and-greed history + put/call | Other sub-indices unknown this run | Live fetch **418** ("You're a bot") |
 | NY Fed | Keyless xlsx | GSCPI monthly | SOFR already via FRED | — |
 | Anthropic | Key set. Model `claude-haiku-5-5` in transcripts only. Spend cap not in repo | Transcript summaries. 80 calls / 30d | No other caller | — |
