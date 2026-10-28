@@ -26,6 +26,7 @@ import {
 import {
   rowToFundInput, enrichMarketCap, loadHistoryByTicker, loadSurprisesByTicker, loadIbesSignalsByTicker,
 } from "./fund-score-inputs.js";
+import { attachPeerReviewed, peerReviewedKey } from "./fund-score-peer-reviewed.js";
 
 const STALE_DAYS = DATA_OPS_STALE_DAYS;
 
@@ -325,17 +326,22 @@ export async function computeAndPersistFundamentalScores(
   const rows = await getAllFundamentalsRows();
   if (rows.length === 0) return [];
 
-  const scoreRows = rows.filter(r => !isExcludedEtf(r.ticker));
-  if (scoreRows.length === 0) return [];
-
-  const tickers = scoreRows.map(r => r.ticker);
-  const regRows = await db
+  // Live book only — delisted/renamed (SQ, ADYEN, …) stay in TF history but must not
+  // enter peer norms, group sizes, or the leaderboard.
+  const liveRegs = await db
     .select({
       ticker: tickerRegistry.ticker,
       primaryPeerGroupId: tickerRegistry.primaryPeerGroupId,
     })
     .from(tickerRegistry)
-    .where(inArray(tickerRegistry.ticker, tickers));
+    .where(sql`${tickerRegistry.isActive} = true AND ${tickerRegistry.fetchFundamentals} = true`);
+  const liveSet = new Set(liveRegs.map((r) => r.ticker));
+
+  const scoreRows = rows.filter((r) => !isExcludedEtf(r.ticker) && liveSet.has(r.ticker));
+  if (scoreRows.length === 0) return [];
+
+  const tickers = scoreRows.map(r => r.ticker);
+  const regRows = liveRegs.filter((r) => tickers.includes(r.ticker));
   const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
   const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
   const groupRows = uniqueGroupIds.length > 0
@@ -373,21 +379,23 @@ export async function computeAndPersistFundamentalScores(
     .from(peerGroupOverrides).where(inArray(peerGroupOverrides.ticker, tickers));
   const modeByTicker = new Map(modeOverrideRows.filter(r => r.mode).map(r => [r.ticker, r.mode as string]));
 
-  const inputs: FundRowInput[] = scoreRows.map(row => {
-    const gid = peerGroupByTicker.get(row.ticker) ?? null;
-    const mode = modeByTicker.get(row.ticker) ?? (gid ? (modeByGroup.get(gid) ?? null) : null);
-    const input = enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
-    return reviewedRows ? { ...input, peerReviewed: reviewed.has(`${row.ticker}|${gid}`) } : input;
-  });
   // 10-27: reviewed mapping = seed taxonomy, manual, override, or scripts/watchlist_sync/peer_verify.py ('verified').
   // Auto-classified names are scored but don't set the cohort norms (fund-score-engine).
+  // Must stay above inputs map (A285): map runs sync; reviewed* after map = TDZ crash.
   const reviewedRows = opts?.peerReference === false ? null : await db
     .select({ ticker: peerGroupMembers.ticker, groupId: peerGroupMembers.groupId })
     .from(peerGroupMembers)
     .where(sql`${peerGroupMembers.removedAt} IS NULL AND ${peerGroupMembers.source} IN ('taxonomy', 'manual', 'verified')`);
-  const reviewed = new Set((reviewedRows ?? []).map(r => `${r.ticker}|${r.groupId}`));
-  for (const r of modeOverrideRows) reviewed.add(`${r.ticker}|${peerGroupByTicker.get(r.ticker)}`);
+  const reviewed = new Set((reviewedRows ?? []).map(r => peerReviewedKey(r.ticker, r.groupId)));
+  for (const r of modeOverrideRows) reviewed.add(peerReviewedKey(r.ticker, peerGroupByTicker.get(r.ticker) ?? null));
 
+  const peerReferenceOn = reviewedRows != null;
+  const inputs: FundRowInput[] = scoreRows.map(row => {
+    const gid = peerGroupByTicker.get(row.ticker) ?? null;
+    const mode = modeByTicker.get(row.ticker) ?? (gid ? (modeByGroup.get(gid) ?? null) : null);
+    const input = enrichMarketCap(rowToFundInput(row, gid, mode), row, finnhubMcapByTicker.get(row.ticker));
+    return attachPeerReviewed(input, peerReferenceOn, reviewed, row.ticker, gid);
+  });
 
   const [history, surprises, ibesSignals, fundChamp] = await Promise.all([
     loadHistoryByTicker(tickers),
@@ -506,7 +514,7 @@ export async function computeAndPersistFundamentalScores(
             ]),
           ),
           METRIC_FAMILY,
-          8,
+          40,
         ),
         trigger,
         asOf: computedAt,
@@ -576,18 +584,26 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   if (currentRegime && batch.some((r) => r.regimeAtScore !== currentRegime)) return null;
 
   const regRows = await db
-    .select({ ticker: tickerRegistry.ticker, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId })
+    .select({
+      ticker: tickerRegistry.ticker,
+      primaryPeerGroupId: tickerRegistry.primaryPeerGroupId,
+      isActive: tickerRegistry.isActive,
+      fetchFundamentals: tickerRegistry.fetchFundamentals,
+    })
     .from(tickerRegistry)
     .where(inArray(tickerRegistry.ticker, batch.map(r => r.ticker)));
-  const peerGroupByTicker = new Map(regRows.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
-  const uniqueGroupIds = [...new Set(regRows.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
+  const liveRegs = regRows.filter((r) => r.isActive && r.fetchFundamentals);
+  const liveSet = new Set(liveRegs.map((r) => r.ticker));
+  const liveBatch = batch.filter((r) => liveSet.has(r.ticker));
+  const peerGroupByTicker = new Map(liveRegs.map(r => [r.ticker, r.primaryPeerGroupId ?? null]));
+  const uniqueGroupIds = [...new Set(liveRegs.map(r => r.primaryPeerGroupId).filter((g): g is string => !!g))];
   const groupNameRows = uniqueGroupIds.length > 0
     ? await db.select({ id: peerGroups.id, name: peerGroups.name })
         .from(peerGroups).where(inArray(peerGroups.id, uniqueGroupIds))
     : [];
   const nameByGroup = new Map(groupNameRows.map(g => [g.id, g.name]));
   const groupSizeById = new Map<string, number>();
-  regRows.forEach(r => {
+  liveRegs.forEach(r => {
     if (!r.primaryPeerGroupId) return;
     groupSizeById.set(r.primaryPeerGroupId, (groupSizeById.get(r.primaryPeerGroupId) ?? 0) + 1);
   });
@@ -595,7 +611,7 @@ export async function readPersistedScores(currentRegime: string | null): Promise
   const numOrNull = (v: string | null | undefined) => (v == null ? null : parseFloat(v));
   const emptyCov: FamilyCoverage = { value: 0, quality: 0, growth: 0, safety: 0, total: 0 };
 
-  return batch.map(r => ({
+  return liveBatch.map(r => ({
     ticker: r.ticker,
     totalScore: numOrNull(r.fundTotalScore),
     companyScore: numOrNull(r.fundCompanyScore),
