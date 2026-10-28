@@ -1,7 +1,6 @@
+// Bypass wedged macOS mDNSResponder BEFORE any outbound fetch / env consumers.
+import "./lib/dns-bypass";
 import { loadEnvLocal } from "./lib/load-env-local";
-// Before any other module reads process.env (Schwab / DB / FactSet).
-const envBoot = loadEnvLocal();
-
 import * as Sentry from "@sentry/node";
 import app from "./app";
 import { logger } from "./lib/logger";
@@ -11,6 +10,9 @@ import { startScheduler } from "./lib/scheduler";
 import { runStartupStaleRefresh } from "./lib/startup-refresh";
 import { startCacheSweep } from "./lib/cache-registry";
 
+// Before any other module reads process.env (Schwab / DB / FactSet) — runs after
+// imports link; dns-bypass already applied during module eval.
+const envBoot = loadEnvLocal();
 if (envBoot.filled.length) {
   logger.info(
     { path: envBoot.path, filled: envBoot.filled },

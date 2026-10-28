@@ -13,6 +13,11 @@ description: Start TradeDash on this Mac (Postgres.app + Vite preview + API hot-
 
 10-28: auto-reload was off'd on purpose. Agents' edits restarted the API ~10×/h (every in-memory cache wiped → slow pages) and pushed ~900 hot reloads/day into Jamie's tab. Opt back in only for a solo session: `FILDI_API_WATCH=1` / `FILDI_HMR=1`.
 
+## DNS bypass (Mac API boot)
+When macOS `mDNSResponder` wedges, Node `fetch` can hang ~10s per hostname. The API imports `lib/dns-bypass.ts` first and routes `dns.lookup` through Cloudflare/Google/Quad9 before the OS resolver (**on by default**).
+- **Disable** (use OS resolver only): `FILDI_DNS_BYPASS=0` in `.env.local` or the shell before `./scripts/dev-restart.sh`.
+- Settings › Agents vendor health shows `dnsBypass.active` when enabled.
+
 ## Secrets
 - File: repo-root `.env.local` (gitignored)
 - Required: `SESSION_SECRET`, `DATABASE_URL`
