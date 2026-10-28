@@ -5,8 +5,9 @@
  * Caching layers (outer → inner):
  *   - routes/options `optionsCache` 30m — primary RPM saver for scanner/UI
  *   - schwabChainCache 5m + getOrCompute — coalesces concurrent cold misses
- *   - livePriceCache 60s — quote golden source (live-quote.ts)
+ *   - livePriceCache (LIVE_PRICE_TTL_MS) — quote golden source (live-quote.ts)
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { isPlausibleOptionQuote } from "@workspace/option-scoring";
 import { getTier } from "./constants.js";
 import { logger } from "./logger.js";
@@ -34,7 +35,12 @@ const CHAIN_CACHE_TTL_MS = 5 * 60_000;
 export const schwabChainCache = new TTLCache<OptionsChainResult[]>(CHAIN_CACHE_TTL_MS, "schwab-options-chain", 500);
 
 let lastRequestAt = 0;
-let chain: Promise<void> = Promise.resolve();
+
+/** Batch lane (10-28): localhost machine routes (skew survey, verify, panic puts) run inside it. The shared 100-rpm
+ *  bucket serves app requests first, so a click never queues behind a batch job using the whole budget. */
+export const schwabBatchLane = new AsyncLocalStorage<boolean>();
+const waiting: Array<{ batch: boolean; go: () => void }> = [];
+let pumping = false;
 
 /** Rolling 60s request counter for status / ops. */
 const usage = {
@@ -95,14 +101,28 @@ export function getSchwabUsageStats(): {
   };
 }
 
-async function throttle(): Promise<void> {
-  const run = chain.then(async () => {
-    const wait = Math.max(0, lastRequestAt + MIN_INTERVAL_MS - Date.now());
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastRequestAt = Date.now();
+async function pump(): Promise<void> {
+  if (pumping) return;
+  pumping = true;
+  try {
+    while (waiting.length) {
+      const wait = Math.max(0, lastRequestAt + MIN_INTERVAL_MS - Date.now());
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      const i = waiting.findIndex((w) => !w.batch);
+      const [next] = waiting.splice(i >= 0 ? i : 0, 1);
+      lastRequestAt = Date.now();
+      next.go();
+    }
+  } finally {
+    pumping = false;
+  }
+}
+
+function throttle(): Promise<void> {
+  return new Promise<void>((go) => {
+    waiting.push({ batch: schwabBatchLane.getStore() === true, go });
+    void pump();
   });
-  chain = run.catch(() => undefined);
-  await run;
 }
 
 async function schwabFetch(url: URL, token: string, retried401 = false, retried429 = false): Promise<Response | null> {

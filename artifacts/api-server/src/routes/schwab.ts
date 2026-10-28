@@ -6,7 +6,7 @@
  */
 import { Router } from "express";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "../lib/schwab-auth.js";
-import { getSchwabUsageStats, schwabAvailable, getSchwabChainLadder } from "../lib/schwab-client.js";
+import { getSchwabUsageStats, schwabAvailable, getSchwabChainLadder, schwabBatchLane } from "../lib/schwab-client.js";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 import { getSchwabOptionQuotes, occSymbol, type OptionContractRef } from "../lib/schwab-option-quotes.js";
 import { getLivePrices } from "../lib/live-quote.js";
@@ -23,6 +23,8 @@ const router = Router();
 
 /** Local Python jobs (verify_plan, intraday, daily_reflection) call these with no session cookie. */
 export const schwabMachineRouter = Router();
+// Batch jobs yield to app requests in the shared Schwab rate budget (10-28: skew survey ran 99 calls/min).
+schwabMachineRouter.use((_req, _res, next) => schwabBatchLane.run(true, next));
 
 router.get("/schwab/status", async (_req, res) => {
   let s = getSchwabAuthStatus();
@@ -135,7 +137,7 @@ schwabMachineRouter.post("/schwab/chain-ladder", async (req, res) => {
 /**
  * POST /api/schwab/equity-prices {tickers: [...]} → {prices: {T: {price, changePercent}}}
  * Localhost only (scripts/watchlist_sync/analysis/daily_reflection.py prices today before the nightly bar sync lands).
- * Reads through the shared 60s livePriceCache (Schwab → Yahoo).
+ * Reads through the shared livePriceCache (Schwab → Yahoo; TTL = LIVE_PRICE_TTL_MS).
  */
 schwabMachineRouter.post("/schwab/equity-prices", async (req, res) => {
   if (!LOCAL.includes(req.socket.remoteAddress ?? "")) return res.status(403).json({ error: "localhost only" });
