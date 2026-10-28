@@ -32,6 +32,24 @@ This file is the **judgment layer** on top: what Jamie expects a good study to d
 4. Vendor budgets: LSEG 10k requests/day shared with production syncs → cap research runs ≤ 3k (`REQ_CAP`) and shuffle ticker order so a capped run is a random sample. Polygon 5/min. Details: `fildi-market-data` skill.
 5. Pure-Python bootstraps on 30k trades take minutes: fine; don't add numpy just for speed (no scipy in the venv).
 
+## 2b. Valuation / fundamentals studies (learned on the DCF, S113–S117, 10-27)
+1. **Judge a valuation by what it is for.** The DCF (A283) is intrinsic value + company strength from the whole balance
+   sheet and footnotes, not a return forecast (Jamie 10-27). Grade it on completeness, firm specifics, explainability and
+   stability; a return IC is context only. S116 failed as a return signal yet works as a drawdown flag.
+2. **Every engine rule needs a measured base rate.** Before setting a weight, fade or target, measure it on Compustat ×
+   IBES with a server-side aggregate on WRDS (one query, percentiles back, nothing per firm stored). Templates:
+   `research/fair_value/consensus_width.py` (S113), `sbc_fade.py` (S114), `consensus_margin.py` (S115), `s2c_persistence.py` (S117).
+3. **Compare like with like.** Street EBIT excludes stock pay → use IBES actuals (`ibes.act_xepsus`) for the street start,
+   or only the *change* in the street margin (S115 halved its error this way).
+4. **Fetch numbers, never recall them.** Damodaran's ERP history recalled from memory was off by a year; the downloaded
+   `histimpl.xls` was right. Source every constant to a file or URL in the docstring.
+5. **Point-in-time harness:** `research/fair_value/dcf_backtest.py` (engine `pit=` mode: SEC facts filed ≤ date via
+   `financials.facts_asof`, IBES SAL/EBI history, CRSP traded price + total return, FRED rf, terminal g ≤ rf). Prices from
+   CRSP, not LSEG closes (LSEG history mostly starts 2018-10 and is on today's share basis).
+6. **Hand-check splits and units on 5 names first** (NVDA ×40 in 2020, NFLX 10:1 2025 after CRSP's end, StarMine PT
+   history already split-adjusted).
+7. **Revert what adds nothing.** A scenario that moves no value (S117 "build-out ends") is noise on the page; drop it and log why.
+
 ## 3. Scenario analysis
 Use the trader's real book (`optlab.*`; `scripts/watchlist_sync/pm_book.py` → `out/pm/book-latest.md`, `pm_alerts.py` MC VaR): breach odds from market IV are calibrated (S016), breaches correlate (ρ ≈ 0.6) → simulate one-factor shocks, report $ at risk and the worst cluster, not averages. Regime/crash questions: S027/S049-crash/S057 first.
 

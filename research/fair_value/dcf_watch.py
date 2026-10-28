@@ -3,7 +3,7 @@ Per ticker: value range (P10/P50/P90, base pair), where the price sits, medians 
 percentile the price implies, and the year-1 reinvestment check vs the filings. Uses the stored SEC base; --refresh
 refetches the SEC facts for just these names.
 --store writes each name's assumptions, range, scenarios and reverse DCF to watchlist_sync.dcf_detail
-(GET /api/fair-value/:ticker/dcf → Breakdown › Assumptions, A285); unvalued names store the reason.
+(GET /api/fair-value/:ticker/dcf → Breakdown › Assumptions, A289); unvalued names store the reason.
 Usage: scripts/watchlist_sync/.venv/bin/python research/fair_value/dcf_watch.py [--refresh] [--store] [TICKERS... | default watchlist]"""
 import json
 import sys

@@ -276,7 +276,7 @@ router.get("/fair-value/:ticker/external", async (req, res, next) => {
   }
 });
 
-/** A283/A285 — DCF v2 (lab): range, scenarios, reverse DCF and every assumption with its source (watchlist_sync.dcf_detail). */
+/** A283/A289 — DCF v2 (lab): range, scenarios, reverse DCF and every assumption with its source (watchlist_sync.dcf_detail). */
 router.get("/fair-value/:ticker/dcf", async (req, res, next) => {
   const t = String(req.params.ticker ?? "").toUpperCase();
   if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
