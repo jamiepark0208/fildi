@@ -124,3 +124,34 @@ export function buildReasoning(d: ScorecardRow, firstIV: number | null, macroReg
   if (d.return5d != null && d.return5d > 5) return `Up +${d.return5d.toFixed(1)}% in 5d — entry score reduced`;
   return "conditions not met";
 }
+
+/** The engine's sold put as the ladder sees it (from the Rankings row: same contract + quote as the board). */
+export interface EngineContract {
+  strike: number; expiry: string; bid: number; delta: number | null; iv: number | null; spot: number; dte: number | null;
+}
+
+const usableLeg = (p: OptionRow | undefined) => !!p && p.meetsGate && p.bid > 0 && p.bidIsLive !== false;
+
+/** Ladder chains that always carry the engine's put (10-28: 47 of 101 picks had no ★ — expiry outside the 2 nearest, strike
+ *  outside 3–25 % OTM, or no live bid after the close). A usable live leg is kept as is; otherwise the engine's own quote fills
+ *  in, flagged quoteStale so the row says it is the engine's price, not a live one. */
+export function withEngineContract(chains: OptionsChainResult[], e: EngineContract): OptionsChainResult[] {
+  const leg: OptionRow = {
+    strike: e.strike, bid: e.bid, ask: e.bid, lastPrice: 0, iv: e.iv ?? 0, volume: null, openInterest: null,
+    incomePct: e.strike > 0 ? (e.bid / e.strike) * 100 : 0, meetsGate: true, bidIsLive: true, quoteStale: true,
+    delta: e.delta, spreadPct: null,
+  };
+  const has = chains.find((c) => c.expiry === e.expiry);
+  if (has) {
+    if (usableLeg(has.puts.find((p) => p.strike === e.strike))) return chains;
+    return chains.map((c) => c !== has ? c : {
+      ...c, puts: [...c.puts.filter((p) => p.strike !== e.strike), leg].sort((a, b) => a.strike - b.strike),
+    });
+  }
+  const dte = Math.max(0.5, e.dte ?? 1);
+  const add: OptionsChainResult = {
+    ticker: chains[0]?.ticker ?? "", expiry: e.expiry, isWeekly: dte <= 9, daysToExpiry: Math.ceil(dte), exactDte: dte,
+    settlementDte: dte, spot: chains[0]?.spot ?? e.spot, tier: chains[0]?.tier ?? 1, puts: [leg], calls: [], fetchedAt: 0,
+  };
+  return [...chains, add].sort((a, b) => a.expiry.localeCompare(b.expiry));
+}

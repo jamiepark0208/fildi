@@ -16,7 +16,7 @@ import {
   type ScorecardRow, type IvTermPoint,
 } from "./options-scanner-types";
 import {
-  viableOptionStrikes, optionStrikeSummary, buildReasoning, assessOptionChainQuoteDq,
+  viableOptionStrikes, optionStrikeSummary, buildReasoning, assessOptionChainQuoteDq, withEngineContract, type EngineContract,
   isMonthlyOnlyCalendar,
 } from "./options-scanner-helpers";
 import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
@@ -70,7 +70,9 @@ interface ScannerRowProps {
   snapRelaxed?: boolean;
   /** A277 (puts): the engine's contract — the expanded row re-prices it on the live chain instead of re-picking. */
   /** blocked = the engine's gate reasons (pass false): shown as ✕, not a rank (10-27: PLTR showed as #9 while gated). */
-  enginePick?: { strike: number; expiry: string; why: string; tech?: Record<string, number | string | null> | null; blocked?: string | null } | null;
+  enginePick?: (EngineContract & { why: string; tech?: Record<string, number | string | null> | null; blocked?: string | null;
+                 /** Board numbers for the same contract — the ladder's ★ shows these, never a re-scored stand-in. */
+                 optionScore: number | null; weeklyIncomePct: number | null }) | null;
   // New scorer props (Phase 3 — used when USE_NEW_SCORER = true)
   techRow?: TechnicalRow | null;
   fundTotalScore?: number | null;
@@ -234,8 +236,19 @@ export function ScannerRow({
     retry: false,
   });
 
-  const strikes = optionsData
-    ? viableOptionStrikes(optionsData, minIncome, isCall)
+  // Puts with an engine pick: the ladder always carries that contract (live leg if usable, else the engine's quote).
+  const ladderData = useMemo(
+    () => (optionsData && enginePick && !isCall ? withEngineContract(optionsData, enginePick) : optionsData),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enginePick is a fresh object per render; its values are the key
+    [optionsData, isCall, enginePick?.strike, enginePick?.expiry, enginePick?.bid],
+  );
+  const strikes = ladderData
+    ? (() => {
+        const v = viableOptionStrikes(ladderData, minIncome, isCall);
+        if (!enginePick || isCall || v.some((x) => x.chain.expiry === enginePick.expiry && x.put.strike === enginePick.strike)) return v;
+        // the min-income slider never hides the recommended contract
+        return [...v, ...viableOptionStrikes(ladderData, 0, isCall).filter((x) => x.chain.expiry === enginePick.expiry && x.put.strike === enginePick.strike)];
+      })()
     : [];
 
   const stockCtx = useMemo((): StockContext | null => {
@@ -263,15 +276,28 @@ export function ScannerRow({
   // user override) by the parent — no need to re-derive per row.
   const effectiveWeights = strikeWeights;
   const newScorerBest = useMemo(() => {
-    if (!optionsData || !stockCtx) return null;
-    // A277: a name with an engine pick shows that contract (live price), never a different "best" strike.
-    const chains = enginePick
-      ? optionsData.filter(c => c.expiry === enginePick.expiry).map(c => ({ ...c, options: c.puts.filter(p => p.strike === enginePick.strike) }))
-      : optionsData.map(c => ({ ...c, options: isCall ? c.calls : c.puts }));
+    if (!ladderData) return null;
+    if (enginePick && !isCall) {
+      // A277: the ★ is the engine's contract with the board's score — always present (withEngineContract), never re-picked.
+      const chain = ladderData.find((c) => c.expiry === enginePick.expiry) as OptionsChainResult | undefined;
+      const put = chain?.puts.find((p) => p.strike === enginePick.strike) as OptionRow | undefined;
+      if (!chain || !put) return null;
+      const live = stockCtx && !put.quoteStale
+        ? pickBestStrike([{ ...chain, options: [put] }], stockCtx, macroRegime, allWatchlistIVs, 0, effectiveWeights, false, { incomeFloor: 0, minStockQuality: 0 })
+        : null;
+      return {
+        chain, put,
+        weeklyIncome: live?.result.weeklyIncome ?? enginePick.weeklyIncomePct ?? 0,
+        optionScore: enginePick.optionScore ?? live?.result.optionScore ?? 0,
+        dataQuality: live?.result.dataQuality ?? 1,
+        liquidity: live?.result.liquidity,
+        runnerUp: null,
+      };
+    }
+    if (!stockCtx) return null;
+    const chains = ladderData.map(c => ({ ...c, options: isCall ? c.calls : c.puts }));
     // The engine already applied its gates/income view → score that contract without the scanner's own floors.
-    const picked = enginePick
-      ? pickBestStrike(chains, stockCtx, macroRegime, allWatchlistIVs, 0, effectiveWeights, isCall, { incomeFloor: 0, minStockQuality: 0 })
-      : pickBestStrike(chains, stockCtx, macroRegime, allWatchlistIVs, undefined, effectiveWeights, isCall);
+    const picked = pickBestStrike(chains, stockCtx, macroRegime, allWatchlistIVs, undefined, effectiveWeights, isCall);
     if (!picked) return null;
     return {
       chain: picked.chain as OptionsChainResult,
@@ -284,7 +310,7 @@ export function ScannerRow({
       runnerUp: picked.runnerUp as { chain: OptionsChainResult; put: OptionRow; result: OptionScoreResult } | null,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- enginePick is a fresh object per render; its values are the key
-  }, [optionsData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall, enginePick?.strike, enginePick?.expiry]);
+  }, [ladderData, stockCtx, macroRegime, allWatchlistIVs, effectiveWeights, isCall, enginePick?.strike, enginePick?.expiry, enginePick?.optionScore, enginePick?.weeklyIncomePct]);
 
   // An engine pick is the only "best" strike: if its contract isn't in the live chain, highlight nothing rather than
   // a max-income stand-in (10-28: GOOGL board 290 vs ladder ★ 287.5).

@@ -297,10 +297,10 @@ def evaluate_option(it: dict, instruments, oquotes, equotes, now: datetime) -> t
     days = max((it["expiry"] - now.astimezone(R.ET).date()).days, 1)
     weekly = 100 * (fill or 0) / float(it["strike"]) * 7 / days
     floor = it.get("_floor", R.MIN_WEEKLY_INCOME_PCT)  # champion param thresholds.min_weekly_realistic (set in cmd_evaluate)
-    # 10-24: puts re-struck to rules.PUT_TARGET_ABS_DELTA are judged at the name's 0.15Δ income → floor × (strike ÷ name income)
-    scale = next((x.get("scale") for x in (it.get("l1_checks") or []) if x.get("check") == "min_income"), None)
-    if scale and it["option_type"] == "put":
-        floor = round(floor * min(1.0, scale), 3)
+    # 10-28: sold puts use the engine's floor at the strike sold (put_recs / L1 min_income) — one floor on every tab. The old
+    # name-income `scale` (strike ÷ 0.15Δ income) is gone with the name-level gate; a flat 0.35 here dropped 0.30-floor picks.
+    if it["option_type"] == "put" and it.get("list_key") == "sell_puts":
+        floor = min(floor, R.MIN_WEEKLY_INCOME_PCT)
     c.append(chk("realistic_yield", weekly >= floor,
                  f"{weekly:.2f}%/week at the realistic fill ${fill or 0:.2f} ({days}d), floor {floor}%"))
     c.append(chk("fildi_premium_gap", ratio >= R.MIN_REALISTIC_TO_MODEL,

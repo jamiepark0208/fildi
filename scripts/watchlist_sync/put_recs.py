@@ -81,6 +81,30 @@ def pick_strike(puts: list[dict], band: str):
     return None, None
 
 
+WIDEN_MAX_DELTA = 0.15   # Jamie 10-28: "~0.05–0.15Δ for 1–2 wks" — the farthest-in a put may move to reach the income floor
+
+
+def widen_for_income(puts: list[dict], used: str, ms: str, ns: str, days: float):
+    """Below the income floor at the band's strike → the nearest closer band (≤ WIDEN_MAX_DELTA) whose strike pays the floor,
+    while that band's 5-year worst-5 % week in this market × stock state stays ≥ the risk floor (S101 table; −200 standard).
+    Jamie 10-28: widen rather than drop the name. (row, band) or (None, reason it stopped)."""
+    import band_engine as BE
+    order = SE.ENGINE["strategies"]["sell_put"]["strike"]["bands"]
+    floor = BE.FLOORS[SE.ENGINE["strategies"]["sell_put"]["strike"].get("risk", "standard")]
+    for b in order[order.index(used) + 1:]:
+        lo, hi = SE.band_bounds(b)
+        if hi > WIDEN_MAX_DELTA + 1e-9:
+            return None, f"no strike ≤ {WIDEN_MAX_DELTA}Δ pays it"
+        h = SE.band_table().get(f"{ms}|{ns}|{b}")
+        if h and h["w5"] < floor:
+            return None, f"next band {b}Δ: worst 5 % week {h['w5']:+.0f} bp in this market × stock state (floor {floor:+.0f})"
+        inb = [p for p in puts if lo <= -p["delta"] < hi and p["bid"] >= R.PUT_MIN_RESTRIKE_BID and liquid(p)]
+        ok = [p for p in inb if 100 * p["bid"] / p["strike"] * 7 / days >= R.MIN_WEEKLY_INCOME_PCT]
+        if ok:
+            return min(ok, key=lambda p: -p["delta"]), b   # the farthest strike in that band that pays the floor
+    return None, f"no strike ≤ {WIDEN_MAX_DELTA}Δ pays it"
+
+
 LANE = SE.ENGINE["lanes"]["rich_put"]
 
 
@@ -258,6 +282,15 @@ def compute(conn) -> tuple[date, list[dict], dict]:
             out.append(rec)
             continue
         days = (exp - as_of).days + BP._settle_offset(exp)
+        widen_why = None
+        if 100 * p["bid"] / p["strike"] * 7 / days < R.MIN_WEEKLY_INCOME_PCT:
+            w, how = widen_for_income([x for x in by[t] if x["expiry"] == exp], used, ms, rec["stock_state"] or "normal", days)
+            if w:
+                why = f"{why} · {used}Δ pays {100 * p['bid'] / p['strike'] * 7 / days:.2f} %/wk < {R.MIN_WEEKLY_INCOME_PCT} → {how}Δ"
+                p, used = w, how
+                rec.update(why=why)
+            else:
+                widen_why = how
         iv = p["iv"] / 100 if p["iv"] > 3 else p["iv"]
         rec.update(band=used, strike=p["strike"], delta=p["delta"], bid=p["bid"], ask=p["ask"], spot=p["spot"], iv=iv, dte=p["dte"],
                    income_wk_pct=100 * p["bid"] / p["strike"] * 7 / days, iv_rv=iv / rv[t] if rv.get(t) else None)
@@ -273,7 +306,8 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         # Jamie 10-28: the floor judges the put we sell, not the name at 0.15Δ — GOOGL/PLTR/NVDA passed paying 0.19–0.27 %/wk.
         if rec["income_wk_pct"] < R.MIN_WEEKLY_INCOME_PCT:
             ok = False
-            gates.append(f"pays {rec['income_wk_pct']:.2f} %/wk at the {p['strike']:g} strike (min {R.MIN_WEEKLY_INCOME_PCT})")
+            gates.append(f"pays {rec['income_wk_pct']:.2f} %/wk at the {p['strike']:g} strike (min {R.MIN_WEEKLY_INCOME_PCT})"
+                         + (f"; {widen_why}" if widen_why else ""))
         if far == "earnings before expiry":   # Jamie 10-28 (GOOGL 10-28): no new put across the print by default
             ok = False
             gates.append(f"earnings before the {exp} expiry")

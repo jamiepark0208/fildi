@@ -192,7 +192,7 @@ export function OptionsScannerContent({
     queryFn: async (): Promise<{
       rankings: Array<{
         ticker: string;
-        optionScore: number;
+        optionScore: number | null;
         weeklyIncomePct: number | null;
         otmPct: number | null;
         delta: number | null;
@@ -476,7 +476,7 @@ export function OptionsScannerContent({
     for (const ticker of displayTickers) {
       const snap = rankingByTicker.get(ticker);
       if (snap) {
-        scoreMap.set(ticker, snap.optionScore);
+        if (snap.optionScore != null) scoreMap.set(ticker, snap.optionScore);
         if (snap.weeklyIncomePct != null) incomeMap.set(ticker, snap.weeklyIncomePct);
         // Snapshot otmPct is a fraction (0.08 = 8%), same as live pickBestStrike — not "percent points".
         // Prefer strike IV; fall back to ATM put IV so Buf isn't blank when strike IV missing.
@@ -1143,6 +1143,9 @@ export function OptionsScannerContent({
                 snapRelaxed={rankingByTicker.get(ticker)?.relaxed === true}
                 enginePick={!isCallMode && rankingByTicker.get(ticker)?.engine
                   ? { strike: rankingByTicker.get(ticker)!.strike, expiry: rankingByTicker.get(ticker)!.expiry, why: rankingByTicker.get(ticker)!.engine!.why,
+                      bid: rankingByTicker.get(ticker)!.premium, delta: rankingByTicker.get(ticker)!.delta, iv: rankingByTicker.get(ticker)!.strikeIv,
+                      spot: rankingByTicker.get(ticker)!.spot, dte: rankingByTicker.get(ticker)!.dte,
+                      optionScore: rankingByTicker.get(ticker)!.optionScore, weeklyIncomePct: rankingByTicker.get(ticker)!.weeklyIncomePct,
                       tech: rankingByTicker.get(ticker)!.engine!.tech ?? null,
                       blocked: rankingByTicker.get(ticker)!.engine!.pass ? null : (rankingByTicker.get(ticker)!.engine!.gates.join("; ") || "engine gate") }
                   : null}
