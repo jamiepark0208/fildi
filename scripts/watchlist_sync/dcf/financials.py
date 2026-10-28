@@ -55,12 +55,19 @@ BALANCES = {
     "litigation": ["LossContingencyAccrualAtCarryingValue"],
     "aro": ["AssetRetirementObligationsNoncurrent", "AssetRetirementObligation"],
     "finance_leases": ["FinanceLeaseLiability"],
+    # A288: convertible notes (face) — when ITM, engine treats as equity not debt
+    "convert_debt": [
+        "ConvertibleNotesPayable", "ConvertibleLongTermNotesPayable", "ConvertibleDebt",
+        "ConvertibleDebtNoncurrent", "ConvertibleDebtCurrent", "ConvertibleNotesPayableCurrent",
+    ],
 }
 DILUTION = {  # share counts (unit shares) and option strike (USD/shares), for the treasury-stock method
     "rsu": "ShareBasedCompensationArrangementByShareBasedPaymentAwardEquityInstrumentsOtherThanOptionsNonvestedNumber",
     "options": "ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsOutstandingNumber",
     "strike": "ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsOutstandingWeightedAverageExercisePrice",
 }
+# Dimension-free conversion price (USD per share). Per-instrument dims often missing → skip when absent.
+CONVERT_PRICE = "DebtInstrumentConvertibleConversionPrice1"
 UNRECOGNIZED = "EmployeeServiceShareBasedCompensationNonvestedAwardsTotalCompensationCostNotYetRecognized"
 WEIGHTED = {"diluted": "WeightedAverageNumberOfDilutedSharesOutstanding", "basic": "WeightedAverageNumberOfSharesOutstandingBasic"}
 
@@ -75,7 +82,7 @@ def companyfacts(conn, ticker: str) -> dict | None:
     if not r:
         return None
     facts = _get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{r[0]['cik']}.json")
-    used = {c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | set(WEIGHTED.values()) | set(DILUTION.values()) | {UNRECOGNIZED}
+    used = {c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | set(WEIGHTED.values()) | set(DILUTION.values()) | {UNRECOGNIZED, CONVERT_PRICE}
     keep = {"cik": facts.get("cik"), "entityName": facts.get("entityName"), "facts": {
         "us-gaap": {k: v for k, v in (facts.get("facts", {}).get("us-gaap", {}) or {}).items() if k in used},
         "dei": (facts.get("facts", {}).get("dei", {}) or {})}}
@@ -236,6 +243,12 @@ def ttm_base(conn, ticker: str, facts: dict | None = None) -> dict | None:
     out.update({k: balance(facts, v, asof) for k, v in BALANCES.items()})
     out["shares"] = shares(facts)
     out["dilution"] = dilution(facts, asof)
+    # A288: conversion price (USD/shares) — dimension-free only
+    cp_vals = [u for u in _units(facts, CONVERT_PRICE, "USD/shares") if not u.get("start") and u["end"] <= asof]
+    if cp_vals:
+        u = max(cp_vals, key=lambda x: (x["end"], x["filed"]))
+        if _days(u["end"], asof) <= 400 and u["val"] and u["val"] > 0:
+            out["convert_price"] = {"value": u["val"], "concept": CONVERT_PRICE, "end": u["end"], "filed": u["filed"]}
     out["history"] = {k: fy_history(facts, FLOWS[k]) for k in HIST}
     return out
 

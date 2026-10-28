@@ -262,6 +262,19 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
     flags = [] if v("op_leases") <= rev else ["leases > revenue → dropped"]
     if gold_debt > 0 and debt_sec > 3 * gold_debt + 1e9:
         debt_sec, flags = gold_debt, flags + ["SEC debt > 3× vendor → vendor"]
+    # A288: ITM convertibles → equity (if-converted). Face usually already inside LT debt tags.
+    conv_face = v("convert_debt")
+    conv_px = (base.get("convert_price") or {}).get("value") or 0.0
+    px_ = float(f["price"]) if f.get("price") else 0.0
+    convert_sh = 0.0
+    if conv_face > 0 and conv_px > 0 and px_ > conv_px:
+        convert_sh = conv_face / conv_px
+        debt_sec = max(debt_sec - conv_face, 0.0)
+        flags = flags + [f"ITM converts ${conv_face/1e9:.2f}B @ ${conv_px:.2f} → {convert_sh/1e6:.1f}M sh"]
+    elif conv_face > 0 and conv_px <= 0:
+        flags = flags + [f"converts ${conv_face/1e9:.2f}B face — no conversion price in companyfacts (kept as debt)"]
+    elif conv_face > 0 and px_ > 0 and conv_px > 0 and px_ <= conv_px:
+        flags = flags + [f"OTM converts ${conv_face/1e9:.2f}B @ ${conv_px:.2f} (price {px_:.2f}) — kept as debt"]
     debt = debt_sec + leases
     cash = v("cash") + v("st_investments") + v("lt_investments")  # non-operating assets in the equity bridge
     ic = v("equity") + debt - cash
@@ -294,6 +307,7 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
     claims = {"pension deficit (after tax)": max(-v("pension_funded"), 0) * 0.79, "preferred stock": v("preferred"),
               "legal accruals (after tax)": v("litigation") * 0.79, "asset retirement (after tax)": v("aro") * 0.79,
               "finance leases": 0.0 if concept("debt_lt") == "LongTermDebtAndCapitalLeaseObligations" else v("finance_leases")}
+    # OTM converts stay inside debt_sec (no reclass). ITM face already removed above + shares added.
     broad = concept("lt_investments") == "LongTermInvestments"  # already holds equity stakes / other investments
     assets = {"equity-method stakes": 0.0 if broad else v("equity_method"), "other investments": 0.0 if broad else v("other_investments"),
               "crypto (fair value)": v("crypto"), "tax-loss carryforwards (usable, 80 %)": max(v("nol_dta") - v("dta_allowance"), 0) * 0.8}
@@ -302,7 +316,6 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
     dil = base.get("dilution") or {}
     rsu = (dil.get("rsu") or {}).get("value") or 0.0
     opt, k_opt = (dil.get("options") or {}).get("value") or 0.0, (dil.get("strike") or {}).get("value") or 0.0
-    px_ = float(f["price"]) if f.get("price") else 0.0
     opt_net = opt * max(px_ - k_opt, 0) / px_ if px_ > 0 and k_opt > 0 else 0.0  # treasury-stock method at today's price
     gap = (dil.get("dil_gap") or {}).get("value") or 0.0
     unrec_sh = ((dil.get("unrecognized_usd") or {}).get("value") or 0.0) / px_ if px_ > 0 else 0.0
@@ -310,11 +323,26 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
         rsu, opt_net = gap, 0.0
     if unrec_sh > rsu + opt_net:  # loss-makers: unvested awards ≈ unrecognized stock-comp cost ÷ price (RSU count is dimension-tagged)
         rsu, opt_net, gap = unrec_sh, 0.0, -1.0
-    extra_sh = rsu + opt_net if v("shares") and (rsu + opt_net) < 0.3 * v("shares") else 0.0
+    extra_sh = rsu + opt_net + convert_sh
+    if v("shares") and extra_sh >= 0.3 * v("shares"):  # mis-scaled guard
+        extra_sh = rsu + opt_net  # drop convert share add if absurd
+        convert_sh = 0.0
+        if any("ITM converts" in fl for fl in flags):
+            flags = [fl for fl in flags if "ITM converts" not in fl] + ["ITM converts share add dropped (>30% shares)"]
+    dil_out = {}
+    if gap == -1.0:
+        dil_out = {"unvested awards (unrecognized comp ÷ price)": rsu}
+    elif gap and rsu == gap:
+        dil_out = {"diluted − basic shares (filings)": rsu}
+    else:
+        if rsu:
+            dil_out["unvested RSUs"] = rsu
+        if opt_net:
+            dil_out["options (treasury method)"] = opt_net
+    if convert_sh > 0:
+        dil_out["ITM convertibles (if-converted)"] = convert_sh
     return {"ticker": t, "price": float(f["price"]), "shares": v("shares") + extra_sh, "shares_basic": v("shares"),
-            "dilution": ({"unvested awards (unrecognized comp ÷ price)": rsu} if gap == -1.0 else
-                         {"diluted − basic shares (filings)": rsu} if gap and rsu == gap else
-                         {"unvested RSUs": rsu, "options (treasury method)": opt_net}) if extra_sh else {},
+            "dilution": dil_out,
             "claims": claims, "assets": assets, "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),
             "m0": oi / rev if rev else 0.0,
