@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useScoringPreferences } from "@/context/ScoringPreferencesContext";
 import { useAuth } from "@/context/AuthContext";
 import { TechnicalLeaderboard } from "@/components/technical-leaderboard";
-import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
+import { addToScannerShelf, optionsScannerHref } from "@/lib/ticker-shelf-storage";
 import {
   type IndicatorResult,
   type TechnicalScore,
@@ -48,9 +48,9 @@ function TierBadge({ tier }: { tier: 1 | 2 | 3 }) {
 
 function SignalBadge({ signal }: { signal: "GO" | "WATCH" | "NO" }) {
   const cls =
-    signal === "GO"    ? "bg-green-500/15 text-green-400 border-green-500/30" :
-    signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
-                         "bg-muted text-muted-foreground border-border";
+    signal === "GO"    ? "bg-zinc-900 text-white border-emerald-400/70" :
+    signal === "WATCH" ? "bg-zinc-900 text-white border-amber-400/70" :
+                         "bg-zinc-900 text-zinc-300 border-zinc-500/50";
   return (
     <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 font-bold", cls)}>
       {signal}
@@ -299,7 +299,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               <MacdBadge cross={d.macdCross} />
               <div className="flex items-center gap-2 ml-auto">
                 <button
-                  onClick={() => { addToScannerShelf(ticker); navigate("/options-scanner"); }}
+                  onClick={() => { addToScannerShelf(ticker); navigate(optionsScannerHref(ticker)); }}
                   className="text-muted-foreground hover:text-foreground transition-colors"
                   title="Open in options scanner"
                 >
@@ -394,7 +394,7 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
                   <div className="flex items-center justify-end gap-1.5">
                     <span className="font-mono">{ticker}</span>
                     <button
-                      onClick={() => { addToScannerShelf(ticker); navigate("/options-scanner"); }}
+                      onClick={() => { addToScannerShelf(ticker); navigate(optionsScannerHref(ticker)); }}
                       className="text-muted-foreground hover:text-foreground transition-colors"
                       title="Open in options scanner"
                     >

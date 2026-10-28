@@ -14,6 +14,7 @@ import { AnimatedNumber } from "@/components/animated-number";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
+import { GRADED_REC_WIN_RATE } from "@/lib/track-record-labels";
 
 interface SideSummary {
   n: number;
@@ -138,11 +139,11 @@ interface TickerSummaryRow {
 }
 
 /** Graded history header tint */
-const PUT_HEAD = "bg-sky-500/10 text-sky-200";
-const CALL_HEAD = "bg-orange-500/10 text-orange-300";
+const PUT_HEAD = "bg-zinc-900 text-white border-b border-sky-400/50";
+const CALL_HEAD = "bg-zinc-900 text-white border-b border-orange-400/50";
 /** Model's live best-rec columns — distinct wash so users see "this is the pick" */
-const PUT_REC_HEAD = "bg-emerald-500/15 text-emerald-200";
-const CALL_REC_HEAD = "bg-amber-500/15 text-amber-200";
+const PUT_REC_HEAD = "bg-zinc-900 text-white border-b border-emerald-400/60";
+const CALL_REC_HEAD = "bg-zinc-900 text-white border-b border-amber-400/60";
 const PUT_REC_BODY = "bg-emerald-500/[0.06]";
 const CALL_REC_BODY = "bg-amber-500/[0.06]";
 const PUT_EDGE = "border-l border-sky-500/25";
@@ -192,7 +193,7 @@ function ScoreCard({ title, summary, color }: { title: string; summary: SideSumm
     <StatChip
       dot={color}
       label={title}
-      title="Model sell-option expectancy (capital-weighted avg P&L on graded recs). Primary accountability signal."
+      title={`Model sell-option expectancy (capital-weighted avg P&L on graded recs). Primary accountability signal. · ${GRADED_REC_WIN_RATE}`}
     >
       <span className={cn(
         "text-[12px] font-bold ml-auto font-mono tabular-nums",
@@ -205,8 +206,8 @@ function ScoreCard({ title, summary, color }: { title: string; summary: SideSumm
           />
         )}
       </span>
-      <span className="text-[10px] text-sky-200/70 whitespace-nowrap">
-        n={summary.n} · {pct(summary.winRate)}
+      <span className="text-[10px] text-sky-200/70 whitespace-nowrap" title={GRADED_REC_WIN_RATE}>
+        n={summary.n} · wr {pct(summary.winRate)}
       </span>
     </StatChip>
   );

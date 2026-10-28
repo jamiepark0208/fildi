@@ -23,7 +23,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
 import { subTabClass } from "@/lib/sub-tabs";
 import { formatCurrency, formatGrowthYoY, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
-import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
+import { addToScannerShelf, optionsScannerHref } from "@/lib/ticker-shelf-storage";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -384,7 +384,7 @@ export function StockBreakdown({
 
               <button
                 type="button"
-                onClick={() => { addToScannerShelf(m.ticker); navigate("/options-scanner"); }}
+                onClick={() => { addToScannerShelf(m.ticker); navigate(optionsScannerHref(m.ticker)); }}
                 className="flex items-center gap-1 text-[11px] font-medium text-white bg-green-600 hover:bg-green-500 rounded-md px-2.5 py-1 transition-colors shrink-0"
               >
                 <LineChart className="w-3 h-3" /> Open Options

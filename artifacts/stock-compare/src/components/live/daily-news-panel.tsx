@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { formatMdYy } from "@/lib/format";
 import { VERDICT_COLORS, VERDICT_LABELS } from "@/hooks/use-model-list";
+import { trustDayPct } from "@/components/live/live-format";
 import { parseSections } from "./daily-news-parse";
 
 interface DigFact {
@@ -103,11 +104,14 @@ interface MarketChip {
   changePercent: number | null;
 }
 
-/** A82 — Kalshi macro odds (internal display). */
+/** A82 — Kalshi macro + 15m up/down (internal display). */
 interface PredMarketsStrip {
   asOf: string;
   fomc: { dateLabel: string; holdPct: number; cutPct: number; hikePct: number; oi: number } | null;
   cpi: { monthLabel: string; medianYoY: number; oi: number } | null;
+  btc15m?: { label: string; upPct: number; downPct: number; closesAt: string | null } | null;
+  ndq15m?: { label: string; upPct: number; downPct: number; closesAt: string | null } | null;
+  intradayNote?: string;
   error?: string;
 }
 
@@ -441,7 +445,9 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
       if (!r.ok) throw new Error("pred-markets failed");
       return r.json();
     },
-    staleTime: 30 * 60_000,
+    // 15m markets need fresher polls; FOMC/CPI still hourly-cached server-side.
+    staleTime: 45_000,
+    refetchInterval: 60_000,
     refetchOnWindowFocus: false,
   });
 
@@ -577,6 +583,17 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
           value: y,
           up: null,
           title: "10Y treasury yield",
+        }];
+      }
+      // A179: VIX absurd off-hours % → "stale", not a fake session move.
+      if (t === "^VIX") {
+        const tr = trustDayPct(c.changePercent);
+        return [{
+          key: t,
+          label: "VIX",
+          value: tr.flagged ? "stale" : tr.text === "—" ? "-" : tr.text,
+          up: tr.flagged || tr.text === "—" ? null : (c.changePercent ?? 0) >= 0,
+          title: tr.title ?? "VIX session 1d change",
         }];
       }
       const up = c.changePercent == null ? null : c.changePercent >= 0;
@@ -820,13 +837,37 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
           </div>
         )}
 
-        {/* A82 — Kalshi FOMC / CPI (internal only) */}
-        {(predMarkets?.fomc || predMarkets?.cpi) && (
+        {/* A82 — Kalshi FOMC / CPI / 15m up-down (internal only) */}
+        {(predMarkets?.fomc || predMarkets?.cpi || predMarkets?.btc15m || predMarkets?.ndq15m) && (
           <div
             className="rounded-md border border-cyan-400/25 bg-zinc-950 px-1.5 py-0.5 flex flex-nowrap items-baseline gap-x-2 overflow-hidden whitespace-nowrap text-[10px] font-mono tabular-nums text-cyan-100/90"
-            title="Kalshi market odds · internal use only · not advice"
+            title={predMarkets.intradayNote || "Kalshi market odds · internal use only · not advice"}
           >
             <span className="text-cyan-400/70 shrink-0">Kalshi</span>
+            {predMarkets.btc15m && (
+              <span
+                className={cn(
+                  "shrink-0",
+                  predMarkets.btc15m.upPct >= 55 ? "text-emerald-400"
+                    : predMarkets.btc15m.upPct <= 45 ? "text-red-400" : undefined,
+                )}
+                title="BTC next-15m up probability (crowd)"
+              >
+                BTC 15m ↑{predMarkets.btc15m.upPct}%
+              </span>
+            )}
+            {predMarkets.ndq15m && (
+              <span
+                className={cn(
+                  "shrink-0",
+                  predMarkets.ndq15m.upPct >= 55 ? "text-emerald-400"
+                    : predMarkets.ndq15m.upPct <= 45 ? "text-red-400" : undefined,
+                )}
+                title="NDX next-15m up probability when listed"
+              >
+                NDQ 15m ↑{predMarkets.ndq15m.upPct}%
+              </span>
+            )}
             {predMarkets.fomc && (
               <span className="shrink-0" title={`OI ${predMarkets.fomc.oi.toLocaleString()}`}>
                 FOMC {predMarkets.fomc.dateLabel}: hold {predMarkets.fomc.holdPct}%

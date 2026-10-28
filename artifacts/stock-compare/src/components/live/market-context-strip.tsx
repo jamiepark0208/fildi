@@ -1,5 +1,5 @@
 /**
- * Live › Market conviction strip — Kalshi 15m + desk lean + regime grade hit-rate.
+ * Live › Market conviction strip — Kalshi 15m + desk lean. Minimal one-liner.
  * One coalesced /live/market-context fetch (45s server cache). Display only.
  */
 import { useQuery } from "@tanstack/react-query";
@@ -22,15 +22,6 @@ type DeskLean = {
   note: string;
 };
 
-type Accuracy = {
-  lookbackDays: number;
-  n: number;
-  correct: number;
-  incorrect: number;
-  correctPct: number | null;
-  note: string;
-};
-
 type MarketContext = {
   asOf: string;
   btc15m: Fifteen | null;
@@ -38,32 +29,15 @@ type MarketContext = {
   fomc: { dateLabel: string; holdPct: number; cutPct: number; hikePct: number } | null;
   cpi: { monthLabel: string; medianYoY: number } | null;
   deskLean: DeskLean | null;
-  regimeAccuracy: Accuracy | null;
+  regimeAccuracy: { lookbackDays: number; n: number; correctPct: number | null; note: string } | null;
   kalshiNote: string;
 };
 
-function FifteenChip({ m }: { m: Fifteen }) {
-  const up = m.upPct >= 55;
-  const down = m.upPct <= 45;
-  const closes = m.closesAt
-    ? new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/Los_Angeles",
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(new Date(m.closesAt))
-    : null;
-  return (
-    <span
-      className={cn(
-        "shrink-0 tabular-nums",
-        up ? "text-emerald-400" : down ? "text-red-400" : "text-amber-100/85",
-      )}
-      title={`${m.marketTicker} · closes ${m.closesAt ?? "?"} · crowd odds, not FILDI forecast`}
-    >
-      {m.label} 15m {up ? "↑" : down ? "↓" : "~"}{m.upPct}%
-      {closes ? <span className="text-white/50"> · {closes}</span> : null}
-    </span>
-  );
+function leanShort(lean: DeskLean["lean"]): string {
+  if (lean === "bullish") return "bull";
+  if (lean === "bearish") return "bear";
+  if (lean === "mixed") return "mix";
+  return "thin";
 }
 
 export function MarketContextStrip() {
@@ -82,14 +56,9 @@ export function MarketContextStrip() {
   if (!data) return null;
 
   const desk = data.deskLean;
-  const acc = data.regimeAccuracy;
+  const m15 = data.btc15m ?? data.ndq15m;
   const hasKalshi = !!(data.btc15m || data.ndq15m || data.fomc || data.cpi);
-  if (!hasKalshi && !desk && !acc) return null;
-
-  const deskClass =
-    desk?.lean === "bullish" ? "text-emerald-400"
-      : desk?.lean === "bearish" ? "text-red-400"
-        : "text-amber-100/80";
+  if (!hasKalshi && !desk) return null;
 
   const conflict =
     desk &&
@@ -99,50 +68,102 @@ export function MarketContextStrip() {
     ((desk.lean === "bullish" && data.btc15m.upPct <= 45)
       || (desk.lean === "bearish" && data.btc15m.upPct >= 55));
 
+  const parts: { key: string; text: string; className?: string; title?: string }[] = [];
+
+  if (m15) {
+    const up = m15.upPct >= 55;
+    const down = m15.upPct <= 45;
+    parts.push({
+      key: "15m",
+      text: `${m15.label} ${up ? "↑" : down ? "↓" : "~"}${m15.upPct}%`,
+      className: up ? "text-emerald-400" : down ? "text-red-400" : "text-white",
+      title: `${m15.marketTicker} · crowd odds`,
+    });
+  }
+  if (data.fomc) {
+    parts.push({
+      key: "fomc",
+      text: `FOMC ${data.fomc.dateLabel} hold ${data.fomc.holdPct}%`,
+      className: "text-white",
+      title: data.fomc.dateLabel,
+    });
+  }
+  if (data.cpi) {
+    parts.push({
+      key: "cpi",
+      text: `CPI ${data.cpi.monthLabel} ~${data.cpi.medianYoY}%`,
+      className: "text-white",
+      title: data.cpi.monthLabel,
+    });
+  }
+  if (desk && desk.n > 0) {
+    parts.push({
+      key: "desk",
+      text: `Desk ${leanShort(desk.lean)}`,
+      className:
+        desk.lean === "bullish" ? "text-emerald-400"
+          : desk.lean === "bearish" ? "text-red-400"
+            : "text-white",
+      title: desk.note,
+    });
+  }
+  if (conflict) {
+    parts.push({ key: "⚠", text: "⚠", className: "text-amber-400", title: "Desk ≠ BTC 15m" });
+  }
+
+  // A179 trust: loud as-of + calendar hint (FOMC/CPI already above) + regime hit-rate.
+  // No Options GO row here — Rankings / Live top-options owns that (plan review).
+  const asOfDate = new Date(data.asOf);
+  const asOfOk = Number.isFinite(asOfDate.getTime());
+  const asOfLabel = asOfOk
+    ? asOfDate.toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }) + " ET"
+    : null;
+  const etHour = asOfOk
+    ? Number(asOfDate.toLocaleString("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }))
+    : null;
+  const sessionHint =
+    etHour == null ? null
+      : etHour < 9 || (etHour === 9 && Number(asOfDate.toLocaleString("en-US", { timeZone: "America/New_York", minute: "2-digit" })) < 30) ? "pre"
+        : etHour >= 16 ? "closed"
+          : "open";
+  if (asOfLabel) {
+    parts.push({
+      key: "asof",
+      text: sessionHint === "open" ? asOfLabel : `${asOfLabel} · ${sessionHint ?? "as-of"}`,
+      className: sessionHint === "closed" || sessionHint === "pre" ? "text-amber-300" : "text-white/70",
+      title: data.kalshiNote || "Strip fetch time (ET)",
+    });
+  }
+  const reg = data.regimeAccuracy;
+  if (reg?.correctPct != null && reg.n >= 8) {
+    parts.push({
+      key: "reg",
+      text: `reg ${reg.correctPct}%`,
+      className: "text-white/80",
+      title: reg.note,
+    });
+  }
+
+  if (parts.length === 0) return null;
+
   return (
     <div
-      className="rounded-md border border-cyan-400/25 bg-zinc-950 px-2 py-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-[10px] font-mono"
+      className="rounded-md border border-cyan-400/25 bg-zinc-950 px-2 py-0.5 text-[10px] font-mono text-white truncate"
       title={data.kalshiNote}
     >
-      <span className="text-cyan-400/80 shrink-0 font-semibold uppercase tracking-wide">Context</span>
-      {data.btc15m && <FifteenChip m={data.btc15m} />}
-      {data.ndq15m && <FifteenChip m={data.ndq15m} />}
-      {data.fomc && (
-        <span className="text-cyan-100/85 shrink-0" title="Kalshi FOMC">
-          FOMC {data.fomc.dateLabel}: hold {data.fomc.holdPct}%
+      {parts.map((p, i) => (
+        <span key={p.key}>
+          {i > 0 && <span className="text-white/40"> · </span>}
+          <span className={cn(p.className)} title={p.title}>{p.text}</span>
         </span>
-      )}
-      {data.cpi && (
-        <span className="text-cyan-100/85 shrink-0" title="Kalshi CPI">
-          CPI {data.cpi.monthLabel}: ~{data.cpi.medianYoY}%
-        </span>
-      )}
-      {desk && desk.n > 0 && (
-        <span className={cn("shrink-0", deskClass)} title={desk.note}>
-          Desk {desk.lean}
-          <span className="text-white/45"> · n={desk.n}</span>
-        </span>
-      )}
-      {acc && (
-        <span
-          className={cn(
-            "shrink-0",
-            acc.correctPct == null ? "text-white/50"
-              : acc.correctPct >= 55 ? "text-emerald-400/90"
-                : acc.correctPct <= 45 ? "text-red-400/90"
-                  : "text-amber-100/75",
-          )}
-          title={acc.note}
-        >
-          Regime hit {acc.correctPct != null ? `${acc.correctPct}%` : "—"}
-          <span className="text-white/45"> · n={acc.n}/{acc.lookbackDays}d</span>
-        </span>
-      )}
-      {conflict && (
-        <span className="text-amber-400 shrink-0 font-semibold" title="Desk lean vs BTC 15m disagree">
-          ⚠ desk≠BTC15m
-        </span>
-      )}
+      ))}
     </div>
   );
 }

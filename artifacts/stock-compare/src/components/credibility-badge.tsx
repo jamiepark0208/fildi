@@ -7,8 +7,7 @@ import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const MIN_N_FOR_WIN_RATE = 5;
+import { GRADED_REC_WIN_RATE, MIN_N_FOR_WIN_RATE } from "@/lib/track-record-labels";
 
 interface SideSummary {
   n: number;
@@ -56,7 +55,7 @@ export function CredibilityBadge({ side, className }: { side: "put" | "call"; cl
       </TooltipTrigger>
       <TooltipContent>
         {showWinRate
-          ? `${summary.wins}/${summary.n} graded ${side} recs at model default settings — see full track record`
+          ? `${summary.wins}/${summary.n} · ${GRADED_REC_WIN_RATE}`
           : `Only ${summary.n} graded ${side} rec${summary.n === 1 ? "" : "s"} so far — too early for a reliable win rate`}
       </TooltipContent>
     </Tooltip>

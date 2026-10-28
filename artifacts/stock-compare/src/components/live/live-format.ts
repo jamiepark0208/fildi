@@ -40,3 +40,46 @@ export function formatVolume(v: number): string {
   if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
   return String(v);
 }
+
+/** Rough ET RTH (9:30–16:00 weekdays) — client trust chrome only (A179). */
+export function isLikelyRthEt(now = new Date()): boolean {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const wd = parts.find((p) => p.type === "weekday")?.value ?? "Sun";
+  if (wd === "Sat" || wd === "Sun") return false;
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const mins = hour * 60 + minute;
+  return mins >= 9 * 60 + 30 && mins < 16 * 60;
+}
+
+/**
+ * Suppress absurd off-hours day-% (e.g. VIX −45% overnight gap print).
+ * Returns flagged display when |pct| ≥ 25 outside RTH.
+ */
+export function trustDayPct(
+  changePercent: number | null,
+  opts?: { absCap?: number; now?: Date },
+): { text: string; flagged: boolean; title?: string } {
+  if (changePercent == null || !Number.isFinite(changePercent)) {
+    return { text: "—", flagged: false };
+  }
+  const pct = Math.abs(changePercent) <= 1 ? changePercent * 100 : changePercent;
+  const absCap = opts?.absCap ?? 25;
+  const rth = isLikelyRthEt(opts?.now);
+  if (!rth && Math.abs(pct) >= absCap) {
+    return {
+      text: "stale",
+      flagged: true,
+      title: `Off-hours · raw ${pct >= 0 ? "+" : ""}${Math.round(pct)}% (not a session move)`,
+    };
+  }
+  const r = Math.round(pct);
+  if (r === 0) return { text: "—", flagged: false };
+  return { text: `${r > 0 ? "+" : ""}${r}%`, flagged: false };
+}

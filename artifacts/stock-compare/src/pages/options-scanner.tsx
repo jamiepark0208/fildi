@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { AppPage } from "@/components/app-page";
 import { cn } from "@/lib/utils";
 import { useWatchlist } from "@/hooks/use-watchlist";
+import { addToScannerShelf, readScannerExtras } from "@/lib/ticker-shelf-storage";
 import {
   type TechnicalRow,
   type TechnicalScore,
@@ -36,6 +38,7 @@ import {
 import { minutesAgo } from "@/components/options-scanner/options-scanner-helpers";
 import { ScannerRow } from "@/components/options-scanner/options-scanner-row";
 import { useMoverFacts } from "@/hooks/use-mover-facts";
+import { scopePairClass } from "@/lib/sub-tabs";
 
 // Scoped per user so multiple accounts on the same browser don't inherit each
 // other's hidden scanner tickers (mirrors colorKey in use-watchlist.ts)
@@ -67,6 +70,14 @@ export function OptionsScannerContent({
   const { weights, hasCustomOptionStrike } = useScoringPreferences();
   const { data: tilt } = useTrackRecordTilt();
   const sideControlled = controlledSide != null;
+  const search = useSearch();
+  /** A179: `/options-scanner?ticker=T` scopes board to one name + opens chain (no full-board flash). */
+  const focusTicker = useMemo(() => {
+    const raw = new URLSearchParams(search).get("ticker");
+    if (!raw) return null;
+    const t = raw.trim().toUpperCase().replace(/[^A-Z0-9.]/g, "");
+    return t || null;
+  }, [search]);
 
   // sessionStorage (not localStorage) — expanded rows are tab-lifetime UI state,
   // restored on returning to this tab/sub-tab, but not meant to persist forever.
@@ -222,7 +233,18 @@ export function OptionsScannerContent({
     return m;
   }, [optionRankings]);
 
+  // Deep-link: persist off-watchlist name + expand chain once.
+  useEffect(() => {
+    if (!focusTicker) return;
+    addToScannerShelf(focusTicker);
+    setExpandedSet((prev) => {
+      if (prev.has(focusTicker)) return prev;
+      return new Set([...prev, focusTicker]);
+    });
+  }, [focusTicker]);
+
   const activeTickers = useMemo(() => {
+    if (focusTicker) return [focusTicker];
     if (universe === "overall") {
       const fromSnap = (optionRankings?.rankings ?? [])
         .map((r) => r.ticker)
@@ -230,9 +252,11 @@ export function OptionsScannerContent({
       if (fromSnap.length > 0) return fromSnap;
       return overallTickers.filter((t) => !hiddenTickers.has(t));
     }
-    // Full watchlist (minus red/hidden). Missing nightly scores show N/A + reason; gap-fill tries live calc.
-    return entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
-  }, [universe, optionRankings, overallTickers, entries, hiddenTickers]);
+    // Full watchlist (minus red/hidden) + scanner extras (Open Options from Breakdown).
+    const wl = entries.filter(e => e.colorTag !== RED_TAG && !hiddenTickers.has(e.ticker)).map(e => e.ticker);
+    const extras = readScannerExtras().filter((t) => !hiddenTickers.has(t) && !wl.includes(t));
+    return [...wl, ...extras];
+  }, [focusTicker, universe, optionRankings, overallTickers, entries, hiddenTickers]);
 
   const colorMap = useMemo(
     () => new Map(entries.map(e => [e.ticker, e.colorTag])),
@@ -723,8 +747,8 @@ export function OptionsScannerContent({
       return body.prices ?? {};
     },
     enabled: livePricesKey.length > 0,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 90_000,
+    refetchInterval: 120_000, // match LIVE_PRICE_TTL_MS — polling faster only burns Yahoo/Schwab
   });
   // Prices from /live/prices (parallel) — rankings are DB-only so the board isn't blocked on quotes.
   const livePrices = useMemo(() => ({
@@ -913,12 +937,12 @@ export function OptionsScannerContent({
       {universe === "overall" && hasFocus && (
         <div>
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">Show</label>
-          <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 w-fit">
+          <div className="inline-flex items-center gap-0.5">
             {([true, false] as const).map((f) => (
               <button key={String(f)} type="button" onClick={() => setFocusOnly(f)}
                 title={f ? (isCallMode ? "Calls on shares you hold (S061: covered calls lose vs holding in a rising tape)"
                              : "Put edge Q4–Q5: simulated ≈0…+22 bp/wk net of fills, breach 11–13 % (S059 holdout; Q1–Q3 lose after fills)") : "Every scored name"}
-                className={cn("px-2.5 rounded-full h-5", focusOnly === f ? "bg-[#d4af37]/20 text-[#d4af37]" : "text-muted-foreground")}>
+                className={scopePairClass(focusOnly === f)}>
                 {f ? `Focus (${(optionRankings?.rankings ?? []).filter((r) => r.focus).length})` : `All (${optionRankings?.rankings?.length ?? 0})`}
               </button>
             ))}
@@ -932,26 +956,14 @@ export function OptionsScannerContent({
     </div>
   );
 
-  // Sell Puts / Sell Calls — match Technical tab chrome (zinc/gold).
+  // Sell Puts / Sell Calls — same gold/white sub-tab chrome as Rankings scope pair.
   // Hidden when parent controls side (rankings chrome owns the toggle for stable layout).
   const scanModeToggle = sideControlled ? null : (
-    <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 text-[11px] h-6 shrink-0">
-      <button
-        onClick={() => setMode("puts")}
-        className={cn(
-          "px-2 h-5 rounded-full transition-colors font-semibold",
-          !isCallMode ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-        )}
-      >
+    <div className="inline-flex items-center gap-0.5 shrink-0">
+      <button type="button" onClick={() => setMode("puts")} className={scopePairClass(!isCallMode)}>
         Sell Puts
       </button>
-      <button
-        onClick={() => setMode("calls")}
-        className={cn(
-          "px-2 h-5 rounded-full transition-colors font-semibold",
-          isCallMode ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]",
-        )}
-      >
+      <button type="button" onClick={() => setMode("calls")} className={scopePairClass(isCallMode)}>
         Sell Calls
       </button>
     </div>
@@ -962,7 +974,7 @@ export function OptionsScannerContent({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 h-6 px-2 rounded-full border border-[#d4af37]/25 bg-zinc-950 text-[11px] font-semibold text-amber-200/70 hover:text-[#d4af37] hover:border-[#d4af37]/40 transition-colors"
+          className="inline-flex items-center gap-1 h-6 px-2 rounded border border-[#d4af37]/40 bg-zinc-900 text-[11px] font-semibold text-white hover:border-[#d4af37]/80 transition-colors"
           title="Filters — min income, ticker, track record"
         >
           <Settings2 className="w-3 h-3" />
@@ -1019,18 +1031,29 @@ export function OptionsScannerContent({
           <div className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2 shadow-lg shadow-black/60 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <Trophy className="w-3.5 h-3.5 text-primary shrink-0" />
-                <h2 className="text-xs font-bold tracking-tight">Options Leaderboard</h2>
-                <span className="text-[11px] text-muted-foreground tabular-nums">{countLabel}</span>
+                <Trophy className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+                <h2 className="text-xs font-bold tracking-tight text-white">Options Leaderboard</h2>
+                <span className="text-[11px] font-mono font-semibold text-white tabular-nums">{countLabel}</span>
                 {snapDate && (
-                  <span className="text-[9px] text-muted-foreground/70" title="Snapshot as-of date">
+                  <span className="text-[10px] font-mono text-white/90" title="Snapshot as-of date">
                     {snapDate}
                   </span>
                 )}
+                <div className="relative ml-1 shrink-0">
+                  <Search className="w-3 h-3 text-[#d4af37]/80 absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={tickerQuery}
+                    onChange={(e) => setTickerQuery(e.target.value)}
+                    placeholder="Ticker…"
+                    aria-label="Search ticker"
+                    className="h-6 w-[7.5rem] pl-6 pr-1.5 text-[10px] font-mono rounded border border-[#d4af37]/45 bg-black text-white placeholder:text-white/50 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37]/40"
+                  />
+                </div>
               </div>
               {isAdmin && (
                 <button
-                  className="flex items-center gap-1 text-[11px] text-amber-200/70 hover:text-[#d4af37] transition-colors shrink-0"
+                  className="flex items-center gap-1 text-[11px] font-semibold text-white hover:text-[#d4af37] transition-colors shrink-0"
                   onClick={handleGlobalRefresh}
                   disabled={scorecardLoading}
                 >

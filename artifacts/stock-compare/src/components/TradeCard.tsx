@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link, useLocation } from "wouter"
 import { cn } from "@/lib/utils"
-import { addToScannerShelf } from "@/lib/ticker-shelf-storage"
+import { addToScannerShelf, optionsScannerHref } from "@/lib/ticker-shelf-storage"
 import { Heart, MessageCircle, TrendingUp } from "lucide-react"
 
 export interface TradePost {
@@ -93,10 +93,10 @@ function ConfidenceLabel({ value }: { value: number }) {
 function SignalBadge({ signal }: { signal: string | null }) {
   if (!signal) return null
   const cls = signal === "GO"
-    ? "bg-green-500/15 text-green-400 border-green-500/30"
+    ? "bg-zinc-900 text-white border-emerald-400/70"
     : signal === "WATCH"
-    ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-    : "bg-secondary text-muted-foreground border-border"
+    ? "bg-zinc-900 text-white border-amber-400/70"
+    : "bg-zinc-900 text-zinc-300 border-zinc-500/50"
   return (
     <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border tracking-wide", cls)}>
       {signal}
@@ -258,7 +258,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
           </button>
           {!isResolved && (
             <button
-              onClick={() => { addToScannerShelf(post.ticker); navigate("/options-scanner") }}
+              onClick={() => { addToScannerShelf(post.ticker); navigate(optionsScannerHref(post.ticker)) }}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <TrendingUp className="w-3.5 h-3.5" />

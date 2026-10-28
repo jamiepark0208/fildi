@@ -3,12 +3,14 @@
  * Odds = market-implied (each put's IV) + the trader's own expiry clustering (S015); thresholds are defaults the user tunes.
  * Display only: no trading actions.
  */
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { HouseViewCard } from "@/components/live/house-view-card";
+import { optionsScannerHref } from "@/lib/ticker-shelf-storage";
 
 type Bullet = { key: string; level: "red" | "amber" | "green"; text: string; change: "new" | "worse" | "better" | null };
 type Run = {
@@ -64,11 +66,18 @@ function NameRow({ n }: { n: Name }) {
   const ed = n.next_earnings ? daysTo(n.next_earnings) : null;
   return (
     <li className="border-t border-[#d4af37]/10 first:border-t-0">
-      <button type="button" onClick={() => s && setOpen(!open)} className="w-full text-left py-1.5 flex items-center gap-2 text-[12px]">
-        <span className="w-12 font-semibold text-amber-100">{n.ticker}</span>
+      <div className="py-1.5 flex items-center gap-2 text-[12px]">
+        <Link
+          href={optionsScannerHref(n.ticker)}
+          className="w-12 font-semibold text-[#d4af37] hover:underline shrink-0"
+          title="Open Options for this name"
+        >
+          {n.ticker}
+        </Link>
+      <button type="button" onClick={() => s && setOpen(!open)} className="flex-1 min-w-0 text-left flex items-center gap-2">
         <span className="w-14 text-[10px] text-amber-200/50">{n.short_options > 0 ? `${n.short_options} put${n.short_options > 1 ? "s" : ""}` : "shares"}</span>
         <span
-          className={cn("w-16 tabular-nums text-[11px]", si == null ? "text-amber-200/30" : si >= 30 ? "text-red-300" : si >= 15 ? "text-amber-300" : "text-amber-200/60")}
+          className={cn("w-16 tabular-nums text-[11px]", si == null ? "text-zinc-400" : si >= 30 ? "text-red-300" : si >= 15 ? "text-amber-300" : "text-amber-200/60")}
           title="Short interest, % of free float (LSEG, daily)"
         >
           {si == null ? "SI —" : `SI ${si.toFixed(0)}%`}
@@ -82,9 +91,10 @@ function NameRow({ n }: { n: Name }) {
             <span className="truncate text-amber-100/70">{s.bullets?.[0]}</span>
           </span>
         ) : (
-          <span className="flex-1 text-[10px] text-amber-200/30">call summary pending</span>
+          <span className="flex-1 text-[10px] text-zinc-400">call summary pending</span>
         )}
       </button>
+      </div>
       {open && s && (
         <div className="pb-2 pl-14 space-y-1 text-[11px] text-amber-100/75">
           <div className="text-[10px] text-amber-200/40">{n.quarter} call · guidance: {s.guidance_detail || s.guidance}</div>
@@ -113,7 +123,7 @@ function YourNames() {
     <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-3">
       <div className="text-[11px] font-semibold text-[#d4af37] mb-1">Your names</div>
       <ul>{data.map((n) => <NameRow key={n.ticker} n={n} />)}</ul>
-      <p className="mt-1 text-[10px] text-amber-200/30">
+      <p className="mt-1 text-[10px] text-zinc-400">
         SI = short interest % of float (context, not a signal yet). Tap a row for the last earnings call: 5 points, financing, risks.
       </p>
     </div>
@@ -165,6 +175,7 @@ function Playbook() {
 }
 
 export function PortfolioAlertsPanel() {
+  const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["pm-alerts"],
     queryFn: async (): Promise<Run | null> => {
@@ -172,8 +183,16 @@ export function PortfolioAlertsPanel() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return (await r.json()).run;
     },
+    staleTime: 30_000,
     refetchInterval: 5 * 60_000,
   });
+  // Ex-div bullets fill in background on first miss — one quick refetch picks them up.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void qc.invalidateQueries({ queryKey: ["pm-alerts"] });
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [qc]);
 
   if (isLoading) return <div className="text-[11px] text-amber-200/40 p-3">Loading…</div>;
   if (error) return <div className="text-[11px] text-red-300/80 p-3">Portfolio Alerts unavailable ({String((error as Error).message)}).</div>;
@@ -271,7 +290,7 @@ export function PortfolioAlertsPanel() {
         {data.cleared.length > 0 && (
           <p className="text-[10px] text-emerald-400/70">Cleared since last check: {data.cleared.join(", ")}</p>
         )}
-        <p className="text-[10px] text-amber-200/30">
+        <p className="text-[10px] text-zinc-400">
           Odds come from each option's own price (market-implied, not a forecast), with your past expiries' tendency to breach together.
           You decide; closing is shown only as what it would change.
         </p>
@@ -346,7 +365,7 @@ function WhatIfPut() {
           type="button"
           disabled={mut.isPending || !ticker || !strike || !expiry || !iv || !spot}
           onClick={() => mut.mutate()}
-          className="text-[11px] px-2 py-1 rounded bg-[#d4af37]/20 text-[#d4af37] hover:bg-[#d4af37]/30 disabled:opacity-40"
+          className="text-[11px] px-2 py-1 rounded border border-[#d4af37]/50 bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-40"
         >
           {mut.isPending ? "Running…" : "Run"}
         </button>
