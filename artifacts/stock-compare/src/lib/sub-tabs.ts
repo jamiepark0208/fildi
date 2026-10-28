@@ -8,9 +8,23 @@
  * Idle = white (never zinc grey). Tables/headers: GRID_* in score-explain-format.
  */
 import { cn } from "@/lib/utils";
-import { SUB_TAB_IDLE, subTabOn } from "@/lib/score-explain-format";
 
 export type SubTabHue = "sky" | "violet" | "amber" | "orange" | "emerald" | "rose" | "gold";
+
+/** Idle = white (never zinc grey). Also re-exported from score-explain-format when that lands. */
+export const SUB_TAB_IDLE = "text-white/80 hover:text-white hover:bg-white/10";
+
+export function subTabOn(hue: SubTabHue): string {
+  switch (hue) {
+    case "sky": return "bg-sky-400 text-black";
+    case "violet": return "bg-violet-400 text-black";
+    case "amber": return "bg-amber-300 text-black";
+    case "orange": return "bg-orange-400 text-black";
+    case "emerald": return "bg-emerald-400 text-black";
+    case "rose": return "bg-rose-400 text-black";
+    case "gold": return "bg-[#d4af37] text-black";
+  }
+}
 
 export function subTabClass(active: boolean, hue: SubTabHue, size: "sm" | "md" = "sm"): string {
   return cn(
