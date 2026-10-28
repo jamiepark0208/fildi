@@ -49,6 +49,8 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    // 10-28: agents edit src all day → ~900 hot reloads/day re-rendered Jamie's open tab. Off unless FILDI_HMR=1; refresh to see edits.
+    hmr: process.env.FILDI_HMR === "1" ? undefined : false,
     fs: {
       strict: true,
     },

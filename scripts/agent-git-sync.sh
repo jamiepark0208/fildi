@@ -23,6 +23,16 @@ REMOTE="origin/$BRANCH"
 OLD="$(git rev-parse HEAD)"
 behind="$(git rev-list --count "HEAD..$REMOTE")"
 ahead="$(git rev-list --count "$REMOTE..HEAD")"
+BASE="$(git merge-base HEAD "$REMOTE")"
+
+# 10-28: the API no longer restarts on every save (dev-restart.sh dev:once). Restart it once when synced commits touch
+# api-server/src so the running app matches the tree. Skipped when no stack is listening here.
+reload_api() {
+  git diff --quiet "$BASE" "$1" -- artifacts/api-server/src 2>/dev/null && return 0
+  curl -sf -o /dev/null --max-time 2 http://127.0.0.1:8080/api/healthz 2>/dev/null || return 0
+  echo "agent-git-sync: api-server/src changed → restarting API"
+  "$ROOT/scripts/dev-restart.sh" --api >/dev/null 2>&1 || echo "agent-git-sync: WARN API restart failed — run scripts/dev-restart.sh --api" >&2
+}
 
 if [ "$behind" = 0 ]; then
   if [ "$ahead" = 0 ]; then echo "agent-git-sync: up to date"; exit 0; fi
@@ -30,7 +40,7 @@ if [ "$behind" = 0 ]; then
   "$ROOT/scripts/agent-ship-check.sh" "$REMOTE" HEAD || { echo "agent-git-sync: ship-check failed — not pushed" >&2; exit 3; }
   "$ROOT/scripts/asks-check.sh" "$REMOTE" HEAD || { echo "agent-git-sync: asks-check failed — not pushed" >&2; exit 3; }
   git push -q origin "HEAD:$BRANCH" || { echo "agent-git-sync: push failed" >&2; exit 3; }
-  echo "agent-git-sync: pushed $ahead commit(s)"; exit 0
+  echo "agent-git-sync: pushed $ahead commit(s)"; reload_api HEAD; exit 0
 fi
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/agent-git-sync.XXXXXX")"
@@ -131,6 +141,7 @@ done < <(git diff --name-only --no-renames -z "$OLD" "$NEW")
 
 git update-ref "refs/heads/$BRANCH" "$NEW" "$OLD" || { echo "agent-git-sync: branch moved during sync — pushed, but local ref not updated; rerun" >&2; exit 3; }
 
+reload_api "$NEW"
 echo "agent-git-sync: replayed $ahead commit(s) on $behind upstream, pushed $(git rev-parse --short "$NEW"); $updated path(s) updated, $merged merged into local edits"
 if [ "${#incoming[@]}" -gt 0 ]; then
   echo "agent-git-sync: kept local edits, saved upstream as .incoming: ${incoming[*]}"

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm run dev:watch",
     "dev:watch": "export NODE_ENV=development && node --import tsx --watch --watch-path=src src/index.ts",
+    "dev:once": "export NODE_ENV=development && node --import tsx src/index.ts",
     "dev:rebuild": "export NODE_ENV=development && pnpm run build && node ./kill-port.mjs 2>/dev/null; true && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",

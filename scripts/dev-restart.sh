@@ -6,6 +6,8 @@
 #
 #   ./scripts/dev-restart.sh           # kill ports if busy, then start both
 #   ./scripts/dev-restart.sh --if-down # only start what is missing
+#   ./scripts/dev-restart.sh --api     # restart the API only (after editing api-server/src; no auto-reload)
+#   FILDI_API_WATCH=1 ./scripts/dev-restart.sh  # opt back into restart-on-every-edit
 #
 set -euo pipefail
 
@@ -16,6 +18,8 @@ VITE_PORT="${VITE_PORT:-8081}"
 BASE_PATH="${BASE_PATH:-/}"
 IF_DOWN=0
 [[ "${1:-}" == "--if-down" ]] && IF_DOWN=1
+API_ONLY=0
+[[ "${1:-}" == "--api" ]] && API_ONLY=1
 
 mkdir -p "$LOG_DIR"
 # A251: intentional downtime — touch /tmp/fildi-stack-hold (optional expiry ISO in file). --if-down honors it.
@@ -130,7 +134,9 @@ kill_stale_api_watchers() {
 
 start_api() {
   kill_stale_api_watchers
-  echo "Starting API (tsx watch) on :$API_PORT → $LOG_DIR/api.log"
+  # 10-28: no watch by default — agents' edits restarted the API ~10×/h and wiped every in-memory cache (slow pages).
+  local run="dev:once"; [[ "${FILDI_API_WATCH:-0}" == "1" ]] && run="dev:watch"
+  echo "Starting API ($run) on :$API_PORT → $LOG_DIR/api.log"
   # Explicit SCHWAB_* so a stripped spawn env cannot drop MD credentials.
   node "$ROOT/scripts/dev-spawn.mjs" \
     --cwd="$ROOT/artifacts/api-server" \
@@ -151,7 +157,7 @@ start_api() {
     FACTSET_PROXY_SECRET="${FACTSET_PROXY_SECRET:-}" \
     FMP_API_KEY="${FMP_API_KEY:-}" \
     PATH="$PATH" \
-    pnpm run dev:watch
+    pnpm run "$run"
 }
 
 start_vite() {
@@ -175,7 +181,17 @@ vite_up=0
 [[ -n "$(listener_pid "$API_PORT")" ]] && api_up=1
 [[ -n "$(listener_pid "$VITE_PORT")" ]] && vite_up=1
 
-if [[ "$IF_DOWN" -eq 1 ]]; then
+if [[ "$API_ONLY" -eq 1 ]]; then
+  pid="$(listener_pid "$API_PORT")"
+  if [[ -n "$pid" ]]; then
+    echo "Stopping API pid=$pid"
+    kill -TERM "-$(ps -o pgid= -p "$pid" | tr -d ' ')" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -z "$(listener_pid "$API_PORT")" ]] && break; sleep 1; done
+  fi
+  start_api
+  wait_http "http://127.0.0.1:${API_PORT}/api/healthz" "API"
+  exit 0
+elif [[ "$IF_DOWN" -eq 1 ]]; then
   if [[ "$api_up" -eq 1 && "$vite_up" -eq 1 ]]; then
     echo "Already up: API :$API_PORT + Vite :$VITE_PORT"
     # Still report drift if any

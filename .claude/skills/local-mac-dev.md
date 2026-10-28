@@ -8,8 +8,10 @@ description: Start TradeDash on this Mac (Postgres.app + Vite preview + API hot-
 | Process | Port | Hot reload? |
 |---|---|---|
 | Postgres 16 (Postgres.app CLI cluster) | **5432** | n/a |
-| `api-server` (`tsx watch`) | **8080** | **Yes** |
-| `stock-compare` (Vite) | **8081** | **Yes** |
+| `api-server` (`dev:once`) | **8080** | **No** — after editing `api-server/src`, run `scripts/dev-restart.sh --api` |
+| `stock-compare` (Vite) | **8081** | **No** — browser refresh shows edits |
+
+10-28: auto-reload was off'd on purpose. Agents' edits restarted the API ~10×/h (every in-memory cache wiped → slow pages) and pushed ~900 hot reloads/day into Jamie's tab. Opt back in only for a solo session: `FILDI_API_WATCH=1` / `FILDI_HMR=1`.
 
 ## Secrets
 - File: repo-root `.env.local` (gitignored)

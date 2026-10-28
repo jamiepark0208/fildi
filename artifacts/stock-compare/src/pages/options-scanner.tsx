@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearch } from "wouter";
@@ -814,10 +814,14 @@ export function OptionsScannerContent({
     || (batchOptionsData?.[ticker] != null && !("error" in (batchOptionsData[ticker] as object)))
   ), [refreshedOptions, batchOptionsData]);
 
-  /** Prefetch on hover — skip names that already failed (timeouts); others get a chance to score. */
+  /** Prefetch on hover — skip names that already failed (timeouts); others get a chance to score.
+   *  One hover fetch at a time (10-28): sweeping the mouse down the board fired a live chain fetch per row (1–3 s each),
+   *  which filled the browser's 6-connection pool and stalled clicks/tab switches behind them. Expand still fetches directly. */
+  const hoverInFlight = useRef(false);
   const handleRowPrefetch = useCallback((ticker: string) => {
-    if (chainFailed.has(ticker)) return;
-    if (!hasCachedChain(ticker)) void ensureTickerChain(ticker);
+    if (chainFailed.has(ticker) || hoverInFlight.current || hasCachedChain(ticker)) return;
+    hoverInFlight.current = true;
+    void ensureTickerChain(ticker).finally(() => { hoverInFlight.current = false; });
   }, [hasCachedChain, ensureTickerChain, chainFailed]);
 
   const handleExpand = (ticker: string) => {
