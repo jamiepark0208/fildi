@@ -21,6 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { cn } from "@/lib/utils";
+import { subTabClass } from "@/lib/sub-tabs";
 import { formatCurrency, formatGrowthYoY, formatLargeNumber, formatNumber, formatPercent } from "@/lib/format";
 import { addToScannerShelf } from "@/lib/ticker-shelf-storage";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -39,8 +40,8 @@ import { MemoHeader } from "./breakdown/memo-header";
 import { BreakdownMetaProvider } from "./breakdown/breakdown-meta-context";
 import { formatDerivedTip, formatProvenanceTip } from "@/lib/provenance-display";
 import { DataTip } from "./data-tip";
-import { ShortInterestPanel } from "./breakdown/short-interest-panel";
-import { InsiderPanel } from "./breakdown/insider-panel";
+import { ShortInterestPanel, ShortInterestHeaderStats } from "./breakdown/short-interest-panel";
+import { InsiderPanel, InsiderHeaderStats } from "./breakdown/insider-panel";
 import { EventsPanel } from "./breakdown/events-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
@@ -456,6 +457,7 @@ export function StockBreakdown({
               )}
               {m.fairValueEstimate != null && (
                 <FairValueBadge
+                  ticker={m.ticker}
                   fairValue={m.fairValueEstimate} low={m.fairValueLow} high={m.fairValueHigh}
                   confidence={m.fairValueConfidence} impliedGrowth={m.fairValueImpliedGrowth}
                   votes={m.fairValueVotes} asOf={m.fairValueAsOf} price={m.currentPrice} change3m={m.fairValueChange3m} cyclical={m.fairValueCyclical} valueTrap={m.fairValueValueTrap}
@@ -517,14 +519,11 @@ export function StockBreakdown({
                     { label: "EPS Grow", tip: "Year-over-year EPS growth.", value: formatPercent(m.epsGrowth), good: m.epsGrowth != null ? m.epsGrowth > 0 : undefined, fieldKey: "epsGrowth" },
                     {
                       label: "PEG z",
-                      tip: "PEG-implied growth vs peers (σ = peer z-score).",
-                      value: m.pegGrowth != null
-                        ? `${formatPercent(m.pegGrowth)}${
-                            m.pegGrowthPeerZ != null
-                              ? ` · ${m.pegGrowthPeerZ >= 0 ? "+" : ""}${(m.pegGrowthPeerZ as number).toFixed(1)}σ`
-                              : ""
-                          }`
-                        : "—",
+                      tip: m.pegGrowthPeerZ != null
+                        ? `PEG-implied growth vs peers · z=${(m.pegGrowthPeerZ as number) >= 0 ? "+" : ""}${(m.pegGrowthPeerZ as number).toFixed(1)}σ (see Growth PEG panel).`
+                        : "PEG-implied growth vs peers (σ = peer z-score).",
+                      // σ lives in tip + Growth panel — packing it here overflows into Quality.
+                      value: m.pegGrowth != null ? formatPercent(m.pegGrowth) : "—",
                       good: m.pegGrowthPeerZ != null
                         ? (m.pegGrowthPeerZ as number) >= 0.5
                           ? true
@@ -639,7 +638,7 @@ export function StockBreakdown({
 
               return (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2 items-start">
+                  <div className="grid grid-cols-2 gap-2 items-stretch">
                     <BreakdownPanel
                       title={
                         <>
@@ -658,7 +657,7 @@ export function StockBreakdown({
                         </>
                       }
                       empty="No peer group data."
-                      scrollMax="max-h-[288px]"
+                      scrollMax="h-[300px]"
                       action={
                         isAdmin ? (
                           <button
@@ -672,7 +671,7 @@ export function StockBreakdown({
                       }
                     >
                       {hasPeers ? (
-                        <div id="bd-peers" className="space-y-2 min-w-0">
+                        <div id="bd-peers" className="space-y-2 min-w-0 h-full">
                           <CompetitorsSection
                             ticker={activeTicker!}
                             compact
@@ -690,11 +689,11 @@ export function StockBreakdown({
                     <BreakdownPanel
                       title="Street"
                       empty="No Street synthesis yet."
-                      scrollMax="max-h-[360px]"
+                      scrollMax="h-[300px]"
                       action={<StreetHeaderBadges street={data.street} />}
                     >
                       {activeTicker ? (
-                        <div id="bd-street" className="min-h-0">
+                        <div id="bd-street" className="min-h-0 h-full">
                           <StreetSynthesisCard street={data.street} ticker={activeTicker} />
                         </div>
                       ) : null}
@@ -725,7 +724,7 @@ export function StockBreakdown({
                       ) : null}
                     </BreakdownPanel>
 
-                    <BreakdownPanel title="Growth (PEG)" empty="Peer growth sample unavailable." scrollMax="max-h-[260px]">
+                    <BreakdownPanel title="Growth (PEG)" empty="Peer growth sample unavailable." scrollMax="max-h-[260px] overflow-hidden">
                       {hasGrowth ? (
                         <PegGrowthDistChart
                           mean={m.pegGrowthPeerMean}
@@ -747,15 +746,33 @@ export function StockBreakdown({
                       ) : null}
                     </BreakdownPanel>
 
-                    <BreakdownPanel title="Short interest" empty="No short-interest data." scrollMax="max-h-[260px]">
+                    <BreakdownPanel
+                      title="Short interest"
+                      empty="No short-interest data."
+                      scrollMax="max-h-[260px]"
+                      action={activeTicker ? <ShortInterestHeaderStats ticker={activeTicker} /> : undefined}
+                    >
                       {activeTicker ? <ShortInterestPanel ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
-                    <BreakdownPanel title="Insiders" empty="No Form 4 buys or sales." scrollMax="max-h-[260px]">
+                    <BreakdownPanel
+                      title="Insiders"
+                      empty="No Form 4 buys or sales."
+                      scrollMax="max-h-[260px]"
+                      action={activeTicker ? <InsiderHeaderStats ticker={activeTicker} /> : undefined}
+                    >
                       {activeTicker ? <InsiderPanel ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
-                    <BreakdownPanel title="Events" empty="No 8-K events." scrollMax="max-h-[260px]">
+                    <BreakdownPanel
+                      title={
+                        <DataTip tip="SEC 8-K disclosure categories (Polygon). Analyst upgrades/PTs live in Analyst Ratings + Bull/Bear catalysts — not here.">
+                          <span className="cursor-help border-b border-dotted border-[#d4af37]/50">8-K Events</span>
+                        </DataTip>
+                      }
+                      empty="No 8-K events."
+                      scrollMax="max-h-[260px]"
+                    >
                       {activeTicker ? <EventsPanel ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
@@ -769,28 +786,23 @@ export function StockBreakdown({
                       className="col-span-2 bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5 flex flex-col min-h-0"
                     >
                       <div className="flex items-center justify-between gap-2 mb-1.5 shrink-0">
-                        <div className="flex items-center gap-0.5 rounded border border-[#d4af37]/20 p-0.5">
+                        <div className="flex items-center gap-0.5 flex-wrap">
                           {(
                             [
-                              ["news", "News"],
-                              ["history", "Score history"],
-                              ["accounting", "Accounting"],
-                              ["assumptions", "Assumptions"],
-                              ["thesis", "Thesis"],
-                              ["calls", "Earnings calls"],
-                              ["options", "Options history"],
+                              ["news", "News", "sky"],
+                              ["history", "Score history", "violet"],
+                              ["accounting", "Accounting", "amber"],
+                              ["assumptions", "Assumptions", "orange"],
+                              ["thesis", "Thesis", "emerald"],
+                              ["calls", "Earnings calls", "rose"],
+                              ["options", "Options history", "gold"],
                             ] as const
-                          ).map(([id, label]) => (
+                          ).map(([id, label, hue]) => (
                             <button
                               key={id}
                               type="button"
                               onClick={() => setDigTab(id)}
-                              className={cn(
-                                "text-[10px] font-semibold px-2 py-0.5 rounded transition-colors",
-                                digTab === id
-                                  ? "bg-[#d4af37]/20 text-[#d4af37]"
-                                  : "text-amber-200/50 hover:text-amber-100",
-                              )}
+                              className={subTabClass(digTab === id, hue)}
                             >
                               {label}
                             </button>

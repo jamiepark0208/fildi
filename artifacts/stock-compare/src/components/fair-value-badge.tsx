@@ -1,8 +1,21 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 export interface FairValueVote { name: string; value: number; kept: boolean }
+
+type ExternalEst = {
+  source: string;
+  label: string;
+  method: string;
+  value: number;
+  price: number | null;
+  asOf: string | null;
+  gapVsItsPrice: number | null;
+  detail: { levered_dcf?: number } | null;
+};
 
 const METHOD_LABELS: Record<string, string> = {
   peerForwardPe: "Peer forward P/E",
@@ -18,15 +31,18 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 const CONFIDENCE_STYLE: Record<string, string> = {
-  high: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-  medium: "border-sky-500/30 bg-sky-500/10 text-sky-300",
-  low: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
+  high: "border-emerald-400/70 bg-zinc-900 text-white",
+  medium: "border-sky-400/70 bg-zinc-900 text-white",
+  low: "border-zinc-400/50 bg-zinc-900 text-white",
 };
 
 /** Blended fair value tag with a popover showing every method's vote (Breakdown header). */
 export function FairValueBadge({
+  ticker,
   fairValue, low, high, confidence, impliedGrowth, votes, asOf, price, change3m, cyclical, valueTrap,
 }: {
+  /** Needed for A284 outside estimates fetch (on open only). */
+  ticker?: string;
   fairValue: number;
   low?: number | null;
   high?: number | null;
@@ -39,6 +55,7 @@ export function FairValueBadge({
   cyclical?: boolean;
   valueTrap?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const conf = confidence ?? "low";
   const gap = price != null && price > 0 ? (fairValue / price - 1) * 100 : null;
   const label = `Fair Value ${formatCurrency(fairValue)}${valueTrap ? " · value-trap risk" : conf === "low" ? " · low conf." : ""}`;
@@ -48,8 +65,24 @@ export function FairValueBadge({
   );
   const sorted = [...(votes ?? [])].sort((a, b) => a.value - b.value);
 
+  const { data: external } = useQuery({
+    queryKey: ["fair-value-external", ticker],
+    queryFn: async (): Promise<ExternalEst[]> => {
+      const r = await fetch(`/api/fair-value/${encodeURIComponent(ticker!)}/external`, { credentials: "include" });
+      if (!r.ok) return [];
+      const j = await r.json();
+      return Array.isArray(j.estimates) ? j.estimates : [];
+    },
+    enabled: open && !!ticker,
+    staleTime: 10 * 60_000,
+  });
+
+  const outside = external ?? [];
+  const outsideMin = outside.length >= 2 ? Math.min(...outside.map((e) => e.value)) : null;
+  const outsideMax = outside.length >= 2 ? Math.max(...outside.map((e) => e.value)) : null;
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button type="button" className={badgeClass}>{label}</button>
       </PopoverTrigger>
@@ -79,6 +112,39 @@ export function FairValueBadge({
             <div className="text-[10px] text-zinc-500 pt-0.5">Struck-through: highest/lowest votes trimmed from the blend.</div>
           )}
         </div>
+        {outside.length > 0 && (
+          <div className="px-3 py-2 border-t border-zinc-700/60 space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Outside estimates</div>
+            {outside.map((e) => {
+              const vsPrice = price != null && price > 0 ? (e.value / price - 1) * 100 : null;
+              const tip = [
+                e.method,
+                e.asOf ? `as of ${e.asOf}` : null,
+                e.source === "fmp_dcf" && e.detail?.levered_dcf != null
+                  ? `levered DCF ${formatCurrency(e.detail.levered_dcf)}`
+                  : null,
+              ].filter(Boolean).join(" · ");
+              return (
+                <div key={e.source} className="flex justify-between text-zinc-200" title={tip}>
+                  <span>{e.label}</span>
+                  <span className="font-mono">
+                    {formatCurrency(e.value)}
+                    {vsPrice != null && (
+                      <span className={cn("ml-1", vsPrice >= 0 ? "text-emerald-400/80" : "text-rose-400/80")}>
+                        {vsPrice >= 0 ? "+" : ""}{vsPrice.toFixed(0)}%
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+            {outsideMin != null && outsideMax != null && outsideMax > outsideMin && (
+              <div className="text-[10px] text-zinc-500 pt-0.5">
+                Outside models disagree widely too ({formatCurrency(outsideMin)} – {formatCurrency(outsideMax)}).
+              </div>
+            )}
+          </div>
+        )}
         <div className="px-3 py-2 border-t border-zinc-700/60 text-[10px] text-zinc-400 space-y-1">
           {change3m != null && (
             <div className="text-zinc-300">
@@ -96,7 +162,7 @@ export function FairValueBadge({
             <div>Cyclical business: earnings may be near a peak or trough, so confidence is capped at medium.</div>
           )}
           {impliedGrowth != null && (
-            <div>Today's price implies ~{(impliedGrowth * 100).toFixed(0)}%/yr free-cash-flow growth (fading over 10 years).</div>
+            <div>Today&apos;s price implies ~{(impliedGrowth * 100).toFixed(0)}%/yr free-cash-flow growth (fading over 10 years).</div>
           )}
           <div>A valuation reference, not a timing signal — gaps did not reliably close within 12 months in our 2020–26 backtest.</div>
           {asOf && <div className="text-zinc-500">As of {asOf}</div>}
