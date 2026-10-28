@@ -6,8 +6,8 @@
 **build** — last updated 2026-10-28
 
 ## Active work
-- Working: dcf-consensus-centre, dcf-equity-bridge, dcf-learning-loop, s113-s117-studies, s116-pit-backtest
-- In progress: cursor-a289-dcf-ui, cursor-a286-segments, cursor-a287-put-flag-study, cursor-a288-converts
+- Working: a303-vendor-policy, a302-live-wip-shipped, perf-watch, chain-db-snapshot
+- In progress: none
 - Blocked: none
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
@@ -20,6 +20,7 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **NEXT SESSION START HERE (10-28 pm, Claude):** Jamie's task = review today's (10-28) market: (1) index/sector/factor moves + what drove them, (2) Key Themes read incl. new sentiment theme (fear_greed, put_call_5d), (3) Model List recs vs how they moved, (4) Jamie's own trader read — challenge it with data (fildi-market-thesis skill; memories market-view-sparring, challenge-not-agree). Then judge A295–A299 packets if filed.
 - **10-28 runtime audit done (Claude):** A303 built + pushed 798cff92 — VENDOR_POLICY table + shared VendorCircuit (Yahoo/Schwab/FRED), cross-process vendor_gate Node+Python (Finnhub/FMP/EDGAR), macro mergeWithPrior on every field. Evidence: 2-process gate 39×130 ms, outage drill 3 calls→0, macro outage sim 113/113 restored, API 453/453. Left for Cursor: A302 (commit/drop Live WIP; macro-charts uses circuitFor). Judge A295–A299 packets when filed. Audit: research/common/reviews/2026-10-28-runtime-framework-audit.md.
 - **10-28 perf tooling (Claude):** `scripts/perf-watch.mjs` (live API log → restart loops, hung/slow routes, 5xx, poll storms, healthz lag; sleep excluded) → agent_start 5c; `scripts/perf-guards.sh` (advisory, in ship-check) on pushed lines; AGENTS.md 8c. Options chains DB-first + market-hours warmer (119 names) + page auto re-ask; Schwab batch lane (app requests first). **Jamie to run:** `scripts/install-perf-watch-launchd.sh` (30-min run; auto mode blocked me installing persistence). Known left: first /live/state after a restart ~2 s (cold prices); Asia 5 s deadline lives only in unowned live.ts WIP.
 - **10-28 perf (Claude, Jamie: "app slow"):** root cause = 196 API restarts/19 h (node --watch on agent edits → caches wiped) + ~905 Vite hot reloads into Jamie's tab; options board server time < 200 ms. Fixed: API dev:once (`dev-restart.sh --api` to apply edits; agent-git-sync restarts it when synced commits touch api-server/src), Vite hmr off (FILDI_HMR=1 opts in), hover chain prefetch capped at 1. Round 2 done: live prices stale-while-revalidate (expired set 302 → 0 ms), COT SWR + back-off, short-interest first view ≤ 3 s + panel re-poll, Asia chart 5 s deadline (live.ts, working tree only — unowned 10-27 Live WIP with untracked intraday-regime-outlook.ts / live-market-context.ts; whoever owns it commits). Left as is: per-ticker chain ~1–3 s = Schwab 1–3 MB payload (strikeCount saves ≤ 0.4 s, clips wings); cached 30 min.
