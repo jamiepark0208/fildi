@@ -9,6 +9,8 @@ import { getLivePrices } from "../lib/live-quote.js";
 import { rankingsWantLivePrices } from "../lib/rankings-live-prices.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
+import { CHAIN_FRESH_MS, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -40,9 +42,39 @@ router.get("/options/position-quote", async (req, res) => {
   }
 });
 
+/** Vendor fetch → memory + DB snapshot. getOrCompute: concurrent callers share one upstream fetch. */
+function refreshChain(ticker: string): Promise<OptionsChainResult[]> {
+  return optionsCache.getOrCompute(ticker, async () => {
+    const chains = await getOptionsChain(ticker);
+    void saveChainSnapshot(ticker, chains);
+    return chains;
+  });
+}
+
+/** Memory → saved DB snapshot (stale ones refresh in the background) → vendor only when nothing is saved (10-28). */
 async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
-  // getOrCompute: concurrent requests for the same ticker share one upstream chain fetch.
-  return withFreshDte(await optionsCache.getOrCompute(ticker, () => getOptionsChain(ticker)));
+  const mem = optionsCache.get(ticker);
+  if (mem) return withFreshDte(mem);
+  const snap = await readChainSnapshot(ticker).catch(() => null);
+  if (snap) {
+    if (Date.now() - snap.fetchedAt > CHAIN_FRESH_MS) {
+      refreshChain(ticker).catch((err) => logger.warn({ ticker, err: String(err) }, "options: background chain refresh failed"));
+    } else optionsCache.set(ticker, snap.chains);
+    return withFreshDte(snap.chains);
+  }
+  return withFreshDte(await refreshChain(ticker));
+}
+
+/** Rankings tab opened → refresh saved chains for the top names that are stale, 2 at a time, at most every 10 min. */
+let lastWarmAt = 0;
+async function warmRankedChains(tickers: string[]): Promise<void> {
+  if (Date.now() - lastWarmAt < 10 * 60_000) return;
+  lastWarmAt = Date.now();
+  const queue = await staleChainTickers(tickers.slice(0, 40));
+  const worker = async () => {
+    for (let t = queue.shift(); t; t = queue.shift()) await refreshChain(t).catch(() => undefined);
+  };
+  await Promise.all([worker(), worker()]);
 }
 
 // GET /api/options/candidates — premium-IV universe for Overall (same filter as nightly job).
@@ -84,6 +116,7 @@ router.get("/options/rankings", async (req, res) => {
         prices[r.ticker] = { price: q?.price ?? null, changePercent: q?.changePercent ?? null };
       }
     }
+    void warmRankedChains(rows.map((r) => r.ticker)).catch((err) => logger.warn({ err: String(err) }, "options: chain warm failed"));
     return res.json({ side, asOf, computedAt, rankings: rows, prices });
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });

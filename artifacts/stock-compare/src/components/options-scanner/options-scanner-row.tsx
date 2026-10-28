@@ -712,8 +712,17 @@ export function ScannerRow({
             for (const group of byExpiry.values()) {
               group.puts.sort((a, b) => isCall ? a.put.strike - b.put.strike : b.put.strike - a.put.strike);
             }
+            // Chains load from the saved DB snapshot first (10-28) — say how old the quotes are; > 30 min refreshes in the background.
+            const fetchedAt = strikes[0]?.chain.fetchedAt;
+            const ageMin = fetchedAt ? Math.round((Date.now() - fetchedAt) / 60_000) : null;
             return (
               <div className="space-y-1">
+                {ageMin != null && (
+                  <p className={`text-[10px] ${ageMin > 30 ? "text-amber-300/80" : "text-white/50"}`}>
+                    Quotes as of {new Date(fetchedAt!).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    {ageMin > 30 ? ` · ${ageMin < 120 ? `${ageMin} min` : `${Math.round(ageMin / 60)} h`} old · refreshing in background` : ""}
+                  </p>
+                )}
                 {Array.from(byExpiry.values()).map(({ chain, puts }, idx) => (
                   <ExpirySection
                     key={chain.expiry}
