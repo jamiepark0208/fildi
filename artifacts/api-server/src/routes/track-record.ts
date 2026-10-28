@@ -217,6 +217,11 @@ router.get("/track-record/summary", async (_req, res) => {
 // Cumulative win/loss counts per ticker per side — the accountability badge shown
 // next to a ticker in the scanner/live tables ("3W-1L").
 
+interface SimRec {
+  wins: number;
+  losses: number;
+  method: string;
+}
 interface TickerRecord {
   wins: number;
   losses: number;
@@ -227,6 +232,8 @@ interface TickerRecord {
   openSnapshotDate: string | null;
   entryDelta: number | null;
   entryIv: number | null;
+  /** A186: 1σ weekly put base rate when graded n=0 (put side only). Never a model grade. */
+  simRec?: SimRec;
 }
 type ByTickerResponse = Record<string, { put: TickerRecord; call: TickerRecord }>;
 
@@ -247,7 +254,7 @@ function sharpeFromPnls(pnls: number[]): number | null {
 
 router.get("/track-record/by-ticker", async (_req, res) => {
   try {
-    const data = await trackRecordCache.getOrCompute("by-ticker-v2", async () => {
+    const data = await trackRecordCache.getOrCompute("by-ticker-v3", async () => {
       const rows = await db.select({
         ticker: modelRecs.ticker,
         side: modelRecs.side,
@@ -295,6 +302,25 @@ router.get("/track-record/by-ticker", async (_req, res) => {
             sides[side].entryIv = num(open.strikeIv);
           }
         }
+      }
+
+      // A186: labelled sim base rate for put side when graded n=0 (never overwrite graded Rec).
+      try {
+        const simRaw = await db.execute(sql`
+          SELECT ticker, wins, losses, method FROM watchlist_sync.sim_rec
+        `);
+        const list = (((simRaw as { rows?: unknown }).rows ?? simRaw) as Array<{
+          ticker: string; wins: number; losses: number; method: string;
+        }>);
+        for (const s of list) {
+          if (!out[s.ticker]) out[s.ticker] = { put: emptyTickerRecord(), call: emptyTickerRecord() };
+          const put = out[s.ticker]!.put;
+          if (put.wins + put.losses === 0) {
+            put.simRec = { wins: Number(s.wins), losses: Number(s.losses), method: String(s.method) };
+          }
+        }
+      } catch (err) {
+        logger.warn({ err: String(err) }, "sim_rec join skipped (table missing?)");
       }
       return out;
     });

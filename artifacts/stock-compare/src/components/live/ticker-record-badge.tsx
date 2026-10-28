@@ -18,15 +18,15 @@ export function TickerRecordBadge({
   /** Dense tables: W-L only; Sharpe / StkΔ stay in the title tooltip. */
   compact?: boolean;
 }) {
-  if (!record || record.wins + record.losses === 0) {
-    // Still show open-rec stress if we have an open model pick with no grades yet
-    if (!record?.openSpot || livePrice == null || !(record.openSpot > 0)) return null;
-  }
-
   const wins = record?.wins ?? 0;
   const losses = record?.losses ?? 0;
   const graded = wins + losses > 0;
-  const color = !graded ? "text-zinc-400" : wins === losses ? "text-amber-300" : wins > losses ? "text-emerald-400" : "text-rose-400";
+  const sim = !graded && side === "put" ? record?.simRec : undefined;
+  const hasOpen = record?.openSpot != null && record.openSpot > 0 && livePrice != null && record.openSpot > 0;
+
+  if (!graded && !sim && !hasOpen) return null;
+
+  const color = !graded ? "text-zinc-500" : wins === losses ? "text-amber-300" : wins > losses ? "text-emerald-400" : "text-rose-400";
 
   const sharpe = record?.sharpe ?? null;
   const openSpot = record?.openSpot ?? null;
@@ -39,6 +39,7 @@ export function TickerRecordBadge({
 
   const tip = [
     graded ? `${wins} win${wins === 1 ? "" : "s"} / ${losses} loss${losses === 1 ? "" : "es"} (graded)` : null,
+    sim ? `Base rate · sim (not a model grade): ${sim.wins}W-${sim.losses}L — ${sim.method}` : null,
     sharpe != null ? `Shrp ${sharpe.toFixed(2)} (mean÷stdev P&L)` : graded && wins + losses < 3 ? "Shrp needs ≥3 graded" : null,
     openSpot != null ? `Model open Spot@ ${openSpot.toFixed(2)}${record?.openSnapshotDate ? ` (${record.openSnapshotDate})` : ""}` : null,
     stkDelta != null
@@ -50,6 +51,9 @@ export function TickerRecordBadge({
   return (
     <span className={cn(className, "inline-flex items-center gap-0.5 text-[9px] font-mono font-semibold leading-none tabular-nums")} title={tip}>
       {graded && <span className={color}>{wins}W-{losses}L</span>}
+      {!graded && sim && (
+        <span className="text-zinc-500">{sim.wins}W-{sim.losses}L · sim</span>
+      )}
       {!compact && sharpe != null && (
         <span className={cn(sharpe >= 1 ? "text-emerald-300/90" : sharpe >= 0 ? "text-sky-300/70" : "text-rose-400/80")}>
           S{sharpe.toFixed(1)}

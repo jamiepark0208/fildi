@@ -23,17 +23,21 @@ import { StrikeRow, StrikeTableHeader } from "./options-strike-row";
 import { ExpirySection } from "./options-expiry-section";
 import { IvTermStructureChart } from "./options-iv-chart";
 
+/** Jamie contrast: white on zinc; hue on border only — never same-hue text-on-fill. */
 function SignalBadge({ signal, title }: { signal: "GO" | "WATCH" | "NO"; title?: string }) {
   const cls =
-    signal === "GO"    ? "bg-green-500/15 text-green-400 border-green-500/30" :
-    signal === "WATCH" ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" :
-                         "bg-muted text-white border-border";
+    signal === "GO"    ? "bg-zinc-900 text-white border-emerald-400/70" :
+    signal === "WATCH" ? "bg-zinc-900 text-white border-amber-400/70" :
+                         "bg-zinc-900 text-zinc-300 border-zinc-500/50";
   return (
     <Badge variant="outline" title={title} className={cn("text-[8px] px-1 py-0 h-3.5 font-bold leading-none", cls)}>
       {signal}
     </Badge>
   );
 }
+
+const CHIP =
+  "ml-0.5 px-0.5 py-px rounded border bg-zinc-900 text-white text-[8px] font-bold leading-none shrink-0";
 
 // ── Scanner Row ───────────────────────────────────────────────────────────────
 
@@ -305,36 +309,9 @@ export function ScannerRow({
 
   const borderColor = colorTag || "transparent";
 
-  const flagCls =
-    "ml-0.5 px-0.5 py-px rounded border border-[#d4af37]/35 bg-[#d4af37]/10 text-[#d4af37] text-[8px] font-bold leading-none shrink-0";
-  const oversoldOverboughtBadge = isCall
-    ? isOverbought && (
-        <span className={flagCls} title="In today's Live tab overbought (rally) hotlist">OB</span>
-      )
-    : isOversold && (
-        <span className={flagCls} title="In today's Live tab oversold (dip) hotlist">OS</span>
-      );
 
-  // A279: TradingView-style trend read (indicators.py). S102: trend lowers tails but is priced in → display only, not a gate.
-  const tech = enginePick?.tech;
-  const num = (k: string) => (typeof tech?.[k] === "number" ? (tech[k] as number) : null);
-  const bull = num("stc_bull");
-  const techBadge = bull != null && (
-    <span
-      className={cn(flagCls, bull >= 0.6 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-        : bull <= 0.4 ? "border-red-500/40 bg-red-500/10 text-red-400" : "border-zinc-600 bg-zinc-700/30 text-zinc-400")}
-      title={[
-        `SuperTrend cluster ${Math.round(bull * 100)} % bullish`,
-        num("ut_dir") != null && `UT Bot ${num("ut_dir")! > 0 ? "up" : "down"} ${num("ut_bars")} bars` +
-          (num("ut_surv") != null ? ` · ${Math.round(num("ut_surv")! * 100)} % of past same-side trends ran longer` : "") +
-          (num("ut_conf") != null ? ` · confidence ${Math.round(num("ut_conf")!)}` : ""),
-        num("fear_greed") != null && `Fear & Greed ${Math.round(num("fear_greed")!)}`,
-        num("bos_dir") != null && `SMC: last break of structure ${num("bos_dir")! > 0 ? "up" : num("bos_dir")! < 0 ? "down" : "none"}` +
-          (num("sweep_age") != null && num("sweep_age")! <= 5 ? ` · swing-low sweep ${num("sweep_age")} d ago` : ""),
-        "Display only — S102: trend is priced into puts",
-      ].filter(Boolean).join("\n")}
-    >{bull >= 0.6 ? "▲" : bull <= 0.4 ? "▼" : "◆"}{Math.round(bull * 100)}</span>
-  );
+  // A279 SuperTrend cluster % — display-only (S102); shown in Sig hover, not as a chip.
+  const bull = typeof enginePick?.tech?.stc_bull === "number" ? enginePick.tech.stc_bull : null;
 
   return (
     <div className={cn("border-b border-zinc-800 last:border-b-0", rowIndex % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60")}>
@@ -364,16 +341,14 @@ export function ScannerRow({
           )}
         </div>
 
-        {/* Ticker + tiny flags (clipped so they never overlap Price) */}
-        <div className="flex items-center min-w-0 overflow-hidden">
+        {/* Ticker — keep clean; flags live in Sig/Opt/IV tooltips (not a chip pile). */}
+        <div className="flex items-center min-w-0 overflow-hidden gap-0.5">
           <span
-            className="font-bold text-[11px] tracking-wide font-mono shrink-0"
+            className="font-bold text-[11px] tracking-wide font-mono shrink-0 text-white"
             style={{ color: overrideEnabled ? "#f87171" : (colorTag || undefined) }}
           >
             {ticker}
           </span>
-          {oversoldOverboughtBadge}
-          {techBadge}
           {modelAvoid && (
             <RecConflictChip
               compact
@@ -385,42 +360,18 @@ export function ScannerRow({
           )}
           {techRow?.earningsDaysOut != null && techRow.earningsDaysOut >= 0 && techRow.earningsDaysOut <= 7 && (
             <span
-              className="ml-0.5 px-0.5 py-px rounded border border-amber-500/40 bg-amber-500/15 text-amber-200 text-[8px] font-bold leading-none shrink-0"
+              className={cn(CHIP, "border-amber-400/70")}
               title={`Earnings ${techRow.earningsDaysOut === 0 ? "today" : `in ${techRow.earningsDaysOut}d`} — elevated IV; prefer deep OTM`}
             >
               E{techRow.earningsDaysOut}
             </span>
           )}
-          {newScorerBest?.liquidity?.warn && (
-            <span
-              className="ml-0.5 px-0.5 py-px rounded border border-orange-500/40 bg-orange-500/15 text-orange-200 text-[8px] font-bold leading-none shrink-0"
-              title={`Liquidity warning (does not exclude): ${newScorerBest.liquidity.reason ?? "thin book"}`}
-            >
-              LIQ
-            </span>
-          )}
-          {snapRelaxed && (
-            <span
-              className="ml-0.5 px-0.5 py-px rounded border border-violet-500/40 bg-violet-500/15 text-violet-200 text-[8px] font-bold leading-none shrink-0"
-              title="Watchlist relaxed pick — failed strict income/quality gates; not a strict Overall hit"
-            >
-              REL
-            </span>
-          )}
-          {isMonthlyOnlyCalendar(optionsData) && (
-            <span
-              className="ml-0.5 px-0.5 py-px rounded border border-sky-500/40 bg-sky-500/15 text-sky-200 text-[8px] font-bold leading-none shrink-0"
-              title="Monthly-only options calendar — no weeklies; Opt/strikes use the standard monthly expiry"
-            >
-              Mo
-            </span>
-          )}
           {panicSig && (
             <span
-              className="ml-0.5 px-0.5 py-px rounded border border-violet-500/40 bg-violet-500/15 text-violet-200 text-[8px] font-bold leading-none shrink-0"
+              className={cn(CHIP, "border-fuchsia-400/70")}
               title={panicSig.trigger || "Panic put (S054)"}
             >
-              Panic put (S054)
+              Panic
             </span>
           )}
         </div>
@@ -450,7 +401,18 @@ export function ScannerRow({
         </div>
 
         <div className="flex items-center gap-0.5 min-w-0">
-          <SignalBadge signal={signal} title={signalTitle} />
+          <SignalBadge
+            signal={signal}
+            title={[
+              signalTitle,
+              isCall && isOverbought ? "Live overbought hotlist" : null,
+              !isCall && isOversold ? "Live oversold hotlist" : null,
+              bull != null ? `SuperTrend ${Math.round(bull * 100)}% bullish (display only · S102)` : null,
+              isMonthlyOnlyCalendar(optionsData) ? "Monthly-only options calendar" : null,
+              snapRelaxed ? "Relaxed watchlist pick (not strict Overall)" : null,
+              callWarnings.length ? callWarnings.join(" · ") : null,
+            ].filter(Boolean).join("\n") || undefined}
+          />
           {callWarnings.length > 0 && (
             <span className="text-amber-400 text-[9px] leading-none" title={callWarnings.join(" · ")}>⚠</span>
           )}
@@ -462,7 +424,8 @@ export function ScannerRow({
             const rec = tickerRecords?.[ticker]?.[isCall ? "call" : "put"];
             const graded = (rec?.wins ?? 0) + (rec?.losses ?? 0) > 0;
             const hasOpen = rec?.openSpot != null && rec.openSpot > 0;
-            if (!graded && !hasOpen) {
+            const hasSim = !isCall && !graded && !!rec?.simRec;
+            if (!graded && !hasOpen && !hasSim) {
               return (
                 <span
                   className="text-[9px] font-mono text-zinc-500"
@@ -500,41 +463,58 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            bestOptionScore == null && "text-zinc-500",
+            bestOptionScore == null && "text-white/40",
           )}
           style={bestOptionScore != null ? columnHeatStyle(bestOptionScore, heat?.opt) : undefined}
-          title={bestOptionScore == null ? (scoreNAReason ?? "N/A") : undefined}
+          title={
+            bestOptionScore == null
+              ? (scoreNAReason ?? "N/A")
+              : (newScorerBest?.liquidity?.warn
+                ? `Liquidity warning: ${newScorerBest.liquidity.reason ?? "thin book"} (does not exclude)`
+                : undefined)
+          }
         >
           {bestOptionScore != null ? bestOptionScore.toFixed(1) : "N/A"}
+          {newScorerBest?.liquidity?.warn && (
+            <span className="ml-0.5 text-[8px] font-bold text-orange-300" title={`LIQ: ${newScorerBest.liquidity.reason ?? "thin book"}`}>!</span>
+          )}
         </span>
 
         {/* Stock Score */}
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            stockScore == null && "text-zinc-500",
+            stockScore == null && "text-white/40",
           )}
           style={stockScore != null ? columnHeatStyle(stockScore, heat?.stock) : undefined}
         >
           {stockScore != null ? stockScore.toFixed(1) : "—"}
         </span>
 
-        {/* IV */}
+        {/* IV — mover Δ is a mark + hover (A81 facts), not a grey essay under the row */}
         <span
           className={cn(
-            "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            ivPct == null && "text-zinc-500",
+            "text-[11px] font-mono font-semibold tabular-nums min-w-0 inline-flex items-baseline gap-0.5",
+            ivPct == null && "text-white/40",
           )}
           style={ivNum != null ? columnHeatStyle(ivNum, heat?.iv) : undefined}
+          title={
+            moverFactLine
+              ? `IV vs yesterday / realized vol (A81 mover facts — descriptive, not a sell/wait call)\n${moverFactLine}`
+              : undefined
+          }
         >
           {ivPct != null ? `${ivPct}%` : "—"}
+          {moverFactLine && (
+            <span className="text-[8px] font-bold text-cyan-300">Δ</span>
+          )}
         </span>
 
         {/* Income% */}
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            !(bestIncome != null && bestIncome >= 0) && "text-zinc-500",
+            !(bestIncome != null && bestIncome >= 0) && "text-white/40",
           )}
           style={bestIncome != null && bestIncome >= 0 ? columnHeatStyle(bestIncome, heat?.inc) : undefined}
           title={bestIncome != null && bestIncome >= 0 ? undefined : (scoreNAReason ?? "N/A")}
@@ -546,7 +526,7 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            !(bestBuffer != null && bestBuffer >= 0) && "text-zinc-500",
+            !(bestBuffer != null && bestBuffer >= 0) && "text-white/40",
           )}
           style={bestBuffer != null && bestBuffer >= 0 ? columnHeatStyle(bestBuffer, heat?.buf) : undefined}
           title={
@@ -594,44 +574,32 @@ export function ScannerRow({
         </div>
       </div>
 
-      {moverFactLine && (
-        <div
-          className="px-2 py-0.5 text-[10px] text-amber-100/65 font-mono border-t border-zinc-800/80"
-          style={{ borderLeft: `3px solid ${borderColor}` }}
-          title="A81 mover facts — no sell/wait take"
-        >
-          {moverFactLine}
-        </div>
-      )}
-
       {/* Expanded panel */}
       {expanded && (
         <div
           className="px-3 pb-1.5 pt-1 space-y-1 bg-neutral-950/80"
           style={{ borderLeft: `4px solid ${borderColor}` }}
         >
-          {/* Deterministic reasoning now shown as a hover tooltip on the RSI value in the
-              ticker row above. AI context (outlier moves, sector flow, news) is opt-in via
-              the button below since it costs an API call. */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Sub-tabs: strike table vs. this ticker's IV term structure. Puts vs. calls
-                  is decided by the page-level Sell Puts/Sell Calls toggle, not here. */}
-              <div className="flex items-center rounded-full border border-border/60 bg-slate-900/40 p-0.5 text-[11px] shrink-0">
+          {/* Expanded chrome: gold/white sub-tabs · summary · Book? · AI — no grey essay rows */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1 flex-wrap">
+              <div className="inline-flex items-center gap-0.5 shrink-0">
                 <button
+                  type="button"
                   onClick={e => { e.stopPropagation(); setSubTab("strikes"); }}
                   className={cn(
-                    "px-2.5 py-0.5 rounded-full transition-colors",
-                    subTab === "strikes" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
+                    "text-[10px] font-bold px-2 py-0.5 rounded transition-colors",
+                    subTab === "strikes" ? "bg-[#d4af37] text-black" : "text-white/80 hover:text-white hover:bg-white/10",
                   )}
                 >
                   {isCall ? "Calls" : "Puts"}
                 </button>
                 <button
+                  type="button"
                   onClick={e => { e.stopPropagation(); setSubTab("term"); }}
                   className={cn(
-                    "px-2.5 py-0.5 rounded-full transition-colors",
-                    subTab === "term" ? "bg-primary/20 text-primary font-semibold" : "text-white/70 hover:text-white",
+                    "text-[10px] font-bold px-2 py-0.5 rounded transition-colors",
+                    subTab === "term" ? "bg-[#d4af37] text-black" : "text-white/80 hover:text-white hover:bg-white/10",
                   )}
                 >
                   IV Term
@@ -641,29 +609,53 @@ export function ScannerRow({
               {subTab === "strikes" && (
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
+                    "inline-flex items-center gap-1 text-[10px] font-mono font-semibold px-2 py-0.5 rounded border",
                     summary == null || summary.startsWith("no viable")
-                      ? "border-border/60 bg-slate-900/40 text-white/70"
-                      : "border-primary/30 bg-primary/10 text-white",
+                      ? "border-white/25 text-white/80"
+                      : "border-[#d4af37]/40 text-white bg-zinc-900",
                   )}
+                  title="Viable strikes for this side · best weekly income · quote vendor"
                 >
-                  <ListFilter className="w-3 h-3 text-primary shrink-0" />
+                  <ListFilter className="w-3 h-3 text-[#d4af37] shrink-0" />
                   {optionsLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (summary ?? "—")}
                 </span>
               )}
+
+              {subTab === "strikes" && !isCall && bestStrike && price != null && price > 0 && (() => {
+                const put = "put" in bestStrike ? bestStrike.put : null;
+                const chain = "chain" in bestStrike ? bestStrike.chain : null;
+                if (!put || !chain || !(put.iv > 0)) return null;
+                return (
+                  <RiskWhatIfBadge
+                    compact
+                    input={{
+                      account: "FILDI",
+                      ticker,
+                      strike: put.strike,
+                      expiry: chain.expiry,
+                      qty: 1,
+                      iv: put.iv,
+                      spot: price,
+                      premium: put.bid > 0 ? put.bid : null,
+                      surface: "scanner",
+                    }}
+                  />
+                );
+              })()}
             </div>
 
             {subTab === "strikes" && indicator && (
               aiReasoning ? null : (
                 <button
+                  type="button"
                   onClick={() => setAiRequested(true)}
                   disabled={reasoningLoading}
-                  className="flex items-center gap-1.5 text-[11px] font-medium text-primary border border-primary/30 bg-primary/5 rounded-full px-2.5 py-1 hover:bg-primary/15 hover:border-primary/50 disabled:opacity-60 disabled:cursor-default transition-colors"
+                  className="flex items-center gap-1 text-[10px] font-bold text-white border border-[#d4af37]/40 bg-zinc-900 rounded px-2 py-0.5 hover:border-[#d4af37]/80 disabled:opacity-60 transition-colors"
                 >
                   {reasoningLoading
                     ? <Loader2 className="w-3 h-3 animate-spin" />
-                    : <Sparkles className="w-3 h-3" />}
-                  {reasoningLoading ? "Getting AI context…" : "Get AI context"}
+                    : <Sparkles className="w-3 h-3 text-[#d4af37]" />}
+                  {reasoningLoading ? "AI…" : "AI context"}
                 </button>
               )
             )}
@@ -677,28 +669,6 @@ export function ScannerRow({
             <p className="text-[11px] text-destructive/80">Couldn't get AI context — try again later.</p>
           )}
 
-          {/* A136 — on-demand book risk for best put (same MC as Portfolio Alerts) */}
-          {subTab === "strikes" && !isCall && bestStrike && price != null && price > 0 && (() => {
-            const put = "put" in bestStrike ? bestStrike.put : null;
-            const chain = "chain" in bestStrike ? bestStrike.chain : null;
-            if (!put || !chain || !(put.iv > 0)) return null;
-            return (
-              <RiskWhatIfBadge
-                compact
-                input={{
-                  account: "FILDI",
-                  ticker,
-                  strike: put.strike,
-                  expiry: chain.expiry,
-                  qty: 1,
-                  iv: put.iv,
-                  spot: price,
-                  premium: put.bid > 0 ? put.bid : null,
-                  surface: "scanner",
-                }}
-              />
-            );
-          })()}
 
           {/* IV term structure tab */}
           {subTab === "term" && (
