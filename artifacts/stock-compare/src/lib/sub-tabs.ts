@@ -91,3 +91,19 @@ export function guideSubTabClass(active: boolean): string {
 export function scopePairClass(active: boolean): string {
   return guideSubTabClass(active);
 }
+
+/** Radix TabsList shell — one row, gold border, no wrap (Scorecard / street panels). */
+export const RADIX_TAB_LIST =
+  "inline-flex h-7 items-center justify-start gap-0.5 p-0.5 w-full overflow-x-auto overflow-y-hidden whitespace-nowrap rounded bg-zinc-950 border border-[#d4af37]/20 text-white";
+
+/**
+ * Radix TabsTrigger — L2 gold when active (data-state), white idle.
+ * Prefer this over per-file TAB constants (A305).
+ */
+export const RADIX_TAB_TRIGGER = cn(
+  "inline-flex items-center justify-center whitespace-nowrap rounded px-2.5 h-6 text-[11px] font-semibold transition-colors",
+  "text-white/80 hover:text-white hover:bg-white/10",
+  "data-[state=active]:bg-[#d4af37] data-[state=active]:text-black",
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/50",
+  "disabled:pointer-events-none disabled:opacity-50",
+);

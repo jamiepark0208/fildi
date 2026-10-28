@@ -1,4 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+/* A305: self-hosted fonts (no Google CDN). Roles: sans=body, display=titles ≥20px, mono=numbers. */
+@import "@fontsource/public-sans/400.css";
+@import "@fontsource/public-sans/500.css";
+@import "@fontsource/public-sans/600.css";
+@import "@fontsource/public-sans/700.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -41,6 +48,7 @@
 
   --font-sans: var(--app-font-sans);
   --font-mono: var(--app-font-mono);
+  --font-display: var(--app-font-display);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -83,9 +91,15 @@
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 220 6% 6%;
 
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-mono: 'Space Mono', monospace;
+  --app-font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+  --app-font-display: "Instrument Serif", "Public Sans", ui-serif, Georgia, serif;
+  --app-font-mono: "Space Mono", ui-monospace, monospace;
   --radius: 0.5rem;
+}
+
+/* Titles ≥20px use display; numbers stay mono via font-mono utility */
+.font-display {
+  font-family: var(--app-font-display);
 }
 
 .dark {

@@ -76,6 +76,16 @@ if echo "$files" | grep -qE '^(research/studies/INDEX\.md|artifacts/stock-compar
   fi
 fi
 
+# A305: hard-fail on tab-bar revival / CDN fonts / rogue font-family in stock-compare src
+if [ "$need_ui" -eq 1 ] || echo "$files" | grep -qE '^artifacts/stock-compare/src/'; then
+  echo "agent-ship-check: ui-style-guard…"
+  if ! node "$ROOT/scripts/ui-style-guard.mjs"; then
+    echo "agent-ship-check: FAIL ui-style-guard — fix before push (A305)" >&2
+    fail=1
+  fi
+fi
+[ "$fail" -eq 0 ] || exit 1
+
 if [ "$need_api" -eq 1 ]; then
   if curl -sf -o /dev/null --max-time 2 http://127.0.0.1:8080/api/healthz 2>/dev/null; then
     echo "agent-ship-check: healthz ok on :8080"
