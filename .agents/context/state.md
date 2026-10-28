@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-27
+**build** — last updated 2026-10-28
 
 ## Active work
-- Working: universe-audit-done, peer-groups-reviewed, fv-review-table, lseg-universe-signals
-- In progress: fair-value-round-2
+- Working: dcf-consensus-centre, dcf-equity-bridge, dcf-learning-loop, s113-s117-studies, s116-pit-backtest
+- In progress: cursor-a289-dcf-ui, cursor-a286-segments, cursor-a287-put-flag-study, cursor-a288-converts
 - Blocked: none
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
