@@ -18,6 +18,30 @@ IF_DOWN=0
 [[ "${1:-}" == "--if-down" ]] && IF_DOWN=1
 
 mkdir -p "$LOG_DIR"
+# A251: intentional downtime — touch /tmp/fildi-stack-hold (optional expiry ISO in file). --if-down honors it.
+HOLD_FILE="/tmp/fildi-stack-hold"
+if [[ "$IF_DOWN" -eq 1 && -f "$HOLD_FILE" ]]; then
+  exp="$(head -1 "$HOLD_FILE" 2>/dev/null || true)"
+  now_epoch="$(date +%s)"
+  if [[ -z "$exp" ]]; then
+    echo "dev-restart: hold file $HOLD_FILE present (no expiry) — skip --if-down"
+    exit 0
+  fi
+  # Accept unix epoch or ISO-ish; date -j on macOS for ISO
+  exp_epoch=""
+  if [[ "$exp" =~ ^[0-9]+$ ]]; then
+    exp_epoch="$exp"
+  else
+    exp_epoch="$(date -j -f "%Y-%m-%dT%H:%M:%S" "${exp%Z}" "+%s" 2>/dev/null || date -d "$exp" "+%s" 2>/dev/null || true)"
+  fi
+  if [[ -n "$exp_epoch" && "$now_epoch" -lt "$exp_epoch" ]]; then
+    echo "dev-restart: hold until $exp — skip --if-down"
+    exit 0
+  fi
+  echo "dev-restart: hold expired ($exp) — removing $HOLD_FILE"
+  rm -f "$HOLD_FILE"
+fi
+
 # One restart at a time (maintain heal, the login LaunchAgent and agents all call this); a dead holder's lock is taken over.
 LOCKD="$LOG_DIR/dev-restart.lock.d"
 if ! mkdir "$LOCKD" 2>/dev/null; then
@@ -173,6 +197,11 @@ fi
 
 wait_http "http://127.0.0.1:${API_PORT}/api/healthz" "API"
 wait_http "http://127.0.0.1:${VITE_PORT}/" "Vite" 30
+
+# A251 boot proof line (first reboot / LaunchAgent) — one line, no agent watching required.
+api_watchers="$(pgrep -f "tsx --watch --watch-path=src src/index.ts" 2>/dev/null | wc -l | tr -d ' ')"
+printf '%s pg=ok api=200 vite=200 api_watchers=%s root=%s\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$api_watchers" "$ROOT" >> "$LOG_DIR/stack-boot.log" || true
 
 echo "Preview: http://localhost:${VITE_PORT}/"
 echo "Detached. Aborting this shell will not stop API/Vite."

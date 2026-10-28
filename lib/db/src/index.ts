@@ -1,3 +1,4 @@
+import { appendFileSync, mkdirSync } from "node:fs";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
@@ -19,13 +20,32 @@ export const pool = new Pool({
 });
 // An idle client dropped by the server (Postgres restart → 57P01) is emitted here; unhandled it became an
 // uncaughtException that took the API down (10-24). The pool discards the client and reconnects on the next query.
+// A251: count + last error → healthz "degraded" (do not hide real outages).
+let poolErrorCount = 0;
+let poolLastError: { at: string; code: string; message: string } | null = null;
 const onClientError = (err: Error) => {
-  console.error(`[db] client error (pool reconnects): ${(err as { code?: string }).code ?? ""} ${err.message}`);
+  const code = (err as { code?: string }).code ?? "";
+  poolErrorCount += 1;
+  poolLastError = { at: new Date().toISOString(), code, message: err.message.slice(0, 200) };
+  console.error(`[db] client error #${poolErrorCount} (pool reconnects): ${code} ${err.message}`);
+  try {
+    mkdirSync("/tmp/fildi-logs", { recursive: true });
+    appendFileSync(
+      "/tmp/fildi-logs/db-pool-errors.jsonl",
+      JSON.stringify({ t: poolLastError.at, n: poolErrorCount, code, message: poolLastError.message }) + "\n",
+    );
+  } catch { /* log dir may be missing */ }
 };
 pool.on("error", onClientError);
 // Checked-out clients (e.g. the enrichment advisory-lock holder) emit on the client, not the pool → handle there too;
 // their in-flight/next query still rejects normally.
 pool.on("connect", (client) => client.on("error", onClientError));
+
+/** A251 — for /api/healthz degraded signal after Postgres blips. */
+export function getPoolErrorStats() {
+  return { count: poolErrorCount, last: poolLastError };
+}
+
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
