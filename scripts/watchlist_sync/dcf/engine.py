@@ -204,7 +204,7 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
                         WHERE ticker = %s ORDER BY as_of DESC LIMIT 1""", (t,))
     tf = rows(conn, """SELECT f.beta, r.primary_peer_group_id g, (SELECT price FROM fair_value_snapshots s WHERE s.ticker = f.ticker
                        ORDER BY as_of DESC LIMIT 1) price FROM ticker_fundamentals f JOIN ticker_registry r ON r.ticker = f.ticker WHERE f.ticker = %s""", (t,))
-    cma = rows(conn, "SELECT values, pairs FROM watchlist_sync.cma_monthly ORDER BY as_of DESC LIMIT 1")[0]
+    cma = rows(conn, "SELECT as_of, values, pairs FROM watchlist_sync.cma_monthly ORDER BY as_of DESC LIMIT 1")[0]
     s, f = (sig[0] if sig else {}), tf[0]
     rev = v("revenue")
     rev_fy = (base.get("revenue") or {}).get("fy_value") or rev

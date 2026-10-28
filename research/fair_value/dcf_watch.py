@@ -67,7 +67,9 @@ def detail(x: dict, b: dict, sim: dict, v, sc: dict, u: float | None) -> dict:
             "price_pct": float((v < x["price"]).mean()), "scenarios": sc, "reverse": {"growth_pct": u, "implied_cagr5": implied},
             "assumptions": [{"key": k, "label": l, "value": val, "unit": un, "source": src} for k, l, val, un, src in a],
             "path": {"growth": P["g"], "margin": P["margin"], "fcff": P["fcff"]}, "tv_share": sim["tv_share"],
-            "consensus_fy": cons["fy"] if cons else None, "flags": x.get("flags") or [], "version": VERSION}
+            "consensus_fy": cons["fy"] if cons else None, "flags": x.get("flags") or [], "version": VERSION,
+            "inputs_asof": {"ttm_end": x["ttm_end"], "consensus": cons["as_of"] if cons else None,
+                            "cma": str(x["cma"].get("as_of")) if x["cma"].get("as_of") else None}}
 with connect() as c:
     if "--store" in sys.argv:
         c.execute(DDL); c.commit()

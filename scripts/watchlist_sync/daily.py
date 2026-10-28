@@ -61,6 +61,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("outside intrinsic values", SH, HERE, ["-c", f"{PY} dcf/external_iv.py --max 40 2>&1 | tail -1"]),
         # A285: DCF v2 lab detail (watchlist only until fv-2.0.0 is signed) → dcf_detail → Breakdown › Assumptions. Soft.
         ("DCF lab (watchlist)", SH, HERE, ["-c", f"{PY} ../../research/fair_value/dcf_watch.py --store 2>&1 | tail -1"]),
+        ("DCF grades", SH, HERE, ["-c", f"{PY} dcf/grade.py 2>&1 | tail -1"]),   # A283 step 2: rank IC vs fv-1.x / StarMine, drift, stability
         # Jamie 10-20: the noon-PT scan only reached the NEXT morning's plan (~19 h stale) → re-scan with live Schwab quotes first
         ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts 2>&1 "
                                          "| grep -o 'persisted.*' | tail -1 || echo 'option scan skipped (plan uses the last scan)'"]),
