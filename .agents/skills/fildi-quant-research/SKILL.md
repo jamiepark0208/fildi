@@ -23,6 +23,11 @@ This file is the **judgment layer** on top: what Jamie expects a good study to d
 8. **Smoke small first:** ~5 names, print trades, hand-check strikes / fills / splits / dates against reality before any full run (S064 smoke caught a Δ band that made one anchor untradeable, and a missing ticker).
 9. **Overlap honestly:** monthly entries with 63-day holds overlap → block bootstrap (consecutive months); trades sharing an expiry week cluster (S016 ρ 0.6).
 10. **Decide, don't ask.** Pick the next step from literature + tests and do it. Ask Jamie only about money, accounts or trades. Asking for a task = approval to finish it (AGENTS rule 7).
+12. **Opportunity mindset (Jamie 10-28).** Start optimistic: what would have to be true for this to make money, and in which state
+   (fear high = look harder, greed high = be careful)? Then devil's advocate to *improve* it: name each risk and a mitigation (strike, size,
+   hedge, exit, filter). Iterate in rounds — factors, execution, holding period, the opposite side (long ↔ short), long+short combos — on the
+   fit period; confirm the survivor once on an untouched holdout. Never pre-register "one pass then stop"; pre-register the holdout instead.
+   Report what works first, with its size and how sure we are; a dead end needs ≥ 3 rounds incl. the opposite side and a combo.
 11. **Free / local first; state the cost.** No LLM for numeric decisions; OpenJev only per its tier (`.agents/openjev/REGISTRY.md`).
 
 ## 2. Efficient backtesting pattern (budget-aware)

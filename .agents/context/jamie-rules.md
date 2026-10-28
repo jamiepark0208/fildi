@@ -10,6 +10,13 @@
 - **Free cash never filters or flags an opportunity** (repeated; 10-22). He frees cash by selling stock or closing puts. Show the collateral needed as plain info, never as a warn/block/size-down (A243).
 
 ## Research and verdicts
+- **Opportunity mindset (10-28, the frame for every study and trade idea):** buy low / sell high — buy when fear is high, trim when greed is high.
+  By the time news reports bad news, most of it is priced; a crash with everyone bearish is where to *look for* opportunity, a big rally with
+  everyone bullish is where to get careful. Treat the consensus view as information, not as the answer. Ideate with a slight optimistic bias,
+  then play devil's advocate **to strengthen the idea** (find the risk, then mitigate it), not to reject it. Persist: a study is a loop of
+  trial/error — adjust, add or remove factors, change execution (entry, exit, strike, size, hedge), test the **opposite side** (long ↔ short)
+  and **combined** long+short structures before calling any idea dead. Low correlation / modest significance is normal in markets; the job is
+  to stack controllable factors in our favor, not to be perfect. Keep honesty with a fit set + untouched holdout, not with "one pass, stop".
 - Model List rules/tags use **market-wide data only, never Jamie's own trades** (10-20). His trades may be used for diagnostics shown to him.
 - Test the **use** (put pnl, breach, sizing), not the direction; a FAIL means tested on the outcome and still failed — then fix it, don't just report it (10-18).
 - Compare with a **same-risk alternative** (T-bills, holding the shares) before calling lower risk a benefit; say a small benefit plainly, apart from the significance bar (10-20). "Safe" ≠ "edge".
