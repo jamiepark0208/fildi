@@ -44,7 +44,25 @@ BALANCES = {
     "op_leases": ["OperatingLeaseLiability"],
     "equity": ["StockholdersEquity"],
     "minority": ["MinorityInterest"],
+    # equity bridge beyond debt/cash (Jamie 10-27: every balance-sheet item, footnotes too)
+    "pension_funded": ["DefinedBenefitPlanFundedStatusOfPlan"],          # signed: negative = underfunded
+    "preferred": ["PreferredStockValue", "TemporaryEquityCarryingAmountAttributableToParent"],
+    "equity_method": ["EquityMethodInvestments"],
+    "other_investments": ["EquitySecuritiesFvNi", "OtherLongTermInvestments"],
+    "crypto": ["CryptoAssetFairValueNoncurrent", "CryptoAssetFairValueCurrent"],
+    "nol_dta": ["DeferredTaxAssetsOperatingLossCarryforwards"],
+    "dta_allowance": ["DeferredTaxAssetsValuationAllowance"],
+    "litigation": ["LossContingencyAccrualAtCarryingValue"],
+    "aro": ["AssetRetirementObligationsNoncurrent", "AssetRetirementObligation"],
+    "finance_leases": ["FinanceLeaseLiability"],
 }
+DILUTION = {  # share counts (unit shares) and option strike (USD/shares), for the treasury-stock method
+    "rsu": "ShareBasedCompensationArrangementByShareBasedPaymentAwardEquityInstrumentsOtherThanOptionsNonvestedNumber",
+    "options": "ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsOutstandingNumber",
+    "strike": "ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsOutstandingWeightedAverageExercisePrice",
+}
+UNRECOGNIZED = "EmployeeServiceShareBasedCompensationNonvestedAwardsTotalCompensationCostNotYetRecognized"
+WEIGHTED = {"diluted": "WeightedAverageNumberOfDilutedSharesOutstanding", "basic": "WeightedAverageNumberOfSharesOutstandingBasic"}
 
 
 def _get(url: str) -> dict:
@@ -57,7 +75,7 @@ def companyfacts(conn, ticker: str) -> dict | None:
     if not r:
         return None
     facts = _get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{r[0]['cik']}.json")
-    used = {c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | {"WeightedAverageNumberOfDilutedSharesOutstanding"}
+    used = {c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | set(WEIGHTED.values()) | set(DILUTION.values()) | {UNRECOGNIZED}
     keep = {"cik": facts.get("cik"), "entityName": facts.get("entityName"), "facts": {
         "us-gaap": {k: v for k, v in (facts.get("facts", {}).get("us-gaap", {}) or {}).items() if k in used},
         "dei": (facts.get("facts", {}).get("dei", {}) or {})}}
@@ -154,6 +172,32 @@ def shares(facts: dict) -> dict | None:
     return {"value": tot, "concept": "dei:EntityCommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
 
 
+def dilution(facts: dict, asof: str) -> dict:
+    """Unvested RSUs, options outstanding and their weighted strike at the latest instant ≤ asof (stale > 400 d → none)."""
+    out = {}
+    for k, c in DILUTION.items():
+        vals = [u for u in _units(facts, c, "USD/shares" if k == "strike" else "shares") if not u.get("start") and u["end"] <= asof]
+        if vals:
+            u = max(vals, key=lambda x: (x["end"], x["filed"]))
+            if _days(u["end"], asof) <= 400:
+                out[k] = {"value": u["val"], "end": u["end"], "filed": u["filed"]}
+    unrec = [u for u in _units(facts, UNRECOGNIZED) if not u.get("start") and u["end"] <= asof]
+    if unrec:
+        u = max(unrec, key=lambda x: (x["end"], x["filed"]))
+        if _days(u["end"], asof) <= 400:
+            out["unrecognized_usd"] = {"value": u["val"], "end": u["end"], "filed": u["filed"]}
+    # RSUs are usually tagged per award type (dimensions, absent from companyfacts) → diluted − basic weighted average of
+    # the latest period as a floor (captures them when the company is profitable)
+    w = {}
+    for k, c in WEIGHTED.items():
+        vals = [u for u in _units(facts, c, "shares") if u.get("start") and u["end"] <= asof]
+        if vals:
+            w[k] = max(vals, key=lambda x: (x["end"], x["filed"], x["start"]))
+    if len(w) == 2 and w["diluted"]["end"] == w["basic"]["end"] and w["diluted"]["start"] == w["basic"]["start"]:
+        out["dil_gap"] = {"value": max(w["diluted"]["val"] - w["basic"]["val"], 0), "end": w["diluted"]["end"]}
+    return out
+
+
 def fy_history(facts: dict, concepts: list[str], n: int = 5) -> dict[str, float]:
     """Last n fiscal-year values {fy_end: value}, from the concept with the newest annual period."""
     best = {}
@@ -191,6 +235,7 @@ def ttm_base(conn, ticker: str, facts: dict | None = None) -> dict | None:
     asof = (out.get("revenue") or {}).get("end") or date.today().isoformat()
     out.update({k: balance(facts, v, asof) for k, v in BALANCES.items()})
     out["shares"] = shares(facts)
+    out["dilution"] = dilution(facts, asof)
     out["history"] = {k: fy_history(facts, FLOWS[k]) for k in HIST}
     return out
 

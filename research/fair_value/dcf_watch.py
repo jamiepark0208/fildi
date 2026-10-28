@@ -62,7 +62,10 @@ def detail(x: dict, b: dict, sim: dict, v, sc: dict, u: float | None) -> dict:
          ("roicT", "Terminal return on new capital", P["roicT"], "pct", "Base-rate ROIC fade × own RONIC, ≥ WACC"),
          ("p_fail", "Failure probability", sim["p_fail"], "pct", "From rating / losses when debt > cash"),
          ("net_cash", "Cash − debt", x["cash"] - x["debt"], "usd_total", sec),
-         ("shares", "Diluted shares", x["shares"], "count", sec)]
+         ("shares", "Shares (cover page + unvested RSUs + in-the-money options)", x["shares"], "count",
+          sec + ("; " + ", ".join(f"{k} {val / 1e6:,.1f}M" for k, val in x["dilution"].items()) if x.get("dilution") else ""))]
+    a += [(f"claim:{k}", f"− {k}", val, "usd_total", sec + " (balance sheet / footnote)") for k, val in (x.get("claims") or {}).items()]
+    a += [(f"asset:{k}", f"+ {k}", val, "usd_total", sec + " (balance sheet / footnote)") for k, val in (x.get("assets") or {}).items()]
     return {"price": x["price"], "p10": float(np.percentile(v, 10)), "p50": float(np.percentile(v, 50)), "p90": float(np.percentile(v, 90)),
             "price_pct": float((v < x["price"]).mean()), "scenarios": sc, "reverse": {"growth_pct": u, "implied_cagr5": implied},
             "assumptions": [{"key": k, "label": l, "value": val, "unit": un, "source": src} for k, l, val, un, src in a],
@@ -82,6 +85,8 @@ with connect() as c:
         try:
             if "--refresh" in sys.argv:
                 b = ttm_base(c, t)
+                if not b or not b.get("revenue"):
+                    print(f"{t:6s} no SEC base"); store(c, t, False, {"reason": "No SEC filings base (foreign filer, ETF or not loaded)"}); continue
                 c.execute("""INSERT INTO watchlist_sync.dcf_ttm_base (ticker, as_of, period_end, base) VALUES (%s,%s,%s,%s)
                              ON CONFLICT (ticker, as_of) DO UPDATE SET base = EXCLUDED.base""", (t, date.today(), b["revenue"]["end"], json.dumps(b)))
                 c.commit()

@@ -19,6 +19,9 @@ Per path (Monte Carlo, N draws):
            Kd = rf + OAS(rating; synthetic from interest coverage when unrated); WACC on market weights
   terminal NOPAT₁₁ · (1 − g/ROIC_T) / (WACC_T − g); g ~ cma g_dist (breakeven + CBO potential real growth, ≤ rf); ROIC_T = base-rate ROIC 5 y
            later for sector × current ROIC, never below WACC_T
+  bridge   EV − debt − leases + cash/investments − minorities − pension deficit, preferred, legal and retirement accruals
+           (after tax) + equity stakes, other investments, crypto, usable tax-loss carryforwards; shares = cover-page
+           count + unvested RSUs + in-the-money options (treasury method)
   failure  value × (1 − p): p from rating / losses when debt > cash; net-cash and profitable → 0.2 %; net-cash loss-maker →
            2 % (FCF ≥ 0) / 5 % (≥ 3 y runway) / 15 % (equity distress value = 0)
   SBC      stock pay ÷ revenue fades to the S114 10-y median for its starting bucket; the saving lifts the GAAP margin
@@ -286,7 +289,33 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
             net_capex = v("capex") - v("da")
             s2c_capex = 8.0 if net_capex <= 0.01 * rev else float(np.clip(g_near * rev / net_capex, 0.3, 8.0))
     fcf = v("ocf") - v("capex")
-    return {"ticker": t, "price": float(f["price"]), "shares": v("shares"), "rev": rev, "rev_fy": rev_fy, "g1": g1,
+    # equity bridge beyond debt / cash / minorities: after-tax debt-like claims and non-operating assets (Jamie 10-27)
+    concept = lambda k: (base.get(k) or {}).get("concept")
+    claims = {"pension deficit (after tax)": max(-v("pension_funded"), 0) * 0.79, "preferred stock": v("preferred"),
+              "legal accruals (after tax)": v("litigation") * 0.79, "asset retirement (after tax)": v("aro") * 0.79,
+              "finance leases": 0.0 if concept("debt_lt") == "LongTermDebtAndCapitalLeaseObligations" else v("finance_leases")}
+    broad = concept("lt_investments") == "LongTermInvestments"  # already holds equity stakes / other investments
+    assets = {"equity-method stakes": 0.0 if broad else v("equity_method"), "other investments": 0.0 if broad else v("other_investments"),
+              "crypto (fair value)": v("crypto"), "tax-loss carryforwards (usable, 80 %)": max(v("nol_dta") - v("dta_allowance"), 0) * 0.8}
+    claims = {k: c for k, c in claims.items() if c > 0 and c < 2 * max(rev, 1)}  # mis-scaled tag guard (as for leases)
+    assets = {k: a for k, a in assets.items() if a > 0 and a < 2 * max(rev, 1) + v("equity")}
+    dil = base.get("dilution") or {}
+    rsu = (dil.get("rsu") or {}).get("value") or 0.0
+    opt, k_opt = (dil.get("options") or {}).get("value") or 0.0, (dil.get("strike") or {}).get("value") or 0.0
+    px_ = float(f["price"]) if f.get("price") else 0.0
+    opt_net = opt * max(px_ - k_opt, 0) / px_ if px_ > 0 and k_opt > 0 else 0.0  # treasury-stock method at today's price
+    gap = (dil.get("dil_gap") or {}).get("value") or 0.0
+    unrec_sh = ((dil.get("unrecognized_usd") or {}).get("value") or 0.0) / px_ if px_ > 0 else 0.0
+    if gap > rsu + opt_net:  # diluted − basic weighted average already counts RSUs/options/converts the filings call dilutive
+        rsu, opt_net = gap, 0.0
+    if unrec_sh > rsu + opt_net:  # loss-makers: unvested awards ≈ unrecognized stock-comp cost ÷ price (RSU count is dimension-tagged)
+        rsu, opt_net, gap = unrec_sh, 0.0, -1.0
+    extra_sh = rsu + opt_net if v("shares") and (rsu + opt_net) < 0.3 * v("shares") else 0.0
+    return {"ticker": t, "price": float(f["price"]), "shares": v("shares") + extra_sh, "shares_basic": v("shares"),
+            "dilution": ({"unvested awards (unrecognized comp ÷ price)": rsu} if gap == -1.0 else
+                         {"diluted − basic shares (filings)": rsu} if gap and rsu == gap else
+                         {"unvested RSUs": rsu, "options (treasury method)": opt_net}) if extra_sh else {},
+            "claims": claims, "assets": assets, "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),
             "m0": oi / rev if rev else 0.0,
             "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
@@ -427,7 +456,8 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         p_fail = 0.02 if burn == 0 else 0.05 if (x["cash"] - x["debt"]) >= 3 * burn else 0.15
     else:
         p_fail = P_FAIL[x["rating"]] if x["m0"] > 0 else max(P_FAIL[x["rating"]], 0.15)
-    equity = np.maximum(ev - x["debt"] + x["cash"] - x["minority"], 0) * (1 - p_fail)  # limited liability
+    bridge = sum((x.get("assets") or {}).values()) - sum((x.get("claims") or {}).values())
+    equity = np.maximum(ev - x["debt"] + x["cash"] - x["minority"] + bridge, 0) * (1 - p_fail)  # limited liability
     vps = equity / x["shares"]
     return {"vps": vps, "tv_share": float(np.median(pv_tv / ev)), "why": {"growth": gwhy, "margin": mwhy, "roic": rwhy},
             "b0": b0, "bT": bT, "kd": kd, "wd": wd, "p_fail": p_fail, "rf": rf,
