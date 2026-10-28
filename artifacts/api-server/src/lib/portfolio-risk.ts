@@ -1,34 +1,42 @@
 /**
  * Correlation + parametric VaR/CVaR from local prices_historical (no Yahoo fan-out).
- * A257: date-join returns (no tail-slice mismatch); signed weights (shorts hedge).
+ * A257: date-join returns (no tail-slice mismatch); signed weights (shorts hedge);
+ * thin-history proxy cov (ρ̄·σa·σb); never silent VaR 0 on non-empty book.
  */
 import { and, gte, inArray, isNotNull, asc } from "drizzle-orm";
 import { db, pricesHistorical } from "@workspace/db";
 import { etDateKey } from "./market-hours.js";
+import { logger } from "./logger.js";
 
-// 1-day 95% parametric (variance-covariance) VaR/CVaR under a normal-returns
-// assumption — standard closed-form constants, not fitted:
-//   VaR95  = z(0.95)              * sigma = 1.645 * sigma
-//   CVaR95 = phi(z(0.95)) / 0.05  * sigma = 2.063 * sigma
 const Z_95 = 1.645;
 const CVAR_95_MULT = 2.063;
-const LOOKBACK_DAYS = 100; // calendar ≈ 3mo trading
-/** Need enough closes to form ≥ MIN_SHARED_RETURNS on a dense series. */
-export const MIN_CLOSES = 61;
-/** Skip corr/cov pair when fewer than this many date-aligned returns (A257). */
+const LOOKBACK_DAYS = 100;
+/** Own σ needs ≥ this many closes (≥20 returns). */
+export const MIN_OWN_CLOSES = 21;
+/** Full pairwise corr/cov needs ≥ this many date-aligned returns. */
 export const MIN_SHARED_RETURNS = 60;
-/** Cap matrix size for UI readability / O(n²) cost — denser grid shows ~32 */
+/** Legacy alias — prefer MIN_OWN_CLOSES for inclusion. */
+export const MIN_CLOSES = MIN_OWN_CLOSES;
 const MAX_TICKERS = 32;
-/** Same haircut the beta card uses for covered-call stock delta. */
+/** Drop a return step when calendar gap between shared closes exceeds this (weekends OK). */
+export const MAX_GAP_DAYS = 4;
 export const COVERED_CALL_WEIGHT_HAIRCUT = 0.70;
+const DEFAULT_RHO_BAR = 0.5;
+const SPY_PROXY_MULT = 1.5;
 
 export type DatedClose = { date: string; close: number };
+export type RiskCoverage = "none" | "partial" | "full";
 
 function mean(xs: number[]): number {
   return xs.reduce((s, x) => s + x, 0) / (xs.length || 1);
 }
 
-/** Successive date-aligned returns on the intersection of dates (sorted). */
+function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(b) - Date.parse(a);
+  return Math.round(ms / 86_400_000);
+}
+
+/** Successive date-aligned returns on shared dates; skip steps with calendar gap > MAX_GAP_DAYS. */
 export function alignReturns(
   a: DatedClose[],
   b: DatedClose[],
@@ -46,10 +54,13 @@ export function alignReturns(
   const ra: number[] = [];
   const rb: number[] = [];
   for (let i = 1; i < shared.length; i++) {
-    ra.push(shared[i]!.ca / shared[i - 1]!.ca - 1);
-    rb.push(shared[i]!.cb / shared[i - 1]!.cb - 1);
+    const prev = shared[i - 1]!;
+    const cur = shared[i]!;
+    if (daysBetween(prev.date, cur.date) > MAX_GAP_DAYS) continue;
+    ra.push(cur.ca / prev.ca - 1);
+    rb.push(cur.cb / prev.cb - 1);
   }
-  return { ra, rb };
+  return ra.length > 0 ? { ra, rb } : null;
 }
 
 export function pearsonCorrelationAligned(a: DatedClose[], b: DatedClose[]): number | null {
@@ -78,11 +89,22 @@ export function covarianceAligned(a: DatedClose[], b: DatedClose[]): number | nu
   return cov / (n - 1);
 }
 
+/** Sample σ of successive returns on one series (gap-aware vs itself). */
+export function ownSigma(closes: DatedClose[]): number | null {
+  const aligned = alignReturns(closes, closes);
+  if (!aligned || aligned.ra.length < MIN_OWN_CLOSES - 1) return null;
+  const { ra } = aligned;
+  const m = mean(ra);
+  let v = 0;
+  for (const r of ra) v += (r - m) ** 2;
+  const s = Math.sqrt(v / (ra.length - 1));
+  return Number.isFinite(s) && s > 0 ? s : null;
+}
+
 export interface PortfolioRiskInput {
   ticker: string;
-  /** Signed exposure weight (percent or fraction). Short stock / short call → negative. */
+  /** Signed exposure weight. Short stock / short call → negative. */
   weight: number;
-  /** Apply covered-call δ×0.70 haircut to this ticker's weight magnitude. */
   coveredCall?: boolean;
 }
 
@@ -95,14 +117,19 @@ export interface PortfolioRiskResult {
   var95Usd: number;
   cvar95Usd: number;
   skippedTickers: string[];
-  /** A257: underlying parametric VaR (not full option-book VaR). */
   varBasis?: "underlying";
+  /** Names using SPY×1.5 or thin-history σ proxy. */
+  varProxy?: string[];
+  /** True when variance used diagonal+ρ̄ fallback after negative pairwise build. */
+  varFallback?: boolean;
+  coverage?: RiskCoverage;
+  /** Share of gross weight that entered the VaR (incl. proxies). */
+  pricedGrossPct?: number;
 }
 
 async function loadDatedClosesFromDb(tickers: string[]): Promise<Map<string, DatedClose[]>> {
   const out = new Map<string, DatedClose[]>();
   if (tickers.length === 0) return out;
-  // Trading-day cutoff (ET), not a UTC date slice (A257).
   const today = etDateKey();
   const [y, m, d] = today.split("-").map(Number);
   const cutoffDt = new Date(Date.UTC(y!, m! - 1, d!));
@@ -137,72 +164,152 @@ async function loadDatedClosesFromDb(tickers: string[]): Promise<Map<string, Dat
   return out;
 }
 
-/** Pure core — tests call this with fixture closes. */
+function buildVariance(
+  tickers: string[],
+  w: (t: string) => number,
+  covOf: (a: string, b: string) => number,
+): number {
+  let variance = 0;
+  for (const a of tickers) {
+    for (const b of tickers) {
+      variance += w(a) * w(b) * covOf(a, b);
+    }
+  }
+  return variance;
+}
+
+/** Pure core — tests call this with fixture closes. Pass spyCloses for thin-name σ proxy. */
 export function computePortfolioRiskFromCloses(
   positions: PortfolioRiskInput[],
   portfolioValueUsd: number,
   closesByTicker: Map<string, DatedClose[]>,
+  spyCloses?: DatedClose[] | null,
 ): PortfolioRiskResult {
-  // Prefer heavier |weight| first when we cap the matrix. Keep sign when aggregating.
   const weightAgg = new Map<string, number>();
-  const covered = new Set<string>();
   for (const p of positions) {
     const t = p.ticker.toUpperCase();
-    let w = p.weight;
-    if (p.coveredCall) {
-      covered.add(t);
-      w *= COVERED_CALL_WEIGHT_HAIRCUT;
-    }
-    weightAgg.set(t, (weightAgg.get(t) ?? 0) + w);
+    let ww = p.weight;
+    if (p.coveredCall) ww *= COVERED_CALL_WEIGHT_HAIRCUT;
+    weightAgg.set(t, (weightAgg.get(t) ?? 0) + ww);
   }
   const ranked = [...weightAgg.entries()].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const uniqueTickers = ranked.map(([t]) => t);
+  const fullGross = [...weightAgg.values()].reduce((s, x) => s + Math.abs(x), 0);
 
   const skippedTickers: string[] = [];
-  const withHistory = uniqueTickers.filter((t) => {
-    const n = closesByTicker.get(t)?.length ?? 0;
-    if (n >= MIN_CLOSES) return true;
+  const varProxy: string[] = [];
+  const sigma = new Map<string, number>();
+  const spySig = spyCloses ? ownSigma(spyCloses) : null;
+
+  for (const t of uniqueTickers) {
+    const closes = closesByTicker.get(t);
+    const s = closes ? ownSigma(closes) : null;
+    if (s != null) {
+      sigma.set(t, s);
+      if ((closes?.length ?? 0) < MIN_SHARED_RETURNS + 1) varProxy.push(t);
+    } else if (spySig != null) {
+      sigma.set(t, spySig * SPY_PROXY_MULT);
+      varProxy.push(t);
+    } else {
+      skippedTickers.push(t);
+    }
+  }
+
+  const priced = uniqueTickers.filter((t) => sigma.has(t)).slice(0, MAX_TICKERS);
+  for (const t of uniqueTickers.filter((x) => sigma.has(x)).slice(MAX_TICKERS)) {
     skippedTickers.push(t);
-    return false;
-  });
+    sigma.delete(t);
+  }
 
-  const tickers = withHistory.slice(0, MAX_TICKERS);
-  for (const t of withHistory.slice(MAX_TICKERS)) skippedTickers.push(t);
+  const pricedGross = priced.reduce((s, t) => s + Math.abs(weightAgg.get(t) ?? 0), 0);
+  const pricedGrossPct = fullGross > 0 ? parseFloat(((pricedGross / fullGross) * 100).toFixed(1)) : 0;
+  let coverage: RiskCoverage = "none";
+  if (priced.length === 0 || pricedGross <= 0) coverage = "none";
+  else if (skippedTickers.length > 0 || pricedGross + 1e-9 < fullGross) coverage = "partial";
+  else coverage = "full";
 
-  const correlationMatrix = tickers.map((a) =>
-    tickers.map((b) => {
+  if (coverage === "none") {
+    return {
+      tickers: [],
+      correlationMatrix: [],
+      dailyVolatilityPct: 0,
+      var95Pct: 0,
+      cvar95Pct: 0,
+      var95Usd: 0,
+      cvar95Usd: 0,
+      skippedTickers: [...new Set([...skippedTickers, ...uniqueTickers])],
+      varBasis: "underlying",
+      varProxy: [],
+      varFallback: false,
+      coverage: "none",
+      pricedGrossPct: 0,
+    };
+  }
+
+  // Normalize by full gross (incl. uncovered) so dropping a name doesn't inflate the rest to 100%.
+  const denom = fullGross > 0 ? fullGross : pricedGross;
+
+  // Valid pairwise ρ (≥ MIN_SHARED_RETURNS) before proxies — mean → ρ̄
+  const validRhos: number[] = [];
+  for (let i = 0; i < priced.length; i++) {
+    for (let j = i + 1; j < priced.length; j++) {
+      const a = priced[i]!, b = priced[j]!;
+      const ca = closesByTicker.get(a), cb = closesByTicker.get(b);
+      if (!ca || !cb) continue;
+      const r = pearsonCorrelationAligned(ca, cb);
+      if (r != null) validRhos.push(r);
+    }
+  }
+  const rhoBar = validRhos.length > 0 ? mean(validRhos) : DEFAULT_RHO_BAR;
+
+  const correlationMatrix = priced.map((a) =>
+    priced.map((b) => {
       if (a === b) return 1;
-      const r = pearsonCorrelationAligned(closesByTicker.get(a)!, closesByTicker.get(b)!);
-      return r == null ? 0 : parseFloat(r.toFixed(3));
+      const ca = closesByTicker.get(a), cb = closesByTicker.get(b);
+      if (ca && cb) {
+        const r = pearsonCorrelationAligned(ca, cb);
+        if (r != null) return parseFloat(r.toFixed(3));
+      }
+      // Disjoint / thin: show ρ̄, not 0 (0 understated risk)
+      return parseFloat(rhoBar.toFixed(3));
     }),
   );
 
-  // Signed weights — do not abs. Renormalize by gross (|w| sum).
-  const weightMap = new Map<string, number>();
-  for (const t of tickers) {
-    if (!weightAgg.has(t)) continue;
-    weightMap.set(t, weightAgg.get(t)!);
-  }
-  const gross = [...weightMap.values()].reduce((s, w) => s + Math.abs(w), 0);
-  const w = (t: string) => (gross > 0 ? (weightMap.get(t) ?? 0) / gross : 0);
+  const w = (t: string) => (denom > 0 ? (weightAgg.get(t) ?? 0) / denom : 0);
 
-  let variance = 0;
-  for (const a of tickers) {
-    for (const b of tickers) {
-      const cov = a === b
-        ? covarianceAligned(closesByTicker.get(a)!, closesByTicker.get(a)!)
-        : covarianceAligned(closesByTicker.get(a)!, closesByTicker.get(b)!);
-      if (cov == null) continue; // pair under MIN_SHARED_RETURNS — skip, don't tail-slice
-      variance += w(a) * w(b) * cov;
+  const covOf = (a: string, b: string): number => {
+    if (a === b) {
+      const s = sigma.get(a)!;
+      return s * s;
+    }
+    const ca = closesByTicker.get(a), cb = closesByTicker.get(b);
+    if (ca && cb) {
+      const c = covarianceAligned(ca, cb);
+      if (c != null) return c;
+    }
+    return rhoBar * sigma.get(a)! * sigma.get(b)!;
+  };
+
+  let variance = buildVariance(priced, w, covOf);
+  let varFallback = false;
+  if (!(variance >= 0) || !Number.isFinite(variance)) {
+    logger.warn({ variance }, "portfolio VaR pairwise variance non-PSD — diagonal+ρ̄ fallback");
+    varFallback = true;
+    variance = buildVariance(priced, w, (a, b) =>
+      a === b ? sigma.get(a)! ** 2 : rhoBar * sigma.get(a)! * sigma.get(b)!,
+    );
+    if (!(variance >= 0) || !Number.isFinite(variance)) {
+      // Last resort: diagonal only
+      variance = priced.reduce((s, t) => s + w(t) ** 2 * sigma.get(t)! ** 2, 0);
     }
   }
-  const dailyVol = Math.sqrt(Math.max(0, variance));
 
+  const dailyVol = Math.sqrt(Math.max(0, variance));
   const var95Pct = Z_95 * dailyVol * 100;
   const cvar95Pct = CVAR_95_MULT * dailyVol * 100;
 
   return {
-    tickers,
+    tickers: priced,
     correlationMatrix,
     dailyVolatilityPct: parseFloat((dailyVol * 100).toFixed(3)),
     var95Pct: parseFloat(var95Pct.toFixed(3)),
@@ -211,6 +318,10 @@ export function computePortfolioRiskFromCloses(
     cvar95Usd: parseFloat(((cvar95Pct / 100) * portfolioValueUsd).toFixed(2)),
     skippedTickers,
     varBasis: "underlying",
+    varProxy: [...new Set(varProxy)].filter((t) => priced.includes(t)),
+    varFallback,
+    coverage,
+    pricedGrossPct,
   };
 }
 
@@ -227,6 +338,7 @@ export async function computePortfolioRisk(
     .sort((a, b) => b[1] - a[1])
     .map(([t]) => t);
 
-  const closesByTicker = await loadDatedClosesFromDb(uniqueTickers);
-  return computePortfolioRiskFromCloses(positions, portfolioValueUsd, closesByTicker);
+  const closesByTicker = await loadDatedClosesFromDb([...uniqueTickers, "SPY"]);
+  const spy = closesByTicker.get("SPY") ?? null;
+  return computePortfolioRiskFromCloses(positions, portfolioValueUsd, closesByTicker, spy);
 }

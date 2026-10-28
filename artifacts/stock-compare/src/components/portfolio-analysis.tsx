@@ -851,21 +851,21 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                       {
                         key: "var",
                         lines: ["VaR", "95%"],
-                        value: formatCompactCurrency(portfolioRisk.var95Usd),
+                        value: portfolioRisk.coverage === "none" ? "no prices" : formatCompactCurrency(portfolioRisk.var95Usd),
                         color: "text-yellow-400",
-                        hint: "Underlying parametric VaR (not option-book VaR): rough 1-day loss you shouldn't exceed 95% of the time from signed stock/option exposures and date-aligned returns. Not a guarantee.",
+                        hint: `Underlying parametric VaR (not option-book). Coverage ${portfolioRisk.coverage ?? "?"}${portfolioRisk.pricedGrossPct != null ? ` · priced ${portfolioRisk.pricedGrossPct}% gross` : ""}${portfolioRisk.varProxy?.length ? ` · proxy σ: ${portfolioRisk.varProxy.join(", ")}` : ""}${portfolioRisk.varFallback ? " · PSD fallback" : ""}. Not a guarantee.`,
                       },
                       {
                         key: "cvar",
                         lines: ["CVaR", "95%"],
-                        value: formatCompactCurrency(portfolioRisk.cvar95Usd),
+                        value: portfolioRisk.coverage === "none" ? "—" : formatCompactCurrency(portfolioRisk.cvar95Usd),
                         color: "text-red-400",
                         hint: "Underlying CVaR — average loss on the bad 5% of days if VaR is breached (same signed, date-aligned model).",
                       },
                       {
                         key: "vol",
                         lines: ["Daily", "vol"],
-                        value: `${portfolioRisk.dailyVolatilityPct.toFixed(2)}%`,
+                        value: portfolioRisk.coverage === "none" ? "—" : `${portfolioRisk.dailyVolatilityPct.toFixed(2)}%`,
                         color: "text-zinc-100",
                         hint: "Estimated day-to-day % swing from date-aligned returns and signed weights (shorts hedge).",
                       },
@@ -1300,10 +1300,23 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
           </div>
           {detailTab === "corr" && portfolioRisk && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono tabular-nums pt-1.5 pb-0.5">
-              <span className="text-yellow-400">VaR 95% {formatCompactCurrency(portfolioRisk.var95Usd)} ({portfolioRisk.var95Pct.toFixed(1)}%)</span>
-              <span className="text-red-400">CVaR {formatCompactCurrency(portfolioRisk.cvar95Usd)} ({portfolioRisk.cvar95Pct.toFixed(1)}%)</span>
-              <span className="text-white">Vol {portfolioRisk.dailyVolatilityPct.toFixed(2)}%</span>
-              <span className="text-white">{portfolioRisk.tickers.length} names</span>
+              {portfolioRisk.coverage === "none" ? (
+                <span className="text-amber-300">VaR — no prices</span>
+              ) : (
+                <>
+                  <span className="text-yellow-400">VaR 95% {formatCompactCurrency(portfolioRisk.var95Usd)} ({portfolioRisk.var95Pct.toFixed(1)}%)</span>
+                  <span className="text-red-400">CVaR {formatCompactCurrency(portfolioRisk.cvar95Usd)} ({portfolioRisk.cvar95Pct.toFixed(1)}%)</span>
+                  <span className="text-white">Vol {portfolioRisk.dailyVolatilityPct.toFixed(2)}%</span>
+                </>
+              )}
+              <span className="text-white">{portfolioRisk.tickers.length} names{portfolioRisk.pricedGrossPct != null ? ` · ${portfolioRisk.pricedGrossPct}% gross` : ""}</span>
+              {portfolioRisk.varProxy && portfolioRisk.varProxy.length > 0 && (
+                <span className="text-amber-200/80 truncate max-w-[200px]" title={portfolioRisk.varProxy.join(", ")}>
+                  proxy: {portfolioRisk.varProxy.slice(0, 4).join(", ")}
+                  {portfolioRisk.varProxy.length > 4 ? ` +${portfolioRisk.varProxy.length - 4}` : ""}
+                </span>
+              )}
+              {portfolioRisk.varFallback && <span className="text-amber-300">PSD fallback</span>}
               {portfolioRisk.skippedTickers.length > 0 && (
                 <span className="text-white/80 truncate max-w-[220px]" title={portfolioRisk.skippedTickers.join(", ")}>
                   no hx: {portfolioRisk.skippedTickers.slice(0, 6).join(", ")}

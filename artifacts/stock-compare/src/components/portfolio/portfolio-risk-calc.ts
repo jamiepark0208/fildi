@@ -19,6 +19,10 @@ export interface PortfolioRiskResult {
   skippedTickers: string[];
   /** A257: underlying parametric VaR (not full option-book VaR). */
   varBasis?: "underlying";
+  varProxy?: string[];
+  varFallback?: boolean;
+  coverage?: "none" | "partial" | "full";
+  pricedGrossPct?: number;
 }
 
 // ── Margin usage ──────────────────────────────────────────────────────────────
