@@ -1,6 +1,7 @@
 /**
- * A82 — Kalshi public read for macro odds (FOMC decision + CPI YoY median).
- * Internal display only (Kalshi ToS / CFTC 11.1). Hourly TTL; no redistribution.
+ * A82 — Kalshi public read for macro odds (FOMC decision + CPI YoY median)
+ * + short-TTL 15m up/down (BTC; NDQ when listed).
+ * Internal display only (Kalshi ToS / CFTC 11.1). No redistribution.
  */
 import { fetchJsonWithRetry } from "./http-client.js";
 import { TTLCache } from "./ttl-cache.js";
@@ -9,6 +10,8 @@ const BASE = "https://api.elections.kalshi.com/trade-api/v2";
 const UA = "TradeDash/1.0 (internal macro odds; personal use)";
 
 export const kalshiMacroCache = new TTLCache<KalshiMacroStrip>(60 * 60_000, "kalshi-macro", 4);
+/** 15m markets roll fast — keep short; coalesced under one key. */
+export const kalshiIntradayCache = new TTLCache<KalshiIntradayStrip>(45_000, "kalshi-intraday", 4);
 
 export interface FomcOdds {
   eventTicker: string;
@@ -36,6 +39,29 @@ export interface KalshiMacroStrip {
   internalOnly: true;
   fomc: FomcOdds | null;
   cpi: CpiOdds | null;
+  error?: string;
+}
+
+/** Rolling 15-minute up/down contract (yes = up). */
+export interface KalshiFifteenUpDown {
+  series: string;
+  label: string;
+  marketTicker: string;
+  /** Implied P(up) 0–100 from yes mid/last. */
+  upPct: number;
+  downPct: number;
+  closesAt: string | null;
+}
+
+export interface KalshiIntradayStrip {
+  asOf: string;
+  source: "kalshi";
+  internalOnly: true;
+  /** Bitcoin 15m up/down — live when listed (no SPY 15m series on Kalshi). */
+  btc15m: KalshiFifteenUpDown | null;
+  /** Nasdaq-100 15m when Kalshi lists open markets (often empty off-hours). */
+  ndq15m: KalshiFifteenUpDown | null;
+  note: string;
   error?: string;
 }
 
@@ -199,4 +225,89 @@ export async function fetchKalshiMacroStrip(): Promise<KalshiMacroStrip> {
       };
     }
   });
+}
+
+async function fetchFifteenUpDown(series: string, label: string): Promise<KalshiFifteenUpDown | null> {
+  const markets = await kalshiGet<{ markets?: Array<KalshiMarket & {
+    ticker?: string;
+    title?: string;
+    close_time?: string;
+    expected_expiration_time?: string;
+    yes_ask_dollars?: string | number;
+  }> }>(
+    `/markets?limit=5&status=open&series_ticker=${encodeURIComponent(series)}`,
+  );
+  const m = markets.markets?.[0];
+  if (!m?.ticker) return null;
+  const bid = yesProb(m);
+  const askRaw = m.yes_ask_dollars;
+  const ask = typeof askRaw === "number" ? askRaw : parseFloat(String(askRaw ?? ""));
+  const mid = Number.isFinite(ask) && ask > 0 ? (bid + ask) / 2 : bid;
+  if (!(mid > 0)) return null;
+  const upPct = Math.round(mid * 100);
+  return {
+    series,
+    label,
+    marketTicker: m.ticker,
+    upPct,
+    downPct: Math.max(0, 100 - upPct),
+    closesAt: m.close_time ?? m.expected_expiration_time ?? null,
+  };
+}
+
+export async function fetchKalshiIntradayStrip(): Promise<KalshiIntradayStrip> {
+  return kalshiIntradayCache.getOrCompute("15m", async () => {
+    const note = "Display-only crowd odds · not a FILDI forecast · no SPY 15m series on Kalshi (use BTC / NDQ when listed)";
+    try {
+      const [btc15m, ndq15m] = await Promise.all([
+        fetchFifteenUpDown("KXBTC15M", "BTC").catch(() => null),
+        fetchFifteenUpDown("KXNDQ15M", "NDQ").catch(() => null),
+      ]);
+      return {
+        asOf: new Date().toISOString(),
+        source: "kalshi",
+        internalOnly: true,
+        btc15m,
+        ndq15m,
+        note,
+        ...(btc15m || ndq15m ? {} : { error: "no open Kalshi 15m markets" }),
+      };
+    } catch (e) {
+      return {
+        asOf: new Date().toISOString(),
+        source: "kalshi",
+        internalOnly: true,
+        btc15m: null,
+        ndq15m: null,
+        note,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  });
+}
+
+/** Macro (hourly) + 15m (45s) in one payload for Live / News. */
+export async function fetchKalshiPredMarketsBundle(): Promise<KalshiMacroStrip & {
+  btc15m: KalshiFifteenUpDown | null;
+  ndq15m: KalshiFifteenUpDown | null;
+  intradayNote: string;
+}> {
+  const [macro, intra] = await Promise.all([
+    fetchKalshiMacroStrip(),
+    fetchKalshiIntradayStrip(),
+  ]);
+  const error = (!macro.fomc && !macro.cpi && !intra.btc15m && !intra.ndq15m)
+    ? (macro.error || intra.error)
+    : undefined;
+  return {
+    asOf: macro.asOf,
+    source: "kalshi" as const,
+    internalOnly: true as const,
+    fomc: macro.fomc,
+    cpi: macro.cpi,
+    btc15m: intra.btc15m,
+    ndq15m: intra.ndq15m,
+    intradayNote: intra.note,
+    ...(error ? { error } : {}),
+  };
 }

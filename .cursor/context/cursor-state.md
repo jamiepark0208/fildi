@@ -8,7 +8,7 @@
 2. Daily News Implications: gold leads + compress + 2-col skim.
 3. Rankings tab hierarchy: L1 colored (`subTabClass`+`RANKINGS_TAB_HUE`); L2 gold (`scopePairClass`=`guideSubTabClass`) for Watchlist|Overall · Sell Puts|Calls; divider; docs in `sub-tabs.ts` + ui-components.
 
-**Not committed** (standing rule: only commit when Jamie asks).
+**Committed + synced:** `60512d1f` / follow-up `5471b3f5` → pushed via agent-git-sync (`36cf68d4`).
 
 ## Still open (not this chat’s asks)
 - **A301** Desk adds quality (email-URL dig / Muse-level synthesis) — planned/open; needs build, not UI chrome.

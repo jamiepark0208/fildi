@@ -8,6 +8,7 @@
 3. **Team bus is sync'd in step 1** — do not hand `git pull` / stash / rebase (AGENTS.md rule 2). If Sync line says behind/conflict, fix via the script only.
 3b. **Learn ritual (A209):** `bash scripts/agent-learn.sh cursor` — skim top waste turns; prefer oj/codegraph when loop/Acts high.
 4. Read open **`research/common/ASKS.md`** rows **Muse → Cursor** (and Cursor → Muse). **Cursor owns all Muse handoffs** (user 2026-10-07) — Claude does not implement them. ASKS.md is a one-line index — details/replies/reviews in `research/common/asks/A##.md` (open only rows you act on; update the index status word). `[quant]` rows: build from status `planned` (Claude's plan review), or after 48 h without it. Commit with `Refs: A##` + `Agent: cursor` when the build finishes — do not ask Jamie whether to commit agent-bus work. See `AGENTS.md` § Review loop. Adapter: `MUSE.md`
+4c. **Drain without re-asking (Jamie 10-28):** “finish / continue / what's next / Ideas assigned to you” = claim next open/planned Cursor row → implement → ship-check → commit → `agent-git-sync` → next row. **Never** stop to ask “commit?” / “continue?” / “want me to…?”. Only stop for real blockers (missing secret, vendor down, scoring change needing a number Jamie must pick). Keep `.cursor/context/drain-queue.md` + `cursor-state.md` current.
 4b. **Ship gate (Jamie 2026-10-18 / A94):** before any commit that touches `artifacts/api-server/src/**` or `artifacts/stock-compare/src/**`, run `scripts/agent-ship-check.sh` (typecheck; healthz warn). `agent-git-sync.sh` also runs it before push. Wrong middleware imports crash the whole API — never skip. No loops/subagents for ship automation.
 5. Shared map: **`.agents/context/INDEX.md`** (also root **`AGENTS.md`**)
 6. Task code context: **codegraph** MCP
@@ -59,6 +60,7 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | RSI/MFI scanner (not Model List) | `signal-filters.md` |
 | Model List / fit / watchlist_sync | `model-list.md` |
 | Fildi app UI (GRID_*, no grey) | `ui-components.md` |
+| **UI chrome trim** (Scorecard presets/blurbs/bars/FAB — Jamie repeats) | `.cursor/skills/ui-chrome/SKILL.md` (+ `.claude/skills/ui-chrome.md`) |
 | DB schema / queries | `db-patterns.md` |
 | Trader strategy | `trader-context.md` |
 | Technical scorecard | `technical-scorecard.md` |
@@ -74,8 +76,8 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | Studies / backtests / scenario analysis (judgment) | `.agents/skills/fildi-quant-research/SKILL.md` |
 | Data source choice + vendor budgets | `.agents/skills/fildi-market-data/SKILL.md` |
 | Score / recommendation quality | `.agents/skills/fildi-grade-quality/SKILL.md` |
-| Replit-only setup | `replit-setup.md` (skip on Mac) |
 | Market / sector thesis (claim tree, analogs, money flows, scenarios) | `.agents/skills/fildi-market-thesis/SKILL.md` |
+| Replit-only setup | `replit-setup.md` (skip on Mac) |
 | Claude session wrap | `session-wrap.md` — Claude only |
 
 Multi-agent bus / ASKS / `agent-git-sync` / ship-check: **AGENTS.md** (not a skill).

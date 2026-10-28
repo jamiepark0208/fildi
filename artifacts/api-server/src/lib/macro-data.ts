@@ -191,11 +191,14 @@ export { computeVolatilityImplications } from "./macro/macro-volatility.js";
 export { fetchMacroCharts } from "./macro/macro-charts.js";
 export {
   loadMacroCache,
+  readMacroCacheFile,
   saveMacroCache,
   isCacheStale,
   MACRO_DATA_TTL_MS,
   MACRO_CHARTS_TTL_MS,
   loadChartsCache,
+  readChartsCacheFile,
+  chartsSeriesOk,
   saveChartsCache,
   isChartsCacheStale,
   loadSectorRotationCache,

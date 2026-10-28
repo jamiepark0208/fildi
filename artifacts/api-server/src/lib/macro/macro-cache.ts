@@ -15,14 +15,26 @@ const CACHE_FILE        = join(ROOT, "macro-data.json");
 const CHARTS_CACHE_FILE = join(ROOT, "macro-charts.json");
 const SECTOR_CACHE_FILE = join(ROOT, "macro-sector-rotation.json");
 
-export function loadMacroCache(): MacroData | null {
+/** Raw disk read — no freshness/completeness gates (used to salvage a prior good curve). */
+export function readMacroCacheFile(): MacroData | null {
   try {
     if (!existsSync(CACHE_FILE)) return null;
-    const raw  = readFileSync(CACHE_FILE, "utf-8");
-    const data = JSON.parse(raw) as MacroData;
+    return JSON.parse(readFileSync(CACHE_FILE, "utf-8")) as MacroData;
+  } catch {
+    return null;
+  }
+}
+
+export function loadMacroCache(): MacroData | null {
+  try {
+    const data = readMacroCacheFile();
+    if (!data) return null;
     if (!data.yieldCurve || data.usDebt === undefined) return null;
+    // Empty curve = poisoned cache (Treasury.gov timeout) — force refresh, don't serve blank chart for 4h.
+    if (!Array.isArray(data.yieldCurve) || data.yieldCurve.length === 0) return null;
+    if (!data.yieldCurve.some((p) => p?.current != null)) return null;
     // Invalidate if yield curve doesn't have new weekAgo field
-    if (data.yieldCurve.length > 0 && !("weekAgo" in data.yieldCurve[0])) return null;
+    if (!("weekAgo" in data.yieldCurve[0]!)) return null;
     return data;
   } catch {
     return null;
@@ -40,10 +52,35 @@ export function isCacheStale(data: MacroData, ttlHours = 4): boolean {
 export const MACRO_DATA_TTL_MS    = 4  * 3_600_000; // 4h
 export const MACRO_CHARTS_TTL_MS  = 4  * 3_600_000; // 4h — daily/weekly series; refreshes intraday
 
-export function loadChartsCache(): MacroCharts | null {
+/** Raw disk read — no completeness gates (salvage prior good FRED/GSCPI series). */
+export function readChartsCacheFile(): MacroCharts | null {
   try {
     if (!existsSync(CHARTS_CACHE_FILE)) return null;
-    const data = JSON.parse(readFileSync(CHARTS_CACHE_FILE, "utf-8")) as MacroCharts;
+    return JSON.parse(readFileSync(CHARTS_CACHE_FILE, "utf-8")) as MacroCharts;
+  } catch {
+    return null;
+  }
+}
+
+/** FRED/NYFed series Regime/Liquidity charts need — empty used to poison the 4h cache.
+ *  Yahoo series (tenYear, copperGold, vix) are soft: 429s must not block saving FRED fills. */
+const CHARTS_REQUIRED_NONEMPTY: (keyof MacroCharts)[] = [
+  "hySpreadHistory", "igSpreadHistory", "gscpiHistory",
+  "moneyMarketHistory", "nfciHistory", "fedAssetsHistory",
+];
+
+export function chartsSeriesOk(data: MacroCharts | null | undefined): boolean {
+  if (!data) return false;
+  return CHARTS_REQUIRED_NONEMPTY.every((k) => {
+    const v = data[k];
+    return Array.isArray(v) && v.length > 0;
+  });
+}
+
+export function loadChartsCache(): MacroCharts | null {
+  try {
+    const data = readChartsCacheFile();
+    if (!data) return null;
     if (!data.vixCurve || !data.fedFundsCurve) return null;
     if (!data.hySpreadHistory || !data.putCallHistory || !data.fearGreedHistory) return null;
     if (!("putCallRatioHistory" in data) || !("gscpiHistory" in data) || !("moneyMarketHistory" in data)) return null;
@@ -51,6 +88,8 @@ export function loadChartsCache(): MacroCharts | null {
     if (!("netLiquidityHistory" in data) || !("fedAssetsHistory" in data) || !("tgaHistory" in data) || !("rrpHistory" in data) || !("reservesHistory" in data)) return null;
     if (!("sofrIorbSpreadHistory" in data) || !("liquidityImplications" in data)) return null;
     if (!("moveHistory" in data) || !("volatilityImplications" in data)) return null;
+    // Empty FRED/NYFed series = poisoned cache (timeouts) — force refresh, don't serve "No data" for 4h.
+    if (!chartsSeriesOk(data)) return null;
     return data;
   } catch {
     return null;

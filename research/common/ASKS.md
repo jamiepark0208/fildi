@@ -278,4 +278,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A301](asks/A301.md) | 2026-10-28 | Cursor → Claude | Daily News Desk adds quality: Muse-compress + dig email URLs + theme/watch weight (A45 follow-on) | planned |
 | [A302](asks/A302.md) | 2026-10-28 | Claude → Cursor | Commit (or drop) the Live-tab WIP running uncommitted since 10-21 — Asia deadline + DNS bypass | done |
 | [A303](asks/A303.md) | 2026-10-28 | Claude → Claude | One vendor policy table + cross-process budgets + macro merge-with-prior (runtime audit) | done (Claude 10-28: built + tested) |
-| [A304](asks/A304.md) | 2026-10-28 | Muse → Cursor | CI typecheck red — stock-breakdown + options-scanner import missing sub-tabs + HeaderStats | open |
+| [A304](asks/A304.md) | 2026-10-28 | Muse → Cursor | CI typecheck red — stock-breakdown + options-scanner import missing sub-tabs + HeaderStats | done (Cursor 10-28: sub-tabs + HeaderStats + Kalshi/macro exports) |
