@@ -160,13 +160,38 @@ def own_s2c(h: dict, tax: float, ttm: dict | None = None) -> float | None:
     return float(np.clip(d_rev / (rr * float(np.mean(nopats))), 0.3, 8.0))
 
 
-def consensus(conn, t: str, ttm_end: str | None) -> dict | None:
+def _ibes_rows(conn, t: str, asof) -> list[dict]:
+    """Point-in-time consensus (S116 backtest): IBES SAL/EBI FY1–FY3 at the last statpers ≤ asof, FY0 street actual
+    announced by asof (wrds_research, research only). Same shape as consensus_annual rows; units cancel (ratios only)."""
+    act = rows(conn, """SELECT pends, MAX(value) FILTER (WHERE measure = 'SAL') sal, MAX(value) FILTER (WHERE measure = 'EBI') ebi
+                        FROM wrds_research.ibes_act_x WHERE oftic = %s AND anndats <= %s GROUP BY pends ORDER BY pends DESC LIMIT 1""", (t, asof))
+    est = rows(conn, """SELECT DISTINCT ON (measure, fpi) measure, fpi, fpedats, meanest, highest, lowest, numest, statpers
+                        FROM wrds_research.ibes_statsum WHERE oftic = %s AND measure IN ('SAL', 'EBI') AND fiscalp = 'ANN'
+                        AND fpi IN ('1', '2', '3') AND statpers <= %s AND statpers > %s::date - 45 ORDER BY measure, fpi, statpers DESC""", (t, asof, asof))
+    if not act or act[0]["sal"] is None:
+        return []
+    out = [{"fiscal_end": act[0]["pends"], "actual": True, "rev_avg": act[0]["sal"], "rev_low": None, "rev_high": None,
+            "ebit_avg": act[0]["ebi"], "ebit_low": None, "ebit_high": None, "n_rev": None, "as_of": asof}]
+    for f in ("1", "2", "3"):
+        sa = next((e for e in est if e["measure"] == "SAL" and e["fpi"] == f), None)
+        eb = next((e for e in est if e["measure"] == "EBI" and e["fpi"] == f), None)
+        if sa:
+            out.append({"fiscal_end": sa["fpedats"], "actual": False, "rev_avg": sa["meanest"], "rev_low": sa["lowest"], "rev_high": sa["highest"],
+                        "ebit_avg": eb["meanest"] if eb else None, "ebit_low": eb["lowest"] if eb else None,
+                        "ebit_high": eb["highest"] if eb else None, "n_rev": sa["numest"], "as_of": asof})
+    return sorted(out, key=lambda q: q["fiscal_end"])
+
+
+def consensus(conn, t: str, ttm_end: str | None, asof=None) -> dict | None:
     """Consensus revenue/margin path at our TTM dates (years 0–3): log-revenue and street margin interpolated in time
-    between FY0 actual and FY1–FY3 means, extrapolated past FY3 at the FY2→FY3 rate. None without FY0 + 2 estimates."""
-    r = rows(conn, """SELECT fiscal_end, actual, rev_avg, rev_low, rev_high, ebit_avg, ebit_low, ebit_high, n_rev, as_of
+    between FY0 actual and FY1–FY3 means, extrapolated past FY3 at the FY2→FY3 rate. None without FY0 + 2 estimates.
+    asof → IBES history instead of today's LSEG pull (backtest)."""
+    r = _ibes_rows(conn, t, asof) if asof else rows(conn, """SELECT fiscal_end, actual, rev_avg, rev_low, rev_high, ebit_avg, ebit_low, ebit_high, n_rev, as_of
                       FROM watchlist_sync.consensus_annual WHERE ticker = %s AND source = 'lseg'
                       AND as_of = (SELECT max(as_of) FROM watchlist_sync.consensus_annual WHERE ticker = %s AND source = 'lseg')
                       ORDER BY fiscal_end""", (t, t))
+    if not r:
+        return None
     a = [q for q in r if q["actual"]]
     e = [q for q in r if not q["actual"] and q["rev_avg"] and q["rev_avg"] > 0 and (not a or q["fiscal_end"] > a[-1]["fiscal_end"])]
     if not a or not a[-1]["rev_avg"] or a[-1]["rev_avg"] <= 0 or len(e) < 2 or not ttm_end:
@@ -195,24 +220,36 @@ def consensus(conn, t: str, ttm_end: str | None) -> dict | None:
     return out
 
 
-def inputs(conn, t: str, base: dict | None = None) -> dict:
+def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> dict:
+    """pit = {"asof", "price", "beta", "rf"} → point-in-time inputs for the S116 backtest (IBES consensus, no LSEG
+    signals / vendor sanity checks, which are today's); base must then be the as-of SEC base."""
     if base is None:
         base = ttm_base(conn, t)
         conn.commit()
     v = lambda k: (base.get(k) or {}).get("value") or 0.0
-    sig = rows(conn, """SELECT revenue_mean_fy1, fy1_period_end, issuer_rating FROM lseg_research.signals_daily
+    sig = [] if pit else rows(conn, """SELECT revenue_mean_fy1, fy1_period_end, issuer_rating FROM lseg_research.signals_daily
                         WHERE ticker = %s ORDER BY as_of DESC LIMIT 1""", (t,))
     tf = rows(conn, """SELECT f.beta, r.primary_peer_group_id g, (SELECT price FROM fair_value_snapshots s WHERE s.ticker = f.ticker
-                       ORDER BY as_of DESC LIMIT 1) price FROM ticker_fundamentals f JOIN ticker_registry r ON r.ticker = f.ticker WHERE f.ticker = %s""", (t,))
+                       ORDER BY as_of DESC LIMIT 1) price FROM ticker_registry r LEFT JOIN ticker_fundamentals f ON r.ticker = f.ticker WHERE r.ticker = %s""", (t,))
     cma = rows(conn, "SELECT as_of, values, pairs FROM watchlist_sync.cma_monthly ORDER BY as_of DESC LIMIT 1")[0]
-    s, f = (sig[0] if sig else {}), tf[0]
+    s, f = (sig[0] if sig else {}), dict(tf[0])
+    if pit:
+        f.update(price=pit["price"], beta=pit["beta"])
+        cma = json.loads(json.dumps(cma, default=str))
+        b = cma["pairs"]["base"]
+        b["rf"] = pit["rf"]
+        if pit.get("erp") is not None:  # shift the ERP triangle to the as-of implied ERP
+            dlt = pit["erp"] - b["erp_dist"]["mode"]
+            b["erp_dist"] = {k: v + dlt if isinstance(v, (int, float)) else v for k, v in b["erp_dist"].items()}
+            b["erp"] = pit["erp"]
+        b["g_dist"] = {k: min(v, pit["rf"]) if isinstance(v, (int, float)) else v for k, v in b["g_dist"].items()}  # terminal growth ≤ risk-free (DCF_PLAN §C)
     rev = v("revenue")
     rev_fy = (base.get("revenue") or {}).get("fy_value") or rev
     fy1 = float(s["revenue_mean_fy1"]) if s.get("revenue_mean_fy1") else None
     g1 = (fy1 / rev_fy - 1) if fy1 and rev_fy > 0 and 0.3 < fy1 / rev_fy < 4 else None
     oi = v("operating_income") or (v("pretax_income") + v("interest_expense"))
     # sanity vs vendor gold: one mis-scaled XBRL tag (BWXT operating leases $44.2B vs ~$44M) wipes out the equity
-    gold = rows(conn, "SELECT total_debt FROM ticker_fundamentals WHERE ticker = %s", (t,))
+    gold = [] if pit else rows(conn, "SELECT total_debt FROM ticker_fundamentals WHERE ticker = %s", (t,))
     gold_debt = float(gold[0]["total_debt"] or 0) if gold else 0.0
     leases = v("op_leases") if v("op_leases") <= rev else 0.0
     debt_sec = v("debt_lt") + v("debt_current") + v("st_borrowings")
@@ -229,14 +266,16 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
     gid = f["g"] or "unknown.x"
     sec = "50" if gid in COMM_GROUPS else GICS.get(gid.split(".")[0], "45")
     ie = v("interest_expense")
-    if debt > 0 and (ie <= 0 or ie / debt < 0.015):  # tag mismatch (CHTR 13.7× coverage): vendor interest expense
+    if debt > 0 and (ie <= 0 or ie / debt < 0.015) and not pit:  # tag mismatch (CHTR 13.7× coverage): vendor interest expense
         alt = rows(conn, "SELECT interest_expense FROM ticker_fundamentals WHERE ticker = %s", (t,))
         ie = float(alt[0]["interest_expense"] or 0) if alt else 0
     cov = oi / ie if ie > 0 else None
-    ltg = rows(conn, """SELECT meanest FROM wrds_research.ibes_statsum WHERE UPPER(oftic) = %s AND measure = 'EPS' AND fpi = '0'
+    ltg = [] if pit else rows(conn, """SELECT meanest FROM wrds_research.ibes_statsum WHERE UPPER(oftic) = %s AND measure = 'EPS' AND fpi = '0'
                         AND statpers >= CURRENT_DATE - 180 ORDER BY statpers DESC LIMIT 1""", (t,))
     letter, why = rating_letter(s.get("issuer_rating"), cov)
-    cons = consensus(conn, t, (base.get("revenue") or {}).get("end"))
+    cons = consensus(conn, t, (base.get("revenue") or {}).get("end"), pit["asof"] if pit else None)
+    if pit and cons:
+        g1 = float(cons["g"][0])
     s2c_capex = None
     if s2c_own is None and rev > 0:  # loss years / no history: Δrevenue at the near-term growth rate ÷ net capex (no working capital)
         g_near = float(cons["g"][0]) if cons else g1
@@ -251,6 +290,22 @@ def inputs(conn, t: str, base: dict | None = None) -> dict:
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
             "s2c_own": s2c_own, "s2c_capex": s2c_capex, "sbc0": v("sbc") / rev if rev else 0.0, "fcf": fcf, "flags": flags, "cons": cons, "ltg": float(ltg[0]["meanest"]) / 100 if ltg and ltg[0]["meanest"] is not None else None, "cma": cma}
+
+
+def unvalued(x: dict) -> str | None:
+    """Why a cash-flow DCF does not apply (None = value it). One home for the live run (dcf_watch) and the S116 backtest."""
+    if x["sector"] in ("40", "60"):
+        return "Bank / insurer / REIT — cash-flow DCF does not apply (sector method not built)"
+    if x["m0"] > 0:
+        return None
+    sm = x["cons"].get("sm") if x.get("cons") else None
+    gap_ok = sm is not None and abs(x["m0"] - sm[0]) <= x["sbc0"] + 0.25  # filings vs street margin must reconcile (ASTS −2 % vs −406 %)
+    if sm is not None and sm[3] > 0 and x["rev"] >= 1e8 and x["m0"] > -1.0 and gap_ok:
+        return None
+    why = ("pre-revenue / deep loss — option-like, cash-flow DCF does not apply" if x["rev"] < 1e8 or x["m0"] <= -1.0
+           else "filings vs street margin don't reconcile — data check" if sm is not None and not gap_ok
+           else "street sees no profit by year 3" if sm is not None else "no multi-year consensus")
+    return f"Operating loss (margin {x['m0']:.0%}): {why}"
 
 
 def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict | None = None, scenario: str = "base") -> dict:
@@ -278,7 +333,8 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     else:
         erp = np.full(n, pair["erp"])
     gd = pair["g_dist"]
-    g_T = np.full(n, fx["g_T"]) if "g_T" in fx else rng.triangular(gd["min"], gd["mode"], gd["max"], n)
+    g_T = (np.full(n, fx["g_T"]) if "g_T" in fx else np.full(n, gd["mode"]) if gd["max"] - gd["min"] < 1e-9
+           else rng.triangular(gd["min"], gd["mode"], gd["max"], n))  # degenerate when all capped at a low rf (2020)
 
     g1 = x["g1"] if x["g1"] is not None else 0.05
     q5, q10, gwhy = br.growth(x["rev"], g1)

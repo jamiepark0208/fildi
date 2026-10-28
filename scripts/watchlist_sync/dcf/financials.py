@@ -169,8 +169,22 @@ def fy_history(facts: dict, concepts: list[str], n: int = 5) -> dict[str, float]
 HIST = ("revenue", "operating_income", "ocf", "capex", "sbc", "interest_expense", "tax", "pretax_income")
 
 
-def ttm_base(conn, ticker: str) -> dict | None:
-    facts = companyfacts(conn, ticker)
+def facts_asof(facts: dict, asof: str) -> dict:
+    """Point-in-time view (S116 backtest): only facts filed on or before asof."""
+    keep = lambda units: {u: [x for x in xs if x.get("filed", "9999") <= asof] for u, xs in units.items()}
+    return {**facts, "facts": {ns: {c: {**node, "units": keep(node.get("units", {}))} for c, node in (facts.get("facts", {}).get(ns, {}) or {}).items()}
+                               for ns in ("us-gaap", "dei")}}
+
+
+def stored_facts(conn, ticker: str) -> dict | None:
+    """Latest companyfacts kept in vendor_raw (no SEC call)."""
+    r = rows(conn, """SELECT payload FROM vendor_raw WHERE source = 'sec' AND endpoint = 'companyfacts' AND key = %s
+                      ORDER BY fetched_on DESC LIMIT 1""", (ticker,))
+    return r[0]["payload"] if r else None
+
+
+def ttm_base(conn, ticker: str, facts: dict | None = None) -> dict | None:
+    facts = facts or companyfacts(conn, ticker)
     if not facts:
         return None
     out = {k: ttm_flow(facts, v) for k, v in FLOWS.items()}

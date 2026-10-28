@@ -13,7 +13,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/watchlist_sync"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/watchlist_sync/dcf"))
 from build_plan import connect, rows
-from engine import BaseRates, inputs, reverse, simulate
+from engine import BaseRates, inputs, reverse, simulate, unvalued
 from financials import ttm_base
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -87,18 +87,10 @@ with connect() as c:
                 print(f"{t:6s} no SEC base"); store(c, t, False, {"reason": "No SEC filings base (foreign filer, ETF or not loaded)"}); continue
             b = r[0]["base"]
             x = inputs(c, t, b)
-            if x["sector"] in ("40", "60"):
-                print(f"{t:6s} financial/REIT → sector method (not built)"); store(c, t, False, {"reason": "Bank / insurer / REIT — cash-flow DCF does not apply (sector method not built)"}); continue
-            cons = x.get("cons")
-            sm = cons.get("sm") if cons else None
-            gap_ok = sm is not None and abs(x["m0"] - sm[0]) <= x["sbc0"] + 0.25  # filings vs street margin must reconcile (ASTS −2 % vs −406 %)
-            path_ok = sm is not None and sm[3] > 0 and x["rev"] >= 1e8 and x["m0"] > -1.0 and gap_ok
-            if x["m0"] <= 0 and not path_ok:
-                why = ("pre-revenue / deep loss — option-like, cash-flow DCF does not apply" if x["rev"] < 1e8 or x["m0"] <= -1.0
-                       else "filings vs street margin don't reconcile — data check" if sm is not None and not gap_ok
-                       else "street sees no profit by year 3" if sm is not None else "no multi-year consensus")
-                print(f"{t:6s} {x['price']:7.2f} | operating loss (margin {x['m0']:.0%}) → {why}")
-                store(c, t, False, {"reason": f"Operating loss (margin {x['m0']:.0%}): {why}", "price": x["price"]}); continue
+            why = unvalued(x)
+            if why:
+                print(f"{t:6s} {x['price']:7.2f} | {why}")
+                store(c, t, False, {"reason": why, "price": x["price"]}); continue
             sim = simulate(x, br, n=3000)
             v = sim["vps"]
             sc = {k: float(np.median(simulate(x, br, n=1500, scenario=k)["vps"])) for k in ("normal", "base", "implied", "ltcma")}
