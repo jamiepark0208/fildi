@@ -179,10 +179,20 @@ def band_states(conn, tickers) -> tuple[dict, dict]:
     return mf, names
 
 
-def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[str | None, str]:
+def band_pref(conn) -> dict:
+    """Jamie's put-band setting (10-28): {"mode": "auto"} = band engine · {"mode": "shift", "steps": n} = n bands closer
+    (+) / farther (−) than the engine · {"mode": "fixed", "band": "0.10-0.12"}. Set from the app (PUT /api/put-band)."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.user_prefs (key text PRIMARY KEY, value jsonb NOT NULL,
+                    updated_at timestamptz NOT NULL DEFAULT now())""")
+    row = conn.execute("SELECT value FROM watchlist_sync.user_prefs WHERE key = 'put_band'").fetchone()
+    return row[0] if row else {"mode": "auto"}
+
+
+def engine_put_band(market: dict, name: dict | None, credit_rank=None, pref: dict | None = None) -> tuple[str | None, str]:
     """(band, reason) for a sold put. None = no new puts (panic). Falls back to the rules' default band when the table is
-    missing or the name has no history. Weak credit → one band farther (rules restrike). Capped at 0.20Δ (S071 /
-    rules.PUT_DELTA); callers floor the target at rules.PUT_DELTA's 0.05."""
+    missing or the name has no history. `pref` = band_pref() override (fixed band or shift vs the engine). Weak credit →
+    one band farther (rules restrike). Capped at 0.20Δ (S071 / rules.PUT_DELTA); callers floor the target at
+    rules.PUT_DELTA's 0.05."""
     import band_engine as BE
     s = ENGINE["strategies"]["sell_put"]["strike"]
     ms, ns = (name or {}).get("market_state", market["state"]), (name or {}).get("state", "normal")
@@ -196,7 +206,16 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
     bands = s["bands"]
     lo_cap = 0
     hi_cap = max(i for i, x in enumerate(bands) if band_bounds(x)[1] <= 0.20 + 1e-9)
+    mode, you = (pref or {}).get("mode", "auto"), ""
     i = min(max(bands.index(b), lo_cap), hi_cap)
+    if mode == "fixed" and (pref or {}).get("band") in bands:
+        you = f" · your fixed band {pref['band']}Δ (engine said {bands[i]})"
+        i = min(max(bands.index(pref["band"]), lo_cap), hi_cap)
+    if mode == "shift" and int((pref or {}).get("steps") or 0):
+        n = int(pref["steps"])
+        you = f" · your setting {n:+d} band{'s' if abs(n) > 1 else ''} (engine said {bands[i]})"
+        i = min(max(i + n, lo_cap), hi_cap)
+    b = bands[i]
     r = s["restrike"]
     weak = credit_rank is not None and credit_rank < r["below"]
     if weak and i > lo_cap:
@@ -210,7 +229,7 @@ def engine_put_band(market: dict, name: dict | None, credit_rank=None) -> tuple[
         ms_txt = f"market {ms.replace('_', ' ')}"
     if washout:
         ms_txt += f" · breadth washout ({market['ut_breadth']:.0%} of names in an uptrend; label only, S104)"
-    return b, f"{ms_txt} · stock {ns} → {b}Δ{hist}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
+    return b, f"{ms_txt} · stock {ns} → {b}Δ{hist}{you}" + (f" · credit {credit_rank} < {r['below']} → one band farther" if weak else "")
 
 
 def csp_band_legs(chain, pick, leg, front):

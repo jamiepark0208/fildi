@@ -203,6 +203,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     names = sorted(by)
     I = SE.load_inputs(conn, names)
     market, states = SE.band_states(conn, names)
+    pref = SE.band_pref(conn)
     ctx = BP.put_context(conn)
     rv = {}
     for t, cl in conn.execute("""SELECT ticker, array_agg(close::float8 ORDER BY date DESC) FROM lseg_research.daily_history
@@ -231,7 +232,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         if rich:
             rich["credit"] = (ctx.get("lseg", {}).get(t) or {}).get("credit_combined_rank")
             rec["rich"] = rich
-        band, why = SE.engine_put_band(market, states.get(t))
+        band, why = SE.engine_put_band(market, states.get(t), pref=pref)
         far = BP.put_far_reason(t, exp, ctx) if exp else None
         if band and far and SE.band_bounds(band)[0] >= SE.band_bounds(FAR_BAND)[1]:
             band, why = FAR_BAND, f"{why} · {far} → {FAR_BAND}Δ (farther, not smaller)"
