@@ -281,10 +281,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         zg = norm.ppf(u_g)
         k = np.arange(1, 4)
         w = cons["n"] / (cons["n"] + 3 * k)
-        lc = np.cumsum(np.log1p(cons["g"]))[None, :] + zg[:, None] * cons["sd"][None, :]
-        lb = np.log1p(r25)[:, None] * k[None, :]
-        lv = w[None, :] * lc + (1 - w[None, :]) * lb
-        gr[:, 0:3] = np.exp(np.diff(np.c_[np.zeros(n), lv], axis=1)) - 1
+        dsd = np.maximum(np.diff(np.r_[0.0, cons["sd"]]), 0.03)  # analyst range on the level → per-year increment
+        lg = w[None, :] * (np.log1p(cons["g"])[None, :] + zg[:, None] * dsd[None, :]) + (1 - w[None, :]) * np.log1p(r25)[:, None]
+        gr[:, 0:3] = np.expm1(lg)  # blend each year's growth (blending levels piled all shrinkage into year 3)
         g45 = 0.5 * gr[:, 2] + 0.5 * r25
         gr[:, 3:5] = g45[:, None]
         for j in range(5, 10):
@@ -354,6 +353,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
                       "pv_explicit": float(np.median(pv)), "pv_tv": float(np.median(pv_tv)), "ev": float(np.median(ev)),
                       "tv_mult_nopat11": float(np.median(tv / nopat11)), "disc10": float(np.median(disc[:, -1]))},
             "path": {"rev10": float(np.median(rev[:, -1])), "m_target": float(np.median(m_t)), "g25": float(np.median(r25)),
+                     "g": np.median(gr, axis=0).tolist(), "margin": np.median(margin, axis=0).tolist(), "fcff": np.median(fcff, axis=0).tolist(),
+                     "tax": tax.tolist(), "s2c": float(np.median(s2c)), "roicT": float(np.median(roicT)), "g_T": float(np.median(g_T)),
+                     "erp": float(np.median(erp)),
                      "wacc1": float(np.median(wacc[:, 0])), "waccT": float(np.median(wT))}}
 
 

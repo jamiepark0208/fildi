@@ -276,4 +276,21 @@ router.get("/fair-value/:ticker/external", async (req, res, next) => {
   }
 });
 
+/** A283/A285 — DCF v2 (lab): range, scenarios, reverse DCF and every assumption with its source (watchlist_sync.dcf_detail). */
+router.get("/fair-value/:ticker/dcf", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  try {
+    const { rows } = await pool.query(
+      `SELECT as_of::text AS as_of, version, valued, detail FROM watchlist_sync.dcf_detail WHERE ticker = $1 ORDER BY as_of DESC LIMIT 1`,
+      [t]).catch(() => ({ rows: [] as Record<string, unknown>[] }));
+    if (!rows.length) return res.json({ ticker: t, dcf: null });
+    const r = rows[0];
+    return res.json({ ticker: t, dcf: { asOf: r.as_of, version: r.version, valued: r.valued, ...(r.detail as object) },
+      note: "Lab model (not in the fair value blend). Watchlist names only until Jamie signs fv-2.0.0." });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 export default router;
