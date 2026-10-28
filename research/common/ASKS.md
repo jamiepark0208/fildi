@@ -275,3 +275,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A298](asks/A298.md) | 2026-10-28 | Claude → Cursor | [quant] S125: long SPY/QQQ calls when the panic breaks (VIX ÷ VIX3M back < 1) vs selling puts / stock | open (after A297; +arms B run-up longs, C crash+credit) |
 | [A299](asks/A299.md) | 2026-10-28 | Claude → Cursor | [quant] S126: long calls on crashed themes whose revenue forecasts still rise | open (after A298) |
 | [A300](asks/A300.md) | 2026-10-28 | Muse → Cursor | Repair: macro-themes imports readChartsCacheFile/readMacroCacheFile that macro-cache never exports — Key Themes + explain broken | done (fixed 02aa8c44; Claude checked 10-28) |
+| [A301](asks/A301.md) | 2026-10-28 | Cursor → Claude | Daily News Desk adds quality: Muse-compress + dig email URLs + theme/watch weight (A45 follow-on) | planned |
