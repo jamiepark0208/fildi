@@ -676,6 +676,32 @@ def bullets(book: dict, sims: dict) -> list[dict]:
     return sorted(out, key=lambda x: (-LEVEL[x["level"]], x["key"]))
 
 
+def peer_drift_alert(conn) -> list[dict]:
+    """A200: one deduped Portfolio Alert from peers_review flags (GICS / OpenJev ≥0.8). Detect-only.
+
+    Mute when >30% of assignments flag (threshold too loose). Approve via Settings › Stock DB › Peer groups
+    (writes peer_group_overrides) — never auto-moves.
+    """
+    import openjev_controls as ojc
+    flags, n_assign = ojc.peer_drift_flags(conn)
+    if not flags:
+        return []
+    if n_assign > 0 and len(flags) / n_assign > 0.30:
+        # Keep file; suppress noisy alert (Claude plan eval).
+        (HERE / "out" / "peer_drift_muted.json").write_text(json.dumps({
+            "asOf": date.today().isoformat(), "nFlags": len(flags), "nAssignments": n_assign, "muted": True,
+        }) + "\n")
+        return []
+    # Cap bullet length — top 8 by ticker, rest as +N.
+    show = flags[:8]
+    bits = [f"{f['ticker']} now {f['now']}→{f['suggest']} ({f['detail']})" for f in show]
+    extra = f" +{len(flags) - 8} more" if len(flags) > 8 else ""
+    return [{"key": "peer:drift", "level": "amber", "value": len(flags),
+             "text": (f"Peer-group drift ({len(flags)} name(s)): {'; '.join(bits)}{extra}. "
+                      f"Detect-only — approve or dismiss in Settings › Stock DB › Peer groups "
+                      f"(override writes peer_group_overrides; nothing moves alone).")}]
+
+
 def holdings_on_avoid(conn, allongs: list[dict]) -> list[dict]:
     """A174 (S044): stock holdings that the latest published Model List puts in Avoid. Display only — the trade is Jamie's call."""
     held = sorted({x["t"] for x in allongs if (x.get("mv") or 0) > 0})
@@ -747,6 +773,10 @@ def main() -> None:
         bl += holdings_on_avoid(conn, allongs)
     except Exception as e:  # display-only context must never break the risk alerts
         print(f"holdings_on_avoid skipped ({e})", file=sys.stderr)
+    try:
+        bl += peer_drift_alert(conn)
+    except Exception as e:
+        print(f"peer_drift_alert skipped ({e})", file=sys.stderr)
     for x in bl:
         p = prev.get(x["key"])
         x["change"] = "new" if not p else "worse" if (LEVEL[x["level"]], x["value"]) > (LEVEL[p["level"]], p["value"] * 1.1) else \

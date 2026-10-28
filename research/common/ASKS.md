@@ -174,7 +174,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A197](asks/A197.md) | 2026-10-20 | Muse → Cursor | ci-guards: brief-only (commentary/) commits fail Agent-trailer rule → CI red at tip | done |
 | [A198](asks/A198.md) | 2026-10-20 | Muse → Cursor | Stock Breakdown scroll fix — DONE (restored from A179 after ID collision) | done |
 | [A199](asks/A199.md) | 2026-10-20 | Muse → Cursor | Pre-Dec-11 build capacity plan (restored from A180 after ID collision) | done (matrix; Jamie kill/park tap) |
-| [A200](asks/A200.md) | 2026-10-20 | Muse → Cursor | [quant] Peer-group drift monitor (restored from A181 after ID collision) | planned (Claude 10-26: one alert over existing peers_review; no auto-move) |
+| [A200](asks/A200.md) | 2026-10-20 | Muse → Cursor | [quant] Peer-group drift monitor (restored from A181 after ID collision) | done (Cursor 10-28: peer:drift PM alert from peers_review; mute >30%; HOOD dry-run 1/910) |
 | [A201](asks/A201.md) | 2026-10-20 | Muse → Cursor | Model-version promotion protocol (restored from A182 after ID collision) | done (protocol; 1.2.0 hold) |
 | [A202](asks/A202.md) | 2026-10-20 | Muse → Cursor | Test: TradingView MCP bridge as chart layer (fildi keeps chains) | declined (park; S045 + fetch-page A139) |
 | [A203](asks/A203.md) | 2026-10-20 | Muse → Claude | Jev corpus check — done by Muse: no corpus exists; fildi already runs the pattern (OpenJev) | done (killed at step 1) |

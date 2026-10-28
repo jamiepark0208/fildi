@@ -119,6 +119,56 @@ def peers_review_due(conn) -> bool:
     return bool(set(load_peers(conn)[1]) - done)
 
 
+def peer_drift_flags(conn) -> tuple[list[dict], int]:
+    """A200: detect-only peer drift candidates (GICS majority + OpenJev ≥0.8). Never auto-applies.
+
+    Returns (flags, n_assignments). Mute rule: if len(flags)/n_assignments > 0.30, callers should
+    suppress the Portfolio Alert and keep the file.
+    """
+    groups, _, fixes = load_peers(conn)
+    with conn.cursor() as c:
+        c.execute("select ticker, primary_peer_group_id from ticker_registry where primary_peer_group_id is not null")
+        member = dict(c.fetchall())
+    n_assign = len(member)
+    flags: dict[str, dict] = {}
+    out_f = DATA / "peers.jsonl"
+    rs = [json.loads(x) for x in out_f.open()] if out_f.exists() else []
+    for r in rs:
+        t = r.get("t")
+        if not t or t not in member or t in fixes or t in PEER_REJECTED:
+            continue
+        top = (r.get("top") or [[None, 0]])[0]
+        gid, conf = top[0], float(top[1] or 0)
+        if gid not in groups or gid == member[t] or conf < 0.8:
+            continue
+        flags[t] = {
+            "ticker": t,
+            "kind": "openjev",
+            "now": groups.get(member[t], (member[t],))[0],
+            "suggest": groups.get(gid, (gid,))[0],
+            "detail": f"OpenJev {conf:.2f}",
+        }
+    try:
+        with conn.cursor() as c:
+            c.execute(GICS_SQL)
+            gx = [r for r in c.fetchall() if r[0] not in GICS_REVIEWED and r[0] not in PEER_REJECTED]
+    except Exception:  # noqa: BLE001
+        conn.rollback()
+        gx = []
+    for t, g, s, mg, n, tot in gx:
+        if t in fixes:
+            continue
+        # Prefer GICS text when both fire — same ticker, one alert line.
+        flags[t] = {
+            "ticker": t,
+            "kind": "gics",
+            "now": groups.get(g, (g,))[0],
+            "suggest": groups.get(mg, (mg,))[0],
+            "detail": f"GICS {s} majority {n}/{tot}",
+        }
+    return sorted(flags.values(), key=lambda x: x["ticker"]), n_assign
+
+
 def peers_review(conn, skip_run: bool = False) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     out_f, last = DATA / "peers.jsonl", DATA / "peers_review_last.txt"
@@ -132,33 +182,24 @@ def peers_review(conn, skip_run: bool = False) -> int:
             subprocess.run([str(wpy), "sync_gics.py"], cwd=str(ROOT / "research/wrds"), capture_output=True, timeout=600)
     if not skip_run:
         peers(conn, None)
-    groups, _, fixes = load_peers(conn)
-    # compare with the SCORING group (ticker_registry primary), not taxonomy display memberships (NVDA in Big Tech etc.)
-    with conn.cursor() as c:
-        c.execute("select ticker, primary_peer_group_id from ticker_registry where primary_peer_group_id is not null")
-        member = dict(c.fetchall())
-    rs = [json.loads(x) for x in out_f.open()] if out_f.exists() else []
-    dis = sorted((r for r in rs if r["t"] in member and r["t"] not in fixes and r["t"] not in PEER_REJECTED
-                  and r["top"][0][0] in groups  # answers about retired groups (A160 merges) wait for the next re-ask
-                  and r["top"][0][0] != member[r["t"]] and r["top"][0][1] >= 0.8), key=lambda r: -r["top"][0][1])
+    flags, n_assign = peer_drift_flags(conn)
+    oj = [f for f in flags if f["kind"] == "openjev"]
+    gx = [f for f in flags if f["kind"] == "gics"]
     lines = [f"# Peer review list ({dt.date.today()}) — OpenJev disagrees ≥ 0.8 with the current group",
              "Never auto-applied. Claude reviews; real misfilings → peer_group_overrides with fund before/after (A148).", ""]
-    lines += [f"- {r['t']} ({r.get('name') or ''}): now {groups.get(member[r['t']], (member[r['t']],))[0]} → "
-              f"suggest {groups.get(r['top'][0][0], (r['top'][0][0],))[0]} ({r['top'][0][1]:.2f})" for r in dis] or ["- none"]
-    try:  # vendor baseline: GICS sub-industry majority group (needs research_common.security_class)
-        with conn.cursor() as c:
-            c.execute(GICS_SQL)
-            gx = [r for r in c.fetchall() if r[0] not in GICS_REVIEWED and r[0] not in PEER_REJECTED]
-    except Exception:  # noqa: BLE001 — table missing → skip section
-        conn.rollback()
-        gx = []
+    lines += [f"- {f['ticker']}: now {f['now']} → suggest {f['suggest']} ({f['detail']})" for f in oj] or ["- none"]
     lines += ["", "## GICS disagrees (most of this GICS sub-industry sits in another group)"]
-    lines += [f"- {t}: now {groups.get(g, (g,))[0]} · GICS {s} → mostly {groups.get(mg, (mg,))[0]} ({n}/{tot})"
-              for t, g, s, mg, n, tot in gx] or ["- none"]
+    lines += [f"- {f['ticker']}: now {f['now']} · {f['detail']} → mostly {f['suggest']}" for f in gx] or ["- none"]
+    mute = n_assign > 0 and len(flags) / n_assign > 0.30
+    lines += ["", f"## A200 alert mute: {'YES (>30% assignments flagged)' if mute else 'no'} · flags={len(flags)} / assignments={n_assign}"]
     (HERE / "out" / "peer_review.md").write_text("\n".join(lines) + "\n")
+    (HERE / "out" / "peer_drift_flags.json").write_text(json.dumps({
+        "asOf": dt.date.today().isoformat(), "nFlags": len(flags), "nAssignments": n_assign,
+        "mute": mute, "flags": flags,
+    }, indent=2) + "\n")
     last.write_text(dt.date.today().isoformat())
-    print(f"peer review: {len(dis)} confident disagreement(s) → out/peer_review.md")
-    return len(dis)
+    print(f"peer review: {len(oj)} OpenJev + {len(gx)} GICS → out/peer_review.md" + (" [MUTE alert]" if mute else ""))
+    return len(oj)
 
 
 # Claude's review of v1's confident disagreements (S038) + human fixes = hard-case truth set for prompt variants
@@ -495,6 +536,28 @@ def realized_betas(conn, tickers: list[str]) -> dict:
     return out
 
 
+def bake_betas(conn) -> None:
+    """Write scenario_betas.json from prices_historical + etfs.json (monthly; A149 panel ranks on this)."""
+    from datetime import datetime, timezone
+    out_f = DATA / "scenarios.jsonl"
+    if not out_f.exists():
+        print("bake_betas: run --scenarios first (no scenarios.jsonl)")
+        return
+    tickers = [json.loads(x)["t"] for x in out_f.open() if x.strip()]
+    betas = realized_betas(conn, tickers)
+    keep = [s for s in SCENARIOS if s not in ("gold", "crypto")]
+    meta = {
+        "bakedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "n": len(betas),
+        "scenarios": keep,
+        "sign": {s: SCENARIOS[s][2] for s in keep},
+        "betas": {t: {s: float(betas[t][s]) for s in keep if s in betas[t]} for t in betas},
+    }
+    path = DATA / "scenario_betas.json"
+    path.write_text(json.dumps(meta))
+    print(f"bake_betas: {len(betas)} tickers → {path}")
+
+
 def scenarios(conn) -> None:
     import openjev_local as oj
     from openjev_news import spearman
@@ -549,6 +612,8 @@ def scenarios(conn) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenarios", action="store_true")
+    ap.add_argument("--bake-betas", action="store_true",
+                    help="Recompute realized factor betas → scenario_betas.json (cheap; monthly)")
     ap.add_argument("--peers-v2", action="store_true")
     ap.add_argument("--think", type=int, default=0)
     ap.add_argument("--fv-placebo", action="store_true")
@@ -569,6 +634,8 @@ if __name__ == "__main__":
         fv_placebo(connect())
     if a.scenarios:
         scenarios(connect())
+    if a.bake_betas:
+        bake_betas(connect())
     if a.peers_v2:
         peers_v2(connect(), a.think)
     if a.peers_report:
