@@ -5,12 +5,13 @@
  * Beams and spinning rings only for actions in the last 2 min. Tables use the shared Rankings grid look.
  * Data: GET /api/agents/overview.
  */
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { guideSubTabClass } from "@/lib/sub-tabs";
 import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 
 type Id = "muse" | "claude" | "cursor" | "jamie" | "grok" | "codex";
@@ -252,20 +253,35 @@ function buildActivity(d: Data, learn?: LearnData | null): ActRow[] {
         : `work · ${tools} tool${tools === 1 ? "" : "s"}${edits ? ` · ${edits} edit${edits === 1 ? "" : "s"}` : ""}`;
       const id = `${bucket[0].agent}-${start}`;
       const lt = learnById.get(id);
+      // Wall / R:W / loop from live hooks always (learn tokens often unset → was all "—").
+      const wallS = Math.max(0, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
+      const reads = bucket.filter((e) => e.kind === "reading" || /^(Read|Grep|Glob|LS)$/i.test(e.tool ?? "")).length;
+      const writes = bucket.filter((e) => e.event === "edit" || e.kind === "code").length;
+      const sigs = new Map<string, number>();
+      for (const e of bucket) {
+        const sig = (e as Live & { sig?: string }).sig;
+        if (sig) sigs.set(sig, (sigs.get(sig) ?? 0) + 1);
+      }
+      let loopHits = 0;
+      for (const n of sigs.values()) if (n >= 5) loopHits += n;
+      const askFromPrompt = (() => {
+        const m = promptText.match(/\bRefs?:\s*(A\d+)\b/i) || promptText.match(/\b(A\d{2,})\b/i);
+        return m?.[1] ? m[1].toUpperCase() : null;
+      })();
       const tokSum = lt && (lt.in_tok != null || lt.out_tok != null)
-        ? `${lt.in_tok ?? "?"}/${lt.out_tok ?? "?"}`
+        ? `${lt.in_tok ?? "—"}/${lt.out_tok ?? "—"}`
         : "—";
       turns.push({
         id,
         t: end, start, agent: bucket[0].agent,
         name: prompt ? evName(nm, prompt) : evName(nm, bucket[0]),
         what, acts: tools, fails, edits, fail: fails > 0, done, bus: false, steps,
-        tok: lt ? tokSum : undefined,
-        wall: lt ? (lt.wall_s >= 60 ? `${Math.round(lt.wall_s / 60)}m` : `${lt.wall_s}s`) : undefined,
-        rw: lt ? `${lt.reads}:${lt.writes}` : undefined,
-        loop: lt?.loop_hits,
-        askId: lt?.ask_id,
-        outcome: lt?.outcome,
+        tok: tokSum,
+        wall: wallS >= 60 ? `${Math.round(wallS / 60)}m` : `${wallS}s`,
+        rw: `${reads}:${writes}`,
+        loop: lt?.loop_hits ?? loopHits,
+        askId: lt?.ask_id ?? askFromPrompt,
+        outcome: lt?.outcome ?? (fails > 0 ? "fail" : done ? "ok" : "working"),
       });
       bucket = [];
     };
@@ -382,7 +398,7 @@ function drawRepo(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 }
 
 function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, c: string, o: {
-  selected?: boolean; dim?: boolean; hot?: boolean; progress?: boolean; now?: number; by?: Id | null;
+  selected?: boolean; dim?: boolean; hot?: boolean; progress?: boolean; debt?: boolean; now?: number; by?: Id | null;
   /** Always-visible ask id under the cube (e.g. A148) — not hover-only. */
   label?: string; match?: boolean;
 }) {
@@ -392,6 +408,16 @@ function drawCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number
   const R = [[x + s, y - s * 0.1], [x, y + s * 0.4], [x, y + s * 1.3], [x + s, y + s * 0.8]];
   const accent = o.progress ? PROG_GLOW : o.hot ? HOT_GLOW : null;
   const pulse = accent && o.now != null ? 0.55 + 0.45 * Math.sin(o.now / 280) : 1;
+  if (o.debt && !accent) {
+    // Amber ring = stale / building debt — no toolbar toggle
+    ctx.strokeStyle = "#fbbf24";
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([3.5, 2.5]);
+    ctx.beginPath();
+    ctx.arc(x, y + s * 0.15, s * 1.95, 0, 7);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   if (accent) {
     const ring = ctx.createRadialGradient(x, y + s * 0.2, s * 0.2, x, y + s * 0.2, s * (3.4 + pulse));
     ring.addColorStop(0, accent + "cc");
@@ -952,7 +978,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
 function Available({ id, d }: { id: Id; d: Data }) {
   const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—");
   const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }) : "—");
-  const cell = (text: React.ReactNode, tip: React.ReactNode, cls = "text-white/60") => (
+  const cell = (text: ReactNode, tip: ReactNode, cls = "text-white/60") => (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild><span className={cn("cursor-default", cls)}>{text}</span></TooltipTrigger>
       <TooltipContent side="bottom" className={TIP}>{tip}</TooltipContent>
@@ -1079,8 +1105,9 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
           <thead><tr className={GRID_HEADER}>
             <th className={cn(GRID_TH, "text-left")}>Agent</th><th className={cn(GRID_TH, "text-left")}>Status</th>
             <th className={cn(GRID_TH, "text-right")}>Errors</th>
-            <th className={cn(GRID_TH, "text-right")}>Tok 24h</th>
-            <th className={cn(GRID_TH, "text-right")}>Tokens</th><th className={cn(GRID_TH, "text-right")}>Avail</th>
+            <th className={cn(GRID_TH, "text-right")} title="Tokens used · last 24h (or — if no meter)">Tok 24h</th>
+            <th className={cn(GRID_TH, "text-right")} title="Primary usage reading (window / plan %). Detail in tooltip.">Used</th>
+            <th className={cn(GRID_TH, "text-right")} title="% remaining on plan">Avail</th>
             <th className={cn(GRID_TH, "text-right")}>Commits</th><th className={cn(GRID_TH, "text-right")}>Queue</th>
             <th className={cn(GRID_TH, "text-right")} title="Actions per commit (learn)">Acts/cmt</th>
             <th className={cn(GRID_TH, "text-right")} title="Turns with loop hits">Loop%</th>
@@ -1148,41 +1175,61 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                     </Tooltip>
                   ) : "—"}
                 </td>
-                <td className={cn(GRID_TD, "text-right text-white/70 whitespace-nowrap")} title="Learn feed tokens (unknown until metered)">
-                  {ru?.tok != null ? fmt(ru.tok) : <span className="text-white/40">unk</span>}
+                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap tabular-nums")}>
+                  {(() => {
+                    const tip = (text: ReactNode, tipText: string, cls = "text-white") => (
+                      <Tooltip delayDuration={150}>
+                        <TooltipTrigger asChild><span className={cn("cursor-default", cls)}>{text}</span></TooltipTrigger>
+                        <TooltipContent side="bottom" className={TIP}>{tipText}</TooltipContent>
+                      </Tooltip>
+                    );
+                    // Always token count or — (never mix in "acts").
+                    if (ru?.tok != null) return tip(fmt(ru.tok), "In+out tokens on learn turns · last 24h.");
+                    if (a.id === "claude" && a.tokens?.length) {
+                      const day = a.tokens[a.tokens.length - 1]!;
+                      const n = (day.input ?? 0) + (day.output ?? 0) + (day.cacheRead ?? 0);
+                      return tip(fmt(n), `Claude session today · in+out+cache · ${mdY(day.day)}`);
+                    }
+                    if (a.id === "cursor" || a.id === "grok") {
+                      return tip("—", `No token meter · ${st?.tools24h ?? 0} tool actions / 24h (see Acts).`, "text-white/50");
+                    }
+                    if (a.id === "muse") return tip("—", "No token meter · plan % only when heartbeat sends it.", "text-white/50");
+                    if (a.id === "codex") return tip("—", "No 24h token sum · see Used % windows.", "text-white/50");
+                    return tip("—", "No token feed yet.", "text-white/50");
+                  })()}
                 </td>
-                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
-                  {a.id === "claude" ? (
-                    <>{fmt(d.windows.current.out)} <span className="text-white/50">5h</span> · {fmt(a.tokens?.at(-1)?.output ?? 0)} <span className="text-white/50">today</span></>
-                  ) : a.id === "codex" ? (
-                    d.limits?.codex && !d.limits.codex.stale
-                      ? <>{d.limits.codex.windows.map(w => `${Math.round(w.used)}% / ${w.minutes >= 1440 ? `${w.minutes / 1440}d` : `${w.minutes / 60}h`}`).join(" · ")}</>
-                      : <span className="text-white/50">{d.limits?.codex ? "stale" : "unknown"}</span>
-                  ) : a.id === "cursor" || a.id === "grok" ? (
-                    (() => {
+                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap tabular-nums")}>
+                  {(() => {
+                    const tip = (text: ReactNode, tipText: string, cls = "text-white") => (
+                      <Tooltip delayDuration={150}>
+                        <TooltipTrigger asChild><span className={cn("cursor-default", cls)}>{text}</span></TooltipTrigger>
+                        <TooltipContent side="bottom" className={TIP}>{tipText}</TooltipContent>
+                      </Tooltip>
+                    );
+                    // One short primary reading; timestamps / secondary in tooltip.
+                    if (a.id === "claude") {
+                      const out5h = d.windows.current.out;
+                      const todayOut = a.tokens?.at(-1)?.output ?? 0;
+                      return tip(fmt(out5h), `Claude 5h window out · today out ${fmt(todayOut)}.`);
+                    }
+                    if (a.id === "codex") {
+                      const l = d.limits?.codex;
+                      if (!l || l.stale) return tip(l ? "—" : "—", l ? "Codex telemetry stale · open Codex to refresh." : "No Codex allowance yet.", "text-white/50");
+                      const used = Math.round(Math.max(...l.windows.map(w => w.used)));
+                      const detail = l.windows.map(w => `${w.minutes >= 1440 ? `${w.minutes / 1440}d` : `${w.minutes / 60}h`}: ${Math.round(w.used)}%`).join(" · ");
+                      return tip(`${used}%`, `Codex plan windows · ${detail} · observed ${ago(l.at)}.`);
+                    }
+                    if (a.id === "cursor" || a.id === "grok") {
                       const l = d.limits?.cursor;
-                      // Shared Cursor plan pool (Cursor + Grok Bot). API has plan %, not raw tokens.
                       if (l?.totalPct != null) {
                         const used = Math.round(l.totalPct);
-                        const left = Math.max(0, 100 - used);
-                        const cst = d.status.cursor;
-                        const gst = d.status.grok;
-                        return (
-                          <Tooltip delayDuration={150}>
-                            <TooltipTrigger asChild>
-                              <span className="cursor-default">{used}%</span>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className={TIP}>
-                              Shared Cursor plan pool (Cursor + Grok). {used}% used · {left}% left.
-                              {l.spendUsd != null ? ` $${l.spendUsd.toFixed(0)}${l.limitUsd != null ? `/$${l.limitUsd.toFixed(0)}` : ""} included.` : ""}
-                              {` Cu ${cst?.tools24h ?? 0} + G ${gst?.tools24h ?? 0} actions / 24h.`}
-                            </TooltipContent>
-                          </Tooltip>
-                        );
+                        return tip(`${used}%`, `Shared Cursor plan (Cursor+Grok) · ${used}% used · ${Math.max(0, 100 - used)}% left${l.spendUsd != null ? ` · $${l.spendUsd.toFixed(0)}` : ""}.`);
                       }
-                      return st ? <>{st.tools24h} <span className="text-white/50">actions</span></> : "—";
-                    })()
-                  ) : mu?.pct != null ? <>{Math.round(mu.pct)}% <span className="text-white/50">used</span></> : "—"}
+                      return tip("—", "Cursor plan snap pending.", "text-white/50");
+                    }
+                    if (mu?.pct != null) return tip(`${Math.round(mu.pct)}%`, "Muse plan % used (heartbeat).");
+                    return tip("—", "No usage reading.", "text-white/50");
+                  })()}
                 </td>
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
@@ -1209,28 +1256,26 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                 </td>
                 <td className={cn(GRID_TD, "text-right text-white/50")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap")}>
+                <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap tabular-nums")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
-                      <span className="cursor-default">{u?.available ? `${u.modelRequests}/24h` : "?"}
-                        {u && u.measuredRequests > 0 ? <> · {fmt(u.inputTokens)}→{fmt(u.outputTokens)}</> : chars > 0 ? <> · {fmt(chars)} ch</> : null}
-                      </span>
+                      <span className="cursor-default">{u?.available ? u.modelRequests : "—"}</span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className={TIP}>
-                      Logged uses include helper lookups and keyword fallbacks. Measured tokens cover successful agent requests since metering began; batch runs, failed and older unmetered calls are excluded. These are local tokens processed, not hosted tokens saved.
-                      {u ? ` ${asks} helper uses logged. ${u.measuredRequests}/${u.modelRequests} successful requests have token counts; ${(u.elapsedMs / 1000).toFixed(1)} seconds total request time.` : ""}
-                      {u?.byAgent ? ` ${Object.entries(u.byAgent).map(([k, n]) => `${k}:${n}`).join(" · ")}` : ""}
+                      OpenJev model requests / 24h (local).
+                      {u && u.measuredRequests > 0 ? ` Measured ${fmt(u.inputTokens)}→${fmt(u.outputTokens)}.` : chars > 0 ? ` ${fmt(chars)} state chars.` : ""}
+                      {u ? ` ${asks} helper uses · ${u.measuredRequests}/${u.modelRequests} metered · ${(u.elapsedMs / 1000).toFixed(1)}s.` : ""}
                     </TooltipContent>
                   </Tooltip>
                 </td>
-                <td className={cn(GRID_TD, "text-right")}>
+                <td className={cn(GRID_TD, "text-right tabular-nums")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
-                      <span className="cursor-default text-white/60">no plan cap</span>
+                      <span className="cursor-default text-white/60">—</span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className={TIP}>
-                      Local Mac — no subscription allowance. FILDI configures an 8,192-token prompt limit per request. Needs ~26 GB free RAM to load; one shared instance for all agents.
-                      {oj.last?.peakGb != null ? ` Last peak ${oj.last.peakGb} GB.` : ""}
+                      Local Mac — no plan cap. 8,192-token prompt limit · ~26 GB RAM.
+                      {oj.last?.peakGb != null ? ` Peak ${oj.last.peakGb} GB.` : ""}
                     </TooltipContent>
                   </Tooltip>
                 </td>
@@ -1249,10 +1294,12 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
         </table>
       </div>
       {focus !== "all" && focus in META && <Timeline d={d} agent={focus} />}
-      <div className="flex items-center gap-2 flex-wrap text-[12px] text-white/80">
-        <span>Activity {focus === "all" ? "· all agents" : `· ${META[focus]?.label ?? focus}`} · one row per prompt{actFilter === "fail" ? " · fails only" : ""}</span>
-        {focus !== "all" && <button type="button" onClick={() => { setFocus("all"); setActFilter("all"); }} className="text-[#d4af37] hover:underline">show all</button>}
-        {actFilter === "fail" && <button type="button" onClick={() => setActFilter("all")} className="text-[#d4af37] hover:underline">clear fail filter</button>}
+      <div className="flex items-center gap-2 flex-wrap pt-1">
+        <h3 className="text-[13px] font-semibold tracking-wide text-[#d4af37]">
+          Activity{focus !== "all" ? ` · ${META[focus]?.label ?? focus}` : ""}{actFilter === "fail" ? " · fails" : ""}
+        </h3>
+        {focus !== "all" && <button type="button" onClick={() => { setFocus("all"); setActFilter("all"); }} className="text-[12px] text-[#d4af37]/80 hover:text-[#d4af37] hover:underline">show all</button>}
+        {actFilter === "fail" && <button type="button" onClick={() => setActFilter("all")} className="text-[12px] text-[#d4af37]/80 hover:text-[#d4af37] hover:underline">clear fail filter</button>}
       </div>
       <div className={cn(GRID_WRAP, "max-h-[480px]")}>
         <table className="w-full min-w-[980px] border-collapse">
@@ -1337,8 +1384,6 @@ function IdeasPanel({
   unread?: Record<string, number>;
 }) {
   const [sel, setSel] = useState<string | null>(null);
-  const [showParked, setShowParked] = useState(false);
-  const [showDebt, setShowDebt] = useState(false);
   const [query, setQuery] = useState("");
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -1353,7 +1398,6 @@ function IdeasPanel({
   const isHot = (i: Idea) => !!i.hot && waveActive;
   const isProg = (i: Idea) => !!i.inProgress;
   const isDebt = (i: Idea) => !!i.stale || (i.phase === "building" && !i.inProgress);
-  const debtCount = ideas.filter(isDebt).length;
   const qn = query.trim().toLowerCase();
   const matches = (i: Idea) => {
     if (!qn) return true;
@@ -1362,38 +1406,37 @@ function IdeasPanel({
       || (i.status ?? "").toLowerCase().includes(qn)
       || `${i.from}→${i.to}`.includes(qn);
   };
-  // Open stages + done ≤ 7d + this-wave / in-progress. Stale "Building" debt hidden unless toggled.
+  // Open stages + done ≤ 7d + hot / in-progress / debt (amber ring on cube). Search includes parked.
   const recent = (d: string) => !!d && Date.now() - Date.parse(d) <= 7 * 864e5;
   const shown = ideas.filter((i) => {
-    const hit = matches(i);
-    if (qn) return hit; // search = filter the board to matches (incl. parked)
-    if (isDebt(i) && !showDebt && !isHot(i) && !isProg(i)) return false;
-    return showParked
-      || isHot(i)
-      || isProg(i)
-      || (i.phase !== "parked" && i.phase !== "verified" && (i.phase !== "done" || recent(i.date) || recent(i.touchedAt ?? "")));
+    if (qn) return matches(i);
+    if (isHot(i) || isProg(i) || isDebt(i)) return true;
+    return i.phase !== "parked" && i.phase !== "verified"
+      && (i.phase !== "done" || recent(i.date) || recent(i.touchedAt ?? ""));
   }).sort((a, b) => askSortKey(a.id) - askSortKey(b.id) || a.id.localeCompare(b.id));
   const cols = PHASES.filter((p) => shown.some((i) => i.phase === p) || ["needs you", "filed", "reviewed", "building"].includes(p));
   const visible = shown.filter((i) => cols.includes(i.phase as (typeof PHASES)[number]));
-  const hotCount = shown.filter(isHot).length;
-  const progCount = shown.filter(isProg).length;
   // Exact id like A148 → select it
   useEffect(() => {
     if (!qn) return;
     const exact = ideas.find((i) => (i.id ?? "").toLowerCase() === qn || (i.id ?? "").toLowerCase() === `a${qn}`);
     if (exact) setSel(exact.id);
   }, [qn, ideas]);
+  // Ack wave on mount so pink glow doesn't need a Clear button
+  useEffect(() => {
+    if (!wave || wave === waveAck) return;
+    const t = window.setTimeout(() => {
+      try { localStorage.setItem(IDEA_WAVE_ACK_KEY, wave); } catch { /* private mode */ }
+      setWaveAck(wave);
+    }, 12_000);
+    return () => clearTimeout(t);
+  }, [wave, waveAck]);
   const dismiss = async (id: string) => {
     setBusy(true);
     try {
       const r = await fetch(`/api/agents/ideas/${encodeURIComponent(id)}/dismiss`, { method: "POST", credentials: "include" });
       if (r.ok) { setSel(null); await qc.invalidateQueries({ queryKey: ["agents-overview"] }); }
     } finally { setBusy(false); }
-  };
-  const clearWave = () => {
-    if (!wave) return;
-    try { localStorage.setItem(IDEA_WAVE_ACK_KEY, wave); } catch { /* private mode */ }
-    setWaveAck(wave);
   };
   const active = ideas.find((i) => i.id === sel) ?? null;
   const COLW = 130, S = 13, ROWH = 54, PER = 3; // cubes per row; taller for id label under cube
@@ -1427,6 +1470,7 @@ function IdeasPanel({
         dim: (idea.phase === "parked" && !isHot(idea) && !isProg(idea)) || (!!qn && !hit),
         hot: isHot(idea) && !isProg(idea),
         progress: isProg(idea),
+        debt: isDebt(idea) && !isProg(idea),
         now,
         by: idea.assignee ?? idea.to ?? null,
         label: idea.id,
@@ -1449,14 +1493,19 @@ function IdeasPanel({
     return (
       <>
         <div className="flex items-baseline gap-2"><span className="font-semibold">{i.id}</span>
-          <span style={{ color: PHASE_COLOR[i.phase] }}>{PHASE_LABEL[i.phase] ?? i.phase}</span>{i.date && <span className="text-white/50">{i.date.slice(5)}</span>}</div>
-        <div className="mt-0.5">{i.title}</div>
-        <div className="mt-1 text-[11px]" style={{ color: META[owner]?.color ?? "#a1a1aa" }}>
-          {i.phase === "needs you" ? `Owner: ${ownerL} · for you` : `Assigned: ${ownerL}`}
-          {isProg(i) ? " · in progress" : isHot(i) ? " · this wave" : ""}
-          {i.touchedBy && i.touchedBy !== owner ? ` · last touch ${META[i.touchedBy]?.label}` : ""}
+          <span style={{ color: PHASE_COLOR[i.phase] }}>{PHASE_LABEL[i.phase] ?? i.phase}</span>
+          {i.date && <span className="text-amber-100/70">{mdY(i.date)}</span>}
+          {isDebt(i) && <span className="text-amber-300">debt</span>}
         </div>
-        <div className="mt-1 text-[11px] text-white/50">{unread[i.id] ? `${unread[i.id]} new repl${unread[i.id] > 1 ? "ies" : "y"} · ` : ""}click for details</div>
+        <div className="mt-0.5">{i.title}</div>
+        <div className="mt-1 text-[11px]" style={{ color: META[owner]?.color ?? "#e8d5a3" }}>
+          {i.phase === "needs you" ? `${ownerL} · for you` : ownerL}
+          {isProg(i) ? " · live" : ""}
+          {i.touchedBy && i.touchedBy !== owner ? ` · ${META[i.touchedBy]?.label}` : ""}
+        </div>
+        {!!unread[i.id] && (
+          <div className="mt-1 text-[11px] text-[#d4af37]">{unread[i.id]} new</div>
+        )}
       </>
     );
   };
@@ -1489,109 +1538,108 @@ function IdeasPanel({
             </Tooltip>
           ))}
         </div>
-        <span className="font-semibold text-white">Ideas by stage · {visible.length} shown{qn ? ` · filter “${query.trim()}”` : ""}</span>
-        <InfoTip>Cube letter = who owns the work now (not last touch): Cu Cursor · Cl Claude · M Muse · G Grok · Y you.
-          Needs you cubes show the agent Owner (from needs-jamie.md); you still act — Owner replies first (A153).
-          Board shows Muse/Claude→Cursor, Cursor→Claude, Grok either side, Needs you — not every ASKS row (e.g. done/parked stay off).
-          Ready / In progress Cu = Cursor queue (not auto-run). Status &quot;needs Claude&quot; / sign-off → Cl. Inbox Cl = awaits plan. Inbox G = Grok.
-          Pink = this wave. Teal = active claim. Stale accepted → Show debt. Inbox: <span style={{color:"#e879f9"}}>pink</span> = non-quant, <span style={{color:"#8b5cf6"}}>violet</span> = quant (Claude\u2019s lane).</InfoTip>
+        <span className="font-semibold text-white">Ideas ({visible.length})</span>
+        <InfoTip>Letter = owner now. Amber dashed ring = debt (stale / stuck Building). Teal glow = live claim.
+          Inbox pink = non-quant, violet = quant. Search finds done/parked.</InfoTip>
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Escape") setQuery(""); }}
           placeholder="Find A148…"
-          className="w-[9.5rem] rounded-md border border-[#d4af37]/55 bg-zinc-950 px-2 py-1 text-[12px] text-[#d4af37] placeholder:text-[#d4af37]/70 focus:border-[#d4af37] focus:outline-none"
+          className="ml-auto w-[9.5rem] rounded-md border border-[#d4af37]/55 bg-zinc-950 px-2 py-1 text-[12px] text-[#d4af37] placeholder:text-[#d4af37]/70 focus:border-[#d4af37] focus:outline-none"
           aria-label="Search ideas by id or title"
         />
         {qn && (
           <button type="button" onClick={() => setQuery("")}
             className="text-[11px] border border-[#d4af37]/40 rounded-md px-2 py-1 text-[#d4af37] hover:bg-[#d4af37]/10">
-            Clear search
+            Clear
           </button>
         )}
-        {(hotCount > 0 || progCount > 0) && (
-          <span className="inline-flex items-center gap-2 text-[11px] text-amber-100">
-            {hotCount > 0 && <span style={{ color: HOT_GLOW }}>● {hotCount} this wave{wave ? ` · ${wave.slice(5)}` : ""}</span>}
-            {progCount > 0 && <span style={{ color: PROG_GLOW }}>● {progCount} in progress</span>}
-          </span>
-        )}
-        {waveActive && hotCount > 0 && (
-          <button type="button" onClick={clearWave}
-            className="text-[11px] border border-[#d4af37]/35 rounded-md px-2 py-1 text-amber-100 hover:border-[#ff4d8d]/50 hover:text-[#ff4d8d]">
-            Clear highlights
-          </button>
-        )}
-        {debtCount > 0 && (
-          <button type="button" onClick={() => setShowDebt((v) => !v)}
-            className="text-[11px] border border-amber-400/40 rounded-md px-2 py-1 text-amber-200 hover:border-amber-400/60">
-            {showDebt ? "Hide debt" : `Show debt (${debtCount})`}
-          </button>
-        )}
-        <button type="button" onClick={() => setShowParked((v) => !v)} className="ml-auto text-[11px] border border-[#d4af37]/40 rounded-md px-2 py-1 text-[#d4af37] hover:bg-[#d4af37]/10">
-          {showParked ? "Hide done / parked" : "Show done / parked"}
-        </button>
       </div>
       <ZoomCanvas height={380} draw={draw} hit={hit} tip={tip} onPick={setSel} />
-      {active && (
-        <div className="rounded-lg border px-3 py-2.5 space-y-1.5" style={{
-          borderColor: (isProg(active) ? PROG_GLOW : isHot(active) ? HOT_GLOW : PHASE_COLOR[active.phase] ?? "#e879f9") + "88",
-          background: (PHASE_COLOR[active.phase] ?? "#e879f9") + "0d",
-        }}>
-          <div className="flex flex-wrap items-baseline gap-2 text-[12px]">
-            <span className="font-semibold text-white">{active.id}</span>
-            <span style={{ color: PHASE_COLOR[active.phase] }}>{PHASE_LABEL[active.phase] ?? active.phase}</span>
-            {isDebt(active) && <span className="text-amber-200/80">stale status</span>}
-            {isProg(active) && <span style={{ color: PROG_GLOW }}>in progress</span>}
-            {isHot(active) && !isProg(active) && <span style={{ color: HOT_GLOW }}>this wave</span>}
-            <span className="text-white/80">{active.phase === "needs you" ? "for you" : `${active.date} · ${META[active.from]?.label ?? active.from} → ${META[active.to]?.label ?? active.to}${active.quant ? " · quant" : ""}`}</span>
-          </div>
-          <p className="text-[12px]">
-            <span style={{ color: META[active.assignee ?? active.to]?.color }}>
-              {active.phase === "needs you"
-                ? `Owner: ${META[active.assignee ?? active.from]?.label ?? active.from}`
-                : `Assigned: ${META[active.assignee ?? active.to]?.label ?? active.to}`}
-            </span>
-            <span className="text-white/40"> · {META[active.from]?.label} → {META[active.to]?.label}</span>
-            {active.touchedBy && (
-              <span className="text-white/45"> · last touch {META[active.touchedBy]?.label ?? active.touchedBy}{active.touchedAt ? ` ${active.touchedAt}` : ""}</span>
-            )}
-          </p>
-          <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
-          <RichText text={active.blurb || "No Context section in the ask file yet."} />
-          {!!active.reviews?.trim() && (
-            <div className="space-y-1 pt-1 border-t border-white/10">
-              <div className="text-[10px] uppercase tracking-wider text-amber-200/50">Reviews</div>
-              <RichText text={active.reviews} />
+      {active && (() => {
+        const owner = active.assignee ?? (active.phase === "needs you" ? active.from : active.to);
+        const phaseC = PHASE_COLOR[active.phase] ?? "#e879f9";
+        const accent = isProg(active) ? PROG_GLOW : isHot(active) ? HOT_GLOW : isDebt(active) ? "#fbbf24" : "#d4af37";
+        return (
+        <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950/90 overflow-hidden">
+          <div className="h-0.5 w-full" style={{ background: accent }} />
+          <div className="px-3 py-2.5 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[13px] font-bold text-white tracking-tight">{active.id}</span>
+              <span
+                className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+                style={{ background: phaseC }}
+              >
+                {PHASE_LABEL[active.phase] ?? active.phase}
+              </span>
+              {active.quant && (
+                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-violet-600/90 text-white">quant</span>
+              )}
+              {isDebt(active) && (
+                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-500 text-black">debt</span>
+              )}
+              {isProg(active) && (
+                <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black" style={{ background: PROG_GLOW }}>live</span>
+              )}
+              <span className="ml-auto text-[11px] text-amber-100/80">{active.date ? mdY(active.date) : ""}</span>
             </div>
-          )}
-          {(active.commits?.length ?? 0) > 0 && (
-            <div className="space-y-1 pt-1 border-t border-white/10">
-              <div className="text-[10px] uppercase tracking-wider text-amber-200/50">Commits · Refs: {active.id}</div>
-              <ul className="space-y-0.5 font-mono text-[11px] text-white/75">
-                {active.commits!.map((c) => (
-                  <li key={c.sha} className="flex flex-wrap gap-x-2">
-                    <span style={{ color: META[c.agent]?.color ?? "#a1a1aa" }}>{WHO_LETTER[c.agent] ?? c.agent}</span>
-                    <span className="text-cyan-200/80">{c.sha}</span>
-                    <span className="text-white/40">{ago(c.at)}</span>
-                    <span className="text-white/70 truncate max-w-[28rem]">{c.text}</span>
-                  </li>
-                ))}
-              </ul>
+            <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-amber-100">
+              {owner && META[owner] && (
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full text-[8px] font-bold text-black px-0.5" style={{ background: META[owner].color }}>
+                    {WHO_LETTER[owner]}
+                  </span>
+                  {META[owner].label}
+                </span>
+              )}
+              <span className="text-white">
+                {META[active.from]?.label ?? active.from} → {META[active.to]?.label ?? active.to}
+              </span>
+              {active.touchedBy && (
+                <span className="text-amber-100/80">
+                  touch {META[active.touchedBy]?.label ?? active.touchedBy}
+                  {active.touchedAt ? ` ${mdY(active.touchedAt.slice(0, 10))}` : ""}
+                </span>
+              )}
+              {/^A\d+$/.test(active.id) && active.phase !== "needs you" && (
+                <button type="button" disabled={busy} onClick={() => dismiss(active.id)}
+                  className="ml-auto rounded border border-white/25 px-2 py-0.5 text-[11px] text-white hover:border-red-300/60 hover:text-red-200 disabled:opacity-50">
+                  {busy ? "…" : "Dismiss"}
+                </button>
+              )}
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <p className="text-[11px] text-white/80">Status: {active.status}</p>
-            {/^A\d+$/.test(active.id) && active.phase !== "needs you" && (
-              <button type="button" disabled={busy} onClick={() => dismiss(active.id)}
-                className="ml-auto rounded-md border border-white/20 px-2.5 py-1 text-[11px] text-white hover:border-red-300/60 hover:text-red-200 disabled:opacity-50">
-                {busy ? "Dismissing…" : "Dismiss"}
-              </button>
+            <div className="text-[13px] text-white leading-relaxed">
+              <RichText text={active.blurb || "No Context yet."} />
+            </div>
+            {!!active.reviews?.trim() && (
+              <div className="space-y-1 pt-1.5 border-t border-[#d4af37]/20">
+                <div className="text-[10px] uppercase tracking-wider text-[#d4af37]">Reviews</div>
+                <div className="text-[13px] text-white leading-relaxed"><RichText text={active.reviews} /></div>
+              </div>
             )}
+            {(active.commits?.length ?? 0) > 0 && (
+              <div className="space-y-1 pt-1.5 border-t border-[#d4af37]/20">
+                <div className="text-[10px] uppercase tracking-wider text-[#d4af37]">Commits</div>
+                <ul className="space-y-0.5 font-mono text-[11px] text-white">
+                  {active.commits!.map((c) => (
+                    <li key={c.sha} className="flex flex-wrap gap-x-2">
+                      <span style={{ color: META[c.agent]?.color ?? "#e8d5a3" }}>{WHO_LETTER[c.agent] ?? c.agent}</span>
+                      <span className="text-cyan-200">{c.sha}</span>
+                      <span className="text-amber-100/70">{ago(c.at)}</span>
+                      <span className="truncate max-w-[28rem]">{c.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {active.phase === "needs you" && <NeedsThread item={active.id} />}
           </div>
-          {active.phase === "needs you" && <NeedsThread item={active.id} />}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -1927,27 +1975,31 @@ export function AgentsTab() {
   const ideas = data?.ideas ?? [];
   const needsYou = ideas.some((i) => i.phase === "needs you");
   return (
-    <div className="rounded-lg border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-[13px]">
-        <div className="ml-auto inline-flex rounded-md border border-[#d4af37]/30 overflow-hidden text-[12px] font-semibold">
-          {SUB_TABS.map((t) => (
-            <button key={t} type="button" onClick={() => setTab(t)}
-              className={cn("relative px-3 py-1.5 transition-colors", activeTab === t ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]")}>
-              {t}
-              {t === "Stage" && needLook > 0 && ( // agents waiting on you / looping / erroring → check Stage
-                <span className={cn("ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black animate-pulse motion-reduce:animate-none",
-                  stageNeedsRed ? "bg-red-400" : "bg-yellow-300")}>{needLook}</span>
-              )}
-              {t === "Ideas" && needsYou && (
-                <span className="ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black bg-yellow-300 animate-pulse motion-reduce:animate-none">
-                  {ideas.filter((i) => i.phase === "needs you").length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-3 min-w-0">
+      <div className="flex flex-wrap items-center gap-0.5">
+        {SUB_TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={cn("relative", guideSubTabClass(activeTab === t))}
+          >
+            {t}
+            {t === "Stage" && needLook > 0 && (
+              <span className={cn(
+                "ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black animate-pulse motion-reduce:animate-none",
+                stageNeedsRed ? "bg-red-400" : "bg-yellow-300",
+              )}>{needLook}</span>
+            )}
+            {t === "Ideas" && needsYou && (
+              <span className="ml-1.5 inline-flex min-w-4 h-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-black bg-yellow-300 animate-pulse motion-reduce:animate-none">
+                {ideas.filter((i) => i.phase === "needs you").length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
-      {(isLoading || !data) && <p className="text-xs text-white/50">Loading…</p>}
+      {(isLoading || !data) && <p className="text-xs text-amber-100">Loading…</p>}
       {data && activeTab === "Stage" && <TeamPanel d={data} learn={learn} />}
       {data && activeTab === "Ideas" && <IdeasPanel ideas={ideas} unread={data.needsUnread} />}
       {data && activeTab === "Usage" && <Usage d={data} learn={learn} />}
