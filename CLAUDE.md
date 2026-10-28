@@ -47,6 +47,7 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | Reviewing a study | research/studies/REVIEW.md |
 | "Why is X (not) on the Model List" / rebuild | `scripts/watchlist_sync/funnel.py [--ticker T]` · `rebuild.sh` |
 | Agent workflow changes | `.agents/context/workflow-learning.md` + `scripts/workflow_audit.py` |
+| Market / sector thesis, earnings-season read, "is my view right?" | .agents/skills/fildi-market-thesis/SKILL.md |
 
 Subagents: verifier (tsc + tests) · data-agent (fetch/cache) · ui-agent (React). Catalog: `.agents/AGENTS.md`.
 

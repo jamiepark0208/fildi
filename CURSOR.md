@@ -75,6 +75,7 @@ Same bodies as Claude: `.claude/skills/<name>.md`. Cursor wrap ≠ Claude `sessi
 | Data source choice + vendor budgets | `.agents/skills/fildi-market-data/SKILL.md` |
 | Score / recommendation quality | `.agents/skills/fildi-grade-quality/SKILL.md` |
 | Replit-only setup | `replit-setup.md` (skip on Mac) |
+| Market / sector thesis (claim tree, analogs, money flows, scenarios) | `.agents/skills/fildi-market-thesis/SKILL.md` |
 | Claude session wrap | `session-wrap.md` — Claude only |
 
 Multi-agent bus / ASKS / `agent-git-sync` / ship-check: **AGENTS.md** (not a skill).

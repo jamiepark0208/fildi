@@ -10,7 +10,7 @@
 
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).
-**Shared financial skills (every agent, Jamie 10-20):** `.agents/skills/fildi-quant-research` (studies, backtests, scenarios — the judgment rules) · `fildi-market-data` (sources, budgets) · `fildi-grade-quality` (is a score/rec working). Study reviews: `research/studies/REVIEW.md`.
+**Shared financial skills (every agent, Jamie 10-20):** `.agents/skills/fildi-quant-research` (studies, backtests, scenarios — the judgment rules) · `fildi-market-data` (sources, budgets) · `fildi-market-thesis` (test a market view: claim tree, analogs, money flows, scenarios, scored) · `fildi-grade-quality` (is a score/rec working). Study reviews: `research/studies/REVIEW.md`.
 **Shared-file safety (10-20 incident):** edit shared tables with the Edit tool or `scripts/md_rows.py`; never `open(p,'w')` in an expression that reads `p`. `.agents/hooks/shield.mjs restore <path>` undoes a truncation.
 
 ## Tool adapters (do not duplicate policy into these)
