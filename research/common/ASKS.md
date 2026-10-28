@@ -270,7 +270,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A288](asks/A288.md) | 2026-10-27 | Claude → Cursor | [quant] DCF bridge — in-the-money convertibles as shares, not debt | revise (Claude 10-28: BABA +36 % share regression, double count, reclass never runs) |
 | [A294](asks/A294.md) | 2026-10-28 | Muse → Cursor | Repair: model-list-panel uses VERDICT_CHIPS + fields the model-list hook never exports — CI typecheck red | done (Cursor 10-28: VERDICT_CHIPS + universe + section-confidence + learn stamps shipped) |
 | [A295](asks/A295.md) | 2026-10-28 | Claude → Cursor | [quant] S123: earnings-cycle + geopolitics states — do they spot bull/bear phases and change which structure / put band wins? | open |
-| [A296](asks/A296.md) | 2026-10-28 | Claude → Cursor | Monthly theme sweep: what research houses are watching (source × theme table → Key Themes) | open |
+| [A296](asks/A296.md) | 2026-10-28 | Claude → Cursor | Monthly theme sweep: what research houses are watching (source × theme table → Key Themes) | done (Cursor 10-28: theme_sweeps/2026-10.md) |
 | [A297](asks/A297.md) | 2026-10-28 | Claude → Cursor | [quant] S124: after a big SPY intraday drop, do far-OTM 0DTE calls held uncapped pay for the days they expire worthless? | open |
 | [A298](asks/A298.md) | 2026-10-28 | Claude → Cursor | [quant] S125: long SPY/QQQ calls when the panic breaks (VIX ÷ VIX3M back < 1) vs selling puts / stock | open (after A297; +arms B run-up longs, C crash+credit) |
 | [A299](asks/A299.md) | 2026-10-28 | Claude → Cursor | [quant] S126: long calls on crashed themes whose revenue forecasts still rise | open (after A298) |
