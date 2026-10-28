@@ -186,7 +186,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | done (P0–P3) |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | open |
 | [A211](asks/A211.md) | 2026-10-20 | Grok → Cursor | Split Fildi jobs into Mac-private vs host-portable public-data jobs (prep for always-on server). | done (stage 1 inventory; RSS partial) |
-| [A212](asks/A212.md) | 2026-10-20 | Codex → Claude | Review S064 buy-zone puts, S066 earnings block, S049-crash re-audit (Jamie: skeptical of Research tab) | partial (Codex fixes tested; Claude independent review + economic rerun) |
+| [A212](asks/A212.md) | 2026-10-20 | Codex → Claude | Review S064 buy-zone puts, S066 earnings block, S049-crash re-audit (Jamie: skeptical of Research tab) | partial (Claude 10-28: f0773a13 mechanics pass; S064 full re-run → Cursor) |
 | [A213](asks/A213.md) | 2026-10-20 | Claude → Cursor | Model List odds panel: P(OTM), P(profit), P(touch), expiry range, if-assigned, bounce base rate — data in watchlist_sync.pick_odds | done |
 | [A214](asks/A214.md) | 2026-10-20 | Jamie → Cursor | Desk media sentiment for Breakdown › Sentiment (StockTwits/X/Reddit/OpenJev — not Yahoo recs) | done |
 | [A215](asks/A215.md) | 2026-10-20 | Claude → Cursor | Source/last-updated tooltip: show stale vs job cadence (data_freshness.py CHECKS) | done |
@@ -231,7 +231,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A254](asks/A254.md) | 2026-10-24 | Muse → Cursor | Liquidity gate never enforced in pickBestStrike — hard-exclude or rename | done |
 | [A255](asks/A255.md) | 2026-10-24 | Muse → Cursor | TS put-edge factors stale-tolerant, ETF-blind, shadow-only vs Python | done |
 | [A256](asks/A256.md) | 2026-10-24 | Muse → Cursor | Relaxed watchlist rows indistinguishable from strict rows — persist relaxed flag | done |
-| [A257](asks/A257.md) | 2026-10-24 | Muse → Cursor | Server VaR correlation tail-aligned, not date-joined; shorts treated as longs | done (Cursor 10-27: proxy cov ρ̄·σ + PSD fallback + coverage UI) |
+| [A257](asks/A257.md) | 2026-10-24 | Muse → Cursor | Server VaR correlation tail-aligned, not date-joined; shorts treated as longs | verified (Claude pass 3857b73b; Muse non-quant pending) |
 | [A258](asks/A258.md) | 2026-10-24 | Muse → Cursor | forecast_ledger.resolve: one bad row aborts the whole run — per-question isolation | done |
 | [A259](asks/A259.md) | 2026-10-24 | Muse → Cursor | Frontend P&L absolute-value substitution can flip sign | done |
 | [A260](asks/A260.md) | 2026-10-24 | Muse → Cursor | pm_alerts MC front-expiry only — multi-expiry books understate margin risk | partial (front label shipped; back-expiry visibility follow-up) |
@@ -267,7 +267,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A293](asks/A293.md) | 2026-10-28 | Claude → Cursor | AI money-flow tracker: consensus revenue revisions by supply-chain bucket (fiscal-period matched) | done |
 | [A286](asks/A286.md) | 2026-10-27 | Claude → Cursor | [quant] DCF segment sum-of-the-parts from full XBRL (per-segment growth/margin) | done (Cursor 10-28: XBRL segment parse+table; SOTP NOPAT path still open) |
 | [A287](asks/A287.md) | 2026-10-27 | Claude → Cursor | [quant] S119: does the DCF "expensive" flag improve short-put breach/P&L beyond IV? | verified (Claude ran S119 subset: FAIL) |
-| [A288](asks/A288.md) | 2026-10-27 | Claude → Cursor | [quant] DCF bridge — in-the-money convertibles as shares, not debt | done (Cursor 10-28: ITM if-converted when cpx present; SMCI/PLUG face flagged missing cpx) |
+| [A288](asks/A288.md) | 2026-10-27 | Claude → Cursor | [quant] DCF bridge — in-the-money convertibles as shares, not debt | revise (Claude 10-28: BABA +36 % share regression, double count, reclass never runs) |
 | [A294](asks/A294.md) | 2026-10-28 | Muse → Cursor | Repair: model-list-panel uses VERDICT_CHIPS + fields the model-list hook never exports — CI typecheck red | done (Cursor 10-28: VERDICT_CHIPS + universe + section-confidence + learn stamps shipped) |
 | [A295](asks/A295.md) | 2026-10-28 | Claude → Cursor | [quant] S123: earnings-cycle + geopolitics states — do they spot bull/bear phases and change which structure / put band wins? | open |
 | [A296](asks/A296.md) | 2026-10-28 | Claude → Cursor | Monthly theme sweep: what research houses are watching (source × theme table → Key Themes) | open |
