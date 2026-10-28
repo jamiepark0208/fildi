@@ -991,6 +991,15 @@
       "do": "Oil > $100: inflation risk keeps the Fed hiking (scenario B) → keep the band on Auto, watch energy-sensitive names (airlines, cruise, chemicals) for far strikes only.",
       "tier": "hint",
       "evidence": "Untested; geopolitics × structure test pending (GPR study)"
+    },
+    {
+      "id": "long_convexity",
+      "when": {
+        "always": true
+      },
+      "do": "Buying options: retail long 0DTE loses ~53 % on average and our 0DTE lotto tests failed (S048, S053). Big-day 0DTE wins are clustered in crises (Mar 2020, Apr 2025). Treat as entertainment budget until S124–S126 report.",
+      "tier": "avoid",
+      "evidence": "S048, S053; Beckmeyer–Branger–Gayda 2023 (SSRN 4404704); base rates 10-28: ≥ 3 % intraday drops 3.6/yr, reversal calls ITM 17 %, mostly 2020"
     }
   ]
 }
