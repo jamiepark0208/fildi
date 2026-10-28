@@ -74,7 +74,21 @@ router.get("/research/studies", requireAdmin, (_req, res) => {
         const m = line.match(/^\| (S\d{3}) \|/);
         if (!m) continue;
         const c = line.split("|").slice(1, -1).map((x) => x.trim());
-        rows.push({ id: c[0], date: c[1], question: c[2], answer: c[3], status: c[4], report: c[5] ?? "" });
+        // Extra `|` inside Answer breaks naive column indexing — join the middle; pad short rows.
+        if (c.length >= 6) {
+          rows.push({
+            id: c[0], date: c[1], question: c[2],
+            answer: c.slice(3, -2).join(" | "),
+            status: c[c.length - 2] || "open",
+            report: c[c.length - 1] ?? "",
+          });
+        } else {
+          rows.push({
+            id: c[0] ?? "", date: c[1] ?? "", question: c[2] ?? "",
+            answer: c.slice(3).join(" | "),
+            status: "open", report: "",
+          });
+        }
       }
       studiesCache = { mtime, rows };
     }
@@ -85,7 +99,11 @@ router.get("/research/studies", requireAdmin, (_req, res) => {
 });
 
 router.get("/research/scoreboard", requireAdmin, async (_req, res) => {
-  const scoreboard = await safe(sql`SELECT item, source, promised, live, n, verdict, checked_at::text AS "checkedAt"
+  const scoreboard = await safe(sql`SELECT item, source, promised, live, n, verdict, checked_at::text AS "checkedAt",
+      check_key AS "checkKey",
+      detail->>'last_error' AS "lastError",
+      detail->>'last_error_at' AS "lastErrorAt",
+      (detail->>'error_active')::boolean AS "errorActive"
     FROM watchlist_sync.scoreboard ORDER BY item`);
   let corrections: Record<string, string>[] = [];
   try {

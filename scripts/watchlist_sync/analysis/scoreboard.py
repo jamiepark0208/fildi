@@ -22,6 +22,25 @@ MIN_EXPIRIES = 8
 DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.scoreboard (item text PRIMARY KEY, source text, promised text, live text,
   n text, verdict text, detail jsonb, checked_at timestamptz DEFAULT now())"""
 
+# Stable identity for upsert (A121 follow-up). Failure used to key by f.__name__, success by label → twins.
+CHECK_LABELS = {
+    "model_list": "Model List put score (fit-1.4.3)",
+    "options_shadow": "Options champion vs shadow (parent)",
+    "fair_value": "Fair value (fv-1.2.0)",
+    "assign_odds": "Assignment odds (pm_alerts)",
+    "own_vs_avoid": "Own − Avoid, vol-matched (fit-1.4)",
+    "fv_spread": "Fair value cheap − rich (fv-1.1.0)",
+    "ira_vs_benchmark": "IRA puts vs naive SPY/QQQ 1σ puts",
+    "engine_puts": "Band engine sell puts (S101)",
+    "pace_takes": "Sold-put pace takes (S103)",
+    "rich_puts": "Rich puts — your rule (S109)",
+}
+# Old label strings that still appear in DB (version bumps etc.) → check_key
+LABEL_ALIASES = {
+    "Fair value (fv-1.1.0)": "fair_value",
+    "Fair value cheap − rich (fv-1.1.0)": "fv_spread",
+}
+
 
 def model_list(conn) -> tuple:
     """Model List option score (fit-1.4.3, S008): higher score should mean better graded outcome."""
@@ -329,6 +348,98 @@ CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_
           rich_puts]
 
 
+def _ensure_check_key(conn) -> None:
+    """A121: one active row per check_key; merge legacy f.__name__ twins into the label row."""
+    conn.execute("ALTER TABLE watchlist_sync.scoreboard ADD COLUMN IF NOT EXISTS check_key text")
+    conn.commit()
+    # Map known labels (+ aliases) → key; function-name rows → that key
+    label_to_key = {v: k for k, v in CHECK_LABELS.items()}
+    label_to_key.update(LABEL_ALIASES)
+    rows = conn.execute("SELECT item, source, promised, live, n, verdict, detail, checked_at FROM watchlist_sync.scoreboard").fetchall()
+    by_item = {r[0]: r for r in rows}
+    for key, label in CHECK_LABELS.items():
+        fn_row = by_item.get(key)
+        # Prefer current label; fall back to alias label still in DB
+        label_row = by_item.get(label)
+        if label_row is None:
+            for alias, ak in LABEL_ALIASES.items():
+                if ak == key and alias in by_item:
+                    label_row = by_item[alias]
+                    break
+        if fn_row and label_row and fn_row[0] != label_row[0]:
+            # Keep label row; copy last_error from fn-name failure if present
+            det = dict(label_row[6] or {}) if isinstance(label_row[6], dict) else {}
+            if (fn_row[5] or "") == "no live check" and fn_row[3]:
+                det.setdefault("last_error", str(fn_row[3])[:200])
+                det.setdefault("last_error_at", str(fn_row[7]))
+                det["error_active"] = True
+            conn.execute(
+                """UPDATE watchlist_sync.scoreboard SET check_key = %s, detail = %s::jsonb WHERE item = %s""",
+                (key, json.dumps(det), label_row[0]),
+            )
+            conn.execute("DELETE FROM watchlist_sync.scoreboard WHERE item = %s", (key,))
+            conn.commit()
+        elif fn_row and not label_row:
+            conn.execute(
+                """UPDATE watchlist_sync.scoreboard SET check_key = %s, item = %s WHERE item = %s""",
+                (key, label, key),
+            )
+            conn.commit()
+        elif label_row:
+            conn.execute("UPDATE watchlist_sync.scoreboard SET check_key = %s WHERE item = %s", (key, label_row[0]))
+            conn.commit()
+    # Backfill any remaining by alias / exact label
+    for item, *_rest in conn.execute("SELECT item FROM watchlist_sync.scoreboard WHERE check_key IS NULL").fetchall():
+        k = label_to_key.get(item) or (item if item in CHECK_LABELS else None)
+        if k:
+            conn.execute("UPDATE watchlist_sync.scoreboard SET check_key = %s WHERE item = %s", (k, item))
+            conn.commit()
+    conn.execute(
+        """CREATE UNIQUE INDEX IF NOT EXISTS scoreboard_check_key_uidx
+           ON watchlist_sync.scoreboard (check_key) WHERE check_key IS NOT NULL"""
+    )
+    conn.commit()
+
+
+def _upsert(conn, check_key: str, item: str, src: str, promised: str, live: str, n: str, verdict: str, detail: dict) -> None:
+    prev = conn.execute(
+        "SELECT detail FROM watchlist_sync.scoreboard WHERE check_key = %s", (check_key,)
+    ).fetchone()
+    prev_d = dict(prev[0] or {}) if prev and isinstance(prev[0], dict) else {}
+    # Preserve last_error provenance across success; clear error_active on success
+    if verdict == "no live check":
+        detail = {
+            **prev_d,
+            **detail,
+            "last_error": (detail.get("last_error") or live or "")[:200],
+            "last_error_at": detail.get("last_error_at") or __import__("datetime").datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "error_active": True,
+        }
+    else:
+        detail = {
+            **detail,
+            "error_active": False,
+            "last_error": prev_d.get("last_error"),
+            "last_error_at": prev_d.get("last_error_at"),
+        }
+    conn.execute(
+        """INSERT INTO watchlist_sync.scoreboard
+             (check_key, item, source, promised, live, n, verdict, detail, checked_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb, now())
+           ON CONFLICT (check_key) WHERE check_key IS NOT NULL DO UPDATE SET
+             item = excluded.item, source = excluded.source, promised = excluded.promised,
+             live = excluded.live, n = excluded.n, verdict = excluded.verdict,
+             detail = excluded.detail, checked_at = now()""",
+        (check_key, item, src, promised, live, n, verdict, json.dumps(detail)),
+    )
+    # Also clear any stale primary-key twin keyed by old item label / fn name
+    conn.execute(
+        "DELETE FROM watchlist_sync.scoreboard WHERE check_key IS DISTINCT FROM %s AND (item = %s OR item = %s)",
+        (check_key, item, check_key),
+    )
+    conn.commit()
+
+
 def main() -> None:
     conn = connect()
     # DDL + each check get their own commit. A failed check used to rollback the
@@ -336,24 +447,18 @@ def main() -> None:
     # → first-run undefined_table crash / later runs silently stale (A121).
     conn.execute(DDL)
     conn.commit()
+    _ensure_check_key(conn)
     for f in CHECKS:
+        key = f.__name__
+        label = CHECK_LABELS[key]
         try:
             item, src, promised, live, n, verdict, detail = f(conn)
-            conn.execute("""INSERT INTO watchlist_sync.scoreboard (item, source, promised, live, n, verdict, detail, checked_at)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s, now()) ON CONFLICT (item) DO UPDATE SET source = excluded.source,
-                            promised = excluded.promised, live = excluded.live, n = excluded.n, verdict = excluded.verdict,
-                            detail = excluded.detail, checked_at = now()""",
-                         (item, src, promised, live, n, verdict, json.dumps(detail)))
-            conn.commit()
+            _upsert(conn, key, item, src, promised, live, n, verdict, dict(detail or {}))
         except Exception as e:  # one broken check must not hide the others
             conn.rollback()
-            item, src, promised, live, n, verdict, detail = (f.__name__, "", "", f"check failed: {e}"[:200], "", "no live check", {})
-            conn.execute("""INSERT INTO watchlist_sync.scoreboard (item, source, promised, live, n, verdict, detail, checked_at)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s, now()) ON CONFLICT (item) DO UPDATE SET source = excluded.source,
-                            promised = excluded.promised, live = excluded.live, n = excluded.n, verdict = excluded.verdict,
-                            detail = excluded.detail, checked_at = now()""",
-                         (item, src, promised, live, n, verdict, json.dumps(detail)))
-            conn.commit()
+            live = f"check failed: {e}"[:200]
+            _upsert(conn, key, label, "", "", live, "", "no live check", {"last_error": live})
+            item, verdict = label, "no live check"
         print(f"{verdict:14} {item}: {live}")
 
 

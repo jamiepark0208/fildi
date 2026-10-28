@@ -8,7 +8,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { SUI } from "@/components/settings/settings-ui";
 
-type Score = { item: string; source: string; promised: string; live: string; n: string; verdict: string; checkedAt: string };
+type Score = {
+  item: string; source: string; promised: string; live: string; n: string; verdict: string; checkedAt: string;
+  checkKey?: string | null; lastError?: string | null; lastErrorAt?: string | null; errorActive?: boolean | null;
+};
 type Correction = { date: string; agent: string; claim: string; correction: string; caughtBy: string };
 const VERDICT: Record<string, string> = {
   holding: "border-emerald-500/40 text-emerald-300", drifting: "border-amber-400/40 text-amber-200",
@@ -54,6 +57,7 @@ function Scoreboard() {
                     <TooltipContent side="bottom" className="max-w-[380px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
                       Promised ({s.source}): {s.promised}<br />Sample: {s.n} · checked {s.checkedAt?.slice(0, 16)}<br />
                       Too early = under 8 expiry weeks (put outcomes move together within a week, so weeks are the sample).
+                      {s.lastError ? (<><br />Last error{s.errorActive ? " (active)" : ""}: {s.lastError}{s.lastErrorAt ? ` · ${s.lastErrorAt.slice(0, 16)}` : ""}</>) : null}
                     </TooltipContent>
                   </Tooltip>
                 </td>
