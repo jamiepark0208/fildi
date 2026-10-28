@@ -1,7 +1,8 @@
+import { type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import {
   useModelList,
-  VERDICT_COLORS,
+  VERDICT_CHIPS,
   VERDICT_LABELS,
   type ModelListFolder,
   type ModelListHealth,
@@ -12,14 +13,64 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ModelThesis } from "@/components/model-thesis-report";
 import { HouseViewWarnings } from "@/components/live/house-view-card";
+import { PutBandSelector } from "@/components/put-band-selector";
 
-/** Shared Model/My value cols — ch widths so numbers don't ellipsis. */
+/** Shared Model value cols — VIEW chip + SCR/RANK (universe put score or section confidence). */
 export const WATCHLIST_ROW =
-  "grid grid-cols-[14px_4.5ch_7ch_6ch_8ch] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
+  "grid grid-cols-[3ch_4.5ch_7ch_5.5ch_4ch_4.5ch_8ch] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
 
 /** My List only — trailing 14px for always-visible remove X (keeps headers aligned). */
 export const WATCHLIST_ROW_MINE =
-  "grid grid-cols-[14px_4.5ch_7ch_6ch_5.5ch_4.5ch_14px] items-center gap-x-1 px-1.5 h-[26px] text-[11px] w-max max-w-full";
+  "grid grid-cols-[14px_minmax(4.5ch,1fr)_minmax(5ch,1.1fr)_minmax(4.5ch,1fr)_minmax(4.5ch,1fr)_minmax(4ch,0.9fr)_14px] items-center gap-x-1.5 px-1.5 h-[26px] text-[11px] w-full";
+
+/** Per-folder metric column labels (SCR = put universe score; CONF/URG = section-native). */
+const FOLDER_METRIC: Record<string, { score: string; rank: string; tip: string; invert?: boolean }> = {
+  sell_puts: {
+    score: "SCR",
+    rank: "RANK",
+    tip: "Universe sell-put option score / rank — same board as Rankings › Options. Green = stronger.",
+  },
+  sell_calls: {
+    score: "CONF",
+    rank: "RANK",
+    tip: "Setup confidence (status · hist win · pillars) — not call option score (S061). Green = cleaner setup.",
+  },
+  trim_risk: {
+    score: "CONF",
+    rank: "RANK",
+    tip: "Trim confidence from flag severity (stronger case = higher). Green = stronger trim case.",
+  },
+  manage: {
+    score: "URG",
+    rank: "RANK",
+    tip: "Action urgency (ITM › at risk › fund › expiry). Red = act sooner — not trade quality.",
+    invert: true,
+  },
+};
+
+/** Red / yellow / green for score (0–100) or rank (1 = best). Urgency inverts (high = red). */
+function metricTone(
+  raw: string,
+  kind: "score" | "rank",
+  opts: { invert?: boolean; universeN?: number | null; folderSize?: number } = {},
+): string {
+  if (raw === "—" || raw === "") return "text-white/35";
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return "text-white/35";
+  let good: number; // 0..1 higher = better for green
+  if (kind === "score") {
+    good = Math.max(0, Math.min(1, n / 100));
+    if (opts.invert) good = 1 - good;
+  } else {
+    const denom = Math.max(2, opts.universeN ?? opts.folderSize ?? 20);
+    good = 1 - (n - 1) / (denom - 1);
+    good = Math.max(0, Math.min(1, good));
+    if (opts.invert) good = 1 - good;
+  }
+  if (good >= 0.66) return "text-emerald-400";
+  if (good >= 0.33) return "text-amber-300";
+  return "text-red-400";
+}
 
 const DEFAULT_OPEN: Record<string, boolean> = {
   sell_puts: true,
@@ -45,16 +96,66 @@ function itemKey(folderKey: string, item: ModelListItem) {
   return `${folderKey}:${item.ticker}:${item.contract?.type ?? ""}:${item.contract?.account ?? ""}`;
 }
 
+function metricFor(folderKey: string, item: ModelListItem, folderSize: number): {
+  score: string;
+  rank: string;
+  tip: string | undefined;
+  scoreClass: string;
+  rankClass: string;
+} {
+  const meta = FOLDER_METRIC[folderKey];
+  const invert = meta?.invert;
+  if (folderKey === "sell_puts") {
+    const scr =
+      item.universeScore != null
+        ? String(Math.round(item.universeScore))
+        : item.score != null
+          ? String(Math.round(item.score))
+          : "—";
+    const rk = item.universeRank != null ? String(item.universeRank) : "—";
+    const tip =
+      item.universeRank != null && item.universeN
+        ? `Universe put score ${item.universeScore ?? "—"} · rank ${item.universeRank} of ${item.universeN}`
+        : item.score != null
+          ? `Option score ${Math.round(item.score)} (no universe rank)`
+          : undefined;
+    return {
+      score: scr,
+      rank: rk,
+      tip,
+      scoreClass: metricTone(scr, "score"),
+      rankClass: metricTone(rk, "rank", { universeN: item.universeN }),
+    };
+  }
+  const c = item.confidence;
+  if (c) {
+    const scr = String(Math.round(c.score));
+    const rk = String(c.rank);
+    return {
+      score: scr,
+      rank: rk,
+      tip: c.basis,
+      scoreClass: metricTone(scr, "score", { invert }),
+      rankClass: metricTone(rk, "rank", { invert, folderSize }),
+    };
+  }
+  return { score: "—", rank: "—", tip: undefined, scoreClass: "text-white/35", rankClass: "text-white/35" };
+}
+
 function ItemRow({
   item,
+  folderKey,
+  folderSize,
   selected,
   onSelect,
 }: {
   item: ModelListItem;
+  folderKey: string;
+  folderSize: number;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const color = VERDICT_COLORS[item.verdict] ?? "";
+  const view = VERDICT_CHIPS[item.verdict] ?? VERDICT_CHIPS[""]!;
   const chgPct = item.close != null && item.prevClose ? (item.close / item.prevClose - 1) * 100 : null;
   const stale = item.closeDate != null && Date.now() - new Date(item.closeDate).getTime() > STALE_CLOSE_MS;
   const repriceNote = (item.adjustments ?? [])
@@ -62,24 +163,34 @@ function ItemRow({
     .find(Boolean)
     ?? (item.why ?? []).find((w) => /re-struck|repriced/i.test(w));
   const otmTip = item.odds?.p_otm?.value != null ? `P(OTM) ${Math.round(item.odds.p_otm.value * 100)}%` : null;
+  const metric = metricFor(folderKey, item, folderSize);
+  const callScoreTip =
+    folderKey === "sell_calls" && item.score != null
+      ? `call tech score ${Math.round(item.score)} — not used as edge`
+      : null;
+  const bandWhy = (item.why ?? []).find((w) => /your (setting|fixed band)/i.test(w));
   return (
     <div
       onClick={onSelect}
-      title={[VERDICT_LABELS[item.verdict], item.contract ? contractShort(item.contract) : "", otmTip, repriceNote, ...(item.why.slice(0, 2))].filter(Boolean).join(" · ")}
+      title={[VERDICT_LABELS[item.verdict] ?? VERDICT_LABELS[""], item.contract ? contractShort(item.contract) : "", otmTip, callScoreTip, repriceNote, bandWhy, ...(item.why.slice(0, 2))].filter(Boolean).join(" · ")}
       className={cn(
         WATCHLIST_ROW,
         "cursor-pointer relative group",
         selected ? "bg-[#d4af37]/15" : "hover:bg-[#d4af37]/10",
       )}
     >
-      <span className="flex items-center justify-center w-3.5 h-3.5">
-        {color ? (
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-        ) : (
-          <span className="w-2 h-2 rounded-full border border-white/30" />
-        )}
-      </span>
-      <span className="font-mono font-bold whitespace-nowrap overflow-hidden" style={{ color: color || "white" }}>
+      <Tooltip delayDuration={200}>
+        <TooltipTrigger asChild>
+          <span className={cn("text-[8px] font-bold px-0.5 rounded leading-none cursor-help tabular-nums", view.className)}>
+            {view.code}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+          {VERDICT_LABELS[item.verdict] ?? VERDICT_LABELS[""]}
+          {" — Fildi Model view (not your My List color tags)."}
+        </TooltipContent>
+      </Tooltip>
+      <span className="font-mono font-bold whitespace-nowrap overflow-hidden text-white">
         {item.ticker}
       </span>
       <span
@@ -96,29 +207,41 @@ function ItemRow({
       >
         {chgPct == null ? "—" : `${chgPct >= 0 ? "+" : ""}${chgPct.toFixed(1)}%`}
       </span>
+      <span
+        className={cn("text-right font-mono tabular-nums whitespace-nowrap font-semibold", metric.scoreClass)}
+        title={metric.tip}
+      >
+        {metric.score}
+      </span>
+      <span
+        className={cn("text-right font-mono tabular-nums whitespace-nowrap font-semibold", metric.rankClass)}
+        title={metric.tip}
+      >
+        {metric.rank}
+      </span>
       <span className="flex items-center justify-end gap-0.5">
         {item.role === "held" && (
-          <span className="text-[8px] px-0.5 rounded bg-[#3b82f6]/25 text-[#93c5fd]">H</span>
+          <TagChip code="H" className="bg-[#3b82f6]/25 text-[#93c5fd]">H</TagChip>
         )}
         {item.isNew && (
-          <span className="text-[8px] px-0.5 rounded bg-[#d4af37]/25 text-[#d4af37]">n</span>
+          <TagChip code="n" className="bg-[#d4af37]/25 text-[#d4af37]">n</TagChip>
         )}
         {item.status === "provisional" && (
-          <span className="text-[8px] px-0.5 rounded bg-amber-500/20 text-amber-300">p</span>
+          <TagChip code="p" className="bg-amber-500/20 text-amber-300">p</TagChip>
         )}
         {item.status === "unfunded" && (
-          <span className="text-[8px] px-0.5 rounded bg-sky-500/20 text-sky-300" title="Passed every check; blocked only by cash. See why for what it needs.">$</span>
+          <TagChip code="$" className="bg-sky-500/20 text-sky-300">$</TagChip>
         )}
         {item.status === "review" && (
-          <span className="text-[8px] px-0.5 rounded bg-red-500/20 text-red-300">r</span>
+          <TagChip code="r" className="bg-red-500/20 text-red-300">r</TagChip>
         )}
         {(item.status === "warn" || item.why.some((w) => w.startsWith("⚠"))) && (
-          <span className="text-[8px] px-0.5 rounded bg-orange-500/20 text-orange-300">!</span>
+          <TagChip code="!" className="bg-orange-500/20 text-orange-300">!</TagChip>
         )}
         {item.news && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-[8px] px-0.5 rounded bg-emerald-500/20 text-emerald-300">news</span>
+              <span className="text-[8px] px-0.5 rounded bg-emerald-500/20 text-emerald-300 cursor-help">news</span>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs text-xs">
               {item.news.titles.length
@@ -134,15 +257,47 @@ function ItemRow({
   );
 }
 
-/** Sort-only strategy views over fields the Model List already carries (no new scores). Missing values sort last. */
+/** Sort-only lenses (fields already on the item). Compact `<select>` in folder header — no View row. */
 const LENSES = {
-  model: { label: "Model", hint: "Model order (portfolio allocation)", value: (_: ModelListItem) => 0 },
-  safe: { label: "Safest", hint: "Highest historical win rate for the contract's delta / expiry", value: (i: ModelListItem) => i.contract?.win?.rate ?? -1 },
+  model: { label: "Model order", hint: "Default portfolio allocation order", value: (_: ModelListItem) => 0 },
+  safe: { label: "Safest", hint: "Highest historical win rate for delta / expiry", value: (i: ModelListItem) => i.contract?.win?.rate ?? -1 },
   tail: { label: "Least tail", hint: "Smallest bad-year loss per contract", value: (i: ModelListItem) => i.contract?.win?.ev_bad ?? -1e9 },
-  value: { label: "Rich options", hint: "Contract IV vs 20-day realized vol: options priced above recent moves (the validated edge)", value: (i: ModelListItem) => i.contract?.vol?.contract_iv_rv ?? -1 },
-  wheel: { label: "Wheel", hint: "Best long-term trend (vs 200-day): better to own if assigned", value: (i: ModelListItem) => i.pillars?.ma200 ?? -1 },
+  value: { label: "Rich options", hint: "Contract IV ÷ 20d realized — options priced above recent moves", value: (i: ModelListItem) => i.contract?.vol?.contract_iv_rv ?? -1 },
+  wheel: { label: "Wheel", hint: "Best vs 200-day trend — better to own if assigned", value: (i: ModelListItem) => i.pillars?.ma200 ?? -1 },
 } as const;
 type LensKey = keyof typeof LENSES;
+
+/** Structures-tab style: solid folder chrome + white label (never gold-on-gold). */
+const FOLDER_CHROME: Record<string, string> = {
+  sell_puts: "bg-emerald-700 hover:bg-emerald-600 border-y border-emerald-500",
+  sell_calls: "bg-red-800 hover:bg-red-700 border-y border-red-500",
+  trim_risk: "bg-orange-700 hover:bg-orange-600 border-y border-orange-500",
+  manage: "bg-violet-700 hover:bg-violet-600 border-y border-violet-400",
+  review: "bg-zinc-700 hover:bg-zinc-600 border-y border-zinc-500",
+};
+const folderChrome = (key: string) => FOLDER_CHROME[key] ?? "bg-zinc-800 hover:bg-zinc-700 border-y border-zinc-600";
+
+const TAG_TIP: Record<string, string> = {
+  H: "In your Robinhood book (shares / related) — book fact, not a Model verdict. Model view is the OWN/INC/AVD/ETF/WCH chip on the left.",
+  n: "New — not on yesterday's published Model List.",
+  p: "Provisional — passed after-hours / soft quote path; treat size carefully.",
+  $: "Unfunded — checks passed; blocked only by cash / collateral.",
+  r: "Review — held back by portfolio rules (e.g. call strike below avg cost).",
+  "!": "Warn — live check flagged something (wide spread, thin OI, etc.). See thesis why.",
+};
+
+function TagChip({ code, children, className }: { code: string; children: ReactNode; className?: string }) {
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <span className={cn("text-[8px] px-0.5 rounded cursor-help", className)}>{children}</span>
+      </TooltipTrigger>
+      <TooltipContent side="left" className="max-w-[240px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+        {TAG_TIP[code] ?? code}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 function FolderTable({
   folder,
@@ -161,59 +316,114 @@ function FolderTable({
   const hasTrades = folder.items.some((i) => i.contract?.win);
   const [lens, setLens] = useSessionState<LensKey>(`fildi_model_lens_${folder.key}`, "model");
   const items = hasTrades && lens !== "model" ? [...folder.items].sort((a, b) => LENSES[lens].value(b) - LENSES[lens].value(a)) : folder.items;
+  const emptyHint =
+    folder.key === "sell_calls"
+      ? `${folder.description} Different from Rankings › Structures covered-call study rows (S076 fail / research board) — Model List only shows calls on free shares that passed L1+L2 live checks.`
+      : folder.description;
   return (
-    <section className="border-b border-[#d4af37]/15">
+    <section className="border-b border-[#d4af37]/20">
       <button
+        type="button"
         onClick={onToggle}
         title={folder.description}
-        className="w-full flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-[#d4af37] hover:bg-white/5 sticky top-0 bg-zinc-950/95 backdrop-blur-md z-10"
+        className={cn(
+          "w-full flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-white sticky top-0 z-10",
+          folderChrome(folder.key),
+        )}
       >
         {open ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
-        <span className="truncate">{folder.name}</span>
-        <span className="text-amber-200/40 font-normal tabular-nums">{folder.items.length}</span>
-        <span className="ml-auto flex gap-1 font-normal shrink-0">
-          {added > 0 && <span className="text-[9px] text-green-400">+{added}</span>}
+        <span className="truncate uppercase tracking-wide">{folder.name}</span>
+        <span className="text-white/90 font-semibold tabular-nums">{folder.items.length}</span>
+        <span className="ml-auto flex items-center gap-1.5 font-normal shrink-0">
+          {hasTrades && open ? (
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <select
+                  value={lens}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => { e.stopPropagation(); setLens(e.target.value as LensKey); }}
+                  className="max-w-[7.5rem] truncate rounded border border-white/25 bg-black/30 px-1 py-0.5 text-[9px] text-white"
+                  aria-label="Sort view"
+                >
+                  {(Object.keys(LENSES) as LensKey[]).map((k) => (
+                    <option key={k} value={k}>{LENSES[k].label}</option>
+                  ))}
+                </select>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+                {LENSES[lens].hint}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+          {added > 0 && <span className="text-[9px] text-emerald-200">+{added}</span>}
           {folder.removed.length > 0 && (
-            <span title={`Dropped: ${folder.removed.join(", ")}`} className="text-[9px] text-red-400">
+            <span title={`Dropped: ${folder.removed.join(", ")}`} className="text-[9px] text-red-200">
               −{folder.removed.length}
             </span>
           )}
         </span>
       </button>
+      {open && folder.key === "sell_puts" ? (
+        <PutBandSelector className="border-b border-[#d4af37]/15 shrink-0" />
+      ) : null}
       {open && (
         <>
-          <div className={cn(WATCHLIST_ROW, "border-b border-[#d4af37]/15 text-[#d4af37] bg-zinc-950/80")}>
-            <div />
+          <div className={cn(WATCHLIST_ROW, "border-b border-[#d4af37]/25 text-[#d4af37] bg-black")}>
+            <div className="min-w-0 text-[9px] font-bold uppercase tracking-wider">
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild><span className="cursor-help">Vw</span></TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[300px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+                  Model view (Fildi fit): OWN · INC · AVD · ETF · WCH. Not your My List color tags. Graded → learn.py propose → shadow → approve.
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="min-w-0 text-[9px] font-bold uppercase tracking-wider">Sym</div>
             <div className="text-right min-w-0 text-[9px] font-bold uppercase tracking-wider">Last</div>
             <div className="text-right min-w-0 text-[9px] font-bold uppercase tracking-wider">Chg%</div>
-            <div className="text-right min-w-0 text-[9px] font-bold uppercase tracking-wider">Tag</div>
-          </div>
-          {hasTrades && (
-            <div className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] text-amber-200/50 border-b border-[#d4af37]/10">
-              <span>View</span>
-              {(Object.keys(LENSES) as LensKey[]).map((k) => (
-                <button
-                  key={k}
-                  title={LENSES[k].hint}
-                  onClick={() => setLens(k)}
-                  className={cn("px-1 rounded", lens === k ? "bg-[#d4af37]/25 text-[#d4af37]" : "hover:text-amber-200")}
-                >
-                  {LENSES[k].label}
-                </button>
-              ))}
+            {(() => {
+              const m = FOLDER_METRIC[folder.key] ?? { score: "SCR", rank: "RANK", tip: "Relative score / rank for this folder. Green better (except URG: red = more urgent)." };
+              return (
+                <>
+                  <div className="text-right min-w-0 text-[9px] font-bold uppercase tracking-wider">
+                    <Tooltip delayDuration={200}>
+                      <TooltipTrigger asChild><span className="cursor-help">{m.score}</span></TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+                        {m.tip}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="text-right min-w-0 text-[9px] font-bold uppercase tracking-wider">
+                    <Tooltip delayDuration={200}>
+                      <TooltipTrigger asChild><span className="cursor-help">{m.rank}</span></TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+                        {m.tip}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </>
+              );
+            })()}
+            <div className="text-right min-w-0 text-[9px] font-bold uppercase tracking-wider">
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild><span className="cursor-help">Tag</span></TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px]">
+                  Book / list flags only: H in book · n new · p provisional · $ unfunded · r review · ! warn. Model judgment = Vw chip (OWN/INC/AVD/…).
+                </TooltipContent>
+              </Tooltip>
             </div>
-          )}
+          </div>
           {folder.items.length === 0 ? (
-            <div className="px-2 py-2 text-[10px] text-amber-200/40">{folder.description}</div>
+            <div className="px-2 py-2 text-[10px] text-amber-100 leading-snug">{emptyHint}</div>
           ) : (
-            <div className="divide-y divide-[#d4af37]/10">
+            <div className="divide-y divide-[#d4af37]/10 bg-zinc-950">
               {items.map((item) => {
                 const key = itemKey(folder.key, item);
                 return (
                   <ItemRow
                     key={key}
                     item={item}
+                    folderKey={folder.key}
+                    folderSize={folder.items.length}
                     selected={selectedKey === key}
                     onSelect={() =>
                       onSelect({
@@ -407,6 +617,25 @@ function HealthStrip({
     }
   }
 
+  // Learning loop: grade → daily reflection → learn.py propose (idempotent) → shadow score → approve promote.
+  const chall = h.challengers ?? 0;
+  const learnS = ageStatus(h.learn_proposed_at ?? h.learn_promoted_at ?? h.last_graded_at, "clock");
+  const learnTone: Tone =
+    grades === 0 ? "idle"
+      : chall > 0 ? "warn"
+      : learnS.tone === "bad" ? "warn"
+      : "ok";
+  parts.push({
+    label: "Learn",
+    tone: learnTone,
+    title: [
+      `Champion ${champ}${chall ? ` · ${chall} challenger(s) waiting approval` : " · no open challenger"}.`,
+      `Promoted ${fmtWhen(h.learn_promoted_at)} · last propose ${fmtWhen(h.learn_proposed_at)}.`,
+      "Cycle: grade_ledger → daily_reflection → learn propose (only if evidence moved) → shadow fit → promote --approve.",
+      "Data bugs never retune weights. Verdict chips (OWN/INC/AVD) come from champion fit — Model's tags, not My List.",
+    ].join(" "),
+  });
+
   return (
     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       {parts.map((p) => (
@@ -436,13 +665,8 @@ function HealthStrip({
 }
 
 const KIND_ORDER: Array<ModelListFolder["kind"]> = ["action", "verdict", "review"];
-const KIND_LABEL: Record<ModelListFolder["kind"], string> = {
-  action: "Action folders",
-  verdict: "Verdict folders",
-  review: "Review",
-};
 
-/** Watchlist → Model List: folder tables matching My List density. */
+/** Watchlist → Model List: folder chrome matches Rankings › Structures themes (no ACTION FOLDERS labels). */
 export function ModelListPanel({
   onSelectThesis,
   selectedKey,
@@ -471,10 +695,7 @@ export function ModelListPanel({
     );
   }
 
-  const byKind = KIND_ORDER.map((kind) => ({
-    kind,
-    folders: data.folders.filter((f) => f.kind === kind),
-  })).filter((g) => g.folders.length > 0);
+  const folders = KIND_ORDER.flatMap((kind) => data.folders.filter((f) => f.kind === kind));
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col min-h-0" data-lenis-prevent>
@@ -484,22 +705,15 @@ export function ModelListPanel({
         </div>
       ) : null}
       <HouseViewWarnings className="px-2 py-1.5 border-b border-red-500/20 space-y-1 shrink-0" />
-      {byKind.map(({ kind, folders }) => (
-        <div key={kind}>
-          <div className="px-2 py-0.5 text-[8px] uppercase tracking-[0.12em] text-zinc-600 bg-zinc-900/80 border-b border-zinc-800/60 sticky top-0 z-[11]">
-            {KIND_LABEL[kind]}
-          </div>
-          {folders.map((f) => (
-            <FolderTable
-              key={f.key}
-              folder={f}
-              open={openMap[f.key] ?? false}
-              onToggle={() => setOpenMap({ ...openMap, [f.key]: !(openMap[f.key] ?? false) })}
-              selectedKey={selectedKey}
-              onSelect={onSelectThesis}
-            />
-          ))}
-        </div>
+      {folders.map((f) => (
+        <FolderTable
+          key={f.key}
+          folder={f}
+          open={openMap[f.key] ?? false}
+          onToggle={() => setOpenMap({ ...openMap, [f.key]: !(openMap[f.key] ?? false) })}
+          selectedKey={selectedKey}
+          onSelect={onSelectThesis}
+        />
       ))}
     </div>
   );

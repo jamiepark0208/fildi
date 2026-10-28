@@ -6,6 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { PutBandSelector } from "@/components/put-band-selector";
 
 type Cell = { want: "high" | "low" | "none"; verdict: string; live: string; evidence: string };
 type Rules = {
@@ -16,13 +17,13 @@ type Rules = {
 };
 
 const VERDICT_TONE: Record<string, string> = {
-  works: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  fails: "bg-red-500/10 text-red-300/80 border-red-500/25",
-  "too early": "bg-amber-500/10 text-amber-200/80 border-amber-500/25",
-  candidate: "bg-sky-500/10 text-sky-300 border-sky-500/25",
-  mixed: "bg-amber-500/10 text-amber-200/80 border-amber-500/25",
-  redundant: "bg-zinc-800 text-zinc-400 border-zinc-700",
-  untested: "bg-zinc-900 text-zinc-500 border-zinc-800",
+  works: "bg-zinc-900 text-white border-emerald-400/70",
+  fails: "bg-zinc-900 text-white border-rose-400/70",
+  "too early": "bg-zinc-900 text-white border-amber-400/70",
+  candidate: "bg-zinc-900 text-white border-sky-400/70",
+  mixed: "bg-zinc-900 text-white border-amber-400/50",
+  redundant: "bg-zinc-900 text-zinc-300 border-zinc-600",
+  untested: "bg-zinc-900 text-zinc-400 border-zinc-700",
 };
 const WANT = { high: "↑ high", low: "↓ low", none: "—" } as const;
 
@@ -52,6 +53,7 @@ export function RankingsRules() {
   if (!R) return <p className="text-sm text-muted-foreground">No rules file yet.</p>;
   return (
     <div className="space-y-2 min-w-0">
+      <PutBandSelector className="max-w-[900px]" />
       <p className="text-[11px] text-amber-200/60 max-w-[900px]">
         {R.principle} <span className="text-zinc-500">· {R.version} · {R.updated}</span>
       </p>
