@@ -5,14 +5,18 @@ import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers } from "../lib/live-movers.js";
 import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
+import { computeRegimeOutlook, outlookCacheKey } from "../lib/intraday-regime-outlook.js";
+import { getLiveMarketContext } from "../lib/live-market-context.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
 import { getPatternDigest } from "../lib/intraday-pattern-digest.js";
 import { hasHighImportanceCatalystToday, isEconomicCalendarStale } from "../lib/macro-static.js";
 import { TTLCache } from "../lib/ttl-cache.js";
+import { yahooFinance, withDeadline } from "../lib/yahoo-client.js";
 import { fetchKalshiMacroStrip } from "../lib/kalshi-macro.js";
 import { getScenarioExposure, parseScenarioId, SCENARIO_IDS, SCENARIO_LABELS } from "../lib/scenario-exposure.js";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, watchlist, positions } from "@workspace/db";
+import { logger } from "../lib/logger.js";
 
 const router = Router();
 
@@ -36,6 +40,7 @@ export interface MarketContextQuote {
   ticker: string;
   price: number | null;
   changePercent: number | null;
+  asOf?: string;
 }
 
 async function fetchMarketContext(): Promise<MarketContextQuote[]> {
@@ -44,19 +49,71 @@ async function fetchMarketContext(): Promise<MarketContextQuote[]> {
     ticker,
     price: live.get(ticker)?.price ?? null,
     changePercent: live.get(ticker)?.changePercent ?? null,
+    asOf: live.get(ticker)?.asOf,
   }));
 }
 
-// KOSPI/Nikkei/HSI close before the US session opens, so this reads as "how did
-// Asia do overnight" — same golden-source quote cache as fetchMarketContext,
-// just a different ticker set. Display-only: does not feed regime/entry logic.
-async function fetchAsiaContext(): Promise<MarketContextQuote[]> {
-  const live = await getLivePrices([...ASIA_INDEX_SYMBOLS]);
-  return ASIA_INDEX_SYMBOLS.map(ticker => ({
+/** Asia indices: Yahoo quote()/Schwab often null or hang — chart meta is reliable. */
+const asiaContextCache = new TTLCache<MarketContextQuote[]>(15 * 60_000, "asia-overnight", 4);
+const regimeOutlookCache = new TTLCache<Awaited<ReturnType<typeof computeRegimeOutlook>>>(
+  5 * 60_000,
+  "live-regime-outlook",
+  8,
+);
+
+async function fetchAsiaIndexQuote(ticker: string): Promise<MarketContextQuote> {
+  const period1 = new Date(Date.now() - 7 * 86_400_000);
+  // 5 s deadline (10-28): a hung chart() sat inside asiaContextCache.getOrCompute, so every /live/state waited on it (55 min seen).
+  const result = await withDeadline(yahooFinance.chart(
     ticker,
-    price: live.get(ticker)?.price ?? null,
-    changePercent: live.get(ticker)?.changePercent ?? null,
-  }));
+    { period1, interval: "1d" },
+    { validateResult: false },
+  ), 5_000, `asia chart ${ticker}`) as {
+    meta?: {
+      regularMarketPrice?: number;
+      regularMarketChangePercent?: number;
+      chartPreviousClose?: number;
+      previousClose?: number;
+    };
+  };
+  const meta = result?.meta ?? {};
+  const price = typeof meta.regularMarketPrice === "number" && Number.isFinite(meta.regularMarketPrice)
+    ? meta.regularMarketPrice
+    : null;
+  let changePercent =
+    typeof meta.regularMarketChangePercent === "number" && Number.isFinite(meta.regularMarketChangePercent)
+      ? meta.regularMarketChangePercent
+      : null;
+  if (changePercent == null && price != null) {
+    const prev = meta.chartPreviousClose ?? meta.previousClose;
+    if (typeof prev === "number" && prev > 0) {
+      changePercent = ((price / prev) - 1) * 100;
+    }
+  }
+  return {
+    ticker,
+    price,
+    changePercent: changePercent != null ? Math.round(changePercent * 100) / 100 : null,
+    asOf: new Date().toISOString(),
+  };
+}
+
+// KOSPI/Nikkei/HSI close before the US session opens — overnight read only.
+// Display-only: does not feed regime/entry logic.
+async function fetchAsiaContext(): Promise<MarketContextQuote[]> {
+  return asiaContextCache.getOrCompute("v1", async () => {
+    const rows = await Promise.all(
+      ASIA_INDEX_SYMBOLS.map(async (ticker) => {
+        try {
+          return await fetchAsiaIndexQuote(ticker);
+        } catch (err) {
+          logger.warn({ ticker, err: String((err as Error)?.message ?? err) }, "asia-overnight: chart failed");
+          return { ticker, price: null, changePercent: null };
+        }
+      }),
+    );
+    return rows;
+  });
 }
 
 /** Overlay live price + intraday-refreshed RSI/MFI/Stoch/MACD/signal onto the daily-derived hot list. */
@@ -171,7 +228,21 @@ router.get("/live/movers", async (_req, res, next) => {
 
 router.get("/live/regime", async (_req, res, next) => {
   try {
-    res.json(await getTodaysCheckpoints());
+    const checkpoints = await getTodaysCheckpoints();
+    const outlook = await regimeOutlookCache.getOrCompute(
+      outlookCacheKey(checkpoints),
+      () => computeRegimeOutlook(checkpoints),
+    );
+    res.json({ checkpoints, outlook });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /live/market-context — Kalshi 15m + desk lean + regime grade hit-rate (45s cache). */
+router.get("/live/market-context", async (_req, res, next) => {
+  try {
+    res.json(await getLiveMarketContext());
   } catch (err) {
     next(err);
   }

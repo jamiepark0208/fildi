@@ -40,7 +40,39 @@ async function fetchScreenerList(scrIds: ScrId): Promise<ScreenerMover[]> {
   }
 }
 
+function mapScreenerQuotes(quotes: any[]): ScreenerMover[] {
+  return quotes.map((q) => ({
+    ticker: String(q.symbol ?? ""),
+    price: q.regularMarketPrice ?? q.fulldayPrice ?? null,
+    changePercent: q.regularMarketChangePercent ?? q.fulldayChangePercent ?? null,
+    volume: q.regularMarketVolume ?? null,
+  })).filter((m) => m.ticker);
+}
+
+/** Direct predefined-screener HTTP — yahoo-finance2 crumb/fetch often dies while this still works. */
+async function fetchScreenerHttp(scrIds: ScrId): Promise<ScreenerMover[]> {
+  const url =
+    `https://query2.finance.yahoo.com/v1/finance/screener/predefined/saved` +
+    `?count=${SCREENER_COUNT}&scrIds=${encodeURIComponent(scrIds)}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = await res.json() as { finance?: { result?: Array<{ quotes?: any[] }> } };
+  return mapScreenerQuotes(body?.finance?.result?.[0]?.quotes ?? []);
+}
+
 async function fetchScreenerUncached(scrIds: ScrId): Promise<ScreenerMover[]> {
+  // Prefer raw HTTP — yahoo-finance2 crumb + schema validation is slow/flaky and
+  // often throws FailedYahooValidationError (or TypeError: fetch failed) on Live.
+  try {
+    const httpMovers = await fetchScreenerHttp(scrIds);
+    if (httpMovers.length > 0) return httpMovers;
+  } catch (err: any) {
+    logger.warn({ err: String(err?.message ?? err), scrIds }, "live-movers: HTTP screener failed — SDK fallback");
+  }
+
   let res: any;
   try {
     res = await (yahooFinance as any).screener(
@@ -51,17 +83,13 @@ async function fetchScreenerUncached(scrIds: ScrId): Promise<ScreenerMover[]> {
     // v3.14.1 throws FailedYahooValidationError even with validateResult:false on
     // some lists (day_gainers), but the error object still carries the full parsed
     // payload in .result — recover it instead of dropping the whole list.
-    if (err?.name === "FailedYahooValidationError" && err.result?.quotes) res = err.result;
-    else throw err;
+    if (err?.name === "FailedYahooValidationError" && err.result?.quotes) {
+      res = err.result;
+    } else {
+      throw err;
+    }
   }
-  const quotes: any[] = res?.quotes ?? [];
-  const movers: ScreenerMover[] = quotes.map(q => ({
-    ticker: q.symbol,
-    price: q.regularMarketPrice ?? null,
-    changePercent: q.regularMarketChangePercent ?? null,
-    volume: q.regularMarketVolume ?? null,
-  }));
-  return movers;
+  return mapScreenerQuotes(res?.quotes ?? []);
 }
 
 // Overlay only *already-cached* golden-source quotes — never await a batch on
