@@ -29,6 +29,8 @@ const HANG_MS = 60_000;
 const RESTARTS_PER_HOUR = 3;
 const ERRORS_5XX = 5;
 const STORM_PER_MIN = 60;
+// localhost batch lane (rateLimiter MACHINE_PATHS): daily jobs paced by the vendor throttle, app calls first — not a UI poll
+const MACHINE_ROUTES = new Set(["/api/schwab/option-quotes", "/api/schwab/chain-ladder", "/api/schwab/equity-prices"]);
 const HEALTHZ_MAX_MS = 300;
 
 const PLAYBOOK = {
@@ -132,7 +134,7 @@ for (const [route, rs] of byRoute) {
   const perMin = new Map();
   for (const r of rs) { const k = Math.floor(r.end / 60_000); perMin.set(k, (perMin.get(k) ?? 0) + 1); }
   const peak = Math.max(...perMin.values());
-  if (peak > STORM_PER_MIN) add("poll_storm", route, `${route}: ${peak} calls in one minute (${rs.length} in ${HOURS} h)`);
+  if (peak > STORM_PER_MIN && !MACHINE_ROUTES.has(route)) add("poll_storm", route, `${route}: ${peak} calls in one minute (${rs.length} in ${HOURS} h)`);
 }
 
 const circ = circuits.filter((t) => t >= since);
