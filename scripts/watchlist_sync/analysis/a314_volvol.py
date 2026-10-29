@@ -89,10 +89,12 @@ def load_cboe() -> pd.DataFrame:
     return cb.pivot_table(index="date", columns="index", values="close")
 
 
-def mde_pp(std: float, n: int) -> float:
-    if n < 5 or std <= 0 or not math.isfinite(std):
+def mde_pp_from_t(eff_pp: float, t: float) -> float:
+    """MDE at 80% power from day-clustered SE = |effect|/|t| (pp), per half."""
+    if not math.isfinite(eff_pp) or not math.isfinite(t) or abs(t) < 1e-9:
         return float("nan")
-    return 100 * (1.96 + 0.84) * std / math.sqrt(n)
+    se = abs(eff_pp) / abs(t)
+    return (1.96 + 0.84) * se
 
 
 def yahoo_spy_ohlc() -> pd.DataFrame:
@@ -166,7 +168,7 @@ def grade_breach(F: pd.DataFrame, m: pd.Series, start: pd.Timestamp = VOL_START)
     x = F.loc[F.index >= start].iloc[252::5].copy()
     mm = m.reindex(x.index).fillna(False)
     x["half"] = np.where(x.index < VOL_SPLIT, "H1", "H2")
-    eff, ts, diffs = {}, {}, []
+    eff, ts = {}, {}
     for h in ("H1", "H2"):
         on, off = x[mm & (x.half == h)], x[~mm & (x.half == h)]
         if len(on) < 20 or len(off) < 20:
@@ -174,13 +176,14 @@ def grade_breach(F: pd.DataFrame, m: pd.Series, start: pd.Timestamp = VOL_START)
             continue
         eff[h] = 100 * (on.breach.mean() - off.breach.mean())
         ts[h] = tstat(on.breach, off.breach)
-        diffs.append(on.groupby(on.index.to_period("M")).breach.mean() - off.groupby(off.index.to_period("M")).breach.mean())
-    all_d = pd.concat([d for d in diffs if len(d)]) if diffs else pd.Series(dtype=float)
-    mde = mde_pp(float(all_d.std()), len(all_d)) if len(all_d) > 3 else float("nan")
+    mde = {
+        h: mde_pp_from_t(eff.get(h, float("nan")), ts.get(h, float("nan"))) for h in ("H1", "H2")
+    }
+    mde_max = max((v for v in mde.values() if math.isfinite(v)), default=float("nan"))
     e1, e2 = eff.get("H1", np.nan), eff.get("H2", np.nan)
     t1, t2 = ts.get("H1", np.nan), ts.get("H2", np.nan)
     same = math.isfinite(e1) and math.isfinite(e2) and e1 != 0 and np.sign(e1) == np.sign(e2)
-    return dict(eff=eff, ts=ts, mde=mde, n=len(x[mm]), pass_daily=same and abs(t1) >= 2 and abs(t2) >= 2)
+    return dict(eff=eff, ts=ts, mde=mde, mde_max=mde_max, n=len(x[mm]), pass_daily=same and abs(t1) >= 2 and abs(t2) >= 2)
 
 
 def incremental_t(F: pd.DataFrame, m: pd.Series, start: pd.Timestamp = VOL_START) -> tuple[float, float]:
@@ -189,7 +192,8 @@ def incremental_t(F: pd.DataFrame, m: pd.Series, start: pd.Timestamp = VOL_START
         {
             "vix_hi": (x.vix >= 25).astype(int),
             "term_inv": (x.vix_term > 1).astype(int),
-            "rv_hi": (x.rv_accel > 1.2).astype(int),
+            "atr_vol": (x.atr_pct > 0.8).astype(int),
+            "er_low": (x.er20 < 0.4).astype(int),
             "m": m.reindex(x.index).fillna(False).astype(int),
             "breach": x.breach,
             "half": np.where(x.index < VOL_SPLIT, "H1", "H2"),
@@ -202,7 +206,7 @@ def incremental_t(F: pd.DataFrame, m: pd.Series, start: pd.Timestamp = VOL_START
         if len(y) < 200 or y.m.sum() < 10:
             out[half] = float("nan")
             continue
-        X = sm.add_constant(y[["vix_hi", "term_inv", "rv_hi", "m"]].astype(float))
+        X = sm.add_constant(y[["vix_hi", "term_inv", "atr_vol", "er_low", "m"]].astype(float))
         try:
             mod = Logit(y.breach.astype(int), X).fit(disp=0, maxiter=80)
             cov = cov_cluster(mod, pd.Categorical(y.d).codes)
@@ -212,6 +216,48 @@ def incremental_t(F: pd.DataFrame, m: pd.Series, start: pd.Timestamp = VOL_START
         except Exception:
             out[half] = float("nan")
     return out.get("H1", float("nan")), out.get("H2", float("nan"))
+
+
+def put_rv_accel_week_after(flag_days: set[date]) -> str:
+    """Only take live bands on entry weeks that follow a calendar week with an rv_accel spike."""
+    import pickle
+
+    import band_engine as BE
+    from put_benchmark import engine_rule, verdict
+
+    rows = [r for r in pickle.loads(BE.CACHE.read_bytes()) if r["h"] == 1 and r.get("vix_ratio") == r.get("vix_ratio")]
+    with connect() as c:
+        BE.add_sector(c, rows)
+    tr = [r for r in rows if r["d"] < BE.SPLIT]
+    table = BE.fit(tr)
+    live = engine_rule(table)
+    weeks = sorted({r["d"] for r in rows if r["d"] >= BE.SPLIT})
+    te = [r for r in rows if r["d"] >= BE.SPLIT]
+    tr_weeks = sorted({r["d"] for r in tr})
+    base = BE.summary(BE.pick_rows(te, live), weeks)
+    base_tr = BE.summary(BE.pick_rows(tr, live), tr_weeks)
+
+    def prior_week_spike(d: date) -> bool:
+        for k in range(1, 8):
+            if (d - timedelta(days=k)) in flag_days:
+                return True
+        return False
+
+    def rule(row):
+        if not prior_week_spike(row["d"]):
+            return None
+        return live(row)
+
+    s = BE.summary(BE.pick_rows(te, rule), weeks)
+    st = BE.summary(BE.pick_rows(tr, rule), tr_weeks)
+    diff = np.array([s["series"][w] - base["series"][w] for w in weeks])
+    t = diff.mean() / (diff.std(ddof=1) / np.sqrt(len(diff))) if diff.std() > 0 else 0.0
+    dbp, dw5 = s["book_bp"] - base["book_bp"], s["book_w5"] - base["book_w5"]
+    v = verdict(dbp, t, dw5)
+    pbp = st["book_bp"] - base_tr["book_bp"]
+    if v == "BETTER" and pbp < -1:
+        v = "BETTER (holdout only)"
+    return f"rv_accel week-after only: Δ{dbp:+.1f}bp t{t:+.1f} pre-2023 Δ{pbp:+.1f} · {v}"
 
 
 def put_overlay(flag_days: set[date]) -> str:
@@ -267,7 +313,12 @@ def main() -> int:
     cb = load_cboe()
     F = build_frame(cb)
     methods = method_flags(F)
-    L = ["# A314 family 3 — vol-of-vol & VIX term (daily S130 harness)", ""]
+    L = [
+        "# A314 family 3 — vol-of-vol & VIX term (daily S130 harness)",
+        "",
+        "Split H1/H2 at 2018-01-01; incremental = logit 5d breach ~ vix≥25 + term invert + S130 v2 (ATR pct>80, ER<0.4) + arm; MDE = 2.8×|effect|/|t| per half (max shown).",
+        "",
+    ]
     passed = []
     for name, claim, src, flag, start in methods:
         g = grade_breach(F, flag, start)
@@ -279,11 +330,15 @@ def main() -> int:
             passed.append((name, flag, start))
         ef = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
         tf = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
-        mde = g["mde"]
-        ms = f"{mde:.1f}pp" if math.isfinite(mde) else "n/a"
+        mde_h = g["mde"]
+        m1 = mde_h.get("H1", float("nan"))
+        m2 = mde_h.get("H2", float("nan"))
+        ms = f"{m1:.1f}/{m2:.1f}pp" if math.isfinite(m1) and math.isfinite(m2) else (
+            f"{g['mde_max']:.1f}pp" if math.isfinite(g.get("mde_max", float("nan"))) else "n/a"
+        )
         L.append(
             f"- **{name}** · {src} · {claim} · n≈{g['n']} · effect H1/H2 {ef(e1)}/{ef(e2)}pp breach · "
-            f"t {tf(t1)}/{tf(t2)} · incr {tf(it1)}/{tf(it2)} vs vol baseline · MDE≈{ms} · **{v}**"
+            f"t {tf(t1)}/{tf(t2)} · incr {tf(it1)}/{tf(it2)} vs S130 baseline · MDE≈{ms} · **{v}**"
         )
     L.append("- **intraday VIX bars** · n/a · no stored intraday VIX series · **skip intraday**")
     if passed:
@@ -293,6 +348,9 @@ def main() -> int:
             L.append(f"- put **{name}**: {put_overlay(days)}")
     else:
         L.append("- put overlay: none (no daily PASS)")
+    _, _, _, rv_flag, rv_start = methods[5]
+    rv_days = {ts.date() for ts in F.loc[F.index >= rv_start].index[rv_flag.reindex(F.index).fillna(False)]}
+    L.append(f"- put benchmark · {put_rv_accel_week_after(rv_days)}")
     packet = "\n".join(L[:25]) + "\n"
     OUT.write_text(packet)
     print(packet)
