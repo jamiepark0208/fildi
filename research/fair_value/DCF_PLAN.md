@@ -8,6 +8,20 @@ Order: generic assumptions for every stock first (§A–§F), sector rules secon
 
 Evidence so far: `out/base_rates.md` (Compustat 1990–2025, `base_rates.py`), sources in §Sources.
 
+## Rules in force (10-29, A283 it2 — the code is `scripts/watchlist_sync/dcf/engine.py`; this list wins over §D–§E and the 10-27 sections below)
+- **Growth:** with consensus, years 1–3 = consensus per-year shrink to base rate by n/(n+3k); years 4–5 = the 5-y base rate (S113);
+  without, years 2–5 = the residual compounding year 1 into the 5-y base-rate CAGR. Years 6–10 = 10-y base rate → terminal g.
+- **Margin:** GAAP + consensus margin change × S115 pass-through; 75 % own / 25 % base rate by year 10; SBC fades per S114.
+- **Reinvestment:** own 3-y sales-to-capital (net-capex fallback), 25 % sector anchor. Year-1 check vs own multi-year median
+  reinvestment in the filings: > 15 pts = ⚠ flag, not unvalued (as a gate it unvalued 26 of 31 watchlist names; negative
+  "actual" reinvestment from deferred revenue — PLTR −29 %, NOW −102 % — is not a target).
+- **Unvalued (with reason):** banks/insurers/REITs; pre-revenue / deep loss; filings-vs-street mismatch; **peak-cycle margin**
+  (positive year later fell ≥ 20 pp and margin now ≥ 15 pp and 1.5× own median, or ex-SBC margin +40 pp in one year →
+  MU, SNDK, WDC, STX) until a mid-cycle rule exists.
+- **Default pair = base.** Implied, LTCMA (7.5 %) and Kroll are named scenarios. **Superseded:** §D level-bucket margins,
+  the R&D-capitalise + calibrate-to-1× steps, "narrow the width" (fix d, S113). No universe rerun; lab display only;
+  fv-2.0.0 promotion needs Jamie's before/after sign-off. Return gap reported, never gated (S009, S116).
+
 ## 0. What is a rule and what is a distribution
 
 | Deterministic (one right answer) | Probabilistic (no single right answer) | Why |

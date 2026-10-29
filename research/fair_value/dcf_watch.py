@@ -13,7 +13,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/watchlist_sync"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts/watchlist_sync/dcf"))
 from build_plan import connect, rows
-from engine import BaseRates, inputs, reverse, simulate, unvalued
+from engine import BaseRates, inputs, reinv_rates, reverse, simulate, unvalued
 from financials import ttm_base
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -108,9 +108,13 @@ with connect() as c:
             nopat0 = x["m0"] * x["rev"] * (1 - x["tax0"])
             act = 1 - (vv("ocf") + vv("interest_expense") * (1 - x["tax0"]) - vv("capex") - vv("sbc")) / nopat0
             mod = sim["parts"]["reinv1"] / sim["parts"]["nopat1"]
+            rates, _ = reinv_rates(b.get("history") or {}, x["tax0"], {k: vv(k) for k in ("operating_income", "ocf", "capex", "sbc", "interest_expense")})
+            act_m = float(np.median(rates)) if len(rates) >= 2 else act  # one year swings with working capital (PLTR, NOW deferred revenue)
+            if abs(mod - act_m) > 0.15:  # A283 it2 bar → flag, not unvalued: as a gate it unvalued 26 of 31 names (10-29)
+                x["flags"] = (x.get("flags") or []) + [f"reinvestment check: year-1 model {mod:.0%} of NOPAT vs {act_m:.0%} own {len(rates)}-y median in the filings (> 15 pts)"]
             store(c, t, True, detail(x, b, sim, v, sc, u))
             print(f"{t:6s} {x['price']:7.2f} | {p10:6.0f} {p50:6.0f} {p90:6.0f} P{(v < x['price']).mean() * 100:02.0f} | "
                   f"{sc['normal']:6.0f} {sc['base']:5.0f} {sc['implied']:7.0f} {sc['ltcma']:6.0f} | "
-                  f"{'> P98' if u is None else f'P{u * 100:.0f}':>18s} | {mod:5.0%} / {act:4.0%}" + (f"  cons y1–3 {'/'.join(f'{g:+.0%}' for g in x['cons']['g'])}" if x.get("cons") else "  no consensus") + (f"  ⚠ {x['flags']}" if x.get("flags") else ""))
+                  f"{'> P98' if u is None else f'P{u * 100:.0f}':>18s} | {mod:5.0%} / {act_m:4.0%}" + (f"  cons y1–3 {'/'.join(f'{g:+.0%}' for g in x['cons']['g'])}" if x.get("cons") else "  no consensus") + (f"  ⚠ {x['flags']}" if x.get("flags") else ""))
         except Exception as e:
             c.rollback(); print(f"{t:6s} failed: {str(e)[:70]}")

@@ -3,9 +3,10 @@ scenarios and a reverse DCF. Generic rules only (sector rules and stock override
 Per path (Monte Carlo, N draws):
   revenue  with consensus (LSEG FY1–FY3, consensus_annual; 10-27 assessment fix a): years 1–3 = consensus revenue path
            interpolated to our TTM dates, ± analyst high/low, shrunk toward the base-rate path by n/(n + 3k);
-           years 4–5 = half consensus year-3 growth, half base rate; years 6–10 = the 10-y base rate fading to terminal g
+           years 4–5 = the 5-y base rate (S113: they mean-revert); years 6–10 = the 10-y base rate fading to terminal g
            (S113: consensus narrows years 1–3 spread ~9 %, years 4–10 not at all → ranges stay base-rate wide).
-           Without: year 1 = FY1 growth, years 2–5 = base-rate 5-y CAGR for size × start growth at percentile u_g;
+           Without: year 1 = FY1 growth, years 2–5 = the residual compounding year 1 into the base-rate 5-y CAGR for
+           size × start growth at percentile u_g;
            years 6–10 = the matching 10-y base rate, fading to terminal g      (S112 base_rates_growth)
   margin   with consensus: GAAP margin + the consensus street-EBIT margin change from FY0 (street EBIT excludes SBC → only
            the change is used) × S115 pass-through (0.9 losses / 0.35 for 0–20 % / 0.1 above), rest base-rate path;
@@ -144,6 +145,20 @@ def own_s2c(h: dict, tax: float, ttm: dict | None = None) -> float | None:
     ends = sorted(rev)
     if len(ends) < 4:
         return None
+    rates, nopats = reinv_rates(h, tax, ttm)
+    if len(rates) < 2:
+        return None
+    rr = float(np.median(rates))
+    d_rev = (rev[ends[-1]] - rev[ends[-4]]) / 3
+    if rr < 0.15 or d_rev <= 0:
+        return 8.0 if rr < 0.15 else None
+    return float(np.clip(d_rev / (rr * float(np.mean(nopats))), 0.3, 8.0))
+
+
+def reinv_rates(h: dict, tax: float, ttm: dict | None = None) -> tuple[list[float], list[float]]:
+    """Yearly reinvestment ÷ NOPAT (last 3 fiscal years + TTM, profitable years only) and their NOPATs."""
+    rev = h.get("revenue") or {}
+    ends = sorted(rev)
     rates, nopats = [], []
     periods = [{k: (h.get(k) or {}).get(e) for k in ("operating_income", "ocf", "capex", "sbc", "interest_expense")} for e in ends[-3:]]
     if ttm:
@@ -154,13 +169,25 @@ def own_s2c(h: dict, tax: float, ttm: dict | None = None) -> float | None:
         nopat = g["operating_income"] * (1 - tax)
         fcff = g["ocf"] + (g["interest_expense"] or 0) * (1 - tax) - g["capex"] - (g["sbc"] or 0)
         rates.append((nopat - fcff) / nopat); nopats.append(nopat)
-    if len(rates) < 2:
+    return rates, nopats
+
+
+def peak_cycle(h: dict, m0: float) -> str | None:
+    """Trailing margin at a cycle peak → no cash-flow value until a mid-cycle rule exists (A283 it2; S111: peak earnings
+    were 14 of the 91 huge gaps). Peak = a demonstrated cycle (a positive-margin year later fell ≥ 20 pp) and the margin
+    now ≥ 15 pp and 1.5× above its own fiscal-year median, or the ex-SBC margin jumped ≥ 40 pp in one year (SNDK,
+    spun off mid-cycle). Scalers (PLTR, APP, RDDT, NFLX) never had a fall, so they stay valued."""
+    rev, oi, sbc = (h.get(k) or {} for k in ("revenue", "operating_income", "sbc"))
+    ends = [e for e in sorted(rev) if oi.get(e) is not None and rev[e]]
+    if len(ends) < 3 or m0 <= 0:
         return None
-    rr = float(np.median(rates))
-    d_rev = (rev[ends[-1]] - rev[ends[-4]]) / 3
-    if rr < 0.15 or d_rev <= 0:
-        return 8.0 if rr < 0.15 else None
-    return float(np.clip(d_rev / (rr * float(np.mean(nopats))), 0.3, 8.0))
+    ms = [oi[e] / rev[e] for e in ends]
+    mx = [(oi[e] + (sbc.get(e) or 0)) / rev[e] for e in ends]
+    med = float(np.median(ms))
+    cyc = any(ms[i] > 0 and min(ms[i + 1:]) <= ms[i] - 0.20 for i in range(len(ms) - 1))
+    if (cyc and m0 >= med + 0.15 and m0 >= 1.5 * max(med, 0.01)) or mx[-1] - mx[-2] >= 0.40:
+        return f"Peak-cycle margin ({m0:.0%} vs own {len(ms)}-y median {med:.0%}) — trailing margin is not a normal year; mid-cycle rule not built"
+    return None
 
 
 def _ibes_rows(conn, t: str, asof) -> list[dict]:
@@ -415,7 +442,7 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
             "dilution": dil_out,
             "claims": claims, "assets": assets, "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),
-            "m0": oi / rev if rev else 0.0,
+            "m0": oi / rev if rev else 0.0, "peak": peak_cycle(base.get("history") or {}, oi / rev if rev else 0.0),
             "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
@@ -426,6 +453,8 @@ def unvalued(x: dict) -> str | None:
     """Why a cash-flow DCF does not apply (None = value it). One home for the live run (dcf_watch) and the S116 backtest."""
     if x["sector"] in ("40", "60"):
         return "Bank / insurer / REIT — cash-flow DCF does not apply (sector method not built)"
+    if x.get("peak"):
+        return x["peak"]
     if x["m0"] > 0:
         return None
     sm = x["cons"].get("sm") if x.get("cons") else None
@@ -475,7 +504,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     years = np.arange(1, 11)
     gr = np.zeros((n, 10))
     gr[:, 0] = g1 + (0 if fx else rng.normal(0, 0.2 * abs(g1) + 0.02, n))
-    gr[:, 1:5] = r25[:, None]
+    # years 2–5 = the residual that compounds year 1 into the 5-y base-rate CAGR (A283 it2: setting each year to the CAGR
+    # left a 40 % year 1 / 11 % base rate ~26 % too much revenue by year 5)
+    gr[:, 1:5] = (((1 + r25) ** 5 / (1 + gr[:, 0])) ** 0.25 - 1)[:, None]
     for k in range(5, 10):
         gr[:, k] = r610 + (g_T - r610) * ((k - 4) / 5)
     if cons is not None:  # consensus years 1–3, shrunk toward the base-rate path by coverage; 4–5 half/half; 6–10 fade
@@ -485,7 +516,7 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         dsd = np.maximum(np.diff(np.r_[0.0, cons["sd"]]), 0.03)  # analyst range on the level → per-year increment
         lg = w[None, :] * (np.log1p(cons["g"])[None, :] + zg[:, None] * dsd[None, :]) + (1 - w[None, :]) * np.log1p(r25)[:, None]
         gr[:, 0:3] = np.expm1(lg)  # blend each year's growth (blending levels piled all shrinkage into year 3)
-        gr[:, 3:5] = (0.5 * gr[:, 2] + 0.5 * r25)[:, None]
+        gr[:, 3:5] = r25[:, None]  # S113: years 4–5 mean-revert (~7–9 %), consensus has no signal there → base rate (A283 it2)
         # years 6–10 keep the size × start-growth 10-y base rate (set above): S113 — realized growth in years 6–10 is
         # 3–6 % in every consensus decile (ρ ≈ 0.05), so consensus says nothing about them
     if "analyst_g" in fx:  # analyst-style path: years 2–5 at the given growth, then linear fade to terminal by year 10
