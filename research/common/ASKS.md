@@ -281,5 +281,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A304](asks/A304.md) | 2026-10-28 | Muse → Cursor | CI typecheck red — stock-breakdown + options-scanner import missing sub-tabs + HeaderStats | done (Cursor 10-28: sub-tabs + HeaderStats + Kalshi/macro exports) |
 | [A305](asks/A305.md) | 2026-10-28 | Muse → Cursor | One tab system + one type system: Live-tab pattern everywhere, font/color refactor with drift guards | done (Phase 0–2; guard hard on gray) |
 | [A306](asks/A306.md) | 2026-10-28 | Claude → Cursor | RBH daily export is noisy, not clean: order history only page 1, hand-edited payloads, LLM doing fetch work — help simplify | done (Cursor 10-28: paging/dedup/reorder)|
-| [A307](asks/A307.md) | 2026-10-28 | Claude → Cursor | [quant] Grade Live hotlist entry verdicts — still gated on the failed market-direction call (S126) | planned |
+| [A307](asks/A307.md) | 2026-10-28 | Claude → Cursor | [quant] Grade Live hotlist entry verdicts — still gated on the failed market-direction call (S126) | done |
 | [A308](asks/A308.md) | 2026-10-28 | Claude → Cursor | [quant] Forward ledger earnings_up: skew + StarMine forecasters (S127 follow-up) | done |
