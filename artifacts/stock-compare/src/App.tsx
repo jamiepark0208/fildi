@@ -28,7 +28,6 @@ const Feed = lazy(() => import("@/pages/feed"));
 const Sentiment = lazy(() => import("@/pages/sentiment"));
 const Live = lazy(() => import("@/pages/live"));
 const Agents = lazy(() => import("@/pages/agents"));
-const TrackRecord = lazy(() => import("@/pages/track-record"));
 
 /** Old /macro bookmarks → Live › Macro (keeps ?tab=). */
 function MacroToLiveRedirect() {
@@ -36,6 +35,11 @@ function MacroToLiveRedirect() {
   params.set("page", "macro");
   const q = params.toString();
   return <Redirect to={`/live${q ? `?${q}` : ""}`} />;
+}
+
+/** Old /track-record bookmarks → Live › Track Record. */
+function TrackRecordToLiveRedirect() {
+  return <Redirect to="/live?page=track" />;
 }
 
 const queryClient = new QueryClient({
@@ -156,7 +160,7 @@ function Router() {
         <ProtectedRoute><Live /></ProtectedRoute>
       </Route>
       <Route path="/track-record">
-        <ProtectedRoute><TrackRecord /></ProtectedRoute>
+        <ProtectedRoute><TrackRecordToLiveRedirect /></ProtectedRoute>
       </Route>
       <Route>
         <Suspense fallback={<PageSkeleton />}>

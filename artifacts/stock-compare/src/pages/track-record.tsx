@@ -774,7 +774,8 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
 
 type TrackTab = "model" | "strategies";
 
-export default function TrackRecord() {
+/** `embedded` — Live › Track Record sub-tab (no TopNav / AppPage shell). */
+export default function TrackRecord({ embedded = false }: { embedded?: boolean } = {}) {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useSessionState<TrackTab>("fildi_track_record_tab", "model");
   const activeTab: TrackTab = tab === "strategies" && !isAdmin ? "model" : tab;
@@ -813,9 +814,8 @@ export default function TrackRecord() {
     enabled: activeTab === "model",
   });
 
-  return (
-    <AppPage contentClassName="px-4 pb-4">
-      <div className="space-y-2 max-w-7xl mx-auto">
+  const body = (
+      <div className={cn("space-y-2 max-w-7xl mx-auto", embedded ? "px-4 pb-4 pt-2" : undefined)}>
         {isAdmin && (
           <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
             {([
@@ -899,6 +899,8 @@ export default function TrackRecord() {
           </>
         )}
       </div>
-    </AppPage>
   );
+
+  if (embedded) return body;
+  return <AppPage contentClassName="px-4 pb-4">{body}</AppPage>;
 }

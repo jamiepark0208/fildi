@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Bookmark, BriefcaseBusiness, Trophy, User, Settings as SettingsIcon,
-  Activity, ShieldCheck, Bot,
+  Activity, Bot,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -29,8 +29,7 @@ const LEFT_NAV_ITEMS: NavItem[] = [
   // checking enh/8's status first.
   { id: "portfolio", href: "/portfolio",  label: "Portfolio",  icon: BriefcaseBusiness, color: "#34d399", adminOnly: true }, // emerald
   { id: "rankings",  href: "/rankings",   label: "Rankings",   icon: Trophy,            color: "#fbbf24" }, // gold
-  { id: "live",      href: "/live",       label: "Live",       icon: Activity,          color: "#fb7185" }, // rose — Macro is a Live sub-tab
-  { id: "track-record", href: "/track-record", label: "Track Record", icon: ShieldCheck, color: "#38bdf8" }, // sky
+  { id: "live",      href: "/live",       label: "Live",       icon: Activity,          color: "#fb7185" }, // rose — Macro + Track Record are Live sub-tabs
 ];
 
 const RIGHT_NAV_ITEMS: NavItem[] = [

@@ -10,6 +10,7 @@ import {
 import { type TechnicalRow } from "@/lib/technical-rankings";
 
 const MacroEmbedded = lazy(() => import("@/pages/macro"));
+const TrackRecordEmbedded = lazy(() => import("@/pages/track-record"));
 import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint, type RegimeOutlook } from "@/components/live/regime-banner";
 import { RegimeSessionChart } from "@/components/live/regime-session-chart";
 import { formatMdYy } from "@/lib/format";
@@ -195,7 +196,7 @@ function AsiaOvernightRow({
   );
 }
 
-type PageTab = "market" | "macro" | "news" | "alerts";
+type PageTab = "market" | "macro" | "news" | "alerts" | "track";
 type SubTab = "sell" | "candidates";
 type MarketSection = "puts" | "oversold" | "calls" | "overbought";
 type NewsSection = "daily" | "inbox";
@@ -206,9 +207,10 @@ const PAGE_TABS: { id: PageTab; label: string }[] = [
   { id: "macro", label: "Macro" },
   { id: "news", label: "News" },
   { id: "alerts", label: "Portfolio Alerts" },
+  { id: "track", label: "Track Record" },
 ];
 
-const LIVE_TAB_HUE = { market: "sky", macro: "violet", news: "amber", alerts: "rose" } as const;
+const LIVE_TAB_HUE = { market: "sky", macro: "violet", news: "amber", alerts: "rose", track: "emerald" } as const;
 
 const MARKET_SECTIONS: { id: MarketSection; label: string; side: HotlistSide; sub: SubTab }[] = [
   { id: "puts", label: "Top Puts", side: "dip", sub: "sell" },
@@ -479,7 +481,7 @@ export default function Live() {
   return (
     <AppPage contentClassName="px-0 pb-0">
       <div className="w-full flex flex-col min-h-0">
-        {/* L1 — page tabs (Market / Macro / News / Alerts) */}
+        {/* L1 — page tabs (Market / Macro / News / Alerts / Track Record) */}
         <div className="shrink-0 border-b border-[#d4af37]/15 bg-zinc-950 px-6 py-2 overflow-x-auto">
           <PageTabToggle tab={pageTab} onChange={setPageTab} />
         </div>
@@ -560,6 +562,14 @@ export default function Live() {
             </div>
           }>
             <MacroEmbedded embedded />
+          </Suspense>
+        ) : pageTab === "track" ? (
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[40vh]">
+              <Loader2 className="h-6 w-6 animate-spin text-amber-200/40" />
+            </div>
+          }>
+            <TrackRecordEmbedded embedded />
           </Suspense>
         ) : pageTab === "alerts" ? (
           <div className="px-6 py-3 max-w-5xl mx-auto w-full space-y-3">
