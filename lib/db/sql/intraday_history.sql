@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS intraday_checkpoint_grades (
 CREATE INDEX IF NOT EXISTS idx_intraday_cp_grades_bucket
   ON intraday_checkpoint_grades (min_after_open, direction, grade);
 
+-- S126 (10-28): the Live call is rest-of-day risk, graded on the drop that followed.
+ALTER TABLE intraday_checkpoint_grades ADD COLUMN IF NOT EXISTS risk_level    text;
+ALTER TABLE intraday_checkpoint_grades ADD COLUMN IF NOT EXISTS risk_score    numeric;
+ALTER TABLE intraday_checkpoint_grades ADD COLUMN IF NOT EXISTS rest_drop_atr numeric;
+
 -- hotlist_snapshots: dual grading (strike safety alongside forward returns).
 -- All additive and nullable except horizon_days, which defaults — existing rows
 -- keep their PENDING/WIN/LOSS status and simply have no MAE until re-graded.

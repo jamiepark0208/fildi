@@ -6,11 +6,22 @@ import { cn } from "@/lib/utils";
 
 export type RegimeDirection = "bullish" | "bearish" | "mixed";
 
+export type RiskLevel = "calm" | "normal" | "elevated" | "stormy";
+
+/** S126 rest-of-day risk — the headline call (direction has no tested edge). */
+export interface RegimeRisk {
+  level: RiskLevel;
+  pDropHalfAtr: number;
+  halfAtrPct: number;
+  state: "trend" | "range" | "quiet" | "volatile";
+}
+
 export interface RegimeCheckpoint {
   minAfterOpen: number;
   status: "pending" | "resolved";
   direction: RegimeDirection | null;
   confidence: number | null;
+  risk?: RegimeRisk | null;
   label: string;
   computedLate: boolean;
   factors: string[];
@@ -45,7 +56,12 @@ export const CHECKPOINT_TIME_PT: Record<number, string> = {
   330: "12:00 PM PT",
 };
 
+const RISK_DOT: Record<RiskLevel, string> = { calm: "bg-sky-400", normal: "bg-zinc-300", elevated: "bg-amber-500", stormy: "bg-red-500" };
+const RISK_TEXT: Record<RiskLevel, string> = { calm: "text-sky-400", normal: "text-zinc-200", elevated: "text-amber-400", stormy: "text-red-500" };
+const RISK_SHORT: Record<RiskLevel, string> = { calm: "Calm", normal: "Norm", elevated: "Elev", stormy: "Storm" };
+
 function regimeDotColor(c: RegimeCheckpoint): string {
+  if (c.status === "resolved" && c.risk) return RISK_DOT[c.risk.level];
   if (c.status === "resolved" && c.direction == null && c.minAfterOpen === 15) return "bg-[#d4af37]/50";
   if (c.status === "pending" || c.direction == null) return "bg-amber-200/30";
   if (c.direction === "mixed") return "bg-yellow-500";
@@ -53,6 +69,7 @@ function regimeDotColor(c: RegimeCheckpoint): string {
 }
 
 function regimeTextColor(c: RegimeCheckpoint): string {
+  if (c.status === "resolved" && c.risk) return RISK_TEXT[c.risk.level];
   if (c.status === "resolved" && c.direction == null && c.minAfterOpen === 15) return "text-[#d4af37]";
   if (c.status === "pending" || c.direction == null) return "text-amber-200/40";
   if (c.direction === "mixed") return "text-yellow-500";
@@ -60,11 +77,18 @@ function regimeTextColor(c: RegimeCheckpoint): string {
 }
 
 function regimeShortLabel(c: RegimeCheckpoint): string {
+  if (c.status === "resolved" && c.risk) return RISK_SHORT[c.risk.level];
   // 15m slot always resolves as OR baseline (no breakout yet) — not a missed run.
   if (c.status === "resolved" && c.direction == null && c.minAfterOpen === 15) return "OR";
   if (c.status === "pending" || c.direction == null) return "—";
   if (c.direction === "mixed") return "Mix";
   return c.direction === "bullish" ? "Bull" : "Bear";
+}
+
+/** Risk cells show the tested drop odds; legacy (pre-S126) cells keep their direction + confidence. */
+function cellLabel(c: RegimeCheckpoint): string {
+  if (c.risk) return `${RISK_SHORT[c.risk.level]} ${Math.round(c.risk.pDropHalfAtr * 100)}%`;
+  return `${regimeShortLabel(c)}${c.confidence != null ? ` ${c.confidence}%` : ""}`;
 }
 
 function fmtFwd(n: number): string {
@@ -79,9 +103,8 @@ export function pendingCellLabel(c: RegimeCheckpoint, outlook: RegimeOutlook | u
   if (slot.fwdCloseP25 != null && slot.fwdCloseP75 != null) {
     return `~${fmtFwd(slot.fwdCloseP25)}…${fmtFwd(slot.fwdCloseP75)}`;
   }
-  const best = Math.max(slot.pBull, slot.pMix, slot.pBear);
-  const dir = best === slot.pBull ? "Bull" : best === slot.pBear ? "Bear" : "Mix";
-  return `~${dir} ${best}%`;
+  // Bull/Bear frequencies are not shown as a call — S126: direction has no edge.
+  return "—";
 }
 
 function pendingCellTip(c: RegimeCheckpoint, outlook: RegimeOutlook | undefined): string {
@@ -173,26 +196,29 @@ export function RegimeBanner({
 
   // Headline = latest resolved directional call; flag a flip vs. the checkpoint
   // before it — a mid-day regime flip is the single most tradeable banner event.
-  const resolved = checkpoints.filter(c => c.status === "resolved" && c.direction != null);
+  const resolved = checkpoints.filter(c => c.status === "resolved" && (c.risk != null || c.direction != null));
   const latest = resolved[resolved.length - 1] ?? null;
   const prev = resolved[resolved.length - 2] ?? null;
-  const flipped = latest != null && prev != null && prev.direction !== latest.direction;
+  const flipped = latest != null && prev != null && regimeShortLabel(prev) !== regimeShortLabel(latest);
 
   return (
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
       <div className="px-3 py-1.5 border-b border-[#d4af37]/25 bg-black flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wide">
+        <span
+          className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wide"
+          title="Rest-of-day risk (S126, 479 SPY/QQQ sessions). % = historical odds of a further drop ≥ half a normal day's range before the close: calm 10%, normal 15%, elevated 20%, stormy 33%. Bull/bear direction has no tested edge (49.5%) — shown in the cell detail only."
+        >
           Intraday Regime
         </span>
         {latest && (
           <span className="flex items-center gap-2 text-[11px] font-mono">
             <span className={cn("font-semibold", regimeTextColor(latest))}>
-              Now: {regimeShortLabel(latest)}{latest.confidence != null ? ` ${latest.confidence}%` : ""}
+              Now: {cellLabel(latest)}
             </span>
             <span className="text-white">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
             {flipped && prev && (
               <span className="text-amber-400 font-semibold">
-                ⚠ flipped from {regimeShortLabel(prev)} at {CHECKPOINT_TIME_PT[prev.minAfterOpen] ?? prev.label}
+                ⚠ {latest.risk ? "changed" : "flipped"} from {regimeShortLabel(prev)} at {CHECKPOINT_TIME_PT[prev.minAfterOpen] ?? prev.label}
               </span>
             )}
           </span>
@@ -203,7 +229,7 @@ export function RegimeBanner({
           const pending = c.status === "pending";
           const cellText = pending
             ? pendingCellLabel(c, outlook)
-            : `${regimeShortLabel(c)}${c.confidence != null ? ` ${c.confidence}%` : ""}`;
+            : cellLabel(c);
           return (
           <Popover key={c.minAfterOpen} open={openMin === c.minAfterOpen} onOpenChange={open => setOpenMin(open ? c.minAfterOpen : null)}>
             <PopoverTrigger asChild>

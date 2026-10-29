@@ -29,7 +29,10 @@ type MarketContext = {
   fomc: { dateLabel: string; holdPct: number; cutPct: number; hikePct: number } | null;
   cpi: { monthLabel: string; medianYoY: number } | null;
   deskLean: DeskLean | null;
-  regimeAccuracy: { lookbackDays: number; n: number; correctPct: number | null; note: string } | null;
+  regimeAccuracy: {
+    lookbackDays: number; n: number; correctPct: number | null; note: string;
+    risk?: Partial<Record<"calm" | "normal" | "elevated" | "stormy", { n: number; pDrop: number }>>;
+  } | null;
   kalshiNote: string;
 };
 
@@ -142,11 +145,21 @@ export function MarketContextStrip() {
     });
   }
   const reg = data.regimeAccuracy;
+  const calm = reg?.risk?.calm;
+  const storm = reg?.risk?.stormy;
+  if (calm && storm && calm.n + storm.n >= 8) {
+    parts.push({
+      key: "risk",
+      text: `drop odds calm ${calm.pDrop}% · stormy ${storm.pDrop}%`,
+      className: "text-white/80",
+      title: `Live-graded rest-of-day risk call (SPY, ${reg.lookbackDays}d): share of checkpoints followed by a ≥ ½-day-range drop before the close. Backtest S126: calm 10%, stormy 33%. n calm ${calm.n}, stormy ${storm.n}.`,
+    });
+  }
   if (reg?.correctPct != null && reg.n >= 8) {
     parts.push({
       key: "reg",
-      text: `reg ${reg.correctPct}%`,
-      className: "text-white/80",
+      text: `dir ${reg.correctPct}% (no edge)`,
+      className: "text-amber-100",
       title: reg.note,
     });
   }

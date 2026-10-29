@@ -1941,6 +1941,9 @@ export const intradayCheckpointGrades = pgTable('intraday_checkpoint_grades', {
   fwdClosePct:       numeric('fwd_close_pct'),
   grade:             text('grade').notNull().default('pending'), // correct | incorrect | flat | no_data | pending
   reconstructed:     boolean('reconstructed').notNull().default(false),
+  riskLevel:         text('risk_level'),             // S126 rest-of-day risk: calm | normal | elevated | stormy
+  riskScore:         numeric('risk_score'),
+  restDropAtr:       numeric('rest_drop_atr'),       // worst drop after the checkpoint ÷ 20-day ATR (≤ 0)
   gradedAt:          timestamp('graded_at', { withTimezone: true }),
 }, t => ({
   checkpointUnique: unique('idx_intraday_cp_grades_checkpoint').on(t.date, t.ticker, t.minAfterOpen),

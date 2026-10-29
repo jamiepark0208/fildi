@@ -8,6 +8,7 @@
 4. **[`research/studies/INDEX.md`](research/studies/INDEX.md)** — every study / backtest and its answer. Check it before any analysis; add a row after. How to run one: [`PLAYBOOK.md`](research/studies/PLAYBOOK.md)
 5. **[`.agents/context/jamie-rules.md`](.agents/context/jamie-rules.md)** — Jamie's standing rules for every agent (decisions, verdict wording, no personal trades in rules). Add new ones there; never make him repeat one.
 6. **[`.agents/context/recurring-bugs.md`](.agents/context/recurring-bugs.md)** — bug classes that keep coming back (stand-in 0s, two pickers, ticker joins, step order, units). Read before any fix to recs/scores/surfaces; fix the producer, add the case to its row.
+7. **Stock notes (Jamie 10-28)** — per-ticker dated facts that took analysis to learn (trades, earnings reactions, levels, backtests, character). **Before** analysing or recommending a ticker: `scripts/stock_notes.py show <T…>`. **After**: add ≤ 2 notes, one fact each, ≤ 280 chars, `--src` study/bug id, `--author <you>` (`stock_notes.py add T <trade|earnings|levels|backtest|character|lesson> "…"`). Notes are history, never a forecast. Shown in Breakdown › Notes and fed to the AI explain prompts.
 
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).

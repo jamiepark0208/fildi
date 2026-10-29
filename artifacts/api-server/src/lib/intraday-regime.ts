@@ -14,6 +14,7 @@ import { getLivePrices } from "./live-quote.js";
 import { liveHotlist, MARKET_CONTEXT_SYMBOLS } from "./live-hotlist.js";
 import { etDateKey, getMarketOpenUtc } from "./market-hours.js";
 import { logger } from "./logger.js";
+import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall } from "./intraday-risk.js";
 
 
 // Every 15 min through the first hour (when trend-vs-reversal usually resolves),
@@ -63,6 +64,8 @@ export interface RegimeCheckpoint {
   spy: SymbolSignal | null;
   qqq: SymbolSignal | null;
   breadth: { agree: number; total: number } | null;
+  /** Rest-of-day risk (S126) — the headline call. Direction above is kept for history but has no tested edge. */
+  risk?: RiskCall | null;
   /** Wall-clock label for this checkpoint's target time, e.g. "6:45 AM PT". */
   label: string;
   /** True if this checkpoint ran well after its target time (catch-up after downtime) — breadth is omitted since it has no historical snapshot. */
@@ -283,17 +286,18 @@ function explainCheckpoint(args: {
   direction: Direction | null;
   confidence: number | null;
   breadth: { agree: number; total: number } | null;
+  risk: RiskCall | null;
   isBaselineOnly: boolean;
 }): string[] {
-  const { spy, qqq, direction, confidence, breadth, isBaselineOnly } = args;
-  if (isBaselineOnly) return ["Opening range established (first 15 min) — no directional call yet."];
+  const { spy, qqq, direction, confidence, breadth, risk, isBaselineOnly } = args;
+  if (isBaselineOnly) return ["Opening range established (first 15 min) — no call yet."];
 
-  const lines = [symbolFactorLine("SPY", spy), symbolFactorLine("QQQ", qqq)];
+  const lines = [riskFactorLine(risk), symbolFactorLine("SPY", spy), symbolFactorLine("QQQ", qqq)];
   if (breadth) lines.push(`Breadth: ${breadth.agree}/${breadth.total} hotlist tickers agree`);
 
-  if (direction === "mixed") lines.push(`Verdict: Mixed, ${confidence ?? 0}% — SPY/QQQ disagree`);
-  else if (direction) lines.push(`Verdict: ${direction === "bullish" ? "Bullish" : "Bearish"}, ${confidence ?? 0}% — indices agree`);
-  else lines.push("Verdict: no lean yet");
+  // S126: this composite called the close right 49.5 % of the time (always-bullish 53 %) — shown, never a verdict.
+  const lean = direction === "mixed" ? "mixed" : direction ?? "none";
+  lines.push(`Direction lean: ${lean}${confidence != null && direction ? ` ${confidence}` : ""} — no tested edge (S126: 49.5% vs 53% always-up)`);
 
   return lines;
 }
@@ -363,11 +367,13 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
   logger.info({ dateKey, minAfterOpen, isLate }, "intraday-regime: running checkpoint");
 
   try {
-    const [spyBarsAll, qqqBarsAll, spyPrior, qqqPrior] = await Promise.all([
+    const [spyBarsAll, qqqBarsAll, spyPrior, qqqPrior, spyDaily, qqqDaily] = await Promise.all([
       fetchTodaysBars("SPY"),
       fetchTodaysBars("QQQ"),
       getPriorDayHighLow("SPY"),
       getPriorDayHighLow("QQQ"),
+      dailyContext("SPY", dateKey),
+      dailyContext("QQQ", dateKey),
     ]);
 
     // Slice to bars at/before this checkpoint's target time — even when this
@@ -385,6 +391,10 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
     // The 15-min checkpoint is when the opening range itself closes — no
     // breakout is possible yet, so report the OR baseline without a directional call.
     const isBaselineOnly = minAfterOpen === 15;
+    const risk = isBaselineOnly ? null : combineRisk(
+      computeRiskCall(spyBarsAll.filter(b => b.time < targetTimestamp), minAfterOpen, spyDaily),
+      computeRiskCall(qqqBarsAll.filter(b => b.time < targetTimestamp), minAfterOpen, qqqDaily),
+    );
     const { direction, confidence } = isBaselineOnly ? { direction: null, confidence: null } : combine(spy, qqq);
     // Hotlist breadth has no historical snapshot — only meaningful when computed
     // close to the checkpoint's actual time, not reconstructed after the fact.
@@ -405,14 +415,15 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
       spy,
       qqq,
       breadth: breadthRaw,
+      risk,
       label: checkpointLabel(marketOpenUtc, minAfterOpen),
       computedLate: isLate,
-      factors: explainCheckpoint({ spy, qqq, direction, confidence: finalConfidence, breadth: breadthRaw, isBaselineOnly }),
+      factors: explainCheckpoint({ spy, qqq, direction, confidence: finalConfidence, breadth: breadthRaw, risk, isBaselineOnly }),
     };
 
     await saveCheckpoints(dateKey, [...existing, checkpoint]);
     lastFailureAt.delete(failureKey);
-    logger.info({ dateKey, minAfterOpen, direction, confidence: finalConfidence, isLate }, "intraday-regime: checkpoint recorded");
+    logger.info({ dateKey, minAfterOpen, direction, confidence: finalConfidence, risk: risk?.level ?? null, isLate }, "intraday-regime: checkpoint recorded");
     return true;
   } catch (err) {
     lastFailureAt.set(failureKey, Date.now());

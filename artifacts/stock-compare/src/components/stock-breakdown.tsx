@@ -17,6 +17,7 @@ import { PeerGroupEditor } from "./settings/PeerGroupEditor";
 import { FundScoreHistoryChart } from "./fund-score-history-chart";
 import { StreetHeaderBadges, StreetSynthesisCard } from "./street-synthesis-card";
 import { ScoreNoteForm } from "./score-note-form";
+import { StockNotesPanel } from "./breakdown/stock-notes-panel";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -105,7 +106,7 @@ export function StockBreakdown({
   const [chartPeriod, setChartPeriod] = useState<Period>("1W");
   const [tvOpen, setTvOpen] = useState(false);
   const [peerEditOpen, setPeerEditOpen] = useState(false);
-  const [digTab, setDigTab] = useState<"news" | "history" | "accounting" | "assumptions" | "thesis" | "calls" | "options">("news");
+  const [digTab, setDigTab] = useState<"news" | "notes" | "history" | "accounting" | "assumptions" | "thesis" | "calls" | "options">("news");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [focusedIdx, setFocusedIdx] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -790,6 +791,7 @@ export function StockBreakdown({
                           {(
                             [
                               ["news", "News", "sky"],
+                              ["notes", "Notes", "emerald"],
                               ["history", "Score history", "violet"],
                               ["accounting", "Accounting", "amber"],
                               ["assumptions", "Assumptions", "orange"],
@@ -838,6 +840,7 @@ export function StockBreakdown({
                         )}
                         {digTab === "assumptions" && activeTicker && <AssumptionsTab ticker={activeTicker} />}
                         {digTab === "thesis" && activeTicker && <ThesisTab ticker={activeTicker} />}
+                        {digTab === "notes" && activeTicker && <StockNotesPanel ticker={activeTicker} isAdmin={!!isAdmin} />}
                         {digTab === "calls" && activeTicker && <EarningsCallsTab ticker={activeTicker} />}
                         {digTab === "options" && activeTicker && <OptionsHistoryTab ticker={activeTicker} isAdmin={!!isAdmin} />}
                       </div>

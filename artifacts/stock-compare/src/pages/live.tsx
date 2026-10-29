@@ -642,11 +642,8 @@ export default function Live() {
                   side={isRally ? "call" : "put"}
                   n={7}
                   conflictsByTicker={conflictsByTicker}
-                  regimeDirection={
-                    [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.direction ?? null
-                  }
-                  regimeConfidence={
-                    [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.direction != null)?.confidence ?? null
+                  regimeRisk={
+                    [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.risk != null)?.risk ?? null
                   }
                 />
               ) : sortedHotlist.length === 0 ? (

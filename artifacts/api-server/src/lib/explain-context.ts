@@ -10,6 +10,7 @@ import { fetchSectorRotation, type SectorRotationPoint } from "./macro-data.js";
 import { _cache as macroRegimeCache, type MacroRegime } from "../routes/macro-regime.js";
 import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
+import { noteLines, readStockNotes } from "./stock-notes.js";
 import { themesBrief, type ThemesBrief } from "./macro/macro-themes.js";
 
 export const tickerNewsCache = new TTLCache<NewsItem[]>(30 * 60 * 1000, "ticker-news", 500);
@@ -50,6 +51,8 @@ export interface ContextBundle {
   ticker: string;
   stockEvent: StockEventContext | null;
   marketEvent: MarketEventContext | null;
+  /** Dated desk notes on this ticker (newest first) — past context, not a forecast. */
+  notes?: string[];
 }
 
 export type ContextQuadrant = "stockEvent" | "marketEvent";
@@ -62,6 +65,9 @@ export async function assembleContext(
   const bundle: ContextBundle = { ticker: upper, stockEvent: null, marketEvent: null };
 
   const tasks: Promise<void>[] = [];
+  tasks.push(readStockNotes(upper).then(n => { bundle.notes = noteLines(n); }).catch(err => {
+    logger.warn({ ticker: upper, err: String(err) }, "explain-context: stock notes failed");
+  }));
 
   if (opts.include.includes("stockEvent")) {
     tasks.push((async () => {

@@ -12,6 +12,7 @@ import {
   readFundScoreHistory,
 } from "../lib/fund-score-snapshots.js";
 import { logger } from "../lib/logger.js";
+import { NOTE_MAX_CHARS } from "../lib/stock-notes.js";
 
 const router = Router();
 
@@ -77,8 +78,8 @@ router.post("/stocks/:ticker/score-notes", requireAuth, requireAdmin, async (req
     return;
   }
   const body = String(req.body?.body ?? "").trim();
-  if (!body || body.length > 2000) {
-    res.status(400).json({ error: "body required (1–2000 chars)" });
+  if (!body || body.length > NOTE_MAX_CHARS) {
+    res.status(400).json({ error: `body required (1–${NOTE_MAX_CHARS} chars — notes stay concise)` });
     return;
   }
   const asOf = String(req.body?.asOf ?? etDateKey()).slice(0, 10);

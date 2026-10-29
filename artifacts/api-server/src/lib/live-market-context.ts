@@ -30,6 +30,8 @@ export interface RegimeAccuracySummary {
   incorrect: number;
   correctPct: number | null;
   note: string;
+  /** S126 risk call graded live: share of checkpoints at each level followed by a ≥ 0.5 ATR drop before the close. */
+  risk: Partial<Record<"calm" | "normal" | "elevated" | "stormy", { n: number; pDrop: number }>>;
 }
 
 export interface LiveMarketContext {
@@ -102,19 +104,28 @@ async function loadRegimeAccuracy(): Promise<RegimeAccuracySummary | null> {
       const lookbackDays = 40;
       const since = new Date(Date.now() - lookbackDays * 86_400_000).toISOString().slice(0, 10);
       const rows = await db
-        .select({ grade: intradayCheckpointGrades.grade })
+        .select({ grade: intradayCheckpointGrades.grade, riskLevel: intradayCheckpointGrades.riskLevel, restDropAtr: intradayCheckpointGrades.restDropAtr })
         .from(intradayCheckpointGrades)
         .where(and(
           eq(intradayCheckpointGrades.ticker, "SPY"),
           gte(intradayCheckpointGrades.date, since),
-          inArray(intradayCheckpointGrades.grade, ["correct", "incorrect"]),
         ))
-        .limit(2000);
+        .limit(4000);
       let correct = 0;
       let incorrect = 0;
+      const risk: RegimeAccuracySummary["risk"] = {};
+      const hits: Record<string, { n: number; drops: number }> = {};
       for (const r of rows) {
         if (r.grade === "correct") correct += 1;
         else if (r.grade === "incorrect") incorrect += 1;
+        if (r.riskLevel && r.restDropAtr != null) {
+          const h = (hits[r.riskLevel] ??= { n: 0, drops: 0 });
+          h.n += 1;
+          if (Number(r.restDropAtr) <= -0.5) h.drops += 1;
+        }
+      }
+      for (const [lvl, h] of Object.entries(hits)) {
+        risk[lvl as keyof RegimeAccuracySummary["risk"]] = { n: h.n, pDrop: Math.round((100 * h.drops) / h.n) };
       }
       const n = correct + incorrect;
       return {
@@ -125,7 +136,8 @@ async function loadRegimeAccuracy(): Promise<RegimeAccuracySummary | null> {
         correctPct: n >= 8 ? Math.round((100 * correct) / n) : null,
         note: n < 8
           ? "Need ≥8 graded SPY checkpoints (nightly grade vs close)"
-          : "SPY checkpoint direction vs close — flat/mixed excluded",
+          : "SPY checkpoint direction vs close — flat/mixed excluded (S126: no edge, 49.5% over 2 yrs)",
+        risk,
       };
     } catch {
       return null;

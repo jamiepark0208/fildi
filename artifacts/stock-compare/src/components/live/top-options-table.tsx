@@ -8,6 +8,7 @@ import { TickerRecordBadge } from "./ticker-record-badge";
 import { scoreColor } from "./live-format";
 import { RecConflictChip } from "./rec-conflict-chip";
 import type { RecConflict } from "@/lib/rec-conflicts";
+import type { RegimeRisk } from "./regime-banner";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { formatMdYy } from "@/lib/format";
 import { rankingsSnapshotStale } from "@/lib/rankings-snapshot-age";
@@ -19,14 +20,13 @@ const TD = "px-1.5 py-0.5 text-[11px] font-mono";
 export function TopOptionsTable({
   side,
   n = 7,
-  regimeDirection = null,
-  regimeConfidence = null,
+  regimeRisk = null,
   conflictsByTicker,
 }: {
   side: "put" | "call";
   n?: number;
-  regimeDirection?: "bullish" | "bearish" | "mixed" | null;
-  regimeConfidence?: number | null;
+  /** S126 rest-of-day risk (replaces the bull/bear caution — direction had no edge). */
+  regimeRisk?: RegimeRisk | null;
   conflictsByTicker?: Map<string, RecConflict[]>;
 }) {
   const { rows, isFetching, asOf, computedAt } = useTopOptions(side, n);
@@ -43,17 +43,13 @@ export function TopOptionsTable({
       }).format(new Date(computedAt))
     : null;
 
-  const softCaution =
-    regimeConfidence != null &&
-    regimeConfidence >= 60 &&
-    ((side === "put" && regimeDirection === "bearish") ||
-      (side === "call" && regimeDirection === "bullish"));
+  const softCaution = regimeRisk != null && (regimeRisk.level === "stormy" || regimeRisk.level === "elevated");
 
   return (
     <div className="space-y-1.5">
       {softCaution && (
         <p className="text-[10px] text-amber-300/80 border border-amber-500/25 rounded px-1.5 py-0.5 bg-amber-500/5">
-          Regime {regimeDirection} ({regimeConfidence}%) — soft caution on sell-{side}s.
+          Rest-of-day risk {regimeRisk!.level}: {Math.round(regimeRisk!.pDropHalfAtr * 100)}% odds SPY/QQQ fall a further ≥ {regimeRisk!.halfAtrPct.toFixed(2)}% before the close (S126) — size and strike with that in mind.
         </p>
       )}
       {rows.length === 0 ? (

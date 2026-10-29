@@ -20,6 +20,7 @@ import {
 } from "./intraday-regime.js";
 import { loadDayStats, TRACKED_SYMBOLS, type DayStats } from "./intraday-history.js";
 import { logger } from "./logger.js";
+import { computeRiskCall, dailyContext, type DailyContext, type RiskLevel } from "./intraday-risk.js";
 
 // Below this the move is noise, not a directional call being right. Mirrors the
 // REGIME_BAND dead-band idiom in model-track-record.ts — without it a +0.02% close
@@ -44,6 +45,10 @@ export interface GradedCheckpoint {
   fwdClosePct: number | null;
   grade: CheckpointGrade;
   reconstructed: boolean;
+  /** S126 rest-of-day risk call for this ticker, and the worst drop that followed (÷ ATR20). */
+  riskLevel: RiskLevel | null;
+  riskScore: number | null;
+  restDropAtr: number | null;
 }
 
 /** Last close at or before `minutes` after the open, or null if the tape hadn't reached it. */
@@ -83,8 +88,9 @@ export function gradeCheckpoint(args: {
   signal: SymbolSignal;
   bars: Bar[];
   reconstructed: boolean;
+  daily?: DailyContext | null;
 }): GradedCheckpoint | null {
-  const { date, ticker, minAfterOpen, direction, confidence, signal, bars, reconstructed } = args;
+  const { date, ticker, minAfterOpen, direction, confidence, signal, bars, reconstructed, daily = null } = args;
   if (bars.length === 0) return null;
   const sessionOpenMs = bars[0].time;
 
@@ -102,6 +108,13 @@ export function gradeCheckpoint(args: {
   const fwd60mPct = minAfterOpen + 60 <= lastBarMin ? pctFrom(priceAt(bars, sessionOpenMs, minAfterOpen + 60)) : null;
   const fwdClosePct = pctFrom(bars[bars.length - 1].close);
 
+  const cutoff = sessionOpenMs + minAfterOpen * 60_000;
+  const risk = computeRiskCall(bars.filter(b => b.time < cutoff), minAfterOpen, daily);
+  const after = bars.filter(b => b.time >= cutoff);
+  const restDropAtr = daily && after.length > 0
+    ? Math.min(0, Math.min(...after.map(b => b.low)) / priceAtCheckpoint - 1) / daily.atr20
+    : null;
+
   return {
     date,
     ticker,
@@ -118,6 +131,9 @@ export function gradeCheckpoint(args: {
     fwdClosePct,
     grade: gradeDirection(direction, fwdClosePct),
     reconstructed,
+    riskLevel: risk?.level ?? null,
+    riskScore: risk?.score ?? null,
+    restDropAtr,
   };
 }
 
@@ -130,7 +146,7 @@ export function gradeCheckpoint(args: {
  * prices and has no historical snapshot, so reconstructed confidence is the
  * pre-breadth value. Rows are flagged `reconstructed` and the UI captions them.
  */
-export function reconstructDay(stats: DayStats, priorHigh: number | null, priorLow: number | null): GradedCheckpoint[] {
+export function reconstructDay(stats: DayStats, priorHigh: number | null, priorLow: number | null, daily: DailyContext | null = null): GradedCheckpoint[] {
   const bars = stats.bars;
   if (bars.length === 0) return [];
   const sessionOpenMs = bars[0].time;
@@ -157,6 +173,7 @@ export function reconstructDay(stats: DayStats, priorHigh: number | null, priorL
       signal,
       bars,
       reconstructed: true,
+      daily,
     });
     if (graded) out.push(graded);
   }
@@ -181,6 +198,9 @@ async function saveGrades(rows: GradedCheckpoint[]): Promise<number> {
     fwdClosePct: r.fwdClosePct == null ? null : String(r.fwdClosePct),
     grade: r.grade,
     reconstructed: r.reconstructed,
+    riskLevel: r.riskLevel,
+    riskScore: r.riskScore == null ? null : String(r.riskScore),
+    restDropAtr: r.restDropAtr == null ? null : String(r.restDropAtr),
     gradedAt: new Date(),
   }));
 
@@ -222,6 +242,7 @@ export async function gradeSession(date: string): Promise<{ graded: number; reco
   for (const ticker of TRACKED_SYMBOLS) {
     const stats = dayStats.get(`${date}:${ticker}`);
     if (!stats) continue;
+    const daily = await dailyContext(ticker, date);
 
     const live = recorded.filter(c => c.status === "resolved");
     if (live.length > 0) {
@@ -237,12 +258,13 @@ export async function gradeSession(date: string): Promise<{ graded: number; reco
           signal,
           bars: stats.bars,
           reconstructed: false,
+          daily,
         });
         if (graded) rows.push(graded);
       }
     } else {
       const prior = await priorSessionHighLow(ticker, date);
-      const replayed = reconstructDay(stats, prior.high, prior.low);
+      const replayed = reconstructDay(stats, prior.high, prior.low, daily);
       reconstructedCount += replayed.length;
       rows.push(...replayed);
     }

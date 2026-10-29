@@ -112,7 +112,11 @@ export function sessionOpenMs(nowMs = Date.now()): number {
   return t;
 }
 
+const RISK_HEX = { calm: "#38bdf8", normal: "#d4d4d8", elevated: "#f59e0b", stormy: "#ef4444" } as const;
+const RISK_SHORT = { calm: "Calm", normal: "Norm", elevated: "Elev", stormy: "Storm" } as const;
+
 function markerColor(c: RegimeCheckpoint): string {
+  if (c.status === "resolved" && c.risk) return RISK_HEX[c.risk.level];
   if (c.status !== "resolved" || c.direction == null) return "#a8a29e";
   if (c.direction === "mixed") return "#eab308";
   return c.direction === "bullish" ? "#22c55e" : "#ef4444";
@@ -125,6 +129,7 @@ function shortDir(c: RegimeCheckpoint): string {
 }
 
 function markerLabel(c: RegimeCheckpoint): string {
+  if (c.risk) return `${RISK_SHORT[c.risk.level]} ${Math.round(c.risk.pDropHalfAtr * 100)}%`;
   const dir = shortDir(c);
   return c.confidence != null ? `${dir} ${c.confidence}%` : dir;
 }
@@ -355,7 +360,7 @@ function RegimeSessionChartInner({
       // Checkpoint minutes are exact on the session grid (15, 30, …).
       const tSec = openSec + c.minAfterOpen * 60;
       if (tSec < openSec || tSec > closeSec) continue;
-      if (c.status === "resolved" && c.direction != null) {
+      if (c.status === "resolved" && (c.risk != null || c.direction != null)) {
         list.push({
           tSec,
           color: markerColor(c),

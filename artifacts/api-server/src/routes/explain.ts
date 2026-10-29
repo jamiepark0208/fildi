@@ -271,7 +271,19 @@ function optionsHash(bundle: ContextBundle, e: OptionsExtra): string {
   // Round to the UTC day so market/sector context regenerates at most once a day —
   // this is a daily-summary surface, not a live feed (see plan risk #2).
   const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
-  return `v1_${dayBucket}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.keyThemes?.marketState ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
+  return `v1_${dayBucket}_${notesKey(bundle)}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.keyThemes?.marketState ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
+}
+
+/** Notes change → the cached explanation must regenerate. */
+function notesKey(b: ContextBundle): string {
+  const n = b.notes ?? [];
+  return n.length ? `n${n.length}_${n[0].length}_${n[0].slice(0, 10)}` : "n0";
+}
+
+function notesBlock(b: ContextBundle): string {
+  return b.notes?.length
+    ? `Desk notes on this ticker (dated, newest first — past context, not a forecast; cite the date if you use one):\n${b.notes.map(n => `- ${n}`).join("\n")}`
+    : "";
 }
 
 function buildOptionsPrompt(bundle: ContextBundle, e: OptionsExtra): string {
@@ -306,6 +318,7 @@ ${zscoreLine}
 ${sectorLine}
 ${volLine}
 ${themesLine}
+${notesBlock(bundle)}
 Recent news:
 ${newsLines}
 
@@ -431,16 +444,16 @@ interface ModelPickExtra {
   item: Record<string, any>;
 }
 
-function modelPickHash(_b: ContextBundle, e: ModelPickExtra): string {
+function modelPickHash(b: ContextBundle, e: ModelPickExtra): string {
   const c = e.item.contract ?? {};
-  return `v4_${e.runId}_${e.item.folder_key}_${c.type ?? ""}_${c.account ?? ""}`;
+  return `v4_${e.runId}_${e.item.folder_key}_${c.type ?? ""}_${c.account ?? ""}_${notesKey(b)}`;
 }
 
 function fmtPct(x: unknown): string {
   return typeof x === "number" ? `${Math.round(x * 100)}%` : "n/a";
 }
 
-function buildModelPickPrompt(_b: ContextBundle, e: ModelPickExtra): string {
+function buildModelPickPrompt(b: ContextBundle, e: ModelPickExtra): string {
   const it = e.item, c = it.contract ?? null, w = c?.win ?? null, p = it.pillars ?? {};
   const facts: string[] = [
     `List: ${e.folderName} (status ${it.status}; verdict ${it.verdict || "none"})`,
@@ -471,6 +484,7 @@ function buildModelPickPrompt(_b: ContextBundle, e: ModelPickExtra): string {
   }
   for (const y of ((it.why ?? []) as unknown[]).slice(0, 12)) facts.push(`Model note: ${String(y)}`);
   if ((it.flags ?? []).length) facts.push(`Risk flags: ${(it.flags as string[]).join("; ")}`);
+  for (const n of b.notes ?? []) facts.push(`Desk note (dated history, not a forecast): ${n}`);
 
   return `You explain one recommendation from the Fildi Model List to its owner, an experienced options seller who decides every trade themselves. Use ONLY the facts below. Never invent numbers, prices or events; if something isn't in the facts, don't mention it.
 Rules: use the pricing label exactly as given (never call FAIR or CHEAP an edge). Give each adjustment's reason as written; don't add causes.
