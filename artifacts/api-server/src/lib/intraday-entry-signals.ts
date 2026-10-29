@@ -2,8 +2,8 @@
 //
 // Runs the same OR-breakout/VWAP/pullback/sweep composite the regime banner
 // applies to SPY/QQQ against each hotlist ticker, adds a 5-min fair-value-gap
-// read, and combines the result with the latest resolved regime checkpoint
-// into an entry verdict for the put-sell workflow: the daily scanner finds
+// read, and turns it into an entry verdict (the market checkpoint is shown as
+// context only since 10-28, S126/A307) — an entry verdict for the put-sell workflow: the daily scanner finds
 // oversold candidates, this answers "is the reversal actually firing NOW".
 //
 // Red flags come from ticker_technicals (already computed nightly — not
@@ -131,39 +131,37 @@ export function bearishRsiDivergence(closes: number[]): boolean {
   return recent[iR] > prior[iP] && recentRsi[iR] < priorRsi[iP] - 2;
 }
 
-function verdictFor(side: HotlistSide, direction: Direction | null, regime: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
-  if (side === "rally") return verdictForRally(direction, regime, fvg, flags);
+// The market bull/bear call no longer gates these verdicts (Jamie 10-28): S126 — it called the close right 49.5 %
+// of the time over 479 sessions; A307 — enter/wait/avoid had the same 10-day breach rate (16.2 / 16.6 / 16.1 %),
+// and a risk-level gate didn't pass either. Verdict = ticker facts; market risk is shown as context only.
+function verdictFor(side: HotlistSide, direction: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
+  if (side === "rally") return verdictForRally(direction, fvg, flags);
   if (flags.fallingKnife) return { verdict: "avoid", why: "falling knife — >2 ATR below both MAs with MACD falling (nightly technicals flag)" };
   if (direction === "bearish") return { verdict: "avoid", why: "ticker is trading bearish intraday" };
-  if (regime === "bearish") return { verdict: "avoid", why: "market regime is bearish — don't fight the tape" };
 
   // Earnings elevates IV — worth considering for deep-OTM premium; do not hard-block.
   // Factor line below still surfaces the risk badge.
 
-  if (direction === "bullish" && regime === "bullish") return { verdict: "enter", why: "ticker bullish and market regime agrees" };
-  // The FVG retrace is itself an entry trigger when the ticker leans bullish and the tape isn't against it.
   if (direction === "bullish" && fvg?.type === "bullish" && fvg.inZone) {
     return { verdict: "enter", why: "bullish and price is retracing inside an unfilled fair-value gap" };
   }
-  if (direction === "bullish") return { verdict: "wait", why: "ticker bullish but market regime hasn't confirmed" };
+  if (direction === "bullish") return { verdict: "enter", why: "ticker bullish intraday" };
   return { verdict: "wait", why: "no intraday lean yet" };
 }
 
 // Fade-rally (sell-call) mirror. fallingKnife is a dip-side flag and is ignored here;
 // there is no nightly "melt-up" mirror yet — future work, not invented here.
-function verdictForRally(direction: Direction | null, regime: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
+function verdictForRally(direction: Direction | null, fvg: FvgZone | null, flags: RedFlags): { verdict: EntryVerdict; why: string } {
   if (direction === "bullish") return { verdict: "avoid", why: "still squeezing up intraday — don't fade momentum" };
-  if (regime === "bullish") return { verdict: "avoid", why: "market regime is bullish — don't fight the tape" };
 
   // Earnings elevates IV — flag only; deep-OTM call premium can be intentional.
   // Factor line below still surfaces the risk badge.
 
-  if (direction === "bearish" && regime === "bearish") return { verdict: "enter", why: "rally is fading and the tape agrees" };
   // Mirror of the dip-side FVG trigger: a retrace up into an unfilled bearish gap is supply overhead.
   if (direction === "bearish" && fvg?.type === "bearish" && fvg.inZone) {
     return { verdict: "enter", why: "fading and price is retracing into an unfilled bearish fair-value gap" };
   }
-  if (direction === "bearish") return { verdict: "wait", why: "rally fading but market regime hasn't confirmed" };
+  if (direction === "bearish") return { verdict: "enter", why: "rally is fading intraday" };
   return { verdict: "wait", why: "no intraday fade yet" };
 }
 
@@ -183,7 +181,7 @@ function historyKey(dateKey: string): string {
 }
 
 /** One bar/DB fetch per ticker, one EntrySignal per requested side — a ticker on both hotlists (IV overlap) gets two verdicts from the same bars. */
-async function computeOne(ticker: string, sides: HotlistSide[], regime: Direction | null, flags: RedFlags): Promise<EntrySignal[]> {
+async function computeOne(ticker: string, sides: HotlistSide[], marketRisk: string | null, flags: RedFlags): Promise<EntrySignal[]> {
   // One DB read per ticker: last row = prior day's H/L, close series feeds divergence.
   const [bars, dailyRows] = await Promise.all([fetchTodaysBars(ticker), readOHLCVFromDB(ticker)]);
   const prior = dailyRows[dailyRows.length - 1];
@@ -194,7 +192,7 @@ async function computeOne(ticker: string, sides: HotlistSide[], regime: Directio
   const closes = dailyRows.map(r => r.close);
 
   return sides.map(side => {
-    const { verdict, why } = verdictFor(side, sig.direction, regime, fvg, flags);
+    const { verdict, why } = verdictFor(side, sig.direction, fvg, flags);
     const divergence = side === "rally" ? bearishRsiDivergence(closes) : bullishRsiDivergence(closes);
 
     const factors = [symbolFactorLine(ticker, sig)];
@@ -209,7 +207,7 @@ async function computeOne(ticker: string, sides: HotlistSide[], regime: Directio
     if (flags.earningsDaysOut != null && flags.earningsDaysOut >= 0 && flags.earningsDaysOut <= EARNINGS_CAUTION_DAYS) {
       factors.push(`⚠ Earnings risk in ${flags.earningsDaysOut} day${flags.earningsDaysOut === 1 ? "" : "s"} — elevated IV; prefer deep OTM`);
     }
-    factors.push(regime ? `Market regime: ${regime}` : "Market regime: no call yet");
+    factors.push(marketRisk ? `Market (context, not a gate): ${marketRisk}` : "Market: no checkpoint yet");
     factors.push(`Verdict: ${verdict.toUpperCase()} — ${why}`);
 
     return { ticker, side, price, direction: sig.direction, score: sig.score, verdict, fvg, factors };
@@ -222,6 +220,8 @@ export async function runEntrySignals(): Promise<void> {
   const [checkpoints, technicalsRows] = await Promise.all([getTodaysCheckpoints(), getAllTechnicalsRows()]);
   const latest = [...checkpoints].reverse().find(c => c.status === "resolved" && c.direction != null) ?? null;
   const regimeDirection = latest?.direction ?? null;
+  const riskCp = [...checkpoints].reverse().find(c => c.status === "resolved" && c.risk) ?? null;
+  const marketRisk = riskCp?.risk ? `rest-of-day risk ${riskCp.risk.level} (${Math.round(riskCp.risk.pDropHalfAtr * 100)}% odds of a further ½-ATR drop)` : null;
 
   const flagsByTicker = new Map<string, RedFlags>(technicalsRows.map(r => [r.ticker, {
     fallingKnife: r.fallingKnife === 1,
@@ -249,7 +249,7 @@ export async function runEntrySignals(): Promise<void> {
   const signals: EntrySignal[] = [];
   for (let i = 0; i < tickers.length; i += FETCH_CONCURRENCY) {
     const chunk = tickers.slice(i, i + FETCH_CONCURRENCY);
-    const results = await Promise.allSettled(chunk.map(t => computeOne(t, sidesByTicker.get(t) ?? ["dip"], regimeDirection, flagsByTicker.get(t) ?? noFlags)));
+    const results = await Promise.allSettled(chunk.map(t => computeOne(t, sidesByTicker.get(t) ?? ["dip"], marketRisk, flagsByTicker.get(t) ?? noFlags)));
     results.forEach((r, j) => {
       if (r.status === "fulfilled") signals.push(...r.value);
       else logger.warn({ ticker: chunk[j], err: String(r.reason) }, "entry-signals: ticker compute failed");

@@ -38,8 +38,10 @@ export function decidePriceReplace(opts: {
   existingSource: string | null | undefined;
   incomingClose: number;
   incomingSource: string;
+  /** Bar is within the last few sessions — a stored copy may have been written mid-session (partial candle). */
+  recent?: boolean;
 }): PriceReplaceDecision {
-  const { existingClose, existingSource, incomingClose, incomingSource } = opts;
+  const { existingClose, existingSource, incomingClose, incomingSource, recent = false } = opts;
   if (existingClose == null || !Number.isFinite(existingClose) || existingClose <= 0) {
     return { action: "insert" };
   }
@@ -47,7 +49,12 @@ export function decidePriceReplace(opts: {
   const ir = priceSourceRank(incomingSource);
   if (ir < er) return { action: "keep", reason: "rank" };
   if (ir === er) {
-    // Same rank: keep first writer (stable); do not thrash Yahoo↔Yahoo.
+    // Same vendor, recent bar, different close: the later fetch is the final candle (10-28: Schwab bars stored
+    // mid-session on 10-20/10-21 were never corrected — 30 % of the universe off the official close).
+    if (recent && priceSourceRank(existingSource) === priceSourceRank(incomingSource)
+        && (existingSource ?? "").toLowerCase() === incomingSource.toLowerCase()
+        && Math.abs(incomingClose / existingClose - 1) > 1e-6) return { action: "replace" };
+    // Otherwise keep first writer (stable); do not thrash Yahoo↔Yahoo.
     return { action: "keep", reason: "same" };
   }
   const rel = Math.abs(incomingClose / existingClose - 1);

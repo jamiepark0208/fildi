@@ -14,6 +14,7 @@ import { getLivePrices } from "./live-quote.js";
 import { liveHotlist, MARKET_CONTEXT_SYMBOLS } from "./live-hotlist.js";
 import { etDateKey, getMarketOpenUtc } from "./market-hours.js";
 import { logger } from "./logger.js";
+import { weekPutRisk, type WeekPutRisk } from "./market-put-risk.js";
 import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall } from "./intraday-risk.js";
 
 
@@ -66,6 +67,8 @@ export interface RegimeCheckpoint {
   breadth: { agree: number; total: number } | null;
   /** Rest-of-day risk (S126) — the headline call. Direction above is kept for history but has no tested edge. */
   risk?: RiskCall | null;
+  /** 1–2-week market put risk (S130), from prior closes — same for every checkpoint of the day. */
+  weekRisk?: WeekPutRisk | null;
   /** Wall-clock label for this checkpoint's target time, e.g. "6:45 AM PT". */
   label: string;
   /** True if this checkpoint ran well after its target time (catch-up after downtime) — breadth is omitted since it has no historical snapshot. */
@@ -302,6 +305,13 @@ function explainCheckpoint(args: {
   return lines;
 }
 
+function weekRiskLine(w: WeekPutRisk): string {
+  const flags = [w.rv20 > w.vix ? `RV20 ${w.rv20.toFixed(1)} > VIX ${w.vix.toFixed(1)}` : null,
+    w.atrPct > 0.8 ? `ATR in top ${Math.round((1 - w.atrPct) * 100)}% of the year` : null,
+    w.er20 < 0.4 ? `choppy (ER ${w.er20.toFixed(2)})` : null].filter(Boolean);
+  return `1–2 wk put risk: ${w.level} (${w.flags}/3${flags.length ? `: ${flags.join(", ")}` : ""}) — ${Math.round(w.pBreach5d * 100)}% 5-day breach odds for a VIX-sized SPY put (S130, 1993–2026)`;
+}
+
 function configKey(dateKey: string): string {
   return `intraday_regime_${dateKey}`;
 }
@@ -375,6 +385,7 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
       dailyContext("SPY", dateKey),
       dailyContext("QQQ", dateKey),
     ]);
+    const weekRisk = await weekPutRisk(dateKey);
 
     // Slice to bars at/before this checkpoint's target time — even when this
     // runs late (e.g. a restart caught up on several thresholds at once), each
@@ -416,9 +427,13 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
       qqq,
       breadth: breadthRaw,
       risk,
+      weekRisk,
       label: checkpointLabel(marketOpenUtc, minAfterOpen),
       computedLate: isLate,
-      factors: explainCheckpoint({ spy, qqq, direction, confidence: finalConfidence, breadth: breadthRaw, risk, isBaselineOnly }),
+      factors: [
+        ...explainCheckpoint({ spy, qqq, direction, confidence: finalConfidence, breadth: breadthRaw, risk, isBaselineOnly }),
+        ...(weekRisk ? [weekRiskLine(weekRisk)] : []),
+      ],
     };
 
     await saveCheckpoints(dateKey, [...existing, checkpoint]);

@@ -37,4 +37,26 @@ describe("decidePriceReplace", () => {
       { action: "keep", reason: "rank" },
     );
   });
+
+  it("same vendor refreshes a recent (possibly mid-session) bar, even past the jump guard", () => {
+    assert.deepEqual(
+      decidePriceReplace({ existingClose: 768.49, existingSource: "schwab", incomingClose: 773.09, incomingSource: "schwab", recent: true }),
+      { action: "replace" },
+    );
+    assert.deepEqual(
+      decidePriceReplace({ existingClose: 100, existingSource: "schwab", incomingClose: 103, incomingSource: "schwab", recent: true }),
+      { action: "replace" },
+    );
+  });
+
+  it("same vendor keeps old bars and identical closes", () => {
+    assert.deepEqual(
+      decidePriceReplace({ existingClose: 100, existingSource: "schwab", incomingClose: 101, incomingSource: "schwab" }),
+      { action: "keep", reason: "same" },
+    );
+    assert.deepEqual(
+      decidePriceReplace({ existingClose: 100, existingSource: "schwab", incomingClose: 100, incomingSource: "schwab", recent: true }),
+      { action: "keep", reason: "same" },
+    );
+  });
 });

@@ -16,12 +16,26 @@ export interface RegimeRisk {
   state: "trend" | "range" | "quiet" | "volatile";
 }
 
+/** S130 1–2-week market put risk (daily, prior closes). */
+export interface WeekRisk {
+  flags: number;
+  level: "low" | "normal" | "elevated" | "high";
+  pBreach5d: number;
+  vix: number;
+  rv20: number;
+  atrPct: number;
+  er20: number;
+}
+
+const WEEK_TEXT: Record<WeekRisk["level"], string> = { low: "text-sky-400", normal: "text-zinc-200", elevated: "text-amber-400", high: "text-red-500" };
+
 export interface RegimeCheckpoint {
   minAfterOpen: number;
   status: "pending" | "resolved";
   direction: RegimeDirection | null;
   confidence: number | null;
   risk?: RegimeRisk | null;
+  weekRisk?: WeekRisk | null;
   label: string;
   computedLate: boolean;
   factors: string[];
@@ -200,6 +214,7 @@ export function RegimeBanner({
   const latest = resolved[resolved.length - 1] ?? null;
   const prev = resolved[resolved.length - 2] ?? null;
   const flipped = latest != null && prev != null && regimeShortLabel(prev) !== regimeShortLabel(latest);
+  const week = [...checkpoints].reverse().find(c => c.weekRisk)?.weekRisk ?? null;
 
   return (
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
@@ -216,6 +231,14 @@ export function RegimeBanner({
               Now: {cellLabel(latest)}
             </span>
             <span className="text-white">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
+            {week && (
+              <span
+                className={cn("font-semibold", WEEK_TEXT[week.level])}
+                title={`1–2 week SPY put risk (S130, 33 yrs): ${week.flags}/3 flags — realised vol ${week.rv20.toFixed(1)} vs VIX ${week.vix.toFixed(1)}, ATR percentile ${Math.round(week.atrPct * 100)}, efficiency ${week.er20.toFixed(2)}. 5-day breach odds of a VIX-sized put: 0 flags 6%, 1 10%, 2 15%, 3 18%.`}
+              >
+                · 1–2 wk: {week.level} {Math.round(week.pBreach5d * 100)}%
+              </span>
+            )}
             {flipped && prev && (
               <span className="text-amber-400 font-semibold">
                 ⚠ {latest.risk ? "changed" : "flipped"} from {regimeShortLabel(prev)} at {CHECKPOINT_TIME_PT[prev.minAfterOpen] ?? prev.label}

@@ -280,6 +280,14 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
 
   if (sourced.length < 15) throw new Error(`Insufficient history for ${key}: ${sourced.length} rows`);
 
+  // Never store a session that hasn't closed: vendors return today's partial candle intraday, and a stored
+  // partial bar used to stick forever (10-20/10-21 incident). Recent bars may be refreshed by the same vendor.
+  const lastClosed = lastCompletedSessionYmd();
+  sourced = sourced.filter((r) => barYmd(r) <= lastClosed);
+  const recentCut = new Date(`${lastClosed}T12:00:00Z`);
+  recentCut.setUTCDate(recentCut.getUTCDate() - 10);
+  const recentFrom = recentCut.toISOString().slice(0, 10);
+
   // A63: upsert honoring source rank (Schwab > … > Yahoo). Jump ≥ 2% keeps old bar.
   const dates = sourced.map((r) => barYmd(r));
   const existing = dates.length
@@ -304,6 +312,7 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
       existingSource: ex?.source,
       incomingClose: r.close,
       incomingSource: r.source,
+      recent: d >= recentFrom,
     });
     if (decision.action === "insert") toInsert.push(r);
     else if (decision.action === "replace") toReplace.push(r);
