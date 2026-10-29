@@ -28,11 +28,37 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 from build_plan import connect  # noqa: E402
 from s126_intraday_regime import load  # noqa: E402
-from s130_daily_regime import SPLIT, features, outcomes, tstat  # noqa: E402
+from s130_daily_regime import features, outcomes, tstat  # noqa: E402
 from a314_breadth_live_n import risk_score  # noqa: E402
-from a314_changepoint import mde_pp, put_overlay  # noqa: E402
+from a314_changepoint import put_overlay  # noqa: E402
 
 OUT = HERE.parent / "out" / "opt" / "A314-crossasset-packet.md"
+Z_MDE = 1.96 + 0.84
+
+
+def mde_se_pp(a: pd.Series, b: pd.Series) -> float:
+    """MDE (pp) = (z.975 + z.80) × SE of event−placebo mean (same units as breach/dropx t)."""
+    if len(a) < 3 or len(b) < 3:
+        return float("nan")
+    va, vb = a.var(ddof=1), b.var(ddof=1)
+    if not math.isfinite(va) or not math.isfinite(vb):
+        return float("nan")
+    se = math.sqrt(va / len(a) + vb / len(b))
+    return 100 * Z_MDE * se if se > 0 else float("nan")
+
+
+def arm_half(R: pd.DataFrame, ev: str) -> pd.DataFrame:
+    """Split at midpoint of event session dates (per arm)."""
+    days = sorted(R.loc[R[ev], "d"].unique())
+    if len(days) < 4:
+        R = R.copy()
+        R["half"] = "H1"
+        return R
+    split = days[len(days) // 2]
+    R = R.copy()
+    R["half"] = np.where(R.d < split, "H1", "H2")
+    return R
+
 
 def cross_placebo(R: pd.DataFrame, ev: str) -> pd.DataFrame:
     """All non-event sessions at the same checkpoint minute(s) as events."""
@@ -49,9 +75,10 @@ def day_t_indep(e: pd.DataFrame, p: pd.DataFrame, col: str) -> tuple[float, int]
 
 
 def eval_cross(R: pd.DataFrame, ev: str, outcome: str, claim: str, source: str) -> dict:
-    e_all = R[R[ev]]
-    p_all = cross_placebo(R, ev)
-    if len(e_all) < 20:
+    Ra = arm_half(R, ev)
+    e_all = Ra[Ra[ev]]
+    p_all = cross_placebo(Ra, ev)
+    if len(e_all) < 8:
         return dict(
             name=ev,
             claim=claim,
@@ -60,28 +87,30 @@ def eval_cross(R: pd.DataFrame, ev: str, outcome: str, claim: str, source: str) 
             pass_bar=False,
             eff={"H1": float("nan"), "H2": float("nan")},
             ts={"H1": float("nan"), "H2": float("nan")},
-            mde=mde_pp(max(len(e_all), 1), 0.15),
+            mde={"H1": float("nan"), "H2": float("nan")},
+            n_half={"H1": int((e_all.half == "H1").sum()), "H2": int((e_all.half == "H2").sum())},
             n_ev=len(e_all),
+            opp_sign=False,
         )
-    eff, ts, ns = {}, {}, {}
+    eff, ts, ns, mde, n_half = {}, {}, {}, {}, {}
     for h in ("H1", "H2"):
         e = e_all[e_all.half == h]
         p = p_all[p_all.half == h]
-        if len(e) < 8 or len(p) < 8:
-            eff[h] = ts[h] = float("nan")
+        n_half[h] = len(e)
+        if len(e) < 4 or len(p) < 8:
+            eff[h] = ts[h] = mde[h] = float("nan")
             ns[h] = 0
             continue
         eff[h] = 100 * (e[outcome].mean() - p[outcome].mean())
         ts[h], ns[h] = day_t_indep(e, p, outcome)
+        ed = e.groupby("d")[outcome].mean()
+        pd_ = p.groupby("d")[outcome].mean()
+        mde[h] = mde_se_pp(ed, pd_)
     e1, e2 = eff["H1"], eff["H2"]
     t1, t2 = ts["H1"], ts["H2"]
     same = np.sign(e1) == np.sign(e2) and math.isfinite(e1) and math.isfinite(e2) and e1 != 0
+    opp_sign = same and e1 < 0 and ev == "usdjpy_yen"
     pass_bar = same and abs(t1) >= 2 and abs(t2) >= 2 and e1 > 0
-    ed = e_all.groupby("d")[outcome].mean()
-    pd_ = p_all.groupby("d")[outcome].mean()
-    sd = math.sqrt(
-        (ed.var(ddof=1) / len(ed) + pd_.var(ddof=1) / len(pd_)) if len(ed) > 2 and len(pd_) > 2 else float("nan")
-    )
     return dict(
         name=ev,
         claim=claim,
@@ -90,9 +119,11 @@ def eval_cross(R: pd.DataFrame, ev: str, outcome: str, claim: str, source: str) 
         eff=eff,
         ts=ts,
         ns=ns,
-        mde=mde_pp(min(len(ed), len(pd_)), sd if math.isfinite(sd) else float("nan")),
+        mde=mde,
+        n_half=n_half,
         n_ev=len(e_all),
         pass_bar=pass_bar,
+        opp_sign=opp_sign,
         verdict="PASS intraday" if pass_bar else "FAIL",
     )
 
@@ -266,11 +297,7 @@ def build_intraday(on: pd.DataFrame) -> pd.DataFrame:
                     btc_riskoff=btc <= -0.02 if btc == btc else False,
                 )
             )
-    R = pd.DataFrame(rows)
-    dates = sorted(R.d.unique())
-    split = dates[len(dates) // 2]
-    R["half"] = np.where(R.d < split, "H1", "H2")
-    return R
+    return pd.DataFrame(rows)
 
 
 def logit_inc_t(R: pd.DataFrame, col: str, ycol: str, half: str) -> float:
@@ -285,6 +312,21 @@ def logit_inc_t(R: pd.DataFrame, col: str, ycol: str, half: str) -> float:
     return float(mod.params[col] / se) if se > 0 else float("nan")
 
 
+def logit_inc_daily(X: pd.DataFrame, half: str) -> float:
+    y = X[X.half == half].dropna(subset=["breach", "atr_hi", "er_lo", "flag"])
+    if len(y) < 200 or y.flag.sum() < 8:
+        return float("nan")
+    Xd = sm.add_constant(y[["atr_hi", "er_lo", "flag"]].astype(float))
+    try:
+        mod = Logit(y.breach.astype(int), Xd).fit(disp=0, maxiter=80)
+        cov = cov_cluster(mod, pd.Categorical(y.index).codes)
+        i = list(Xd.columns).index("flag")
+        se = np.sqrt(cov[i, i])
+        return float(mod.params["flag"] / se) if se > 0 else float("nan")
+    except Exception:
+        return float("nan")
+
+
 def eval_daily_breach(dfs: dict[str, pd.DataFrame], col: str, mask: pd.Series, claim: str, src: str) -> dict:
     spy = dfs["SPY"]
     vix = dfs["^VIX"].close
@@ -295,23 +337,40 @@ def eval_daily_breach(dfs: dict[str, pd.DataFrame], col: str, mask: pd.Series, c
         O = outcomes(F, h)
         X = F.join(O).iloc[252::h].dropna(subset=["breach"]).copy()
         X["flag"] = m.reindex(X.index).fillna(False)
-        X["half"] = np.where(X.index < SPLIT, "H1", "H2")
+        X["atr_hi"] = (X.atr_pct > 0.8).astype(int)
+        X["er_lo"] = (X.er20 < 0.4).astype(int)
+        on_days = X.index[X.flag]
+        if len(on_days) >= 4:
+            split = on_days[len(on_days) // 2]
+            X["half"] = np.where(X.index < split, "H1", "H2")
+        else:
+            X["half"] = "H1"
         ts = {}
         eff = {}
-        diffs = []
+        mde = {}
+        n_half = {}
         for half in ("H1", "H2"):
             sub = X[X.half == half]
             a = sub[sub.flag].breach
             b = sub[~sub.flag].breach
+            n_half[half] = len(a)
             ts[half] = tstat(a, b)
             eff[half] = 100 * (a.mean() - b.mean()) if len(a) > 5 and len(b) > 5 else float("nan")
-            if len(a) > 3 and len(b) > 3:
-                diffs.append(a.mean() - b.mean())
-        sd = np.std(diffs, ddof=1) if len(diffs) > 1 else 0.15
+            mde[half] = mde_se_pp(a, b) if len(a) > 5 and len(b) > 5 else float("nan")
         n = int(X.flag.sum())
-        same = eff["H1"] == eff["H1"] and eff["H2"] == eff["H2"] and np.sign(eff["H1"]) == np.sign(eff["H2"]) != 0
-        pass_bar = same and abs(ts["H1"]) >= 2 and abs(ts["H2"]) >= 2 and eff["H1"] > 0
-        res[h] = dict(ts=ts, eff=eff, pass_bar=pass_bar, n=n, mde=mde_pp(max(n // 2, 30), sd))
+        e1, e2 = eff["H1"], eff["H2"]
+        same = math.isfinite(e1) and math.isfinite(e2) and e1 != 0 and np.sign(e1) == np.sign(e2)
+        pass_bar = same and abs(ts["H1"]) >= 2 and abs(ts["H2"]) >= 2 and e1 > 0
+        inc1, inc2 = logit_inc_daily(X, "H1"), logit_inc_daily(X, "H2")
+        res[h] = dict(
+            ts=ts,
+            eff=eff,
+            mde=mde,
+            n_half=n_half,
+            pass_bar=pass_bar,
+            n=n,
+            inc=(inc1, inc2),
+        )
     return dict(name=col, claim=claim, source=src, daily=res)
 
 
@@ -378,16 +437,11 @@ def main() -> int:
             load_dotenv(p, override=False)
             break
     with connect() as conn:
-        for sym in SYMS:
-            if sym in ("QQQ",):
-                continue
-            fetch_yahoo(conn, sym)
         dfs = {sym: quotes_df(conn, sym) for sym in SYMS if sym != "QQQ"}
     dr = daily_ret(dfs)
     on = overnight_map(dfs)
     print("build intraday panel…", flush=True)
     R = build_intraday(on)
-    rng = np.random.default_rng(3145)
     lines = [
         "# A314 family 5 — cross-asset leads",
         "",
@@ -396,9 +450,10 @@ def main() -> int:
     ]
     put_lines = []
     for ev, out, claim, src in INTRADAY:
+        Ra = arm_half(R, ev)
         r = eval_cross(R, ev, out, claim, src)
-        inc1 = logit_inc_t(R, ev, "dropx", "H1")
-        inc2 = logit_inc_t(R, ev, "dropx", "H2")
+        inc1 = logit_inc_t(Ra, ev, "dropx", "H1")
+        inc2 = logit_inc_t(Ra, ev, "dropx", "H2")
         if "eff" not in r:
             lines.append(
                 f"- **{ev}** · {src} · {claim} · **{r.get('verdict', 'FAIL')}** · inc n/a · MDE n/a"
@@ -406,15 +461,19 @@ def main() -> int:
             continue
         e1, e2 = r["eff"]["H1"], r["eff"]["H2"]
         t1, t2 = r["ts"]["H1"], r["ts"]["H2"]
-        mde = r["mde"]
+        m1, m2 = r["mde"]["H1"], r["mde"]["H2"]
+        nh1, nh2 = r["n_half"]["H1"], r["n_half"]["H2"]
         pf = "PASS intraday" if r.get("pass_bar") else "FAIL"
-        n_ev = r.get("n_ev", len(R[R[ev]]))
+        opp = " · opp (fewer drops)" if r.get("opp_sign") else ""
+        ef = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
+        tf = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
+        mf = lambda x: f"{x:.0f}" if math.isfinite(x) else "n/a"
         lines.append(
-            f"- **{ev}** · {src} · {claim} · n={n_ev} · effect {e1:+.1f}/{e2:+.1f}pp · "
-            f"t {t1:+.1f}/{t2:+.1f} · inc {inc1:+.1f}/{inc2:+.1f} · MDE≈{mde:.1f}pp · **{pf}**"
+            f"- **{ev}** · {src} · n {nh1}/{nh2} · effect {ef(e1)}/{ef(e2)}pp · t {tf(t1)}/{tf(t2)} · "
+            f"inc {tf(inc1)}/{tf(inc2)} · MDE {mf(m1)}/{mf(m2)}pp · **{pf}**{opp}"
         )
         if r.get("pass_bar") and abs(inc1) >= 2 and abs(inc2) >= 2:
-            put_lines.append(put_overlay(R, ev))
+            put_lines.append(put_overlay(Ra, ev))
 
     for col, fn, claim, src in DAILY:
         mask = fn(dr)
@@ -423,13 +482,18 @@ def main() -> int:
         d5 = ev["daily"][5]
         t1, t2 = d5["ts"]["H1"], d5["ts"]["H2"]
         e1, e2 = d5["eff"]["H1"], d5["eff"]["H2"]
+        m1, m2 = d5["mde"]["H1"], d5["mde"]["H2"]
+        nh1, nh2 = d5["n_half"]["H1"], d5["n_half"]["H2"]
+        inc1, inc2 = d5["inc"]
         pf = "PASS daily breach h5" if d5["pass_bar"] else "FAIL daily"
-        inc1 = inc2 = float("nan")  # breach incremental optional on daily
+        ef = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
+        tf = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
+        mf = lambda x: f"{x:.0f}" if math.isfinite(x) else "n/a"
         lines.append(
-            f"- **{col}** · {src} · {claim} · n≈{d5['n']} · breach Δ {e1:+.1f}/{e2:+.1f}pp · "
-            f"t {t1:+.1f}/{t2:+.1f} · inc n/a · MDE≈{d5['mde']:.1f}pp · **{pf}**"
+            f"- **{col}** · {src} · n {nh1}/{nh2} · breach Δ {ef(e1)}/{ef(e2)}pp · t {tf(t1)}/{tf(t2)} · "
+            f"inc {tf(inc1)}/{tf(inc2)} vs ATR80+ER40 · MDE {mf(m1)}/{mf(m2)}pp · **{pf}**"
         )
-        if d5["pass_bar"]:
+        if d5["pass_bar"] and abs(inc1) >= 2 and abs(inc2) >= 2:
             flags = set(mask[mask].index.date)
             put_lines.append(f"put skip prior {col}: {put_skip_daily(flags)}")
 
