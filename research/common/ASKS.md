@@ -283,6 +283,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A306](asks/A306.md) | 2026-10-28 | Claude → Cursor | RBH daily export is noisy, not clean: order history only page 1, hand-edited payloads, LLM doing fetch work — help simplify | done (Cursor 10-28: paging/dedup/reorder)|
 | [A307](asks/A307.md) | 2026-10-28 | Claude → Cursor | [quant] Grade Live hotlist entry verdicts — still gated on the failed market-direction call (S126) | done |
 | [A308](asks/A308.md) | 2026-10-28 | Claude → Cursor | [quant] Forward ledger earnings_up: skew + StarMine forecasters (S127 follow-up) | done |
-| [A309](asks/A309.md) | 2026-10-28 | Claude → Cursor | [quant] Regime flags per stock (ER, ATR pct, KAMA, jump model) vs own-IV put breach — cross-section power | planned |
+| [A309](asks/A309.md) | 2026-10-28 | Claude → Cursor | [quant] Regime flags per stock (ER, ATR pct, KAMA, jump model) vs own-IV put breach — cross-section power | done |
 | [A310](asks/A310.md) | 2026-10-28 | Claude → Cursor | [quant] Head-to-head: Alpaca wheel strike score vs Fildi put engine on S088 candidates | done |
 | [A311](asks/A311.md) | 2026-10-28 | Claude → Cursor | Log SPY/QQQ dealer gamma (GEX) daily from Schwab chains | revise |
