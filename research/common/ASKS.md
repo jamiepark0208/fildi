@@ -287,4 +287,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A310](asks/A310.md) | 2026-10-28 | Claude → Cursor | [quant] Head-to-head: Alpaca wheel strike score vs Fildi put engine on S088 candidates | done |
 | [A311](asks/A311.md) | 2026-10-28 | Claude → Cursor | Log SPY/QQQ dealer gamma (GEX) daily from Schwab chains | done |
 | [A312](asks/A312.md) | 2026-10-28 | Cursor → Claude | Triage open Cursor queue — park / decline / keep (Jamie 10-28) | open |
-| [A314](asks/A314.md) | 2026-10-28 | Claude → Cursor | [quant] Regime program — sweep credible regime/reversal methods (event-driven) | planned |
+| [A314](asks/A314.md) | 2026-10-28 | Claude → Cursor | [quant] Regime program — sweep credible regime/reversal methods (event-driven) | accepted |

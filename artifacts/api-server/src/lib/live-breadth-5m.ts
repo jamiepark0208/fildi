@@ -13,12 +13,14 @@ import { logger } from "./logger.js";
 
 import {
   BREADTH_DROP_PP,
-  BREADTH_LOOKBACK_BARS,
   breadthChg30,
   isBreadthDrop,
+  type BreadthVwapPoint,
 } from "./intraday-breadth-drop.js";
 
-export { BREADTH_DROP_PP, BREADTH_LOOKBACK_BARS, breadthChg30, isBreadthDrop };
+export { BREADTH_DROP_PP, breadthChg30, isBreadthDrop };
+
+export const LIVE_BREADTH_SRC = "live19";
 
 export interface BreadthSnapshot {
   aboveVwap: number;
@@ -36,19 +38,26 @@ export interface BreadthRow {
 
 const TICKER_CONFIG_PATH = join(dirname(fileURLToPath(import.meta.url)), "../data/a314-breadth-live-tickers.json");
 
+/** Same set as Schwab 1m poll minus SPY; JSON is kept in sync for study scripts. */
 function loadConfiguredTickers(): string[] {
+  const schwab = schwab1mUniverse().filter(t => t !== "SPY");
   try {
     const raw = JSON.parse(readFileSync(TICKER_CONFIG_PATH, "utf8")) as { tickers?: string[] };
-    const schwab = new Set(schwab1mUniverse().filter(t => t !== "SPY"));
-    const fromFile = (raw.tickers ?? []).map(t => t.toUpperCase()).filter(t => t !== "SPY" && schwab.has(t));
-    if (fromFile.length >= 10) return fromFile.slice(0, 19);
+    const schwSet = new Set(schwab);
+    const fromFile = (raw.tickers ?? []).map(t => t.toUpperCase()).filter(t => schwSet.has(t));
+    if (fromFile.length === schwab.length) return fromFile;
   } catch {
     /* fall through */
   }
-  return schwab1mUniverse().filter(t => t !== "SPY").slice(0, 19);
+  return schwab;
 }
 
-export const liveBreadthTickers = loadConfiguredTickers();
+let liveBreadthTickersCache: string[] | undefined;
+
+function getLiveBreadthTickers(): string[] {
+  if (!liveBreadthTickersCache) liveBreadthTickersCache = loadConfiguredTickers();
+  return liveBreadthTickersCache;
+}
 
 function isRthEt(ms: number): boolean {
   const et = new Date(new Date(ms).toLocaleString("en-US", { timeZone: "America/New_York" }));
@@ -117,7 +126,7 @@ async function fetchToday1m(ticker: string, dateKey: string): Promise<Bar[]> {
 
 /** One cross-sectional breadth row for the latest completed 5m bar (all configured tickers). */
 export async function computeLiveBreadthCrossSection(dateKey: string = etDateKey()): Promise<BreadthRow | null> {
-  const tickers = liveBreadthTickers;
+  const tickers = getLiveBreadthTickers();
   if (tickers.length === 0) return null;
 
   let upOpenSum = 0;
@@ -154,21 +163,21 @@ export async function computeLiveBreadthCrossSection(dateKey: string = etDateKey
 }
 
 export async function upsertBreadth5mRow(row: BreadthRow, dateKey: string = etDateKey()): Promise<void> {
-  await pool.query(`DELETE FROM optlab.breadth_5m WHERE ts = $1`, [row.ts]);
+  await pool.query(`DELETE FROM optlab.breadth_5m WHERE ts = $1 AND src = $2`, [row.ts, LIVE_BREADTH_SRC]);
   await pool.query(
-    `INSERT INTO optlab.breadth_5m (ts, d, n, up_open, above_vwap, mean_ret)
-     VALUES ($1, $2::date, $3, $4, $5, $6)`,
-    [row.ts, dateKey, row.n, row.upOpen, row.aboveVwap, row.meanRet],
+    `INSERT INTO optlab.breadth_5m (ts, d, n, up_open, above_vwap, mean_ret, src)
+     VALUES ($1, $2::date, $3, $4, $5, $6, $7)`,
+    [row.ts, dateKey, row.n, row.upOpen, row.aboveVwap, row.meanRet, LIVE_BREADTH_SRC],
   );
 }
 
-async function todayAboveVwapHistory(dateKey: string): Promise<number[]> {
-  const { rows } = await pool.query<{ above_vwap: number }>(
-    `SELECT above_vwap FROM optlab.breadth_5m
-     WHERE d = $1::date ORDER BY ts ASC`,
-    [dateKey],
+async function todayLiveBreadthSeries(dateKey: string): Promise<BreadthVwapPoint[]> {
+  const { rows } = await pool.query<{ ts: Date; above_vwap: number }>(
+    `SELECT ts, above_vwap FROM optlab.breadth_5m
+     WHERE d = $1::date AND src = $2 ORDER BY ts ASC`,
+    [dateKey, LIVE_BREADTH_SRC],
   );
-  return rows.map(r => Number(r.above_vwap));
+  return rows.map(r => ({ tsMs: new Date(r.ts).getTime(), aboveVwap: Number(r.above_vwap) }));
 }
 
 /** Cached snapshot for Live risk — never throws. */
@@ -179,14 +188,17 @@ export async function getLiveBreadthSnapshot(force = false): Promise<BreadthSnap
   if (!force && now - cached.at < 45_000) return cached.snap;
   try {
     const dateKey = etDateKey();
-    const history = await todayAboveVwapHistory(dateKey);
-    if (history.length < BREADTH_LOOKBACK_BARS + 1) {
+    const series = await todayLiveBreadthSeries(dateKey);
+    if (series.length < 1) {
       cached = { at: now, snap: null };
       return null;
     }
-    const aboveVwap = history[history.length - 1];
-    const chg30 = breadthChg30(history)!;
-    cached = { at: now, snap: { aboveVwap, chg30, drop: isBreadthDrop(chg30) } };
+    const aboveVwap = series[series.length - 1].aboveVwap;
+    const chg30 = breadthChg30(series);
+    cached = {
+      at: now,
+      snap: { aboveVwap, chg30: chg30 ?? 0, drop: isBreadthDrop(chg30) },
+    };
     return cached.snap;
   } catch (err) {
     logger.warn({ err: String(err) }, "live-breadth: snapshot unavailable");
