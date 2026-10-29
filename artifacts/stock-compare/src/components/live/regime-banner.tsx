@@ -29,6 +29,14 @@ export interface WeekRisk {
 
 const WEEK_TEXT: Record<WeekRisk["level"], string> = { low: "text-sky-400", normal: "text-zinc-200", high: "text-red-500" };
 
+/** Every-bar rest-of-day risk (S139) + today's level changes. */
+export interface LiveRisk {
+  minAfterOpen: number;
+  asOf: number;
+  risk: RegimeRisk;
+  events: Array<{ t: number; minAfterOpen: number; from: string | null; to: string; pDrop: number }>;
+}
+
 export interface RegimeCheckpoint {
   minAfterOpen: number;
   status: "pending" | "resolved";
@@ -199,9 +207,11 @@ function RegimeAiInsight({ checkpoints }: { checkpoints: RegimeCheckpoint[] }) {
 export function RegimeBanner({
   checkpoints,
   outlook,
+  live,
 }: {
   checkpoints: RegimeCheckpoint[] | undefined;
   outlook?: RegimeOutlook;
+  live?: LiveRisk | null;
 }) {
   const [openMin, setOpenMin] = useState<number | null>(null);
   if (!checkpoints?.length) return null;
@@ -231,6 +241,15 @@ export function RegimeBanner({
               Now: {cellLabel(latest)}
             </span>
             <span className="text-white">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
+            {live && (
+              <span
+                className={cn("font-semibold", RISK_TEXT[live.risk.level])}
+                title={`Recomputed on every completed 5-min bar (S139: beats the last fixed checkpoint, AUC 0.662 vs 0.655). Changes today: ${live.events.map(e => `${new Date(e.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} ${e.from ?? "start"}→${e.to}`).join(", ") || "none"}.`}
+              >
+                · live {RISK_SHORT[live.risk.level]} {Math.round(live.risk.pDropHalfAtr * 100)}%
+                {live.events.length > 1 ? ` (${live.events.length - 1} change${live.events.length > 2 ? "s" : ""})` : ""}
+              </span>
+            )}
             {week && (
               <span
                 className={cn("font-semibold", WEEK_TEXT[week.level])}

@@ -4,7 +4,7 @@ import { liveHotlist, rallySignal, MARKET_CONTEXT_SYMBOLS, ASIA_INDEX_SYMBOLS, t
 import { getLivePrices, livePriceCache } from "../lib/live-quote.js";
 import { getLiveIndicatorOverlay } from "../lib/indicators.js";
 import { fetchGlobalMovers } from "../lib/live-movers.js";
-import { getTodaysCheckpoints } from "../lib/intraday-regime.js";
+import { getLiveRisk, getTodaysCheckpoints } from "../lib/intraday-regime.js";
 import { computeRegimeOutlook, outlookCacheKey } from "../lib/intraday-regime-outlook.js";
 import { getLiveMarketContext } from "../lib/live-market-context.js";
 import { getTodaysEntrySignals, computeEntryStats } from "../lib/intraday-entry-signals.js";
@@ -228,12 +228,12 @@ router.get("/live/movers", async (_req, res, next) => {
 
 router.get("/live/regime", async (_req, res, next) => {
   try {
-    const checkpoints = await getTodaysCheckpoints();
+    const [checkpoints, live] = await Promise.all([getTodaysCheckpoints(), getLiveRisk()]);
     const outlook = await regimeOutlookCache.getOrCompute(
       outlookCacheKey(checkpoints),
       () => computeRegimeOutlook(checkpoints),
     );
-    res.json({ checkpoints, outlook });
+    res.json({ checkpoints, outlook, live });
   } catch (err) {
     next(err);
   }

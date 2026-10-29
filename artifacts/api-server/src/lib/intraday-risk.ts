@@ -75,9 +75,21 @@ export async function dailyContext(ticker: string, dateKey: string): Promise<Dai
   return { atr20: trSum / (n - 1), ret5d: d[n - 1].c / d[n - 6].c - 1 };
 }
 
+/** Usual range-so-far ratio at any minute 30–385 (linear between the fitted checkpoints; S139 scores every bar). */
+function typicalAt(minAfterOpen: number): number | undefined {
+  const ks = Object.keys(MODEL.rngMedianByMin).map(Number).sort((a, b) => a - b);
+  if (minAfterOpen < ks[0] || minAfterOpen > 390) return undefined;
+  if (minAfterOpen >= ks[ks.length - 1]) return MODEL.rngMedianByMin[ks[ks.length - 1]];
+  const i = ks.findIndex(k => k >= minAfterOpen);
+  const hi = ks[i], lo = ks[Math.max(0, i - 1)];
+  if (hi === lo) return MODEL.rngMedianByMin[hi];
+  const w = (minAfterOpen - lo) / (hi - lo);
+  return MODEL.rngMedianByMin[lo] * (1 - w) + MODEL.rngMedianByMin[hi] * w;
+}
+
 /** Bars must be the session's 5-min RTH bars that STARTED before the checkpoint. */
 export function computeRiskCall(bars: Bar[], minAfterOpen: number, daily: DailyContext | null): RiskCall | null {
-  const typical = MODEL.rngMedianByMin[minAfterOpen];
+  const typical = typicalAt(minAfterOpen);
   if (!daily || !(daily.atr20 > 0) || typical == null || bars.length < 4) return null;
   const open = bars[0].open;
   const last = bars[bars.length - 1].close;

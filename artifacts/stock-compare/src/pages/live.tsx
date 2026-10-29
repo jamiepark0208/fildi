@@ -11,7 +11,7 @@ import { type TechnicalRow } from "@/lib/technical-rankings";
 
 const MacroEmbedded = lazy(() => import("@/pages/macro"));
 const TrackRecordEmbedded = lazy(() => import("@/pages/track-record"));
-import { RegimeBanner, CHECKPOINT_TIME_PT, type RegimeCheckpoint, type RegimeOutlook } from "@/components/live/regime-banner";
+import { RegimeBanner, CHECKPOINT_TIME_PT, type LiveRisk, type RegimeCheckpoint, type RegimeOutlook } from "@/components/live/regime-banner";
 import { RegimeSessionChart } from "@/components/live/regime-session-chart";
 import { formatMdYy } from "@/lib/format";
 import { DataTip } from "@/components/data-tip";
@@ -72,7 +72,7 @@ async function fetchMovers(): Promise<MoversResponse> {
   return r.json();
 }
 
-async function fetchRegime(): Promise<{ checkpoints: RegimeCheckpoint[]; outlook: RegimeOutlook }> {
+async function fetchRegime(): Promise<{ checkpoints: RegimeCheckpoint[]; outlook: RegimeOutlook; live?: LiveRisk | null }> {
   const r = await fetch("/api/live/regime", { credentials: "include" });
   if (!r.ok) throw new Error(await r.text());
   const body = await r.json();
@@ -81,6 +81,7 @@ async function fetchRegime(): Promise<{ checkpoints: RegimeCheckpoint[]; outlook
   return {
     checkpoints: body.checkpoints ?? [],
     outlook: body.outlook ?? {},
+    live: body.live ?? null,
   };
 }
 
@@ -364,6 +365,7 @@ export default function Live() {
   });
   const regime = regimePayload?.checkpoints;
   const regimeOutlook = regimePayload?.outlook;
+  const regimeLive = regimePayload?.live ?? null;
 
   // Candidates / hotlist-only — defer until that sub-tab is open.
   const needCandidates = pageTab === "market" && subTab === "candidates";
@@ -588,7 +590,7 @@ export default function Live() {
             />
             <MarketContextStrip />
 
-            <RegimeBanner checkpoints={regime} outlook={regimeOutlook} />
+            <RegimeBanner checkpoints={regime} outlook={regimeOutlook} live={regimeLive} />
             <RegimeSessionChart
               symbol={chartSymbol}
               onSymbolChange={setChartSymbol}

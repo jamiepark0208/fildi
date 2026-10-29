@@ -12,7 +12,9 @@ import { db, appConfig } from "@workspace/db";
 import { readOHLCVFromDB } from "./indicators.js";
 import { getLivePrices } from "./live-quote.js";
 import { liveHotlist, MARKET_CONTEXT_SYMBOLS } from "./live-hotlist.js";
-import { etDateKey, getMarketOpenUtc } from "./market-hours.js";
+import { etDateKey, getMarketOpenUtc, minutesSinceOpen } from "./market-hours.js";
+import { TTLCache } from "./ttl-cache.js";
+import { withDeadline } from "./yahoo-client.js";
 import { logger } from "./logger.js";
 import { weekPutRisk, type WeekPutRisk } from "./market-put-risk.js";
 import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall } from "./intraday-risk.js";
@@ -442,6 +444,60 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
   } catch (err) {
     lastFailureAt.set(failureKey, Date.now());
     throw err;
+  }
+}
+
+// ── Live (every-bar) risk — S139: scoring every 5-min bar beats the last fixed checkpoint in both halves
+// (AUC 0.662 vs 0.655 between checkpoints). Level changes are logged as events so they can be graded.
+export interface LiveRisk {
+  minAfterOpen: number;
+  asOf: number;
+  risk: RiskCall;
+  events: Array<{ t: number; minAfterOpen: number; from: string | null; to: string; pDrop: number }>;
+}
+
+const liveRiskCache = new TTLCache<LiveRisk | null>(50_000, "live-regime-risk", 2); // UI polls /live/regime every 60 s
+
+function eventsKey(dateKey: string): string {
+  return `intraday_risk_events_${dateKey}`;
+}
+
+async function computeLiveRisk(): Promise<LiveRisk | null> {
+  const m = minutesSinceOpen();
+  if (m == null || m < 30) return null;
+  const dateKey = etDateKey();
+  const now = Date.now();
+  const [spyAll, qqqAll, spyDaily, qqqDaily] = await Promise.all([
+    withDeadline(fetchTodaysBars("SPY"), 8_000, "live-risk SPY"),
+    withDeadline(fetchTodaysBars("QQQ"), 8_000, "live-risk QQQ"),
+    dailyContext("SPY", dateKey),
+    dailyContext("QQQ", dateKey),
+  ]);
+  const done = (b: Bar[]) => b.filter(x => x.time + 5 * 60_000 <= now);   // completed bars only
+  const spy = done(spyAll), qqq = done(qqqAll);
+  const mins = Math.min(m, 385);
+  const risk = combineRisk(computeRiskCall(spy, mins, spyDaily), computeRiskCall(qqq, mins, qqqDaily));
+  if (!risk) return null;
+
+  const rows = await db.select().from(appConfig).where(eq(appConfig.key, eventsKey(dateKey))).limit(1);
+  const events = ((rows[0]?.value as { events?: LiveRisk["events"] } | undefined)?.events ?? []).slice();
+  const last = events[events.length - 1]?.to ?? null;
+  if (last !== risk.level) {
+    events.push({ t: now, minAfterOpen: mins, from: last, to: risk.level, pDrop: risk.pDropHalfAtr });
+    const value = { events };
+    if (rows.length === 0) await db.insert(appConfig).values({ key: eventsKey(dateKey), value });
+    else await db.update(appConfig).set({ value, updatedAt: new Date() }).where(eq(appConfig.key, eventsKey(dateKey)));
+  }
+  return { minAfterOpen: mins, asOf: now, risk, events };
+}
+
+/** Never throws: a vendor blip leaves the banner on its checkpoints. */
+export async function getLiveRisk(): Promise<LiveRisk | null> {
+  try {
+    return await liveRiskCache.getOrCompute("now", computeLiveRisk);
+  } catch (err) {
+    logger.warn({ err: String(err) }, "intraday-regime: live risk unavailable");
+    return null;
   }
 }
 
