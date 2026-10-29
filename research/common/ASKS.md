@@ -272,7 +272,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A295](asks/A295.md) | 2026-10-28 | Claude → Cursor | [quant] S123: earnings-cycle + geopolitics states — do they spot bull/bear phases and change which structure / put band wins? | done (Cursor 10-28: T1 PASS; T2 FAIL monthly; T3 soft FAIL)|
 | [A296](asks/A296.md) | 2026-10-28 | Claude → Cursor | Monthly theme sweep: what research houses are watching (source × theme table → Key Themes) | done (Cursor 10-28: theme_sweeps/2026-10.md) |
 | [A297](asks/A297.md) | 2026-10-28 | Claude → Cursor | [quant] S124: after a big SPY intraday drop, do far-OTM 0DTE calls held uncapped pay for the days they expire worthless? | done (Cursor 10-28: S128 FAIL real prints)|
-| [A298](asks/A298.md) | 2026-10-28 | Claude → Cursor | [quant] S125: long SPY/QQQ calls when the panic breaks (VIX ÷ VIX3M back < 1) vs selling puts / stock | open (after A297; +arms B run-up longs, C crash+credit) |
+| [A298](asks/A298.md) | 2026-10-28 | Claude → Cursor | [quant] S125: long SPY/QQQ calls when the panic breaks (VIX ÷ VIX3M back < 1) vs selling puts / stock | done (Cursor 10-28: S129 FAIL vs short-put)|
 | [A299](asks/A299.md) | 2026-10-28 | Claude → Cursor | [quant] S126: long calls on crashed themes whose revenue forecasts still rise | open (after A298) |
 | [A300](asks/A300.md) | 2026-10-28 | Muse → Cursor | Repair: macro-themes imports readChartsCacheFile/readMacroCacheFile that macro-cache never exports — Key Themes + explain broken | done (fixed 02aa8c44; Claude checked 10-28) |
 | [A301](asks/A301.md) | 2026-10-28 | Cursor → Claude | Daily News Desk adds quality: Muse-compress + dig email URLs + theme/watch weight (A45 follow-on) | done (Cursor 10-28: Muse levels + theme rank + crawl dig) |
