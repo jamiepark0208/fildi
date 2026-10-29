@@ -3,11 +3,11 @@
 > Update this file at the end of each session (or run `.claude/scripts/session-wrap.js`). Finished sections → `state-archive.md` (verbatim history).
 
 ## Phase
-**build** — last updated 2026-10-28
+**build** — last updated 2026-10-29
 
 ## Active work
-- Working: a303-vendor-policy, a302-live-wip-shipped, perf-watch, chain-db-snapshot
-- In progress: none
+- Working: live-every-bar-risk shipped
+- In progress: S139 shipped; A314 families 1-2 dispatched
 - Blocked: none
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)

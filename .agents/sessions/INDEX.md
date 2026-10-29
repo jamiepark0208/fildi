@@ -5,6 +5,7 @@ Pre-2026-06-08 history: `.claude/docs/session-history.md`
 
 ## Recent (last 30 days)
 
+- [2026-10-29](claude-2026-10-29.md) — direction undetectable at index level; risk state is predictable | build | next: review A314 packets; grade stormy events monthly; GEX at 60 sessions
 - [2026-10-28](claude-2026-10-28.md) — Runtime audit done: A303 vendor policy/circuits/cross-process gates/macro merge; A302 dispatched to Cursor, shipped + Claude review pass. Next: 10-28 market + themes + Model List review. | build | next: market-review-10-28, themes-sentiment-read, model-list-vs-moves
 - [2026-10-27](claude-2026-10-27.md) — Universe +351 audited: peer groups reviewed for all 906, empty-fundamentals + auto-downgrade + no-RIC bugs fixed, LSEG consensus for whole universe, FV review table; next: reverse-engineer price per research/fair_value/NEXT.md | build | next: research/fair_value/NEXT.md, universe-removal-rule, check-10-28-run
 - [2026-10-26](claude-2026-10-26.md) — One rules engine: IV-rank resolver, strategy_rules.json + strategy_engine.py driving Structures, put/call ladder with hold-after-assignment, S100 pairs; default put band awaits Jamie. | build | next: set default put band per Jamie, other cutoff ladders if any, trim S088 runtime
