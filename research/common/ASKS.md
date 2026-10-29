@@ -139,8 +139,8 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A163](asks/A163.md) | 2026-10-18 | Grok → Cursor | Live-app click audit session (read-only, Mac) | parked (Cursor 10-18: needs Jamie go that day for live click audit) |
 | [A164](asks/A164.md) | 2026-10-18 | Grok → Muse | CodeGraph per-session cloud setup + Grok token-budget rules | done (Muse 10-18: measured — park per-session CodeGraph) |
 | [A160](asks/A160.md) | 2026-10-18 | Claude → Cursor | [quant] Peer groups: merge waste→industrials, large+regional banks; GICS cross-check | done (merges Cursor; GICS cross-check + override fix Claude 10-18) |
-| [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude → Cursor | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | planned — hold out taught items (Claude 10-18) |
-| [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | open |
+| [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude → Cursor | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
+| [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A167](asks/A167.md) | 2026-10-18 | Claude → Claude | [quant] Put-tuned tech score + nodeGap (options-1.1.0; S045 +15.7 bp/wk OOS) | done — options-1.1.0 live 10-18; grade at ≥ 8 expiries |
 | [A168](asks/A168.md) | 2026-10-18 | Muse → Cursor | Fix CI api-server unit tests: video-lab-upload test hits dummy DATABASE_URL | declined (need met by A169; Cursor 10-20) |
 | [A169](asks/A169.md) | 2026-10-18 | Muse → Cursor | Remove Video Lab (A125) — side project, not fildi | done (Muse 10-18: removed directly) |
@@ -181,10 +181,10 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A204](asks/A204.md) | 2026-10-20 | Muse → Claude | [quant] Trend-state throttle for put selling (2/151 series) — study | done (S073 FAIL) |
 | [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | partial (Codex 10-20: Focus/calendar fixes tested; financial recalibration pending) |
-| [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | planned |
+| [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude | Material decision changes using existing action tickets | planned |
 | [A209](asks/A209.md) | 2026-10-20 | Jamie → Cursor | Agent learn feed — turn metrics + shared optimization loop | done (P0–P3) |
-| [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | open |
+| [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A211](asks/A211.md) | 2026-10-20 | Grok → Cursor | Split Fildi jobs into Mac-private vs host-portable public-data jobs (prep for always-on server). | done (stage 1 inventory; RSS partial) |
 | [A212](asks/A212.md) | 2026-10-20 | Codex → Claude | Review S064 buy-zone puts, S066 earnings block, S049-crash re-audit (Jamie: skeptical of Research tab) | done (Cursor 10-28: S064 rerun; HINT display — Claude judges)|
 | [A213](asks/A213.md) | 2026-10-20 | Claude → Cursor | Model List odds panel: P(OTM), P(profit), P(touch), expiry range, if-assigned, bounce base rate — data in watchlist_sync.pick_odds | done |
@@ -193,7 +193,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A216](asks/A216.md) | 2026-10-20 | Claude → Cursor | StructuresBoard: keep Claude's plain-language headers + hover tips when committing your redesign | done |
 | [A217](asks/A217.md) | 2026-10-20 | Muse → Claude | [quant] Breeden–Litzenberger implied density from Schwab chains — study (Q vs empirical P gap; A213 implied column) | done (S077 FAIL — display only; Claude 10-26) |
 | [A218](asks/A218.md) | 2026-10-20 | Muse → Cursor | Test: Orca fleet console for the agent roster + Headroom token-compression check | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
-| [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-21: VWAP timing now; ORB declined) |
+| [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-29, A312 narrowed: VWAP timing + VIX overlay only; ORB declined) |
 | [A220](asks/A220.md) | 2026-10-20 | Muse → Claude | [quant] IV-wall coverage calibration: strike floor + wall-test defense | done — display column shipped (Claude 10-21) |
 | [A221](asks/A221.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Book concentration: covariance clusters, marginal risk at entry, equal-risk sizing | done (Cursor 10-28: S140 FAIL cluster cap)|
 | [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | done (Cursor 10-28: S141 FAIL)|
@@ -204,23 +204,23 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | needs Jamie |
 | [A228](asks/A228.md) | 2026-10-21 | Muse → Claude + Cursor | WRDS + LSEG: usage audit, entitled-but-unused inventory, adoption workstreams W1–W8 | split 10-24 → A264 (W8 panel), A265 (W2 CBOE), W4 = A262 S092; W1/W3/W5–W7 parked |
 | [A229](asks/A229.md) | 2026-10-21 | Claude → all agents | Pipeline schedule changes: 05:00 PT data chain, list ≥ 07:00 PT, retries, OpenJev/transcripts timing | done (FYI) |
-| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude → Cursor | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | planned (Claude 10-26: candle probe → Phase A packet → Kalshi only with history) |
+| [A230](asks/A230.md) | 2026-10-21 | Jamie → Claude → Cursor | [quant] Live forecast quality — Kalshi 15m + multi-signal calibration study | planned (Claude 10-29, A312 narrowed: Kalshi candles only when history already stored) |
 | [A231](asks/A231.md) | 2026-10-21 | Muse → Cursor | CI red on tip — ASKS rows A214/A230 link missing ask files (a219961e) | done (Muse 10-21: files restored from Mac working tree) |
 | [A232](asks/A232.md) | 2026-10-21 | Muse → Claude → Cursor | [quant] Earnings read-across: surprise transfer across peer/supplier chains (price / revisions / IV) | done (Cursor 10-28: S135 PASS b+c; Claude for wire)|
 | [A233](asks/A233.md) | 2026-10-21 | Muse → Grok + Claude | Fildi monetization: two-world split, data-supply rebuild, multi-user architecture | revise |
 | [A234](asks/A234.md) | 2026-10-21 | Muse → Grok + Claude + Codex | Agent framework hardening: dynamic plan/build/verify, agent-to-agent comms, token orchestration, cross-training loop | revise |
 | [A235](asks/A235.md) | 2026-10-21 | Muse → Cursor | Permission hardening: close verified gate gaps (Schwab OAuth, research lanes, sdm, sessions) — pre-invite P0 | done (P0+P1+P2; await review) |
 | [A236](asks/A236.md) | 2026-10-21 | Claude → Cursor | Pipeline follow-ups: verify 05:00 run, late-open list-first, precompute 29 min, Finnhub limit, request audit | done |
-| [A237](asks/A237.md) | 2026-10-21 | Muse → Claude → Cursor | [quant] Neocloud contagion: oversold quality peers after a CRWV-led selloff — relative-value + put-premium study | planned (equity leg; put leg = no) |
-| [A238](asks/A238.md) | 2026-10-21 | Claude → Cursor | Heavy-token queue: Cursor runs reviews-packets/backtests/studies, Claude judges from ≤ 20-line packets | open |
+| [A237](asks/A237.md) | 2026-10-21 | Muse → Claude → Cursor | [quant] Neocloud contagion: oversold quality peers after a CRWV-led selloff — relative-value + put-premium study | parked (Claude 10-29, A312: put leg closed; revisit when point-in-time Compustat lands) |
+| [A238](asks/A238.md) | 2026-10-21 | Claude → Cursor | Heavy-token queue: Cursor runs reviews-packets/backtests/studies, Claude judges from ≤ 20-line packets | done (Claude 10-29, A312: packet split is standard practice) |
 | [A239](asks/A239.md) | 2026-10-21 | Claude → Cursor | Stage tab: draw Claude → Cursor/Grok dispatch beams (cursor-agent wrapper + parent tag) | done (Cursor 10-21) |
 | [A240](asks/A240.md) | 2026-10-21 | Claude → Cursor | [quant] Earnings dates missing for ~23 % of put candidates (NEM FCX UPS ETN…) → re-strike skipped | done |
 | [A241](asks/A241.md) | 2026-10-21 | Grok → Cursor | GCP free VM shadow: public jobs + public DB copy, Mac untouched until parity pass + Jamie go | stopped — do not continue (Jamie 10-26; VM TERMINATED) |
 | [A242](asks/A242.md) | 2026-10-22 | Muse → Cursor | CI red on cursor/mac-dev: fix StructuresBoard imports (formatMd, ticker-link) + gitleaks allowlist for MISSING_UPCOMING_EMPTY_KEY | done (Cursor 10-22: gitleaks allowlist; formatMd+ticker-link already on tip) |
 | [A243](asks/A243.md) | 2026-10-22 | Claude → Cursor | [quant] Model List stability: keep ideas until they break, daily scores, no cash gate, long call/put sections | done (Cursor 10-22: freshness+universe gate+carry+cash; LSEG RIC expand optional) |
-| [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | planned (S133 FAIL expressions 10-28; Claude verdict)|
+| [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | parked (Claude 10-29, A312: S133 FAIL; paper board stays; revisit = revisions + 60-day calls beat buy-all after ±25 % call-cost stress, both halves) |
 | [A245](asks/A245.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] What preceded real lows/highs: swing-extrema study vs look-alike crashes (feeds A244) | done (S082 PASS packet; Claude freeze/product) |
-| [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | planned (Claude 10-26: phase 1 before 12-11, tab later) |
+| [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | planned (Claude 10-29, A312 narrowed: phase 1 only, false-winner gate) |
 | [A247](asks/A247.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] American-option pricer as fair-value validation: binomial + FD reference vs chain mids | declined |
 | [A248](asks/A248.md) | 2026-10-24 | Claude → Cursor | RBH export: 60 stale assignment_sell false positives; find root cause + check patch hides no real assignment | done (net-exit gate; 63 empty rows left for Claude) |
 | [A249](asks/A249.md) | 2026-10-24 | Claude → Grok | Red-team A248: symbol-level suppression of assignment warnings | done (Grok red-team 10-26: revise — fixes 1–6 for Claude/Cursor on A248) |
@@ -236,7 +236,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A259](asks/A259.md) | 2026-10-24 | Muse → Cursor | Frontend P&L absolute-value substitution can flip sign | done |
 | [A260](asks/A260.md) | 2026-10-24 | Muse → Cursor | pm_alerts MC front-expiry only — multi-expiry books understate margin risk | partial (front label shipped; back-expiry visibility follow-up) |
 | [A261](asks/A261.md) | 2026-10-24 | Jamie → Claude → Cursor | OpenJev morning news shortlist: check-first tickers + peers from desk emails + headlines; drops junk emails before Haiku | done (Claude review pass a68271a2; Muse ops review → verified) |
-| [A262](asks/A262.md) | 2026-10-24 | Jamie → Claude → Cursor | [quant] Test every free outside signal source vs Fildi (OSAP, JKP, option signals, StarMine extras, Finnhub, own-data flow, qlib, tastytrade, movers, QC/Quantpedia) — S089–S098 | planned |
+| [A262](asks/A262.md) | 2026-10-24 | Jamie → Claude → Cursor | [quant] Test every free outside signal source vs Fildi (OSAP, JKP, option signals, StarMine extras, Finnhub, own-data flow, qlib, tastytrade, movers, QC/Quantpedia) — S089–S098 | planned (Claude 10-29, A312 narrowed: Polygon endpoints from stored tables, no fresh fetch; tastytrade rank ~2027-03) |
 | [A263](asks/A263.md) | 2026-10-24 | Jamie → Claude → Cursor | Data-source inventory: every API/tool set up — unused endpoints + fields, ranked by value | done (Claude review pass 67808fc0; research/common/data-inventory.md) |
 | [A264](asks/A264.md) | 2026-10-24 | Muse → Claude → Cursor | Data Sources panel: every source, what it feeds, calls vs limit, unused-but-available (A228 W8) | done |
 | [A265](asks/A265.md) | 2026-10-24 | Muse → Claude → Cursor | CBOE index history pull: VIX, VIX9D, VIX3M, VVIX, SKEW (A228 W2) | done |
@@ -244,18 +244,18 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A267](asks/A267.md) | 2026-10-24 | Jamie → Claude → Cursor | Use unused Massive (Form 4, 8-K, related, short interest universe) + Schwab (movers, expirationchain, markets, metering) endpoints | done (Claude review pass 06a33418 + fix-up; Monday universe run → S099) |
 | [A268](asks/A268.md) | 2026-10-24 | Jamie → Claude → Cursor | One-command signal test (lab.py signal / s045 signal on cached panels) — seconds per idea | done (Claude review pass 10-24) |
 | [A269](asks/A269.md) | 2026-10-24 | Muse → Cursor | CI secret scan red since e0ac416: gitleaks finnhub-access-token false positive on finnhub-client.ts import — allowlist or rename | done |
-| [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | planned (Claude 10-26: GARCH graded on put ranks, merged w/ A273; PySR declined) |
-| [A272](asks/A272.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] College quant projects: MP cleaning, Kalman pairs, AS quoting, AC scheduling, tested | planned (Claude 10-26: corr cleaning after A257 only; Kalman parked; pairs/AS/AC declined) |
-| [A273](asks/A273.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Every vol model: 7-model horse race (ARCH/GARCH/GJR/EGARCH/APARCH/EWMA/DCC), tested | planned (Claude 10-26: merged into A270 vol study; APARCH cut) |
+| [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | planned (Claude 10-29, A312: one GARCH packet on put-pnl harness only; PySR declined; MAPIE wraps that forecast) |
+| [A272](asks/A272.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] College quant projects: MP cleaning, Kalman pairs, AS quoting, AC scheduling, tested | planned (Claude 10-29, A312 narrowed: correlation cleaning only; VaR date-join fix done) |
+| [A273](asks/A273.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Every vol model: 7-model horse race (ARCH/GARCH/GJR/EGARCH/APARCH/EWMA/DCC), tested | declined (Claude 10-29, A312: Need = which vol model; Met by = A270 GARCH packet; Revisit = that packet beats IV÷RV on put pnl, holdout 2024-01+, both halves) |
 | [A271](asks/A271.md) | 2026-10-25 | Claude → Cursor | [quant] Structures reads the rules engine (strategy_engine.py): inputs on every row, gates, CSP = put ladder, long-call rank — Model List unification inherits it | done (Claude built 10-25; UI fields for Cursor) |
 | [A274](asks/A274.md) | 2026-10-26 | Muse → Cursor | Repair: /api/options/rankings ignores livePrices — A252 done claim fails at HEAD | done (Cursor 10-26: default off + rankingsWantLivePrices test) |
 | [A275](asks/A275.md) | 2026-10-26 | Muse → Cursor | Surface snapshot age on DB-only option surfaces (Live table first) | done (Cursor 10-26: asOf + STALE >1 trading day) |
 | [A276](asks/A276.md) | 2026-10-26 | Muse → Cursor | A238 packet-split pilot: unblock oldest quant studies (A188 + A184) before Dec 11 | done (packets; needs Claude verdict) |
-| [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | planned (S101c FAIL 10-28; put engine live; calls hold>overwrite)|
+| [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | planned (Claude 10-29, A312: leftover = retire old pickBestStrike on Rankings + Live; covered-call bands closed S101c) |
 | [A278](asks/A278.md) | 2026-10-26 | Muse → Cursor | Repair: Rankings Structures tab broken — StructuresHub + structure-slots missing (abf9614), CI typecheck red | done (Cursor 10-27: verified 0ef05aab Hub+slots; HEAD tsc green; dirty lab WIP left out) |
 | [A279](asks/A279.md) | 2026-10-26 | Jamie → Claude | [quant] TradingView indicators (UT Bot, SuperTrend cluster/div, SMC, Fear & Greed): built, S102 on sold puts, display + put-edge relax in sector drop | done |
 | [A280](asks/A280.md) | 2026-10-26 | Claude → Cursor | Live › Portfolio alerts: show put_manage_daily (take + re-sell at ≥ 4× pace, hold, no trend stops; S103) | done |
-| [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | open |
+| [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | parked (Claude 10-29, A312: indicator families now run via A314; revisit after 12-11 token cliff) |
 | [A282](asks/A282.md) | 2026-10-26 | Muse → Cursor | Repair: indicators.py recent_div mixes pivot-2 mask with pivot-5 values — ut_conf divergence engine silenced (3931405c) | done |
 | [A283](asks/A283.md) | 2026-10-27 | Jamie → Claude | [quant] Fair value v2 — analyst-style probabilistic DCF (sector defaults, stock overrides, scenarios) | revise |
 | [A284](asks/A284.md) | 2026-10-27 | Claude → Cursor | Breakdown — show outside intrinsic values (StarMine, FMP DCF) next to Fildi fair value | done (Cursor 10-28: Outside estimates in FairValueBadge on open) |
@@ -286,5 +286,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A309](asks/A309.md) | 2026-10-28 | Claude → Cursor | [quant] Regime flags per stock (ER, ATR pct, KAMA, jump model) vs own-IV put breach — cross-section power | done |
 | [A310](asks/A310.md) | 2026-10-28 | Claude → Cursor | [quant] Head-to-head: Alpaca wheel strike score vs Fildi put engine on S088 candidates | done |
 | [A311](asks/A311.md) | 2026-10-28 | Claude → Cursor | Log SPY/QQQ dealer gamma (GEX) daily from Schwab chains | done |
-| [A312](asks/A312.md) | 2026-10-28 | Cursor → Claude | Triage open Cursor queue — park / decline / keep (Jamie 10-28) | planned |
+| [A312](asks/A312.md) | 2026-10-28 | Cursor → Claude | Triage open Cursor queue — park / decline / keep (Jamie 10-28) | done (Claude 10-29: Grok plan applied; Cursor queue = A219 A230 A246 A262 A270 A272 A277 + A314) |
 | [A314](asks/A314.md) | 2026-10-28 | Claude → Cursor | [quant] Regime program — sweep credible regime/reversal methods (event-driven) | accepted |
