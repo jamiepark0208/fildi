@@ -281,12 +281,35 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
     if gold_debt > 0 and debt_sec > 3 * gold_debt + 1e9:
         debt_sec, flags = gold_debt, flags + ["SEC debt > 3× vendor → vendor"]
     # A288: ITM convertibles → equity (if-converted). Face usually already inside LT debt tags.
+    # Tentative reclass here; dilution block may undo (gap path / share-guard) and restore face to debt.
     conv_face = v("convert_debt")
     conv_px = (base.get("convert_price") or {}).get("value") or 0.0
+    conv_tranches = list(base.get("convert_tranches") or [])  # [{face, px, end}, ...] when dims exist
     px_ = float(f["price"]) if f.get("price") else 0.0
     convert_sh = 0.0
-    if conv_face > 0 and conv_px > 0 and px_ > conv_px:
+    reclassed_face = 0.0
+    if conv_tranches and px_ > 0:
+        prices = {round(float(t["px"]), 4) for t in conv_tranches if t.get("px")}
+        # Multi-tranche: only reclass when every tranche shares one price, or per-ITM tranche with own face.
+        if len(prices) == 1 or all(t.get("px") for t in conv_tranches):
+            for tr in conv_tranches:
+                face_i = float(tr.get("face") or 0)
+                px_i = float(tr.get("px") or 0)
+                if face_i <= 0 or px_i <= 0:
+                    continue
+                if px_ > px_i:
+                    convert_sh += face_i / px_i
+                    reclassed_face += face_i
+            if reclassed_face > 0:
+                debt_sec = max(debt_sec - reclassed_face, 0.0)
+                flags = flags + [f"ITM converts ${reclassed_face/1e9:.2f}B ({len(conv_tranches)} tr) → {convert_sh/1e6:.1f}M sh"]
+            elif conv_face > 0:
+                flags = flags + [f"OTM converts ${conv_face/1e9:.2f}B (tranches) — kept as debt"]
+        else:
+            flags = flags + [f"converts ${conv_face/1e9:.2f}B — mixed tranche prices, skipped"]
+    elif conv_face > 0 and conv_px > 0 and px_ > conv_px:
         convert_sh = conv_face / conv_px
+        reclassed_face = conv_face
         debt_sec = max(debt_sec - conv_face, 0.0)
         flags = flags + [f"ITM converts ${conv_face/1e9:.2f}B @ ${conv_px:.2f} → {convert_sh/1e6:.1f}M sh"]
     elif conv_face > 0 and conv_px <= 0:
@@ -337,16 +360,37 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
     opt_net = opt * max(px_ - k_opt, 0) / px_ if px_ > 0 and k_opt > 0 else 0.0  # treasury-stock method at today's price
     gap = (dil.get("dil_gap") or {}).get("value") or 0.0
     unrec_sh = ((dil.get("unrecognized_usd") or {}).get("value") or 0.0) / px_ if px_ > 0 else 0.0
-    if gap > rsu + opt_net:  # diluted − basic weighted average already counts RSUs/options/converts the filings call dilutive
+    used_gap = False
+    if gap > rsu + opt_net:  # diluted − basic already counts RSUs/options/ITM converts (ASC 260)
         rsu, opt_net = gap, 0.0
+        used_gap = True
     if unrec_sh > rsu + opt_net:  # loss-makers: unvested awards ≈ unrecognized stock-comp cost ÷ price (RSU count is dimension-tagged)
         rsu, opt_net, gap = unrec_sh, 0.0, -1.0
-    extra_sh = rsu + opt_net + convert_sh
-    if v("shares") and extra_sh >= 0.3 * v("shares"):  # mis-scaled guard
-        extra_sh = rsu + opt_net  # drop convert share add if absurd
+        used_gap = False  # unrecognized path is not the diluted−basic convert path
+    # Finding 3: skip convert_sh when gap path already includes if-converted notes
+    if used_gap and convert_sh > 0:
+        debt_sec += reclassed_face
+        debt = debt_sec + leases
         convert_sh = 0.0
-        if any("ITM converts" in fl for fl in flags):
-            flags = [fl for fl in flags if "ITM converts" not in fl] + ["ITM converts share add dropped (>30% shares)"]
+        reclassed_face = 0.0
+        flags = [fl for fl in flags if "ITM converts" not in fl] + [
+            "ITM converts skipped — diluted−basic gap already includes if-converted"
+        ]
+    sh0 = v("shares")
+    # Finding 1: restore old mis-scale guard on rsu+opt_net (BABA ADS gap), independent of converts
+    if sh0 and (rsu + opt_net) >= 0.3 * sh0:
+        rsu, opt_net = 0.0, 0.0
+        flags = flags + ["dilution rsu/opt zeroed (≥30% shares — likely unit mismatch)"]
+    # Finding 1b+2: convert share guard separate; restore face to debt if dropped
+    if sh0 and convert_sh >= 0.3 * sh0:
+        debt_sec += reclassed_face
+        debt = debt_sec + leases
+        convert_sh = 0.0
+        reclassed_face = 0.0
+        flags = [fl for fl in flags if "ITM converts" not in fl] + [
+            "ITM converts share add dropped (>30% shares); face restored to debt"
+        ]
+    extra_sh = rsu + opt_net + convert_sh
     dil_out = {}
     if gap == -1.0:
         dil_out = {"unvested awards (unrecognized comp ÷ price)": rsu}

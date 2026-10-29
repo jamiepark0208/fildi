@@ -69,6 +69,33 @@ DILUTION = {  # share counts (unit shares) and option strike (USD/shares), for t
 }
 # Dimension-free conversion price (USD per share). Per-instrument dims often missing → skip when absent.
 CONVERT_PRICE = "DebtInstrumentConvertibleConversionPrice1"
+# Hand-checked from latest 10-Q/10-K notes when XBRL omits a usable conversion price (A288 Claude #4).
+# Used only when companyfacts has no vintage-matched DebtInstrumentConvertibleConversionPrice1.
+CONVERT_NOTE_OVERRIDES: dict[str, dict] = {
+    "NET": {
+        "source": "10-Q filed 2026-08-06 (cloud-20260630.htm)",
+        "tranches": [
+            {"label": "2026 Notes", "px": 191.34, "face_concept": "ConvertibleDebtCurrent"},
+            {"label": "2030 Notes", "px": 247.67, "face_concept": "ConvertibleDebtNoncurrent"},
+        ],
+    },
+    "RKLB": {
+        "source": "10-Q filed 2026-08-10 (4.250% notes due 2029; $13.4M principal left)",
+        "tranches": [{"label": "2029 Notes", "px": 5.13, "face": 13_400_000}],
+    },
+    "MRVL": {
+        "source": "10-Q filed 2026-08-28",
+        "tranches": [{"label": "convert notes", "px": 91.84}],
+    },
+    "AAOI": {
+        "source": "10-Q filed 2026-08-06",
+        "tranches": [{"label": "convert notes", "px": 43.31}],
+    },
+    "ONDS": {
+        "source": "10-Q filed 2026-08-13",
+        "tranches": [{"label": "convert notes", "px": 0.7189}],
+    },
+}
 UNRECOGNIZED = "EmployeeServiceShareBasedCompensationNonvestedAwardsTotalCompensationCostNotYetRecognized"
 WEIGHTED = {"diluted": "WeightedAverageNumberOfDilutedSharesOutstanding", "basic": "WeightedAverageNumberOfSharesOutstandingBasic"}
 
@@ -246,12 +273,76 @@ def ttm_base(conn, ticker: str, facts: dict | None = None) -> dict | None:
     out.update({k: balance(facts, v, asof) for k, v in BALANCES.items()})
     out["shares"] = shares(facts)
     out["dilution"] = dilution(facts, asof)
-    # A288: conversion price (USD/shares) — dimension-free only
-    cp_vals = [u for u in _units(facts, CONVERT_PRICE, "USD/shares") if not u.get("start") and u["end"] <= asof]
-    if cp_vals:
-        u = max(cp_vals, key=lambda x: (x["end"], x["filed"]))
-        if _days(u["end"], asof) <= 400 and u["val"] and u["val"] > 0:
-            out["convert_price"] = {"value": u["val"], "concept": CONVERT_PRICE, "end": u["end"], "filed": u["filed"]}
+    # A288: conversion price — prefer dimension-free; else per-tranche segments; vintage-match to face end.
+    face_end = (out.get("convert_debt") or {}).get("end")
+    cp_raw = _units(facts, CONVERT_PRICE, "USD/shares")
+    # Also keep segmented rows (companyfacts rarely has them; companyconcept may).
+    cp_all = [u for u in cp_raw if not u.get("start") and u.get("end") and u["end"] <= asof and u.get("val") and u["val"] > 0]
+    def _vintage_ok(u_end: str) -> bool:
+        if face_end and _days(u_end, face_end) <= 548:  # ~18m of face balance date
+            return True
+        return _days(u_end, asof) <= 400
+
+    free = [u for u in cp_all if not u.get("segments") and _vintage_ok(u["end"])]
+    segs = [u for u in cp_all if u.get("segments") and _vintage_ok(u["end"])]
+    if free:
+        u = max(free, key=lambda x: (x["end"], x["filed"]))
+        out["convert_price"] = {"value": float(u["val"]), "concept": CONVERT_PRICE, "end": u["end"], "filed": u["filed"]}
+    if segs:
+        # Group by segment label → one price per tranche; face split equal when per-tranche face absent.
+        by = {}
+        for u in segs:
+            label = json.dumps(u.get("segments"), sort_keys=True)
+            prev = by.get(label)
+            if not prev or (u["end"], u["filed"]) > (prev["end"], prev["filed"]):
+                by[label] = u
+        face = float((out.get("convert_debt") or {}).get("value") or 0)
+        n = max(len(by), 1)
+        tranches = []
+        for u in by.values():
+            tranches.append({
+                "face": face / n if face else 0.0,
+                "px": float(u["val"]),
+                "end": u["end"],
+                "segments": u.get("segments"),
+            })
+        out["convert_tranches"] = tranches
+        if "convert_price" not in out and len({round(t["px"], 4) for t in tranches}) == 1:
+            out["convert_price"] = {"value": tranches[0]["px"], "concept": CONVERT_PRICE, "end": tranches[0]["end"], "filed": "segments"}
+    # Note overrides when XBRL has face but no usable cpx (A288 #4/#5)
+    if "convert_price" not in out and "convert_tranches" not in out:
+        ov = CONVERT_NOTE_OVERRIDES.get(ticker)
+        face = float((out.get("convert_debt") or {}).get("value") or 0)
+        if ov and (face > 0 or any(tr.get("face") for tr in ov["tranches"])):
+            trs = []
+            for tr in ov["tranches"]:
+                face_i = float(tr["face"]) if tr.get("face") else face
+                fc = tr.get("face_concept")
+                if fc and not tr.get("face"):
+                    bal = balance(facts, [fc], asof)
+                    if bal and bal.get("value"):
+                        face_i = float(bal["value"])
+                elif not tr.get("face") and len(ov["tranches"]) > 1:
+                    face_i = face / len(ov["tranches"])
+                if face_i <= 0:
+                    continue
+                trs.append({"face": face_i, "px": float(tr["px"]), "end": asof, "label": tr.get("label")})
+            # Ensure convert_debt present when override supplies face (RKLB tags empty)
+            if trs and face <= 0:
+                tot = sum(t["face"] for t in trs)
+                out["convert_debt"] = {"value": tot, "concept": "10Q_note_override", "end": asof, "filed": ov["source"]}
+            out["convert_tranches"] = trs
+            if len({round(t["px"], 4) for t in trs}) == 1:
+                out["convert_price"] = {
+                    "value": trs[0]["px"], "concept": "10Q_note_override",
+                    "end": asof, "filed": ov["source"],
+                }
+            else:
+                # representative mid for flags; engine uses convert_tranches
+                out["convert_price"] = {
+                    "value": sum(t["px"] for t in trs) / len(trs), "concept": "10Q_note_override_multi",
+                    "end": asof, "filed": ov["source"],
+                }
     out["history"] = {k: fy_history(facts, FLOWS[k]) for k in HIST}
     return out
 
