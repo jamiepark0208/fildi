@@ -98,6 +98,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("gov flows", SH, HERE, ["-c", f"{PY} gov_flows.py 2>&1 | tail -1"]),
         ("geo risk + oil", SH, HERE, ["-c", f"{PY} geo_risk.py 2>&1 | tail -1"]),   # GPR index (Fed Board) + FRED WTI/Brent → macro_daily
         ("key themes snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-themes.ts 2>&1 | tail -1"]),
+        ("dealer GEX log", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-gex-daily.ts 2>&1 | tail -3"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
         # 10-28: Live-tab regime checkpoints were never graded (table missing, no schedule) → grade the last 3 sessions daily.
         # 40-day backfill: bearish right 77 / wrong 121, bullish 117 / 108 — no edge yet; the grade table is how we'd know.
