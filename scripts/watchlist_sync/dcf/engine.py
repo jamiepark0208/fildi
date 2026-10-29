@@ -3,7 +3,7 @@ scenarios and a reverse DCF. Generic rules only (sector rules and stock override
 Per path (Monte Carlo, N draws):
   revenue  with consensus (LSEG FY1–FY3, consensus_annual; 10-27 assessment fix a): years 1–3 = consensus revenue path
            interpolated to our TTM dates, ± analyst high/low, shrunk toward the base-rate path by n/(n + 3k);
-           years 4–5 = the 5-y base rate (S113: they mean-revert); years 6–10 = the 10-y base rate fading to terminal g
+           years 4–5 = 2.6 % + 0.37 × years 1–3 CAGR, years 6–10 = 3.3 % + 0.15 × it fading to terminal g (S113 decile fit)
            (S113: consensus narrows years 1–3 spread ~9 %, years 4–10 not at all → ranges stay base-rate wide).
            Without: year 1 = FY1 growth, years 2–5 = the residual compounding year 1 into the base-rate 5-y CAGR for
            size × start growth at percentile u_g;
@@ -516,9 +516,15 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         dsd = np.maximum(np.diff(np.r_[0.0, cons["sd"]]), 0.03)  # analyst range on the level → per-year increment
         lg = w[None, :] * (np.log1p(cons["g"])[None, :] + zg[:, None] * dsd[None, :]) + (1 - w[None, :]) * np.log1p(r25)[:, None]
         gr[:, 0:3] = np.expm1(lg)  # blend each year's growth (blending levels piled all shrinkage into year 3)
-        gr[:, 3:5] = r25[:, None]  # S113: years 4–5 mean-revert (~7–9 %), consensus has no signal there → base rate (A283 it2)
-        # years 6–10 keep the size × start-growth 10-y base rate (set above): S113 — realized growth in years 6–10 is
-        # 3–6 % in every consensus decile (ρ ≈ 0.05), so consensus says nothing about them
+        # S113 deciles (consensus_deciles.csv, n-weighted fit, |res| ≤ 1.3 pp): realized growth later scales with years 1–3,
+        # years 4–5 ≈ 2.6 % + 0.37 × r13, years 6–10 ≈ 3.3 % + 0.15 × r13 (top decile 19 % → 9 % → 6 %). A flat base rate
+        # for years 4–5 (10-29 it2) cut PLTR from 30 % in year 3 to 10 % in year 4. Spread = base-rate spread around its median.
+        r13 = np.cbrt(np.prod(1 + gr[:, 0:3], axis=1)) - 1
+        spread = r25 - float(q5(np.array([0.5]))[0])
+        gr[:, 3:5] = (0.0264 + 0.371 * r13 + spread)[:, None]
+        r610c = 0.0329 + 0.150 * r13 + (r610 - float(np.median(r610)))  # keep the base-rate spread in years 6–10 too
+        for k in range(5, 10):
+            gr[:, k] = r610c + (g_T - r610c) * ((k - 4) / 5)
     if "analyst_g" in fx:  # analyst-style path: years 2–5 at the given growth, then linear fade to terminal by year 10
         ga = fx["analyst_g"]
         gr[:, 1:5] = ga
