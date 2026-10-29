@@ -102,6 +102,7 @@ with connect() as c:
             sim = simulate(x, br, n=3000)
             v = sim["vps"]
             sc = {k: float(np.median(simulate(x, br, n=1500, scenario=k)["vps"])) for k in ("normal", "base", "implied", "ltcma")}
+            sc["persist"] = float(np.median(simulate(x, br, n=1500, fixed={"persist": True})["vps"]))  # capped S113 decile line (Grok it3)
             p10, p50, p90 = np.percentile(v, [10, 50, 90])
             u = reverse(x, br)
             vv = lambda k: (b.get(k) or {}).get("value") or 0.0
