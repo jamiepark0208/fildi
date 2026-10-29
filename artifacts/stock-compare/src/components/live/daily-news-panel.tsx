@@ -22,12 +22,14 @@ import { trustDayPct } from "@/components/live/live-format";
 import {
   compressImplicationBullet,
   compressMuseBullet,
+  extractWhatsMovingTable,
   parseSections,
   singleNameLead,
   splitImplicationLead,
   splitMuseSoWhat,
   synthesizeSingleNameSoWhats,
 } from "./daily-news-parse";
+import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 
 /** Drop Muse sections/bullets already covered elsewhere on Daily News. */
 function dedupeMuseSections(
@@ -1111,11 +1113,70 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                 ? activeMuse.sections
                 : [{ title: activeMuse.edition === "am" ? "What's moving" : "Recap", bullets: activeMuse.bullets }],
             ).map((sec) => {
+              const isMoving = /what'?s moving/i.test(sec.title);
               const isSingles = /single names/i.test(sec.title);
               const isImpl = /implications/i.test(sec.title);
               const split =
-                (/what'?s moving|why it matters|what to watch|single names|implications/i.test(sec.title)
+                (/why it matters|what to watch|single names|implications/i.test(sec.title)
                   && sec.bullets.length >= 2);
+
+              if (isMoving) {
+                const { rows, leftover } = extractWhatsMovingTable(sec.bullets);
+                return (
+                  <section key={sec.title} className="space-y-2 border-t border-[#d4af37]/15 pt-4 first:border-t-0 first:pt-0">
+                    <div className={SECTION_HDR}>{sec.title}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 items-start">
+                      <div className={cn(GRID_WRAP, "min-w-0")}>
+                        {rows.length === 0 ? (
+                          <p className={cn(MUSE_BODY, "text-amber-100")}>No quote units parsed.</p>
+                        ) : (
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className={GRID_HEADER}>
+                                <th className={cn(GRID_TH, "text-left")}>Ticker</th>
+                                <th className={cn(GRID_TH, "text-right")}>Value</th>
+                                <th className={cn(GRID_TH, "text-right")}>Chg</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((r, i) => (
+                                <tr key={r.ticker} className={gridRow(i)}>
+                                  <td className={cn(GRID_TD, "text-left font-mono font-bold text-[#d4af37]")}>{r.ticker}</td>
+                                  <td className={cn(GRID_TD, "text-right font-mono")}>{r.value}</td>
+                                  <td
+                                    className={cn(
+                                      GRID_TD,
+                                      "text-right font-mono font-semibold",
+                                      r.up === true && "text-emerald-400",
+                                      r.up === false && "text-rose-400",
+                                    )}
+                                  >
+                                    {r.pct}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                      {leftover.length > 0 ? (
+                        <ul className="space-y-2 min-w-0">
+                          {leftover.map((line, i) => (
+                            <li key={i} className={cn("flex items-start gap-2", MUSE_BODY)}>
+                              <span className={MUSE_DOT} />
+                              <span className="min-w-0 flex-1">
+                                {renderFrags(parseInline(line, { lean: true }))}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="min-w-0" aria-hidden />
+                      )}
+                    </div>
+                  </section>
+                );
+              }
 
               if (isSingles) {
                 const splitRows = sec.bullets.map((b) => {

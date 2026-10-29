@@ -326,3 +326,130 @@ export function parseSections(md: string): Array<{ title: string; bullets: strin
   }
   return sections.filter((s) => s.bullets.length > 0);
 }
+
+/** Compact What's Moving table row (ticker / value / %Δ). */
+export type MovingQuote = {
+  ticker: string;
+  value: string;
+  pct: string;
+  up: boolean | null;
+};
+
+const MOVING_NAME =
+  String.raw`(?:S&P\s*500|Nasdaq(?:\s*(?:100|Composite))?|Dow|Russell\s*2000|KOSPI|Nikkei|Shanghai|Hang\s*Seng|Taiwan|STOXX\s*600|FTSE\s*100|DAX|VIX|Gold|Bitcoin|WTI|Brent|10Y|2Y|30Y|Dollar\s*Index)(?:\s+futures)?`;
+
+function shortMovingTicker(name: string): string {
+  const n = name.replace(/\s+/g, " ").trim();
+  if (/^S&P\s*500\s*futures$/i.test(n)) return "ES";
+  if (/^Nasdaq(?:\s*100)?\s*futures$/i.test(n)) return "NQ";
+  if (/^Dow\s*futures$/i.test(n)) return "YM";
+  if (/^S&P\s*500$/i.test(n)) return "SPX";
+  if (/^Nasdaq\s*Composite$/i.test(n)) return "COMP";
+  if (/^Nasdaq\s*100$/i.test(n)) return "NDX";
+  if (/^Dow$/i.test(n)) return "DJI";
+  if (/^Russell\s*2000$/i.test(n)) return "RUT";
+  if (/^Hang\s*Seng$/i.test(n)) return "HSI";
+  if (/^STOXX\s*600$/i.test(n)) return "SXXP";
+  if (/^FTSE\s*100$/i.test(n)) return "UKX";
+  if (/^Dollar\s*Index$/i.test(n)) return "DXY";
+  if (/^Bitcoin$/i.test(n)) return "BTC";
+  return n.replace(/\s+/g, " ");
+}
+
+const MOVING_ORDER = [
+  "ES", "NQ", "YM", "SPX", "COMP", "DJI", "RUT", "VIX",
+  "KOSPI", "Nikkei", "Shanghai", "HSI", "Taiwan", "SXXP", "UKX", "DAX",
+  "10Y", "2Y", "30Y", "DXY", "Gold", "BTC", "Brent", "WTI",
+];
+
+/**
+ * Pull ticker / level / %Δ out of What's Moving prose bullets.
+ * Leftover = narrative that isn't a quote unit (e.g. "Technology leads", oil attack clause).
+ */
+export function extractWhatsMovingTable(bullets: string[]): {
+  rows: MovingQuote[];
+  leftover: string[];
+} {
+  const by = new Map<string, MovingQuote>();
+  const leftover: string[] = [];
+
+  // NAME ~level (±pct%)  OR  NAME (±pct%)
+  const unitRe = new RegExp(
+    String.raw`\b(${MOVING_NAME})\s+(?:(~?\$?[\d,.]+%?)\s*)?\(\s*([+\u2212\u2013\-]?\s*~?\d+(?:\.\d+)?%)\s*\)`,
+    "gi",
+  );
+  // Yields / VIX level-only: 10Y 4.12% · VIX ~17.51
+  const levelOnlyRe = new RegExp(
+    String.raw`\b(10Y|2Y|30Y|VIX)\s+~?(\d+(?:\.\d+)?)%?`,
+    "gi",
+  );
+
+  for (const raw of bullets) {
+    const b = compressMuseBullet(raw);
+    let work = b;
+    let hit = false;
+
+    unitRe.lastIndex = 0;
+    for (const m of work.matchAll(unitRe)) {
+      hit = true;
+      const ticker = shortMovingTicker(m[1]!);
+      if (by.has(ticker)) continue;
+      const level = (m[2] ?? "").trim();
+      const pct = normPctToken(m[3]!);
+      const up = pct.startsWith("-") ? false : pct.startsWith("+") ? true : null;
+      by.set(ticker, {
+        ticker,
+        value: level ? normLevelToken(level) : "—",
+        pct,
+        up,
+      });
+    }
+    work = work.replace(unitRe, " ").replace(/\s+/g, " ").trim();
+
+    levelOnlyRe.lastIndex = 0;
+    for (const m of work.matchAll(levelOnlyRe)) {
+      hit = true;
+      const ticker = m[1]!.toUpperCase();
+      if (by.has(ticker) && by.get(ticker)!.value !== "—") continue;
+      const v = ticker === "VIX" ? m[2]! : `${m[2]}%`;
+      by.set(ticker, {
+        ticker,
+        value: ticker === "VIX" ? normLevelToken(v) : v,
+        pct: by.get(ticker)?.pct ?? "—",
+        up: by.get(ticker)?.up ?? null,
+      });
+    }
+    work = work.replace(levelOnlyRe, " ").replace(/\s+/g, " ").trim();
+
+    // Strip lead labels / empty separators left behind
+    work = work
+      .replace(/^(Futures mixed|Tue close|Asia|Europe soft|Rates|Oil)\.?:?\s*/i, "")
+      .replace(/\b(on|after|as|with)\s+(?=·|,|$)/gi, "")
+      .replace(/^[·|;,.\-–—\s]+/g, "")
+      .replace(/[·|;,.\-–—\s]+$/g, "")
+      .replace(/\s*[·|;]+\s*/g, " · ")
+      .replace(/(?:\s*·)+\s*/g, " · ")
+      .replace(/\s*,\s*,+/g, ",")
+      .replace(/\s*,\s*·/g, " · ")
+      .replace(/·\s*,/g, "·")
+      .replace(/\(\s*\)/g, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/^[·,;\s]+|[·,;\s.]+$/g, "")
+      .trim();
+    // Mid-sentence remnant after stripping quotes ("on SK Hynix…")
+    if (/^on\s+/i.test(work)) work = work.replace(/^on\s+/i, "");
+
+    if (work.length >= 12 && /[a-zA-Z]{4,}/.test(work) && /[a-zA-Z]{3,}\s+[a-zA-Z]{3,}/.test(work)) {
+      leftover.push(work.charAt(0).toUpperCase() + work.slice(1));
+    } else if (!hit && b.trim()) {
+      leftover.push(b.trim());
+    }
+  }
+
+  const rows = [...by.values()].sort((a, b) => {
+    const ia = MOVING_ORDER.indexOf(a.ticker);
+    const ib = MOVING_ORDER.indexOf(b.ticker);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.ticker.localeCompare(b.ticker);
+  });
+  return { rows, leftover };
+}

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   compressImplicationBullet,
   compressMuseBullet,
+  extractWhatsMovingTable,
   parseSections,
   singleNameLead,
   splitImplicationLead,
@@ -174,5 +175,41 @@ describe("compressImplicationBullet", () => {
       splitImplicationLead("Two event walls today (Fed 2:00 PM ET): keep premium short"),
       null,
     );
+  });
+});
+
+describe("extractWhatsMovingTable", () => {
+  it("pulls ticker/value/% into rows; narrative leftovers on the side", () => {
+    const bullets = [
+      compressMuseBullet(
+        "Futures are mixed into the day's double event: S&P 500 futures up ~0.1–0.2% near 7,767–7,772, Nasdaq 100 futures up ~0.4–0.45% near 29,920–29,945, Dow futures down ~0.2% near 52,485–52,503. Exact prints vary by timestamp; direction is consistent · tech leading, Dow lagging.",
+      ),
+      compressMuseBullet(
+        "Tuesday closed strong: S&P 500 +0.60% to 7,722.60, Nasdaq Composite +1.18% to 26,477.81, Dow essentially flat at 52,377.57 (+0.03%), Russell 2000 +1.16% to 2,818.87. VIX eased to ~17.50–17.52.",
+      ),
+      compressMuseBullet(
+        "Asia was the overnight story: KOSPI +6.6% to ~6,012 on SK Hynix's record quarter, Nikkei +1.08% to 63,954, Shanghai +0.91% to 3,681, Hang Seng +0.23%, Taiwan +~2%.",
+      ),
+      compressMuseBullet(
+        "Oil jumped back: Brent ~$114.84–115.60 (+~1.1–1.6%), WTI ~$101.13–101.75 (+~1.5–2%), after a reported attack on a Saudi refinery revived supply concern. The claim is unconfirmed — the price response is real, the physical disruption is not yet verified.",
+      ),
+    ];
+    const { rows, leftover } = extractWhatsMovingTable(bullets);
+    const by = Object.fromEntries(rows.map((r) => [r.ticker, r]));
+    assert.equal(by.ES?.value, "~7,770");
+    assert.equal(by.ES?.pct, "+0.15%");
+    assert.equal(by.ES?.up, true);
+    assert.equal(by.NQ?.pct, "+0.43%");
+    assert.equal(by.YM?.up, false);
+    assert.equal(by.SPX?.value, "~7,723");
+    assert.equal(by.COMP?.pct, "+1.18%");
+    assert.equal(by.VIX?.value, "~17.51");
+    assert.equal(by.KOSPI?.pct, "+6.6%");
+    assert.equal(by.Brent?.value, "$115");
+    assert.equal(by.WTI?.pct, "+1.8%");
+    assert.ok(leftover.some((l) => /Technology leads/i.test(l)));
+    assert.ok(leftover.some((l) => /Saudi refinery/i.test(l)));
+    assert.ok(leftover.every((l) => !/^[·,\s]+$/.test(l)));
+    assert.ok(!leftover.some((l) => /·\s*·/.test(l)));
   });
 });
