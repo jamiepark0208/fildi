@@ -2,7 +2,7 @@
  * A311 — daily dealer gamma (GEX) from Schwab chains → watchlist_sync.gex_daily.
  */
 import { bsGreeks } from "./options-greeks.js";
-import { etDateKey } from "./market-hours.js";
+import { lastCompletedSessionYmd, etDateKey } from "./market-hours.js";
 import { logger } from "./logger.js";
 import {
   computeGexSummary,
@@ -73,7 +73,7 @@ export function contractsFromSchwabChain(raw: SchwabChainResponse, asOf: string,
         const iv = normalizeSchwabIv(c.volatility);
         const gamma = gammaForLeg(spot, strike, dte, iv, side === "call");
         if (!(gamma > 0)) continue;
-        contracts.push({ strike, side, gamma, openInterest: oi });
+        contracts.push({ strike, side, gamma, openInterest: oi, iv, dte });
       }
     }
   }
@@ -114,7 +114,7 @@ async function fetchChainWithDeadline(ticker: string, fromDate: string, toDate: 
   ]);
 }
 
-export async function fetchAndSummarizeGex(ticker: string, asOf = etDateKey()): Promise<GexSummary | null> {
+export async function fetchAndSummarizeGex(ticker: string, asOf = lastCompletedSessionYmd()): Promise<GexSummary | null> {
   if (!schwabCredentialsConfigured()) {
     if (!authSkipLogged) {
       authSkipLogged = true;
@@ -122,8 +122,9 @@ export async function fetchAndSummarizeGex(ticker: string, asOf = etDateKey()): 
     }
     return null;
   }
-  const fromDate = asOf;
-  const toDate = addDaysYmd(asOf, GEX_MAX_DTE);
+  const chainFrom = etDateKey() >= asOf ? etDateKey() : asOf;
+  const fromDate = chainFrom;
+  const toDate = addDaysYmd(chainFrom, GEX_MAX_DTE);
   const raw = await fetchChainWithDeadline(ticker, fromDate, toDate);
   if (!raw) {
     logger.warn({ ticker, asOf }, "gex-daily: chain fetch failed or timed out");
@@ -176,7 +177,15 @@ export async function persistGexDaily(ticker: string, asOf: string, summary: Gex
   );
 }
 
-export async function runGexDailySnapshot(asOf = etDateKey()): Promise<Array<{ ticker: string; summary: GexSummary }>> {
+export async function runGexDailySnapshot(asOf = lastCompletedSessionYmd()): Promise<Array<{ ticker: string; summary: GexSummary }>> {
+  const etToday = etDateKey();
+  if (etToday > asOf) {
+    const { pool } = await import("@workspace/db");
+    await pool.query(
+      `UPDATE watchlist_sync.gex_daily SET as_of = $1::date WHERE as_of = $2::date AND ticker = ANY($3::text[])`,
+      [asOf, etToday, [...GEX_TICKERS]],
+    );
+  }
   const out: Array<{ ticker: string; summary: GexSummary }> = [];
   for (const ticker of GEX_TICKERS) {
     const summary = await fetchAndSummarizeGex(ticker, asOf);

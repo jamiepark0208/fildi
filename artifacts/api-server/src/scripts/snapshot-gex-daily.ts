@@ -3,11 +3,14 @@
  * A311 — log SPY/QQQ dealer GEX after the close (daily.py publish stage, soft).
  *   cd artifacts/api-server && pnpm exec tsx src/scripts/snapshot-gex-daily.ts
  */
-import { etDateKey } from "../lib/market-hours.js";
-import { runGexDailySnapshot } from "../lib/gex-daily.js";
+import { loadEnvLocal } from "../lib/load-env-local.js";
+
+loadEnvLocal();
 
 async function main() {
-  const asOf = etDateKey();
+  const { lastCompletedSessionYmd } = await import("../lib/market-hours.js");
+  const { runGexDailySnapshot } = await import("../lib/gex-daily.js");
+  const asOf = lastCompletedSessionYmd();
   const rows = await runGexDailySnapshot(asOf);
   if (!rows.length) {
     console.log(`gex-daily: 0 rows for ${asOf} (Schwab down or empty chain)`);
