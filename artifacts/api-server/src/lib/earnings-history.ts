@@ -395,6 +395,11 @@ const GAP_MS = 350;
 
 // Proactively refreshes stale earnings history so stock-breakdown's Earnings tab is
 // DB-served. Morning/scheduled: watchlist + ±14d earnings window first (A236).
+function rowsOfEngine(res: unknown): string[] {
+  const list = (Array.isArray(res) ? res : (res as { rows?: { ticker: string }[] }).rows) ?? [];
+  return (list as { ticker: string }[]).map((r) => String(r.ticker).toUpperCase());
+}
+
 export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise<{ attempted: number; written: number; empty: number }> {
   await repairPastEarningsFromLsegIfDue().catch((err) => {
     logger.warn({ err }, "A114 repair skipped");
@@ -427,7 +432,15 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
     // earnings date known" on the Model List, highest-value fetch under the cap. Fix-up
     // (157b21d0 finding 1): drop ETFs and names re-fetched empty within 7d from that priority
     // slot so they stop starving the rest of the queue every morning run.
-    const prioritizedMissing = prioritizeMissingUpcoming(missingUpcoming, emptyAttempts);
+    // 10-28 (VRT reported with no date on file; 13 of 101 engine picks had none): names the put engine prices jump the queue —
+    // the 25-name morning cap never reached them behind the watchlist + window lists.
+    const engine = new Set(rowsOfEngine(await db.execute(sql`
+      SELECT DISTINCT UPPER(ticker) AS ticker FROM watchlist_sync.put_recs_daily
+      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND payload->>'strike' IS NOT NULL`).catch(() => [])));
+    const prioritizedMissing = [
+      ...missingUpcoming.filter((t) => engine.has(t.toUpperCase())),
+      ...prioritizeMissingUpcoming(missingUpcoming, emptyAttempts).filter((t) => !engine.has(t.toUpperCase())),
+    ];
     const pri = new Set([...prioritizedMissing, ...watch, ...window].map((t) => t.toUpperCase()));
     const priRest = stale.filter((t) => pri.has(t.toUpperCase()) && !prioritizedMissing.includes(t.toUpperCase()));
     ordered = [...prioritizedMissing, ...priRest, ...stale.filter((t) => !pri.has(t.toUpperCase()))];

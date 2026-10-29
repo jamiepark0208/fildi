@@ -276,9 +276,15 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                 band, why = rl["max_band"], f"{why} · put-edge {f'Q{v}' if v else 'unknown'} in a sector drop → {rl['max_band']}Δ (S102)"
                 rec.update(band_target=band, why=why)
         p, used = pick_strike([x for x in by[t] if x["expiry"] == exp], band)
+        if not p:   # 10-28 (RGTI/ONDS/MP: $7–40 names bid < $0.10 at 0.06–0.10Δ) → widen like the income case, don't drop
+            days0 = (exp - as_of).days + BP._settle_offset(exp)
+            p, how = widen_for_income([x for x in by[t] if x["expiry"] == exp], band, ms, rec["stock_state"] or "normal", days0)
+            if p:
+                used, why = how, f"{why} · no ≥ ${R.PUT_MIN_RESTRIKE_BID:.2f} bid near {band}Δ → {how}Δ"
+                rec.update(why=why)
         if not p:
             rec.update(pass_=False, gates=[f"no listed put with bid ≥ {R.PUT_MIN_RESTRIKE_BID} and OI ≥ {R.MIN_OPEN_INTEREST} "
-                                           f"(or volume ≥ {R.MIN_VOLUME_IF_LOW_OI}) within one band of {band}"])
+                                           f"(or volume ≥ {R.MIN_VOLUME_IF_LOW_OI}) within one band of {band}; widening: {how}"])
             out.append(rec)
             continue
         days = (exp - as_of).days + BP._settle_offset(exp)

@@ -99,6 +99,10 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("geo risk + oil", SH, HERE, ["-c", f"{PY} geo_risk.py 2>&1 | tail -1"]),   # GPR index (Fed Board) + FRED WTI/Brent → macro_daily
         ("key themes snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-themes.ts 2>&1 | tail -1"]),
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
+        # 10-28: Live-tab regime checkpoints were never graded (table missing, no schedule) → grade the last 3 sessions daily.
+        # 40-day backfill: bearish right 77 / wrong 121, bullish 117 / 108 — no edge yet; the grade table is how we'd know.
+        ("regime grades", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/backfill-intraday-history.ts 3 2>&1 "
+                                    "| grep -o 'graded.*' | tail -1 || echo 'regime grades skipped'"]),
         ("strategies board", PY, HERE, ["structures.py"]),
         ("put consistency", PY, HERE, ["put_consistency.py"]),   # A277 §3: WARN if a surface shows a different put than the engine   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
