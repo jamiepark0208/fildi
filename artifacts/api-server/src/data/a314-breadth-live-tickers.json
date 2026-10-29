@@ -1,0 +1,25 @@
+{
+  "n": 20,
+  "seed": 0,
+  "tickers": [
+    "NVDA",
+    "INTC",
+    "F",
+    "TSLA",
+    "AAL",
+    "SOFI",
+    "PLTR",
+    "WBD",
+    "SMCI",
+    "MARA",
+    "NFLX",
+    "BAC",
+    "AAPL",
+    "AMD",
+    "MSFT",
+    "GOOGL",
+    "META",
+    "AMZN",
+    "COIN"
+  ]
+}

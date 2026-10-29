@@ -15,6 +15,7 @@ import {
   getSchwabUsageStats,
   type SchwabMinuteBar,
 } from "./schwab-client.js";
+import { refreshLiveBreadthFromSchwabBars } from "./live-breadth-5m.js";
 
 const POLL_MS = 5 * 60_000;
 const JITTER_MS = 30_000;
@@ -140,6 +141,7 @@ export async function runSchwab1mPoll(opts?: {
       }
     }
     lastSchwab1mPollRun = new Date();
+    await refreshLiveBreadthFromSchwabBars();
     logger.info({ symbols: symbols.length, bars }, "schwab-1m: poll complete");
     return { symbols: symbols.length, bars };
   } catch (err) {

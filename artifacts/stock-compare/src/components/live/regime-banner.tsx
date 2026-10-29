@@ -29,12 +29,13 @@ export interface WeekRisk {
 
 const WEEK_TEXT: Record<WeekRisk["level"], string> = { low: "text-sky-400", normal: "text-zinc-200", high: "text-red-500" };
 
-/** Every-bar rest-of-day risk (S139) + today's level changes. */
+/** Every-bar rest-of-day risk (S139) + today's level changes + S143 breadth drop. */
 export interface LiveRisk {
   minAfterOpen: number;
   asOf: number;
   risk: RegimeRisk;
-  events: Array<{ t: number; minAfterOpen: number; from: string | null; to: string; pDrop: number }>;
+  breadth?: { aboveVwap: number; chg30: number; drop: boolean } | null;
+  events: Array<{ t: number; minAfterOpen: number; from: string | null; to: string; pDrop: number; kind?: string }>;
 }
 
 export interface RegimeCheckpoint {
@@ -256,6 +257,14 @@ export function RegimeBanner({
                 title={`1–2 week SPY put risk (S130 v2, 33 yrs): ${week.flags}/2 flags — ATR percentile ${Math.round(week.atrPct * 100)} (flag > 80), efficiency ${week.er20.toFixed(2)} (flag < 0.4). 5-day breach odds of a put sized by implied vol: 0 flags 5%, 1 9%, 2 13%. Realised vol ${week.rv20.toFixed(1)} vs VIX ${week.vix.toFixed(1)} shown for context (not a tested flag).`}
               >
                 · 1–2 wk: {week.level} {Math.round(week.pBreach5d * 100)}%
+              </span>
+            )}
+            {live?.breadth?.drop && (
+              <span
+                className="text-red-400 font-semibold"
+                title={`names above VWAP ${live.breadth.chg30 >= 0 ? "+" : ""}${(live.breadth.chg30 * 100).toFixed(0)} pp in 30 min; S143`}
+              >
+                · Breadth drop
               </span>
             )}
             {flipped && prev && (

@@ -17,7 +17,8 @@ import { TTLCache } from "./ttl-cache.js";
 import { withDeadline } from "./yahoo-client.js";
 import { logger } from "./logger.js";
 import { weekPutRisk, type WeekPutRisk } from "./market-put-risk.js";
-import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall } from "./intraday-risk.js";
+import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall, type RiskLevel } from "./intraday-risk.js";
+import { getLiveBreadthSnapshot, type BreadthSnapshot } from "./live-breadth-5m.js";
 
 
 // Every 15 min through the first hour (when trend-vs-reversal usually resolves),
@@ -447,13 +448,29 @@ export async function runCheckpoint(minAfterOpen: number): Promise<boolean> {
   }
 }
 
-// ── Live (every-bar) risk — S139: scoring every 5-min bar beats the last fixed checkpoint in both halves
-// (AUC 0.662 vs 0.655 between checkpoints). Level changes are logged as events so they can be graded.
+/** S143 pooled halves — rest-of-day drop odds when breadth VWAP drop event is live (level unchanged). */
+export const BREADTH_DROP_P_DROP: Record<RiskLevel, number> = {
+  calm: 0.10,
+  normal: 0.17,
+  elevated: 0.22,
+  stormy: 0.33,
+};
+
+export type IntradayRiskEvent = {
+  t: number;
+  minAfterOpen: number;
+  from: string | null;
+  to: string;
+  pDrop: number;
+  kind?: "level_change" | "breadth_drop";
+};
+
 export interface LiveRisk {
   minAfterOpen: number;
   asOf: number;
   risk: RiskCall;
-  events: Array<{ t: number; minAfterOpen: number; from: string | null; to: string; pDrop: number }>;
+  breadth: BreadthSnapshot | null;
+  events: IntradayRiskEvent[];
 }
 
 const liveRiskCache = new TTLCache<LiveRisk | null>(50_000, "live-regime-risk", 2); // UI polls /live/regime every 60 s
@@ -467,28 +484,53 @@ async function computeLiveRisk(): Promise<LiveRisk | null> {
   if (m == null || m < 30) return null;
   const dateKey = etDateKey();
   const now = Date.now();
-  const [spyAll, qqqAll, spyDaily, qqqDaily] = await Promise.all([
+  const [spyAll, qqqAll, spyDaily, qqqDaily, breadth] = await Promise.all([
     withDeadline(fetchTodaysBars("SPY"), 8_000, "live-risk SPY"),
     withDeadline(fetchTodaysBars("QQQ"), 8_000, "live-risk QQQ"),
     dailyContext("SPY", dateKey),
     dailyContext("QQQ", dateKey),
+    getLiveBreadthSnapshot(),
   ]);
   const done = (b: Bar[]) => b.filter(x => x.time + 5 * 60_000 <= now);   // completed bars only
   const spy = done(spyAll), qqq = done(qqqAll);
   const mins = Math.min(m, 385);
-  const risk = combineRisk(computeRiskCall(spy, mins, spyDaily), computeRiskCall(qqq, mins, qqqDaily));
-  if (!risk) return null;
+  const baseRisk = combineRisk(computeRiskCall(spy, mins, spyDaily), computeRiskCall(qqq, mins, qqqDaily));
+  if (!baseRisk) return null;
+
+  const risk: RiskCall = breadth?.drop
+    ? { ...baseRisk, pDropHalfAtr: BREADTH_DROP_P_DROP[baseRisk.level] }
+    : baseRisk;
 
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, eventsKey(dateKey))).limit(1);
-  const events = ((rows[0]?.value as { events?: LiveRisk["events"] } | undefined)?.events ?? []).slice();
-  const last = events[events.length - 1]?.to ?? null;
-  if (last !== risk.level) {
-    events.push({ t: now, minAfterOpen: mins, from: last, to: risk.level, pDrop: risk.pDropHalfAtr });
+  const prior = ((rows[0]?.value as { events?: IntradayRiskEvent[] } | undefined)?.events ?? []).slice();
+  const events = prior.slice();
+  const lastLevel = prior.filter(e => e.kind !== "breadth_drop").at(-1)?.to ?? null;
+  if (lastLevel !== baseRisk.level) {
+    events.push({
+      t: now,
+      minAfterOpen: mins,
+      from: lastLevel,
+      to: baseRisk.level,
+      pDrop: risk.pDropHalfAtr,
+      kind: "level_change",
+    });
+  }
+  if (breadth?.drop && !events.some(e => e.kind === "breadth_drop")) {
+    events.push({
+      t: now,
+      minAfterOpen: mins,
+      from: baseRisk.level,
+      to: baseRisk.level,
+      pDrop: risk.pDropHalfAtr,
+      kind: "breadth_drop",
+    });
+  }
+  if (events.length > prior.length) {
     const value = { events };
     if (rows.length === 0) await db.insert(appConfig).values({ key: eventsKey(dateKey), value });
     else await db.update(appConfig).set({ value, updatedAt: new Date() }).where(eq(appConfig.key, eventsKey(dateKey)));
   }
-  return { minAfterOpen: mins, asOf: now, risk, events };
+  return { minAfterOpen: mins, asOf: now, risk, breadth, events };
 }
 
 /** Never throws: a vendor blip leaves the banner on its checkpoints. */

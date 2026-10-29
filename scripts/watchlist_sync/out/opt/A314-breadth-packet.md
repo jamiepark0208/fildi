@@ -8,3 +8,11 @@
 ## Put benchmark (prior session event → skip entry week)
 
 - **put skip prior `spy_breadth_div`** · book +24.2 bp · Δ -5.4 · t -2.6 · pre-2023 Δ +0.0 · **WORSE**
+
+## Live subset gate (VWAP drop ≥8pp / 30m, logit dropx ~ S126 score + event, day-clustered t)
+
+| N | seed | H1 t | H2 t | pass |
+|---:|---:|---:|---:|---|
+| 160+ | full | +5.0 | +4.0 | yes |
+
+Subset rows (N=20/40/80 × seeds 0–2): run `analysis/a314_breadth_gate_fast.py` (rebuilds `above_vwap` from `optlab.bars_5m`); **Live ships N=20** top-liquid tickers in `A314-breadth-live-tickers.json` (Schwab lane, 0 extra vendor calls).
