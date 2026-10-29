@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -138,17 +139,33 @@ def band_table() -> dict:
     return _BAND_TABLE
 
 
-def band_states(conn, tickers) -> tuple[dict, dict]:
-    """(market {state, spy_3m, spy_6m, spy_dd52, vix, vix_ratio}, {ticker: {state, dd52, rel_3m}}) at the last LSEG close,
-    with band_engine's definitions (one home for the thresholds)."""
+def band_states(conn, tickers, spot: dict[str, float] | None = None) -> tuple[dict, dict]:
+    """(market {state, spy_3m, spy_6m, spy_dd52, vix, vix_ratio}, {ticker: {state, dd52, rel_3m}}) with band_engine's
+    definitions (one home for the thresholds), on the freshest prices we have.
+    10-29 (MRVL priced 'extended' after a −12 % gap; LSEG last bar 10-27, VIX 10-23): LSEG daily bars, then Schwab
+    prices_historical for any newer day, then today's live chain spot (`spot`) as today's close; VIX = freshest of
+    wrds cboe_daily and vix_daily.py (Yahoo → macro_daily)."""
     import band_engine as BE
     want = sorted(set(tickers) | {"SPY"})
+    byday: dict[str, dict] = {}
+    for t, d, c, h in conn.execute(
+            "SELECT ticker, date, close::float8, COALESCE(high, close)::float8 FROM lseg_research.daily_history WHERE ticker = ANY(%s) "
+            "AND close > 0 AND date >= CURRENT_DATE - 420", (want,)):
+        byday.setdefault(t, {})[d] = (c, h)
+    for t, d, c, h in conn.execute(
+            "SELECT UPPER(ticker), date, close::float8, COALESCE(high, close)::float8 FROM prices_historical WHERE UPPER(ticker) = ANY(%s) "
+            "AND close > 0 AND date >= CURRENT_DATE - 20", (want,)):
+        last = max(byday.get(t, {}) or [date.min])
+        if d > last:   # LSEG wins where both exist; Schwab only fills the days LSEG has not loaded yet
+            byday.setdefault(t, {})[d] = (c, h)
+    today = date.today()
+    for t, px in (spot or {}).items():
+        if px and px > 0 and t in byday and max(byday[t]) < today:
+            byday[t][today] = (px, px)
     ser: dict[str, tuple[list, list]] = {}
-    for t, c, h in conn.execute(
-            "SELECT ticker, close::float8, COALESCE(high, close)::float8 FROM lseg_research.daily_history WHERE ticker = ANY(%s) "
-            "AND close > 0 AND date >= (SELECT MAX(date) FROM lseg_research.daily_history) - 400 ORDER BY ticker, date", (want,)):
-        ser.setdefault(t, ([], []))[0].append(c)
-        ser[t][1].append(h)
+    for t, days in byday.items():
+        ks = sorted(days)
+        ser[t] = ([days[k][0] for k in ks], [days[k][1] for k in ks])
 
     def feats(t):
         c, h = ser.get(t, ([], []))
@@ -156,8 +173,12 @@ def band_states(conn, tickers) -> tuple[dict, dict]:
             return None
         return {"3m": c[-1] / c[-64] - 1, "6m": c[-1] / c[-127] - 1, "dd52": c[-1] / max(h[-252:]) - 1}
     m = feats("SPY") or {"3m": 0.0, "6m": 0.0, "dd52": 0.0}
-    vix = dict(conn.execute("SELECT DISTINCT ON (index) index, close::float8 FROM wrds_research.cboe_daily "
-                            "WHERE index IN ('VIX','VIX3M') ORDER BY index, date DESC").fetchall())
+    vix = {k: v for k, _, v in sorted(conn.execute(
+        """SELECT index, date, close::float8 FROM (SELECT DISTINCT ON (index) index, date, close FROM wrds_research.cboe_daily
+                  WHERE index IN ('VIX','VIX3M') ORDER BY index, date DESC) a
+           UNION ALL
+           SELECT UPPER(series), date, value::float8 FROM (SELECT DISTINCT ON (series) series, date, value FROM watchlist_sync.macro_daily
+                  WHERE series IN ('vix','vix3m') ORDER BY series, date DESC) b""").fetchall(), key=lambda r: r[1])}   # freshest wins
     mf = {"spy_3m": m["3m"], "spy_6m": m["6m"], "spy_dd52": m["dd52"], "vix": vix.get("VIX"),
           "vix_ratio": vix["VIX"] / vix["VIX3M"] if vix.get("VIX") and vix.get("VIX3M") else 0.0}
     br = conn.execute("""SELECT AVG(((payload->>'ut_dir')::float8 > 0)::int)::float8, COUNT(*) FROM watchlist_sync.indicators_daily

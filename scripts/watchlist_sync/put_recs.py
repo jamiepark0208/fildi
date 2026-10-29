@@ -228,7 +228,13 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         by[r["ticker"]].append(r)
     names = sorted(by)
     I = SE.load_inputs(conn, names)
-    market, states = SE.band_states(conn, names)
+    # live prices for the states (10-29 B16): chain spot per name, SPY from the Schwab 1-min poll if < 30 min old
+    spot = {t: next((p["spot"] for p in by[t] if p.get("spot")), None) for t in names}
+    spy = conn.execute("""SELECT c::float8 FROM watchlist_sync.intraday_bars_1m WHERE ticker = 'SPY' AND ts > now() - interval '30 minutes'
+                          ORDER BY ts DESC LIMIT 1""").fetchone()
+    if spy:
+        spot["SPY"] = spy[0]
+    market, states = SE.band_states(conn, names, spot)
     pref = SE.band_pref(conn)
     ctx = BP.put_context(conn)
     rv = {}

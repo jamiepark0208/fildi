@@ -79,6 +79,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("tech components", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/lab-replay-technicals.ts --freq=week "
                                       f"--from={(date.today() - timedelta(days=7)).isoformat()} 2>&1 | grep lab_tech "
                                       "|| echo 'tech components skipped (put_edge keeps last week, ≤ 10 d)'"]),
+        ("vix", PY, HERE, ["vix_daily.py"]),   # 10-29 B16: Yahoo VIX/VIX3M daily — wrds cboe_daily lags ~a week (10-23 on 10-29)
         ("sector ETFs", PY, HERE, ["sector_etfs.py"]),   # A277: 49 sector/theme ETF closes (SOXX, REMX, SRVR …) → per-name sector_drop state
         ("band table", PY, HERE, ["band_engine.py", "refresh"]),   # A277 §8 / S101: weekly refit of the sold-put band table (~5 min) — read by build_plan + structures
         ("indicators", PY, HERE, ["indicators.py"]),   # A279: UT Bot / SuperTrend cluster / SMC / Fear & Greed per name → indicators_daily (display; S102)
