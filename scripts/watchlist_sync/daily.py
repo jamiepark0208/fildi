@@ -59,6 +59,10 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("IV rank resolver", SH, HERE, ["-c", f"{PY} iv_rank.py 2>&1 | tail -1"]),
         # A283: outside intrinsic values (StarMine from today's LSEG signals; FMP DCF weekly, ≤ 40 calls) → external_intrinsic. Soft.
         ("outside intrinsic values", SH, HERE, ["-c", f"{PY} dcf/external_iv.py --max 40 2>&1 | tail -1"]),
+        # Jamie 10-29: Trading Central valuation/levels/outlooks + Argus PT + Morningstar bull/bear text (Yahoo insights, free,
+        # ~1.2 s/name sequential, circuit-aware) → yahoo_insights_daily (+ argus_pt in external_intrinsic). Soft.
+        ("Yahoo insights (Trading Central)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/sync-yahoo-insights.ts 2>&1 "
+                                                       "| grep 'yahoo-insights:' | tail -1 || echo 'yahoo insights skipped'"]),
         # A289: DCF v2 lab detail (watchlist only until fv-2.0.0 is signed) → dcf_detail → Breakdown › Assumptions. Soft.
         ("DCF lab (watchlist)", SH, HERE, ["-c", f"{PY} ../../research/fair_value/dcf_watch.py --store 2>&1 | tail -1"]),
         ("DCF grades", SH, HERE, ["-c", f"{PY} dcf/grade.py 2>&1 | tail -1"]),   # A283 step 2: rank IC vs fv-1.x / StarMine, drift, stability

@@ -165,7 +165,9 @@ def lseg_session() -> Iterator[Any]:
     if str(ld.session.get_default().open_state).split(".")[-1] != "Opened":
         ld.close_session()
         raise RuntimeError("LSEG session did not open. Log in to Workspace, then rerun.")
-    metered = MeteredLD(ld, int(LSEG_DAILY_REQUESTS * frac) - used, int(LSEG_MONTHLY_DATAPOINTS * frac) - month_pts)
+    # 10-29: the monthly yardstick is warn-only (10-27), but it was still passed as a hard per-session cap → at 9.81M every
+    # session (production at 98 % too) raised on its first call. Daily requests stay the only hard stop.
+    metered = MeteredLD(ld, int(LSEG_DAILY_REQUESTS * frac) - used, None)
     try:
         yield metered
     finally:

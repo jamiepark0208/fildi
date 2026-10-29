@@ -171,3 +171,7 @@ CREATE TABLE IF NOT EXISTS lseg_research.daily_history (
   fetched_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (ticker, date)
 );
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_median double precision;   -- A283 street range (10-29)
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_high double precision;
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_low double precision;
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_num_est integer;

@@ -39,6 +39,13 @@ GROUPS: list[list[tuple[str, str]]] = [
         ("imp_volt", "IMP_VOLT"),
     ],
     [
+        # Jamie 10-29 (A283 street range): spread of targets, not just the mean
+        ("pt_median", "TR.PriceTargetMedian"),
+        ("pt_high", "TR.PriceTargetHigh"),
+        ("pt_low", "TR.PriceTargetLow"),
+        ("pt_num_est", "TR.PriceTargetNumIncEstimates"),
+    ],
+    [
         # Next-quarter dispersion: how much analysts disagree about the coming print.
         ("eps_mean_fq1", "TR.EPSMean(Period=FQ1)"),
         ("eps_std_fq1", "TR.EPSStdDev(Period=FQ1)"),
@@ -72,10 +79,10 @@ COLS = [
     "issuer_rating", "cds_ric",
     "credit_combined_rank", "price_mo_rank", "relval_rank", "price_to_intrinsic",
     "eps_mean_fq1", "eps_std_fq1", "eps_high_fq1", "eps_low_fq1", "eps_num_est_fq1", "rev_pred_surprise_pct_fq1",
-    "imp_volt",
+    "imp_volt", "pt_median", "pt_high", "pt_low", "pt_num_est",
 ]
 INT_COLS = {"eps_num_est_fy1", "arm_rank", "combined_alpha_rank", "valmo_rank",
-            "credit_combined_rank", "price_mo_rank", "relval_rank", "eps_num_est_fq1"}
+            "credit_combined_rank", "price_mo_rank", "relval_rank", "eps_num_est_fq1", "pt_num_est"}
 DATE_COLS = {"fy1_period_end", "fq1_period_end", "_fy1_period_end_30d_ago"}
 
 UPSERT = f"""

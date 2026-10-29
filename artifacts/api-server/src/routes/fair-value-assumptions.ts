@@ -245,9 +245,14 @@ router.get("/fair-value/:ticker/vs-street", async (req, res, next) => {
   }
 });
 
-const EXTERNAL_LABELS: Record<string, { label: string; method: string }> = {
-  starmine: { label: "LSEG StarMine intrinsic value", method: "LSEG model on bias-corrected consensus (StarMine IV ÷ price)" },
-  fmp_dcf: { label: "FMP DCF", method: "FMP discounted cash flow (unlevered; levered in detail)" },
+// family: street (analyst targets) · cash-flow (intrinsic models) · floor (no-growth / asset floors). Never blend across families.
+const EXTERNAL_LABELS: Record<string, { label: string; method: string; family: "street" | "cash-flow" | "floor" }> = {
+  starmine: { label: "LSEG StarMine intrinsic value", method: "LSEG model on bias-corrected consensus (StarMine IV ÷ price)", family: "cash-flow" },
+  fmp_dcf: { label: "FMP DCF", method: "FMP discounted cash flow (unlevered; levered in detail)", family: "cash-flow" },
+  argus_pt: { label: "Argus target", method: "Argus Research 12-month target + rating (via Yahoo)", family: "street" },
+  fildi_rim: { label: "Residual income", method: "Book value + FY1–FY3 consensus earnings above cost of equity (Frankel–Lee); understates heavy buyback names", family: "cash-flow" },
+  fildi_epv: { label: "Earnings power", method: "EBIT after tax ÷ WACC + cash − debt, zero growth (Greenwald) — a floor", family: "floor" },
+  graham_number: { label: "Graham number", method: "√(22.5 × trailing EPS × book/share) — classic defensive floor", family: "floor" },
 };
 
 /** A283 — outside intrinsic-value estimates for display next to Fildi fair value (watchlist_sync.external_intrinsic). */
@@ -262,14 +267,29 @@ router.get("/fair-value/:ticker/external", async (req, res, next) => {
     const estimates = rows.map((r) => {
       const value = Number(r.value);
       const price = r.price != null ? Number(r.price) : null;
-      const meta = EXTERNAL_LABELS[String(r.source)] ?? { label: String(r.source), method: "" };
-      return { source: r.source, label: meta.label, method: meta.method, value, price, asOf: r.as_of,
+      const meta = EXTERNAL_LABELS[String(r.source)] ?? { label: String(r.source), method: "", family: "cash-flow" as const };
+      return { source: r.source, label: meta.label, method: meta.method, family: meta.family, value, price, asOf: r.as_of,
         gapVsItsPrice: price && price > 0 ? value / price - 1 : null, detail: r.detail ?? null };
     });
+    const street = (await pool.query(
+      `SELECT as_of::text AS as_of, price_close, pt_mean, pt_median, pt_low, pt_high, pt_num_est FROM lseg_research.signals_daily
+       WHERE ticker = $1 AND pt_median IS NOT NULL ORDER BY as_of DESC LIMIT 1`, [t]).catch(() => ({ rows: [] as Record<string, unknown>[] }))).rows[0];
+    const tc = (await pool.query(
+      `SELECT as_of::text AS as_of, tc_valuation, tc_discount_pct, tc_relative_value, tc_support, tc_resistance, tc_stop_loss,
+              tc_outlook, argus_target, argus_rating, ms_bull, ms_bear, company_scores
+       FROM yahoo_insights_daily WHERE ticker = $1 ORDER BY as_of DESC LIMIT 1`, [t]).catch(() => ({ rows: [] as Record<string, unknown>[] }))).rows[0];
+    const n = (v: unknown) => (v == null ? null : Number(v));
     return res.json({
       ticker: t,
       estimates,
-      note: "Outside intrinsic values, display only. Each gap is vs the price that source used. Not blended beyond the existing StarMine vote.",
+      streetRange: street ? { asOf: street.as_of, price: n(street.price_close), mean: n(street.pt_mean), median: n(street.pt_median),
+        low: n(street.pt_low), high: n(street.pt_high), analysts: n(street.pt_num_est), source: "LSEG I/B/E/S" } : null,
+      tradingCentral: tc ? { asOf: tc.as_of, valuation: tc.tc_valuation, discountPct: n(tc.tc_discount_pct), relativeValue: tc.tc_relative_value,
+        support: n(tc.tc_support), resistance: n(tc.tc_resistance), stopLoss: n(tc.tc_stop_loss), outlook: tc.tc_outlook ?? null,
+        argus: tc.argus_target != null ? { target: n(tc.argus_target), rating: tc.argus_rating } : null,
+        morningstar: { bull: tc.ms_bull ?? null, bear: tc.ms_bear ?? null }, companyScores: tc.company_scores ?? null,
+        source: "Yahoo insights (Trading Central / Argus / Morningstar text)" } : null,
+      note: "Outside + extra-model values, display only, grouped by family (street · cash-flow · floor) — never blended across families. Each gap is vs the price that source used. Reverse DCF: /fair-value/:ticker/dcf.",
     });
   } catch (err) {
     return next(err);
