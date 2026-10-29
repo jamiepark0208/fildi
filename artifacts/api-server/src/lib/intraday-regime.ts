@@ -19,6 +19,7 @@ import { logger } from "./logger.js";
 import { weekPutRisk, type WeekPutRisk } from "./market-put-risk.js";
 import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall, type RiskLevel } from "./intraday-risk.js";
 import { getLiveBreadthSnapshot, type BreadthSnapshot } from "./live-breadth-5m.js";
+import { isTrendFall } from "./intraday-trend-fall.js";
 
 
 // Every 15 min through the first hour (when trend-vs-reversal usually resolves),
@@ -456,13 +457,21 @@ export const BREADTH_DROP_P_DROP: Record<RiskLevel, number> = {
   stormy: 0.33,
 };
 
+/** S146 pooled halves — rest-of-day drop odds while SPY/QQQ EMA12 is falling fast (trend-fall event). */
+export const TREND_FALL_P_DROP: Record<RiskLevel, number> = {
+  calm: 0.13,
+  normal: 0.30,
+  elevated: 0.31,
+  stormy: 0.45,
+};
+
 export type IntradayRiskEvent = {
   t: number;
   minAfterOpen: number;
   from: string | null;
   to: string;
   pDrop: number;
-  kind?: "level_change" | "breadth_drop";
+  kind?: "level_change" | "breadth_drop" | "trend_fall";
 };
 
 export interface LiveRisk {
@@ -470,6 +479,8 @@ export interface LiveRisk {
   asOf: number;
   risk: RiskCall;
   breadth: BreadthSnapshot | null;
+  /** SPY or QQQ EMA12 falling > 0.15 % over the last 3 completed bars (S146). */
+  trendFall: boolean;
   events: IntradayRiskEvent[];
 }
 
@@ -497,14 +508,15 @@ async function computeLiveRisk(): Promise<LiveRisk | null> {
   const baseRisk = combineRisk(computeRiskCall(spy, mins, spyDaily), computeRiskCall(qqq, mins, qqqDaily));
   if (!baseRisk) return null;
 
-  const risk: RiskCall = breadth?.drop
-    ? { ...baseRisk, pDropHalfAtr: BREADTH_DROP_P_DROP[baseRisk.level] }
-    : baseRisk;
+  const trendFall = isTrendFall(spy.map(b => b.close)) || isTrendFall(qqq.map(b => b.close));
+  const pDrop = Math.max(baseRisk.pDropHalfAtr, breadth?.drop ? BREADTH_DROP_P_DROP[baseRisk.level] : 0,
+    trendFall ? TREND_FALL_P_DROP[baseRisk.level] : 0);
+  const risk: RiskCall = pDrop !== baseRisk.pDropHalfAtr ? { ...baseRisk, pDropHalfAtr: pDrop } : baseRisk;
 
   const rows = await db.select().from(appConfig).where(eq(appConfig.key, eventsKey(dateKey))).limit(1);
   const prior = ((rows[0]?.value as { events?: IntradayRiskEvent[] } | undefined)?.events ?? []).slice();
   const events = prior.slice();
-  const lastLevel = prior.filter(e => e.kind !== "breadth_drop").at(-1)?.to ?? null;
+  const lastLevel = prior.filter(e => !e.kind || e.kind === "level_change").at(-1)?.to ?? null;
   if (lastLevel !== baseRisk.level) {
     events.push({
       t: now,
@@ -525,12 +537,16 @@ async function computeLiveRisk(): Promise<LiveRisk | null> {
       kind: "breadth_drop",
     });
   }
+  const lastTrend = events.filter(e => e.kind === "trend_fall").at(-1);
+  if (trendFall && (!lastTrend || now - lastTrend.t > 30 * 60_000)) {  // log each new fall, at most every 30 min
+    events.push({ t: now, minAfterOpen: mins, from: baseRisk.level, to: baseRisk.level, pDrop: risk.pDropHalfAtr, kind: "trend_fall" });
+  }
   if (events.length > prior.length) {
     const value = { events };
     if (rows.length === 0) await db.insert(appConfig).values({ key: eventsKey(dateKey), value });
     else await db.update(appConfig).set({ value, updatedAt: new Date() }).where(eq(appConfig.key, eventsKey(dateKey)));
   }
-  return { minAfterOpen: mins, asOf: now, risk, breadth, events };
+  return { minAfterOpen: mins, asOf: now, risk, breadth, trendFall, events };
 }
 
 /** Never throws: a vendor blip leaves the banner on its checkpoints. */

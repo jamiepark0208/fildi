@@ -35,6 +35,7 @@ export interface LiveRisk {
   asOf: number;
   risk: RegimeRisk;
   breadth?: { aboveVwap: number; chg30: number; drop: boolean } | null;
+  trendFall?: boolean;
   events: Array<{ t: number; minAfterOpen: number; from: string | null; to: string; pDrop: number; kind?: string }>;
 }
 
@@ -265,6 +266,14 @@ export function RegimeBanner({
                 title={`names above VWAP ${live.breadth.chg30 >= 0 ? "+" : ""}${(live.breadth.chg30 * 100).toFixed(0)} pp in 30 min; S143`}
               >
                 · Breadth drop
+              </span>
+            )}
+            {live?.trendFall && (
+              <span
+                className="text-red-400 font-semibold"
+                title="SPY/QQQ 5-min EMA12 falling > 0.15 % over 3 bars — selloff still running; rest-of-day drop odds ~2× at the same risk level (S146)"
+              >
+                · Trend falling
               </span>
             )}
             {flipped && prev && (
