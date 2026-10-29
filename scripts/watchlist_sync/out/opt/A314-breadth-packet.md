@@ -14,5 +14,13 @@
 | N | seed | H1 t | H2 t | pass |
 |---:|---:|---:|---:|---|
 | 160+ | full | +5.0 | +4.0 | yes |
+| 214 | all | +6.0 | +4.9 | yes |
+| 80 | 0/1/2 | +6.0/+5.1/+5.8 | +4.6/+4.4/+5.4 | yes |
+| 40 | 0/1/2 | +5.1/+6.1/+6.4 | +3.5/+4.0/+4.4 | yes |
+| 20 | 0/1/2 | +5.3/+3.4/+4.1 | +5.6/+4.8/+3.8 | yes |
+| 19 config list | — | +4.6 | +4.8 | yes |
+| 17 live (watchlist fallback) | — | +3.5 | +3.8 | yes |
+
+(Claude 10-29: subset rows filled in.)
 
 Subset rows (N=20/40/80 × seeds 0–2): run `analysis/a314_breadth_gate_fast.py` (rebuilds `above_vwap` from `optlab.bars_5m`); **Live ships N=20** top-liquid tickers in `A314-breadth-live-tickers.json` (Schwab lane, 0 extra vendor calls).
