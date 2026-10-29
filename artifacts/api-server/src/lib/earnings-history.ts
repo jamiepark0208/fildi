@@ -410,7 +410,12 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
     logger.warn({ err }, "A240: getModelListPoolTickers failed — falling back to fmp_fundamentals-only universe");
     return [] as string[];
   });
-  const universeTickers = [...new Set([...fmpUniverse.map((r) => r.ticker.toUpperCase()), ...poolTickers])];
+  // 10-29 (ALAB/COHR reported 11-03/11-04 with no date on file while the engine sold 11-06 puts on them): put-engine names
+  // must be IN the universe — the 10-28 queue-jump below only reorders names already in it.
+  const engine = new Set(rowsOfEngine(await db.execute(sql`
+    SELECT DISTINCT UPPER(ticker) AS ticker FROM watchlist_sync.put_recs_daily
+    WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND payload->>'strike' IS NOT NULL`).catch(() => [])));
+  const universeTickers = [...new Set([...fmpUniverse.map((r) => r.ticker.toUpperCase()), ...poolTickers, ...engine])];
 
   const [staleActuals, missingUpcoming] = await Promise.all([
     getStaleEarningsTickers(universeTickers),
@@ -434,9 +439,6 @@ export async function runEarningsHistoryBackfill(trigger = "scheduled"): Promise
     // slot so they stop starving the rest of the queue every morning run.
     // 10-28 (VRT reported with no date on file; 13 of 101 engine picks had none): names the put engine prices jump the queue —
     // the 25-name morning cap never reached them behind the watchlist + window lists.
-    const engine = new Set(rowsOfEngine(await db.execute(sql`
-      SELECT DISTINCT UPPER(ticker) AS ticker FROM watchlist_sync.put_recs_daily
-      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND payload->>'strike' IS NOT NULL`).catch(() => [])));
     const prioritizedMissing = [
       ...missingUpcoming.filter((t) => engine.has(t.toUpperCase())),
       ...prioritizeMissingUpcoming(missingUpcoming, emptyAttempts).filter((t) => !engine.has(t.toUpperCase())),
