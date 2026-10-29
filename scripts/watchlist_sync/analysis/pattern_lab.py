@@ -6,8 +6,8 @@ near the period's low (or high) — as a probability table with its base rate, n
 
 Data: lseg_research.daily_history (565 names, 2016-09 →, OHLCV + 30-d put/call IV), SPY context from the same table.
 Labels (use the future, features never do):
-  near_low  = "good low": the next 10 days never trade > 0.25 ATR below today's low AND rally ≥ 1 ATR above today's close
-  near_high = "good high": next 10 days never > 0.25 ATR above today's high AND fall ≥ 1 ATR below the close (future only)
+  near_low  = "good low": from today's close the next 10 days never trade > 0.5 ATR lower AND rally ≥ 1 ATR higher
+  near_high = "good high": mirror (never > 0.5 ATR higher AND fall ≥ 1 ATR) — future only, anchored on the close
   dd10 / up10 = further drop / rise over the next 10 days, in ATR (how far it still goes once the signal fires)
 Features (all ≤ t): momentum (RSI, stochastic, MACD hist, ROC, RSI divergence), support/resistance (prior pivot levels,
 touches, 20-d / 52-w range, MA distance), liquidity zones (60-d volume profile: distance to the heaviest volume node below /
@@ -121,9 +121,10 @@ def features(g: pd.DataFrame) -> pd.DataFrame:
     fl = g.l.shift(-1)[::-1].rolling(W, min_periods=W).min()[::-1]   # lowest low t+1 … t+W
     fh = g.h.shift(-1)[::-1].rolling(W, min_periods=W).max()[::-1]
     ok = fl.notna() & fh.notna()
-    # good low: today's low is not broken by more than 0.25 ATR in the next 10 days AND price rallies ≥ 1 ATR above the close
-    g["near_low"] = ((fl >= g.l - TOL * a) & (fh >= g.c + a)).astype(float).where(ok)
-    g["near_high"] = ((fh <= g.h + TOL * a) & (fl <= g.c - a)).astype(float).where(ok)
+    # good low: from today's close, the next 10 days never trade > 0.5 ATR lower AND rally ≥ 1 ATR higher (mirror = good
+    # high). Anchored on the close, not today's low/high: a low-anchored label made "closed near the high" win by construction.
+    g["near_low"] = ((fl >= g.c - 2 * TOL * a) & (fh >= g.c + a)).astype(float).where(ok)
+    g["near_high"] = ((fh <= g.c + 2 * TOL * a) & (fl <= g.c - a)).astype(float).where(ok)
     g["dd10"] = (g.c - fl) / a
     g["up10"] = (fh - g.c) / a
     g["ret10"] = g.c.shift(-W) / g.c - 1
