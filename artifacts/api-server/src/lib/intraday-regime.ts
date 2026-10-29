@@ -17,7 +17,7 @@ import { TTLCache } from "./ttl-cache.js";
 import { withDeadline } from "./yahoo-client.js";
 import { logger } from "./logger.js";
 import { weekPutRisk, type WeekPutRisk } from "./market-put-risk.js";
-import { combineRisk, computeRiskCall, dailyContext, riskFactorLine, type RiskCall, type RiskLevel } from "./intraday-risk.js";
+import { combineRisk, computeRiskCall, dailyContext, holdLevel, riskFactorLine, type RiskCall, type RiskLevel } from "./intraday-risk.js";
 import { getLiveBreadthSnapshot, type BreadthSnapshot } from "./live-breadth-5m.js";
 import { isTrendFall } from "./intraday-trend-fall.js";
 
@@ -505,18 +505,21 @@ async function computeLiveRisk(): Promise<LiveRisk | null> {
   const done = (b: Bar[]) => b.filter(x => x.time + 5 * 60_000 <= now);   // completed bars only
   const spy = done(spyAll), qqq = done(qqqAll);
   const mins = Math.min(m, 385);
-  const baseRisk = combineRisk(computeRiskCall(spy, mins, spyDaily), computeRiskCall(qqq, mins, qqqDaily));
-  if (!baseRisk) return null;
+  const rawRisk = combineRisk(computeRiskCall(spy, mins, spyDaily), computeRiskCall(qqq, mins, qqqDaily));
+  if (!rawRisk) return null;
+  const prevRisk = combineRisk(computeRiskCall(spy.slice(0, -1), Math.max(mins - 5, 30), spyDaily),
+    computeRiskCall(qqq.slice(0, -1), Math.max(mins - 5, 30), qqqDaily));
+  const rows = await db.select().from(appConfig).where(eq(appConfig.key, eventsKey(dateKey))).limit(1);
+  const prior = ((rows[0]?.value as { events?: IntradayRiskEvent[] } | undefined)?.events ?? []).slice();
+  const events = prior.slice();
+  const lastLevel = prior.filter(e => !e.kind || e.kind === "level_change").at(-1)?.to ?? null;
+  const baseRisk = holdLevel(rawRisk, prevRisk, lastLevel as RiskLevel | null);
 
   const trendFall = isTrendFall(spy.map(b => b.close)) || isTrendFall(qqq.map(b => b.close));
   const pDrop = Math.max(baseRisk.pDropHalfAtr, breadth?.drop ? BREADTH_DROP_P_DROP[baseRisk.level] : 0,
     trendFall ? TREND_FALL_P_DROP[baseRisk.level] : 0);
   const risk: RiskCall = pDrop !== baseRisk.pDropHalfAtr ? { ...baseRisk, pDropHalfAtr: pDrop } : baseRisk;
 
-  const rows = await db.select().from(appConfig).where(eq(appConfig.key, eventsKey(dateKey))).limit(1);
-  const prior = ((rows[0]?.value as { events?: IntradayRiskEvent[] } | undefined)?.events ?? []).slice();
-  const events = prior.slice();
-  const lastLevel = prior.filter(e => !e.kind || e.kind === "level_change").at(-1)?.to ?? null;
   if (lastLevel !== baseRisk.level) {
     events.push({
       t: now,

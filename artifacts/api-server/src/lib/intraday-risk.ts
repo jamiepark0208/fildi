@@ -127,6 +127,15 @@ export function combineRisk(a: RiskCall | null, b: RiskCall | null): RiskCall | 
   return { ...base, score, level, pDropHalfAtr: MODEL.pDropHalfAtr[level], halfAtrPct: (a.halfAtrPct + b.halfAtrPct) / 2 };
 }
 
+/** Live-tab buffer (10-29: 4 flips stormy↔elevated in 25 min): a step up shows at once; a step down needs the previous
+ *  completed bar at or below the new level too, else the last shown level holds. */
+export function holdLevel(cur: RiskCall, prev: RiskCall | null, last: RiskLevel | null): RiskCall {
+  if (!last) return cur;
+  const r = (l: RiskLevel) => LEVELS.indexOf(l);
+  if (r(cur.level) >= r(last) || (prev && r(prev.level) <= r(cur.level))) return cur;
+  return { ...cur, level: last, pDropHalfAtr: MODEL.pDropHalfAtr[last] };
+}
+
 export const RISK_LABEL: Record<RiskLevel, string> = { calm: "Calm", normal: "Normal", elevated: "Elevated", stormy: "Stormy" };
 
 export function riskFactorLine(r: RiskCall | null): string {
