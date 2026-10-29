@@ -6,8 +6,9 @@
 **build** — last updated 2026-10-29
 
 ## Active work
-- Working: live-every-bar-risk shipped
-- In progress: S139 shipped; A314 families 1-2 dispatched
+- Working: B15 earnings coverage, B16 fresh states + daily VIX, Live buffer, Live trend falling, pattern framework skill + S147, A312 triage, A283 growth fit
+- In progress: A283 fair value v2 design (3 chips) awaiting source inventory
+- Blocked: none
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
 - **Unfinished, partial work uncommitted in tree (agents died at session limit):** cache monitor rebuild (ttl-cache.ts counters, cache-registry.ts, new cache-overview.ts) · A126 charts (early) · finish one at a time, inline or ONE sonnet agent (CLAUDE.md subagent budget rule). Not mine: GROK.md, A140, CONVENTIONS.md, cursor-usage-snap.mjs, A131/A122 edits.
@@ -19,6 +20,12 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **NEXT SESSION START HERE (10-29 wrap, Claude):** done today = B15 earnings coverage, B16 fresh states + daily VIX (vix_daily.py), Live buffer (holdLevel), Live "Trend falling" (S146), pattern framework skill + S147, A312 triage, A283 growth fix (not approved). **Do next, in order:**
+  1. **Fair value v2 display (A283):** Grok + Cursor perspectives (both: don't median street with cash-flow — two correlated families) → proposal = 3 chips (Street median PT · cash-flow band: lab DCF P10–P90 + StarMine + FMP DCF · reverse-DCF "price needs growth P__"), no headline when families differ > 2×. Jamie has NOT approved yet — he asked to **find more sources first**, incl. ones labelled "intrinsic value" (e.g. Alpha Spread, GuruFocus GF Value/DCF, Finbox, ValueInvesting.io, Morningstar via any feed, LSEG StarMine IV already have, FMP DCF, Yahoo/Argus, Zacks, Finnhub, Simply Wall St API?) → inventory: free/paid, API vs scrape, coverage, method family (street vs cash-flow vs multiples) → then show him the chip design with real sources.
+  2. **Sector view, not a diversification rule (Jamie 10-29):** "if the market rallied but semis alone crashed, the best puts SHOULD bias semis — don't force diversification into bad setups." → cluster tag on put ideas is awareness only (no cap / no gate); keep the sector_drop bias. Show "AI semis · N of today's list · you hold M".
+  3. **Re-read 66 FAIL studies** (~35 indicator/timing): per row claim · outcome used · failure type (wrong outcome / isolation / power / real null) · salvage → re-run list through pattern_lab + lessons into fildi-pattern-research.
+  4. Pattern lab next: intraday day high/low (bars_5m), pullback-conditioned, put-strike translation, Yahoo backfill 2018–23.
+  5. Grade new Live events monthly (breadth_drop, trend_fall, held levels).
 - **10-29 pm reflection (Claude, Jamie: "has Fildi truly improved?"):** fixed B15 (ALAB/COHR sold across 11-03/11-04 earnings; engine names now in earnings backfill; 11 → 9 published). Shipped Live "Trend falling" (S146). Pattern framework skill + S147. Open logic gaps to propose/do next: (1) 9/9 published puts ≈ one AI-semis cluster, same 11-06 expiry — show book-level theme exposure + cluster-aware sizing; (2) stock_state from prior close while spot live (MRVL "extended" after −12 % M&A gap) + no news/M&A gate; (3) Live level flicker (4 flips stormy↔elevated in 25 min 10-29) → hysteresis; (4) three PLTR fair values (Rankings fv-1.2.0 74 · lab DCF 40 · Morningstar 153); (5) re-read older indicator FAILs under fildi-pattern-research.
 - **10-29 midday (Claude):** A312 triage applied (c8f1d578; Cursor queue = A219 A230 A246 A262 A270 A272 A277 + A314). A283 it2 fixes pushed (eaa19cd5, lab only): growth residual, yrs 4–5 base rate, peak-cycle unvalued (MU SNDK WDC STX), reinvest 15-pt bar = flag (as a gate it unvalued 26/31); P50 median −4.6 %. A314: family 3 (S144) + 5 (S145) all FAIL but MDE ~2× too small → fix dispatches running; family 4 (TV tools) running. **Next:** judge the 3 packets; then 109-commit review backlog since b5f33ac7; perf-watch 4 signals; /live "require is not defined" crash.
 - **NEXT SESSION START HERE (10-29, Claude):** (1) dispatch A314 families 3 vol-of-vol, 4 untested TV tools, 5 cross-asset to Cursor (studies, 2–3 parallel, Monitor) — families 1 FAIL (S142), 2 breadth VWAP drop shipped live (S143, cae9f691 + fix 6f5ede61, reviews pass); (2) apply A312 queue triage (Grok plan in A312.md); (3) A283 fair value v2 revise. Later: grade breadth_drop + stormy events (~1 month), GEX ≥ 60 sessions.
