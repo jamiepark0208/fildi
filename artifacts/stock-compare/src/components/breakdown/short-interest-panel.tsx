@@ -83,9 +83,9 @@ export function ShortInterestPanel({ ticker }: { ticker: string }) {
     return (data?.shortVolume ?? []).filter((p) => new Date(p.date).getTime() >= cutoff);
   }, [data, range]);
 
-  if (isLoading) return <p className="text-[10px] text-white/70">Loading…</p>;
+  if (isLoading) return <p className="text-[10px] text-amber-100">Loading…</p>;
   if (!data || (data.points.length === 0 && data.current.shortPctFloat == null)) {
-    return <p className="text-[10px] text-white/70 italic">No short-interest data for this ticker.</p>;
+    return <p className="text-[10px] text-amber-100 italic">No short-interest data for this ticker.</p>;
   }
 
   return (
@@ -98,7 +98,7 @@ export function ShortInterestPanel({ ticker }: { ticker: string }) {
             onClick={() => setRange(d)}
             className={cn(
               "px-1 text-[9px] rounded font-semibold",
-              range === d ? "bg-[#d4af37] text-black" : "text-white/70 hover:text-[#d4af37]",
+              range === d ? "bg-[#d4af37] text-black" : "text-amber-100 hover:text-[#d4af37]",
             )}
           >
             {label}
@@ -125,7 +125,7 @@ export function ShortInterestPanel({ ticker }: { ticker: string }) {
         </div>
       )}
       {volPts.length >= 2 && (
-        <div className="flex items-baseline gap-2 text-[10px] text-white/70">
+        <div className="flex items-baseline gap-2 text-[10px] text-amber-100">
           <span>short vol ratio</span>
           {data.shortVolumeAvg20 != null && (
             <span className="font-mono text-white">{(data.shortVolumeAvg20 * 100).toFixed(0)}% 20d avg</span>

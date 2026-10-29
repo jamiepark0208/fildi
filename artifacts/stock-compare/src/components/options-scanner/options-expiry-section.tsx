@@ -88,7 +88,7 @@ export function ExpirySection({
           {formatExpiry(chain.expiry, chain.daysToExpiry, chain.isWeekly)}
         </span>
         {monthly && (
-          <span className="text-[9px] font-bold uppercase tracking-wide text-sky-300/90 bg-sky-500/15 border border-sky-400/30 rounded px-1 py-px">
+          <span className="text-[9px] font-bold uppercase tracking-wide text-white bg-zinc-900 border border-sky-400/70 rounded px-1 py-px">
             Mo
           </span>
         )}
@@ -97,7 +97,7 @@ export function ExpirySection({
           {bestInExpiry ? ` · best ${bestInExpiry.weeklyIncome.toFixed(2)}%/wk` : ""}
         </span>
         {hasBestStrike && (
-          <span className="ml-auto text-[10px] font-semibold text-yellow-300 bg-yellow-400/15 border border-yellow-400/30 rounded px-1.5 py-0.5 uppercase tracking-wide">
+          <span className="ml-auto text-[10px] font-semibold text-white bg-zinc-900 border border-amber-400/70 rounded px-1.5 py-0.5 uppercase tracking-wide">
             Best
           </span>
         )}

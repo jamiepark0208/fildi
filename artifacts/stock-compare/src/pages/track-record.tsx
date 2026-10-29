@@ -310,7 +310,7 @@ function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
           <p className="text-[10px] text-amber-200/50 mb-1">{summary.assigned} assigned — stock leg open (day-10 pending)</p>
         )}
         {summary.equityCurve.length === 0 ? (
-          <div className="h-[70px] flex items-center justify-center text-xs text-zinc-400">
+          <div className="h-[70px] flex items-center justify-center text-xs text-amber-100">
             No graded {side}s yet
           </div>
         ) : (
@@ -356,7 +356,7 @@ function EquityCurve({ put, call }: { put: SideSummary; call: SideSummary }) {
 }
 
 function correctPctColor(v: number | null): string {
-  if (v == null) return "bg-white/5 text-zinc-400";
+  if (v == null) return "bg-white/5 text-amber-100";
   if (v >= 0.66) return "bg-emerald-600 text-white";
   if (v >= 0.4) return "bg-amber-500 text-black";
   return "bg-rose-600 text-white";
@@ -377,7 +377,7 @@ function RegimeGrid({ grid }: { grid: RegimeCell[] }) {
       </CardHeader>
       <CardContent className="px-3 pb-2 pt-0 space-y-1">
         {regimes.length === 0 ? (
-          <div className="text-xs text-zinc-400 py-2 text-center">No regime grades yet</div>
+          <div className="text-xs text-amber-100 py-2 text-center">No regime grades yet</div>
         ) : (
           regimes.map(regime => (
             <div key={regime} className="flex items-center gap-2 text-xs">
@@ -855,9 +855,9 @@ export default function TrackRecord() {
             {summary.calibration && (
               <details className="rounded border border-[#d4af37]/15 bg-zinc-950/80 px-2.5 py-1 group">
                 <summary className="cursor-pointer text-[10px] font-semibold text-[#d4af37]/80 list-none flex items-center gap-1.5">
-                  <span className="text-zinc-500 group-open:rotate-90 transition-transform">▸</span>
+                  <span className="text-amber-100/80 group-open:rotate-90 transition-transform">▸</span>
                   Score calibration
-                  <span className="font-normal text-zinc-500 normal-case tracking-normal">
+                  <span className="font-normal text-amber-100/80 normal-case tracking-normal">
                     — does a higher option score historically mean better P&L? (avg P&L by score bucket)
                   </span>
                 </summary>
@@ -870,7 +870,7 @@ export default function TrackRecord() {
                           key={`${side}-${b.lo}`}
                           className={cn(
                             "rounded px-1 py-0.5 border border-white/10",
-                            b.n >= 25 && b.avgPnlPct < 0 ? "text-red-400" : b.n >= 25 && b.avgPnlPct > 0 ? "text-green-400" : "text-zinc-500",
+                            b.n >= 25 && b.avgPnlPct < 0 ? "text-red-400" : b.n >= 25 && b.avgPnlPct > 0 ? "text-green-400" : "text-amber-100/80",
                           )}
                           title={`n=${b.n} graded in this score range`}
                         >

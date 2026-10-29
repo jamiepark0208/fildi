@@ -6,6 +6,10 @@
  * Always put scrollable body in this shell's pane with `data-lenis-prevent`.
  *
  * sticky headers inside `children`: use `top-0` (not `top-14`) — TopNav is outside the pane.
+ *
+ * Shell MUST be `h-[100dvh] overflow-hidden` (not `min-h-*`). `main.mt-14` otherwise
+ * margin-collapses through the wrapper onto body → html scrolls ~56px; nested
+ * overscroll-contain panes can't chain back, so tab tops become unreachable.
  */
 import type { ReactNode } from "react";
 import { TopNav } from "@/components/top-nav";
@@ -24,7 +28,7 @@ export function AppPage({
   scroll?: boolean;
 }) {
   return (
-    <div className={cn("min-h-[100dvh] bg-zinc-900 text-foreground", className)}>
+    <div className={cn("h-[100dvh] overflow-hidden bg-zinc-900 text-foreground", className)}>
       <TopNav />
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden min-w-0">
         {scroll ? (

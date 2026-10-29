@@ -131,7 +131,7 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
           className="flex items-center gap-2 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-full text-sm font-bold shadow-sm"
         >
           {loadingTickers[ticker] ? (
-            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            <Loader2 className="w-4 h-4 animate-spin text-amber-100" />
           ) : (
             <span className="font-mono tracking-tight">{ticker}</span>
           )}
@@ -147,9 +147,9 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
 
       {!isAtLimit && (
         <div className="relative w-48">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 z-10" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-100/80 z-10" />
           {isFetching && debouncedSearch.length >= 2 && (
-            <Loader2 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 animate-spin z-10" />
+            <Loader2 className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-100/80 animate-spin z-10" />
           )}
           <input
             ref={inputRef}
@@ -166,7 +166,7 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
             placeholder="Add ticker, AAPL, MSFT…"
             className={cn(
               "w-full h-8 pl-8 pr-8 text-sm font-mono uppercase rounded-full border border-white/20 bg-white",
-              "text-black placeholder:text-gray-500",
+              "text-black placeholder:text-amber-100/80",
               "focus:outline-none focus:ring-2 focus:ring-primary",
               "transition-colors"
             )}
@@ -175,11 +175,11 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
           {showDropdown && (
             <div className="absolute top-full left-0 right-auto min-w-[240px] mt-1 z-50 rounded-md border border-border bg-card shadow-xl overflow-hidden">
               {isFetching && (!results || results.length === 0) ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground flex items-center gap-2">
+                <div className="px-4 py-3 text-sm text-amber-100 flex items-center gap-2">
                   <Loader2 className="h-3 w-3 animate-spin" /> Searching...
                 </div>
               ) : visibleResults.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground">No results for "{debouncedSearch}"</div>
+                <div className="px-4 py-3 text-sm text-amber-100">No results for "{debouncedSearch}"</div>
               ) : (
                 <ul className="max-h-56 overflow-y-auto py-1">
                   {visibleResults.map((r, i) => (
@@ -196,7 +196,7 @@ export function TickerShelf({ tickers, loadingTickers, onAdd, onRemove, suggesti
                       )}
                     >
                       <span className="font-mono font-bold text-foreground">{r.ticker}</span>
-                      <span className="text-muted-foreground text-sm truncate ml-4 max-w-[160px]">{r.name}</span>
+                      <span className="text-amber-100 text-sm truncate ml-4 max-w-[160px]">{r.name}</span>
                     </li>
                   ))}
                 </ul>

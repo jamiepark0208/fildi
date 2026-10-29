@@ -45,7 +45,7 @@ class ChartIsolate extends Component<
   override render() {
     if (this.state.failed) {
       return (
-        <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-6 text-[11px] font-mono text-white/70">
+        <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 px-3 py-6 text-[11px] font-mono text-amber-100">
           Session chart failed for {this.props.symbol} — pick another ticker or refresh.
         </div>
       );
@@ -691,7 +691,7 @@ function RegimeSessionChartInner({
               </span>
             </span>
           ) : customActive ? (
-            <span className="text-[9px] font-mono text-white/70 shrink-0">
+            <span className="text-[9px] font-mono text-amber-100 shrink-0">
               no entry signal (not on hotlist)
             </span>
           ) : null}
@@ -738,17 +738,17 @@ function RegimeSessionChartInner({
 
       <div className="relative h-[248px]">
         {isLoading && (
-          <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-white/70 font-mono bg-zinc-950/80">
+          <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-amber-100 font-mono bg-zinc-950/80">
             Loading {symbol}…
           </p>
         )}
         {isError && (
-          <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-white/70 font-mono bg-zinc-950/80">
+          <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-amber-100 font-mono bg-zinc-950/80">
             Chart unavailable.
           </p>
         )}
         {!isLoading && !isError && candleCount === 0 && (
-          <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-white/70 font-mono bg-zinc-950/80">
+          <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-amber-100 font-mono bg-zinc-950/80">
             No session bars yet (premarket / holiday).
           </p>
         )}

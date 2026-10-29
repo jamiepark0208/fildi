@@ -109,6 +109,20 @@ interface ScheduledTasksStatus {
     actions: string[];
     note?: string;
   } | null;
+  /** Rail-A Automations Digest (Ideas/signals) — monitor here, not Cursor Automations */
+  automationLast?: {
+    at: string;
+    value: string;
+    emptyOk: boolean;
+    needsEyes: boolean;
+    openAsks: number;
+    staleAsks: number;
+    newSignals: number;
+    newSignalDetails: string[];
+    killHints: string[];
+    detail: string | null;
+    taskId: string;
+  } | null;
   optionsChainSource?: {
     schwab: number;
     yahoo: number;
@@ -204,6 +218,8 @@ function shortName(name: string): string {
     .replace(/^Model Snapshot$/i, "Model snap")
     .replace(/^Model Grade \+ Expiry$/i, "Model grade")
     .replace(/^Weekly Ops Digest$/i, "Ops digest")
+    .replace(/^Data Ops Value Log$/i, "Data ops")
+    .replace(/^Automations Digest$/i, "Auto digest")
     .replace(/^In-process Enrichment$/i, "API enrich")
     .replace(/ Snapshots?/i, "")
     .replace(/ Health$/i, "")
@@ -398,7 +414,7 @@ export function ScheduledTasksTab() {
               </span>
               <Popover>
                 <PopoverTrigger asChild>
-                  <button type="button" aria-label="Mac resource findings" className="text-zinc-400 hover:text-zinc-100">
+                  <button type="button" aria-label="Mac resource findings" className="text-amber-100 hover:text-zinc-100">
                     <HelpCircle className="h-3 w-3" />
                   </button>
                 </PopoverTrigger>
@@ -442,7 +458,7 @@ export function ScheduledTasksTab() {
                   ? ` · ${shortSummary(data.remediateLast.actions.slice(0, 3).join(", "), 48)}`
                   : ""}
               </span>
-              <span className="text-zinc-400 font-mono ml-auto shrink-0">
+              <span className="text-amber-100 font-mono ml-auto shrink-0">
                 {new Date(data.remediateLast.at).toLocaleString([], {
                   month: "numeric",
                   day: "numeric",
@@ -450,6 +466,60 @@ export function ScheduledTasksTab() {
                   minute: "2-digit",
                 })}
               </span>
+            </div>
+          )}
+
+          {data?.automationLast && (
+            <div className="rounded border border-zinc-600 px-2 py-1.5 text-[11px] space-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="font-semibold text-white shrink-0">Automations</span>
+                <span
+                  className={cn(
+                    "font-semibold shrink-0",
+                    data.automationLast.emptyOk
+                      ? "text-emerald-400"
+                      : data.automationLast.value === "NEEDS_YOU"
+                        ? "text-amber-300"
+                        : "text-zinc-200",
+                  )}
+                >
+                  {data.automationLast.emptyOk ? "empty-OK" : data.automationLast.value}
+                </span>
+                <span className="text-zinc-300 truncate">
+                  ASKS {data.automationLast.openAsks}
+                  {data.automationLast.staleAsks ? ` · stale ${data.automationLast.staleAsks}` : ""}
+                  {` · new signals ${data.automationLast.newSignals}`}
+                  {data.automationLast.killHints?.length
+                    ? ` · kill ${data.automationLast.killHints.join(",")}`
+                    : ""}
+                </span>
+                <button
+                  type="button"
+                  className="text-[10px] text-[#d4af37] hover:underline ml-auto shrink-0 cursor-pointer"
+                  onClick={() => {
+                    setExpanded("auto-digest");
+                    setShowCatalog(true);
+                    void loadLogs("auto-digest");
+                  }}
+                >
+                  Logs
+                </button>
+                <span className="text-amber-100 font-mono shrink-0">
+                  {new Date(data.automationLast.at).toLocaleString([], {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              {data.automationLast.newSignalDetails?.length > 0 && (
+                <ul className="text-zinc-200 space-y-0.5 pl-0 list-none">
+                  {data.automationLast.newSignalDetails.slice(0, 5).map((s) => (
+                    <li key={s} className="truncate" title={s}>· {s}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
@@ -616,7 +686,7 @@ function TodayRow({ task, onRun, busy }: { task: ScheduledTask; onRun: () => voi
           type="button"
           disabled={busy || task.running}
           onClick={onRun}
-          className="h-5 w-5 inline-flex items-center justify-center rounded bg-[#d4af37]/20 text-[#d4af37] disabled:opacity-40 cursor-pointer shrink-0"
+          className="h-5 w-5 inline-flex items-center justify-center rounded border border-[#d4af37]/50 bg-zinc-900 text-white disabled:opacity-40 cursor-pointer shrink-0"
           title="Run"
         >
           <Play className="w-3 h-3" />

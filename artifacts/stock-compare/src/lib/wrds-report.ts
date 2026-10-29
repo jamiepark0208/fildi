@@ -102,9 +102,9 @@ export function fmtPct(n: number | null | undefined, d = 1): string {
 }
 
 const VERDICT_CLASS: Record<WrdsVerdict, string> = {
-  supportive: "border-green-500/40 bg-green-500/10 text-green-300",
-  neutral: "border-zinc-500/40 bg-zinc-800/80 text-zinc-300",
-  caution: "border-red-500/40 bg-red-500/10 text-red-300",
+  supportive: "border-emerald-400/70 bg-zinc-900 text-white",
+  neutral: "border-zinc-400/50 bg-zinc-900 text-white",
+  caution: "border-rose-400/70 bg-zinc-900 text-white",
 };
 
 export function wrdsVerdictClass(v: WrdsVerdict): string {
@@ -358,33 +358,34 @@ export function buildWrdsTradeLens(data: WrdsPayload, tech?: WrdsTech | null): T
   ];
 }
 
+/** Plain-English verdict line for the compact Street card (numbers live in the grid). */
 export function wrdsConclusion(data: WrdsPayload): string {
   if (!data.available) return data.reason ?? "No WRDS IBES cache for this ticker.";
   const c = data.consensus;
   if (!c) return data.headline;
-  const bits: string[] = [];
-  if (c.meanDriftPct != null) {
-    bits.push(`FY1 ${fmtPct(c.meanDriftPct)} drift`);
-  }
-  const br = data.peers?.metrics?.breadth;
-  if (c.breadth != null) {
-    const rel = br?.peerPct != null ? ` (p${Math.round(br.peerPct)})` : "";
-    bits.push(`breadth ${fmt(c.breadth)}${rel}`);
-  }
-  const sueM = data.peers?.metrics?.sue;
-  if (c.sue != null) {
-    const rel = sueM?.peerPct != null ? ` (p${Math.round(sueM.peerPct)})` : "";
-    bits.push(`SUE ${fmt(c.sue)}${rel}`);
-  }
-  const core = bits.length ? bits.join(" · ") : data.headline;
-  const v =
-    data.verdict === "supportive"
-      ? "Supportive"
-      : data.verdict === "caution"
-        ? "Caution"
-        : "Neutral";
   const grp = peerGroupLabel(data.peers);
-  return `${v}: ${core}${grp ? ` · vs ${grp}` : ""}.`;
+  const vs = grp ? ` vs ${grp}` : "";
+  const drift =
+    c.meanDriftPct != null
+      ? ` FY1 estimates ${c.meanDriftPct >= 0 ? "up" : "down"} ${fmtPct(Math.abs(c.meanDriftPct))}.`
+      : "";
+
+  if (data.verdict === "caution") {
+    if (c.breadth != null && c.breadth < 0) {
+      return `More analysts cutting FY1 than raising.${drift}${vs}`;
+    }
+    if (c.sue != null && c.sue < -0.5) {
+      return `Recent earnings surprises run soft vs Street.${drift}${vs}`;
+    }
+    return `Street looks cautious on revisions.${drift}${vs}`;
+  }
+  if (data.verdict === "supportive") {
+    if (c.breadth != null && c.breadth > 0) {
+      return `More analysts raising FY1 than cutting.${drift}${vs}`;
+    }
+    return `Street revisions lean supportive.${drift}${vs}`;
+  }
+  return `Street mixed — no strong raise/cut lean.${drift}${vs}`;
 }
 
 export function wrdsCompactChips(data: WrdsPayload): RelChip[] {

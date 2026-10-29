@@ -16,24 +16,39 @@ import {
   fetchBreakdown,
 } from "@/lib/breakdown-query";
 
+/** Bright solid by score band (no zinc wash). */
 export function scoreTone(score: number | null | undefined): string {
-  if (score == null || !Number.isFinite(score)) return "border-white/40 text-white/70 bg-zinc-800";
-  if (score >= 70) return "border-green-400 text-white bg-green-600/40";
-  if (score >= 50) return "border-yellow-400 text-white bg-yellow-600/35";
-  if (score >= 35) return "border-orange-400 text-white bg-orange-600/35";
-  return "border-red-400 text-white bg-red-600/40";
+  if (score == null || !Number.isFinite(score)) return "border-white bg-zinc-600 text-white";
+  if (score >= 70) return "border-emerald-500 bg-emerald-500 text-black";
+  if (score >= 50) return "border-amber-400 bg-amber-400 text-black";
+  if (score >= 35) return "border-orange-500 bg-orange-500 text-black";
+  return "border-rose-500 bg-rose-500 text-white";
 }
 
+/** Family chips — solid desk hues (match Stock DB / Live gold tabs). */
+const PILLAR_SOLID: Record<string, string> = {
+  Value:   "bg-sky-500 text-black border-sky-500",
+  Growth:  "bg-emerald-500 text-black border-emerald-500",
+  Quality: "bg-violet-500 text-white border-violet-500",
+  Safety:  "bg-[#d4af37] text-black border-[#d4af37]",
+  Tech:    "bg-cyan-400 text-black border-cyan-400",
+};
+
+/** Oval score pill — label over value (matches TagBadge shape; MemoHeader row). */
 export function PillarChip({ label, score, title }: { label: string; score: number | null | undefined; title?: string }) {
+  const solid = PILLAR_SOLID[label] ?? scoreTone(score);
   const chip = (
     <span
       className={cn(
-        "inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border text-[11px] font-mono tabular-nums",
-        scoreTone(score),
+        "inline-flex flex-col items-center justify-center px-2 py-0.5 rounded-full border shrink-0",
+        "text-[8px] font-semibold uppercase tracking-wide leading-none",
+        solid,
       )}
     >
-      <span className="text-[9px] font-bold uppercase tracking-wide font-sans">{label}</span>
-      <span className="font-bold">{score != null && Number.isFinite(score) ? score.toFixed(0) : "—"}</span>
+      <span className="font-sans">{label}</span>
+      <span className="font-mono tabular-nums text-[10px] font-bold leading-none mt-0.5 normal-case tracking-normal">
+        {score != null && Number.isFinite(score) ? score.toFixed(0) : "—"}
+      </span>
     </span>
   );
   return title ? <DataTip tip={title}>{chip}</DataTip> : chip;
@@ -154,13 +169,14 @@ export interface WatchlistTagEntry {
   stockType?: string | null;
 }
 
+/** Bright solid fills — no muted zinc / opacity washes. */
 export const TAG_STYLES: Record<TagType, string> = {
-  exchange:  "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20",
-  sector:    "border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
-  industry:  "border-teal-500/30 bg-teal-500/10 text-teal-300 hover:bg-teal-500/20",
-  stockType: "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20",
-  beta:      "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
-  marketCap: "border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20",
+  exchange:  "border-sky-500 bg-sky-500 text-black hover:brightness-110",
+  sector:    "border-violet-500 bg-violet-500 text-white hover:brightness-110",
+  industry:  "border-teal-400 bg-teal-400 text-black hover:brightness-110",
+  stockType: "border-amber-400 bg-amber-400 text-black hover:brightness-110",
+  beta:      "border-rose-500 bg-rose-500 text-white hover:brightness-110",
+  marketCap: "border-blue-500 bg-blue-500 text-white hover:brightness-110",
 };
 
 export function TagBadge({
@@ -218,7 +234,7 @@ export function TagBadge({
                 className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-zinc-800 transition-colors text-left"
               >
                 <span className="font-mono font-bold text-xs text-white">{t}</span>
-                {companyName && <span className="text-[11px] text-zinc-400 truncate">{companyName}</span>}
+                {companyName && <span className="text-[11px] text-amber-100 truncate">{companyName}</span>}
               </button>
             ))
           )}
@@ -250,7 +266,7 @@ export function BreakdownPanel({ title, children, empty, fullWidth, action, scro
       )}
     >
       <div className="flex items-center justify-between mb-1.5 gap-2 shrink-0 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0 text-[11px] font-bold tracking-tight text-[#d4af37]">
+        <div className="flex items-center gap-1.5 min-w-0 text-[11px] font-semibold tracking-wide text-[#d4af37] font-sans">
           {title}
         </div>
         {action}

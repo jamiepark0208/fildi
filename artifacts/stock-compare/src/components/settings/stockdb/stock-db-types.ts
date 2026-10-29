@@ -7,6 +7,8 @@ export interface FundamentalsRow {
   fmpCoveragePercent: string | null;
   discrepancyFlags: string | null;
   overrideFlags: string | null;
+  /** Fields overridden by Database Agent (`agent:` note) — purple cell ring. */
+  agentOverrideFlags?: string | null;
   // VALUE
   peRatio: string | null; pegRatio: string | null; forwardPe: string | null; forwardPeg: string | null;
   priceToBook: string | null; priceToSales: string | null; evEbitda: string | null;
@@ -72,6 +74,13 @@ export interface SourceEntry {
   status: "used" | "available" | "excluded" | "no_data";
   exclusionReason?: string;
 }
+export interface ResearchEntry {
+  source: "wrds" | "lseg" | "schwab" | string;
+  value: number | null;
+  fetchedAt: string | null;
+  status: "available" | "no_data" | "n/a";
+  note?: string;
+}
 export interface FieldProv {
   field: string;
   winningSource: string | null;
@@ -79,8 +88,11 @@ export interface FieldProv {
   isOverride: boolean;
   divergent: boolean;
   fetchedAt: string | null;
+  isAgentOverride?: boolean;
+  agentNote?: string | null;
   override: { source: string; value: number | null; note: string | null; createdAt: string } | null;
   sources: SourceEntry[];
+  research?: ResearchEntry[];
 }
 export interface ProvenanceData { ticker: string; fields: FieldProv[] }
 export interface DivergentItem {

@@ -132,14 +132,14 @@ export function NewsInboxPanel() {
                 )}
               >
                 {t.label}
-                <span className="text-zinc-500 ml-0.5">{n}</span>
+                <span className="text-amber-100/80 ml-0.5">{n}</span>
               </span>
             );
           })}
         </div>
       )}
 
-      {isLoading && <p className="text-[11px] text-zinc-500">Loading session inbox…</p>}
+      {isLoading && <p className="text-[11px] text-amber-100/80">Loading session inbox…</p>}
       {error && <p className="text-[11px] text-red-400">{(error as Error).message}</p>}
 
       <div className="rounded-md border border-[#d4af37]/20 overflow-hidden bg-zinc-950">
@@ -173,7 +173,7 @@ export function NewsInboxPanel() {
                         title={cat}
                         className={cn(
                           "inline-block font-mono",
-                          tag.compact ? "text-[8px] text-zinc-400 uppercase" : "text-[10px]",
+                          tag.compact ? "text-[8px] text-amber-100 uppercase" : "text-[10px]",
                         )}
                       >
                         {tag.label}
@@ -182,7 +182,7 @@ export function NewsInboxPanel() {
                     <td className={cn(TD, "text-amber-200/70 truncate max-w-[7rem]")} title={r.fromDomain ?? r.source}>
                       {r.source.replace(/^newsletter:/, "")}
                     </td>
-                    <td className={cn(TD, "text-right text-white/70 whitespace-nowrap text-[10px]")}>
+                    <td className={cn(TD, "text-right text-amber-100 whitespace-nowrap text-[10px]")}>
                       {when}
                     </td>
                     <td className={cn(TD, "text-white/90 font-sans text-[11px] truncate max-w-[20rem]")}>
@@ -191,9 +191,9 @@ export function NewsInboxPanel() {
                   </tr>
                   {open && (
                     <tr className="bg-black/40">
-                      <td colSpan={4} className="px-2 py-1.5 text-[11px] text-zinc-400 space-y-1">
+                      <td colSpan={4} className="px-2 py-1.5 text-[11px] text-amber-100 space-y-1">
                         <p className="text-amber-50/80 leading-snug">{r.synopsis || "(no synopsis)"}</p>
-                        <p className="font-mono text-[10px] text-zinc-500">
+                        <p className="font-mono text-[10px] text-amber-100/80">
                           {r.includeInBrief ? "in brief" : "filtered"}
                           {" · "}noise: {(r.noiseReasons ?? []).join(", ") || "—"}
                           {" · "}links: {r.contentLinkCount}
@@ -209,7 +209,7 @@ export function NewsInboxPanel() {
             })}
             {!isLoading && items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-2 py-3 text-[11px] text-zinc-500 text-center">
+                <td colSpan={4} className="px-2 py-3 text-[11px] text-amber-100/80 text-center">
                   No emails in this session yet.
                 </td>
               </tr>

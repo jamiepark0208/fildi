@@ -100,7 +100,7 @@ function FieldHistoryRow({ ticker, input }: { ticker: string; input: Input }) {
           <span className="tabular-nums">{fmtUnit(o.value, input.unit)}</span><span className={cn("rounded border px-1 text-[9px] uppercase", STATUS[o.status])}>{o.status}</span>
           <span className="text-amber-100/60 truncate">{o.reason}</span></div>
       ))}
-      <p className="text-[9.5px] text-zinc-400">Data history starts {data.changes[0]?.date ?? "—"} (recorded when the inputs change).</p>
+      <p className="text-[9.5px] text-amber-100">Data history starts {data.changes[0]?.date ?? "—"} (recorded when the inputs change).</p>
     </div>
   );
 }

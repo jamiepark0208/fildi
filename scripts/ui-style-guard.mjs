@@ -7,20 +7,20 @@
  *   - new `font-family:` outside index.css / font token files
  *   - Google Fonts CDN `@import` in src CSS
  *
- * Soft-warn (exit 0, printed) on legacy washed text classes until Phase 2 codemod:
+ * Soft bans are HARD as of A305 Phase 2 (codemod complete 2026-10-28):
  *   text-zinc-400/500, text-gray-400/500, text-white/40–70, text-muted-foreground, text-foreground/60
  *
  * Prove P7: touch a new file with `from "@/components/ui/tab-bar"` → must fail.
  *
  *   node scripts/ui-style-guard.mjs
- *   node scripts/ui-style-guard.mjs --strict   # also fail on soft bans in migrated paths
+ *   node scripts/ui-style-guard.mjs --warn-soft   # legacy: print soft hits without failing
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const SRC = join(ROOT, "artifacts/stock-compare/src");
-const STRICT = process.argv.includes("--strict");
+const WARN_SOFT = process.argv.includes("--warn-soft");
 
 const HARD = [
   { re: /@\/components\/ui\/tab-bar|components\/ui\/tab-bar/, msg: "dead tab-bar import (use @/lib/sub-tabs)" },
@@ -86,8 +86,8 @@ for (const file of files) {
     if (!m) continue;
     soft += m.length;
     softHits.set(re.source, (softHits.get(re.source) || 0) + m.length);
-    if (STRICT && MIGRATED.some((m) => rel === m || rel.endsWith(m))) {
-      console.error(`FAIL ${rel}: soft-ban under --strict (${re.source} ×${m.length})`);
+    if (!WARN_SOFT) {
+      console.error(`FAIL ${rel}: washed text (${re.source} ×${m.length}) — use text-white / text-amber-100`);
       hard++;
     }
   }

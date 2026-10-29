@@ -227,9 +227,9 @@ export function StockBreakdown({
       {!propTicker && <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-900/95 backdrop-blur px-6 py-3 z-10">
         <div className="max-w-5xl mx-auto flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none z-10" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-100/80 pointer-events-none z-10" />
             {isSearching && debouncedQuery.length >= 1 && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 animate-spin z-10" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-100/80 animate-spin z-10" />
             )}
             <input
               type="text"
@@ -241,7 +241,7 @@ export function StockBreakdown({
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
               placeholder="Enter ticker (e.g. AAPL, TSLA, MSFT)…"
-              className="w-full h-10 pl-9 pr-9 text-sm font-mono bg-white border border-white/20 text-black placeholder:text-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+              className="w-full h-10 pl-9 pr-9 text-sm font-mono bg-white border border-white/20 text-black placeholder:text-amber-100/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
             />
             {dropdownOpen && suggestions.length > 0 && (
               <ul className="absolute top-full left-0 right-0 mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden max-h-52 overflow-y-auto">

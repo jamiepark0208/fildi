@@ -81,9 +81,9 @@ export function StrikeRow({
           "grid items-center gap-x-3 px-3 py-0.5 text-xs border-l-2 transition-colors cursor-pointer select-none",
           "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
           isBest
-            ? "border-l-yellow-400 bg-yellow-400/10 hover:bg-yellow-400/15 ring-1 ring-inset ring-yellow-400/20"
+            ? "border-l-amber-400 bg-zinc-900 hover:bg-zinc-800 ring-1 ring-inset ring-amber-400/40"
             : gammaRisk
-              ? "border-l-orange-500/60 bg-orange-950/20 hover:bg-orange-900/25"
+              ? "border-l-orange-500/60 bg-zinc-900 hover:bg-zinc-800"
               : "border-l-transparent bg-zinc-900/40 even:bg-zinc-800/40 hover:bg-zinc-700/50",
         )}
         onClick={() => setExpanded(e => !e)}
@@ -91,7 +91,7 @@ export function StrikeRow({
       >
         {/* Strike */}
         <div className="flex items-center gap-1.5">
-          <span className={cn("font-bold font-mono", isBest ? "text-yellow-300" : "text-yellow-400")}>
+          <span className={cn("font-bold font-mono text-white", isBest && "underline decoration-amber-400 decoration-2 underline-offset-2")}>
             ${Number.isInteger(put.strike) ? put.strike : put.strike.toFixed(1)}
           </span>
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
@@ -151,17 +151,14 @@ export function StrikeRow({
         {/* Score + expand chevron */}
         <div className="flex items-center gap-1.5">
           {optionScore != null && (
-            <span className={cn(
-              "font-mono text-xs",
-              isBest ? "text-yellow-300" : "text-white",
-            )}>
+            <span className={cn("font-mono text-xs text-white", isBest && "font-bold")}>
               {optionScore.toFixed(1)}
             </span>
           )}
           {dqLabel && (
             <span className={cn(
               "text-[10px]",
-              dqLabel === "partial" ? "text-yellow-400/70" : "text-red-400/70",
+              dqLabel === "partial" ? "text-amber-200" : "text-red-300",
             )}>
               {dqLabel}
             </span>
@@ -205,11 +202,12 @@ export function StrikeRow({
 // ── Column header for the strike table ───────────────────────────────────────
 
 export function StrikeTableHeader() {
+  // Match Options Leaderboard header: gold labels on black, gold rule — not zinc grey.
   return (
     <div className={cn(
-      "grid items-center gap-x-3 px-3 py-0.5 text-[10px] font-semibold tracking-wider uppercase",
+      "grid items-center gap-x-3 px-3 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
       "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
-      "border-b border-zinc-600/40 bg-zinc-800/90 text-white",
+      "border-b border-[#d4af37]/25 bg-black text-[#d4af37]",
     )}>
       <div>Strike</div>
       <div>Bid</div>

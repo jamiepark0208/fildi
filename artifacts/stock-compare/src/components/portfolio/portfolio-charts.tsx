@@ -44,21 +44,21 @@ export function PieTooltip({ active, payload }: any) {
       </div>
       <div className="font-mono font-semibold mt-0.5 text-amber-100 tabular-nums">
         {formatCurrency(displayValue)}
-        <span className="text-zinc-400 font-normal ml-1.5">{d.payload.pct?.toFixed(1)}%</span>
+        <span className="text-amber-100 font-normal ml-1.5">{d.payload.pct?.toFixed(1)}%</span>
       </div>
       {breakdown && breakdown.length > 0 && (
         <div className="mt-1.5 pt-1.5 border-t border-[#d4af37]/20 space-y-0.5">
           {breakdown.slice(0, 8).map(b => (
             <div key={b.name} className="flex items-center justify-between gap-3 font-mono tabular-nums">
-              <span className="text-zinc-400 truncate">{b.name}</span>
+              <span className="text-amber-100 truncate">{b.name}</span>
               <span className="text-zinc-200 shrink-0">
                 {formatCurrency(b.value)}{" "}
-                <span className="text-zinc-500">({b.pct.toFixed(1)}%)</span>
+                <span className="text-amber-100/80">({b.pct.toFixed(1)}%)</span>
               </span>
             </div>
           ))}
           {breakdown.length > 8 && (
-            <div className="text-zinc-500">+{breakdown.length - 8} more</div>
+            <div className="text-amber-100/80">+{breakdown.length - 8} more</div>
           )}
         </div>
       )}
@@ -111,7 +111,7 @@ export function DonutChart({ data, total, label }: {
   total: number; label: string;
 }) {
   if (!data.length) return (
-    <div className="h-[160px] flex items-center justify-center text-xs text-zinc-500">No data</div>
+    <div className="h-[160px] flex items-center justify-center text-xs text-amber-100/80">No data</div>
   );
   return (
     <div className="relative">
@@ -142,7 +142,7 @@ export function DonutChart({ data, total, label }: {
       </ResponsiveContainer>
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="text-center">
-          <div className="text-[9px] text-zinc-400 leading-none uppercase tracking-wide">{label}</div>
+          <div className="text-[9px] text-amber-100 leading-none uppercase tracking-wide">{label}</div>
           <div className="text-sm font-bold font-mono mt-0.5 leading-none text-white tabular-nums">
             {formatCurrency(total)}
           </div>

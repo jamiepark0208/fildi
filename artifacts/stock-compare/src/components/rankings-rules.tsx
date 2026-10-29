@@ -23,7 +23,7 @@ const VERDICT_TONE: Record<string, string> = {
   candidate: "bg-zinc-900 text-white border-sky-400/70",
   mixed: "bg-zinc-900 text-white border-amber-400/50",
   redundant: "bg-zinc-900 text-zinc-300 border-zinc-600",
-  untested: "bg-zinc-900 text-zinc-400 border-zinc-700",
+  untested: "bg-zinc-900 text-amber-100 border-zinc-700",
 };
 const WANT = { high: "↑ high", low: "↓ low", none: "—" } as const;
 
@@ -48,14 +48,14 @@ export function RankingsRules() {
     },
     staleTime: 5 * 60_000,
   });
-  if (isLoading) return <p className="text-sm text-muted-foreground animate-pulse">Loading rules…</p>;
+  if (isLoading) return <p className="text-sm text-amber-100 animate-pulse">Loading rules…</p>;
   const R = data?.rules;
-  if (!R) return <p className="text-sm text-muted-foreground">No rules file yet.</p>;
+  if (!R) return <p className="text-sm text-amber-100">No rules file yet.</p>;
   return (
     <div className="space-y-2 min-w-0">
       <PutBandSelector className="max-w-[900px]" />
       <p className="text-[11px] text-amber-200/60 max-w-[900px]">
-        {R.principle} <span className="text-zinc-500">· {R.version} · {R.updated}</span>
+        {R.principle} <span className="text-amber-100/80">· {R.version} · {R.updated}</span>
       </p>
       <div className="overflow-x-auto">
         <table className="text-[11px] border-collapse min-w-[760px]">
@@ -103,11 +103,11 @@ export function RankingsRules() {
         <div className="text-[11px] text-zinc-300 space-y-0.5 max-w-[900px]">
           <div className="text-amber-200/60">Two inputs together · {R.pairs.study}</div>
           {R.strategies.map((s) => R.pairs?.[s.id] && (
-            <div key={s.id}><span className="text-zinc-400">{s.label}:</span> {R.pairs[s.id]}</div>
+            <div key={s.id}><span className="text-amber-100">{s.label}:</span> {R.pairs[s.id]}</div>
           ))}
         </div>
       )}
-      <p className="text-[10px] text-zinc-500">● = live in a score or board today · hover a cell for the study and where it is used · untested cells are the study queue</p>
+      <p className="text-[10px] text-amber-100/80">● = live in a score or board today · hover a cell for the study and where it is used · untested cells are the study queue</p>
     </div>
   );
 }

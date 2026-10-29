@@ -32,12 +32,12 @@ function fmtExpiryMdYy(iso: string) {
   return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
 }
 
-/** Chip shows short word (Avoid); full VERDICT_LABELS detail on hover. */
+/** Chip shows short word (Model OWN); full VERDICT_LABELS detail on hover. */
 function verdictChip(verdict: string): { short: string; tip: string } {
-  const full = VERDICT_LABELS[verdict] || verdict || "Watch";
-  const i = full.indexOf(":");
-  if (i > 0) return { short: full.slice(0, i).trim(), tip: full.slice(i + 1).trim() };
-  return { short: full, tip: full };
+  const full = VERDICT_LABELS[verdict] || verdict || "Model WCH";
+  const i = full.search(/[—:]/);
+  if (i > 0) return { short: full.slice(0, i).trim().replace(/^Model\s+/i, ""), tip: full };
+  return { short: full.replace(/^Model\s+/i, ""), tip: full };
 }
 
 function pct(x: number) {

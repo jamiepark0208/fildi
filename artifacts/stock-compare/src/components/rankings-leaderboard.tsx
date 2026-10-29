@@ -347,13 +347,13 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
             <div>
               <p className="text-[9px] uppercase tracking-widest text-white/30 mb-0.5">
                 {score.peerGroupName
-                  ? <span className="text-white/50 normal-case tracking-normal">{score.peerGroupName} ({score.peerGroupSize ?? metricRows[0]?.groupN ?? "?"} peers)</span>
-                  : <span className="text-white/40 normal-case tracking-normal">unclassified — vs full {allScores.length}-ticker market</span>}
+                  ? <span className="text-amber-100/80 normal-case tracking-normal">{score.peerGroupName} ({score.peerGroupSize ?? metricRows[0]?.groupN ?? "?"} peers)</span>
+                  : <span className="text-amber-100/70 normal-case tracking-normal">unclassified — vs full {allScores.length}-ticker market</span>}
                 {score.styleBucket && (
-                  <span className="text-white/40 normal-case tracking-normal ml-2">· style {score.styleBucket.replace(/_/g, " ")}</span>
+                  <span className="text-amber-100/70 normal-case tracking-normal ml-2">· style {score.styleBucket.replace(/_/g, " ")}</span>
                 )}
                 {score.companyScore != null && (
-                  <span className="text-white/40 normal-case tracking-normal ml-2">
+                  <span className="text-amber-100/70 normal-case tracking-normal ml-2">
                     · Co {score.companyScore.toFixed(0)}
                     {score.sectorScore != null ? ` / Sec ${score.sectorScore.toFixed(0)}` : ""}
                   </span>
@@ -377,14 +377,14 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
                       <tr key={row.key} className={gridRow(i)}>
                         <td className={cn(GRID_TD, ROW_CELL, "text-left text-white/80")}>{row.label}</td>
                         <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white font-semibold")}>{row.valueStr}</td>
-                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/40")}>{row.weight}</td>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-amber-100/70")}>{row.weight}</td>
                         <td className={cn(ROW_CELL, "py-0.5 px-2.5 text-right")}>
                           <span className={cn("inline-block px-1 rounded border text-[10px] font-mono font-semibold", percentileBadge(row.percentile))}>
                             {row.percentile}th·#{row.rankPos}/{row.n}
                           </span>
                           <span className="text-white/30 text-[9px] ml-1">({Math.round(row.sectorWeight * 100)}%)</span>
                         </td>
-                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/60")}>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-amber-100")}>
                           {row.groupMedian != null ? (
                             <>
                               {row.groupMedian}
@@ -392,7 +392,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
                             </>
                           ) : <span className="text-white/25 italic">n/a</span>}
                         </td>
-                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/40")}>{row.peerMedian}</td>
+                        <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-amber-100/70")}>{row.peerMedian}</td>
                         <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono font-semibold", zScoreColor(row.zScore))}>
                           {row.zScore >= 0 ? "+" : ""}{row.zScore.toFixed(1)}
                         </td>
@@ -407,7 +407,7 @@ const LeaderboardRow = memo(function LeaderboardRow({ score, idx, rowIdx, maxSco
           {/* AI narrative — key numbers highlighted */}
           <ul className="space-y-0">
             {bullets.map((b, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-xs text-white/70 leading-snug">
+              <li key={i} className="flex items-start gap-1.5 text-xs text-amber-100 leading-snug">
                 <span className="text-white/30 shrink-0">•</span>
                 <span>{highlightBullet(b)}</span>
               </li>
@@ -448,29 +448,29 @@ export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLead
         <div className="flex items-center gap-2">
           <Trophy className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-bold tracking-tight">Rankings Leaderboard</h2>
-          <span className="text-xs text-muted-foreground">({scores.length})</span>
+          <span className="text-xs text-amber-100">({scores.length})</span>
           {scoredLabel && (
-            <span className="text-[10px] text-muted-foreground/80" title="fund_score_computed_at">
+            <span className="text-[10px] text-amber-100/80" title="fund_score_computed_at">
               {scoredLabel}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
           {FAMILY_ORDER.map(fam => (
-            <span key={fam} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span key={fam} className="flex items-center gap-1 text-[10px] text-amber-100">
               <span className={cn("w-2 h-2 rounded-sm", FAMILY_BAR_COLOR[fam])} />
               {FAMILY_LABEL[fam]}
             </span>
           ))}
         </div>
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-amber-100/80 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Filter ticker..."
-            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-amber-100/80 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
       </div>
@@ -493,7 +493,7 @@ export function RankingsLeaderboard({ scores, stocks, scoredAsOf }: RankingsLead
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={COL_COUNT} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
+              <tr><td colSpan={COL_COUNT} className="text-xs text-amber-100 py-2 px-2.5">No tickers match "{query}".</td></tr>
             ) : (
               filtered.map((score, i) => (
                 <LeaderboardRow

@@ -45,7 +45,7 @@ function MarketChip({ point }: { point: MarketDataPoint }) {
   const up      = (point.changePct ?? 0) > 0;
   const down    = (point.changePct ?? 0) < 0;
 
-  const chipColor = !hasData ? "text-muted-foreground"
+  const chipColor = !hasData ? "text-amber-100"
     : isVix
       ? up ? "text-red-400" : down ? "text-green-400" : "text-foreground"
       : up ? "text-green-400" : down ? "text-red-400"  : "text-foreground";
@@ -64,7 +64,7 @@ function MarketChip({ point }: { point: MarketDataPoint }) {
 
   return (
     <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-secondary/30 border border-border/40">
-      <span className="text-[10px] text-white/40 font-medium tracking-wide whitespace-nowrap">{point.label}</span>
+      <span className="text-[10px] text-amber-100/70 font-medium tracking-wide whitespace-nowrap">{point.label}</span>
       <span className={cn("text-xs font-bold font-mono tabular-nums", chipColor)}>{priceStr}</span>
       {pctStr && (
         <span className={cn("text-[10px] font-mono flex items-center gap-0.5", chipColor)}>
@@ -95,7 +95,7 @@ function BriefContent({ text }: { text: string }) {
     elements.push(
       <ul key={key} className="space-y-1.5 mb-3">
         {bullets.map((b, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground leading-relaxed">
+          <li key={i} className="flex items-start gap-2 text-sm text-amber-100 leading-relaxed">
             <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
             <span dangerouslySetInnerHTML={{ __html: inlineMd(b) }} />
           </li>
@@ -120,7 +120,7 @@ function BriefContent({ text }: { text: string }) {
     } else {
       flush(`f${idx}`);
       elements.push(
-        <p key={idx} className="text-sm text-muted-foreground mb-2 leading-relaxed"
+        <p key={idx} className="text-sm text-amber-100 mb-2 leading-relaxed"
           dangerouslySetInnerHTML={{ __html: inlineMd(line) }} />
       );
     }
@@ -191,12 +191,12 @@ function ContextEditor({ onClose }: { onClose: () => void }) {
   const textareaClass = "w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary resize-none";
   const inputClass    = "flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary";
 
-  if (!ctx) return <div className="p-6 text-center text-sm text-muted-foreground">Loading context…</div>;
+  if (!ctx) return <div className="p-6 text-center text-sm text-amber-100">Loading context…</div>;
 
   const listSection = (label: string, field: "macroFocus" | "watchSignals" | "riskRules", placeholder: string) => (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</label>
+        <label className="text-xs font-semibold text-amber-100 uppercase tracking-wide">{label}</label>
         <button onClick={() => addItem(field)} className="text-xs text-primary hover:underline">+ Add</button>
       </div>
       <div className="space-y-1.5">
@@ -204,12 +204,12 @@ function ContextEditor({ onClose }: { onClose: () => void }) {
           <div key={i} className="flex items-center gap-2">
             <input className={inputClass} value={item} placeholder={placeholder}
               onChange={e => updateList(field, i, e.target.value)} />
-            <button onClick={() => removeItem(field, i)} className="text-muted-foreground hover:text-red-400 transition-colors">
+            <button onClick={() => removeItem(field, i)} className="text-amber-100 hover:text-red-400 transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         ))}
-        {ctx[field].length === 0 && <p className="text-xs text-muted-foreground italic">No items — click + Add</p>}
+        {ctx[field].length === 0 && <p className="text-xs text-amber-100 italic">No items — click + Add</p>}
       </div>
     </div>
   );
@@ -219,23 +219,23 @@ function ContextEditor({ onClose }: { onClose: () => void }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-bold">AI Context — Persistent Learning</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="text-[11px] text-amber-100 mt-0.5">
             This file is sent to Claude on every brief generation. Customize it to continuously improve relevance.
             <br />Stored in <code className="text-primary">brief-context.json</code> on the server — survives restarts.
           </p>
         </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} className="text-amber-100 hover:text-foreground"><X className="w-4 h-4" /></button>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Strategy Summary</label>
+          <label className="block text-xs font-semibold text-amber-100 uppercase tracking-wide mb-2">Strategy Summary</label>
           <textarea className={textareaClass} rows={3} value={ctx.strategy}
             onChange={e => setCtx({ ...ctx, strategy: e.target.value })}
             placeholder="Describe your options strategy in 1-2 sentences…" />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Portfolio Notes</label>
+          <label className="block text-xs font-semibold text-amber-100 uppercase tracking-wide mb-2">Portfolio Notes</label>
           <textarea className={textareaClass} rows={3} value={ctx.portfolios}
             onChange={e => setCtx({ ...ctx, portfolios: e.target.value })}
             placeholder="IRA = conservative, FILDI = core strategy…" />
@@ -247,7 +247,7 @@ function ContextEditor({ onClose }: { onClose: () => void }) {
       {listSection("Risk Rules",           "riskRules",    "e.g. Avoid new puts < 2 weeks before earnings…")}
 
       <div>
-        <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Free-form Notes</label>
+        <label className="block text-xs font-semibold text-amber-100 uppercase tracking-wide mb-2">Free-form Notes</label>
         <textarea className={textareaClass} rows={2} value={ctx.userNotes}
           onChange={e => setCtx({ ...ctx, userNotes: e.target.value })}
           placeholder="Anything else Claude should know: recent decisions, upcoming events, thesis changes…" />
@@ -258,7 +258,7 @@ function ContextEditor({ onClose }: { onClose: () => void }) {
           className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
           {saved ? <><Check className="w-3.5 h-3.5" /> Saved!</> : saving ? "Saving…" : "Save Context"}
         </button>
-        <p className="text-[11px] text-muted-foreground">Saved context is used on the next brief generation.</p>
+        <p className="text-[11px] text-amber-100">Saved context is used on the next brief generation.</p>
       </div>
     </div>
   );
@@ -270,11 +270,11 @@ function HistoryView({ history, loading }: { history: DailyBriefData[]; loading:
   const [openDate, setOpenDate] = useState<string | null>(null);
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-muted-foreground">Loading past briefs…</div>;
+    return <div className="p-8 text-center text-sm text-amber-100">Loading past briefs…</div>;
   }
   if (!history.length) {
     return (
-      <div className="p-8 text-center text-sm text-muted-foreground space-y-1">
+      <div className="p-8 text-center text-sm text-amber-100 space-y-1">
         <History className="w-8 h-8 mx-auto mb-3 opacity-30" />
         <p>No past briefs yet.</p>
         <p className="text-xs opacity-60">Generate your first brief on the Today tab.</p>
@@ -298,12 +298,12 @@ function HistoryView({ history, loading }: { history: DailyBriefData[]; loading:
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold">{brief.date}</span>
                 {genTime && (
-                  <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <span className="text-[11px] text-amber-100 flex items-center gap-1">
                     <Clock className="w-3 h-3" />{genTime}
                   </span>
                 )}
               </div>
-              {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+              {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-amber-100" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-100" />}
             </button>
             {isOpen && (
               <div className="px-4 pb-5 bg-secondary/5">

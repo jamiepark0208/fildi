@@ -72,7 +72,7 @@ function useCalls(ticker: string) {
   });
 }
 
-const EMPTY = <p className="text-[10px] text-amber-200/40 italic">No call summary yet — queued (book names first, ≤ 20 calls/day).</p>;
+const EMPTY = <p className="text-[11px] text-white">No call summary yet.</p>;
 
 function CallView({ c, prior, street, full }: { c: Call; prior: Call[]; street: Street; full: boolean }) {
   const [more, setMore] = useState(full);
@@ -163,7 +163,7 @@ export function EarningsCallPanel({ ticker }: { ticker: string }) {
   return (
     <div className="space-y-1">
       <CallView c={calls[0]} prior={calls.slice(1)} street={data!.street} full={false} />
-      <p className="text-[9px] text-amber-200/30">Haiku summary of the call transcript (Alpha Vantage). Street = LSEG consensus today. All quarters: Earnings calls tab below.</p>
+      <p className="text-[9px] text-amber-100">Latest call implications (guide + risks + Street). Full history: Earnings calls tab below.</p>
     </div>
   );
 }
@@ -213,7 +213,7 @@ export function EarningsCallsTab({ ticker }: { ticker: string }) {
           </table>
         </section>
       )}
-      <p className="text-[9px] text-amber-200/30">Haiku extraction from the transcript (Alpha Vantage). Your names get the last 4 calls; others the latest. Street = LSEG consensus today.</p>
+      <p className="text-[9px] text-amber-100">Haiku extraction from the transcript (Alpha Vantage). Your names get the last 4 calls; others the latest. Street = LSEG consensus today.</p>
     </div>
   );
 }

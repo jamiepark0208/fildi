@@ -130,7 +130,7 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
             ))}
           </div>
         )}
-        <span className="text-[10px] text-white/70 tabular-nums">{rows.length} names</span>
+        <span className="text-[10px] text-amber-100 tabular-nums">{rows.length} names</span>
       </div>
 
       {isLoading && (
@@ -169,10 +169,10 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
                       >
                         <td className={cn(GRID_TD, "py-0.5 text-center")}>
                           {isOpen
-                            ? <ChevronDown className="w-3 h-3 text-white/70 inline-block" />
-                            : <ChevronRight className="w-3 h-3 text-white/70 inline-block" />}
+                            ? <ChevronDown className="w-3 h-3 text-amber-100 inline-block" />
+                            : <ChevronRight className="w-3 h-3 text-amber-100 inline-block" />}
                         </td>
-                        <td className={cn(GRID_TD, "py-0.5 text-center text-white/70 font-mono text-[11px]")}>{i + 1}</td>
+                        <td className={cn(GRID_TD, "py-0.5 text-center text-amber-100 font-mono text-[11px]")}>{i + 1}</td>
                         <td className={cn(GRID_TD, "py-0.5 font-mono font-bold text-white")}>{o.ticker}</td>
                         <td className={cn(GRID_TD, "py-0.5")}><ScoreBar score={o.score} /></td>
                         <td className={cn(GRID_TD, "py-0.5 text-[11px] max-w-0")}>
@@ -242,8 +242,8 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
                     >
                       <td className={cn(GRID_TD, "py-0.5 text-center")}>
                         {isOpen
-                          ? <ChevronDown className="w-3 h-3 text-white/70 inline-block" />
-                          : <ChevronRight className="w-3 h-3 text-white/70 inline-block" />}
+                          ? <ChevronDown className="w-3 h-3 text-amber-100 inline-block" />
+                          : <ChevronRight className="w-3 h-3 text-amber-100 inline-block" />}
                       </td>
                       <td className={cn(GRID_TD, "py-0.5 font-mono font-bold text-white")}>{p.ticker}</td>
                       <td className={cn(GRID_TD, "py-0.5")}>
@@ -252,7 +252,7 @@ export function StreetRadar({ embedded = false }: { embedded?: boolean }) {
                       <td className={cn(GRID_TD, "py-0.5 text-[11px]")}>
                         <span className={cn(TONE_TEXT[p.tone])}>{p.verdict}</span>
                         {p.flags.length > 0 && (
-                          <span className="text-white/60 ml-1.5">
+                          <span className="text-amber-100 ml-1.5">
                             · {p.flags.slice(0, 2).map((f) => f.title).join(" · ")}
                           </span>
                         )}

@@ -21,7 +21,7 @@ export function StatusChipRow({ chips }: { chips?: GuideStatusChips; compact?: b
     <span className="text-[11px] font-mono tabular-nums">
       {items.map((it, i) => (
         <span key={it.key}>
-          {i > 0 && <span className="text-white/40"> · </span>}
+          {i > 0 && <span className="text-amber-100/70"> · </span>}
           <span className={it.cls}>{it.label}</span>
         </span>
       ))}

@@ -420,7 +420,7 @@ export function ScannerRow({
             <span
               className={cn(
                 "text-[9px] font-mono font-semibold tabular-nums shrink-0",
-                vsSnapPct <= -1 ? "text-red-400" : vsSnapPct >= 1 ? "text-emerald-400" : "text-muted-foreground",
+                vsSnapPct <= -1 ? "text-red-400" : vsSnapPct >= 1 ? "text-emerald-400" : "text-amber-100",
               )}
             >
               {vsSnapPct >= 0 ? "+" : ""}{vsSnapPct.toFixed(1)}%
@@ -456,7 +456,7 @@ export function ScannerRow({
             if (!graded && !hasOpen && !hasSim) {
               return (
                 <span
-                  className="text-[9px] font-mono text-zinc-500"
+                  className="text-[9px] font-mono text-amber-100/80"
                   title="No graded live model recs for this ticker/side yet. Rec is accountability on real snapshots (model_recs), not a historical backtest. Expand Track Record or wait for Friday/nightly snapshots to grade."
                 >
                   —
@@ -491,7 +491,7 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            bestOptionScore == null && "text-white/40",
+            bestOptionScore == null && "text-amber-100/70",
           )}
           style={bestOptionScore != null ? columnHeatStyle(bestOptionScore, heat?.opt) : undefined}
           title={
@@ -512,7 +512,7 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            stockScore == null && "text-white/40",
+            stockScore == null && "text-amber-100/70",
           )}
           style={stockScore != null ? columnHeatStyle(stockScore, heat?.stock) : undefined}
         >
@@ -523,7 +523,7 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0 inline-flex items-baseline gap-0.5",
-            ivPct == null && "text-white/40",
+            ivPct == null && "text-amber-100/70",
           )}
           style={ivNum != null ? columnHeatStyle(ivNum, heat?.iv) : undefined}
           title={
@@ -542,7 +542,7 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            !(bestIncome != null && bestIncome >= 0) && "text-white/40",
+            !(bestIncome != null && bestIncome >= 0) && "text-amber-100/70",
           )}
           style={bestIncome != null && bestIncome >= 0 ? columnHeatStyle(bestIncome, heat?.inc) : undefined}
           title={bestIncome != null && bestIncome >= 0 ? undefined : (scoreNAReason ?? "N/A")}
@@ -554,7 +554,7 @@ export function ScannerRow({
         <span
           className={cn(
             "text-[11px] font-mono font-semibold tabular-nums min-w-0",
-            !(bestBuffer != null && bestBuffer >= 0) && "text-white/40",
+            !(bestBuffer != null && bestBuffer >= 0) && "text-amber-100/70",
           )}
           style={bestBuffer != null && bestBuffer >= 0 ? columnHeatStyle(bestBuffer, heat?.buf) : undefined}
           title={
@@ -747,7 +747,7 @@ export function ScannerRow({
             return (
               <div className="space-y-1">
                 {ageMin != null && (
-                  <p className={`text-[10px] ${stale ? "text-amber-300/80" : "text-white/50"}`}>
+                  <p className={`text-[10px] ${stale ? "text-amber-300/80" : "text-amber-100/80"}`}>
                     Quotes as of {new Date(fetchedAt!).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                     {stale ? ` · ${ageMin < 120 ? `${ageMin} min` : `${Math.round(ageMin / 60)} h`} old · updating…` : ""}
                   </p>

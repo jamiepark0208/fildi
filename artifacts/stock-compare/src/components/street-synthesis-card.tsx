@@ -38,9 +38,9 @@ export type StreetSynthesisData = {
 };
 
 const TONE_CHIP: Record<string, string> = {
-  supportive: "border-green-400/70 text-green-200 bg-green-600/35",
-  neutral: "border-zinc-400/60 text-zinc-100 bg-zinc-600/35",
-  caution: "border-amber-400/80 text-amber-100 bg-amber-600/40",
+  supportive: "border-emerald-400/70 text-white bg-zinc-900",
+  neutral: "border-zinc-400/60 text-white bg-zinc-900",
+  caution: "border-amber-400/80 text-white bg-zinc-900",
 };
 
 const TONE_LABEL: Record<string, string> = {
@@ -236,7 +236,7 @@ function MetricRow({ m, i }: { m: Metric; i: number }) {
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>
         <tr className={cn(gridRow(i), "cursor-help")}>
-          <td className={cn(GRID_TD, "text-[#d4af37] text-left text-[10px] font-semibold uppercase tracking-wider")}>
+          <td className={cn(GRID_TD, "text-left font-semibold uppercase tracking-wide")}>
             {m.label}
           </td>
           <td className={cn(GRID_TD, "text-right font-mono font-semibold", m.tone ?? "text-white")}>

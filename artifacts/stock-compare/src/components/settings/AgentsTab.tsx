@@ -884,7 +884,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
   // Tooltips: 2–3 very short lines — what · time · (optional) one count. "~" = estimate, "?" = unknown.
   const left = (s: number | null | undefined) => (s != null ? `~${dur(s)} left` : "? left");
   const Lines = ({ a, b, c, color }: { a: React.ReactNode; b?: React.ReactNode; c?: React.ReactNode; color?: string }) => (
-    <><div className="font-semibold" style={color ? { color } : undefined}>{a}</div>{b && <div className="text-white/85">{b}</div>}{c && <div className="text-white/60">{c}</div>}</>
+    <><div className="font-semibold" style={color ? { color } : undefined}>{a}</div>{b && <div className="text-white/85">{b}</div>}{c && <div className="text-amber-100">{c}</div>}</>
   );
   const tip = (id: string) => {
     if (id.startsWith("l:")) {
@@ -963,7 +963,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
         // Only agent orbs change table focus — jobs/OpenJev/nodes/links stay tooltip-only (META[focus] crash).
         if (id in META) onSel(id as Id);
       }} />
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-white/70">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-amber-100">
         {(["web", "database", "api", "code", "reading"] as const).map((k) => (
           <span key={k} className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: KIND[k].color }} />{KIND[k].label}</span>
         ))}
@@ -978,7 +978,7 @@ function TeamMap({ d, sel, onSel }: { d: Data; sel: Id | "all"; onSel: (id: Id |
 function Available({ id, d }: { id: Id; d: Data }) {
   const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—");
   const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }) : "—");
-  const cell = (text: ReactNode, tip: ReactNode, cls = "text-white/60") => (
+  const cell = (text: ReactNode, tip: ReactNode, cls = "text-amber-100") => (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild><span className={cn("cursor-default", cls)}>{text}</span></TooltipTrigger>
       <TooltipContent side="bottom" className={TIP}>{tip}</TooltipContent>
@@ -1067,7 +1067,7 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
   return (
     <div className="space-y-1">
       <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">{META[agent].label} · last {steps.length} steps</div>
-      {steps.length === 0 ? <p className="text-[12px] text-white/50">No logged steps in the last 24 h.</p> : (
+      {steps.length === 0 ? <p className="text-[12px] text-amber-100/80">No logged steps in the last 24 h.</p> : (
         <div className={cn(GRID_WRAP, "max-h-[320px] overflow-y-auto")}>
           <table className="w-full border-collapse"><tbody>{steps.map((e, i) => {
             const c = e.event === "waiting" ? WAIT : e.event === "fail" ? "#f87171" : e.event === "prompt" ? META.jamie.color : KIND[e.kind ?? "other"]?.color ?? "#a1a1aa";
@@ -1075,7 +1075,7 @@ function Timeline({ d, agent }: { d: Data; agent: Id }) {
             return (
               <tr key={`${e.t}-${i}`} className={gridRow(i)}>
                 <td className={cn(GRID_TD, "w-6")}><span className="inline-block w-2 h-2 rounded-full" style={{ background: c }} /></td>
-                <td className={cn(GRID_TD, "text-white/60 whitespace-nowrap w-24")}>{hms(e.t)}</td>
+                <td className={cn(GRID_TD, "text-amber-100 whitespace-nowrap w-24")}>{hms(e.t)}</td>
                 <td className={cn(GRID_TD, "text-white/45 whitespace-nowrap w-14 text-right")}>{i ? gap(Date.parse(e.t) - Date.parse(steps[i - 1].t)) : ""}</td>
                 <td className={cn(GRID_TD, "text-white/90 truncate max-w-0 w-full")} title={what}><span className="text-white/45">{evName(nm, e)} · </span>{what}</td>
               </tr>
@@ -1123,7 +1123,7 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
             return (
               <tr key={a.id} className={cn(gridRow(i), "cursor-pointer", focus === a.id && "bg-white/[0.06]")} onClick={() => { setFocus(focus === a.id ? "all" : a.id); setActFilter("all"); }}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: META[a.id].color }}>{META[a.id].label}</td>
-                <td className={cn(GRID_TD, "whitespace-nowrap", st?.waiting ? "text-yellow-300" : st?.looping ? "text-red-300" : st?.working ? "text-emerald-300" : "text-white/70")}>
+                <td className={cn(GRID_TD, "whitespace-nowrap", st?.waiting ? "text-yellow-300" : st?.looping ? "text-red-300" : st?.working ? "text-emerald-300" : "text-amber-100")}>
                   {st ? (st.waiting ? "● waiting for you" : st.looping ? (
                     <Tooltip delayDuration={150}>
                       <TooltipTrigger asChild>
@@ -1145,7 +1145,7 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                           : (a.queue > 0 ? `● ${a.queue} to review` : "red team · idle"))
                         : `last commit ${ago(a.lastActive)}`}
                 </td>
-                <td className={cn(GRID_TD, "text-right", errN > 0 ? "text-red-300 font-semibold" : "text-white/50")}
+                <td className={cn(GRID_TD, "text-right", errN > 0 ? "text-red-300 font-semibold" : "text-amber-100/80")}
                   onClick={(e) => {
                     if (!st || errN <= 0) return;
                     e.stopPropagation();
@@ -1191,11 +1191,11 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                       return tip(fmt(n), `Claude session today · in+out+cache · ${mdY(day.day)}`);
                     }
                     if (a.id === "cursor" || a.id === "grok") {
-                      return tip("—", `No token meter · ${st?.tools24h ?? 0} tool actions / 24h (see Acts).`, "text-white/50");
+                      return tip("—", `No token meter · ${st?.tools24h ?? 0} tool actions / 24h (see Acts).`, "text-amber-100/80");
                     }
-                    if (a.id === "muse") return tip("—", "No token meter · plan % only when heartbeat sends it.", "text-white/50");
-                    if (a.id === "codex") return tip("—", "No 24h token sum · see Used % windows.", "text-white/50");
-                    return tip("—", "No token feed yet.", "text-white/50");
+                    if (a.id === "muse") return tip("—", "No token meter · plan % only when heartbeat sends it.", "text-amber-100/80");
+                    if (a.id === "codex") return tip("—", "No 24h token sum · see Used % windows.", "text-amber-100/80");
+                    return tip("—", "No token feed yet.", "text-amber-100/80");
                   })()}
                 </td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap tabular-nums")}>
@@ -1214,7 +1214,7 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                     }
                     if (a.id === "codex") {
                       const l = d.limits?.codex;
-                      if (!l || l.stale) return tip(l ? "—" : "—", l ? "Codex telemetry stale · open Codex to refresh." : "No Codex allowance yet.", "text-white/50");
+                      if (!l || l.stale) return tip(l ? "—" : "—", l ? "Codex telemetry stale · open Codex to refresh." : "No Codex allowance yet.", "text-amber-100/80");
                       const used = Math.round(Math.max(...l.windows.map(w => w.used)));
                       const detail = l.windows.map(w => `${w.minutes >= 1440 ? `${w.minutes / 1440}d` : `${w.minutes / 60}h`}: ${Math.round(w.used)}%`).join(" · ");
                       return tip(`${used}%`, `Codex plan windows · ${detail} · observed ${ago(l.at)}.`);
@@ -1225,21 +1225,21 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                         const used = Math.round(l.totalPct);
                         return tip(`${used}%`, `Shared Cursor plan (Cursor+Grok) · ${used}% used · ${Math.max(0, 100 - used)}% left${l.spendUsd != null ? ` · $${l.spendUsd.toFixed(0)}` : ""}.`);
                       }
-                      return tip("—", "Cursor plan snap pending.", "text-white/50");
+                      return tip("—", "Cursor plan snap pending.", "text-amber-100/80");
                     }
                     if (mu?.pct != null) return tip(`${Math.round(mu.pct)}%`, "Muse plan % used (heartbeat).");
-                    return tip("—", "No usage reading.", "text-white/50");
+                    return tip("—", "No usage reading.", "text-amber-100/80");
                   })()}
                 </td>
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap")}><Available id={a.id} d={d} /></td>
                 <td className={cn(GRID_TD, "text-right text-white")}>{a.commits24h} / {a.commits7d}</td>
                 <td className={cn(GRID_TD, "text-right", a.queue > 20 ? "text-red-300" : "text-white")}>{a.queue}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{ru?.acts_per_commit != null ? ru.acts_per_commit : "—"}</td>
-                <td className={cn(GRID_TD, "text-right", (ru?.loop_pct ?? 0) > 10 ? "text-amber-300" : "text-white/70")}>{ru ? `${ru.loop_pct}%` : "—"}</td>
-                <td className={cn(GRID_TD, "text-right", (ru?.fail_pct ?? 0) > 20 ? "text-red-300" : "text-white/70")}>{ru ? `${ru.fail_pct}%` : "—"}</td>
+                <td className={cn(GRID_TD, "text-right", (ru?.loop_pct ?? 0) > 10 ? "text-amber-300" : "text-amber-100")}>{ru ? `${ru.loop_pct}%` : "—"}</td>
+                <td className={cn(GRID_TD, "text-right", (ru?.fail_pct ?? 0) > 20 ? "text-red-300" : "text-amber-100")}>{ru ? `${ru.fail_pct}%` : "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{ru?.oj_asks ?? "—"}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{st ? st.tools24h : "—"}</td>
-                <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{st?.lastEvent ? humanAction(st.lastEvent) : "—"}</td>
+                <td className={cn(GRID_TD, "text-amber-100 truncate max-w-[280px]")}>{st?.lastEvent ? humanAction(st.lastEvent) : "—"}</td>
               </tr>
             );
           })}
@@ -1251,11 +1251,11 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
             return (
               <tr className={cn(gridRow(d.agents.length), "opacity-95")}>
                 <td className={cn(GRID_TD, "font-semibold")} style={{ color: OJ_COLOR }}>OpenJev</td>
-                <td className={cn(GRID_TD, "whitespace-nowrap", oj.running ? "text-emerald-300" : "text-white/60")}>
+                <td className={cn(GRID_TD, "whitespace-nowrap", oj.running ? "text-emerald-300" : "text-amber-100")}>
                   {oj.running ? `● ${oj.doing?.slice(0, 36) || "loaded"}` : "idle · local"}
                 </td>
-                <td className={cn(GRID_TD, "text-right text-white/50")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/80")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white whitespace-nowrap tabular-nums")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
@@ -1271,7 +1271,7 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                 <td className={cn(GRID_TD, "text-right tabular-nums")}>
                   <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
-                      <span className="cursor-default text-white/60">—</span>
+                      <span className="cursor-default text-amber-100">—</span>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className={TIP}>
                       Local Mac — no plan cap. 8,192-token prompt limit · ~26 GB RAM.
@@ -1279,14 +1279,14 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                     </TooltipContent>
                   </Tooltip>
                 </td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
-                <td className={cn(GRID_TD, "text-right text-white/40")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
+                <td className={cn(GRID_TD, "text-right text-amber-100/70")}>—</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{u?.available ? u.modelRequests : "—"}</td>
-                <td className={cn(GRID_TD, "text-white/70 truncate max-w-[280px]")}>{oj.doing || oj.last?.detail || "—"}</td>
+                <td className={cn(GRID_TD, "text-amber-100 truncate max-w-[280px]")}>{oj.doing || oj.last?.detail || "—"}</td>
               </tr>
             );
           })()}
@@ -1318,7 +1318,7 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
             <th className={cn(GRID_TH, "text-left")}>Outcome</th>
           </tr></thead>
           <tbody>{rows.length === 0 ? (
-            <tr><td colSpan={12} className={cn(GRID_TD, "text-white/70")}>{actFilter === "fail" ? "No turns with fails." : "No recent activity."}</td></tr>
+            <tr><td colSpan={12} className={cn(GRID_TD, "text-amber-100")}>{actFilter === "fail" ? "No turns with fails." : "No recent activity."}</td></tr>
           ) : rows.map((r, i) => {
             const open = openTurn === r.id;
             return (
@@ -1326,20 +1326,20 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                 <tr className={cn(gridRow(i), "cursor-pointer", open && "bg-white/[0.05]")}
                   onClick={() => setOpenTurn(open ? null : r.id)}>
                   <td className={cn(GRID_TD, "text-white/80 whitespace-nowrap")}>{clock(r.start)}</td>
-                  <td className={cn(GRID_TD, "text-white/60 whitespace-nowrap")}>{ago(r.t)}</td>
+                  <td className={cn(GRID_TD, "text-amber-100 whitespace-nowrap")}>{ago(r.t)}</td>
                   <td className={cn(GRID_TD, "font-medium whitespace-nowrap")} style={{ color: META[r.agent as Id]?.color ?? "#d4d4d8" }}>{r.name}</td>
                   <td className={cn(GRID_TD, r.fail ? "text-red-200" : "text-white/90", "truncate max-w-[320px]")} title={r.what}>
                     <span className="text-[#d4af37]/80 mr-1">{open ? "▾" : "▸"}</span>{r.what}
-                    {r.edits > 0 ? <span className="text-white/50"> · {r.edits} edit{r.edits === 1 ? "" : "s"}</span> : null}
+                    {r.edits > 0 ? <span className="text-amber-100/80"> · {r.edits} edit{r.edits === 1 ? "" : "s"}</span> : null}
                   </td>
-                  <td className={cn(GRID_TD, "text-right text-white/60 whitespace-nowrap")}>{r.bus ? "—" : (r.tok ?? "—")}</td>
-                  <td className={cn(GRID_TD, "text-right text-white/60")}>{r.bus ? "—" : (r.wall ?? "—")}</td>
-                  <td className={cn(GRID_TD, "text-right text-white/60")}>{r.bus ? "—" : (r.rw ?? "—")}</td>
-                  <td className={cn(GRID_TD, "text-right", (r.loop ?? 0) > 0 ? "text-amber-300" : "text-white/50")}>{r.bus ? "—" : (r.loop ?? 0)}</td>
-                  <td className={cn(GRID_TD, "text-white/70 whitespace-nowrap")}>{r.bus ? "—" : (r.askId ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right text-amber-100 whitespace-nowrap")}>{r.bus ? "—" : (r.tok ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right text-amber-100")}>{r.bus ? "—" : (r.wall ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right text-amber-100")}>{r.bus ? "—" : (r.rw ?? "—")}</td>
+                  <td className={cn(GRID_TD, "text-right", (r.loop ?? 0) > 0 ? "text-amber-300" : "text-amber-100/80")}>{r.bus ? "—" : (r.loop ?? 0)}</td>
+                  <td className={cn(GRID_TD, "text-amber-100 whitespace-nowrap")}>{r.bus ? "—" : (r.askId ?? "—")}</td>
                   <td className={cn(GRID_TD, "text-right text-white/80")}>{r.bus ? "—" : r.acts}</td>
-                  <td className={cn(GRID_TD, "text-right", r.fails > 0 ? "text-red-300 font-semibold" : "text-white/50")}>{r.bus ? "—" : r.fails}</td>
-                  <td className={cn(GRID_TD, "whitespace-nowrap", r.bus ? "text-white/60" : r.outcome === "fail" ? "text-red-300" : r.done ? "text-white/70" : "text-emerald-300")}>
+                  <td className={cn(GRID_TD, "text-right", r.fails > 0 ? "text-red-300 font-semibold" : "text-amber-100/80")}>{r.bus ? "—" : r.fails}</td>
+                  <td className={cn(GRID_TD, "whitespace-nowrap", r.bus ? "text-amber-100" : r.outcome === "fail" ? "text-red-300" : r.done ? "text-amber-100" : "text-emerald-300")}>
                     {r.bus ? (r.steps[0]?.kind === "ask" ? "ask" : "commit") : (r.outcome ?? (r.done ? "done" : "working"))}
                   </td>
                 </tr>
@@ -1348,11 +1348,11 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                     <td colSpan={12} className={cn(GRID_TD, "bg-black/50 !py-2")}>
                       <ul className="space-y-1 max-h-56 overflow-y-auto pl-2 border-l border-[#d4af37]/25">
                         {r.steps.filter((s) => s.event !== "prompt").length === 0 && r.steps[0]?.event === "prompt" ? (
-                          <li className="text-white/60 text-[12px]">No tools yet for this prompt.</li>
+                          <li className="text-amber-100 text-[12px]">No tools yet for this prompt.</li>
                         ) : null}
                         {r.steps.filter((s) => s.event !== "prompt").map((s, j) => (
                           <li key={`${s.t}-${j}`} className={cn("text-[12px] flex gap-2", s.fail ? "text-red-300" : "text-white/85")}>
-                            <span className="text-white/50 w-14 shrink-0 tabular-nums">{clock(s.t)}</span>
+                            <span className="text-amber-100/80 w-14 shrink-0 tabular-nums">{clock(s.t)}</span>
                             <span className="text-white/55 w-16 shrink-0 truncate">{s.kind}</span>
                             <span className="text-white/65 w-28 shrink-0 truncate" title={s.tool}>{s.tool.slice(0, 24)}</span>
                             <span className="truncate" title={s.what}>{s.what}</span>
@@ -1651,7 +1651,7 @@ function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
     <button type="button" onClick={() => { void navigator.clipboard?.writeText(text).then(() => { setOk(true); setTimeout(() => setOk(false), 1200); }); }}
-      className="shrink-0 rounded border border-white/15 px-1.5 text-[10px] text-white/70 hover:border-[#d4af37]/60 hover:text-white">{ok ? "copied" : "copy"}</button>
+      className="shrink-0 rounded border border-white/15 px-1.5 text-[10px] text-amber-100 hover:border-[#d4af37]/60 hover:text-white">{ok ? "copied" : "copy"}</button>
   );
 }
 
@@ -1724,7 +1724,7 @@ function NeedsThread({ item }: { item: string }) {
     <div className={cn(GRID_WRAP, "p-3 space-y-3")}>
       <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">Thread</div>
       <div className="max-h-[420px] overflow-y-auto space-y-2 pr-1">
-        {n === 0 && <p className="text-[13px] text-white/70">No replies yet. Claude sees your message the next time you talk to it.</p>}
+        {n === 0 && <p className="text-[13px] text-amber-100">No replies yet. Claude sees your message the next time you talk to it.</p>}
         {(data ?? []).map((c) => {
           const me = c.author === "jamie";
           const col = me ? "#d4af37" : AUTHOR_COLOR[c.author] ?? "#a1a1aa";
@@ -1744,7 +1744,7 @@ function NeedsThread({ item }: { item: string }) {
       <div className="flex items-end gap-2">
         <textarea value={text} onChange={(e) => setText(e.target.value)} maxLength={2000} rows={3} placeholder="Reply… (⌘↵ to send)"
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
-          className="flex-1 resize-y rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-[14px] leading-[1.5] text-white placeholder:text-white/40 focus:outline-none focus:border-[#d4af37]/60" />
+          className="flex-1 resize-y rounded-lg border border-white/15 bg-black/60 px-3 py-2 text-[14px] leading-[1.5] text-white placeholder:text-amber-100/70 focus:outline-none focus:border-[#d4af37]/60" />
         <button type="button" disabled={sending || !text.trim()} onClick={() => void send()}
           className="rounded-lg bg-[#d4af37] px-4 py-2 text-[13px] font-semibold text-black hover:bg-[#e6c14b] disabled:opacity-40">{sending ? "Sending…" : "Send"}</button>
       </div>
@@ -1868,15 +1868,15 @@ function Usage({ d, learn }: { d: Data; learn?: LearnData | null }) {
           </thead>
           <tbody>
             {waste.length === 0 ? (
-              <tr><td colSpan={6} className={cn(GRID_TD, "text-white/50")}>No waste turns yet (learn feed empty or all shipped).</td></tr>
+              <tr><td colSpan={6} className={cn(GRID_TD, "text-amber-100/80")}>No waste turns yet (learn feed empty or all shipped).</td></tr>
             ) : waste.map((t, i) => (
               <tr key={t.id} className={gridRow(i)}>
                 <td className={cn(GRID_TD, "text-white font-medium")}>{t.agent}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{t.tools}</td>
                 <td className={cn(GRID_TD, "text-right text-white/80")}>{t.out_tok != null ? fmt(t.out_tok) : "—"}</td>
-                <td className={cn(GRID_TD, "text-right", t.loop_hits > 0 ? "text-amber-300" : "text-white/50")}>{t.loop_hits}</td>
-                <td className={cn(GRID_TD, "text-white/70")}>{t.ask_id ?? "—"}</td>
-                <td className={cn(GRID_TD, "text-white/70 truncate max-w-[220px]")} title={t.outcome}>{t.outcome || "—"}</td>
+                <td className={cn(GRID_TD, "text-right", t.loop_hits > 0 ? "text-amber-300" : "text-amber-100/80")}>{t.loop_hits}</td>
+                <td className={cn(GRID_TD, "text-amber-100")}>{t.ask_id ?? "—"}</td>
+                <td className={cn(GRID_TD, "text-amber-100 truncate max-w-[220px]")} title={t.outcome}>{t.outcome || "—"}</td>
               </tr>
             ))}
           </tbody>

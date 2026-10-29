@@ -52,7 +52,7 @@ function Chip({
             emphasize && "border-[#d4af37]/45",
           )}
         >
-          <span className="text-[8px] uppercase tracking-wider text-zinc-500">{label}</span>
+          <span className="text-[8px] uppercase tracking-wider text-amber-100/80">{label}</span>
           <span className={cn("font-mono tabular-nums leading-tight", emphasize ? "text-lg text-[#d4af37]" : "text-[12px] text-zinc-100")}>
             {pct(value)}
           </span>
@@ -61,7 +61,7 @@ function Chip({
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-[280px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
         <div className="font-semibold mb-0.5">{label}: {pct(value)}</div>
-        <div className="text-zinc-400">{evidence || kind}</div>
+        <div className="text-amber-100">{evidence || kind}</div>
       </TooltipContent>
     </Tooltip>
   );
@@ -80,7 +80,7 @@ function ExpiryRangeBar({
   const x = (p: number) => `${((p - lo) / (hi - lo)) * 100}%`;
   return (
     <div className="space-y-0.5">
-      <div className="text-[8px] uppercase tracking-wider text-zinc-500">Price at expiry</div>
+      <div className="text-[8px] uppercase tracking-wider text-amber-100/80">Price at expiry</div>
       <div className="relative h-3 rounded bg-zinc-800/80 overflow-hidden">
         <div
           className="absolute inset-y-0 bg-amber-500/15"
@@ -95,7 +95,7 @@ function ExpiryRangeBar({
         <div className="absolute top-0 bottom-0 w-px bg-sky-300" style={{ left: x(spot) }} title={`spot ${spot.toFixed(2)}`} />
         <div className="absolute top-0 bottom-0 w-0.5 bg-rose-400" style={{ left: x(strike) }} title={`strike ${strike}`} />
       </div>
-      <div className="flex justify-between text-[9px] font-mono text-zinc-500 tabular-nums">
+      <div className="flex justify-between text-[9px] font-mono text-amber-100/80 tabular-nums">
         <span>${range95[0].toFixed(1)}</span>
         <span className="text-sky-300/80">spot ${spot.toFixed(2)}</span>
         <span className="text-rose-300/80">K ${strike}</span>
@@ -112,7 +112,7 @@ export function PickOddsPanel({ odds, className }: { odds: PickOdds | null | und
   const asg = odds.if_assigned?.back_above_strike_63d;
   return (
     <div className={cn("rounded-md border border-[#d4af37]/20 bg-zinc-950/80 px-2 py-1.5 space-y-1.5", className)}>
-      <div className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">Put odds</div>
+      <div className="text-[9px] uppercase tracking-[0.12em] text-amber-100/80">Put odds</div>
       <div className="flex flex-wrap gap-1.5 items-end">
         <Chip label="Expire OTM" value={odds.p_otm.value} evidence={odds.p_otm.evidence} emphasize />
         <Chip label="P(profit)" value={odds.p_profit?.value} evidence={odds.p_profit?.evidence} />
@@ -121,7 +121,7 @@ export function PickOddsPanel({ odds, className }: { odds: PickOdds | null | und
       {spot != null && strike != null && odds.range_68 && odds.range_95 && (
         <ExpiryRangeBar spot={spot} strike={strike} range68={odds.range_68} range95={odds.range_95} />
       )}
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-zinc-400">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-amber-100">
         {asg != null && (
           <Tooltip delayDuration={120}>
             <TooltipTrigger asChild>

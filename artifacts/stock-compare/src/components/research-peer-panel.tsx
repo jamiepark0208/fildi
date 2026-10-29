@@ -55,7 +55,7 @@ export function ResearchPeerPanel({
   if (!peers?.peerCount) {
     return (
       <ReportSection title="Peers — relative context">
-        <p className="text-zinc-500 italic">{emptyHint}</p>
+        <p className="text-amber-100/80 italic">{emptyHint}</p>
       </ReportSection>
     );
   }
@@ -68,7 +68,7 @@ export function ResearchPeerPanel({
 
   return (
     <div className="space-y-3">
-      <div className="text-[10px] text-zinc-500 font-mono px-0.5">
+      <div className="text-[10px] text-amber-100/80 font-mono px-0.5">
         {peerGroupLabel(peers)}
         {peers.sector ? ` · ${peers.sector}` : ""}
       </div>
@@ -83,7 +83,7 @@ export function ResearchPeerPanel({
                   key={row.key}
                   className="rounded border border-[#d4af37]/10 bg-zinc-900/40 px-2 py-1.5 flex justify-between gap-2"
                 >
-                  <span className="text-zinc-500">{row.label}</span>
+                  <span className="text-amber-100/80">{row.label}</span>
                   <span className="text-zinc-600 font-mono">—</span>
                 </div>
               );
@@ -98,11 +98,11 @@ export function ResearchPeerPanel({
                     {m.peerPct != null ? ` · p${Math.round(m.peerPct)}` : ""}
                   </span>
                 </div>
-                <div className="flex justify-between gap-2 text-[9.5px] text-zinc-500 font-mono">
+                <div className="flex justify-between gap-2 text-[9.5px] text-amber-100/80 font-mono">
                   <span>peer med {fmtNum(m.peerMedian, row.digits ?? 2)}</span>
                   <span>{fmtRelHint(m, { digits: row.digits ?? 2 }) ?? ""}</span>
                 </div>
-                <p className="text-[9.5px] text-zinc-500 leading-snug">{row.meaning}</p>
+                <p className="text-[9.5px] text-amber-100/80 leading-snug">{row.meaning}</p>
               </div>
             );
           })}

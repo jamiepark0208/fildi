@@ -133,7 +133,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
           {evidence.map((e, i) => (
             <div key={i} className={cn("rounded border px-2.5 py-1.5", TONE_BOX[e.tone])}>
               <div className="font-medium text-[11.5px] leading-snug">{e.claim}</div>
-              <div className="text-[10px] text-zinc-400 leading-snug mt-0.5">{e.proof}</div>
+              <div className="text-[10px] text-amber-100 leading-snug mt-0.5">{e.proof}</div>
             </div>
           ))}
         </div>
@@ -150,7 +150,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
       <TabsContent value="street" className="space-y-3 mt-0">
         <ReportSection title="IBES revisions">
           {!c ? (
-            <p className="text-zinc-500 italic">No consensus row — run sync_ibes.</p>
+            <p className="text-amber-100/80 italic">No consensus row — run sync_ibes.</p>
           ) : (
             <div className="space-y-2">
               <WhyMetric
@@ -220,7 +220,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-zinc-500 italic">No surpsum rows in cache.</p>
+            <p className="text-amber-100/80 italic">No surpsum rows in cache.</p>
           )}
         </ReportSection>
       </TabsContent>
@@ -254,10 +254,10 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
               <span className="text-[10px] uppercase tracking-wider text-amber-200/60">
                 {lens.side === "puts" ? "Selling puts" : "Selling calls"}
               </span>
-              <span className="text-[10px] font-mono text-zinc-500">{lens.stance}</span>
+              <span className="text-[10px] font-mono text-amber-100/80">{lens.stance}</span>
             </div>
             <div className="text-[12px] font-medium text-zinc-100">{lens.headline}</div>
-            <ul className="list-disc pl-4 space-y-1 text-[10.5px] text-zinc-400 leading-snug">
+            <ul className="list-disc pl-4 space-y-1 text-[10.5px] text-amber-100 leading-snug">
               {lens.bullets.map((b, i) => (
                 <li key={i}>{b}</li>
               ))}
@@ -267,7 +267,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
         {buf && (
           <div className={cn("rounded border px-2.5 py-1.5", TONE_BOX[buf.tone])}>
             <div className="font-medium text-[11px]">{buf.title}</div>
-            <p className="text-[10.5px] text-zinc-400 leading-snug mt-0.5">{buf.text}</p>
+            <p className="text-[10.5px] text-amber-100 leading-snug mt-0.5">{buf.text}</p>
           </div>
         )}
       </TabsContent>
@@ -275,14 +275,14 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
       <TabsContent value="more" className="space-y-3 mt-0">
         <details className="group rounded border border-[#d4af37]/12 bg-zinc-900/40">
           <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] font-semibold text-[#d4af37] list-none flex items-center gap-1">
-            <span className="text-zinc-500 group-open:rotate-90 transition-transform">▸</span>
+            <span className="text-amber-100/80 group-open:rotate-90 transition-transform">▸</span>
             Glossary (?)
           </summary>
           <div className="px-2.5 pb-2 space-y-1.5">
             {WRDS_GLOSSARY.map((g) => (
               <div key={g.term} className="rounded border border-[#d4af37]/10 bg-zinc-950/60 px-2 py-1.5">
                 <div className="text-[11px] font-semibold text-[#d4af37]">{g.term}</div>
-                <p className="text-[10.5px] text-zinc-400 leading-snug mt-0.5">{g.def}</p>
+                <p className="text-[10.5px] text-amber-100 leading-snug mt-0.5">{g.def}</p>
               </div>
             ))}
           </div>
@@ -300,7 +300,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
 
         <ReportSection title="FinRatios audit">
           {!fr ? (
-            <p className="text-zinc-500 italic">No finratio_snapshot.</p>
+            <p className="text-amber-100/80 italic">No finratio_snapshot.</p>
           ) : (
             <div className="grid grid-cols-3 gap-1.5">
               {[
@@ -312,7 +312,7 @@ function WrdsReport({ data }: { data: WrdsPayload }) {
                 ["Current", fmt(fr.currRatio)],
               ].map(([label, value]) => (
                 <div key={label} className="rounded border border-[#d4af37]/12 bg-zinc-900/60 px-2 py-1">
-                  <div className="text-[9px] text-zinc-500">{label}</div>
+                  <div className="text-[9px] text-amber-100/80">{label}</div>
                   <div className="font-mono text-zinc-100">{value}</div>
                 </div>
               ))}
@@ -359,7 +359,7 @@ export function WrdsStreetPanel({ ticker, embedded }: { ticker: string; embedded
       title={ticker}
       subtitle={data.consensus?.asOf ?? undefined}
       verdictLabel={data.available ? data.verdict : "no data"}
-      verdictClass={data.available ? wrdsVerdictClass(data.verdict) : "border-zinc-600 text-zinc-500"}
+      verdictClass={data.available ? wrdsVerdictClass(data.verdict) : "border-zinc-600 text-amber-100/80"}
       summaryLine={wrdsConclusion(data)}
       howTo={embedded ? undefined : data.available ? wrdsHowTo(data) : undefined}
       chips={data.available ? wrdsCompactChips(data) : undefined}

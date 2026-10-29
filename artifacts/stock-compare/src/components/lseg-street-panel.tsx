@@ -273,7 +273,7 @@ function LsegReport({
           {evidence.map((e, i) => (
             <div key={i} className={cn("rounded border px-2.5 py-1.5", TONE_BOX[e.tone])}>
               <div className={cn("font-medium text-[11.5px] leading-snug", TONE_TEXT[e.tone])}>{e.claim}</div>
-              <div className="text-[10px] text-zinc-400 leading-snug mt-0.5">{e.proof}</div>
+              <div className="text-[10px] text-amber-100 leading-snug mt-0.5">{e.proof}</div>
             </div>
           ))}
         </div>
@@ -353,7 +353,7 @@ function LsegReport({
                 <Gauge value={row.gauge} tone={row.tone} />
               </div>
             )}
-            <div className="text-[10px] text-zinc-500 leading-snug">{row.meaning}</div>
+            <div className="text-[10px] text-amber-100/80 leading-snug">{row.meaning}</div>
           </div>
         ))}
 
@@ -418,7 +418,7 @@ function LsegReport({
               {t.side === "puts" ? "Selling puts" : "Selling calls"} · {t.stance}
             </div>
             <div className="text-[12px] font-medium text-zinc-100">{t.headline}</div>
-            <ul className="list-disc pl-4 space-y-1 text-[10.5px] text-zinc-400 leading-snug">
+            <ul className="list-disc pl-4 space-y-1 text-[10.5px] text-amber-100 leading-snug">
               {t.bullets.map((b, i) => (
                 <li key={i}>{b}</li>
               ))}
@@ -428,7 +428,7 @@ function LsegReport({
 
         <ReportSection title="Position flags">
           {r.takeaways.length === 0 ? (
-            <p className="text-zinc-500 italic">No position-specific flags.</p>
+            <p className="text-amber-100/80 italic">No position-specific flags.</p>
           ) : (
             r.takeaways.map((t, i) => {
               const Icon = TONE_ICON[t.tone];
@@ -437,7 +437,7 @@ function LsegReport({
                   <Icon className={cn("w-3.5 h-3.5 mt-0.5 shrink-0", TONE_TEXT[t.tone])} />
                   <div>
                     <div className={cn("font-medium", TONE_TEXT[t.tone])}>{t.title}</div>
-                    <div className="text-zinc-400 text-[10.5px] leading-snug">{t.detail}</div>
+                    <div className="text-amber-100 text-[10.5px] leading-snug">{t.detail}</div>
                   </div>
                 </div>
               );
@@ -449,14 +449,14 @@ function LsegReport({
       <TabsContent value="more" className="space-y-3 mt-0">
         <details className="group rounded border border-[#d4af37]/12 bg-zinc-900/40">
           <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] font-semibold text-[#d4af37] list-none flex items-center gap-1">
-            <span className="text-zinc-500 group-open:rotate-90 transition-transform">▸</span>
+            <span className="text-amber-100/80 group-open:rotate-90 transition-transform">▸</span>
             Glossary (?)
           </summary>
           <div className="px-2.5 pb-2 space-y-1.5">
             {LSEG_GLOSSARY.map((g) => (
               <div key={g.term} className="rounded border border-[#d4af37]/10 bg-zinc-950/60 px-2 py-1.5">
                 <div className="text-[11px] font-semibold text-[#d4af37]">{g.term}</div>
-                <p className="text-[10.5px] text-zinc-400 leading-snug mt-0.5">{g.def}</p>
+                <p className="text-[10.5px] text-amber-100 leading-snug mt-0.5">{g.def}</p>
               </div>
             ))}
           </div>
@@ -472,11 +472,11 @@ function LsegReport({
 
         <ReportSection title="Ownership & events">
           {(data.topHolders?.length ?? 0) === 0 ? (
-            <p className="text-zinc-500 italic">No holders_top rows.</p>
+            <p className="text-amber-100/80 italic">No holders_top rows.</p>
           ) : (
             data.topHolders!.slice(0, 8).map((h) => (
               <div key={h.rank} className="flex justify-between gap-2 font-mono text-[10px]">
-                <span className="text-zinc-400 truncate">
+                <span className="text-amber-100 truncate">
                   {h.rank}. {h.investor}
                 </span>
                 <span className="shrink-0 text-zinc-300">{h.pctOut != null ? `${h.pctOut.toFixed(1)}%` : "—"}</span>
@@ -485,8 +485,8 @@ function LsegReport({
           )}
           {upcoming.map((e, i) => (
             <div key={i} className="flex justify-between font-mono text-[10px]">
-              <span className="text-zinc-400">{formatMdYy(e.date)}</span>
-              <span className={cn(e.type === "EarningsReleases" && e.daysUntil <= 14 ? "text-amber-300" : "text-zinc-500")}>
+              <span className="text-amber-100">{formatMdYy(e.date)}</span>
+              <span className={cn(e.type === "EarningsReleases" && e.daysUntil <= 14 ? "text-amber-300" : "text-amber-100/80")}>
                 {EVENT_LABEL[e.type]} · {e.daysUntil}d
               </span>
             </div>
@@ -543,7 +543,7 @@ export function LsegStreetPanel({ ticker, embedded }: { ticker: string; embedded
         lane="lseg"
         title={ticker}
         verdictLabel="no data"
-        verdictClass="border-zinc-600 text-zinc-500"
+        verdictClass="border-zinc-600 text-amber-100/80"
         summaryLine={data?.reason ?? "No LSEG cache for this ticker."}
         report={
           <div className="space-y-2">

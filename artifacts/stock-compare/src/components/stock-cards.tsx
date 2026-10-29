@@ -43,7 +43,7 @@ export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, on
             <button
               key={`empty-${originalIndex}`}
               onClick={onAddClick}
-              className="h-[120px] rounded-xl border border-dashed border-border/60 bg-card/30 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all group"
+              className="h-[120px] rounded-xl border border-dashed border-border/60 bg-card/30 flex flex-col items-center justify-center gap-2 text-amber-100 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all group"
               style={{ borderLeftColor: color, borderLeftWidth: 3 }}
             >
               <div className="w-8 h-8 rounded-full border border-dashed border-current flex items-center justify-center group-hover:border-solid transition-all">
@@ -61,7 +61,7 @@ export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, on
         if (isLoading) {
           return (
             <div key={ticker} className="h-[120px] rounded-xl border border-border bg-card shadow-sm flex items-center justify-center" style={{ borderLeftColor: color, borderLeftWidth: 3 }}>
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <Loader2 className="w-5 h-5 animate-spin text-amber-100" />
             </div>
           );
         }
@@ -79,7 +79,7 @@ export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, on
           >
             <button
               onClick={() => onRemove(ticker)}
-              className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors text-xs"
+              className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-amber-100 hover:text-foreground hover:bg-secondary transition-colors text-xs"
               title="Remove"
             >
               ×
@@ -94,7 +94,7 @@ export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, on
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground truncate mt-0.5 pr-4">{stock?.companyName ?? "—"}</p>
+              <p className="text-[11px] text-amber-100 truncate mt-0.5 pr-4">{stock?.companyName ?? "—"}</p>
             </div>
 
             <div className="flex items-end justify-between">
@@ -103,7 +103,7 @@ export function StockCards({ tickers, loadedStocks, loadingTickers, rankings, on
               </div>
               {score && (
                 <div className="text-right">
-                  <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Score</div>
+                  <div className="text-[9px] text-amber-100 uppercase tracking-wider">Score</div>
                   <div className="text-xs font-bold text-foreground">{score.totalScore.toFixed(1)}</div>
                 </div>
               )}

@@ -82,7 +82,7 @@ export function StyledCaseText({
             </>
           )}
           {date ? (
-            <span className="italic text-muted-foreground"> ({date})</span>
+            <span className="font-mono text-white"> ({date})</span>
           ) : null}
         </span>
       </DataTip>
@@ -128,7 +128,7 @@ function highlightGeneric(text: string, tone: "bull" | "bear" | "neutral"): Reac
   return parts.map((part, i) => {
     if (!part) return null;
     if (/^\(\d/.test(part)) {
-      return <span key={i} className="italic text-muted-foreground">{part}</span>;
+      return <span key={i} className="font-mono text-white">{part}</span>;
     }
     if (BULL_GRADE.test(part) || BULL_VERB.test(part)) {
       BULL_GRADE.lastIndex = 0; BULL_VERB.lastIndex = 0;
@@ -170,12 +170,21 @@ function highlightGeneric(text: string, tone: "bull" | "bear" | "neutral"): Reac
 /**
  * Green/red bull–bear cards (+ optional neutral catalysts column).
  */
+const HAS_DATE = /\(\d{1,2}\/\d{1,2}\/\d{2}\)|\(\d{4}-\d{2}-\d{2}\)| on \d{4}-\d{2}-\d{2}\b/;
+
+/** Metric-ratio lines have no event date — stamp with fundamentals as-of. */
+function withAsOf(line: string, asOfMdYy: string | null | undefined): string {
+  if (!asOfMdYy || HAS_DATE.test(line)) return line;
+  return `${line} (${asOfMdYy})`;
+}
+
 export function BullBearCases({
   bullBullets,
   bearBullets,
   catalysts,
   metrics,
   eventBulletsGeneratedAt,
+  metricsAsOf,
 }: {
   bullBullets: string[];
   bearBullets: string[];
@@ -184,101 +193,106 @@ export function BullBearCases({
   metrics?: MetricTipCtx | null;
   /** When trigger event-bullets last wrote (earnings/analyst/±5% vs SPY). Quiet rows expire at 7d. */
   eventBulletsGeneratedAt?: string | null;
+  /** Fundamentals as-of for metric-derived bull/bear lines (not event catalysts). */
+  metricsAsOf?: string | null;
 }) {
   // Earnings already on Trade ER chip — keep catalysts for other neutrals (news, initiate@Hold, …)
   const catalystLines = (catalysts ?? []).filter((l) => !EARNINGS_LINE.test(l));
-  const hasBullets = bullBullets.length > 0 || bearBullets.length > 0;
+  const asOfMd = metricsAsOf ? formatMdYy(metricsAsOf) : null;
+  const bullDated = bullBullets.map((b) => withAsOf(b, asOfMd));
+  const bearDated = bearBullets.map((b) => withAsOf(b, asOfMd));
+  const hasBullets = bullDated.length > 0 || bearDated.length > 0;
   const hasCatalysts = catalystLines.length > 0;
   if (!hasBullets && !hasCatalysts) return null;
 
   const eventAgeDays = eventBulletsGeneratedAt
     ? Math.floor((Date.now() - Date.parse(eventBulletsGeneratedAt)) / 86_400_000)
     : null;
-  const eventAsOfLabel =
-    eventAgeDays == null || !Number.isFinite(eventAgeDays)
-      ? null
-      : eventAgeDays <= 0
-        ? "event triggers · today"
-        : eventAgeDays === 1
-          ? "event triggers · 1d ago"
-          : `event triggers · ${eventAgeDays}d ago`;
+  const eventStamp =
+    eventBulletsGeneratedAt && eventAgeDays != null && Number.isFinite(eventAgeDays)
+      ? formatMdYy(eventBulletsGeneratedAt)
+      : null;
   const eventStale = eventAgeDays != null && eventAgeDays >= 5;
 
-  return (
-    <div className="space-y-1.5">
-      {eventAsOfLabel && (
-        <DataTip tip="Daily event-bullets: earnings surprise, analyst up/down, or ≥5% move vs SPY. Quiet names drop after 7 days so old lines don't look live.">
-          <p
-            className={cn(
-              "text-[9px] font-mono px-1",
-              eventStale ? "text-amber-300/90" : "text-amber-200/45",
-            )}
-          >
-            {eventAsOfLabel}
-            {eventStale ? " · near expiry" : ""}
-          </p>
-        </DataTip>
-      )}
-    <div
-      className={
-        hasCatalysts
-          ? "grid grid-cols-1 sm:grid-cols-3 gap-2"
-          : "grid grid-cols-2 gap-2"
-      }
-    >
-      <div className="border border-green-500/20 rounded-lg p-2 bg-green-500/5">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <TrendingUp className="w-3.5 h-3.5 text-green-400" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-green-400">Bull Case</span>
-        </div>
-        <ul className="space-y-1.5">
-          {bullBullets.map((b, i) => (
-            <li key={i} className="flex gap-1.5">
-              <span className="shrink-0 text-green-500/70 mt-0.5 text-[11px]">▲</span>
-              <StyledCaseText text={b} tone="bull" metrics={metrics} />
-            </li>
-          ))}
-          {bullBullets.length === 0 && (
-            <li className="text-[11px] text-foreground/50 italic">No strong bull signals from current metrics</li>
-          )}
-        </ul>
-      </div>
+  const stampEl = eventStamp ? (
+    <DataTip tip="Batch stamp for same-day event-bullets (earnings / rating change / ≥5% vs SPY). Each analyst line should also carry its own m/d/yy.">
+      <p
+        className={cn(
+          "text-[9px] font-mono tabular-nums text-white",
+          eventStale && "text-amber-200",
+        )}
+      >
+        events {eventStamp}{eventStale ? " · stale" : ""}
+      </p>
+    </DataTip>
+  ) : null;
 
-      {hasCatalysts && (
-        <div className="border border-[#d4af37]/25 rounded-lg p-2 bg-[#d4af37]/5">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Calendar className="w-3.5 h-3.5 text-[#d4af37]" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#d4af37]">Catalysts</span>
+  return (
+    <div className="space-y-0.5">
+      <div
+        className={
+          hasCatalysts
+            ? "grid grid-cols-1 sm:grid-cols-3 gap-1.5"
+            : "grid grid-cols-2 gap-1.5"
+        }
+      >
+        <div className="border border-emerald-500/35 rounded-md p-1.5 bg-zinc-950">
+          <div className="flex items-center gap-1 mb-1">
+            <TrendingUp className="w-3 h-3 text-emerald-400" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-white">Bull Case</span>
           </div>
-          <ul className="space-y-1.5">
-            {catalystLines.map((line, i) => (
-              <li key={i} className="flex gap-1.5">
-                <span className="shrink-0 text-[#d4af37]/70 mt-0.5 text-[11px]">•</span>
-                <StyledCaseText text={line} tone="neutral" metrics={metrics} />
+          <ul className="space-y-1">
+            {bullDated.map((b, i) => (
+              <li key={i} className="flex gap-1">
+                <span className="shrink-0 text-green-500/70 mt-0.5 text-[10px]">▲</span>
+                <StyledCaseText text={b} tone="bull" metrics={metrics} />
               </li>
             ))}
+            {bullDated.length === 0 && (
+              <li className="text-[10px] text-foreground/50 italic">No strong bull signals from current metrics</li>
+            )}
           </ul>
         </div>
-      )}
 
-      <div className="border border-red-500/20 rounded-lg p-2 bg-red-500/5">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <TrendingDown className="w-3.5 h-3.5 text-red-400" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Bear Case</span>
+        {hasCatalysts && (
+          <div className="border border-[#d4af37]/40 rounded-md p-1.5 bg-zinc-950 flex flex-col min-h-0">
+            <div className="flex items-center gap-1 mb-1">
+              <Calendar className="w-3 h-3 text-[#d4af37]" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-white">Catalysts</span>
+            </div>
+            <ul className="space-y-1 flex-1">
+              {catalystLines.map((line, i) => (
+                <li key={i} className="flex gap-1">
+                  <span className="shrink-0 text-[#d4af37]/70 mt-0.5 text-[10px]">•</span>
+                  <StyledCaseText text={line} tone="neutral" metrics={metrics} />
+                </li>
+              ))}
+            </ul>
+            {stampEl && (
+              <div className="mt-1 pt-0.5 border-t border-[#d4af37]/20 flex justify-end">{stampEl}</div>
+            )}
+          </div>
+        )}
+
+        <div className="border border-rose-500/40 rounded-md p-1.5 bg-zinc-950">
+          <div className="flex items-center gap-1 mb-1">
+            <TrendingDown className="w-3 h-3 text-rose-400" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-white">Bear Case</span>
+          </div>
+          <ul className="space-y-1">
+            {bearDated.map((b, i) => (
+              <li key={i} className="flex gap-1">
+                <span className="shrink-0 text-red-500/70 mt-0.5 text-[10px]">▼</span>
+                <StyledCaseText text={b} tone="bear" metrics={metrics} />
+              </li>
+            ))}
+            {bearDated.length === 0 && (
+              <li className="text-[10px] text-foreground/50 italic">No significant bear signals from current metrics</li>
+            )}
+          </ul>
         </div>
-        <ul className="space-y-1.5">
-          {bearBullets.map((b, i) => (
-            <li key={i} className="flex gap-1.5">
-              <span className="shrink-0 text-red-500/70 mt-0.5 text-[11px]">▼</span>
-              <StyledCaseText text={b} tone="bear" metrics={metrics} />
-            </li>
-          ))}
-          {bearBullets.length === 0 && (
-            <li className="text-[11px] text-foreground/50 italic">No significant bear signals from current metrics</li>
-          )}
-        </ul>
       </div>
-    </div>
+      {!hasCatalysts && stampEl ? <div className="flex justify-end px-0.5">{stampEl}</div> : null}
     </div>
   );
 }
@@ -319,7 +333,7 @@ export function MarketSentimentSection({
         <span className="text-yellow-400/80">{neutralPct}% Neutral</span>
         <span className="text-red-400 font-semibold">{bearPct}% Bearish</span>
       </div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">Based on {total} analyst recommendations</div>
+      <div className="text-[10px] text-amber-100 mt-0.5">Based on {total} analyst recommendations</div>
     </div>
   );
 }

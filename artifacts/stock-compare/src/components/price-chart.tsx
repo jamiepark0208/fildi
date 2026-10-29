@@ -154,12 +154,12 @@ function computeMACD(closes: number[]): {
 type IndicatorId = "em" | "ema" | "rsi" | "macd" | "session" | "ict";
 
 const INDICATOR_META: { id: IndicatorId; label: string; title: string; on: string }[] = [
-  { id: "em", label: "EM", title: "IV expected move: ±1σ corridor around each close (1-week sky, 30-day violet). Width from today’s ATM put IV — not a moving average.", on: "border-sky-400/50 bg-sky-400/15 text-sky-200" },
-  { id: "ema", label: "EMA", title: "EMA 50 (yellow dash) + EMA 200 (orange). Trend filters — not expected move.", on: "border-yellow-400/50 bg-yellow-400/15 text-yellow-200" },
-  { id: "rsi", label: "RSI", title: "RSI(14) momentum in a sub-pane (0–100).", on: "border-violet-400/50 bg-violet-400/15 text-violet-200" },
-  { id: "macd", label: "MACD", title: "MACD(12,26,9) line / signal / histogram sub-pane.", on: "border-emerald-400/50 bg-emerald-400/15 text-emerald-200" },
-  { id: "session", label: "Session", title: "Today’s VWAP + volume-profile POC / VAH / VAL (5m).", on: "border-pink-400/50 bg-pink-400/15 text-pink-200" },
-  { id: "ict", label: "ICT", title: "Fair-value gaps, liquidity sweeps, BOS, supply/demand (display only).", on: "border-cyan-400/50 bg-cyan-400/15 text-cyan-200" },
+  { id: "em", label: "EM", title: "IV expected move: ±1σ corridor around each close (1-week sky, 30-day violet). Width from today’s ATM put IV — not a moving average.", on: "border-sky-400/70 bg-zinc-900 text-white" },
+  { id: "ema", label: "EMA", title: "EMA 50 (yellow dash) + EMA 200 (orange). Trend filters — not expected move.", on: "border-yellow-400/70 bg-zinc-900 text-white" },
+  { id: "rsi", label: "RSI", title: "RSI(14) momentum in a sub-pane (0–100).", on: "border-violet-400/70 bg-zinc-900 text-white" },
+  { id: "macd", label: "MACD", title: "MACD(12,26,9) line / signal / histogram sub-pane.", on: "border-emerald-400/70 bg-zinc-900 text-white" },
+  { id: "session", label: "Session", title: "Today’s VWAP + volume-profile POC / VAH / VAL (5m).", on: "border-pink-400/70 bg-zinc-900 text-white" },
+  { id: "ict", label: "ICT", title: "Fair-value gaps, liquidity sweeps, BOS, supply/demand (display only).", on: "border-cyan-400/70 bg-zinc-900 text-white" },
 ];
 
 /** Marker abbreviations → hover copy */
@@ -1194,7 +1194,7 @@ export function PriceChart({
         compact ? "gap-1.5 mb-1" : "gap-4 mb-6",
       )}>
         <div className="flex items-center gap-3 min-w-0">
-          <h2 className={compact ? "text-[11px] font-bold tracking-tight text-[#d4af37] shrink-0" : "text-lg font-bold tracking-tight"}>
+          <h2 className={compact ? "text-[11px] font-bold tracking-tight text-white shrink-0" : "text-lg font-bold tracking-tight"}>
             Price History
           </h2>
           {isError && (
@@ -1217,7 +1217,7 @@ export function PriceChart({
                     onClick={() => toggleIndicator(ind.id)}
                     className={cn(
                       "text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors shrink-0",
-                      on ? ind.on : "border-[#d4af37]/25 text-amber-200/70 hover:text-amber-100",
+                      on ? ind.on : "border-zinc-600 bg-zinc-950 text-zinc-300 hover:text-white hover:border-zinc-400",
                     )}
                     title={ind.title}
                   >
@@ -1236,8 +1236,8 @@ export function PriceChart({
               className={cn(
                 "flex items-center gap-1 rounded-md border font-medium disabled:opacity-50 shrink-0",
                 compact
-                  ? "px-1.5 py-0.5 text-[10px] border-[#d4af37]/20 text-amber-200/60 hover:text-[#d4af37] hover:bg-[#d4af37]/10"
-                  : "px-2 py-1.5 text-xs border-border/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60",
+                  ? "px-1.5 py-0.5 text-[10px] border-zinc-600 bg-zinc-950 text-zinc-200 hover:text-white hover:border-zinc-400"
+                  : "px-2 py-1.5 text-xs border-border/50 text-amber-100 hover:text-foreground hover:bg-secondary/60",
               )}
             >
               <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
@@ -1253,8 +1253,8 @@ export function PriceChart({
                   "font-bold rounded-md transition-colors",
                   compact ? "px-1.5 py-0.5 text-[10px]" : "px-3 py-1.5 text-xs",
                   selectedPeriod === p
-                    ? compact ? "bg-[#d4af37] text-black shadow-sm" : "bg-primary text-primary-foreground shadow-sm"
-                    : compact ? "text-amber-200/50 hover:text-[#d4af37] hover:bg-[#d4af37]/10" : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+                    ? compact ? "bg-zinc-800 text-white border border-[#d4af37]/60 shadow-sm" : "bg-primary text-primary-foreground shadow-sm"
+                    : compact ? "text-amber-100 hover:text-white" : "text-amber-100 hover:text-foreground hover:bg-background/50",
                 )}
               >
                 {p}
@@ -1468,7 +1468,7 @@ export function PriceChart({
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : !hasAnyData ? (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground border border-dashed border-border rounded-lg">
+          <div className="absolute inset-0 flex items-center justify-center text-amber-100 border border-dashed border-border rounded-lg">
             No data available for this period.
           </div>
         ) : (

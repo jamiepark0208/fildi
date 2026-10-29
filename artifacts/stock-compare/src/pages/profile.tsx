@@ -92,12 +92,12 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
       >
         <div className="flex items-center justify-between">
           <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Stock Views</div>
-          <span className="text-[10px] text-white/70">{taggedCount} tagged →</span>
+          <span className="text-[10px] text-amber-100">{taggedCount} tagged →</span>
         </div>
         {isLoading ? (
-          <span className="text-[10px] text-white/70 animate-pulse">Loading…</span>
+          <span className="text-[10px] text-amber-100 animate-pulse">Loading…</span>
         ) : taggedCount === 0 ? (
-          <span className="text-[10px] text-white/70">No tagged tickers yet</span>
+          <span className="text-[10px] text-amber-100">No tagged tickers yet</span>
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {groups.map(g => (
@@ -109,11 +109,11 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
                 <div className="flex items-center gap-1 px-1.5 py-1" style={{ backgroundColor: `${g.color}30` }}>
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                   <span className="text-[9px] font-bold uppercase tracking-wide text-white truncate">{g.label}</span>
-                  <span className="ml-auto text-[9px] font-mono text-white/70 shrink-0">{g.tickers.length}</span>
+                  <span className="ml-auto text-[9px] font-mono text-amber-100 shrink-0">{g.tickers.length}</span>
                 </div>
                 <div className="flex flex-wrap gap-1 p-1.5 min-h-[26px] bg-zinc-950">
                   {g.tickers.length === 0 ? (
-                    <span className="text-[9px] text-white/50">—</span>
+                    <span className="text-[9px] text-amber-100/80">—</span>
                   ) : (
                     <>
                       {g.tickers.slice(0, 6).map(ticker => (
@@ -126,7 +126,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
                         </span>
                       ))}
                       {g.tickers.length > 6 && (
-                        <span className="text-[10px] font-bold text-white/70 px-1.5 py-0.5 rounded bg-white/10">
+                        <span className="text-[10px] font-bold text-amber-100 px-1.5 py-0.5 rounded bg-white/10">
                           +{g.tickers.length - 6}
                         </span>
                       )}
@@ -150,10 +150,10 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
                 <div className="flex items-center gap-1.5 text-xs font-bold text-white">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: g.color }} />
                   {g.label}
-                  <span className="ml-auto text-[10px] font-normal text-white/70">{g.tickers.length}</span>
+                  <span className="ml-auto text-[10px] font-normal text-amber-100">{g.tickers.length}</span>
                 </div>
                 {g.tickers.length === 0 ? (
-                  <span className="text-[10px] text-white/70">None</span>
+                  <span className="text-[10px] text-amber-100">None</span>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {g.tickers.map(ticker => (
@@ -173,7 +173,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {taggedCount > 0 && (
             <button
               onClick={() => openInScanner(groups.flatMap(g => g.tickers))}
-              className="w-full text-[10px] font-medium text-white/70 hover:text-[#d4af37] border border-[#d4af37]/20 hover:border-[#d4af37]/40 rounded px-1.5 py-1.5 transition-colors"
+              className="w-full text-[10px] font-medium text-amber-100 hover:text-[#d4af37] border border-[#d4af37]/20 hover:border-[#d4af37]/40 rounded px-1.5 py-1.5 transition-colors"
             >
               Open all in scanner →
             </button>
@@ -181,7 +181,7 @@ function StockViewsPanel({ isOwner, profileUsername }: { isOwner: boolean; profi
           {isOwner && (
             <button
               onClick={() => navigate("/watchlist")}
-              className="w-full text-[10px] text-white/70 hover:text-[#d4af37] transition-colors"
+              className="w-full text-[10px] text-amber-100 hover:text-[#d4af37] transition-colors"
             >
               Edit tags on Watchlist →
             </button>
@@ -213,8 +213,8 @@ function computeStreak(posts: TradePost[]): { n: number; win: boolean } | null {
 
 function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; posts: TradePost[]; account: ProfileData["account"] }) {
   const lowSample = stats.closed < 5
-  const winRateColor = stats.winRate == null ? "text-white/70" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
-  const pnlColor = stats.totalPnl == null ? "text-white/70" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
+  const winRateColor = stats.winRate == null ? "text-amber-100" : stats.winRate >= 0.6 ? "text-green-400" : stats.winRate >= 0.4 ? "text-yellow-400" : "text-red-400"
+  const pnlColor = stats.totalPnl == null ? "text-amber-100" : stats.totalPnl >= 0 ? "text-green-400" : "text-red-400"
   const avgPnl = stats.closed > 0 && stats.totalPnl != null ? stats.totalPnl / stats.closed : null
   const streak = computeStreak(posts)
 
@@ -227,7 +227,7 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
         ) : (
           <span>
             <AnimatedNumber value={stats.winRate * 100} format={(n) => `${Math.round(n)}%`} />
-            <span className="text-white/50"> ({stats.wins}-{stats.losses})</span>
+            <span className="text-amber-100/80"> ({stats.wins}-{stats.losses})</span>
           </span>
         ),
       color: winRateColor,
@@ -258,14 +258,14 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
             format={(n) => (n >= 0 ? `+$${n.toFixed(0)}` : `-$${Math.abs(n).toFixed(0)}`)}
           />
         ),
-      color: avgPnl == null ? "text-white/70" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
+      color: avgPnl == null ? "text-amber-100" : avgPnl >= 0 ? "text-green-400" : "text-red-400",
       dim: lowSample,
     },
     { label: "Open", value: String(stats.openPosts), color: "text-sky-300/80", dim: false },
     {
       label: "Streak",
       value: streak ? `${streak.win ? "W" : "L"}${streak.n}` : "—",
-      color: !streak ? "text-white/70" : streak.win ? "text-green-400" : "text-red-400",
+      color: !streak ? "text-amber-100" : streak.win ? "text-green-400" : "text-red-400",
       dim: false,
     },
     ...(stats.unrealizedPnl !== 0
@@ -301,7 +301,7 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
             it.dim && "opacity-60"
           )}
         >
-          <span className="text-[9px] font-medium uppercase tracking-widest text-white/50 whitespace-nowrap">{it.label}</span>
+          <span className="text-[9px] font-medium uppercase tracking-widest text-amber-100/80 whitespace-nowrap">{it.label}</span>
           <span className={cn("text-xs font-mono font-bold tabular-nums whitespace-nowrap", it.color)}>{it.value}</span>
         </div>
       ))}
@@ -312,7 +312,7 @@ function StatsBar({ stats, posts, account }: { stats: ProfileData["stats"]; post
 // ── Holdings (wheel-strategy assigned shares) ────────────────────────────────
 
 const HOLDINGS_GRID_HEADER = "border-b border-[#d4af37]/20 bg-[#d4af37]/5"
-const HOLDINGS_GRID_TH     = "py-1 px-2.5 font-medium text-[10px] uppercase tracking-widest text-white/50 whitespace-nowrap"
+const HOLDINGS_GRID_TH     = "py-1 px-2.5 font-medium text-[10px] uppercase tracking-widest text-amber-100/80 whitespace-nowrap"
 const HOLDINGS_GRID_TD     = "py-1.5 px-2.5 text-xs tabular-nums"
 
 function HoldingsSection({ holdings, isOwnerProfile, onChanged }: { holdings: StockHolding[]; isOwnerProfile: boolean; onChanged: () => void }) {
@@ -337,7 +337,7 @@ function HoldingsSection({ holdings, isOwnerProfile, onChanged }: { holdings: St
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Holdings</div>
-        <span className="text-[10px] text-white/50">({open.length})</span>
+        <span className="text-[10px] text-amber-100/80">({open.length})</span>
       </div>
 
       <div className="border border-[#d4af37]/15 rounded-md overflow-hidden bg-black/30">
@@ -355,7 +355,7 @@ function HoldingsSection({ holdings, isOwnerProfile, onChanged }: { holdings: St
           <tbody>
             {open.map((h, rowIdx) => {
               const pnl = h.unrealizedPnl
-              const pnlColor = pnl == null ? "text-white/70" : pnl >= 0 ? "text-green-400" : "text-red-400"
+              const pnlColor = pnl == null ? "text-amber-100" : pnl >= 0 ? "text-green-400" : "text-red-400"
               const pnlLabel = pnl == null ? "—" : `${pnl >= 0 ? "+" : "-"}$${Math.abs(pnl).toFixed(0)}`
               const isExpanded = expanded.has(h.id)
               return (
@@ -405,7 +405,7 @@ function HoldingsSection({ holdings, isOwnerProfile, onChanged }: { holdings: St
                   </tr>
                   {isExpanded && h.notes && (
                     <tr className="border-b border-[#d4af37]/10 last:border-b-0">
-                      <td colSpan={isOwnerProfile ? 6 : 5} className="px-2.5 py-1.5 bg-black/40 text-[10px] text-white/50">
+                      <td colSpan={isOwnerProfile ? 6 : 5} className="px-2.5 py-1.5 bg-black/40 text-[10px] text-amber-100/80">
                         {h.notes}
                       </td>
                     </tr>
@@ -481,13 +481,13 @@ function CumulativePnlChart({ posts, holdings }: { posts: TradePost[]; holdings:
               {total >= 0 ? "+" : ""}${total.toFixed(0)}
             </span>
             {unrealizedTotal !== 0 && (
-              <div className="text-[9px] text-white/50 tabular-nums">incl. {unrealizedTotal >= 0 ? "+" : "-"}${Math.abs(unrealizedTotal).toFixed(0)} unrealized</div>
+              <div className="text-[9px] text-amber-100/80 tabular-nums">incl. {unrealizedTotal >= 0 ? "+" : "-"}${Math.abs(unrealizedTotal).toFixed(0)} unrealized</div>
             )}
           </div>
         )}
       </div>
       {timeline.length === 0 ? (
-        <div className="h-[120px] flex items-center justify-center text-xs text-white/70">No closed trades yet</div>
+        <div className="h-[120px] flex items-center justify-center text-xs text-amber-100">No closed trades yet</div>
       ) : (
         <ResponsiveContainer width="100%" height={150}>
           <AreaChart data={timeline} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
@@ -518,7 +518,7 @@ function CumulativePnlChart({ posts, holdings }: { posts: TradePost[]; holdings:
               if (!p.active || !d) return null
               return (
                 <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-md px-2.5 py-1.5 shadow-xl text-xs space-y-0.5">
-                  <div className="text-white/70">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}{d.unrealized ? " (unrealized)" : ""}</div>
+                  <div className="text-amber-100">{new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {d.ticker}{d.unrealized ? " (unrealized)" : ""}</div>
                   <div className={cn("font-bold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                     {d.cumulative >= 0 ? "+" : ""}${d.cumulative.toFixed(0)}
                   </div>
@@ -567,7 +567,7 @@ function TopTickers({ posts, tickerPnl }: { posts: TradePost[]; tickerPnl: Ticke
     <div className="rounded-md border border-[#d4af37]/25 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-1.5">
       <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Top Tickers</div>
       {rows.length === 0 ? (
-        <div className="h-[150px] flex items-center justify-center text-xs text-white/70">No trade ideas yet</div>
+        <div className="h-[150px] flex items-center justify-center text-xs text-amber-100">No trade ideas yet</div>
       ) : (
         <ResponsiveContainer width="100%" height={150}>
           <BarChart data={rows} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
@@ -583,7 +583,7 @@ function TopTickers({ posts, tickerPnl }: { posts: TradePost[]; tickerPnl: Ticke
                     {d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(0)}
                   </div>
                   {d.unrealizedPnl !== 0 && (
-                    <div className="text-[10px] text-white/50 tabular-nums">
+                    <div className="text-[10px] text-amber-100/80 tabular-nums">
                       incl. {d.unrealizedPnl >= 0 ? "+" : "-"}${Math.abs(d.unrealizedPnl).toFixed(0)} unrealized
                     </div>
                   )}
@@ -657,13 +657,13 @@ export default function Profile() {
       <div className="max-w-2xl space-y-2">
 
         {!isOwnerProfile && me && (
-          <Link href="/profile/me" className="text-xs text-white/70 hover:text-[#d4af37] transition-colors shrink-0">
+          <Link href="/profile/me" className="text-xs text-amber-100 hover:text-[#d4af37] transition-colors shrink-0">
             ← My Profile
           </Link>
         )}
 
         {(isLoading || waitingForMe || (isFetching && !data)) && (
-          <span className="text-xs text-white/70 animate-pulse">Loading…</span>
+          <span className="text-xs text-amber-100 animate-pulse">Loading…</span>
         )}
         {error && !waitingForMe && !isFetching && (
           <div className="text-sm text-red-400">Failed to load profile.</div>
@@ -688,7 +688,7 @@ export default function Profile() {
                       "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
                       data.user.role === "admin"
                         ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                        : "bg-zinc-900 text-white/70 border-[#d4af37]/20"
+                        : "bg-zinc-900 text-amber-100 border-[#d4af37]/20"
                     )}>
                       {data.user.role}
                     </span>
@@ -703,7 +703,7 @@ export default function Profile() {
                       onClick={handleReset}
                       disabled={resetting}
                       title="Clear win rate, streak, P&L — keep stock holdings"
-                      className="text-[11px] font-semibold px-3 py-1.5 rounded border border-[#d4af37]/20 bg-zinc-900 text-white/70 hover:text-red-400 hover:border-red-400/40 transition-all disabled:opacity-40"
+                      className="text-[11px] font-semibold px-3 py-1.5 rounded border border-[#d4af37]/20 bg-zinc-900 text-amber-100 hover:text-red-400 hover:border-red-400/40 transition-all disabled:opacity-40"
                     >
                       {resetting ? "Resetting…" : "Reset Stats"}
                     </button>
@@ -712,7 +712,7 @@ export default function Profile() {
                       className={cn(
                         "text-[11px] font-semibold px-3 py-1.5 rounded border transition-all shrink-0",
                         showForm
-                          ? "bg-zinc-900 text-white/70 border-[#d4af37]/20"
+                          ? "bg-zinc-900 text-amber-100 border-[#d4af37]/20"
                           : "bg-[#d4af37] text-black border-[#d4af37] hover:bg-[#d4af37]/90"
                       )}
                     >
@@ -749,11 +749,11 @@ export default function Profile() {
             <div className="space-y-1.5">
               <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
                 Trade Ideas
-                {data.posts.length > 0 && <span className="ml-1.5 text-white/70">({data.posts.length})</span>}
+                {data.posts.length > 0 && <span className="ml-1.5 text-amber-100">({data.posts.length})</span>}
               </div>
 
               {data.posts.length === 0 ? (
-                <div className="text-sm text-white/70 text-center py-8 rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60">
+                <div className="text-sm text-amber-100 text-center py-8 rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60">
                   No trade ideas posted yet.
                 </div>
               ) : (

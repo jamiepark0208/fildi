@@ -56,7 +56,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
             <CardContent className="pt-6 flex flex-col items-center text-center gap-3">
               <AlertTriangle className="h-8 w-8 text-destructive" />
               <h1 className="text-lg font-semibold">Something went wrong on this page</h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-amber-100">
                 {this.state.error.message || "An unexpected error occurred."}
               </p>
               <div className="flex gap-2 mt-2">

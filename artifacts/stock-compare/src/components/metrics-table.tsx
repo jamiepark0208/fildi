@@ -43,7 +43,7 @@ function MetricRow({ label, stocks, loadingTickers, getValue, formatValue, highe
 
   return (
     <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors group">
-      <td className="p-3 text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors sticky left-0 bg-card group-hover:bg-card">
+      <td className="p-3 text-sm font-medium text-amber-100 group-hover:text-foreground transition-colors sticky left-0 bg-card group-hover:bg-card">
         {label}
       </td>
       {stocks.map((stock, i) => {
@@ -59,7 +59,7 @@ function MetricRow({ label, stocks, loadingTickers, getValue, formatValue, highe
             )}
           >
             {isLoading ? (
-              <span className="inline-flex justify-end w-full"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></span>
+              <span className="inline-flex justify-end w-full"><Loader2 className="w-4 h-4 animate-spin text-amber-100" /></span>
             ) : (
               formatValue(getValue(stock))
             )}
@@ -89,19 +89,19 @@ export const MetricsTable = memo(function MetricsTable({ stocks, loadingTickers 
         <table className="w-full text-left border-collapse min-w-max">
           <thead>
             <tr className="border-b border-border bg-card">
-              <th className="p-4 font-semibold text-muted-foreground sticky left-0 bg-card z-10 w-48">Metric</th>
+              <th className="p-4 font-semibold text-amber-100 sticky left-0 bg-card z-10 w-48">Metric</th>
               {stocks.map((stock) => (
                 <th key={stock.ticker} className="p-4 font-bold text-xl text-right">
                   <div className="flex flex-col items-end gap-1">
                     {loadingTickers[stock.ticker] ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                      <Loader2 className="w-5 h-5 animate-spin text-amber-100" />
                     ) : (
                       <>
                         <div className="flex items-center gap-2">
                           {stock.logoUrl && <img src={stock.logoUrl} alt="" className="w-5 h-5 rounded bg-white" />}
                           <span>{stock.ticker}</span>
                         </div>
-                        <span className="text-xs font-normal text-muted-foreground truncate max-w-[120px]">{stock.companyName}</span>
+                        <span className="text-xs font-normal text-amber-100 truncate max-w-[120px]">{stock.companyName}</span>
                       </>
                     )}
                   </div>

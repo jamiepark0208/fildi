@@ -112,7 +112,7 @@ export function SectorHeatmapGrid({
             >
               <div className="flex items-baseline justify-between gap-1">
                 <p className="text-xs font-semibold text-white leading-tight drop-shadow-sm">{s.label}</p>
-                <p className="text-[10px] text-white/70 font-mono">{s.ticker}</p>
+                <p className="text-[10px] text-amber-100 font-mono">{s.ticker}</p>
               </div>
               <p className="text-lg font-bold text-white tabular-nums drop-shadow-sm font-mono">
                 {fmtPct(val)}

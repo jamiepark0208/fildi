@@ -105,7 +105,7 @@ export default function Login() {
                 onClick={() => { setTab(t); setError(null); }}
                 className={cn(
                   "flex-1 text-sm py-1.5 rounded-md font-medium transition-colors",
-                  tab === t ? "bg-[#d4af37] text-black" : "text-muted-foreground hover:text-[#d4af37]"
+                  tab === t ? "bg-[#d4af37] text-black" : "text-amber-100 hover:text-[#d4af37]"
                 )}
               >
                 {t === "signin" ? "Sign In" : "Register"}
@@ -116,18 +116,18 @@ export default function Login() {
           {tab === "signin" ? (
             <form onSubmit={handleSignIn} className="space-y-3">
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Email</label>
+                <label className="text-xs text-amber-100 block mb-1">Email</label>
                 <input
                   name="email" type="email" required autoComplete="email"
-                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
+                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
                   placeholder="you@example.com"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Password</label>
+                <label className="text-xs text-amber-100 block mb-1">Password</label>
                 <input
                   name="password" type="password" required autoComplete="current-password"
-                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
+                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
                   placeholder="••••••••"
                 />
               </div>
@@ -142,34 +142,34 @@ export default function Login() {
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Email</label>
+                <label className="text-xs text-amber-100 block mb-1">Email</label>
                 <input
                   name="email" type="email" required autoComplete="email"
-                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
+                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
                   placeholder="you@example.com"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Username</label>
+                <label className="text-xs text-amber-100 block mb-1">Username</label>
                 <input
                   name="username" type="text" required autoComplete="username"
-                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
+                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
                   placeholder="yourname"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Password</label>
+                <label className="text-xs text-amber-100 block mb-1">Password</label>
                 <input
                   name="password" type="password" required autoComplete="new-password"
-                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
+                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-[#d4af37]"
                   placeholder="••••••••"
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Invite Code</label>
+                <label className="text-xs text-amber-100 block mb-1">Invite Code</label>
                 <input
                   name="inviteCode" type="text" required
-                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4af37] uppercase"
+                  className="w-full bg-black/60 border border-[#d4af37]/20 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-amber-100 focus:outline-none focus:ring-1 focus:ring-[#d4af37] uppercase"
                   placeholder="XXXXXXXX"
                 />
               </div>

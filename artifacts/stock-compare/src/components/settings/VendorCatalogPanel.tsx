@@ -47,7 +47,7 @@ export function VendorCatalogPanel() {
           <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">
             Vendor catalog
           </h2>
-          <p className="text-[10px] text-white/50 mt-0.5">
+          <p className="text-[10px] text-amber-100/80 mt-0.5">
             What we use · 30d volume · unused endpoints
             {data?.asOf ? ` · ${new Date(data.asOf).toLocaleString()}` : ""}
           </p>
@@ -91,16 +91,16 @@ export function VendorCatalogPanel() {
                 <td className="px-2.5 py-1.5 text-right font-mono tabular-nums text-white/90">
                   {s.usageKey == null ? "—" : s.calls30d.toLocaleString()}
                   {s.usageKey != null && (
-                    <div className="text-[10px] text-white/40">~{Math.round(s.avgDailyCalls)}/d</div>
+                    <div className="text-[10px] text-amber-100/70">~{Math.round(s.avgDailyCalls)}/d</div>
                   )}
                 </td>
                 <td className="px-2.5 py-1.5 text-right font-mono tabular-nums">
                   {s.dailyLimit == null ? (
-                    <span className="text-white/40">—</span>
+                    <span className="text-amber-100/70">—</span>
                   ) : (
                     <span className={s.nearLimit ? "text-amber-300 font-semibold" : "text-white/80"}>
                       {pctLabel(s.pctOfDailyLimit)}
-                      <div className="text-[10px] text-white/40">{s.dailyLimit}/d</div>
+                      <div className="text-[10px] text-amber-100/70">{s.dailyLimit}/d</div>
                     </span>
                   )}
                 </td>

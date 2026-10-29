@@ -1362,7 +1362,7 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
 
         {isAdmin && (
           <div className="flex items-center gap-1 border-t border-zinc-800 pt-2">
-            <MessageCircleQuestion className="w-3 h-3 text-zinc-500 shrink-0" />
+            <MessageCircleQuestion className="w-3 h-3 text-amber-100/80 shrink-0" />
             <input
               value={askWhy}
               onChange={(e) => setAskWhy(e.target.value)}
@@ -1379,7 +1379,7 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                   setError(String(e?.message ?? e)),
                 );
               }}
-              className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700 text-zinc-400 hover:text-[#d4af37] disabled:opacity-40"
+              className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700 text-amber-100 hover:text-[#d4af37] disabled:opacity-40"
             >
               Ask
             </button>

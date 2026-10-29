@@ -137,7 +137,7 @@ export function MarketContextStrip() {
     parts.push({
       key: "asof",
       text: sessionHint === "open" ? asOfLabel : `${asOfLabel} · ${sessionHint ?? "as-of"}`,
-      className: sessionHint === "closed" || sessionHint === "pre" ? "text-amber-300" : "text-white/70",
+      className: sessionHint === "closed" || sessionHint === "pre" ? "text-amber-300" : "text-amber-100",
       title: data.kalshiNote || "Strip fetch time (ET)",
     });
   }
@@ -160,7 +160,7 @@ export function MarketContextStrip() {
     >
       {parts.map((p, i) => (
         <span key={p.key}>
-          {i > 0 && <span className="text-white/40"> · </span>}
+          {i > 0 && <span className="text-amber-100/70"> · </span>}
           <span className={cn(p.className)} title={p.title}>{p.text}</span>
         </span>
       ))}

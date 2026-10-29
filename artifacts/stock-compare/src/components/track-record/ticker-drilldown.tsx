@@ -100,7 +100,7 @@ export function TickerDrilldown({ ticker, onClose }: { ticker: string; onClose: 
                 </span>
               </>
             ) : (
-              <span className="text-zinc-500">no portfolio_ticker_earnings row</span>
+              <span className="text-amber-100/80">no portfolio_ticker_earnings row</span>
             )}
           </div>
 
@@ -143,7 +143,7 @@ export function TickerDrilldown({ ticker, onClose }: { ticker: string; onClose: 
                       "px-1.5 py-1",
                       r.status === "WIN" ? "text-emerald-400"
                         : r.status === "LOSS" ? "text-rose-400"
-                          : r.status === "ASSIGNED" ? "text-amber-300" : "text-zinc-400",
+                          : r.status === "ASSIGNED" ? "text-amber-300" : "text-amber-100",
                     )}>
                       {r.status}{r.assigned ? "·stk" : ""}
                     </td>

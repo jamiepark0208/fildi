@@ -13,6 +13,17 @@ export interface ColDef {
   optional?: boolean;
 }
 
+/** Split long headers onto 2 lines to shrink column width (e.g. "Fwd P/E" → Fwd / P/E). */
+export function headerLines(label: string): string[] {
+  const space = label.indexOf(" ");
+  if (space > 0) return [label.slice(0, space), label.slice(space + 1)];
+  const slash = label.indexOf("/");
+  if (slash > 0 && label.length >= 6) {
+    return [label.slice(0, slash + 1), label.slice(slash + 1)];
+  }
+  return [label];
+}
+
 // Fields where distribution is right-skewed — log-transform before z-score
 export const LOG_TRANSFORM_COLS = new Set(["peRatio", "forwardPe", "pegRatio", "forwardPeg", "priceToBook", "priceToSales", "evEbitda", "evRevenue"]);
 
@@ -70,13 +81,80 @@ export const COLS: ColDef[] = [
   { key: "fundSectorScore",     label: "Fund Sec",   family: "meta",    fmt: "ratio",  optional: true },
 ];
 
+// Left accent only — label hue comes from FAMILY_LABEL in stock-db-palette.
 export const FAMILY_COLORS: Record<string, string> = {
-  value:   "text-blue-400",
-  growth:  "text-green-400",
-  quality: "text-purple-400",
-  safety:  "text-amber-400",
-  meta:    "text-amber-200/50",
+  total:   "border-l-2 border-l-[#d4af37]",
+  value:   "border-l-2 border-l-sky-400",
+  growth:  "border-l-2 border-l-emerald-400",
+  quality: "border-l-2 border-l-violet-400",
+  safety:  "border-l-2 border-l-[#d4af37]",
+  meta:    "border-l-2 border-l-zinc-400",
 };
+
+export type FundFamily = ColDef["family"];
+
+/** Persisted 0–100 family scores (+ total). Meta has no score — expand-only. */
+export const FAMILY_SCORE_KEY: Record<Exclude<FundFamily, "meta"> | "total", keyof FundamentalsRow> = {
+  total:   "fundTotalScore",
+  value:   "fundValueScore",
+  growth:  "fundGrowthScore",
+  quality: "fundQualityScore",
+  safety:  "fundSafetyScore",
+};
+
+export const SCORE_FAMILY_ORDER: FundFamily[] = ["value", "growth", "quality", "safety", "meta"];
+
+/** Score keys promoted to summary columns — omit from Meta field expand. */
+const META_SCORE_KEYS = new Set<keyof FundamentalsRow>([
+  "fundTotalScore", "fundCompanyScore", "fundSectorScore",
+  "fundValueScore", "fundQualityScore", "fundGrowthScore", "fundSafetyScore",
+]);
+
+export type VisibleFundCol =
+  | { kind: "score"; id: "total" | FundFamily; key: keyof FundamentalsRow | null; label: string; family: FundFamily | "total"; expandable: boolean }
+  | { kind: "field"; col: ColDef };
+
+/** Fields shown when a family is expanded (Meta drops promoted score keys). */
+export function familyFieldCols(fam: FundFamily): ColDef[] {
+  return COLS.filter(c => {
+    if (c.family !== fam) return false;
+    if (fam === "meta" && META_SCORE_KEYS.has(c.key)) return false;
+    return true;
+  });
+}
+
+/** Collapsed: Total + V/G/Q/S/Meta scores. Expand one family → insert that family's field cols after its score. */
+export function visibleFundCols(expanded: FundFamily | null): VisibleFundCol[] {
+  const out: VisibleFundCol[] = [
+    { kind: "score", id: "total", key: FAMILY_SCORE_KEY.total, label: "Total", family: "total", expandable: false },
+  ];
+  for (const fam of SCORE_FAMILY_ORDER) {
+    const key = fam === "meta" ? null : FAMILY_SCORE_KEY[fam];
+    out.push({
+      kind: "score",
+      id: fam,
+      key,
+      label: fam === "meta" ? "Meta" : fam[0].toUpperCase() + fam.slice(1),
+      family: fam,
+      expandable: true,
+    });
+    if (expanded === fam) {
+      for (const col of familyFieldCols(fam)) out.push({ kind: "field", col });
+    }
+  }
+  return out;
+}
+
+/** Fixed px widths — stops content-driven column jitter on expand. */
+export const COL_W = {
+  ticker: 76,
+  score: 52,
+  field: 58,
+} as const;
+
+export function fundTableWidthPx(cols: VisibleFundCol[]): number {
+  return COL_W.ticker + cols.reduce((n, vc) => n + (vc.kind === "score" ? COL_W.score : COL_W.field), 0);
+}
 
 // ── Technicals column definitions ─────────────────────────────────────────────
 
@@ -126,9 +204,9 @@ export const TECH_COLS: TechColDef[] = [
 export const techFamilies: TechFamily[] = ["signal", "momentum", "volume", "volatility", "structure"];
 
 export const TECH_FAMILY_COLORS: Record<TechFamily, string> = {
-  signal:     "text-red-400",
-  momentum:   "text-cyan-400",
-  volume:     "text-indigo-400",
-  volatility: "text-orange-400",
-  structure:  "text-teal-400",
+  signal:     "border-l-2 border-l-red-400 text-red-400",
+  momentum:   "border-l-2 border-l-cyan-400 text-cyan-400",
+  volume:     "border-l-2 border-l-indigo-400 text-indigo-300",
+  volatility: "border-l-2 border-l-orange-400 text-orange-400",
+  structure:  "border-l-2 border-l-teal-400 text-teal-300",
 };

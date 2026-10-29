@@ -269,6 +269,55 @@ export function ApiMonitorTab() {
     refetchInterval: 5 * 60_000,
   });
 
+  /** Live Yahoo/DNS path — the outage class that froze tabs (connect timeouts / wedged mDNS). */
+  type VendorHealth = {
+    checkedAt: string;
+    overall: "ok" | "warn" | "down";
+    dnsBypass: { active: boolean; servers: string[] };
+    yahooCircuit: { open: boolean; openUntil: string | null; failStreak: number };
+    livePriceTtlSec: number;
+    probes: { name: string; ok: boolean; ms: number; status?: number; detail?: string; slow?: boolean }[];
+    recent?: { ts: string; overall: string; yahooOk: boolean | null; dnsSystemOk: boolean | null }[];
+    maintain?: {
+      ts: string | null;
+      vendorsOk: boolean | null;
+      yahooChart: { ok: boolean; ms: number | null; detail?: string } | null;
+      dnsSystem?: { ok: boolean; ms: number | null; detail?: string } | null;
+      vendorFailed: string[];
+      softFailed?: string[];
+    };
+  };
+  const { data: vendorHealth, refetch: refetchVendorHealth } = useQuery<VendorHealth>({
+    queryKey: ["vendor-health"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/vendor-health?probe=1", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load vendor health");
+      return res.json();
+    },
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const yahooProbe = vendorHealth?.probes?.find((p) => p.name === "yahoo_chart");
+  const dnsPublicProbe = vendorHealth?.probes?.find((p) => p.name === "dns_public");
+  const dnsSystemMaintain = vendorHealth?.maintain?.dnsSystem;
+  const yahooTone: Tone = vendorHealth?.yahooCircuit?.open || yahooProbe?.ok === false
+    ? "down"
+    : yahooProbe?.slow || vendorHealth?.overall === "warn"
+      ? "warn"
+      : vendorHealth
+        ? "ok"
+        : "idle";
+  const dnsTone: Tone =
+    dnsPublicProbe?.ok === false
+      ? "down"
+      : dnsSystemMaintain?.ok === false
+        ? "warn"
+        : vendorHealth?.dnsBypass?.active
+          ? "ok"
+          : "warn";
+  const recentFails = (vendorHealth?.recent ?? []).filter((r) => r.overall !== "ok").slice(-3);
+
   const startSchwabOAuth = async () => {
     const res = await fetch("/api/schwab/oauth/start", { method: "POST", credentials: "include" });
     const body = await res.json();
@@ -433,9 +482,37 @@ export function ApiMonitorTab() {
           />
         )}
         <Chip
+          label="DNS"
+          tone={dnsTone}
+          tip={tipJoin(
+            vendorHealth?.dnsBypass?.active ? "API: public resolvers on" : "API: system DNS only",
+            vendorHealth?.dnsBypass?.servers?.join(" ") ?? null,
+            dnsPublicProbe != null ? `public ${dnsPublicProbe.ok ? "ok" : "fail"} ${dnsPublicProbe.ms}ms` : null,
+            dnsPublicProbe?.detail,
+            dnsSystemMaintain
+              ? `system DNS (maintain) ${dnsSystemMaintain.ok ? "ok" : "WEDGED"} ${dnsSystemMaintain.ms ?? "?"}ms`
+              : null,
+            dnsSystemMaintain?.detail,
+            "wedged mDNS = tab freezes; API bypasses via 1.1.1.1",
+          )}
+        />
+        <Chip
           label="Yahoo"
-          tone="ok"
-          tip={tipJoin("ok", "quotes/chains fallback", `${todayCalls("yahoo")} funda today`)}
+          tone={yahooTone}
+          tip={tipJoin(
+            yahooProbe?.ok === false ? "down" : yahooProbe?.slow ? "slow" : (vendorHealth?.yahooCircuit?.open ? "circuit open" : "ok"),
+            yahooProbe != null ? `${yahooProbe.ms}ms chart` : null,
+            yahooProbe?.detail,
+            vendorHealth?.yahooCircuit?.open
+              ? `circuit until ${shortWhen(vendorHealth.yahooCircuit.openUntil)}`
+              : null,
+            vendorHealth?.maintain?.yahooChart
+              ? `maintain ${vendorHealth.maintain.yahooChart.ok ? "ok" : "fail"}${vendorHealth.maintain.yahooChart.ms != null ? ` ${vendorHealth.maintain.yahooChart.ms}ms` : ""}`
+              : null,
+            vendorHealth?.livePriceTtlSec != null ? `live-price TTL ${vendorHealth.livePriceTtlSec}s` : null,
+            `${todayCalls("yahoo")} funda today`,
+            "Refresh re-probes now",
+          )}
         />
         <Chip label="FS" tone={vendorTone("factset")} tip={vendorTip("factset", "FactSet")} />
         <Chip label="FH" tone={vendorTone("finnhub")} tip={vendorTip("finnhub", "Finnhub")} />
@@ -496,6 +573,35 @@ export function ApiMonitorTab() {
         )}
       </div>
 
+      {vendorHealth && vendorHealth.overall !== "ok" && (
+        <div
+          className={cn(
+            "rounded-md border px-2.5 py-1.5 text-[11px]",
+            vendorHealth.overall === "down"
+              ? "border-red-500/40 bg-red-950/40 text-red-200"
+              : "border-amber-500/40 bg-amber-950/30 text-amber-100",
+          )}
+        >
+          <span className="font-semibold uppercase tracking-wide text-[9px] mr-2">
+            {vendorHealth.overall === "down" ? "Vendor path down" : "Vendor path warn"}
+          </span>
+          {yahooProbe?.ok === false
+            ? `Yahoo chart fail${yahooProbe.detail ? `: ${yahooProbe.detail}` : ""}`
+            : dnsPublicProbe?.ok === false
+              ? `Public DNS fail${dnsPublicProbe.detail ? `: ${dnsPublicProbe.detail}` : ""}`
+              : dnsSystemMaintain?.ok === false
+                ? `System DNS wedged (Maintain) — API still on public resolvers`
+                : vendorHealth.yahooCircuit?.open
+                  ? `Yahoo circuit open until ${shortWhen(vendorHealth.yahooCircuit.openUntil)}`
+                  : "Degraded — hover DNS/Yahoo chips"}
+          {recentFails.length > 0 && (
+            <span className="block text-[10px] opacity-80 mt-0.5">
+              recent: {recentFails.map((r) => `${shortWhen(r.ts)} ${r.overall}`).join(" · ")}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-0">
         <div>
           <h2 className="text-xs font-semibold text-white uppercase tracking-wide">API Monitor</h2>
@@ -515,7 +621,7 @@ export function ApiMonitorTab() {
                 {aiSpend.bySurface.slice(0, 6).map(r => (
                   <p key={r.surfaceType} className="tabular-nums">{r.surfaceType}: {r.calls} · ${r.estUsd.toFixed(3)}</p>
                 ))}
-                <p className="text-white/60">Claude Code / Cursor / Muse are flat subscriptions — not counted.</p>
+                <p className="text-amber-100">Claude Code / Cursor / Muse are flat subscriptions — not counted.</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -523,7 +629,7 @@ export function ApiMonitorTab() {
         <div className="flex items-center gap-3">
           {lastUpdated && <span className="text-[10px] text-white">as of {lastUpdated}</span>}
           <button
-            onClick={() => refetch()}
+            onClick={() => { void refetch(); void refetchVendorHealth(); }}
             disabled={isFetching}
             className="flex items-center gap-1.5 text-xs text-white hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors disabled:opacity-50"
           >
@@ -606,7 +712,7 @@ export function ApiMonitorTab() {
         <div className="mt-4 pt-3 border-t border-[#d4af37]/25 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Research caches</h2>
-            <span className="text-[10px] text-white/70 tabular-nums">{shortWhen(researchOps.checkedAt)}</span>
+            <span className="text-[10px] text-amber-100 tabular-nums">{shortWhen(researchOps.checkedAt)}</span>
           </div>
           <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
             <Chip
@@ -648,7 +754,7 @@ export function ApiMonitorTab() {
                   ...researchOps.lseg.datasets.map((d) => ({ lane: "LSEG", ...d })),
                 ].map((d) => (
                   <tr key={`${d.lane}-${d.dataset}`} className="bg-zinc-900/70 even:bg-zinc-800/60">
-                    <td className="px-2.5 py-1 text-white/70">{d.lane}</td>
+                    <td className="px-2.5 py-1 text-amber-100">{d.lane}</td>
                     <td className="px-2.5 py-1 font-mono text-white">{d.dataset}</td>
                     <td className={cn(
                       "px-2.5 py-1",
@@ -656,10 +762,10 @@ export function ApiMonitorTab() {
                     )}>
                       {d.status}
                     </td>
-                    <td className="px-2.5 py-1 text-right tabular-nums text-white/70">
+                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-100">
                       {shortWhen(d.lastOkAt)}
                     </td>
-                    <td className="px-2.5 py-1 text-right tabular-nums text-white/70">{d.lastRows ?? "—"}</td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-100">{d.lastRows ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -715,13 +821,13 @@ export function ApiMonitorTab() {
                 {health.topNullFields.map(({ field, nullCount }) => (
                   <tr key={field} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                     <td className="px-2.5 py-1 font-mono text-white">{field}</td>
-                    <td className="px-2.5 py-1 text-right tabular-nums text-white/70">{nullCount}</td>
+                    <td className="px-2.5 py-1 text-right tabular-nums text-amber-100">{nullCount}</td>
                   </tr>
                 ))}
                 <tr className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-2.5 py-1 font-medium text-white">Divergent fields (sources disagree &gt;20%)</td>
                   <td className="px-2.5 py-1 text-right tabular-nums">
-                    <span className={cn(health.divergentCount > 50 ? "text-orange-400" : "text-white/70")}>
+                    <span className={cn(health.divergentCount > 50 ? "text-orange-400" : "text-amber-100")}>
                       {health.divergentCount}
                     </span>
                   </td>
@@ -733,7 +839,7 @@ export function ApiMonitorTab() {
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-500/30 ml-2">empty</span>
                     )}
                   </td>
-                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.polygonRows === 0 ? "text-red-400" : "text-white/70")}>
+                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.polygonRows === 0 ? "text-red-400" : "text-amber-100")}>
                     {health.bronze.polygonRows}
                   </td>
                 </tr>
@@ -744,7 +850,7 @@ export function ApiMonitorTab() {
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-red-500/15 text-red-400 border-red-500/30 ml-2">empty</span>
                     )}
                   </td>
-                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.avRows === 0 ? "text-red-400" : "text-white/70")}>
+                  <td className={cn("px-2.5 py-1 text-right tabular-nums", health.bronze.avRows === 0 ? "text-red-400" : "text-amber-100")}>
                     {health.bronze.avRows}
                   </td>
                 </tr>
@@ -752,7 +858,7 @@ export function ApiMonitorTab() {
             </table>
           </div>
 
-          <p className="text-[10px] text-white/70 mt-2">
+          <p className="text-[10px] text-amber-100 mt-2">
             Last enrichment:{" "}
             {health.lastEnrichmentRun
               ? new Date(health.lastEnrichmentRun).toLocaleString()

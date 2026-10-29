@@ -55,7 +55,7 @@ export function ScoreNoteForm({ ticker }: { ticker: string }) {
         className="w-full text-[11px] bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-zinc-200 resize-none"
       />
       <div className="flex items-center gap-2">
-        <label className="text-[10px] text-zinc-500 whitespace-nowrap">
+        <label className="text-[10px] text-amber-100/80 whitespace-nowrap">
           adj pts
           <input
             type="number"
@@ -72,14 +72,14 @@ export function ScoreNoteForm({ ticker }: { ticker: string }) {
           type="button"
           disabled={!body.trim() || mut.isPending}
           onClick={() => mut.mutate()}
-          className="text-[10px] font-semibold px-2 py-1 rounded bg-[#d4af37]/20 text-[#d4af37] hover:bg-[#d4af37]/30 disabled:opacity-40"
+          className="text-[10px] font-semibold px-2 py-1 rounded border border-[#d4af37]/50 bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-40"
         >
           {mut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[10px] text-zinc-500 hover:text-zinc-300"
+          className="text-[10px] text-amber-100/80 hover:text-zinc-300"
         >
           Cancel
         </button>

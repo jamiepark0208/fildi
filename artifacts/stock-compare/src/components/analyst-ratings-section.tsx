@@ -83,7 +83,7 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
   ].filter((d) => d.value > 0);
 
   const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return <p className="text-xs text-muted-foreground">No analyst data</p>;
+  if (total === 0) return <p className="text-xs text-amber-100">No analyst data</p>;
 
   const bullishPct = ((recs.strongBuy + recs.buy) / total) * 100;
   const rating =
@@ -94,15 +94,6 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
         : recs.hold / total > 0.5
           ? "Hold"
           : "Underperform";
-  const ratingColor =
-    rating === "Buy"
-      ? "text-green-400"
-      : rating === "Outperform"
-        ? "text-green-300"
-        : rating === "Hold"
-          ? "text-yellow-400"
-          : "text-orange-400";
-
   return (
     <div className="flex items-center gap-3">
       <div className="relative shrink-0">
@@ -121,8 +112,10 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
             ))}
           </Pie>
         </PieChart>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className={cn("text-[9px] font-bold", ratingColor)}>{rating}</span>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] font-bold text-black bg-[#d4af37] px-1 py-0.5 rounded leading-none shadow-sm">
+            {rating}
+          </span>
         </div>
       </div>
       <div className="space-y-0.5 min-w-0 flex-1">
@@ -133,7 +126,7 @@ export function AnalystDonut({ recs }: { recs: Recommendations }) {
             <span className="font-mono ml-auto pl-2 font-semibold text-foreground tabular-nums">{d.value}</span>
           </div>
         ))}
-        <div className="pt-0.5 text-[10px] text-amber-200/50 border-t border-border/30">
+        <div className="pt-0.5 text-[11px] font-semibold text-white border-t border-border/30 tabular-nums">
           {total} analyst{total !== 1 ? "s" : ""}
         </div>
       </div>
@@ -162,14 +155,28 @@ function groupActionsByFirm(actions: AnalystAction[]): Array<{ firm: string; lat
   return groups;
 }
 
-function shortGrade(g: string): string {
-  return g.replace(/\bequal[\s-]?weight\b/gi, "Equal");
+/** Compact grade tokens for the Rec column (color via classifyGrade on `to`). */
+function abbreviateGrade(g: string): string {
+  const x = (g ?? "").toLowerCase().replace(/[_-]+/g, " ").trim();
+  if (!x) return "—";
+  if (/strong\s*buy|conviction\s*buy/.test(x)) return "SB";
+  if (/strong\s*sell/.test(x)) return "SS";
+  if (/underweight|underperform|under\s*perform/.test(x)) return "U/W";
+  if (/overweight|outperform|out\s*perform|accumulate|positive|sector\s*outperform/.test(x)) return "O/W";
+  if (/^buy$|long[\s-]?term\s*buy|speculative\s*buy/.test(x)) return "Buy";
+  if (/^sell$|reduce/.test(x)) return "Sell";
+  if (/hold|neutral|equal[\s-]?weight|market\s*perform|in[\s-]?line|peer\s*perform|sector\s*perform/.test(x)) return "N";
+  // Unknown vendor wording — keep short
+  const words = g.trim().split(/\s+/);
+  if (words.length === 1 && words[0]!.length <= 4) return words[0]!;
+  return words.map((w) => w[0]!.toUpperCase()).join("").slice(0, 4);
 }
 
 function gradeLabel(a: AnalystAction): string {
-  const from = a.fromGrade ? shortGrade(a.fromGrade) : "";
-  const to = a.toGrade ? shortGrade(a.toGrade) : "";
-  return from && to && from !== to ? `${from} → ${to}` : (to || "—");
+  const from = a.fromGrade ? abbreviateGrade(a.fromGrade) : "";
+  const to = a.toGrade ? abbreviateGrade(a.toGrade) : "";
+  if (from && to && from !== to) return `${from}→${to}`;
+  return to || from || "—";
 }
 
 export function AnalystRatingsSection({
@@ -207,190 +214,172 @@ export function AnalystRatingsSection({
       ? ((m.analystTargetPrice / m.currentPrice - 1) * 100)
       : null;
 
-  return (
-    <div className="space-y-2">
-      <AnalystDonut recs={recs} />
+  const [showTargets, setShowTargets] = useState(false);
 
-      {/* Consensus + 12M target — single line under the donut */}
-      {m.analystTargetPrice != null && m.currentPrice != null && (
-        <div className="flex items-center gap-1.5 text-[11px] font-mono flex-wrap border-t border-border/30 pt-1.5">
-          <span className="text-[9px] uppercase tracking-wider text-[#d4af37] font-sans font-bold">Consensus</span>
-          <span className="tabular-nums text-white font-semibold">${m.currentPrice.toFixed(2)}</span>
-          <span className="text-amber-200">→</span>
-          <span className="text-[9px] uppercase tracking-wider text-[#d4af37] font-sans font-bold">12M</span>
-          <span className="tabular-nums font-bold text-white">${m.analystTargetPrice.toFixed(2)}</span>
-          {upsidePct != null && (
-            <span
-              className={cn(
-                "tabular-nums font-bold ml-auto",
-                upsidePct >= 0 ? "text-green-400" : "text-red-400",
-              )}
-            >
-              {upsidePct >= 0 ? "+" : ""}
-              {upsidePct.toFixed(1)}%
-            </span>
-          )}
+  return (
+    <div className="space-y-1.5 min-w-0">
+      {/* Donut + consensus on one row — saves vertical space for the firm table */}
+      <div className="flex items-start gap-2 min-w-0">
+        <div className="shrink-0 scale-90 origin-top-left -mb-1">
+          <AnalystDonut recs={recs} />
+        </div>
+        {m.analystTargetPrice != null && m.currentPrice != null && (
+          <div className="min-w-0 flex-1 space-y-0.5 pt-0.5">
+            <div className="flex items-baseline gap-1.5 text-[12px] font-mono flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-[#d4af37] font-sans font-bold">Px</span>
+              <span className="tabular-nums text-white font-bold">${m.currentPrice.toFixed(2)}</span>
+              <span className="text-amber-100/80">→</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#d4af37] font-sans font-bold">12M</span>
+              <span className="tabular-nums font-bold text-white">${m.analystTargetPrice.toFixed(2)}</span>
+            </div>
+            {upsidePct != null && (
+              <div className={cn("text-[13px] font-mono font-bold tabular-nums", upsidePct >= 0 ? "text-green-400" : "text-red-400")}>
+                {upsidePct >= 0 ? "+" : ""}{upsidePct.toFixed(1)}%
+              </div>
+            )}
+            {hasRange && (
+              <div className="pt-0.5">
+                <div className="relative h-1.5 bg-secondary/50 rounded-full overflow-visible mb-0.5">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/20 via-yellow-500/15 to-green-500/20" />
+                  {meanPct != null && (
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1 h-2.5 bg-yellow-400/80 rounded-sm"
+                      style={{ left: `${meanPct}%` }}
+                      title={`Mean $${pt!.mean!.toFixed(2)}`}
+                    />
+                  )}
+                  {pricePct != null && (
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 bg-primary rounded-full border border-background z-10"
+                      style={{ left: `${pricePct}%` }}
+                      title={`Current $${m.currentPrice.toFixed(2)}`}
+                    />
+                  )}
+                </div>
+                <div className="flex justify-between text-[8px] font-mono text-amber-50/80 gap-0.5">
+                  <span>${pt!.low!.toFixed(0)}</span>
+                  {pt!.mean != null && <span className="text-yellow-300">μ${pt!.mean!.toFixed(0)}</span>}
+                  <span>${pt!.high!.toFixed(0)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {firmGroups.length > 0 && (
+        <div className="min-w-0 border-t border-border/30 pt-1">
+          {/* Horizontal scroll — Rec/Tgt/Date were clipped by the fixed-width panel */}
+          <div className="overflow-x-auto overscroll-x-contain -mx-0.5 px-0.5" data-lenis-prevent>
+            <table className="w-max min-w-full border-collapse">
+              <thead>
+                <tr className="border-b border-border/40">
+                  <th className="text-left font-bold text-[8px] text-[#d4af37]/80 uppercase tracking-wider pb-0.5 pr-2 sticky left-0 bg-zinc-950 z-[1]">Entity</th>
+                  <th className="text-left font-bold text-[8px] text-[#d4af37]/80 uppercase tracking-wider pb-0.5 pr-2">Rec</th>
+                  <th className="text-right font-bold text-[8px] text-[#d4af37]/80 uppercase tracking-wider pb-0.5 pr-2">Tgt</th>
+                  <th className="text-right font-bold text-[8px] text-[#d4af37]/80 uppercase tracking-wider pb-0.5">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {firmGroups.map(g => {
+                  const key = firmKey(g.firm);
+                  const a = g.latest;
+                  const color = GRADE_COLOR_CLASS[classifyGrade(a.toGrade)];
+                  const hasHistory = g.history.length > 0;
+                  const isOpen = expanded.has(key);
+                  return (
+                    <Fragment key={key}>
+                      <tr className="border-b border-border/20">
+                        <td className="py-0.5 pr-1.5 text-[10px] font-medium text-foreground whitespace-nowrap sticky left-0 bg-zinc-950 z-[1]">
+                          <span className="flex items-center gap-0.5">
+                            <span className="max-w-[7.5rem] truncate">{a.firm}</span>
+                            {hasHistory && (
+                              <span className="text-[8px] font-normal text-amber-200/40 tabular-nums">
+                                ({g.history.length + 1})
+                              </span>
+                            )}
+                            <SourceBadge source={a.source} />
+                            {hasHistory && (
+                              <button
+                                type="button"
+                                onClick={() => toggleFirm(key)}
+                                className="inline-flex shrink-0 p-0 text-amber-200/60 hover:text-[#d4af37] transition-colors"
+                                aria-expanded={isOpen}
+                                aria-label={isOpen ? "Hide prior ratings" : `Show ${g.history.length} prior`}
+                                title={isOpen ? "Hide prior" : `${g.history.length} prior`}
+                              >
+                                {isOpen
+                                  ? <ChevronDown className="w-2.5 h-2.5" />
+                                  : <ChevronRight className="w-2.5 h-2.5" />}
+                              </button>
+                            )}
+                          </span>
+                        </td>
+                        <td className={cn("py-0.5 pr-2 text-[10px] font-bold whitespace-nowrap", color)}>{gradeLabel(a)}</td>
+                        <td className="py-0.5 pr-2 text-[10px] font-mono text-foreground text-right whitespace-nowrap">
+                          {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
+                        </td>
+                        <td className="py-0.5 text-[10px] text-amber-100 text-right whitespace-nowrap">{formatMdYy(a.date)}</td>
+                      </tr>
+                      {isOpen && g.history.map((h, hi) => {
+                        const hColor = GRADE_COLOR_CLASS[classifyGrade(h.toGrade)];
+                        return (
+                          <tr key={`${key}-h${hi}`} className="border-b border-border/10 bg-secondary/10">
+                            <td className="py-0.5 pr-1.5 pl-2 text-[9px] text-amber-200/50 whitespace-nowrap sticky left-0 bg-zinc-900 z-[1]">
+                              {h.action}
+                            </td>
+                            <td className={cn("py-0.5 pr-2 text-[9px] font-medium whitespace-nowrap", hColor)}>{gradeLabel(h)}</td>
+                            <td className="py-0.5 pr-2 text-[9px] font-mono text-amber-100/60 text-right whitespace-nowrap">
+                              {h.priceTarget != null ? `$${h.priceTarget.toFixed(2)}` : "—"}
+                            </td>
+                            <td className="py-0.5 text-[9px] text-amber-100/50 text-right whitespace-nowrap">{formatMdYy(h.date)}</td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      <div className="space-y-2.5 border-t border-border/30 pt-2">
-          {hasRange && (
-            <div>
-              <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">Target range</div>
-              <div className="relative h-2 bg-secondary/50 rounded-full overflow-visible mb-1.5">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500/20 via-yellow-500/15 to-green-500/20" />
-                {meanPct != null && (
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-3 bg-yellow-400/80 rounded-sm"
-                    style={{ left: `${meanPct}%` }}
-                    title={`Mean $${pt!.mean!.toFixed(2)}`}
-                  />
-                )}
-                {pricePct != null && (
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-primary rounded-full border-2 border-background shadow-sm z-10"
-                    style={{ left: `${pricePct}%` }}
-                    title={`Current $${m.currentPrice.toFixed(2)}`}
-                  />
-                )}
-              </div>
-              <div className="flex justify-between text-[9px] font-mono text-amber-50 gap-1">
-                <span>L ${pt!.low!.toFixed(2)}</span>
-                {pt!.mean != null && <span className="text-yellow-300 font-semibold">μ ${pt!.mean!.toFixed(2)}</span>}
-                {pt!.median != null && <span>M ${pt!.median!.toFixed(2)}</span>}
-                <span>H ${pt!.high!.toFixed(2)}</span>
-              </div>
+      {analystPriceTargets.length > 0 ? (
+        <div className="border-t border-border/30 pt-1 min-w-0">
+          <button
+            type="button"
+            onClick={() => setShowTargets((v) => !v)}
+            className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-0.5 hover:text-[#f0d060]"
+          >
+            Targets by firm {showTargets ? "▴" : "▾"} ({analystPriceTargets.length})
+          </button>
+          {showTargets && (
+            <div className="space-y-0.5">
+              {analystPriceTargets.map((t, i) => {
+                const upside = t.priceTarget != null && m.currentPrice != null
+                  ? ((t.priceTarget / m.currentPrice) - 1) * 100
+                  : null;
+                return (
+                  <div key={i} className="flex items-center gap-1.5 text-[10px] min-w-0">
+                    <span className="font-semibold text-foreground truncate min-w-0">{t.firm}</span>
+                    {t.priceTarget != null && (
+                      <span className="ml-auto font-mono font-bold text-foreground tabular-nums shrink-0">
+                        ${t.priceTarget.toFixed(2)}
+                      </span>
+                    )}
+                    {upside != null && (
+                      <span className={cn("text-[9px] font-mono font-semibold tabular-nums shrink-0", upside >= 0 ? "text-green-400" : "text-red-400")}>
+                        {upside >= 0 ? "+" : ""}{upside.toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
-
-          {firmGroups.length > 0 && (
-            <div>
-              <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">
-                Rating changes
-              </div>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-border/40">
-                    <th className="text-left font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1 pr-1.5">Entity</th>
-                    <th className="text-left font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1 pr-1.5">Rec</th>
-                    <th className="text-right font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1 pr-1.5">Tgt</th>
-                    <th className="text-right font-bold text-[9px] text-[#d4af37]/80 uppercase tracking-wider pb-1">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {firmGroups.map(g => {
-                    const key = firmKey(g.firm);
-                    const a = g.latest;
-                    const color = GRADE_COLOR_CLASS[classifyGrade(a.toGrade)];
-                    const hasHistory = g.history.length > 0;
-                    const isOpen = expanded.has(key);
-                    return (
-                      <Fragment key={key}>
-                        <tr className="border-b border-border/20">
-                          <td className="py-1 pr-1 text-[10px] font-medium text-foreground whitespace-nowrap">
-                            <span className="flex items-center gap-0 min-w-0">
-                              <span className="truncate">{a.firm}</span>
-                              {hasHistory && (
-                                <span className="text-[9px] font-normal text-amber-200/40 tabular-nums leading-none">
-                                  ({g.history.length + 1})
-                                </span>
-                              )}
-                              <SourceBadge source={a.source} />
-                              {hasHistory && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleFirm(key)}
-                                  className="inline-flex shrink-0 p-0 ml-0.5 text-amber-200/60 hover:text-[#d4af37] transition-colors"
-                                  aria-expanded={isOpen}
-                                  aria-label={isOpen ? "Hide prior ratings" : `Show ${g.history.length} prior`}
-                                  title={isOpen ? "Hide prior" : `${g.history.length} prior`}
-                                >
-                                  {isOpen
-                                    ? <ChevronDown className="w-2.5 h-2.5" />
-                                    : <ChevronRight className="w-2.5 h-2.5" />}
-                                </button>
-                              )}
-                            </span>
-                          </td>
-                          <td className={cn("py-1 pr-1.5 text-[10px] font-bold whitespace-nowrap", color)}>{gradeLabel(a)}</td>
-                          <td className="py-1 pr-1.5 text-[10px] font-mono text-foreground text-right whitespace-nowrap">
-                            {a.priceTarget != null ? `$${a.priceTarget.toFixed(2)}` : "—"}
-                          </td>
-                          <td className="py-1 text-[10px] text-amber-100 text-right whitespace-nowrap">{formatMdYy(a.date)}</td>
-                        </tr>
-                        {isOpen && g.history.map((h, hi) => {
-                          const hColor = GRADE_COLOR_CLASS[classifyGrade(h.toGrade)];
-                          return (
-                            <tr key={`${key}-h${hi}`} className="border-b border-border/10 bg-secondary/10">
-                              <td className="py-0.5 pr-1.5 pl-4 text-[9px] text-amber-200/50 whitespace-nowrap">
-                                {h.action}
-                              </td>
-                              <td className={cn("py-0.5 pr-1.5 text-[9px] font-medium whitespace-nowrap", hColor)}>{gradeLabel(h)}</td>
-                              <td className="py-0.5 pr-1.5 text-[9px] font-mono text-amber-100/60 text-right whitespace-nowrap">
-                                {h.priceTarget != null ? `$${h.priceTarget.toFixed(2)}` : "—"}
-                              </td>
-                              <td className="py-0.5 text-[9px] text-amber-100/50 text-right whitespace-nowrap">{formatMdYy(h.date)}</td>
-                            </tr>
-                          );
-                        })}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {analystPriceTargets.length > 0 ? (
-            <div>
-              <div className="text-[9px] text-[#d4af37] font-bold uppercase tracking-wider mb-1">
-                Targets by firm
-              </div>
-              <div className="space-y-1">
-                {analystPriceTargets.map((t, i) => {
-                  const upside = t.priceTarget != null && m.currentPrice != null
-                    ? ((t.priceTarget / m.currentPrice) - 1) * 100
-                    : null;
-                  const fromPosted = t.priceTarget != null && t.priceWhenPosted != null && t.priceWhenPosted > 0
-                    ? ((t.priceTarget / t.priceWhenPosted) - 1) * 100
-                    : null;
-                  return (
-                    <div key={i} className="border border-border/30 rounded px-2 py-1 bg-secondary/10">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] font-bold text-foreground">{t.firm}</span>
-                        {t.analyst && <span className="text-[9px] text-amber-200/50">({t.analyst})</span>}
-                        <SourceBadge source={t.source} />
-                        {t.priceTarget != null && (
-                          <span className="ml-auto font-mono font-bold text-[11px] text-foreground tabular-nums">
-                            ${t.priceTarget.toFixed(2)}
-                          </span>
-                        )}
-                        {upside != null && (
-                          <span className={cn("text-[10px] font-mono font-semibold tabular-nums", upside >= 0 ? "text-green-400" : "text-red-400")}>
-                            {upside >= 0 ? "+" : ""}{upside.toFixed(1)}%
-                          </span>
-                        )}
-                      </div>
-                      {t.date && (
-                        <div className="text-[9px] text-amber-100/80 mt-0.5 truncate">
-                          {formatMdYy(t.date)}
-                          {t.priceWhenPosted != null && ` · was $${t.priceWhenPosted.toFixed(2)}`}
-                          {fromPosted != null && (
-                            <span className={cn("ml-1 font-semibold", fromPosted >= 0 ? "text-green-300" : "text-red-300")}>
-                              ({fromPosted >= 0 ? "+" : ""}{fromPosted.toFixed(0)}%)
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <p className="text-[10px] text-amber-200/40 italic">No per-firm targets archived yet.</p>
-          )}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

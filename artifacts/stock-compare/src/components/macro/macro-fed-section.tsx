@@ -168,7 +168,7 @@ export function FedMemberCard({ member }: { member: FedMember }) {
           <p className="text-xs font-bold text-white leading-tight">{member.name}</p>
           <span className="text-[10px] text-amber-200/40">· {member.title}</span>
           {member.recentChange && (
-            <span className="px-1.5 py-0.5 rounded border text-[9px] font-semibold bg-sky-500/10 text-sky-300 border-sky-500/40">
+            <span className="px-1.5 py-0.5 rounded border text-[9px] font-semibold bg-zinc-900 text-white border-sky-400/70">
               Updated
             </span>
           )}
@@ -239,7 +239,7 @@ export function BankCard({ bank }: { bank: BankResearch }) {
       {isExpanded && (
         <div className="border-t border-[#d4af37]/20 px-2.5 py-2 space-y-1.5">
           <p className="text-[11px] text-amber-200/60 leading-snug">{bank.summary}</p>
-          <p className="text-[9px] text-amber-200/30">
+          <p className="text-[9px] text-amber-100">
             Updated {new Date(bank.lastUpdated + "T12:00:00").toLocaleDateString("en-US", {
               month: "short", day: "numeric", year: "numeric",
             })}
@@ -270,7 +270,7 @@ export function BankCard({ bank }: { bank: BankResearch }) {
                     <p className="text-[11px] text-amber-200/70 leading-snug group-hover:text-[#d4af37] transition-colors line-clamp-2">
                       {article.title}
                     </p>
-                    <p className="text-[9px] text-amber-200/30">
+                    <p className="text-[9px] text-amber-100">
                       {article.source}
                       {article.publishedAt ? ` · ${new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
                     </p>

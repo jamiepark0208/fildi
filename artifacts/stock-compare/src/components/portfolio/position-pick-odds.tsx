@@ -22,7 +22,7 @@ export function PositionPickOdds() {
     <div className="space-y-2">
       <div className="text-[11px] uppercase tracking-widest text-[#d4af37]">
         Open puts · pick odds
-        <span className="ml-2 font-normal normal-case tracking-normal text-white/40">
+        <span className="ml-2 font-normal normal-case tracking-normal text-amber-100/70">
           snapshot {data?.snapshotId ?? "—"}
         </span>
       </div>

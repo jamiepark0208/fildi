@@ -149,7 +149,7 @@ export function RiskWhatIfBadge({
               how does crash / risk change vs your current book. On demand — you decide (A136).
             </p>
             {!compact && (
-              <p className="font-mono text-white/70 mt-1">
+              <p className="font-mono text-amber-100 mt-1">
                 {input.account} {input.ticker} {input.strike}P {input.expiry}
                 {input.qty && input.qty > 1 ? ` ×${input.qty}` : ""}
               </p>
@@ -166,7 +166,7 @@ export function RiskWhatIfBadge({
             <span className="font-bold uppercase tracking-wide">{run.data.badge}</span>
             <button
               type="button"
-              className="text-white/70 hover:text-white text-[9px]"
+              className="text-amber-100 hover:text-white text-[9px]"
               onClick={(e) => { e.stopPropagation(); run.mutate(); }}
             >
               Re-run
@@ -175,14 +175,14 @@ export function RiskWhatIfBadge({
           {(run.data.reasons ?? []).slice(0, 4).map((r, i) => (
             <div key={i} className="text-white/90">{r}</div>
           ))}
-          {run.data.note && <div className="text-white/70">{run.data.note}</div>}
+          {run.data.note && <div className="text-amber-100">{run.data.note}</div>}
           {(run.data.badge === "red" || run.data.badge === "amber") && (
             <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-white/10 mt-1">
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Why override?"
-                className="flex-1 min-w-[8rem] bg-black/40 border border-white/30 rounded px-1 py-0.5 text-[10px] text-white placeholder:text-white/40"
+                className="flex-1 min-w-[8rem] bg-black/40 border border-white/30 rounded px-1 py-0.5 text-[10px] text-white placeholder:text-amber-100/70"
                 onClick={(e) => e.stopPropagation()}
               />
               <button

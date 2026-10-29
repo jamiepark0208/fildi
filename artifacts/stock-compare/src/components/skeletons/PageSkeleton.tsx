@@ -4,7 +4,7 @@ import { TopNav } from "@/components/top-nav";
 // only the main content area shows pulse placeholders (enh/34 Wave B).
 export function PageSkeleton() {
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="h-[100dvh] overflow-hidden bg-background">
       <TopNav />
       <main className="mt-14 p-6 space-y-4">
         <div className="h-8 w-48 bg-white/10 rounded animate-pulse" />

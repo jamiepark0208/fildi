@@ -22,8 +22,13 @@ export async function fetchBreakdown(ticker: string): Promise<unknown> {
     credentials: "include",
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error || `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({})) as { error?: string };
+    if (res.status === 503) {
+      throw new Error(err.error || "Market data temporarily unavailable — retry");
+    }
+    // Avoid raw undici "fetch failed" in the sheet — map vendor outages.
+    const msg = err.error || `HTTP ${res.status}`;
+    throw new Error(/fetch failed/i.test(msg) ? "Market data vendor timeout — retry" : msg);
   }
   return res.json();
 }

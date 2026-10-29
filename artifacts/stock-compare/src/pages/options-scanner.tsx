@@ -908,11 +908,11 @@ export function OptionsScannerContent({
   const filterSettingsPanel = (
     <div className="space-y-3">
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Track record</p>
+        <p className="text-[10px] uppercase tracking-wider text-amber-100 mb-1.5">Track record</p>
         <CredibilityBadge side={isCallMode ? "call" : "put"} className="text-[10px] px-1.5 py-0" />
       </div>
       <div>
-        <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1">
+        <label className="text-[10px] uppercase tracking-wider text-amber-100 mb-1.5 flex items-center gap-1">
           <TrendingUp className="w-3 h-3 text-emerald-400" />
           Min %/wk
         </label>
@@ -931,21 +931,21 @@ export function OptionsScannerContent({
         />
       </div>
       <div>
-        <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">Ticker filter</label>
+        <label className="text-[10px] uppercase tracking-wider text-amber-100 mb-1.5 block">Ticker filter</label>
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-amber-100/80 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={tickerQuery}
             onChange={e => setTickerQuery(e.target.value)}
             placeholder="Filter ticker..."
-            className="h-7 w-full pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-7 w-full pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-amber-100/80 focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
       {universe === "overall" && hasFocus && (
         <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">Show</label>
+          <label className="text-[10px] uppercase tracking-wider text-amber-100 mb-1.5 block">Show</label>
           <div className="inline-flex items-center gap-0.5">
             {([true, false] as const).map((f) => (
               <button key={String(f)} type="button" onClick={() => setFocusOnly(f)}
@@ -1056,7 +1056,7 @@ export function OptionsScannerContent({
                     onChange={(e) => setTickerQuery(e.target.value)}
                     placeholder="Ticker…"
                     aria-label="Search ticker"
-                    className="h-6 w-[7.5rem] pl-6 pr-1.5 text-[10px] font-mono rounded border border-[#d4af37]/45 bg-black text-white placeholder:text-white/50 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37]/40"
+                    className="h-6 w-[7.5rem] pl-6 pr-1.5 text-[10px] font-mono rounded border border-[#d4af37]/45 bg-black text-white placeholder:text-amber-100/80 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37]/40"
                   />
                 </div>
               </div>

@@ -21,7 +21,7 @@ export function PeerGroupsTab() {
 
       <div className="flex items-center gap-2">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/50" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-amber-100/80" />
           <input
             value={tickerInput}
             onChange={e => setTickerInput(e.target.value.toUpperCase())}

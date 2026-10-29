@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
-import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { getGetStockQuoteQueryOptions, type StockMetrics } from "@workspace/api-client-react";
 import { TopNav } from "@/components/top-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { cn } from "@/lib/utils";
+import { guideSubTabClass } from "@/lib/sub-tabs";
 import { Loader2, TrendingUp, Sparkles, Calendar, AlertTriangle, Activity, Building2 } from "lucide-react";
-import { MacroHighlightsPanel } from "@/components/MacroHighlightsPanel";
 import { RegimeBanner } from "@/components/macro/RegimeBanner";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
@@ -90,12 +89,12 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
       );
     }
     return (
-      <div className="min-h-[100dvh] bg-zinc-900">
+      <div className="h-[100dvh] overflow-hidden bg-zinc-900">
         <TopNav />
         <div className={cn(
           opts?.center
-            ? "flex items-center justify-center mt-14 h-[calc(100vh-3.5rem)]"
-            : "flex flex-col mt-14 h-[calc(100vh-3.5rem)] overflow-hidden",
+            ? "flex items-center justify-center mt-14 h-[calc(100dvh-3.5rem)]"
+            : "flex flex-col mt-14 h-[calc(100dvh-3.5rem)] overflow-hidden",
         )}>
           {body}
         </div>
@@ -106,6 +105,9 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
   // ── Queries ──────────────────────────────────────────────────────────────────
 
   // Tab-gated fetches — cold /charts is ~20 upstream series; don't pull policy/COT until needed.
+  // Heatmap / Scenario / Calendar don't need /macro/data — skip so those tabs paint fast.
+  const needsMacroData = activeTab === "regime" || activeTab === "liquidity"
+    || activeTab === "volatility" || activeTab === "policy";
   const needsCharts = activeTab === "regime" || activeTab === "liquidity" || activeTab === "volatility";
   const needsRegimeExtras = activeTab === "regime";
   const needsPolicy = activeTab === "policy";
@@ -136,6 +138,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
     },
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: needsMacroData,
   });
 
   const { data: macroCharts } = useQuery<MacroCharts>({
@@ -154,25 +157,28 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
     enabled: activeTab === "liquidity" || activeTab === "heatmap",
   });
 
-  // Only fan out per-ticker quotes when the Heatmap tab is open — used for the
-  // "your watchlist in sectors" panel below the TradingView embed.
-  const watchlistQuoteQueries = useQueries({
-    queries: watchlistTickers.map((ticker) => ({
-      ...getGetStockQuoteQueryOptions({ ticker }),
-      staleTime: 10 * 60 * 1000,
-      enabled: activeTab === "heatmap",
-    })),
+  // Heatmap "watchlist by sector" — one DB meta call (lite skips street-gap SQL), not N× quotes.
+  type WlMeta = Record<string, { sector: string | null }>;
+  const { data: wlMeta } = useQuery<WlMeta>({
+    queryKey: ["watchlist-meta-lite"],
+    queryFn: async () => {
+      const r = await fetch("/api/watchlist/meta?lite=1", { credentials: "include" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: activeTab === "heatmap" && watchlistTickers.length > 0,
   });
 
   const watchlistBySector = useMemo(() => {
     const groups: Record<string, string[]> = {};
-    watchlistTickers.forEach((ticker, i) => {
-      const data = watchlistQuoteQueries[i]?.data as StockMetrics | undefined;
-      const sector = data?.sector || "Unknown";
+    for (const ticker of watchlistTickers) {
+      const sector = wlMeta?.[ticker]?.sector || "Unknown";
       (groups[sector] ??= []).push(ticker);
-    });
+    }
     return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [watchlistTickers, watchlistQuoteQueries]);
+  }, [watchlistTickers, wlMeta]);
 
   const { data: fedMembers } = useQuery<FedMember[]>({
     queryKey: ["macro-fed-members"],
@@ -312,17 +318,17 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
     dovish:  byStanceVotingFirst("dovish"),
   };
 
-  // ── Loading / Error ───────────────────────────────────────────────────────────
+  // ── Loading / Error (only tabs that need /macro/data) ─────────────────────────
 
-  if (isLoading) {
-    return shell(<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />, { center: true });
+  if (needsMacroData && isLoading) {
+    return shell(<Loader2 className="h-8 w-8 animate-spin text-amber-100" />, { center: true });
   }
 
-  if (isError || (!isLoading && !macroData)) {
+  if (needsMacroData && (isError || (!isLoading && !macroData))) {
     return shell(
       <div className="flex flex-col items-center justify-center gap-4">
         <AlertTriangle className="h-8 w-8 text-red-400" />
-        <p className="text-sm text-muted-foreground">Failed to load macro data.</p>
+        <p className="text-sm text-amber-100">Failed to load macro data.</p>
         <button
           onClick={() => macroRefetch()}
           className="text-xs px-3 py-1.5 rounded-md bg-zinc-950 text-amber-200/70 border border-[#d4af37]/25 hover:bg-[#d4af37] hover:text-black transition-colors"
@@ -334,7 +340,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
     );
   }
 
-  const s = macroData!.series;
+  const s = macroData?.series;
   const macroCoTs = cotSummaries?.filter((c) => COT_MACRO_IDS.includes(c.instrument)) ?? [];
   const sentCoTs  = cotSummaries?.filter((c) => !COT_MACRO_IDS.includes(c.instrument)) ?? [];
 
@@ -342,17 +348,15 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   return shell(
       <>
-        {/* ── Sub-tabs ────────────────────────────────────────────────────────── */}
-        <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-6 py-2 overflow-x-auto">
-          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
+        {/* ── Sub-tabs — same chrome as Live Market / Macro / News strip ─────── */}
+        <div className="shrink-0 px-6 py-1.5 overflow-x-auto">
+          <div className="inline-flex items-center gap-0.5 flex-wrap shrink-0">
             {MACRO_TABS.map((t) => (
               <button
                 key={t.id}
+                type="button"
                 onClick={() => setActiveTab(t.id)}
-                className={cn(
-                  "px-2.5 py-1.5 transition-colors",
-                  activeTab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-200/50 hover:text-[#d4af37]",
-                )}
+                className={guideSubTabClass(activeTab === t.id)}
               >
                 {t.label}
               </button>
@@ -367,42 +371,42 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
           {activeTab === "themes" && <KeyThemesTab onJump={setActiveTab} />}
 
           {/* ── Tab 1: Macro & Regime Health ─────────────────────────────────── */}
-          {activeTab === "regime" && (
+          {activeTab === "regime" && macroData && s && (
             <>
-              <RegimeBanner />
-              <MacroHighlightsPanel />
-              <RegimeChips macroData={macroData!} />
-              <RegimeAccuracyStrip />
-              <CrossTabReadRow
-                volatilityImplications={macroCharts?.volatilityImplications}
-                liquidityImplications={macroCharts?.liquidityImplications}
-                fedFundsCurve={macroCharts?.fedFundsCurve ?? []}
-                sepData={sepData}
-                events={events}
-                cotSummaries={macroCoTs}
-                onJump={setActiveTab}
-              />
-
-              {/* Yield & credit stats */}
-              <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-md flex flex-wrap items-center divide-x divide-[#d4af37]/10">
-                <CompactStat label="10Y" value={`${fmt(macroData!.yield10y.value, 3)}%`}
-                  sub={macroData!.yield10y.change != null ? `${macroData!.yield10y.change > 0 ? "+" : ""}${fmt(macroData!.yield10y.change, 3)}` : undefined}
-                  subColor={changeColor(macroData!.yield10y.change)} />
-                <CompactStat label="2Y" value={`${fmt(macroData!.yield2y.value, 3)}%`}
-                  sub={macroData!.yield2y.change != null ? `${macroData!.yield2y.change > 0 ? "+" : ""}${fmt(macroData!.yield2y.change, 3)}` : undefined}
-                  subColor={changeColor(macroData!.yield2y.change)} />
-                <CompactStat label="2s10s"
-                  value={macroData!.yieldSpread != null ? `${macroData!.yieldSpread.toFixed(0)}bps` : "—"}
-                  sub={macroData!.yieldSpread != null ? (macroData!.yieldSpread < 0 ? "⚠ Inv" : "Normal") : undefined}
-                  subColor={macroData!.yieldSpread != null && macroData!.yieldSpread < 0 ? "text-red-400" : "text-green-400"} />
-                <CompactStat label="Fed Funds" value={fmtPct(s.fedFundsRate.value)} />
-                <CompactStat label="US Debt" value={macroData!.usDebt != null ? `$${(macroData!.usDebt / 1_000_000).toFixed(1)}T` : "—"} />
+              {/* Regime header — same compact mono stack as Vol/Liquidity/Policy strips */}
+              <div className="border border-[#d4af37]/20 bg-zinc-950 rounded-md px-2 py-1.5 space-y-1">
+                <RegimeBanner />
+                <RegimeChips macroData={macroData} />
+                <RegimeAccuracyStrip />
+                <CrossTabReadRow
+                  volatilityImplications={macroCharts?.volatilityImplications}
+                  liquidityImplications={macroCharts?.liquidityImplications}
+                  fedFundsCurve={macroCharts?.fedFundsCurve ?? []}
+                  sepData={sepData}
+                  events={events}
+                  cotSummaries={macroCoTs}
+                  onJump={setActiveTab}
+                />
+                <div className="flex flex-wrap items-center divide-x divide-[#d4af37]/10 border-t border-[#d4af37]/10 pt-1">
+                  <CompactStat label="10Y" value={`${fmt(macroData!.yield10y.value, 3)}%`}
+                    sub={macroData!.yield10y.change != null ? `${macroData!.yield10y.change > 0 ? "+" : ""}${fmt(macroData!.yield10y.change, 3)}` : undefined}
+                    subColor={changeColor(macroData!.yield10y.change)} />
+                  <CompactStat label="2Y" value={`${fmt(macroData!.yield2y.value, 3)}%`}
+                    sub={macroData!.yield2y.change != null ? `${macroData!.yield2y.change > 0 ? "+" : ""}${fmt(macroData!.yield2y.change, 3)}` : undefined}
+                    subColor={changeColor(macroData!.yield2y.change)} />
+                  <CompactStat label="2s10s"
+                    value={macroData!.yieldSpread != null ? `${macroData!.yieldSpread.toFixed(0)}bps` : "—"}
+                    sub={macroData!.yieldSpread != null ? (macroData!.yieldSpread < 0 ? "⚠ Inv" : "Normal") : undefined}
+                    subColor={macroData!.yieldSpread != null && macroData!.yieldSpread < 0 ? "text-red-400" : "text-green-400"} />
+                  <CompactStat label="Fed Funds" value={fmtPct(s.fedFundsRate.value)} />
+                  <CompactStat label="US Debt" value={macroData!.usDebt != null ? `$${(macroData!.usDebt / 1_000_000).toFixed(1)}T` : "—"} />
+                </div>
               </div>
 
               {/* Regime history charts — 3 per row; click to expand */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <ExpandableChartFrame title="Yield Curve">
-                  <YieldCurveChart yieldCurve={macroData!.yieldCurve} period={treasuryPeriod} onPeriodChange={setTreasuryPeriod} />
+                  <YieldCurveChart yieldCurve={macroData.yieldCurve} period={treasuryPeriod} onPeriodChange={setTreasuryPeriod} />
                 </ExpandableChartFrame>
                 <ExpandableChartFrame title="10Y Treasury">
                   <RateHistoryChart title="10Y Treasury" data={macroCharts?.tenYearHistory ?? []} color="#a78bfa" loading={!macroCharts} />

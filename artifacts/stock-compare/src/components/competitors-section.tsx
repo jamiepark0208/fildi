@@ -57,7 +57,7 @@ export function useCompetitors(ticker: string) {
 }
 
 function scoreColor(score: number | null | undefined): string {
-  if (score == null) return "text-white/40";
+  if (score == null) return "text-amber-100/70";
   if (score >= 65) return "text-green-400";
   if (score >= 45) return "text-yellow-400";
   return "text-red-400";
@@ -68,7 +68,7 @@ function zScoreColor(z: number): string {
   if (z >= 0.5) return "text-emerald-300/80";
   if (z <= -1.5) return "text-red-400";
   if (z <= -0.5) return "text-red-300/80";
-  return "text-white/50";
+  return "text-amber-100/80";
 }
 
 function metricValueStr(val: number): string {
@@ -148,8 +148,8 @@ function CompetitorRow({
             <tbody>
               {row.breakdown.map((m, i) => (
                 <tr key={i}>
-                  <td className="pr-3 py-0.5 text-white/70">{m.label}</td>
-                  <td className="pr-2 py-0.5 text-right font-mono text-white/60">{metricValueStr(m.value)}</td>
+                  <td className="pr-3 py-0.5 text-amber-100">{m.label}</td>
+                  <td className="pr-2 py-0.5 text-right font-mono text-amber-100">{metricValueStr(m.value)}</td>
                   <td className={cn("py-0.5 text-right font-mono font-semibold", zScoreColor(m.zScore))}>
                     {m.zScore >= 0 ? "+" : ""}{m.zScore.toFixed(1)}σ
                   </td>
@@ -159,7 +159,7 @@ function CompetitorRow({
           </table>
         )}
         {(row.fundScore == null || row.pendingBackfill) && (
-          <p className="text-[10px] text-white/40 mt-1">
+          <p className="text-[10px] text-amber-100/70 mt-1">
             {row.fundScore == null
               ? "Unscored — fundamentals not in universe yet (or enrichment running)."
               : "Some data is stale — score may update soon."}

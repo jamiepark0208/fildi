@@ -35,7 +35,7 @@ function verdict(s: Side, buyAll: number): { label: string; cls: string; tip: st
   if (opt != null && opt > buyAll)
     return { label: "options only", cls: "text-amber-300 border-amber-300/40",
       tip: "Options beat buy-all, but the stock edge is not reliable (t < 2) — likely cheap IV, not a better pick." };
-  return { label: "no edge", cls: "text-zinc-400 border-zinc-500/40",
+  return { label: "no edge", cls: "text-amber-100 border-zinc-500/40",
     tip: "Options did no better than buying every option on the same weeks." };
 }
 
@@ -83,7 +83,8 @@ function NamesTable({ side, rows }: { side: "call" | "put"; rows: Name[] }) {
   );
 }
 
-export function LongOptionBoard() {
+/** `side` = embed under Long call / Long put in StructureLab (no separate tab). */
+export function LongOptionBoard({ side }: { side?: "call" | "put" } = {}) {
   const { data, isLoading } = useQuery({
     queryKey: ["long-option-board"],
     queryFn: async (): Promise<{ board: Board | null }> => {
@@ -92,35 +93,36 @@ export function LongOptionBoard() {
       return r.json();
     },
     staleTime: 10 * 60_000,
-    refetchOnWindowFocus: false,
+    refetchInterval: 15 * 60_000,
+    refetchOnWindowFocus: true,
   });
   const [open, setOpen] = useState<string | null>("Estimate revisions (S085)");
   if (isLoading) return <p className="text-xs text-amber-100">Loading…</p>;
   const b = data?.board;
-  if (!b) return <p className="text-xs text-amber-100">No board yet (morning job).</p>;
+  if (!b) return <p className="text-xs text-amber-100">No S086 board yet (morning job).</p>;
+
+  const sides = side ? [side] as const : (["call", "put"] as const);
+  const buyAll = side === "put" ? b.buyAll.put : side === "call" ? b.buyAll.call : null;
 
   return (
-    <div className="space-y-1.5 text-xs">
+    <div className="space-y-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-0.5">
-        <span className="text-[#d4af37] font-bold tabular-nums">{formatMdYy(b.asOf)}</span>
-        <span className="text-white font-semibold">{b.strategies.length} strategies · top 10 each</span>
-        <DataTip tip={`Average result of buying a ~0.50Δ ~45-day option on every name, held to expiry, on the ${b.analogWeeks} past weeks most like today. Each strategy is judged against this.\n\nInputs: tech ${b.techAsOf}, analyst estimates ${b.ibesAsOf}, prices/IV ${b.asOf}.`}>
-          <span className="text-amber-100/60">buy-all: calls {pct(b.buyAll.call)} · puts {pct(b.buyAll.put)}</span>
+        <span className="text-[#d4af37] font-bold text-[10px] uppercase tracking-wide">
+          S086 name angles {side ? `(long ${side})` : ""}
+        </span>
+        <span className="text-white font-semibold tabular-nums">{formatMdYy(b.asOf)}</span>
+        <DataTip tip="Different pipeline from Schwab multi-leg picks: ranks names on weeks like today vs buy-all. Not the same logic as CSP/jade rows.">
+          <span className="text-amber-100 underline decoration-dotted cursor-help">≠ A192 fills</span>
         </DataTip>
-        {b.forwardBuyAll ? (
-          <DataTip tip="Forward baseline: a call on every name, logged weekly, graded at expiry. Arms below it after 30 graded trades are demoted.">
-            <span className="text-amber-100/60">paper buy-all {fwdText(b.forwardBuyAll)}</span>
-          </DataTip>
-        ) : null}
+        {buyAll != null ? (
+          <span className="text-amber-100">buy-all {pct(buyAll)}</span>
+        ) : (
+          <span className="text-amber-100">buy-all calls {pct(b.buyAll.call)} · puts {pct(b.buyAll.put)}</span>
+        )}
       </div>
-      <p className="text-[11px] leading-snug px-0.5 text-amber-100/70">
-        Each strategy ranks every name today. <span className="text-white">Edge</span> = how much its top 10 beat the
-        average stock over 21 days on weeks like today. <span className="text-white">Option</span> = its picks' option
-        return vs buy-all. Call arms marked <span className="text-emerald-400">works</span> are paper-traded weekly and graded at expiry.
-      </p>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-0.5">
-        {(["call", "put"] as const).map((s) => (
-          <span key={s} className="text-amber-100/70">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-0.5 text-amber-100">
+        {sides.map((s) => (
+          <span key={s}>
             <span className="text-white font-semibold">{s === "call" ? "Call" : "Put"} overlap:</span>{" "}
             {b.overlap[s].slice(0, 8).map(([t, k]) => `${t} ×${k}`).join(" · ") || "none"}
           </span>
@@ -129,8 +131,6 @@ export function LongOptionBoard() {
 
       {b.strategies.map((st) => {
         const isOpen = open === st.name;
-        const vc = verdict(st.call, b.buyAll.call);
-        const vp = verdict(st.put, b.buyAll.put);
         const failing = st.status === "failing forward";
         return (
           <div key={st.name} className="rounded border border-[#d4af37]/20 bg-zinc-950">
@@ -139,33 +139,37 @@ export function LongOptionBoard() {
               {isOpen ? <ChevronDown className="w-3 h-3 text-[#d4af37] shrink-0" />
                 : <ChevronRight className="w-3 h-3 text-[#d4af37] shrink-0" />}
               <span className="font-semibold text-white">{st.name}</span>
-              {([["Calls", st.call, vc], ["Puts", st.put, vp]] as const).map(([lab, s, v]) => (
-                <DataTip key={lab} tip={`${v.tip}\n\nEdge on today-like weeks ${pct(s.edgeAnalog[0], 2)} (t ${s.edgeAnalog[1]?.toFixed(1) ?? "—"}, beat avg ${pct(s.edgeAnalog[2], 0)} of weeks) · all weeks ${pct(s.edgeAll[0], 2)} (t ${s.edgeAll[1]?.toFixed(1) ?? "—"}${st.insampleAll ? ", in-sample" : ""}). Option ${pct(s.option[0])} on ${s.option[1]} trades${s.optionUngated != null ? ` · picks limited to names with IV rank below the week's median (buy cheap); without that gate ${pct(s.optionUngated)}` : ""}${s.optionByDte && Object.keys(s.optionByDte).length > 1 ? `\nBy horizon (per trade, held to expiry; buy-all in brackets): ${Object.entries(s.optionByDte).map(([k, v]) => `${k}d ${pct(v, 0)} (${pct(b.buyAllCallByDte?.[k], 0)})`).join(" · ")}` : ""}.`}>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-amber-100/60">{lab}</span>
-                    <span className={cn("rounded border px-1 text-[10px] uppercase", v.cls)}>{v.label}</span>
-                    <span className="tabular-nums text-white">{pct(s.option[0], 0)}</span>
-                    {s.optionUngated != null && (
-                      <span className="tabular-nums text-zinc-500 text-[10px]">no gate {pct(s.optionUngated, 0)}</span>
-                    )}
-                  </span>
-                </DataTip>
-              ))}
-              {st.forward ? (
+              {sides.map((s) => {
+                const sideRow = st[s];
+                const v = verdict(sideRow, s === "call" ? b.buyAll.call : b.buyAll.put);
+                return (
+                  <DataTip key={s} tip={`${v.tip}\n\nEdge ${pct(sideRow.edgeAnalog[0], 2)} (t ${sideRow.edgeAnalog[1]?.toFixed(1) ?? "—"}) · option ${pct(sideRow.option[0])} on ${sideRow.option[1]} trades${sideRow.optionUngated != null ? ` · picks limited to names with IV rank below the week's median (buy cheap); without that gate ${pct(sideRow.optionUngated)}` : ""}${sideRow.optionByDte && Object.keys(sideRow.optionByDte).length > 1 ? `\nBy horizon (per trade, held to expiry; buy-all in brackets): ${Object.entries(sideRow.optionByDte).map(([k, v]) => `${k}d ${pct(v, 0)} (${pct(b.buyAllCallByDte?.[k], 0)})`).join(" · ")}` : ""}.`}>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-amber-100">{s === "call" ? "Calls" : "Puts"}</span>
+                      <span className={cn("rounded border px-1 text-[10px] uppercase", v.cls)}>{v.label}</span>
+                      <span className="tabular-nums text-white">{pct(sideRow.option[0], 0)}</span>
+                      {sideRow.optionUngated != null && (
+                        <span className="tabular-nums text-amber-100/80 text-[10px]">no gate {pct(sideRow.optionUngated, 0)}</span>
+                      )}
+                    </span>
+                  </DataTip>
+                );
+              })}
+              {st.forward && (!side || side === "call") ? (
                 <DataTip tip={failing
-                  ? "Demoted: after 30+ graded paper trades its average return is below the paper buy-all baseline. No longer logged."
-                  : "Forward paper record: top-10 calls logged weekly, graded at expiry (win = worth more than cost; % = average return per $)."}>
-                  <span className={cn("tabular-nums", failing ? "text-rose-400" : "text-emerald-400/80")}>
+                  ? "Demoted vs paper buy-all after 30+ graded trades."
+                  : "Forward paper: top-10 calls logged weekly, graded at expiry."}>
+                  <span className={cn("tabular-nums", failing ? "text-rose-400" : "text-emerald-400")}>
                     paper {fwdText(st.forward)}{failing ? " · demoted" : ""}
                   </span>
                 </DataTip>
               ) : null}
             </button>
             {isOpen ? (
-              <div className="grid gap-2 px-2 pb-2 md:grid-cols-2">
-                {(["call", "put"] as const).map((s) => (
+              <div className={cn("grid gap-2 px-2 pb-2", sides.length > 1 && "md:grid-cols-2")}>
+                {sides.map((s) => (
                   <div key={s} className="space-y-0.5">
-                    <p className="text-[11px] text-amber-100/70">Long {s}s · exp ~{formatMdYy(b.expiry)}</p>
+                    <p className="text-[11px] text-amber-100">Long {s}s · exp ~{formatMdYy(b.expiry)}</p>
                     <NamesTable side={s} rows={st[s].names} />
                   </div>
                 ))}

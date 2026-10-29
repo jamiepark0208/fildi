@@ -114,7 +114,7 @@ const STATUS_CLR: Record<string, string> = {
   live: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   candidate: "bg-sky-500/20 text-sky-300 border-sky-500/30",
   failed: "bg-red-500/20 text-red-300 border-red-500/30",
-  retired: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+  retired: "bg-zinc-500/20 text-amber-100 border-zinc-500/30",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -144,12 +144,12 @@ function signalNum(v: unknown): number | null {
 function StrategySignalsPanel({ strategyId }: { strategyId: string }) {
   const { data, isLoading, error } = useStrategySignals(strategyId, 30);
   if (isLoading) {
-    return <p className="text-[11px] text-zinc-500 py-2">Loading signals…</p>;
+    return <p className="text-[11px] text-amber-100/80 py-2">Loading signals…</p>;
   }
   if (error || !data) return null;
   if (data.count === 0) {
     return (
-      <div className="rounded border border-[#d4af37]/15 bg-zinc-950 px-2 py-1.5 text-[11px] text-zinc-500">
+      <div className="rounded border border-[#d4af37]/15 bg-zinc-950 px-2 py-1.5 text-[11px] text-amber-100/80">
         No live signals in the last 30d
       </div>
     );
@@ -176,7 +176,7 @@ function StrategySignalsPanel({ strategyId }: { strategyId: string }) {
     <div className="rounded border border-[#d4af37]/20 bg-zinc-950 space-y-1.5 p-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[10px] font-semibold text-[#d4af37]">Today&apos;s signals</span>
-        <span className="text-[10px] text-zinc-400 font-mono">
+        <span className="text-[10px] text-amber-100 font-mono">
           live since {live.since} · graded {live.graded} · hit {hit} · mean {mean}
           <span className="text-zinc-600"> (backtest {bt})</span>
         </span>
@@ -186,7 +186,7 @@ function StrategySignalsPanel({ strategyId }: { strategyId: string }) {
         return (
           <div key={group} className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-500">{group}</span>
+              <span className="text-[9px] uppercase tracking-wider text-amber-100/80">{group}</span>
               <span className="text-[9px] text-zinc-600">{rows.length}</span>
               {cluster >= 4 && (
                 <span className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/30 rounded px-1.5 py-0.5">
@@ -196,7 +196,7 @@ function StrategySignalsPanel({ strategyId }: { strategyId: string }) {
             </div>
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="text-[9px] uppercase tracking-wider text-zinc-500">
+                <tr className="text-[9px] uppercase tracking-wider text-amber-100/80">
                   <th className="text-left font-semibold px-1 py-0.5">Ticker</th>
                   <th className="text-left font-semibold px-1 py-0.5">Contract</th>
                   <th className="text-right font-semibold px-1 py-0.5">Entry mid</th>
@@ -225,7 +225,7 @@ function StrategySignalsPanel({ strategyId }: { strategyId: string }) {
                       <td className="px-1 py-0.5 font-mono text-right tabular-nums text-zinc-300">
                         {z == null ? "—" : z.toFixed(2)}
                       </td>
-                      <td className="px-1 py-0.5 text-zinc-500">{s.status}</td>
+                      <td className="px-1 py-0.5 text-amber-100/80">{s.status}</td>
                     </tr>
                   );
                 })}
@@ -298,7 +298,7 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
     else { setSort(k); setSortDir(k === "ticker" ? "asc" : "desc"); }
   };
 
-  if (isLoading) return <p className="text-xs text-zinc-400 py-6 text-center">Loading strategy…</p>;
+  if (isLoading) return <p className="text-xs text-amber-100 py-6 text-center">Loading strategy…</p>;
   if (error || !data) return <p className="text-xs text-red-400/80 py-6 text-center">Could not load strategy</p>;
 
   const { strategy: s, stats } = data;
@@ -320,17 +320,17 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
               </span>
             )}
             {s.studyRef && (
-              <span className="text-[10px] text-zinc-500 font-mono">{s.studyRef}</span>
+              <span className="text-[10px] text-amber-100/80 font-mono">{s.studyRef}</span>
             )}
           </div>
-          <p className="text-[11px] text-zinc-400">{s.summary}</p>
+          <p className="text-[11px] text-amber-100">{s.summary}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <label className="text-zinc-500">From
+          <label className="text-amber-100/80">From
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
               className="ml-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1 py-0.5 text-sky-100" />
           </label>
-          <label className="text-zinc-500">To
+          <label className="text-amber-100/80">To
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
               className="ml-1 bg-zinc-950 border border-[#d4af37]/20 rounded px-1 py-0.5 text-sky-100" />
           </label>
@@ -356,10 +356,10 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
       <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-2">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-semibold text-[#d4af37]">Cumulative return</span>
-          <span className="text-[9px] text-zinc-500">strategy vs SPY · holdout shaded</span>
+          <span className="text-[9px] text-amber-100/80">strategy vs SPY · holdout shaded</span>
         </div>
         {chartData.length === 0 ? (
-          <div className="h-[140px] flex items-center justify-center text-xs text-zinc-500">No equity series</div>
+          <div className="h-[140px] flex items-center justify-center text-xs text-amber-100/80">No equity series</div>
         ) : (
           <>
             <ResponsiveContainer width="100%" height={160}>
@@ -403,7 +403,7 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
       <div className="rounded border border-[#d4af37]/15 bg-zinc-950">
         <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-[#d4af37]/10">
           <span className="text-[10px] font-semibold text-[#d4af37]">Trades</span>
-          <span className="text-[10px] text-zinc-500">{trades.length} shown</span>
+          <span className="text-[10px] text-amber-100/80">{trades.length} shown</span>
           <input
             value={tickerFilter}
             onChange={(e) => setTickerFilter(e.target.value)}
@@ -414,7 +414,7 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
         <div className="max-h-[320px] overflow-auto">
           <table className="w-full text-[11px]">
             <thead className="sticky top-0 bg-zinc-950 z-10">
-              <tr className="text-[9px] uppercase tracking-wider text-zinc-500">
+              <tr className="text-[9px] uppercase tracking-wider text-amber-100/80">
                 {([
                   ["entryTs", "Entry"],
                   ["ticker", "Contract"],
@@ -432,24 +432,24 @@ function StrategyDetail({ id, version }: { id: string; version: string }) {
             <tbody>
               {trades.map((t) => (
                 <tr key={t.id} className="border-t border-white/5 hover:bg-white/[0.02]">
-                  <td className="px-1.5 py-1 font-mono text-zinc-400 whitespace-nowrap">{shortDate(t.entryTs)}</td>
+                  <td className="px-1.5 py-1 font-mono text-amber-100 whitespace-nowrap">{shortDate(t.entryTs)}</td>
                   <td className="px-1.5 py-1 font-mono text-sky-100 whitespace-nowrap">
                     {contractLabel(t)}
                     <span className="text-zinc-600 ml-1">{t.side}</span>
                   </td>
                   <td className={cn("px-1.5 py-1 font-mono tabular-nums text-right",
-                    t.pnl == null ? "text-zinc-500" : t.pnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    t.pnl == null ? "text-amber-100/80" : t.pnl >= 0 ? "text-emerald-400" : "text-red-400")}>
                     {t.pnl == null ? "—" : t.pnl.toFixed(0)}
                   </td>
                   <td className={cn("px-1.5 py-1 font-mono tabular-nums text-right",
-                    t.retPct == null ? "text-zinc-500" : t.retPct >= 0 ? "text-emerald-400" : "text-red-400")}>
+                    t.retPct == null ? "text-amber-100/80" : t.retPct >= 0 ? "text-emerald-400" : "text-red-400")}>
                     {signedPct(t.retPct)}
                   </td>
-                  <td className="px-1.5 py-1 text-zinc-400 truncate max-w-[12rem]" title={t.trigger}>{t.trigger}</td>
+                  <td className="px-1.5 py-1 text-amber-100 truncate max-w-[12rem]" title={t.trigger}>{t.trigger}</td>
                 </tr>
               ))}
               {trades.length === 0 && (
-                <tr><td colSpan={5} className="px-2 py-4 text-center text-zinc-500">No trades in range</td></tr>
+                <tr><td colSpan={5} className="px-2 py-4 text-center text-amber-100/80">No trades in range</td></tr>
               )}
             </tbody>
           </table>
@@ -463,10 +463,10 @@ function MdPanel({ title, body }: { title: string; body: string }) {
   return (
     <details className="rounded border border-[#d4af37]/15 bg-zinc-950 px-2.5 py-1.5 group" open={title === "Rules"}>
       <summary className="cursor-pointer text-[10px] font-semibold text-[#d4af37]/80 list-none flex items-center gap-1">
-        <span className="text-zinc-500 group-open:rotate-90 transition-transform">▸</span>
+        <span className="text-amber-100/80 group-open:rotate-90 transition-transform">▸</span>
         {title}
       </summary>
-      <pre className="mt-1.5 text-[11px] text-zinc-400 whitespace-pre-wrap font-sans leading-relaxed">{body}</pre>
+      <pre className="mt-1.5 text-[11px] text-amber-100 whitespace-pre-wrap font-sans leading-relaxed">{body}</pre>
     </details>
   );
 }
@@ -498,14 +498,14 @@ export function StrategiesTab() {
     return showFailed ? list : list.filter((s) => s.status !== "failed");
   }, [data?.strategies, showFailed]);
 
-  if (isLoading) return <p className="text-xs text-zinc-400 py-10 text-center">Loading strategies…</p>;
+  if (isLoading) return <p className="text-xs text-amber-100 py-10 text-center">Loading strategies…</p>;
   if (error) return <p className="text-xs text-red-400/80 py-10 text-center">Could not load strategies</p>;
 
   if (!data || data.strategies.length === 0) {
     return (
       <div className="rounded border border-[#d4af37]/15 bg-zinc-950 px-4 py-10 text-center">
         <p className="text-sm text-zinc-300">No strategies backtested yet</p>
-        <p className="text-[11px] text-zinc-500 mt-1">Seeds land via the strategy runner (A176). This page only reads.</p>
+        <p className="text-[11px] text-amber-100/80 mt-1">Seeds land via the strategy runner (A176). This page only reads.</p>
       </div>
     );
   }
@@ -513,7 +513,7 @@ export function StrategiesTab() {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] text-zinc-400">
+        <span className="text-[11px] text-amber-100">
           <span className="font-semibold text-sky-100">{data.tried}</span> strategies tried ·{" "}
           <span className="font-semibold text-emerald-300">{data.passed}</span> passed
         </span>
@@ -540,7 +540,7 @@ export function StrategiesTab() {
           <option value="stock">stock</option>
           <option value="mixed">mixed</option>
         </select>
-        <label className="flex items-center gap-1.5 text-[11px] text-zinc-400 cursor-pointer ml-auto">
+        <label className="flex items-center gap-1.5 text-[11px] text-amber-100 cursor-pointer ml-auto">
           <input type="checkbox" checked={showFailed} onChange={(e) => setShowFailed(e.target.checked)}
             className="accent-[#d4af37]" />
           Show failed
@@ -566,8 +566,8 @@ export function StrategiesTab() {
                 <span className="text-[12px] font-semibold text-sky-100 truncate">{s.name}</span>
                 <StatusBadge status={s.status} />
               </div>
-              <p className="text-[10px] text-zinc-500 line-clamp-2 mb-1.5">{s.summary}</p>
-              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-mono text-zinc-400">
+              <p className="text-[10px] text-amber-100/80 line-clamp-2 mb-1.5">{s.summary}</p>
+              <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-mono text-amber-100">
                 <span className={s.stats.totalReturn != null && s.stats.totalReturn >= 0 ? "text-emerald-400" : "text-red-400"}>
                   {signedPct(s.stats.totalReturn)}
                 </span>
@@ -578,7 +578,7 @@ export function StrategiesTab() {
             </button>
           ))}
           {rows.length === 0 && (
-            <p className="text-xs text-zinc-500 col-span-full py-6 text-center">No strategies match filters</p>
+            <p className="text-xs text-amber-100/80 col-span-full py-6 text-center">No strategies match filters</p>
           )}
         </div>
       )}

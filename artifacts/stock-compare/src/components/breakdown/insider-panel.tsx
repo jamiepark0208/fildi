@@ -57,9 +57,9 @@ export function InsiderPanel({ ticker }: { ticker: string }) {
     },
     staleTime: 60 * 60_000,
   });
-  if (isLoading) return <p className="text-[10px] text-white/70">Loading insiders…</p>;
+  if (isLoading) return <p className="text-[10px] text-amber-100">Loading insiders…</p>;
   if (!data || (data.rows.length === 0 && data.buys === 0 && data.sells === 0)) {
-    return <p className="text-[10px] text-white/70">No Form 4 buys or sales in 90 days.</p>;
+    return <p className="text-[10px] text-amber-100">No Form 4 buys or sales in 90 days.</p>;
   }
   return (
     <div className={GRID_WRAP}>

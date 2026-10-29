@@ -78,7 +78,7 @@ function timeAgo(iso: string): string {
 }
 
 const CONFIDENCE_LABEL: Record<number, { label: string; cls: string }> = {
-  1: { label: "Speculative", cls: "text-muted-foreground" },
+  1: { label: "Speculative", cls: "text-amber-100" },
   2: { label: "Low",         cls: "text-orange-400" },
   3: { label: "Moderate",    cls: "text-yellow-400" },
   4: { label: "High",        cls: "text-green-400" },
@@ -86,7 +86,7 @@ const CONFIDENCE_LABEL: Record<number, { label: string; cls: string }> = {
 }
 
 function ConfidenceLabel({ value }: { value: number }) {
-  const { label, cls } = CONFIDENCE_LABEL[value] ?? { label: "—", cls: "text-muted-foreground" }
+  const { label, cls } = CONFIDENCE_LABEL[value] ?? { label: "—", cls: "text-amber-100" }
   return <span className={cn("text-xs font-semibold", cls)}>{label}</span>
 }
 
@@ -106,14 +106,14 @@ function SignalBadge({ signal }: { signal: string | null }) {
 
 const STATUS_MAP: Record<string, { label: string; badgeCls: string; cardCls: string }> = {
   OPEN:         { label: "OPEN",     badgeCls: "bg-blue-500/15 text-blue-400 border-blue-500/30",   cardCls: "bg-blue-500/[0.06] border-blue-500/25" },
-  CLOSED:       { label: "CLOSED",   badgeCls: "bg-secondary text-muted-foreground border-border",  cardCls: "bg-card border-border" },
+  CLOSED:       { label: "CLOSED",   badgeCls: "bg-secondary text-amber-100 border-border",  cardCls: "bg-card border-border" },
   EXPIRED_WIN:  { label: "WIN",      badgeCls: "bg-green-500/15 text-green-400 border-green-500/30", cardCls: "bg-green-500/[0.06] border-green-500/25" },
   EXPIRED_LOSS: { label: "LOSS",     badgeCls: "bg-red-500/15 text-red-400 border-red-500/30",       cardCls: "bg-red-500/[0.06] border-red-500/25" },
   ASSIGNED:     { label: "ASSIGNED", badgeCls: "bg-orange-500/15 text-orange-400 border-orange-500/30", cardCls: "bg-orange-500/[0.06] border-orange-500/25" },
 }
 
 function statusStyle(status: string) {
-  return STATUS_MAP[status] ?? { label: status, badgeCls: "bg-secondary text-muted-foreground border-border", cardCls: "bg-card border-border" }
+  return STATUS_MAP[status] ?? { label: status, badgeCls: "bg-secondary text-amber-100 border-border", cardCls: "bg-card border-border" }
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -217,7 +217,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <ConfidenceLabel value={post.confidence} />
-          <span className="text-[10px] text-muted-foreground">{timeAgo(post.createdAt)}</span>
+          <span className="text-[10px] text-amber-100">{timeAgo(post.createdAt)}</span>
         </div>
       </div>
 
@@ -243,7 +243,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
             onClick={post.likedByMe ? onUnlike : onLike}
             className={cn(
               "flex items-center gap-1 text-xs transition-colors",
-              post.likedByMe ? "text-red-400 hover:text-red-300" : "text-muted-foreground hover:text-foreground"
+              post.likedByMe ? "text-red-400 hover:text-red-300" : "text-amber-100 hover:text-foreground"
             )}
           >
             <Heart className={cn("w-3.5 h-3.5", post.likedByMe && "fill-current")} />
@@ -251,7 +251,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
           </button>
           <button
             onClick={toggleComments}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 text-xs text-amber-100 hover:text-foreground transition-colors"
           >
             <MessageCircle className="w-3.5 h-3.5" />
             {post.commentCount}
@@ -259,7 +259,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
           {!isResolved && (
             <button
               onClick={() => { addToScannerShelf(post.ticker); navigate(optionsScannerHref(post.ticker)) }}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1 text-xs text-amber-100 hover:text-foreground transition-colors"
             >
               <TrendingUp className="w-3.5 h-3.5" />
               Validate in scanner
@@ -271,7 +271,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowClose(v => !v)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs text-amber-100 hover:text-foreground transition-colors"
             >
               Close
             </button>
@@ -288,7 +288,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
       {/* Inline close form */}
       {showClose && (
         <div className="border border-border rounded-lg p-3 space-y-2 bg-background/50">
-          <div className="text-xs text-muted-foreground font-medium">Cost to close per contract</div>
+          <div className="text-xs text-amber-100 font-medium">Cost to close per contract</div>
           <input
             type="number" min="0" step="0.01"
             value={closePremium}
@@ -311,7 +311,7 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
             </button>
             <button
               onClick={() => { setShowClose(false); setClosePremium("") }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs text-amber-100 hover:text-foreground transition-colors"
             >
               Cancel
             </button>
@@ -322,14 +322,14 @@ export function TradeCard({ post, showUser = true, isOwner = false, onLike, onUn
       {/* Comments */}
       {showComments && (
         <div className="border-t border-border pt-2.5 space-y-2">
-          {loadingComments && <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>}
+          {loadingComments && <span className="text-xs text-amber-100 animate-pulse">Loading…</span>}
           {comments?.map(c => (
             <div key={c.id} className="flex gap-2">
               <AvatarInitial username={c.username} avatarUrl={c.avatarUrl} size="xs" />
               <div>
                 <span className="text-xs font-medium text-foreground mr-1.5">{c.username}</span>
-                <span className="text-xs text-muted-foreground">{c.body}</span>
-                <div className="text-[10px] text-muted-foreground/40 mt-0.5">{timeAgo(c.createdAt)}</div>
+                <span className="text-xs text-amber-100">{c.body}</span>
+                <div className="text-[10px] text-amber-100/40 mt-0.5">{timeAgo(c.createdAt)}</div>
               </div>
             </div>
           ))}

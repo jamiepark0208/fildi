@@ -468,7 +468,7 @@ export function CreateSellPutDialog({ open, onClose, put, chain, isCall = false 
   }
 
   const inputCls = "w-full h-9 px-3 text-sm bg-secondary border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors";
-  const labelCls = "block text-xs font-medium text-muted-foreground mb-1";
+  const labelCls = "block text-xs font-medium text-amber-100 mb-1";
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -494,7 +494,7 @@ export function CreateSellPutDialog({ open, onClose, put, chain, isCall = false 
             <div className="flex items-center gap-1 h-9">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} type="button" onClick={() => setConfidence(n)}
-                  className={cn("text-lg leading-none transition-colors", n <= confidence ? "text-yellow-400" : "text-muted-foreground/30 hover:text-yellow-400/60")}>●</button>
+                  className={cn("text-lg leading-none transition-colors", n <= confidence ? "text-yellow-400" : "text-amber-100/30 hover:text-yellow-400/60")}>●</button>
               ))}
             </div>
           </div>

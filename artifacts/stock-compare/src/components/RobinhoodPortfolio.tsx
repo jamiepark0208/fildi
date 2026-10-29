@@ -63,17 +63,17 @@ const fmtUsd = (v: string | null) => v == null ? '—' : fmt.format(parseFloat(v
 const fmtNum = (v: string | null) => v == null ? '—' : parseFloat(v).toLocaleString()
 
 function pnlColor(v: string | null) {
-  if (v == null) return 'text-muted-foreground'
+  if (v == null) return 'text-amber-100'
   const n = parseFloat(v)
-  return n > 0 ? 'text-green-400' : n < 0 ? 'text-red-400' : 'text-muted-foreground'
+  return n > 0 ? 'text-green-400' : n < 0 ? 'text-red-400' : 'text-amber-100'
 }
 
 function PnlIcon({ v }: { v: string | null }) {
-  if (v == null) return <Minus className="h-3 w-3 text-muted-foreground" />
+  if (v == null) return <Minus className="h-3 w-3 text-amber-100" />
   const n = parseFloat(v)
   if (n > 0) return <TrendingUp className="h-3 w-3 text-green-400" />
   if (n < 0) return <TrendingDown className="h-3 w-3 text-red-400" />
-  return <Minus className="h-3 w-3 text-muted-foreground" />
+  return <Minus className="h-3 w-3 text-amber-100" />
 }
 
 const KNOWN_PORTFOLIOS = ['IRA', 'FILDI']

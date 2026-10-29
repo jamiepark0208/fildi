@@ -10,13 +10,15 @@ import type {
 } from "./stockdb/stock-db-types";
 import { formatSector } from "./stockdb/stock-db-types";
 import {
-  COLS, TECH_COLS, FAMILY_COLORS, TECH_FAMILY_COLORS, techFamilies, LOG_TRANSFORM_COLS, txt, flag,
+  COLS, TECH_COLS, FAMILY_COLORS, TECH_FAMILY_COLORS, techFamilies, LOG_TRANSFORM_COLS, headerLines,
+  visibleFundCols, familyFieldCols, fundTableWidthPx, COL_W, SCORE_FAMILY_ORDER, type FundFamily,
 } from "./stockdb/stock-db-columns";
-import { getSectorPalette, coverageColor, coverageBarColor } from "./stockdb/stock-db-palette";
 import {
-  calcCoverage, fmt, isSuspect, computeGroupZScores, isNearZeroBase, fmtDate, sourceAgeLabel, sourceAgeTitle,
+  getSectorPalette, coverageColor, coverageBarColor, FAMILY_LABEL, FAMILY_CHIP, FAMILY_SOLID, FAMILY_CELL_BG,
+} from "./stockdb/stock-db-palette";
+import {
+  calcCoverage, fmt, isSuspect, computeGroupZScores, isNearZeroBase, fmtDate, enrichRunChip, sourceAgeLabel, sourceAgeTitle,
 } from "./stockdb/stock-db-formatters";
-import { PipelineHealthPanel } from "./stockdb/stock-db-admin-panel";
 import { VendorCrossCheckPanel } from "./stockdb/vendor-cross-check-panel";
 import { StockDbSummaryBar } from "./stockdb/stock-db-summary-bar";
 import { PeerGroupsTab } from "./PeerGroupsTab";
@@ -34,6 +36,7 @@ const _persist = {
   collapsedSectors: new Set<string>(),
   collapsedGroups:  new Set<string>(),
   groupsInitialized: false,
+  expandedFamily: null as FundFamily | null,
 };
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -55,7 +58,25 @@ export function StockDBTab() {
   const [collapsedSectors, setCollapsedSectors] = useState<Set<string>>(() => new Set(_persist.collapsedSectors));
   const [collapsedGroups, setCollapsedGroups]   = useState<Set<string>>(() => new Set(_persist.collapsedGroups));
   const [viewMode, setViewMode]                 = useState<"fundamentals" | "technicals" | "peers">("fundamentals");
-  const [pipelineExpanded, setPipelineExpanded] = useState(false);
+  const [expandedFamily, setExpandedFamily]     = useState<FundFamily | null>(() => _persist.expandedFamily);
+
+  const fundCols = useMemo(() => visibleFundCols(expandedFamily), [expandedFamily]);
+  /** Pad empty field slots to widest family — expand/collapse keeps the same table width. */
+  const maxFamilyFields = useMemo(
+    () => Math.max(0, ...SCORE_FAMILY_ORDER.map(f => familyFieldCols(f).length)),
+    [],
+  );
+  const widthPadCols = Math.max(0, maxFamilyFields - fundCols.filter(c => c.kind === "field").length);
+  const fundColCount = fundCols.length + widthPadCols;
+  const fundTableW = fundTableWidthPx(fundCols) + widthPadCols * COL_W.field;
+
+  function toggleFamilyExpand(fam: FundFamily) {
+    setExpandedFamily(cur => {
+      const next = cur === fam ? null : fam;
+      _persist.expandedFamily = next;
+      return next;
+    });
+  }
 
   const { data: runsData } = useQuery<{ runs: EnrichmentRun[] }>({
     queryKey: ["enrichment-runs"],
@@ -68,8 +89,8 @@ export function StockDBTab() {
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
   });
-  const runs = runsData?.runs ?? [];
-  const latestRun = runs[0] ?? null;
+  const latestRun = runsData?.runs?.[0] ?? null;
+  const enrichChip = latestRun ? enrichRunChip(latestRun) : null;
 
   const [queueExpanded, setQueueExpanded] = useState(false);
   type QueueRunItem = { ticker: string; field: string; source: string; status: "done" | "failed" };
@@ -152,7 +173,7 @@ export function StockDBTab() {
   const divergentItems = divergentData?.items ?? [];
 
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<StockDBEntry[]>({
+  const { data, isLoading, isError, refetch } = useQuery<StockDBEntry[]>({
     queryKey: ["admin-stock-db"],
     queryFn: async () => {
       const r = await fetch("/api/fundamentals/stock-db", { credentials: "include" });
@@ -164,13 +185,18 @@ export function StockDBTab() {
     refetchOnWindowFocus: false,
   });
 
-  // On first data load: collapse all groups by default, leave sectors expanded
+  // On first data load: collapse all sectors + groups (headers live under each expanded sector)
   useEffect(() => {
     if (!data || _persist.groupsInitialized) return;
     const allGroupIds = new Set(data.filter(e => e.peerGroupId).map(e => e.peerGroupId!));
+    const allSectorIds = new Set(
+      [...allGroupIds].map(id => id.split(".")[0]).concat("__unclassified"),
+    );
     _persist.collapsedGroups = allGroupIds;
+    _persist.collapsedSectors = allSectorIds;
     _persist.groupsInitialized = true;
     setCollapsedGroups(new Set(allGroupIds));
+    setCollapsedSectors(new Set(allSectorIds));
   }, [data]);
 
   const provTicker = activeCell?.ticker ?? null;
@@ -269,23 +295,6 @@ export function StockDBTab() {
       COLS.map(col => {
         const filled = data.filter(r => r.fundamentals?.[col.key] != null).length;
         return [col.key as string, { filled, total: data.length }];
-      })
-    );
-  }, [data]);
-
-  const familyCoverage = useMemo(() => {
-    if (!data) return {} as Record<string, { filled: number; total: number }>;
-    return Object.fromEntries(
-      families.map(fam => {
-        const famCols = COLS.filter(c => c.family === fam);
-        let filled = 0, total = 0;
-        for (const row of data) {
-          for (const col of famCols) {
-            total++;
-            if (row.fundamentals?.[col.key] != null) filled++;
-          }
-        }
-        return [fam, { filled, total }];
       })
     );
   }, [data]);
@@ -430,87 +439,78 @@ export function StockDBTab() {
   const nullCount  = data.reduce((acc, row) => acc + COLS.filter(c => row.fundamentals?.[c.key] == null).length, 0);
   const totalCells = data.length * COLS.length;
   const coverage   = totalCells > 0 ? Math.round((1 - nullCount / totalCells) * 100) : 0;
-  const noRow      = data.filter(d => !d.fundamentals).length;
   const visibleRows = displayData.filter(r => r.kind === "row").length;
 
   return (
     <>
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <StockDbSummaryBar
-        data={data} noRow={noRow} coverage={coverage} isFetching={isFetching}
-        onRefresh={isAdmin ? () => refetch() : undefined}
+        data={data}
+        coverage={coverage}
+        enrichChip={isAdmin ? enrichChip?.text ?? null : null}
+        enrichTitle={isAdmin ? enrichChip?.title ?? null : null}
       />
 
-      {/* Pipeline health */}
-      {isAdmin && latestRun && (
-        <PipelineHealthPanel
-          runs={runs}
-          latestRun={latestRun}
-          pipelineExpanded={pipelineExpanded}
-          setPipelineExpanded={setPipelineExpanded}
-        />
-      )}
-
-      {/* Vendor cross-check — LSEG gold_audit (read-only; human queues refetch) */}
+      {/* Vendor + Needs Review on one compact row */}
       {isAdmin && (
-        <VendorCrossCheckPanel
-          queuePending={queueRefetchMutation.isPending}
-          onQueueRefetch={(v) => queueRefetchMutation.mutate(v)}
-        />
-      )}
-
-      {/* Divergent-field review queue — sources disagree and no admin has overridden yet */}
-      {isAdmin && divergentItems.length > 0 && (
-        <div className="rounded-md border border-orange-500/30 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
-          <button
-            onClick={() => setReviewExpanded(v => !v)}
-            className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-amber-500/5 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              {reviewExpanded ? <ChevronDown className="h-3 w-3 text-amber-200/40" /> : <ChevronRight className="h-3 w-3 text-amber-200/40" />}
-              <TriangleAlert className="h-3 w-3 text-orange-400" />
-              <span className="font-semibold text-orange-300/90 uppercase tracking-wide text-[11px]">Needs Review</span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-orange-500/15 text-orange-400 border-orange-500/30">
-                {divergentItems.length}
-              </span>
-            </div>
-            <span className="text-amber-200/40">sources disagree — no override set yet</span>
-          </button>
-          {reviewExpanded && (
-            <div className="border-t border-[#d4af37]/20 overflow-auto max-h-64">
-              <table className="text-xs w-full border-collapse">
-                <thead className="sticky top-0 bg-black text-[#d4af37]">
-                  <tr className="border-b border-[#d4af37]/25">
-                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Ticker</th>
-                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Field</th>
-                    <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Current value</th>
-                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Source used</th>
-                    <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1">Age</th>
-                    <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800">
-                  {divergentItems.map(item => (
-                    <tr key={`${item.ticker}:${item.field}`} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
-                      <td className="px-2.5 py-1 font-mono font-semibold text-white">{item.ticker}</td>
-                      <td className="px-2.5 py-1 font-mono text-amber-200/50">{item.field}</td>
-                      <td className="px-2.5 py-1 text-right font-mono tabular-nums text-amber-200/50">
-                        {item.winningValue != null ? item.winningValue.toPrecision(5) : "—"}
-                      </td>
-                      <td className="px-2.5 py-1 text-amber-200/50">{item.winningSource ?? "—"}</td>
-                      <td className="px-2.5 py-1 text-amber-200/50">{fmtDate(item.fetchedAt)}</td>
-                      <td className="px-2.5 py-1 text-right">
-                        <button
-                          onClick={e => openCell(item.ticker, item.field, e, [])}
-                          className="text-[10px] px-2 py-0.5 border border-[#d4af37]/20 rounded hover:text-white text-amber-200/50 transition-colors"
-                        >
-                          Review
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="flex gap-1 items-stretch">
+          <div className="flex-1 min-w-0">
+            <VendorCrossCheckPanel
+              queuePending={queueRefetchMutation.isPending}
+              onQueueRefetch={(v) => queueRefetchMutation.mutate(v)}
+            />
+          </div>
+          {divergentItems.length > 0 && (
+            <div className="flex-1 min-w-0 rounded-md border border-orange-500/30 overflow-hidden bg-zinc-950">
+              <button
+                onClick={() => setReviewExpanded(v => !v)}
+                className="w-full flex items-center gap-1.5 px-2 py-0.5 text-xs hover:bg-orange-500/10 transition-colors"
+              >
+                {reviewExpanded ? <ChevronDown className="h-3 w-3 text-orange-300 shrink-0" /> : <ChevronRight className="h-3 w-3 text-orange-300 shrink-0" />}
+                <TriangleAlert className="h-3 w-3 text-orange-300 shrink-0" />
+                <span className="font-semibold text-white uppercase tracking-wide text-[11px]">Needs Review</span>
+                <span className="text-[10px] font-semibold px-1 py-0 rounded border bg-orange-500/25 text-orange-200 border-orange-400/50">
+                  {divergentItems.length}
+                </span>
+                <span className="text-white/80 truncate">no override yet</span>
+              </button>
+              {reviewExpanded && (
+                <div className="border-t border-[#d4af37]/20 overflow-auto max-h-64">
+                  <table className="text-xs w-full border-collapse">
+                    <thead className="sticky top-0 bg-black text-[#d4af37]">
+                      <tr className="border-b border-[#d4af37]/25">
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Ticker</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Field</th>
+                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Current value</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Source used</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Age</th>
+                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800">
+                      {divergentItems.map(item => (
+                        <tr key={`${item.ticker}:${item.field}`} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
+                          <td className="px-2 py-0.5 font-mono font-semibold text-white">{item.ticker}</td>
+                          <td className="px-2 py-0.5 font-mono text-amber-100">{item.field}</td>
+                          <td className="px-2 py-0.5 text-right font-mono tabular-nums text-amber-100">
+                            {item.winningValue != null ? item.winningValue.toPrecision(5) : "—"}
+                          </td>
+                          <td className="px-2 py-0.5 text-amber-100">{item.winningSource ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-amber-100">{fmtDate(item.fetchedAt)}</td>
+                          <td className="px-2 py-0.5 text-right">
+                            <button
+                              onClick={e => openCell(item.ticker, item.field, e, [])}
+                              className="text-[10px] px-2 py-0.5 border border-[#d4af37]/20 rounded hover:text-white text-amber-100 transition-colors"
+                            >
+                              Review
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -613,8 +613,8 @@ export function StockDBTab() {
       )}
 
       {/* View toggle + filter + legend */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-1 p-0.5 bg-zinc-950 border border-[#d4af37]/20 rounded-md w-fit text-[11px] font-semibold">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-0.5 p-px bg-zinc-950 border border-[#d4af37]/20 rounded-md w-fit text-[11px] font-semibold">
           {([
             { id: "fundamentals" as const, label: "Fundamentals" },
             { id: "technicals" as const, label: "Technicals" },
@@ -624,10 +624,10 @@ export function StockDBTab() {
               key={mode.id}
               onClick={() => setViewMode(mode.id)}
               className={cn(
-                "px-2.5 py-1.5 rounded transition-colors",
+                "px-2 py-0.5 rounded transition-colors",
                 viewMode === mode.id
                   ? "bg-[#d4af37] text-black"
-                  : "text-amber-200/50 hover:text-[#d4af37]",
+                  : "text-white/90 hover:text-white",
               )}
             >
               {mode.label}
@@ -638,24 +638,25 @@ export function StockDBTab() {
         {viewMode !== "peers" && (
           <div className="flex items-center gap-4">
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-amber-200/30 pointer-events-none" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-amber-100 pointer-events-none" />
               <input
                 type="text"
                 value={tickerFilter}
                 onChange={e => setTickerFilter(e.target.value)}
                 placeholder="Filter tickers…"
-                className="pl-6 pr-3 py-1 text-xs bg-zinc-950 border border-[#d4af37]/20 text-white placeholder:text-amber-200/30 rounded-md focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 w-44"
+                className="pl-6 pr-3 py-1 text-xs bg-zinc-950 border border-[#d4af37]/20 text-white placeholder:text-amber-100 rounded-md focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 w-44"
               />
               {tickerFilter && (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-200/30 tabular-nums">
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-amber-100 tabular-nums">
                   {visibleRows}/{data.length}
                 </span>
               )}
             </div>
-            <div className="flex gap-3 text-xs text-amber-200/50">
-              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /> Null</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50" /> Suspect</span>
-              <span className="flex items-center gap-1"><span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-medium">rep</span> Representative (watchlist)</span>
+            <div className="flex flex-wrap gap-3 text-[10px] text-amber-100">
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-amber-400/70" /> Suspect</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-sky-400/70" /> Override</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-fuchsia-400/70" /> Agent</span>
+              <span className="flex items-center gap-1"><span className="text-[9px] font-normal text-sky-400/80">rep</span> Watchlist</span>
             </div>
           </div>
         )}
@@ -664,110 +665,140 @@ export function StockDBTab() {
       {viewMode === "peers" ? (
         <PeerGroupsTab />
       ) : (
-      /* Grid */
-      <div className="rounded-md border border-[#d4af37]/25 overflow-auto max-h-[calc(100vh-300px)] bg-zinc-950 shadow-lg shadow-black/60">
-        <table className="text-xs border-collapse min-w-max">
-          <thead className="sticky top-0 z-20 bg-black text-[#d4af37]">
-            {viewMode === "fundamentals" ? (<>
-              {/* Fundamentals — family header row */}
-              <tr>
-                <th
-                  className="sticky left-0 z-30 bg-black border-b border-r border-[#d4af37]/25 px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider cursor-pointer hover:bg-amber-500/10 select-none"
-                  rowSpan={2}
-                  onClick={() => handleSort("ticker")}
-                >
-                  <span className="flex items-center gap-0.5">
-                    Ticker
-                    <SortIcon colKey="ticker" sortCol={sortCol} sortDir={sortDir} />
-                  </span>
-                </th>
-                {families.map(fam => {
-                  const cols = COLS.filter(c => c.family === fam);
-                  const cov = familyCoverage[fam];
-                  const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
-                  return (
-                    <th
-                      key={fam}
-                      colSpan={cols.length}
-                      className={cn("border-b border-r border-[#d4af37]/25 px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", FAMILY_COLORS[fam])}
-                    >
-                      <div>{fam}</div>
-                      <div className={cn("text-[9px] font-normal tracking-normal normal-case mt-0.5 opacity-80 tabular-nums", coverageColor(pct))}>
-                        {cov ? `${cov.filled}/${cov.total * cols.length} filled · ${pct}%` : "—"}
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-              {/* Fundamentals — column labels row */}
-              <tr>
-                {COLS.map((col, i) => {
+      /* Grid — fixed col widths; pad slots keep expand/collapse from resizing */
+      <div className="rounded-md border border-[#d4af37]/25 overflow-auto max-h-[calc(100dvh-11rem)] bg-zinc-950">
+        <table
+          className="text-[11px] leading-none border-collapse table-fixed"
+          style={viewMode === "fundamentals" ? { width: fundTableW, minWidth: fundTableW } : undefined}
+        >
+          {viewMode === "fundamentals" && (
+            <colgroup>
+              <col style={{ width: COL_W.ticker }} />
+              {fundCols.map((vc, i) => (
+                <col key={vc.kind === "score" ? `s-${vc.id}` : `f-${String(vc.col.key)}-${i}`} style={{ width: vc.kind === "score" ? COL_W.score : COL_W.field }} />
+              ))}
+              {Array.from({ length: widthPadCols }, (_, i) => (
+                <col key={`pad-${i}`} style={{ width: COL_W.field }} />
+              ))}
+            </colgroup>
+          )}
+          <thead className="sticky top-0 z-20 bg-zinc-950 text-white">
+            <tr>
+              <th
+                className="sticky left-0 z-30 bg-zinc-950 border-b border-r border-[#d4af37]/30 px-1.5 py-1 text-left font-semibold text-[12px] uppercase tracking-wide cursor-pointer hover:bg-zinc-800 select-none text-[#d4af37]"
+                onClick={() => handleSort("ticker")}
+              >
+                <span className="inline-flex items-center gap-0.5">
+                  Ticker
+                  <SortIcon colKey="ticker" sortCol={sortCol} sortDir={sortDir} />
+                </span>
+              </th>
+              {viewMode === "fundamentals"
+                ? <>
+                  {fundCols.map((vc, i) => {
+                  if (vc.kind === "score") {
+                    const sortKey = vc.key as string | null;
+                    const isOpen = vc.expandable && expandedFamily === vc.id;
+                    return (
+                      <th
+                        key={`score-${vc.id}`}
+                        onClick={() => {
+                          if (vc.expandable) toggleFamilyExpand(vc.id as FundFamily);
+                          else if (sortKey) handleSort(sortKey);
+                        }}
+                        title={
+                          vc.id === "total"
+                            ? "Fund total (company blend of V/G/Q/S + sector). Click family headers to expand fields."
+                            : vc.expandable
+                              ? (isOpen ? `Collapse ${vc.label} fields` : `Expand ${vc.label} fields`)
+                              : undefined
+                        }
+                        className={cn(
+                          "border-b border-[#d4af37]/30 text-center px-0.5 py-1.5 text-[12px] font-bold cursor-pointer select-none align-bottom overflow-hidden",
+                          i < fundColCount - 1 && "border-r border-black/20",
+                          FAMILY_SOLID[vc.family] ?? "bg-zinc-700 text-white",
+                          isOpen && "ring-1 ring-inset ring-white/40",
+                        )}
+                      >
+                        <div className="flex flex-col items-center gap-0.5 leading-snug">
+                          <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                            {vc.expandable && (
+                              isOpen
+                                ? <ChevronDown className="h-3 w-3 opacity-80" />
+                                : <ChevronRight className="h-3 w-3 opacity-60" />
+                            )}
+                            {vc.label}
+                            {sortKey && (
+                              <span
+                                onClick={(e) => { e.stopPropagation(); handleSort(sortKey); }}
+                                className="inline-flex"
+                              >
+                                <SortIcon colKey={sortKey} sortCol={sortCol} sortDir={sortDir} />
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </th>
+                    );
+                  }
+                  const col = vc.col;
                   const cov = colCoverage[col.key as string];
                   const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
+                  const lines = headerLines(col.label);
                   return (
                     <th
                       key={col.key as string}
                       onClick={() => handleSort(col.key as string)}
+                      title={cov ? `${cov.filled}/${cov.total} filled` : undefined}
                       className={cn(
-                        "border-b border-[#d4af37]/25 px-2 py-1 font-medium whitespace-nowrap cursor-pointer hover:bg-amber-500/10 select-none",
-                        i === COLS.length - 1 ? "" : "border-r border-[#d4af37]/10",
+                        "border-b border-[#d4af37]/30 text-center px-0.5 py-1.5 text-[11px] font-normal cursor-pointer hover:bg-zinc-800/80 select-none align-bottom overflow-hidden",
+                        i < fundColCount - 1 && "border-r border-[#d4af37]/10",
                         FAMILY_COLORS[col.family],
+                        FAMILY_LABEL[col.family] ?? "text-white",
                       )}
                     >
-                      <div className="flex items-center justify-end gap-0.5">
-                        <span>{col.label}</span>
-                        <SortIcon colKey={col.key as string} sortCol={sortCol} sortDir={sortDir} />
+                      <div className="flex flex-col items-center gap-0.5 leading-snug">
+                        <span className="inline-flex flex-col items-center font-normal">
+                          {lines.map((line, li) => (
+                            <span key={li} className="whitespace-nowrap inline-flex items-center gap-0.5">
+                              {line}
+                              {li === lines.length - 1 && (
+                                <SortIcon colKey={col.key as string} sortCol={sortCol} sortDir={sortDir} />
+                              )}
+                            </span>
+                          ))}
+                        </span>
+                        {cov && (
+                          <span className={cn("text-[10px] font-normal tabular-nums", coverageColor(pct))}>{pct}%</span>
+                        )}
                       </div>
-                      {cov && (
-                        <div className={cn(
-                          "text-[9px] font-normal text-right mt-0.5 tabular-nums",
-                          pct === 0 ? "text-red-400/70" : pct < 50 ? "text-red-400" : pct < 80 ? "text-amber-400" : "text-green-500/70"
-                        )}>
-                          {cov.filled}/{cov.total}
-                        </div>
-                      )}
                     </th>
                   );
                 })}
-              </tr>
-            </>) : (<>
-              {/* Technicals — family header row */}
-              <tr>
-                <th
-                  className="sticky left-0 z-30 bg-black border-b border-r border-[#d4af37]/25 px-2.5 py-1 text-left font-semibold text-[11px] uppercase tracking-wider"
-                  rowSpan={2}
-                >
-                  Ticker
-                </th>
-                {techFamilies.map(fam => {
-                  const cols = TECH_COLS.filter(c => c.family === fam);
+                  {Array.from({ length: widthPadCols }, (_, i) => (
+                    <th key={`pad-h-${i}`} className="border-b border-[#d4af37]/30 p-0 bg-zinc-950" aria-hidden />
+                  ))}
+                </>
+                : TECH_COLS.map((col, i) => {
+                  const lines = headerLines(col.label);
                   return (
                     <th
-                      key={fam}
-                      colSpan={cols.length}
-                      className={cn("border-b border-r border-[#d4af37]/25 px-2 py-1 text-center font-semibold uppercase tracking-wider text-[10px]", TECH_FAMILY_COLORS[fam])}
+                      key={col.key as string}
+                      className={cn(
+                        "border-b border-[#d4af37]/30 text-center px-0.5 py-1.5 text-[12px] font-semibold",
+                        i < TECH_COLS.length - 1 && "border-r border-[#d4af37]/10",
+                        TECH_FAMILY_COLORS[col.family],
+                      )}
                     >
-                      {fam}
+                      <span className="inline-flex flex-col items-center leading-snug">
+                        {lines.map((line, li) => (
+                          <span key={li} className="whitespace-nowrap">{line}</span>
+                        ))}
+                      </span>
                     </th>
                   );
                 })}
-              </tr>
-              {/* Technicals — column labels row */}
-              <tr>
-                {TECH_COLS.map((col, i) => (
-                  <th
-                    key={col.key as string}
-                    className={cn(
-                      "border-b border-[#d4af37]/25 px-2 py-1 font-medium whitespace-nowrap",
-                      i < TECH_COLS.length - 1 && "border-r border-[#d4af37]/10",
-                      TECH_FAMILY_COLORS[col.family],
-                    )}
-                  >
-                    {col.label}
-                  </th>
-                ))}
-              </tr>
-            </>)}
+            </tr>
           </thead>
           <tbody>
             {displayData.map((item, idx) => {
@@ -775,31 +806,40 @@ export function StockDBTab() {
               if (item.kind === "sector") {
                 const isCollapsed = collapsedSectors.has(item.sectorId);
                 const pal = getSectorPalette(item.sectorId);
+                const colSpan = (viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 1;
+                const isFirstSector = !displayData.slice(0, idx).some((x) => x.kind === "sector");
                 return (
+                  <>
+                  {!isFirstSector && (
+                    <tr key={`gap-${item.sectorId}`} aria-hidden>
+                      <td colSpan={colSpan} className="h-3 p-0 border-0 bg-zinc-950" />
+                    </tr>
+                  )}
                   <tr
                     key={`sector-${item.sectorId}`}
                     className="cursor-pointer select-none"
                     onClick={() => toggleSector(item.sectorId)}
                   >
-                    <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
-                      <div className={cn("flex items-center gap-2.5 px-3 py-2.5", pal.bg)}>
+                    <td colSpan={colSpan} className={cn("p-0 border-l-4", pal.border)}>
+                      <div className={cn("flex items-center gap-2 px-2 py-1", pal.bg)}>
                         {isCollapsed
                           ? <ChevronRight className={cn("h-3.5 w-3.5 flex-shrink-0", pal.chevron)} />
                           : <ChevronDown  className={cn("h-3.5 w-3.5 flex-shrink-0", pal.chevron)} />
                         }
-                        <span className={cn("font-bold text-[11px] uppercase tracking-widest", pal.text)}>{item.label}</span>
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium tabular-nums", pal.badge)}>{item.count} tickers</span>
+                        <span className={cn("font-bold text-[12px] uppercase tracking-widest", pal.text)}>{item.label}</span>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold tabular-nums", pal.badge)}>{item.count} tickers</span>
                         <div className="ml-auto flex items-center gap-2.5">
-                          <div className="w-20 h-1.5 rounded-full bg-black/40 overflow-hidden">
+                          <div className="w-20 h-1.5 rounded-full bg-black/60 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
                           </div>
-                          <span className={cn("text-[10px] font-semibold tabular-nums w-10 text-right", coverageColor(item.coverage))}>
+                          <span className={cn("text-[11px] font-semibold tabular-nums w-10 text-right", coverageColor(item.coverage))}>
                             {item.coverage}%
                           </span>
                         </div>
                       </div>
                     </td>
                   </tr>
+                  </>
                 );
               }
 
@@ -812,19 +852,19 @@ export function StockDBTab() {
                   <>
                   <tr
                     key={`group-${item.groupId}-${idx}`}
-                    className="cursor-pointer select-none hover:bg-amber-500/5 transition-colors border-b border-[#d4af37]/10"
+                    className="cursor-pointer select-none hover:bg-[#d4af37]/10 transition-colors border-b border-zinc-800"
                     onClick={() => toggleGroup(item.groupId)}
                   >
-                    <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
-                      <div className="flex items-center gap-2.5 pl-7 pr-3 py-1.5 bg-white/[0.04]">
+                    <td colSpan={(viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
+                      <div className="flex items-center gap-1.5 pl-6 pr-2 py-1 bg-zinc-900">
                         {isCollapsed
-                          ? <ChevronRight className="h-3 w-3 text-amber-200/40 flex-shrink-0" />
-                          : <ChevronDown  className="h-3 w-3 text-amber-200/40 flex-shrink-0" />
+                          ? <ChevronRight className="h-3 w-3 text-[#d4af37] flex-shrink-0" />
+                          : <ChevronDown  className="h-3 w-3 text-[#d4af37] flex-shrink-0" />
                         }
-                        <span className="text-xs font-semibold text-white/90 tracking-wide">{item.groupName}</span>
-                        <span className="text-[10px] text-amber-200/40 font-mono tabular-nums">{item.count}</span>
-                        {/* Per-family coverage pills */}
-                        <div className="flex items-center gap-1 ml-2">
+                        <span className="text-[11px] font-semibold text-white tracking-wide">{item.groupName}</span>
+                        <span className="text-[10px] text-amber-100 tabular-nums">{item.count}</span>
+                        {/* V/G/Q/S/M — solid family chips (same type as group name) */}
+                        <div className="flex items-center gap-1 ml-1.5">
                           {families.map(fam => {
                             const fc = item.famCov[fam];
                             if (!fc || fc.total === 0) return null;
@@ -833,11 +873,10 @@ export function StockDBTab() {
                               <span
                                 key={fam}
                                 className={cn(
-                                  "text-[9px] px-1 py-px rounded font-medium tabular-nums",
-                                  pct < 50 ? "bg-red-500/15 text-red-400/80"
-                                  : pct < 80 ? "bg-amber-500/15 text-amber-400/80"
-                                  : "bg-green-500/10 text-green-500/70",
+                                  "text-[10px] px-1.5 py-px rounded font-semibold tabular-nums",
+                                  FAMILY_CHIP[fam] ?? "bg-zinc-600 text-white",
                                 )}
+                                title={`${fam} coverage ${pct}%`}
                               >
                                 {fam[0].toUpperCase()} {pct}%
                               </span>
@@ -845,40 +884,16 @@ export function StockDBTab() {
                           })}
                         </div>
                         <div className="ml-auto flex items-center gap-2">
-                          <div className="w-16 h-1 rounded-full bg-black/40 overflow-hidden">
+                          <div className="w-16 h-1 rounded-full bg-black/60 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
                           </div>
-                          <span className={cn("text-[10px] tabular-nums w-8 text-right font-medium", coverageColor(item.coverage))}>
+                          <span className={cn("text-[11px] tabular-nums w-8 text-right font-semibold", coverageColor(item.coverage))}>
                             {item.coverage}%
                           </span>
                         </div>
                       </div>
                     </td>
                   </tr>
-                  {/* Per-group column sub-header when expanded */}
-                  {!isCollapsed && (
-                    <tr key={`group-cols-${item.groupId}`} className="border-b border-[#d4af37]/10">
-                      <td className={cn(
-                        "sticky left-0 z-10 bg-black border-r border-[#d4af37]/10 px-2.5 py-0.5",
-                        "text-[9px] font-semibold text-amber-200/40 tracking-wide",
-                        pal.border, "border-l-4",
-                      )}>
-                        TICKER
-                      </td>
-                      {viewMode === "fundamentals"
-                        ? COLS.map((col, i) => (
-                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < COLS.length - 1 && "border-r border-[#d4af37]/10", FAMILY_COLORS[col.family])}>
-                            {col.label}
-                          </td>
-                        ))
-                        : TECH_COLS.map((col, i) => (
-                          <td key={col.key as string} className={cn("text-right px-2 py-0.5 text-[9px] font-semibold whitespace-nowrap", i < TECH_COLS.length - 1 && "border-r border-[#d4af37]/10", TECH_FAMILY_COLORS[col.family])}>
-                            {col.label}
-                          </td>
-                        ))
-                      }
-                    </tr>
-                  )}
                 </>
                 );
               }
@@ -886,43 +901,76 @@ export function StockDBTab() {
               // ── Data row ───────────────────────────────────────────────────
               if (collapsedSectors.has(item.sectorId) || collapsedGroups.has(item.groupId)) return null;
 
-              const { entry: row, ri } = item;
+              const { entry: row } = item;
               const f = row.fundamentals;
 
               return (
                 <tr
                   key={row.ticker}
                   className={cn(
-                    "border-b border-[#d4af37]/10 hover:bg-amber-500/10 transition-colors",
-                    row.isWatchlist
-                      ? "bg-amber-500/8 border-l-2 border-l-amber-500/50"
-                      : ri % 2 === 0 ? "bg-zinc-900/70" : "bg-zinc-800/60",
+                    "group border-b border-zinc-800/80 transition-colors",
+                    "hover:bg-[#d4af37]/12",
+                    row.isWatchlist && "border-l-2 border-l-[#d4af37]",
                   )}
                 >
-                  {/* Ticker cell — sticky */}
+                  {/* Ticker — sticky; watchlist = gold fill like Fundamentals tab */}
                   <td className={cn(
-                    "sticky left-0 z-10 border-r border-[#d4af37]/20 px-2.5 py-0.5 font-mono font-semibold whitespace-nowrap",
-                    row.isWatchlist ? "bg-amber-950/30" : "bg-zinc-950",
+                    "sticky left-0 z-10 border-r border-zinc-800 px-1.5 py-0.5 font-mono whitespace-nowrap",
+                    row.isWatchlist
+                      ? "bg-[#d4af37] text-black group-hover:bg-[#e0c04a]"
+                      : "bg-zinc-950 group-hover:bg-[#2a2618]",
                   )}>
-                    <div className="flex items-center gap-1.5">
-                      <span className={row.isWatchlist ? "text-amber-300" : "text-white"}>{row.ticker}</span>
+                    <div className="flex items-center gap-1">
+                      <span className={row.isWatchlist ? "font-semibold text-black" : "text-white"}>{row.ticker}</span>
                       {row.isWatchlist && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/25 text-amber-400 border border-amber-500/40 font-sans font-medium">rep</span>
+                        <span className="text-[9px] leading-none font-semibold text-black/70">rep</span>
                       )}
                       {!f && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">NO DATA</span>
+                        <span className="text-[9px] leading-none font-normal text-amber-100/70">no data</span>
                       )}
                     </div>
-                    {row.companyName && (
-                      <div className="text-[9px] text-amber-200/40 truncate max-w-[120px]">{row.companyName}</div>
-                    )}
                   </td>
 
-                  {/* Metric cells */}
-                  {viewMode === "fundamentals" ? COLS.map((col, ci) => {
+                  {/* Score + optional expanded family fields */}
+                  {viewMode === "fundamentals" ? <>
+                    {fundCols.map((vc, ci) => {
+                    if (vc.kind === "score") {
+                      const raw = vc.key && f ? (f[vc.key] as string | null) : null;
+                      const style = !vc.key && f?.styleBucket ? String(f.styleBucket) : null;
+                      const isNull = vc.key ? raw == null : !style;
+                      const num = raw != null ? parseFloat(raw) : NaN;
+                      const display = vc.key
+                        ? (raw == null || Number.isNaN(num) ? "—" : num.toFixed(0))
+                        : (style ? style.replace(/_/g, " ").slice(0, 8) : "—");
+                      return (
+                        <td
+                          key={`score-${vc.id}-${row.ticker}`}
+                          onClick={() => { if (vc.expandable) toggleFamilyExpand(vc.id as FundFamily); }}
+                          className={cn(
+                            "px-1 py-0.5 text-center font-mono whitespace-nowrap tabular-nums font-bold overflow-hidden",
+                            ci < fundColCount - 1 && "border-r border-zinc-800/60",
+                            FAMILY_CELL_BG[vc.family],
+                            isNull ? "bg-red-600 text-white" : (FAMILY_LABEL[vc.family] ?? "text-white"),
+                            vc.expandable && "cursor-pointer",
+                            expandedFamily === vc.id && "ring-1 ring-inset ring-white/30",
+                          )}
+                          title={
+                            isNull && vc.key
+                              ? "Missing family score"
+                              : vc.expandable
+                                ? (expandedFamily === vc.id ? "Collapse fields" : "Expand fields")
+                                : undefined
+                          }
+                        >
+                          {display}
+                        </td>
+                      );
+                    }
+                    const col = vc.col;
                     const raw = f ? (f[col.key] as string | null) : null;
                     const isNull = raw == null;
                     const isOptionalNull = isNull && !!col.optional;
+                    const isMissing = isNull && !col.optional;
                     const hardInvalid = isSuspect(col, raw);
                     const z = zScoreMap.get(row.peerGroupId ?? "__unclassified")?.get(col.key as string)?.get(row.ticker);
                     const isStatOutlier = z != null && Math.abs(z) > 3.0;
@@ -931,58 +979,72 @@ export function StockDBTab() {
                     const hasFlag = flags.includes(col.key as string);
                     const overrideFlags = f?.overrideFlags?.split(",") ?? [];
                     const hasOverride = overrideFlags.includes(col.key as string);
+                    const agentFlags = f?.agentOverrideFlags?.split(",") ?? [];
+                    const hasAgent = agentFlags.includes(col.key as string);
                     const isActive = activeCell?.ticker === row.ticker && activeCell?.field === (col.key as string);
                     const justRefetched = justSucceeded.has(`${row.ticker}:${col.key as string}`);
                     const tooltipParts: string[] = [];
+                    if (isMissing) tooltipParts.push(`Missing ${col.label} — expected field, no value in DB`);
                     if (suspect) {
                       if (hardInvalid) tooltipParts.push(`Suspect: ${col.label} value is structurally invalid (e.g. negative when it shouldn't be)`);
                       else if (isStatOutlier) tooltipParts.push(`Outlier: z = ${z!.toFixed(1)} — unusually ${z! > 0 ? "high" : "low"} vs peer group median`);
                     }
                     if (hasFlag) tooltipParts.push(`Discrepancy: multiple data sources report different values for ${col.label}`);
-                    if (hasOverride) tooltipParts.push(`Manual override active for ${col.label} — a source other than default priority was picked after review`);
+                    if (hasAgent) tooltipParts.push(`Database Agent override for ${col.label} — see popup trail`);
+                    else if (hasOverride) tooltipParts.push(`Manual override active for ${col.label} — a source other than default priority was picked after review`);
                     return (
                       <td
                         key={col.key as string}
                         onClick={(e) => openCell(row.ticker, col.key as string, e, tooltipParts)}
                         className={cn(
-                          "px-2 py-0.5 text-right font-mono whitespace-nowrap tabular-nums border-[#d4af37]/10 transition-colors text-amber-200/70",
+                          "px-1 py-0.5 text-center font-mono whitespace-nowrap tabular-nums font-normal text-white/90 overflow-hidden",
                           (isAdmin || tooltipParts.length > 0) && "cursor-pointer",
-                          ci < COLS.length - 1 && "border-r",
-                          isActive && "ring-1 ring-inset ring-[#d4af37]/60",
-                          isOptionalNull && "text-amber-200/25",
-                          !isOptionalNull && isNull && "bg-red-500/15 text-red-400/70",
-                          !isNull && hasFlag && "bg-sky-500/15",
-                          !isNull && suspect && "ring-1 ring-inset ring-amber-500/80",
-                          !isNull && hasOverride && "ring-1 ring-inset ring-blue-500/80",
-                          // Transient re-fetch success flash — !important so it visibly
-                          // wins over the other conditional backgrounds above while active.
-                          justRefetched && "!bg-green-500/25 !ring-1 !ring-inset !ring-green-500/70",
+                          ci < fundColCount - 1 && "border-r border-zinc-800/60",
+                          isActive && "outline outline-1 outline-[#d4af37]/50 -outline-offset-1",
+                          isOptionalNull && "text-white/35",
+                          isMissing && "bg-red-600 text-white font-semibold",
+                          !isNull && suspect && "shadow-[inset_0_-1px_0_0_rgba(251,191,36,0.7)]",
+                          !isNull && hasOverride && !hasAgent && "shadow-[inset_0_-1px_0_0_rgba(56,189,248,0.7)]",
+                          !isNull && hasAgent && "shadow-[inset_0_-1px_0_0_rgba(232,121,249,0.75)]",
+                          !isNull && hasFlag && !suspect && !hasOverride && !hasAgent && "shadow-[inset_0_-1px_0_0_rgba(148,163,184,0.5)]",
+                          justRefetched && "text-green-300",
                         )}
-                        title={justRefetched ? "Re-fetched successfully" : undefined}
+                        title={
+                          isMissing ? `Missing ${col.label}`
+                            : justRefetched ? "Re-fetched successfully"
+                              : hasAgent ? "Database Agent override"
+                                : undefined
+                        }
                       >
-                        {isOptionalNull ? "—" : isNull ? <span className="text-red-500/50">null</span> : isNearZeroBase(col, raw) ? <span className="text-amber-200/30" title="Not meaningful — prior period near zero">N/M</span> : fmt(raw, col.fmt)}
+                        {isOptionalNull || isNull
+                          ? "—"
+                          : isNearZeroBase(col, raw)
+                            ? <span className="text-white/30" title="Not meaningful — prior period near zero">N/M</span>
+                            : fmt(raw, col.fmt)}
                       </td>
                     );
-                  }) : TECH_COLS.map((col, ci) => {
+                  })}
+                    {Array.from({ length: widthPadCols }, (_, i) => (
+                      <td key={`pad-${row.ticker}-${i}`} className="p-0 border-r border-zinc-900/40" aria-hidden />
+                    ))}
+                  </> : TECH_COLS.map((col, ci) => {
                     const t = row.technicals;
                     const raw = t ? t[col.key] : null;
                     const isNull = raw == null;
-                    const isText = col.fmt === txt || col.fmt === flag;
                     const regimeColor = col.key === "regime" && !isNull
                       ? raw === "BULLISH" ? "text-green-400" : raw === "BEARISH" ? "text-red-400" : "text-amber-400"
                       : null;
-                    const signalColor = col.key === "fallingKnife" && Number(raw) === 1 ? "text-red-400 font-bold" : null;
+                    const signalColor = col.key === "fallingKnife" && Number(raw) === 1 ? "text-red-400" : null;
                     return (
                       <td
                         key={col.key as string}
                         className={cn(
-                          "px-2 py-0.5 font-mono whitespace-nowrap tabular-nums border-[#d4af37]/10",
-                          isText ? "text-center" : "text-right",
-                          ci < TECH_COLS.length - 1 && "border-r",
-                          isNull ? "text-amber-200/20" : regimeColor ?? signalColor ?? "text-amber-200/70",
+                          "px-1 py-0.5 text-center font-mono whitespace-nowrap tabular-nums",
+                          ci < TECH_COLS.length - 1 && "border-r border-zinc-800/60",
+                          isNull ? "text-white/25" : regimeColor ?? signalColor ?? "text-white/80",
                         )}
                       >
-                        {col.fmt(raw)}
+                        {isNull ? "—" : col.fmt(raw)}
                       </td>
                     );
                   })}
@@ -991,7 +1053,7 @@ export function StockDBTab() {
             })}
             {visibleRows === 0 && tickerFilter && (
               <tr>
-                <td colSpan={(viewMode === "fundamentals" ? COLS.length : TECH_COLS.length) + 1} className="py-8 text-center text-amber-200/40 text-xs">
+                <td colSpan={(viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 1} className="py-8 text-center text-amber-200/40 text-xs">
                   No tickers match "{tickerFilter}"
                 </td>
               </tr>
@@ -1056,10 +1118,24 @@ export function StockDBTab() {
             <div className="px-3 py-2 border-b border-[#d4af37]/20 bg-black/40 flex items-center justify-between gap-2">
               <span className="font-semibold text-white">{activeCell?.ticker} · {activeCell?.field}</span>
               <div className="flex items-center gap-1">
-                {activeProv.isOverride && <span title="Manual override active"><Pin className="h-3 w-3 text-amber-400" /></span>}
+                {activeProv.isAgentOverride && <span title="Database Agent override" className="text-[9px] px-1 rounded border border-fuchsia-400/50 text-fuchsia-300">agent</span>}
+                {activeProv.isOverride && !activeProv.isAgentOverride && <span title="Manual override active"><Pin className="h-3 w-3 text-amber-400" /></span>}
                 {activeProv.divergent  && <span title="Sources disagree"><TriangleAlert className="h-3 w-3 text-orange-400" /></span>}
               </div>
             </div>
+
+            {activeProv.isAgentOverride && activeProv.agentNote && (
+              <div className="px-3 py-2 border-b border-fuchsia-500/30 bg-fuchsia-500/10 text-[10px] text-fuchsia-100 space-y-0.5">
+                <div className="font-semibold text-fuchsia-300 uppercase tracking-wide">Agent trail</div>
+                <div className="font-mono break-all whitespace-pre-wrap text-white/90">{activeProv.agentNote}</div>
+                {activeProv.override && (
+                  <div className="text-white/80">
+                    Override source <span className="font-mono text-fuchsia-200">{activeProv.override.source}</span>
+                    {activeProv.winningValue != null && <> · gold <span className="font-mono">{activeProv.winningValue.toPrecision(5)}</span></>}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeCell && activeCell.tooltipParts.length > 0 && (
               <div className="px-3 py-2 border-b border-[#d4af37]/20 flex flex-col gap-1">
@@ -1150,6 +1226,32 @@ export function StockDBTab() {
                 </tbody>
               </table>
             </div>
+
+            {(activeProv.research?.length ?? 0) > 0 && (
+              <div className="px-3 py-2 border-b border-[#d4af37]/20">
+                <div className="text-[10px] font-semibold text-violet-300/90 uppercase tracking-wide mb-1">Research / desk</div>
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-amber-100/80 border-b border-[#d4af37]/10">
+                      <th className="text-left font-normal pb-0.5">Source</th>
+                      <th className="text-right font-normal pb-0.5">Value</th>
+                      <th className="text-right font-normal pb-0.5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeProv.research!.map(r => (
+                      <tr key={r.source} className={r.status === "available" ? "text-white/85" : "text-white/35"}>
+                        <td className="py-px">{r.source}</td>
+                        <td className="text-right font-mono py-px tabular-nums" title={r.note}>
+                          {r.value != null ? r.value.toPrecision(4) : "—"}
+                        </td>
+                        <td className="text-right py-px" title={r.note}>{r.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="px-3 py-2">
               <div className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1.5">

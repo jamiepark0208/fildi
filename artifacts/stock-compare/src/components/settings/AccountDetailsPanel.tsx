@@ -48,7 +48,7 @@ export function TradingPrefsStrip() {
             onChange={(e) => setInput(e.target.value)}
             className="w-10 text-xs bg-transparent text-white focus:outline-none text-center"
           />
-          <span className="text-[11px] text-zinc-400">%/wk</span>
+          <span className="text-[11px] text-amber-100">%/wk</span>
         </div>
         <button
           type="button"
@@ -65,7 +65,7 @@ export function TradingPrefsStrip() {
               setMinWeeklyIncome(DEFAULT_TRADER_PREFS.minWeeklyIncome);
               saveTraderPrefs(DEFAULT_TRADER_PREFS, user?.id);
             }}
-            className="text-[11px] text-zinc-400 hover:text-white"
+            className="text-[11px] text-amber-100 hover:text-white"
           >
             Reset
           </button>
@@ -85,7 +85,7 @@ export function TradingPrefsStrip() {
           Scorecard Guide →
         </button>
       </div>
-      <p className="text-[11px] text-zinc-400 truncate">
+      <p className="text-[11px] text-amber-100 truncate">
         Brief ·{" "}
         {isAdmin ? (
           <button type="button" onClick={() => navigate("/portfolio")} className="text-[#d4af37] hover:underline">
@@ -180,15 +180,15 @@ export function AccountDetailsButton() {
 
         <div className="space-y-1.5 text-xs">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-zinc-400">Email</span>
+            <span className="text-amber-100">Email</span>
             <span className="font-mono text-white truncate">{user?.email}</span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-zinc-400">Username</span>
+            <span className="text-amber-100">Username</span>
             <span className="font-mono text-white">{user?.username}</span>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-zinc-400">Role</span>
+            <span className="text-amber-100">Role</span>
             <span
               className={cn(
                 "font-semibold px-2 py-0.5 rounded border",
@@ -249,7 +249,7 @@ export function AccountDetailsButton() {
         <button
           type="button"
           onClick={() => void handleLogout()}
-          className="flex items-center gap-2 text-xs text-zinc-400 hover:text-red-400 transition-colors pt-1 border-t border-zinc-800"
+          className="flex items-center gap-2 text-xs text-amber-100 hover:text-red-400 transition-colors pt-1 border-t border-zinc-800"
         >
           <LogOut className="w-3.5 h-3.5" />
           Log out

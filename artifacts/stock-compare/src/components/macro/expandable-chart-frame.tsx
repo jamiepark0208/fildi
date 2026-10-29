@@ -41,9 +41,6 @@ export function ExpandableChartFrame({
         )}
         title="Click to enlarge"
       >
-        <span className="pointer-events-none absolute top-1.5 right-2 text-[9px] uppercase tracking-wide text-amber-200/30 group-hover:text-amber-200/60">
-          expand
-        </span>
         <div className="pointer-events-none">{children}</div>
       </button>
 

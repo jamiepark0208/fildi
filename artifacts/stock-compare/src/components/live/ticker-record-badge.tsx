@@ -26,7 +26,7 @@ export function TickerRecordBadge({
 
   if (!graded && !sim && !hasOpen) return null;
 
-  const color = !graded ? "text-zinc-500" : wins === losses ? "text-amber-300" : wins > losses ? "text-emerald-400" : "text-rose-400";
+  const color = !graded ? "text-amber-100/80" : wins === losses ? "text-amber-300" : wins > losses ? "text-emerald-400" : "text-rose-400";
 
   const sharpe = record?.sharpe ?? null;
   const openSpot = record?.openSpot ?? null;
@@ -52,7 +52,7 @@ export function TickerRecordBadge({
     <span className={cn(className, "inline-flex items-center gap-0.5 text-[9px] font-mono font-semibold leading-none tabular-nums")} title={tip}>
       {graded && <span className={color}>{wins}W-{losses}L</span>}
       {!graded && sim && (
-        <span className="text-zinc-500">{sim.wins}W-{sim.losses}L · sim</span>
+        <span className="text-amber-100/80">{sim.wins}W-{sim.losses}L · sim</span>
       )}
       {!compact && sharpe != null && (
         <span className={cn(sharpe >= 1 ? "text-emerald-300/90" : sharpe >= 0 ? "text-sky-300/70" : "text-rose-400/80")}>
@@ -61,7 +61,7 @@ export function TickerRecordBadge({
       )}
       {!compact && stkDelta != null && (
         <span className={cn(
-          stkFavorable == null ? "text-zinc-400" : stkFavorable ? "text-green-400/80" : "text-red-400/80",
+          stkFavorable == null ? "text-amber-100" : stkFavorable ? "text-green-400/80" : "text-red-400/80",
         )}>
           {stkDelta >= 0 ? "+" : ""}{stkDelta.toFixed(1)}%
         </span>

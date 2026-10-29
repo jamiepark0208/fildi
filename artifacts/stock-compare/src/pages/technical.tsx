@@ -113,7 +113,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             <button
               key={`empty-${i}`}
               onClick={onAddClick}
-              className="h-[200px] rounded-xl border border-dashed border-border/60 bg-card/30 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all group"
+              className="h-[200px] rounded-xl border border-dashed border-border/60 bg-card/30 flex flex-col items-center justify-center gap-2 text-amber-100 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition-all group"
               style={{ borderLeftColor: color, borderLeftWidth: 3 }}
             >
               <div className="w-8 h-8 rounded-full border border-dashed border-current flex items-center justify-center group-hover:border-solid transition-all">
@@ -131,7 +131,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               className="h-[200px] rounded-xl border border-border bg-card shadow-sm flex items-center justify-center"
               style={{ borderLeftColor: color, borderLeftWidth: 3 }}
             >
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <Loader2 className="w-5 h-5 animate-spin text-amber-100" />
             </div>
           );
         }
@@ -147,7 +147,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             >
               <div className="flex items-center justify-between">
                 <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
-                <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center">×</button>
+                <button onClick={() => onRemove(ticker)} className="text-amber-100 hover:text-foreground text-xs w-5 h-5 flex items-center justify-center">×</button>
               </div>
               {failed ? (
                 <div className="flex flex-col items-center gap-2">
@@ -155,14 +155,14 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
                   {onRefresh && (
                     <button
                       onClick={() => onRefresh(ticker)}
-                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      className="text-xs text-amber-100 hover:text-foreground underline underline-offset-2"
                     >
                       Retry
                     </button>
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">No data</p>
+                <p className="text-xs text-amber-100">No data</p>
               )}
             </div>
           );
@@ -186,7 +186,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono font-bold text-base tracking-tight" style={{ color }}>{ticker}</span>
                   {showRanks && ts && (
-                    <span className="text-[10px] font-bold text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] font-bold text-amber-100 bg-secondary px-1.5 py-0.5 rounded">
                       #{ts.rank}
                     </span>
                   )}
@@ -199,18 +199,18 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
                   )}
                 </div>
                 {ts?.reason && (
-                  <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{ts.reason}</p>
+                  <p className="text-[10px] text-amber-100 line-clamp-2 mt-1">{ts.reason}</p>
                 )}
               </div>
-              <button onClick={() => onRemove(ticker)} className="text-muted-foreground hover:text-foreground text-xs w-5 h-5 flex items-center justify-center shrink-0">×</button>
+              <button onClick={() => onRemove(ticker)} className="text-amber-100 hover:text-foreground text-xs w-5 h-5 flex items-center justify-center shrink-0">×</button>
             </div>
 
             {/* Score bar */}
             {showRanks && ts && (
               <div className="space-y-0.5">
                 <div className="flex justify-between text-[10px]">
-                  <span className="text-muted-foreground">Score</span>
-                  <span className="font-mono font-semibold tabular-nums text-muted-foreground">
+                  <span className="text-amber-100">Score</span>
+                  <span className="font-mono font-semibold tabular-nums text-amber-100">
                     {ts.totalScore.toFixed(1)} / {ts.maxPossible.toFixed(1)}
                   </span>
                 </div>
@@ -226,12 +226,12 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             {/* RSI */}
             <div className="space-y-1">
               <div className="flex justify-between text-[11px]">
-                <span className="text-muted-foreground">RSI 14</span>
+                <span className="text-amber-100">RSI 14</span>
                 <span
                   className={cn("font-mono font-semibold tabular-nums", d.rsiOk ? "text-green-400" : "text-red-400")}
                   title={`Threshold ${d.rsiThreshold} is calibrated for this ticker — Tier ${d.tier}, ${TIER_WIN_RATE[d.tier]} historical win rate`}
                 >
-                  {d.rsi.toFixed(1)}<span className="text-muted-foreground font-normal"> /{d.rsiThreshold}</span>
+                  {d.rsi.toFixed(1)}<span className="text-amber-100 font-normal"> /{d.rsiThreshold}</span>
                 </span>
               </div>
               <IndicatorBar value={d.rsi} threshold={d.rsiThreshold} ok={d.rsiOk} />
@@ -240,9 +240,9 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             {/* MFI */}
             <div className="space-y-1">
               <div className="flex justify-between text-[11px]">
-                <span className="text-muted-foreground">MFI 14</span>
+                <span className="text-amber-100">MFI 14</span>
                 <span className={cn("font-mono font-semibold tabular-nums", d.mfiOk ? "text-green-400" : "text-red-400")}>
-                  {d.mfi.toFixed(1)}<span className="text-muted-foreground font-normal"> /25</span>
+                  {d.mfi.toFixed(1)}<span className="text-amber-100 font-normal"> /25</span>
                 </span>
               </div>
               <IndicatorBar value={d.mfi} threshold={d.mfiThreshold} ok={d.mfiOk} />
@@ -254,7 +254,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
             <div className="space-y-1 text-[11px]">
               {d.return5d != null && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">5d return</span>
+                  <span className="text-amber-100">5d return</span>
                   <span className={cn("font-mono tabular-nums font-semibold",
                     d.return5d > 8 ? "text-red-400" : d.return5d > 3 ? "text-yellow-400" : d.return5d < 0 ? "text-green-400" : "text-foreground"
                   )}>
@@ -264,7 +264,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               )}
               {d.position52w != null && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">52w pos</span>
+                  <span className="text-amber-100">52w pos</span>
                   <span className={cn("font-mono tabular-nums font-semibold",
                     d.position52w < 30 ? "text-green-400" : d.position52w > 70 ? "text-red-400" : "text-foreground"
                   )}>
@@ -274,7 +274,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               )}
               {d.vsSpy20d != null && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">vs SPY 20d</span>
+                  <span className="text-amber-100">vs SPY 20d</span>
                   <span className={cn("font-mono tabular-nums font-semibold",
                     d.vsSpy20d < 0 ? "text-green-400" : d.vsSpy20d > 5 ? "text-red-400" : "text-foreground"
                   )}>
@@ -284,7 +284,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               )}
               {d.stoch != null && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Stoch %K</span>
+                  <span className="text-amber-100">Stoch %K</span>
                   <span className={cn("font-mono tabular-nums font-semibold",
                     d.stoch < 20 ? "text-green-400" : d.stoch > 80 ? "text-red-400" : "text-foreground"
                   )}>
@@ -300,7 +300,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
               <div className="flex items-center gap-2 ml-auto">
                 <button
                   onClick={() => { addToScannerShelf(ticker); navigate(optionsScannerHref(ticker)); }}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-amber-100 hover:text-foreground transition-colors"
                   title="Open in options scanner"
                 >
                   <LineChart className="w-3 h-3" />
@@ -309,7 +309,7 @@ function TechnicalCards({ tickers, data, loading, errors, scores, onAddClick, on
                   <button
                     onClick={() => onRefresh(ticker)}
                     disabled={refreshing.has(ticker)}
-                    className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                    className="text-amber-100 hover:text-foreground transition-colors disabled:opacity-40"
                     title="Recompute from live data"
                   >
                     <RefreshCw className={cn("w-3 h-3", refreshing.has(ticker) && "animate-spin")} />
@@ -356,7 +356,7 @@ function TechRow({ label, tickers, data, getValue, lowerIsBetter, higherIsBetter
 
   return (
     <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors group">
-      <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card group-hover:bg-card">{label}</td>
+      <td className="p-3 text-sm font-medium text-amber-100 sticky left-0 bg-card group-hover:bg-card">{label}</td>
       {tickers.map((ticker, i) => {
         const v = values[i];
         const isWinner = bestIdx === i;
@@ -369,7 +369,7 @@ function TechRow({ label, tickers, data, getValue, lowerIsBetter, higherIsBetter
               isWinner ? "text-primary font-bold bg-primary/5" : colorClass || "text-foreground"
             )}
           >
-            {v == null ? <span className="text-muted-foreground">—</span> : format(v)}
+            {v == null ? <span className="text-amber-100">—</span> : format(v)}
           </td>
         );
       })}
@@ -388,14 +388,14 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
         <table className="w-full text-left border-collapse min-w-max">
           <thead>
             <tr className="border-b border-border bg-card">
-              <th className="p-4 font-semibold text-muted-foreground sticky left-0 bg-card z-10 w-48">Metric</th>
+              <th className="p-4 font-semibold text-amber-100 sticky left-0 bg-card z-10 w-48">Metric</th>
               {loadedTickers.map(ticker => (
                 <th key={ticker} className="p-4 font-bold text-xl text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <span className="font-mono">{ticker}</span>
                     <button
                       onClick={() => { addToScannerShelf(ticker); navigate(optionsScannerHref(ticker)); }}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-amber-100 hover:text-foreground transition-colors"
                       title="Open in options scanner"
                     >
                       <LineChart className="w-3.5 h-3.5" />
@@ -408,15 +408,15 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
           <tbody>
             {/* Signal row — uses V2 gate when scoreMap available */}
             <tr className="border-b border-border/50">
-              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">Signal</td>
+              <td className="p-3 text-sm font-medium text-amber-100 sticky left-0 bg-card">Signal</td>
               {loadedTickers.map(ticker => {
                 const d = data[ticker];
-                if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                if (!d) return <td key={ticker} className="p-3 text-right text-amber-100">—</td>;
                 const sig = scoreMap?.[ticker]?.signal ?? d.signal;
                 const cls =
                   sig === "GO"    ? "text-green-400" :
                   sig === "WATCH" ? "text-yellow-400" :
-                  "text-muted-foreground";
+                  "text-amber-100";
                 return (
                   <td key={ticker} className={cn("p-3 text-right font-bold text-sm", cls)}>
                     {sig}
@@ -427,13 +427,13 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
 
             {/* RSI with threshold */}
             <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors">
-              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card group-hover:bg-card">RSI 14</td>
+              <td className="p-3 text-sm font-medium text-amber-100 sticky left-0 bg-card group-hover:bg-card">RSI 14</td>
               {loadedTickers.map(ticker => {
                 const d = data[ticker];
-                if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                if (!d) return <td key={ticker} className="p-3 text-right text-amber-100">—</td>;
                 return (
                   <td key={ticker} className={cn("p-3 text-right font-mono text-sm font-semibold", d.rsiOk ? "text-green-400" : "text-red-400")}>
-                    {d.rsi.toFixed(1)}<span className="text-muted-foreground/60 font-normal text-xs"> /{d.rsiThreshold}</span>
+                    {d.rsi.toFixed(1)}<span className="text-amber-100/60 font-normal text-xs"> /{d.rsiThreshold}</span>
                   </td>
                 );
               })}
@@ -441,13 +441,13 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
 
             {/* MFI with threshold */}
             <tr className="border-b border-border/50 hover:bg-secondary/10 transition-colors">
-              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">MFI 14</td>
+              <td className="p-3 text-sm font-medium text-amber-100 sticky left-0 bg-card">MFI 14</td>
               {loadedTickers.map(ticker => {
                 const d = data[ticker];
-                if (!d) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                if (!d) return <td key={ticker} className="p-3 text-right text-amber-100">—</td>;
                 return (
                   <td key={ticker} className={cn("p-3 text-right font-mono text-sm font-semibold", d.mfiOk ? "text-green-400" : "text-red-400")}>
-                    {d.mfi.toFixed(1)}<span className="text-muted-foreground/60 font-normal text-xs"> /25</span>
+                    {d.mfi.toFixed(1)}<span className="text-amber-100/60 font-normal text-xs"> /25</span>
                   </td>
                 );
               })}
@@ -455,10 +455,10 @@ function TechnicalMetricsTable({ tickers, data, scoreMap }: { tickers: string[];
 
             {/* MACD */}
             <tr className="border-b border-border/50">
-              <td className="p-3 text-sm font-medium text-muted-foreground sticky left-0 bg-card">MACD</td>
+              <td className="p-3 text-sm font-medium text-amber-100 sticky left-0 bg-card">MACD</td>
               {loadedTickers.map(ticker => {
                 const d = data[ticker];
-                if (!d || !d.macdCross) return <td key={ticker} className="p-3 text-right text-muted-foreground">—</td>;
+                if (!d || !d.macdCross) return <td key={ticker} className="p-3 text-right text-amber-100">—</td>;
                 const isBull = d.macdCross.startsWith("BULLISH");
                 const isCross = d.macdCross.endsWith("_CROSS");
                 const label =
@@ -593,7 +593,7 @@ export default function Technical({ tickers, setTickers }: TechnicalProps) {
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Technical Scorecard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Self-relative V2 · RSI pct · MACD direction · IV vs realized · support proximity</p>
+            <p className="text-xs text-amber-100 mt-0.5">Self-relative V2 · RSI pct · MACD direction · IV vs realized · support proximity</p>
           </div>
           <TickerShelf
             tickers={tickers}

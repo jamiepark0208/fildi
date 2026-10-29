@@ -115,6 +115,46 @@ export function fmtDate(ts: string | null): string {
   return d.toLocaleDateString();
 }
 
+/** Absolute stamp for enrich/summary chips: m/d/yy h:mma (Jamie date rule). */
+export function fmtDateTime(ts: string | null): string {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "—";
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const y = String(d.getFullYear()).slice(-2);
+  let h = d.getHours();
+  const min = String(d.getMinutes()).padStart(2, "0");
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${m}/${day}/${y} ${h}:${min}${ampm}`;
+}
+
+/** One-line enrich chip: status · field fetch totals by source · timestamp (no ticker list in DB). */
+export function enrichRunChip(run: EnrichmentRun): { text: string; title: string } {
+  const ps = run.perSource ?? {};
+  const srcParts: string[] = [];
+  let fetched = 0;
+  let targeted = 0;
+  for (const [src, s] of Object.entries(ps)) {
+    if (src.startsWith("__") || !s || typeof s !== "object") continue;
+    const f = Number(s.fetched) || 0;
+    const t = Number(s.targeted) || 0;
+    fetched += f;
+    targeted += t;
+    if (t > 0 || f > 0) srcParts.push(`${src} ${f}/${t}`);
+  }
+  const when = fmtDateTime(run.finishedAt ?? run.startedAt);
+  const scope = targeted > 0 ? `${fetched}/${targeted} fields` : null;
+  const text = ["Enrich", run.status, scope, when].filter(Boolean).join(" · ");
+  const title = [
+    `trigger: ${run.trigger}`,
+    srcParts.length ? srcParts.join(", ") : null,
+    run.error ? `error: ${run.error}` : null,
+  ].filter(Boolean).join(" · ");
+  return { text, title };
+}
+
 // For "used"/"available" the field itself has a value, so show its age.
 // For "no_data" there's no value to age — show when the source was last
 // queried instead, so "never" is reserved for sources truly never fetched

@@ -36,22 +36,22 @@ function BandColumn({ b, isDefault, showAll }: { b: Band; isDefault: boolean; sh
       </div>
       {s ? (
         <DataTip tip={`Holdout 2023 →, ${s.n.toLocaleString()} sold puts. Model said ${pct(s.p_model)} kept. Safer half (higher model P) worst 5 %: ${s.hiP_worst5.toFixed(0)} bp vs riskier half ${s.loP_worst5.toFixed(0)} bp.`}>
-          <div className="text-[10px] text-zinc-400 leading-tight mt-0.5 cursor-help">
+          <div className="text-[10px] text-amber-100 leading-tight mt-0.5 cursor-help">
             kept <span className="text-zinc-200">{pct(s.kept)}</span> · <span className="text-zinc-200">{s.bp_hc >= 0 ? "+" : ""}{s.bp_hc.toFixed(0)}</span> bp/wk
             <br />worst 5 % <span className={s.worst5 < -100 ? "text-red-300" : "text-zinc-200"}>{s.worst5.toFixed(0)}</span> bp
           </div>
         </DataTip>
-      ) : <div className="text-[10px] text-zinc-500 mt-0.5">no holdout stats</div>}
+      ) : <div className="text-[10px] text-amber-100/80 mt-0.5">no holdout stats</div>}
       {s?.hold && Object.keys(s.hold).length > 0 && (
         <DataTip tip={"If assigned, keep the shares N more weeks and mark them then (recovery counted, further drops too). bp per collateral-week incl. the holding weeks; worst 5 % per trade-week."}>
-          <div className="text-[10px] text-zinc-500 leading-tight cursor-help">
+          <div className="text-[10px] text-amber-100/80 leading-tight cursor-help">
             {Object.entries(s.hold).map(([n, x]) => (
               <div key={n}>hold {n}w: <span className="text-zinc-300">{x.bp_hc >= 0 ? "+" : ""}{x.bp_hc.toFixed(0)}</span> · {x.worst5.toFixed(0)}</div>
             ))}
           </div>
         </DataTip>
       )}
-      <div className="text-[10px] text-zinc-500 mt-1 mb-0.5">{b.picks.length} names today</div>
+      <div className="text-[10px] text-amber-100/80 mt-1 mb-0.5">{b.picks.length} names today</div>
       <table className="w-full text-[11px]">
         <tbody>
           {picks.map((p) => (
@@ -67,7 +67,7 @@ function BandColumn({ b, isDefault, showAll }: { b: Band; isDefault: boolean; sh
                 </DataTip>
               </td>
               <td className="text-right text-zinc-300">{p.creditPctWk.toFixed(2)}%</td>
-              <td className="text-right text-zinc-400">{pct(p.pKept, 0)}</td>
+              <td className="text-right text-amber-100">{pct(p.pKept, 0)}</td>
             </tr>
           ))}
         </tbody>
@@ -82,7 +82,7 @@ function HorizonStrip({ H, def }: { H: Record<string, Band[]>; def: string }) {
   const bands = H[hs[0]]?.map((b) => b.band) ?? [];
   return (
     <div className="overflow-x-auto">
-      <table className="text-[10px] text-zinc-400">
+      <table className="text-[10px] text-amber-100">
         <thead>
           <tr>
             <th className="text-left pr-2 font-normal">bp/wk · worst 5 %</th>
@@ -119,9 +119,9 @@ export function PutLadder() {
     },
     staleTime: 10 * 60_000,
   });
-  if (isLoading) return <p className="text-sm text-muted-foreground animate-pulse">Loading put ladder…</p>;
+  if (isLoading) return <p className="text-sm text-amber-100 animate-pulse">Loading put ladder…</p>;
   const L = data?.ladder;
-  if (!L) return <p className="text-sm text-muted-foreground">No put ladder yet — built by the weekly S088 run.</p>;
+  if (!L) return <p className="text-sm text-amber-100">No put ladder yet — built by the weekly S088 run.</p>;
   const H = side === "call" && L.callHorizons ? L.callHorizons : L.horizons;
   const def = side === "call" ? (L.callDefault ?? "") : L.default;
   const bands = H[h] ?? [];
@@ -149,7 +149,7 @@ export function PutLadder() {
         <button onClick={() => setShowAll((v) => !v)} className="text-amber-200/60 hover:text-[#d4af37]">
           {showAll ? `top ${SHOW} per band` : "show every name"}
         </button>
-        <span className="text-zinc-500">
+        <span className="text-amber-100/80">
           as of {formatMdYy(L.asOf)} · columns = |Δ| bands · per name: strike · credit %/wk · model P(kept) ·
           <span className="text-emerald-400"> ●</span> safer half <span className="text-amber-400">●</span> riskier half of its band · E = earnings before expiry
         </span>
@@ -158,7 +158,7 @@ export function PutLadder() {
         {bands.map((b) => <BandColumn key={b.band} b={b} isDefault={b.band === def} showAll={showAll} />)}
       </div>
       <HorizonStrip H={H} def={def} />
-      <p className="text-[10px] text-zinc-500">
+      <p className="text-[10px] text-amber-100/80">
         Stats: {L.statsFrom}. {side === "put"
           ? "Puts: bp per week of collateral after real fills. Farther bands keep more often at similar weekly pay; nearer bands carry a bigger worst 5 %."
           : "Covered calls: bp per week per $ of stock vs just holding it (negative = the call cost you upside). Kept = stock stayed below the strike."}{" "}

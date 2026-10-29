@@ -22,10 +22,10 @@ interface PeerData {
 }
 
 const CONFIDENCE_BADGE: Record<Confidence, string> = {
-  override:  "bg-[#d4af37]/15 text-[#d4af37] border-[#d4af37]/40",
-  mapped:    "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
-  auto:      "bg-sky-500/10 text-sky-300 border-sky-500/30",
-  unmapped:  "bg-zinc-500/10 text-amber-200/50 border-zinc-500/30",
+  override:  "bg-zinc-900 text-white border-[#d4af37]/60",
+  mapped:    "bg-zinc-900 text-white border-emerald-400/70",
+  auto:      "bg-zinc-900 text-white border-sky-400/70",
+  unmapped:  "bg-zinc-900 text-zinc-300 border-zinc-500/50",
 };
 
 const CONFIDENCE_LABEL: Record<Confidence, string> = {

@@ -152,7 +152,7 @@ export function EarningsHistorySection({
 
   if (!history || history.length === 0) {
     return (
-      <div className="text-xs text-white/70 py-3 text-center">
+      <div className="text-xs text-amber-100 py-3 text-center">
         No historical earnings data available for this ticker yet.
       </div>
     );
@@ -160,7 +160,7 @@ export function EarningsHistorySection({
 
   if (chartData.length === 0) {
     return (
-      <div className="text-xs text-white/70 py-3 text-center px-1">
+      <div className="text-xs text-amber-100 py-3 text-center px-1">
         Earnings dates on file, but no EPS estimate/actual yet (vendor gap). Will fill on next earnings pull.
       </div>
     );

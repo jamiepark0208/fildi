@@ -218,8 +218,8 @@ function WatchlistView() {
       return body.prices ?? {};
     },
     enabled: tickerKey.length > 0,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 90_000,
+    refetchInterval: 120_000, // match LIVE_PRICE_TTL_MS
   });
 
   // DB-only name/sector/industry for breakdown tag popups (no Yahoo).
@@ -292,7 +292,7 @@ function WatchlistView() {
 
   if (!isLoaded) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-zinc-950 text-zinc-500 text-sm gap-2">
+      <div className="flex-1 flex items-center justify-center bg-zinc-950 text-amber-100/80 text-sm gap-2">
         <Loader2 className="w-4 h-4 animate-spin" />
         Loading watchlist…
       </div>
@@ -304,21 +304,28 @@ function WatchlistView() {
       {/* Left Panel — hug row content (Sym/Last/Chg/%); no ellipsis, minimal spare */}
       <ResizablePanel defaultSize={18} minSize={14} maxSize={28} className="flex flex-col bg-zinc-950 min-w-[15rem] min-h-0" data-lenis-prevent>
         <div className="flex border-b border-[#d4af37]/20 text-[11px] font-bold shrink-0">
-          {([["mine", "My List"], ["model", "Model List"]] as const).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => {
-                setTab(key);
-                if (key === "mine") setModelThesis(null);
-              }}
-              className={cn(
-                "flex-1 py-1.5 transition-colors border-b-2",
-                tab === key ? "text-[#d4af37] border-[#d4af37]" : "text-amber-200/40 border-transparent hover:text-amber-200/70"
-              )}
-            >
-              {label}
-            </button>
-          ))}
+          {([["mine", "My List"], ["model", "Model List"]] as const).map(([key, label]) => {
+            const active = tab === key;
+            const modelTab = key === "model";
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  setTab(key);
+                  if (key === "mine") setModelThesis(null);
+                }}
+                className={cn(
+                  "flex-1 py-1.5 transition-colors border-b-2",
+                  active && !modelTab && "text-[#d4af37] border-[#d4af37]",
+                  active && modelTab && "text-emerald-400 border-emerald-400",
+                  !active && !modelTab && "text-amber-200/35 border-transparent hover:text-amber-200/70",
+                  !active && modelTab && "text-emerald-400/40 border-transparent hover:text-emerald-300/70",
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         {tab === "model" ? (
@@ -329,9 +336,9 @@ function WatchlistView() {
         ) : (<>
         <div className="p-2 border-b border-[#d4af37]/20 shrink-0">
           <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 z-10" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-100/80 z-10" />
               {isSearching && debouncedSearch.length >= 2 && (
-                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 animate-spin z-10" />
+                <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-100/80 animate-spin z-10" />
               )}
               <input
                 ref={inputRef}
@@ -343,7 +350,7 @@ function WatchlistView() {
                 onBlur={handleSearchBlur}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Add…"
-                className="w-full h-7 pl-7 pr-7 text-[11px] bg-white border border-white/20 rounded-md text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#d4af37] transition-colors"
+                className="w-full h-7 pl-7 pr-7 text-[11px] bg-zinc-900 border border-[#d4af37]/35 rounded-md text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-[#d4af37] transition-colors"
               />
 
               {open && debouncedSearch.length >= 2 && (
@@ -381,7 +388,7 @@ function WatchlistView() {
               onClick={() => setFilterColor(null)}
               className={cn(
                 "text-[9px] px-1.5 py-0.5 rounded-full font-medium transition-colors border shrink-0",
-                !filterColor ? "bg-[#d4af37]/20 text-[#d4af37] border-[#d4af37]/40" : "bg-transparent text-amber-200/40 border-transparent hover:bg-white/5"
+                !filterColor ? "bg-zinc-800 text-white border-[#d4af37]/60" : "bg-transparent text-amber-100 border-transparent hover:bg-white/5 hover:text-white"
               )}
             >
               All
@@ -490,19 +497,30 @@ function WatchlistView() {
                       {(() => {
                         const g = watchlistMeta?.[entry.ticker]?.streetGapPct;
                         const basis = watchlistMeta?.[entry.ticker]?.streetGapBasis;
-                        const hot = g != null && Math.abs(g) >= 15;
+                        // Lower (more negative) = FV / price below street PT → green; above street → red.
+                        const vsColor =
+                          g == null
+                            ? "text-white/30"
+                            : g <= -15
+                              ? "text-emerald-400"
+                              : g <= -5
+                                ? "text-emerald-300/90"
+                                : g < 5
+                                  ? "text-yellow-300"
+                                  : g < 15
+                                    ? "text-orange-300"
+                                    : "text-red-400";
                         const tip = g == null
-                          ? "vsSt · derived · no street PT"
+                          ? "vsSt · Fildi FV (or price) vs LSEG street PT — lower = cheaper vs street"
                           : basis === "price"
-                            ? `vsSt · derived · price vs LSEG street PT ${g >= 0 ? "+" : ""}${g.toFixed(0)}% (no Fildi FV)`
-                            : `vsSt · derived · Fildi FV vs LSEG street PT ${g >= 0 ? "+" : ""}${g.toFixed(0)}%`;
+                            ? `vsSt · price vs street PT ${g >= 0 ? "+" : ""}${g.toFixed(0)}% (no Fildi FV). Lower = cheaper.`
+                            : `vsSt · Fildi FV vs street PT ${g >= 0 ? "+" : ""}${g.toFixed(0)}%. Lower = cheaper vs street.`;
                         return (
                           <DataTip tip={tip} className="justify-end w-full">
                             <div
                               className={cn(
-                                "text-right font-mono tabular-nums whitespace-nowrap text-[10px] w-full",
-                                g == null ? "text-amber-200/25" : hot ? "text-sky-300" : "text-amber-200/50",
-                                basis === "price" && g != null && "italic",
+                                "text-right font-mono tabular-nums whitespace-nowrap text-[11px] w-full font-semibold",
+                                vsColor,
                               )}
                             >
                               {g == null ? "—" : `${g >= 0 ? "+" : ""}${g.toFixed(0)}`}
@@ -521,7 +539,7 @@ function WatchlistView() {
                           if (colorPickerTicker === entry.ticker) setColorPickerTicker(null);
                         }}
                         title={`Remove ${entry.ticker}`}
-                        className="flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
+                        className="flex items-center justify-center text-amber-100/80 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -582,9 +600,10 @@ function WatchlistView() {
 
 export default function Watchlist() {
   return (
-    <div className="min-h-[100dvh] bg-zinc-900 text-foreground">
+    <div className="h-[100dvh] overflow-hidden bg-zinc-900 text-foreground">
       <TopNav />
-      {/* min-h-0: flex child must shrink or breakdown overflow-y-auto never engages (Lenis + Model List click). */}
+      {/* min-h-0: flex child must shrink or breakdown overflow-y-auto never engages (Lenis + Model List click).
+          h+[overflow-hidden] on shell: stop main.mt-14 margin-collapse → document scroll (Lenis trap). */}
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
         <WatchlistView />
       </main>

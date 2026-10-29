@@ -55,7 +55,7 @@ const SentryErrorBoundary = Sentry.ErrorBoundary ?? (({ children }: { children: 
 
 createRoot(document.getElementById("root")!).render(
   <SentryErrorBoundary fallback={
-    <div className="flex items-center justify-center h-screen text-muted-foreground text-sm">
+    <div className="flex items-center justify-center h-screen text-amber-100 text-sm">
       Something went wrong. Please refresh.
     </div>
   }>

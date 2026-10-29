@@ -6,6 +6,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { formatMdYy } from "@/lib/format";
 import type { NewsItem } from "./news-card";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 
@@ -46,19 +47,21 @@ function headlineLean(news: NewsItem[]): { bull: number; bear: number; n: number
 }
 
 function scoreLabel(score: number | null | undefined): { text: string; cls: string } {
-  if (score == null || !Number.isFinite(score)) return { text: "no tagged lean", cls: "text-white/50" };
+  if (score == null || !Number.isFinite(score)) return { text: "no tagged lean", cls: "text-amber-100/80" };
   if (score > 0.25) return { text: `bullish ${score.toFixed(2)}`, cls: "text-emerald-300" };
   if (score < -0.25) return { text: `cautious ${score.toFixed(2)}`, cls: "text-red-300" };
   return { text: `mixed ${score.toFixed(2)}`, cls: "text-amber-100" };
 }
 
 function asOfLabel(asOf: string | undefined, fetchedAt: string | undefined): string {
-  const day = (asOf ?? fetchedAt ?? "").slice(0, 10);
-  if (!day) return "as-of —";
+  const raw = asOf ?? fetchedAt;
+  if (!raw) return "—";
+  const stamp = formatMdYy(raw);
+  const day = String(raw).slice(0, 10);
   const ageDays = Math.max(0, Math.floor((Date.now() - Date.parse(`${day}T12:00:00Z`)) / 86_400_000));
-  if (ageDays === 0) return `as-of ${day} · today`;
-  if (ageDays === 1) return `as-of ${day} · 1d stale`;
-  return `as-of ${day} · ${ageDays}d stale`;
+  if (ageDays === 0) return `${stamp} · today`;
+  if (ageDays === 1) return `${stamp} · 1d`;
+  return `${stamp} · ${ageDays}d`;
 }
 
 export function DeskSentimentSection({
@@ -103,90 +106,74 @@ export function DeskSentimentSection({
   const compL = scoreLabel(composite);
 
   return (
-    <div className="space-y-2 text-[11px]">
-      <div className={GRID_WRAP}>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className={GRID_HEADER}>
-              <th className={cn(GRID_TH, "text-left w-28")}>Source</th>
-              <th className={cn(GRID_TH, "text-left")}>Lean</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className={gridRow(0)}>
-              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Desk lean</td>
-              <td className={cn(GRID_TD, "text-white text-left whitespace-normal leading-snug")}>
-                {isLoading ? (
-                  <span className="text-white/70">Loading…</span>
-                ) : compositeParts.length > 0 ? (
-                  <>
-                    <span className={cn("font-mono font-semibold", compL.cls)}>{compL.text}</span>
-                    <span className="block text-[10px] text-amber-50/80 mt-0.5">
-                      StockTwits + call tone average · display only (A214)
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-white/70 italic">No media source yet for {ticker}</span>
-                    <span className="block text-[10px] text-amber-50/70 mt-0.5">
-                      Keyword headlines below are weak — not a substitute
-                    </span>
-                  </>
-                )}
-              </td>
-            </tr>
-            <tr className={gridRow(1)}>
-              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>StockTwits</td>
-              <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
-                {st ? (
-                  <span className="font-mono">
-                    <span className={stL.cls}>{stL.text}</span>
-                    <span className="block text-[10px] text-amber-50/80 mt-0.5">
-                      {st.sample?.bull ?? 0} bull / {st.sample?.bear ?? 0} bear · n={st.n ?? 0} ·{" "}
-                      {asOfLabel(st.as_of, st.fetched_at)}
-                    </span>
+    <div className={GRID_WRAP}>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className={GRID_HEADER}>
+            <th className={cn(GRID_TH, "text-left w-28")}>Source</th>
+            <th className={cn(GRID_TH, "text-left")}>Lean</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className={gridRow(0)}>
+            <td className={cn(GRID_TD, "text-left font-semibold")}>Desk lean</td>
+            <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
+              {isLoading ? (
+                <span className="text-white">Loading…</span>
+              ) : compositeParts.length > 0 ? (
+                <>
+                  <span className={cn("font-mono font-semibold", compL.cls)}>{compL.text}</span>
+                  <span className="block text-[9px] text-white mt-0.5">ST + call avg · display only</span>
+                </>
+              ) : (
+                <span className="text-white italic">No media yet</span>
+              )}
+            </td>
+          </tr>
+          <tr className={gridRow(1)}>
+            <td className={cn(GRID_TD, "text-left font-semibold")}>StockTwits</td>
+            <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
+              {st ? (
+                <span className="font-mono">
+                  <span className={stL.cls}>{stL.text}</span>
+                  <span className="block text-[9px] text-white mt-0.5">
+                    {st.sample?.bull ?? 0}b/{st.sample?.bear ?? 0}s · n={st.n ?? 0} · {asOfLabel(st.as_of, st.fetched_at)}
                   </span>
-                ) : (
-                  <span className="text-white/60 italic">No StockTwits row yet</span>
-                )}
-              </td>
-            </tr>
-            <tr className={gridRow(2)}>
-              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Last call</td>
-              <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
-                {call ? (
-                  <span className="font-mono">
-                    <span className={callL.cls}>{callL.text}</span>
-                    <span className="block text-[10px] text-amber-50/80 mt-0.5">
-                      {call.sample?.quarter ?? "—"}
-                      {call.sample?.guidance ? ` · guide ${call.sample.guidance}` : ""} ·{" "}
-                      {asOfLabel(call.as_of, call.fetched_at)}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-white/60 italic">No call-tone row yet</span>
-                )}
-              </td>
-            </tr>
-            <tr className={gridRow(3)}>
-              <td className={cn(GRID_TD, "text-[#d4af37] text-left font-semibold")}>Headlines</td>
-              <td className={cn(GRID_TD, "text-white text-left whitespace-normal leading-snug")}>
-                {lean.label}
-                <span className="block text-[10px] text-amber-50/70 mt-0.5">
-                  Keyword heuristic ·{" "}
-                  {lean.n > 0
-                    ? `${lean.bull} bull / ${lean.bear} bear · last ${Math.min(12, news?.length ?? 0)}`
-                    : "unvalidated"}{" "}
-                  · not a score input
                 </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[9px] text-amber-200/35">
-        Never Yahoo rec %. OpenJev headline classify = Live strip only (tier B). X/Reddit later.
-      </p>
+              ) : (
+                <span className="text-white italic">—</span>
+              )}
+            </td>
+          </tr>
+          <tr className={gridRow(2)}>
+            <td className={cn(GRID_TD, "text-left font-semibold")}>Last call</td>
+            <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
+              {call ? (
+                <span className="font-mono">
+                  <span className={callL.cls}>{callL.text}</span>
+                  <span className="block text-[9px] text-white mt-0.5">
+                    {call.sample?.quarter ?? "—"}
+                    {call.sample?.guidance ? ` · ${call.sample.guidance}` : ""} · {asOfLabel(call.as_of, call.fetched_at)}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-white italic">—</span>
+              )}
+            </td>
+          </tr>
+          <tr className={gridRow(3)}>
+            <td className={cn(GRID_TD, "text-left font-semibold")}>Headlines</td>
+            <td className={cn(GRID_TD, "text-left whitespace-normal leading-snug")}>
+              {lean.label}
+              <span className="block text-[9px] text-white mt-0.5">
+                {lean.n > 0
+                  ? `${lean.bull}b/${lean.bear}s · keyword · not scored`
+                  : "keyword · not scored"}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }

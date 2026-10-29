@@ -25,7 +25,7 @@ function earlyAssignRisk(r: Row): "high" | "watch" | null {
   return null;
 }
 const pct = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
-const tone = (x: number | null, hi: boolean) => (x == null ? "text-white/40" : (hi ? x >= 0.6 : x < 0.4) ? "text-emerald-300" : (hi ? x < 0.4 : x >= 0.6) ? "text-red-300" : "text-white");
+const tone = (x: number | null, hi: boolean) => (x == null ? "text-amber-100/70" : (hi ? x >= 0.6 : x < 0.4) ? "text-emerald-300" : (hi ? x < 0.4 : x >= 0.6) ? "text-red-300" : "text-white");
 
 export function PutOdds() {
   const { data } = useQuery({
@@ -43,9 +43,9 @@ export function PutOdds() {
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
         <span className="text-[11px] uppercase tracking-widest text-[#d4af37]">Open puts · odds</span>
-        <span className="text-[11px] text-white/50">priced {data?.pricedAt ? new Date(data.pricedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}</span>
+        <span className="text-[11px] text-amber-100/80">priced {data?.pricedAt ? new Date(data.pricedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "—"}</span>
         <Tooltip delayDuration={150}>
-          <TooltipTrigger asChild><button type="button" className="ml-auto text-white/40 hover:text-white"><Info className="w-3.5 h-3.5" /></button></TooltipTrigger>
+          <TooltipTrigger asChild><button type="button" className="ml-auto text-amber-100/70 hover:text-white"><Info className="w-3.5 h-3.5" /></button></TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-[340px] bg-zinc-900 text-zinc-100 border border-[#d4af37]/30 text-[11px] leading-snug">
             Assigned = chance the put finishes in the money (today's implied vol). If assigned, over the next 20 trading days:
             "touches strike" = chance the stock trades back up to your strike at least once (a chance to sell a call there);
@@ -73,8 +73,8 @@ export function PutOdds() {
             const early = earlyAssignRisk(r);
             return (
             <tr key={`${r.account}-${r.ticker}-${r.strike}-${r.expiry}`} className={gridRow(i)}>
-              <td className={cn(GRID_TD, "text-white font-semibold whitespace-nowrap")}>{r.ticker} {r.strike}P <span className="font-normal text-white/50">{r.expiry.slice(5)}{r.qty > 1 ? ` ×${r.qty}` : ""}</span></td>
-              <td className={cn(GRID_TD, "text-white/60")}>{r.account}</td>
+              <td className={cn(GRID_TD, "text-white font-semibold whitespace-nowrap")}>{r.ticker} {r.strike}P <span className="font-normal text-amber-100/80">{r.expiry.slice(5)}{r.qty > 1 ? ` ×${r.qty}` : ""}</span></td>
+              <td className={cn(GRID_TD, "text-amber-100")}>{r.account}</td>
               <td className={cn(GRID_TD, "text-right text-white/80")}>{r.spot?.toFixed(2) ?? "—"}</td>
               <td className={cn(GRID_TD, "text-right font-semibold", tone(r.pAssign, false))}>{pct(r.pAssign)}</td>
               <td
@@ -91,7 +91,7 @@ export function PutOdds() {
               <td className={cn(GRID_TD, "text-right", tone(r.backToStrike20d, true))}>{pct(r.backToStrike20d)}</td>
               <td className={cn(GRID_TD, "text-right", tone(r.atStrike20d, true))}>{pct(r.atStrike20d)}</td>
               <td className={cn(GRID_TD, "text-right text-white/80 whitespace-nowrap")}>
-                {r.hist ? <>up {pct(r.hist.up)} · {r.hist.med >= 0 ? "+" : ""}{Math.round(r.hist.med * 100)}% <span className="text-white/40">n {r.hist.n}</span></> : "—"}
+                {r.hist ? <>up {pct(r.hist.up)} · {r.hist.med >= 0 ? "+" : ""}{Math.round(r.hist.med * 100)}% <span className="text-amber-100/70">n {r.hist.n}</span></> : "—"}
               </td>
             </tr>
             );

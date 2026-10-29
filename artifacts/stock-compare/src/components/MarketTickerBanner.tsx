@@ -16,7 +16,7 @@ function TickerChip({ point }: { point: MarketDataPoint }) {
   const up      = (point.changePct ?? 0) > 0;
   const down    = (point.changePct ?? 0) < 0;
 
-  const chipColor = !hasData ? "text-muted-foreground"
+  const chipColor = !hasData ? "text-amber-100"
     : isVix
       ? up ? "text-red-400" : down ? "text-green-400" : "text-foreground"
       : up ? "text-green-400" : down ? "text-red-400"  : "text-foreground";

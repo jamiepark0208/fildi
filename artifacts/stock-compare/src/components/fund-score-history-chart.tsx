@@ -54,7 +54,7 @@ function ScoreTooltip({ active, payload }: { active?: boolean; payload?: Array<{
         </div>
       )}
       {p.attribution.length === 0 && p.notes.length === 0 && (
-        <p className="text-zinc-500 italic">No large move / notes</p>
+        <p className="text-amber-100/80 italic">No large move / notes</p>
       )}
     </div>
   );

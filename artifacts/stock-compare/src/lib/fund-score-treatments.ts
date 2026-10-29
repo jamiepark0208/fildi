@@ -94,7 +94,7 @@ export const ENGINE_METRICS: EngineMetric[] = [
   { key: "netCashAssets", label: "Net Cash / Assets", family: "safety", baseIntra: 2, higherIsBetter: true, goldInputs: "(cash−debt)/assets", treatment: "Solvency; ↑ Chinese" },
 ];
 
-const ENGINE_BY_KEY: Record<string, EngineMetric> = Object.fromEntries(
+export const ENGINE_BY_KEY: Record<string, EngineMetric> = Object.fromEntries(
   ENGINE_METRICS.map((m) => [m.key, m]),
 );
 

@@ -19,10 +19,10 @@ export const ScorecardBreakdown = memo(function ScorecardBreakdown({ scores }: S
         <table className="w-full text-left border-collapse min-w-max">
           <thead>
             <tr className="border-b border-border bg-secondary/10">
-              <th className="p-4 font-semibold text-muted-foreground text-xs uppercase tracking-wider sticky left-0 bg-secondary/10 w-48">Factor</th>
-              <th className="p-4 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-center w-24">Weight</th>
+              <th className="p-4 font-semibold text-amber-100 text-xs uppercase tracking-wider sticky left-0 bg-secondary/10 w-48">Factor</th>
+              <th className="p-4 font-semibold text-amber-100 text-xs uppercase tracking-wider text-center w-24">Weight</th>
               {scores.map((score) => (
-                <th key={score.ticker} className="p-4 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-right">
+                <th key={score.ticker} className="p-4 font-semibold text-amber-100 text-xs uppercase tracking-wider text-right">
                   {score.ticker}
                 </th>
               ))}
@@ -33,11 +33,11 @@ export const ScorecardBreakdown = memo(function ScorecardBreakdown({ scores }: S
               <tr key={metric.key} className="border-b border-border/50 hover:bg-secondary/20 transition-colors">
                 <td className="p-4 align-top sticky left-0 bg-card">
                   <div className="font-medium">{metric.label}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-amber-100">
                     {metric.higherIsBetter ? "Higher is better" : "Lower is better"}
                   </div>
                 </td>
-                <td className="p-4 align-top text-center text-sm font-mono text-muted-foreground">
+                <td className="p-4 align-top text-center text-sm font-mono text-amber-100">
                   {metric.intraWeight}x
                 </td>
                 {scores.map((score) => {

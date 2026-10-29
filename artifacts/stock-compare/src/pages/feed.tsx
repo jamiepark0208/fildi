@@ -64,13 +64,13 @@ function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
           )},
         ].map(({ label, node }) => (
           <div key={label} className="space-y-1">
-            <label className="text-xs text-white/70">{label}</label>
+            <label className="text-xs text-amber-100">{label}</label>
             {node}
           </div>
         ))}
       </div>
       <div className="space-y-1">
-        <label className="text-xs text-white/70">Rationale</label>
+        <label className="text-xs text-amber-100">Rationale</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Your rationale…"
           className="w-full bg-zinc-900 border border-[#d4af37]/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 resize-none" />
       </div>
@@ -141,7 +141,7 @@ function TopPerformers({ posts }: { posts: TradePost[] }) {
     <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-2 sticky top-6">
       <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Top Performers</div>
       {performers.length === 0 ? (
-        <div className="text-xs text-white/70">Not enough data yet</div>
+        <div className="text-xs text-amber-100">Not enough data yet</div>
       ) : (
         <div className="space-y-3">
           {performers.map((u, i) => (
@@ -155,7 +155,7 @@ function TopPerformers({ posts }: { posts: TradePost[] }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-white/50">#{i + 1}</span>
+                    <span className="text-xs text-amber-100/80">#{i + 1}</span>
                     <span className="text-sm font-medium text-white truncate">{u.username}</span>
                   </div>
                   <div className={cn("flex items-center gap-2 text-xs", u.resolved < 5 && "opacity-60")}>
@@ -165,7 +165,7 @@ function TopPerformers({ posts }: { posts: TradePost[] }) {
                     <span className={cn(u.totalPnl >= 0 ? "text-green-400" : "text-red-400")}>
                       {u.totalPnl >= 0 ? "+" : ""}${u.totalPnl.toFixed(0)}
                     </span>
-                    <span className="text-white/50">
+                    <span className="text-amber-100/80">
                       ({u.resolved}{u.resolved < 5 ? " · low n" : ""})
                     </span>
                   </div>
@@ -293,10 +293,10 @@ export default function Feed() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search ticker or @username"
-                  className="w-full bg-white border border-[#d4af37]/30 rounded-full px-3.5 py-1.5 text-sm text-black placeholder:text-gray-500 pr-8 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50"
+                  className="w-full bg-white border border-[#d4af37]/30 rounded-full px-3.5 py-1.5 text-sm text-black placeholder:text-amber-100/80 pr-8 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50"
                 />
                 {search && (
-                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black">
+                  <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-100/80 hover:text-black">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -308,7 +308,7 @@ export default function Feed() {
                   <button key={s} onClick={() => setSort(s)}
                     className={cn(
                       "text-xs px-3.5 py-1.5 transition-colors capitalize font-medium",
-                      sort === s ? "bg-[#d4af37] text-black" : "text-white/70 hover:text-[#d4af37]"
+                      sort === s ? "bg-[#d4af37] text-black" : "text-amber-100 hover:text-[#d4af37]"
                     )}>
                     {s}
                   </button>
@@ -322,7 +322,7 @@ export default function Feed() {
                 <SkeletonCard /><SkeletonCard /><SkeletonCard />
               </div>
             ) : allPosts.length === 0 ? (
-              <div className="text-sm text-white/70 text-center py-16">No trade ideas found.</div>
+              <div className="text-sm text-amber-100 text-center py-16">No trade ideas found.</div>
             ) : (
               <div className="space-y-3">
                 {allPosts.map(post => (
@@ -345,7 +345,7 @@ export default function Feed() {
             {!isLoading && hasNextPage && allPosts.length > 0 && (
               <div className="flex justify-center pt-2">
                 <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}
-                  className="text-sm text-white/70 hover:text-[#d4af37] border border-[#d4af37]/20 rounded-full px-6 py-2 transition-colors disabled:opacity-50">
+                  className="text-sm text-amber-100 hover:text-[#d4af37] border border-[#d4af37]/20 rounded-full px-6 py-2 transition-colors disabled:opacity-50">
                   {isFetchingNextPage ? "Loading…" : "Load more"}
                 </button>
               </div>

@@ -96,25 +96,25 @@ export function FairValueBadge({
               </span>
             )}
           </div>
-          <div className="text-zinc-400 text-[11px]">
+          <div className="text-amber-100 text-[11px]">
             {low != null && high != null ? `Range ${formatCurrency(low)} – ${formatCurrency(high)} · ` : ""}
             {conf} confidence
           </div>
         </div>
         <div className="px-3 py-2 space-y-1">
           {sorted.map((v) => (
-            <div key={v.name} className={cn("flex justify-between", v.kept ? "text-zinc-200" : "text-zinc-500 line-through")}>
+            <div key={v.name} className={cn("flex justify-between", v.kept ? "text-zinc-200" : "text-amber-100/80 line-through")}>
               <span>{METHOD_LABELS[v.name] ?? v.name}</span>
               <span className="font-mono">{formatCurrency(v.value)}</span>
             </div>
           ))}
           {sorted.some((v) => !v.kept) && (
-            <div className="text-[10px] text-zinc-500 pt-0.5">Struck-through: highest/lowest votes trimmed from the blend.</div>
+            <div className="text-[10px] text-amber-100/80 pt-0.5">Struck-through: highest/lowest votes trimmed from the blend.</div>
           )}
         </div>
         {outside.length > 0 && (
           <div className="px-3 py-2 border-t border-zinc-700/60 space-y-1">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Outside estimates</div>
+            <div className="text-[10px] uppercase tracking-wide text-amber-100/80">Outside estimates</div>
             {outside.map((e) => {
               const vsPrice = price != null && price > 0 ? (e.value / price - 1) * 100 : null;
               const tip = [
@@ -139,13 +139,13 @@ export function FairValueBadge({
               );
             })}
             {outsideMin != null && outsideMax != null && outsideMax > outsideMin && (
-              <div className="text-[10px] text-zinc-500 pt-0.5">
+              <div className="text-[10px] text-amber-100/80 pt-0.5">
                 Outside models disagree widely too ({formatCurrency(outsideMin)} – {formatCurrency(outsideMax)}).
               </div>
             )}
           </div>
         )}
-        <div className="px-3 py-2 border-t border-zinc-700/60 text-[10px] text-zinc-400 space-y-1">
+        <div className="px-3 py-2 border-t border-zinc-700/60 text-[10px] text-amber-100 space-y-1">
           {change3m != null && (
             <div className="text-zinc-300">
               Fair value {change3m >= 0 ? "up" : "down"} {Math.abs(change3m * 100).toFixed(0)}% over ~3 months (context only —
@@ -165,7 +165,7 @@ export function FairValueBadge({
             <div>Today&apos;s price implies ~{(impliedGrowth * 100).toFixed(0)}%/yr free-cash-flow growth (fading over 10 years).</div>
           )}
           <div>A valuation reference, not a timing signal — gaps did not reliably close within 12 months in our 2020–26 backtest.</div>
-          {asOf && <div className="text-zinc-500">As of {asOf}</div>}
+          {asOf && <div className="text-amber-100/80">As of {asOf}</div>}
         </div>
       </PopoverContent>
     </Popover>

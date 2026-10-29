@@ -8,6 +8,7 @@ import {
 } from "@/lib/technical-rankings";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow, ROW_CELL, percentileColor, percentileBadge, highlightBullet } from "@/lib/score-explain-format";
 import { formatMdYy } from "@/lib/format";
+import { TickerLink } from "@/components/ticker-link";
 
 function buildTechnicalPayload(score: TechnicalScore, rowMap?: Record<string, TechnicalRow>, side: ScoreSide = "put") {
   const row = rowMap?.[score.ticker];
@@ -65,6 +66,24 @@ export function TechnicalLeaderboard({
   const metrics = getTechnicalScorecardMetrics(side);
   const explainers = getComponentExplainers(side);
   const componentLabel: Record<string, string> = Object.fromEntries(metrics.map(m => [m.key, m.label]));
+  // Weighted comps only — same role as Fund V/G/Q/S columns (display-only keys stay out).
+  const SHORT: Record<string, string> = {
+    oversoldDepth: side === "call" ? "ObD" : "OsD",
+    reversalSignal: side === "call" ? "Exh" : "Rev",
+    volatilityState: "Vol",
+    trendContext: side === "call" ? "Ext" : "Trd",
+    optionsFlow: "Flow",
+    volumeConfirm: "Vlm",
+  };
+  const scoreCols = useMemo(
+    () => metrics.filter((m) => m.weight > 0).map((m) => ({
+      key: m.key,
+      short: SHORT[m.key] ?? m.key.slice(0, 4),
+      title: `${m.label} (${Math.round(m.weight * 100)}% of total) — ${m.description}`,
+    })),
+    [metrics, side],
+  );
+
   const { explain, getState } = useScoreExplanation();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
@@ -111,22 +130,25 @@ export function TechnicalLeaderboard({
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Trophy className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-bold tracking-tight">Technical Rankings Leaderboard</h2>
-          <span className="text-xs text-muted-foreground">({scores.length})</span>
+          <h2 className="text-sm font-bold tracking-tight text-white">Technical Rankings</h2>
+          <span className="text-xs text-amber-100">({scores.length})</span>
           {scoredLabel && (
-            <span className="text-[10px] text-muted-foreground/80" title="max technicals_last_fetched">
+            <span className="text-[10px] text-amber-100" title="max technicals_last_fetched">
               {scoredLabel}
             </span>
           )}
+          <span className="text-[10px] text-amber-100/80 hidden sm:inline" title="Component scores 0–100">
+            OsD/ObD · Rev/Exh · Vol · Trd/Ext · Flow · Vlm
+          </span>
         </div>
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-amber-100/80 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Filter ticker..."
-            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="h-7 w-36 pl-7 pr-2 text-xs rounded-md border border-white/20 bg-white text-black placeholder:text-amber-100/80 focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
       </div>
@@ -137,15 +159,20 @@ export function TechnicalLeaderboard({
             <tr className={GRID_HEADER}>
               <th className={cn(GRID_TH, "text-center w-8")}>#</th>
               <th className={cn(GRID_TH, "text-left")}>Ticker</th>
-              <th className={cn(GRID_TH, "text-center w-14")}>Gate</th>
+              <th className={cn(GRID_TH, "text-center w-12")}>Gate</th>
+              <th className={cn(GRID_TH, "text-center w-12")} title="Regime from technicals">Reg</th>
+              {scoreCols.map((c) => (
+                <th key={c.key} className={cn(GRID_TH, "text-right")} title={c.title}>{c.short}</th>
+              ))}
+              <th className={cn(GRID_TH, "text-right")} title="RSI(14)">RSI</th>
+              <th className={cn(GRID_TH, "text-right")} title="ATM put IV ÷ 20d realized vol">IV/RV</th>
               <th className={cn(GRID_TH, "text-right")}>Score</th>
-              <th className={cn(GRID_TH, "text-left")}>Strength</th>
               <th className={cn(GRID_TH, "text-right")}></th>
             </tr>
           </thead>
           <tbody>
         {filtered.length === 0 && (
-          <tr><td colSpan={6} className="text-xs text-muted-foreground py-2 px-2.5">No tickers match "{query}".</td></tr>
+          <tr><td colSpan={8 + scoreCols.length} className="text-xs text-amber-100 py-2 px-2.5">No tickers match "{query}".</td></tr>
         )}
         {filtered.map((score, rowIdx) => {
           const idx = score.rank - 1;
@@ -155,6 +182,8 @@ export function TechnicalLeaderboard({
           const isExpanded = state.status === "done" && bullets.length > 0 && !collapsed.has(score.ticker);
 
           const row = rowMap?.[score.ticker];
+          const rsi = row?.rsi14 != null ? parseFloat(row.rsi14) : NaN;
+          const ivRv = row?.ivVsRealizedVol != null ? parseFloat(row.ivVsRealizedVol) : NaN;
           const componentRows = isExpanded
             ? metrics.map(m => {
                 const cs = score.componentScores?.[m.key];
@@ -170,6 +199,7 @@ export function TechnicalLeaderboard({
               })
             : [];
           const availWeightSum = componentRows.filter(c => c.score100 != null).reduce((s, c) => s + c.weightPct, 0);
+          const colSpan = 8 + scoreCols.length;
 
           return (
             <Fragment key={score.ticker}>
@@ -199,7 +229,7 @@ export function TechnicalLeaderboard({
               </td>
 
               <td className={GRID_TD}>
-                <span className="font-mono font-bold text-white">{score.ticker}</span>
+                <TickerLink ticker={score.ticker} returnLabel="Rankings" />
               </td>
 
               <td className={cn(GRID_TD, "text-center")}>
@@ -208,7 +238,7 @@ export function TechnicalLeaderboard({
                     "inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wide",
                     score.signal === "GO" && "bg-emerald-500/20 text-emerald-400",
                     score.signal === "WATCH" && "bg-amber-500/20 text-amber-300",
-                    score.signal === "NO" && "bg-slate-700/60 text-slate-400",
+                    score.signal === "NO" && "bg-zinc-700/60 text-amber-100",
                   )}
                   title={score.reason}
                 >
@@ -216,24 +246,45 @@ export function TechnicalLeaderboard({
                 </span>
               </td>
 
+              <td className={cn(GRID_TD, "text-center")}>
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold",
+                    score.regime === "BULLISH" && "text-emerald-400",
+                    score.regime === "BEARISH" && "text-red-400",
+                    (!score.regime || score.regime === "NEUTRAL") && "text-amber-100",
+                  )}
+                  title={score.regime ?? "NEUTRAL"}
+                >
+                  {score.regime === "BULLISH" ? "Bull" : score.regime === "BEARISH" ? "Bear" : "Neu"}
+                </span>
+              </td>
+
+              {scoreCols.map((c) => {
+                const s01 = score.componentScores?.[c.key]?.score ?? null;
+                const s100 = s01 != null ? s01 * 100 : null;
+                return (
+                  <td key={c.key} className={cn(GRID_TD, "text-right font-mono tabular-nums")}>
+                    <span className={s100 != null ? percentileColor(s100) : "text-amber-100"}>
+                      {s100 != null ? s100.toFixed(0) : "—"}
+                    </span>
+                  </td>
+                );
+              })}
+
+              <td className={cn(GRID_TD, "text-right font-mono tabular-nums text-amber-50")}>
+                {Number.isFinite(rsi) ? rsi.toFixed(0) : "—"}
+              </td>
+              <td className={cn(GRID_TD, "text-right font-mono tabular-nums text-amber-50")}>
+                {Number.isFinite(ivRv) ? ivRv.toFixed(2) : "—"}
+              </td>
+
               <td className={cn(GRID_TD, "text-right")}>
                 <span className="font-mono font-bold text-white">{score.totalScore.toFixed(1)}</span>
               </td>
 
-              <td className={cn(GRID_TD, "w-32")}>
-                <div className="h-1.5 w-24 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      idx === 0 ? "bg-yellow-500" : idx === 1 ? "bg-slate-400" : idx === 2 ? "bg-amber-700" : "bg-primary/60"
-                    )}
-                    style={{ width: `${(score.totalScore / maxScore) * 100}%` }}
-                  />
-                </div>
-              </td>
-
               <td className={cn(GRID_TD, "text-right")}>
-                <span className={cn("inline-flex items-center gap-1 text-[11px] text-slate-400 transition-colors", isLoading && "opacity-50")}>
+                <span className={cn("inline-flex items-center gap-1 text-[11px] text-amber-100 transition-colors", isLoading && "opacity-50")}>
                   {isLoading ? "…" : "Why"}
                   <ChevronDown className={cn("w-3 h-3 transition-transform", isExpanded && "rotate-180")} />
                 </span>
@@ -242,7 +293,7 @@ export function TechnicalLeaderboard({
 
               {isExpanded && (
                 <tr>
-                <td colSpan={6} className="p-0">
+                <td colSpan={colSpan} className="p-0">
                 <div className="px-3 pl-9 py-1.5 space-y-1.5 bg-black/50 border-b border-[#d4af37]/15">
                   {/* Formula breakdown, one line: Total = Σ(component score × weight), renormalized over available weight */}
                   {componentRows.length > 0 && (
@@ -251,16 +302,16 @@ export function TechnicalLeaderboard({
                       {componentRows.map((r, i) => (
                         <span key={r.key} className="flex items-center gap-1">
                           {i > 0 && <span className="text-white/20">+</span>}
-                          <span className="text-white/60">{r.label}</span>
+                          <span className="text-amber-100">{r.label}</span>
                           <span className={r.score100 != null ? percentileColor(r.score100) : "text-white/30"}>
                             {r.score100 != null ? r.score100.toFixed(0) : "n/a"}
                           </span>
                           <span className="text-white/30">×{r.weightPct}%</span>
-                          <span className="text-white/70">{r.score100 != null ? `=+${r.contribution.toFixed(1)}` : ""}</span>
+                          <span className="text-amber-100">{r.score100 != null ? `=+${r.contribution.toFixed(1)}` : ""}</span>
                         </span>
                       ))}
                       <span className="text-white/20">·</span>
-                      <span className="text-white/50">÷{availWeightSum}%</span>
+                      <span className="text-amber-100/80">÷{availWeightSum}%</span>
                       <span className="text-white/20">=</span>
                       <span className="font-bold text-white">{score.totalScore.toFixed(1)}</span>
                     </div>
@@ -289,12 +340,12 @@ export function TechnicalLeaderboard({
                                   const tr = (
                                     <tr key={`${key}-${pi}`} className={gridRow(flatIdx)}>
                                       {pi === 0 ? (
-                                        <td className={cn(GRID_TD, ROW_CELL, "text-left text-white/50 font-medium")} rowSpan={parts.length}>
+                                        <td className={cn(GRID_TD, ROW_CELL, "text-left text-amber-100/80 font-medium")} rowSpan={parts.length}>
                                           {componentLabel[key] ?? key}
                                         </td>
                                       ) : null}
-                                      <td className={cn(GRID_TD, ROW_CELL, "text-left text-white/70")}>{part.label}</td>
-                                      <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-white/60")}>{part.raw}</td>
+                                      <td className={cn(GRID_TD, ROW_CELL, "text-left text-amber-100")}>{part.label}</td>
+                                      <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono text-amber-100")}>{part.raw}</td>
                                       <td className={cn(GRID_TD, ROW_CELL, "text-right font-mono font-semibold", percentileColor(part.score * 100))}>
                                         {(part.score * 100).toFixed(0)}
                                       </td>

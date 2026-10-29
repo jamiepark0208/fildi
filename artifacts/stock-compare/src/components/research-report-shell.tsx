@@ -12,14 +12,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { formatMdYy } from "@/lib/format";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { RelChip } from "@/lib/research-peers";
 
 const CHIP_TONE = {
-  good: "border-green-500/25 text-green-300",
-  bad: "border-red-500/25 text-red-300",
-  warn: "border-amber-400/25 text-amber-200",
-  neutral: "border-[#d4af37]/12 text-zinc-200",
+  good: "text-emerald-300",
+  bad: "text-red-300",
+  warn: "text-amber-200",
+  neutral: "text-white",
 } as const;
+
+const CHIP_TIP: Record<string, string> = {
+  "FY1 drift": "How much FY1 EPS consensus moved — up = Street lifting numbers.",
+  Breadth: "Net share of analysts raising vs cutting. Negative = more cuts.",
+  SUE: "Standardized unexpected earnings — recent beat/miss streak vs Street.",
+  IV: "Option implied vol — higher = market pricing bigger moves.",
+  "Peer #1 br": "Peer with the strongest revision breadth in the group.",
+};
 
 export function ResearchReportShell({
   lane,
@@ -72,48 +83,74 @@ export function ResearchReportShell({
         )}
       >
         <div className="flex items-start gap-1.5">
-          <div className={cn("min-w-0 flex-1", embedded ? "space-y-0.5" : "space-y-1.5")}>
-            <div className="flex items-center gap-1.5 flex-wrap">
+          <div className={cn("min-w-0 flex-1", embedded ? "space-y-1" : "space-y-1.5")}>
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
               <span
                 className={cn(
-                  "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border",
+                  "text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0",
                   verdictClass,
                 )}
               >
                 {verdictLabel}
               </span>
-              <span className="text-[9px] uppercase tracking-widest text-amber-200/45">{title}</span>
-              {subtitle && <span className="text-[9px] font-mono text-zinc-600">{subtitle}</span>}
-              {!embedded && (
-                <p className="text-[12px] text-zinc-100 leading-snug font-medium line-clamp-2 w-full basis-full">
-                  {summaryLine}
-                </p>
-              )}
-              {embedded && (
-                <span className="text-[11px] text-zinc-100 font-medium truncate min-w-0 flex-1">
-                  {summaryLine}
+              <span className="text-[12px] font-mono font-bold text-[#d4af37] tracking-tight shrink-0">
+                {title}
+              </span>
+              {subtitle && (
+                <span className="text-[11px] font-mono text-amber-50 shrink-0">
+                  {/^\d{4}-\d{2}-\d{2}/.test(subtitle) ? formatMdYy(subtitle.slice(0, 10)) : subtitle}
                 </span>
               )}
+              <p
+                className={cn(
+                  "text-[12px] text-white leading-snug font-medium w-full basis-full",
+                  embedded ? "line-clamp-3" : "line-clamp-2",
+                )}
+                title={summaryLine}
+              >
+                {summaryLine}
+              </p>
             </div>
             {chips && chips.length > 0 && (
-              <div
-                className={cn(
-                  embedded
-                    ? "flex flex-wrap gap-x-2 gap-y-0.5"
-                    : "grid grid-cols-2 sm:grid-cols-3 gap-1",
-                )}
-              >
-                {chips.map((c) =>
-                  embedded ? (
-                    <span
-                      key={c.label}
-                      title={c.hint}
-                      className={cn("font-mono text-[10px] tabular-nums", CHIP_TONE[c.tone ?? "neutral"])}
-                    >
-                      <span className="text-zinc-500">{c.label} </span>
-                      {c.value}
-                    </span>
-                  ) : (
+              embedded ? (
+                <div className={GRID_WRAP}>
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className={GRID_HEADER}>
+                        <th className={cn(GRID_TH, "text-left")}>Metric</th>
+                        <th className={cn(GRID_TH, "text-right")}>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chips.map((c, i) => {
+                        const tip = c.hint || CHIP_TIP[c.label] || c.label;
+                        return (
+                          <Tooltip key={c.label} delayDuration={150}>
+                            <TooltipTrigger asChild>
+                              <tr className={cn(gridRow(i), "cursor-help")}>
+                                <td className={cn(GRID_TD, "text-[#d4af37] text-left text-[10px] font-semibold uppercase")}>
+                                  {c.label}
+                                </td>
+                                <td className={cn(GRID_TD, "text-right font-mono font-semibold", CHIP_TONE[c.tone ?? "neutral"])}>
+                                  {c.value}
+                                </td>
+                              </tr>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="left"
+                              className="max-w-[260px] bg-zinc-950 text-white border border-[#d4af37]/40 text-[11px] leading-snug"
+                            >
+                              {tip}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                  {chips.map((c) => (
                     <span
                       key={c.label}
                       className={cn(
@@ -121,20 +158,20 @@ export function ResearchReportShell({
                         CHIP_TONE[c.tone ?? "neutral"],
                       )}
                     >
-                      <div className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">{c.label}</div>
-                      <div className="font-mono text-[12px] leading-tight truncate">{c.value}</div>
+                      <div className="text-[8px] uppercase tracking-wider text-[#d4af37]/80 leading-none">{c.label}</div>
+                      <div className="font-mono text-[12px] leading-tight truncate text-white">{c.value}</div>
                       {c.hint && (
-                        <div className="text-[8.5px] text-zinc-500 leading-tight truncate" title={c.hint}>
+                        <div className="text-[8.5px] text-amber-50/70 leading-tight truncate" title={c.hint}>
                           {c.hint}
                         </div>
                       )}
                     </span>
-                  ),
-                )}
-              </div>
+                  ))}
+                </div>
+              )
             )}
             {sparkline}
-            {howTo && <p className="text-[9px] text-zinc-500 leading-snug">{howTo}</p>}
+            {howTo && <p className="text-[9px] text-amber-50/70 leading-snug">{howTo}</p>}
             {compactBody}
           </div>
           <span className="shrink-0 flex flex-col items-center gap-0.5 text-[10px] text-[#d4af37]/80 group-hover:text-[#d4af37] mt-0.5">
@@ -156,7 +193,7 @@ export function ResearchReportShell({
             <DialogTitle className="text-[#d4af37] text-base tracking-tight">
               {lane === "wrds" ? "WRDS research" : "LSEG research"} · {title}
             </DialogTitle>
-            <DialogDescription className="text-zinc-500 text-[11px]">
+            <DialogDescription className="text-amber-100/80 text-[11px]">
               Local cache only. Use Peers tab for sector-relative context — absolute $ levels alone are not comparable.
             </DialogDescription>
           </DialogHeader>

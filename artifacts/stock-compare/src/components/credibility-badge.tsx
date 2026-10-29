@@ -47,7 +47,7 @@ export function CredibilityBadge({ side, className }: { side: "put" | "call"; cl
         <Link href="/track-record">
           <Badge
             variant="outline"
-            className={cn("text-[10px] font-normal border-white/15 text-muted-foreground cursor-pointer hover:bg-white/5", className)}
+            className={cn("text-[10px] font-normal border-white/15 text-amber-100 cursor-pointer hover:bg-white/5", className)}
           >
             {label}
           </Badge>

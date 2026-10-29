@@ -15,7 +15,7 @@ type Score = {
 type Correction = { date: string; agent: string; claim: string; correction: string; caughtBy: string };
 const VERDICT: Record<string, string> = {
   holding: "border-emerald-500/40 text-emerald-300", drifting: "border-amber-400/40 text-amber-200",
-  failed: "border-red-500/50 text-red-300", "too early": "border-zinc-600 text-zinc-400", "no live check": "border-red-500/30 text-red-300/80",
+  failed: "border-red-500/50 text-red-300", "too early": "border-zinc-600 text-amber-100", "no live check": "border-red-500/30 text-red-300/80",
 };
 
 /** Promised (backtest) vs live since adoption, per adopted score. Method + counts in the hover. */
@@ -98,7 +98,7 @@ function tone(status: string | null | undefined): string {
   const s = (status ?? "").toLowerCase();
   if (s.startsWith("adopted")) return "border-emerald-500/40 text-emerald-300";
   if (s.startsWith("display")) return "border-sky-500/40 text-sky-300";
-  if (s.startsWith("rejected") || s.startsWith("superseded")) return "border-zinc-600 text-zinc-400";
+  if (s.startsWith("rejected") || s.startsWith("superseded")) return "border-zinc-600 text-amber-100";
   return "border-amber-400/40 text-amber-200";
 }
 
@@ -162,7 +162,7 @@ function ScoreOutliersPanel() {
           ))}
         </select>
       </div>
-      {isLoading && <p className="text-xs text-white/60">Loading outliers…</p>}
+      {isLoading && <p className="text-xs text-amber-100">Loading outliers…</p>}
       {error && <p className="text-xs text-red-300">{(error as Error).message}</p>}
       {data && (
         <div className={SUI.tableWrap}>
@@ -187,7 +187,7 @@ function ScoreOutliersPanel() {
                   </td>
                   <td className={cn(SUI.td, "text-[10px] text-amber-100/70")}>{r.kind}</td>
                   <td className={SUI.td} title={r.why}>{r.detail}</td>
-                  <td className={cn(SUI.td, "text-[10px] text-white/50")}>{r.dominantInput ?? "—"}</td>
+                  <td className={cn(SUI.td, "text-[10px] text-amber-100/80")}>{r.dominantInput ?? "—"}</td>
                   <td className={SUI.td}>
                     <select
                       className={cn(SUI.input, "w-full text-[10px]")}

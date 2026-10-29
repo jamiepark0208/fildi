@@ -68,7 +68,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isLoading && !stickyUser) {
     return (
       <div className="min-h-[100dvh] bg-background flex items-center justify-center">
-        <span className="text-xs text-muted-foreground animate-pulse">Loading…</span>
+        <span className="text-xs text-amber-100 animate-pulse">Loading…</span>
       </div>
     );
   }

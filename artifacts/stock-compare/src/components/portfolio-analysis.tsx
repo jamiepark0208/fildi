@@ -984,9 +984,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                             {d.ticker}
                             {d.covered && <span className="text-purple-400" title="Covered call">★</span>}
                           </div>
-                          <div className="flex justify-between gap-4"><span className="text-zinc-400">β Contribution</span><span className="font-mono font-semibold tabular-nums">{d.contribution.toFixed(3)}</span></div>
-                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Beta</span><span className="font-mono tabular-nums">{d.beta}</span></div>
-                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Weight</span><span className="font-mono tabular-nums">{d.weight}%</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-amber-100">β Contribution</span><span className="font-mono font-semibold tabular-nums">{d.contribution.toFixed(3)}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-amber-100">Beta</span><span className="font-mono tabular-nums">{d.beta}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-amber-100">Weight</span><span className="font-mono tabular-nums">{d.weight}%</span></div>
                         </div>
                       );
                     }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1036,9 +1036,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                       return (
                         <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
                           <div className="font-semibold text-white">{d.category}</div>
-                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Realized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.realized)}</span></div>
-                          <div className="flex justify-between gap-4"><span className="text-zinc-400">Unrealized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.unrealized)}</span></div>
-                          <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.total)}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-amber-100">Realized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.realized)}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-amber-100">Unrealized</span><span className="font-mono font-semibold tabular-nums">{formatCurrency(d.unrealized)}</span></div>
+                          <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-amber-100">Total</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.total)}</span></div>
                         </div>
                       );
                     }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1099,9 +1099,9 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                         <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 min-w-[150px] text-zinc-100">
                           <div className="font-semibold text-white">{d.ticker}</div>
                           {TICKER_PNL_SEGMENTS.map(({ key, label }) => (
-                            <div key={key} className="flex justify-between gap-4"><span className="text-zinc-400">{label}</span><span className="font-mono tabular-nums">{formatCurrency(d[key])}</span></div>
+                            <div key={key} className="flex justify-between gap-4"><span className="text-amber-100">{label}</span><span className="font-mono tabular-nums">{formatCurrency(d[key])}</span></div>
                           ))}
-                          <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-zinc-400">Total Earned</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.totalEarned)}</span></div>
+                          <div className="flex justify-between gap-4 pt-1 border-t border-[#d4af37]/20"><span className="text-amber-100">Total Earned</span><span className="font-mono font-bold tabular-nums text-white">{formatCurrency(d.totalEarned)}</span></div>
                         </div>
                       );
                     }} cursor={{ fill: "hsl(var(--secondary))", opacity: 0.5 }} />
@@ -1231,7 +1231,7 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
                       <div className="rounded-md border border-[#d4af37]/35 bg-zinc-950 px-2.5 py-2 shadow-2xl shadow-black/80 text-[10px] space-y-1 text-zinc-100">
                         <div className="font-semibold text-white">{formatMdYy(d.date)}</div>
                         <div className="flex justify-between gap-4">
-                          <span className="text-zinc-400">Cumulative</span>
+                          <span className="text-amber-100">Cumulative</span>
                           <span className={cn("font-mono font-semibold tabular-nums", d.cumulative >= 0 ? "text-green-400" : "text-red-400")}>
                             {formatCurrency(d.cumulative)}
                           </span>

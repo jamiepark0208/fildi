@@ -32,21 +32,19 @@ export function VendorCrossCheckPanel({ queuePending, onQueueRefetch }: {
   const vendorRows = vendorAudit?.rows ?? [];
 
   return (
-    <div className="rounded-md border border-violet-500/30 overflow-hidden bg-zinc-950 shadow-lg shadow-black/60">
+    <div className="rounded-md border border-violet-500/30 overflow-hidden bg-zinc-950">
       <button
         type="button"
         onClick={() => setVendorExpanded((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-3 py-2 text-xs hover:bg-amber-500/5 transition-colors"
+        className="w-full flex items-center gap-1.5 px-2 py-0.5 text-xs hover:bg-violet-500/10 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          {vendorExpanded ? <ChevronDown className="h-3 w-3 text-amber-200/40" /> : <ChevronRight className="h-3 w-3 text-amber-200/40" />}
-          <AlertTriangle className="h-3 w-3 text-violet-400" />
-          <span className="font-semibold text-violet-300/90 uppercase tracking-wide text-[11px]">Vendor cross-check</span>
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-500/15 text-violet-300 border-violet-500/30">
-            {vendorRows.length}
-          </span>
-        </div>
-        <span className="text-amber-200/40">LSEG vs gold · never overwrites · queue refetch if you agree</span>
+        {vendorExpanded ? <ChevronDown className="h-3 w-3 text-violet-300 shrink-0" /> : <ChevronRight className="h-3 w-3 text-violet-300 shrink-0" />}
+        <AlertTriangle className="h-3 w-3 text-violet-300 shrink-0" />
+        <span className="font-semibold text-white uppercase tracking-wide text-[11px]">Vendor</span>
+        <span className="text-[10px] font-semibold px-1 py-0 rounded border bg-violet-500/25 text-violet-200 border-violet-400/50">
+          {vendorRows.length}
+        </span>
+        <span className="text-white/80 truncate">LSEG vs gold</span>
       </button>
       {vendorExpanded && (
         <div className="border-t border-[#d4af37]/20">

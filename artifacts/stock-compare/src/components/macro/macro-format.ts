@@ -25,11 +25,20 @@ export const fmtTs = (s: string) =>
 export const fmtMonthYear = (s: string) =>
   new Date(s + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 
+/** Chart axis / tooltip stamp — m/d/yy, no UTC-shift on YYYY-MM-DD. */
+export function fmtChartDate(s: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return `${Number(m[2])}/${Number(m[3])}/${m[1].slice(2)}`;
+  const d = new Date(s.includes("T") ? s : `${s}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return s;
+  return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+}
+
 export const changeColor = (v: number | null) =>
-  v == null ? "" : v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground";
+  v == null ? "" : v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-amber-100";
 
 export const inflColor = (v: number | null) =>
-  v == null ? "" : v > 0 ? "text-red-400" : v < 0 ? "text-green-400" : "text-muted-foreground";
+  v == null ? "" : v > 0 ? "text-red-400" : v < 0 ? "text-green-400" : "text-amber-100";
 
 export function fmtCot(n: number): string {
   const abs = Math.abs(n);
@@ -116,7 +125,7 @@ export function importanceBadgeClass(imp: MacroEvent["importance"]) {
   switch (imp) {
     case "high":   return "bg-amber-900/60 text-amber-200";
     case "medium": return "bg-blue-900/60 text-blue-200";
-    case "low":    return "bg-secondary text-muted-foreground";
+    case "low":    return "bg-secondary text-amber-100";
   }
 }
 
@@ -146,11 +155,11 @@ export function matchEventIndicatorKey(eventText: string): string | undefined {
 // ── Shared level → style/label maps (Liquidity / Volatility read-cards + COT) ──
 
 export const LIQUIDITY_LEVEL_STYLE: Record<LiquiditySignal["level"], { dot: string; text: string; badge: string }> = {
-  supportive: { dot: "bg-green-400",  text: "text-green-400",  badge: "border-green-500/40 bg-green-500/10 text-green-400" },
-  neutral:    { dot: "bg-slate-400",  text: "text-slate-300",  badge: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
-  draining:   { dot: "bg-orange-400", text: "text-orange-400", badge: "border-orange-500/40 bg-orange-500/10 text-orange-400" },
-  stress:     { dot: "bg-red-400",    text: "text-red-400",    badge: "border-red-500/40 bg-red-500/10 text-red-400" },
-  unknown:    { dot: "bg-slate-500",  text: "text-muted-foreground", badge: "border-border text-muted-foreground" },
+  supportive: { dot: "bg-green-400",  text: "text-green-400",  badge: "border-emerald-400/70 bg-zinc-900 text-white" },
+  neutral:    { dot: "bg-slate-400",  text: "text-slate-300",  badge: "border-zinc-500/50 bg-zinc-900 text-white" },
+  draining:   { dot: "bg-orange-400", text: "text-orange-400", badge: "border-orange-400/70 bg-zinc-900 text-white" },
+  stress:     { dot: "bg-red-400",    text: "text-red-400",    badge: "border-rose-400/70 bg-zinc-900 text-white" },
+  unknown:    { dot: "bg-slate-500",  text: "text-amber-100", badge: "border-zinc-600 bg-zinc-900 text-amber-100" },
 };
 
 export const LIQUIDITY_LEVEL_LABEL: Record<LiquiditySignal["level"], string> = {
@@ -162,11 +171,11 @@ export const LIQUIDITY_LEVEL_LABEL: Record<LiquiditySignal["level"], string> = {
 };
 
 export const VOLATILITY_LEVEL_STYLE: Record<VolatilitySignal["level"], { dot: string; text: string; badge: string }> = {
-  calm:     { dot: "bg-green-400",  text: "text-green-400",  badge: "border-green-500/40 bg-green-500/10 text-green-400" },
-  normal:   { dot: "bg-slate-400",  text: "text-slate-300",  badge: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
-  elevated: { dot: "bg-orange-400", text: "text-orange-400", badge: "border-orange-500/40 bg-orange-500/10 text-orange-400" },
-  stress:   { dot: "bg-red-400",    text: "text-red-400",    badge: "border-red-500/40 bg-red-500/10 text-red-400" },
-  unknown:  { dot: "bg-slate-500",  text: "text-muted-foreground", badge: "border-border text-muted-foreground" },
+  calm:     { dot: "bg-green-400",  text: "text-green-400",  badge: "border-emerald-400/70 bg-zinc-900 text-white" },
+  normal:   { dot: "bg-slate-400",  text: "text-slate-300",  badge: "border-zinc-500/50 bg-zinc-900 text-white" },
+  elevated: { dot: "bg-orange-400", text: "text-orange-400", badge: "border-orange-400/70 bg-zinc-900 text-white" },
+  stress:   { dot: "bg-red-400",    text: "text-red-400",    badge: "border-rose-400/70 bg-zinc-900 text-white" },
+  unknown:  { dot: "bg-slate-500",  text: "text-amber-100", badge: "border-zinc-600 bg-zinc-900 text-amber-100" },
 };
 
 export const VOLATILITY_LEVEL_LABEL: Record<VolatilitySignal["level"], string> = {

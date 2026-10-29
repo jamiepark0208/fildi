@@ -69,17 +69,17 @@ export function HouseViewCard() {
       <div className="flex flex-wrap gap-3 text-[11px] font-mono tabular-nums text-sky-100/90">
         <span title="S057 P(up) vs base rate">
           P(up) {pct01(up)}
-          <span className="text-zinc-500"> / base {pct01(upBase)}</span>
+          <span className="text-amber-100/80"> / base {pct01(upBase)}</span>
         </span>
         <span title="S057 P(−5% leg) vs base vs market VIX">
           P(−5%) {pct01(tail)}
-          <span className="text-zinc-500">
+          <span className="text-amber-100/80">
             {" "}
             / base {pct01(tailBase)} / mkt {pct01(market)}
           </span>
         </span>
         {odds?.vix != null && (
-          <span className="text-zinc-500">VIX {odds.vix.toFixed(1)}</span>
+          <span className="text-amber-100/80">VIX {odds.vix.toFixed(1)}</span>
         )}
       </div>
     </div>

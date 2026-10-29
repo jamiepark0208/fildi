@@ -129,7 +129,7 @@ export default function Home({ tickers, setTickers }: HomeProps) {
         <div className="p-5 border-b border-border/50 flex items-center justify-between gap-4 sticky top-0 bg-background/95 backdrop-blur z-40">
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Fundamental Analysis</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Compare up to 5 equities simultaneously</p>
+            <p className="text-xs text-amber-100 mt-0.5">Compare up to 5 equities simultaneously</p>
           </div>
           <TickerShelf
             tickers={tickers}

@@ -57,7 +57,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           strokeWidth={2.5}
           style={{ color: item.color, opacity: active ? 1 : 0.75, filter: active ? `drop-shadow(0 0 4px ${item.color}80)` : undefined }}
         />
-        <span className={cn("text-xs font-bold leading-none whitespace-nowrap", active ? "text-white" : "text-white/70")}>
+        <span className={cn("text-xs font-bold leading-none whitespace-nowrap", active ? "text-white" : "text-amber-100")}>
           {item.label}
         </span>
       </div>
@@ -95,7 +95,7 @@ function FindUserSearch() {
         onFocus={() => setUserDropdownOpen(true)}
         onBlur={() => setTimeout(() => setUserDropdownOpen(false), 150)}
         placeholder="Find user…"
-        className="w-full bg-white border border-white/20 rounded-full px-4 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary"
+        className="w-full bg-white border border-white/20 rounded-full px-4 py-1.5 text-sm text-black placeholder:text-amber-100/80 focus:outline-none focus:ring-2 focus:ring-primary"
       />
       {userDropdownOpen && filteredUsers.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
@@ -111,7 +111,7 @@ function FindUserSearch() {
                   : u.username[0]?.toUpperCase()}
               </div>
               <span className="font-medium text-foreground">{u.username}</span>
-              {u.username === me?.username && <span className="ml-auto text-[10px] text-muted-foreground">you</span>}
+              {u.username === me?.username && <span className="ml-auto text-[10px] text-amber-100">you</span>}
             </button>
           ))}
         </div>

@@ -4,6 +4,7 @@ import { TopNav } from "@/components/top-nav";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
 import { cn } from "@/lib/utils";
+import { subTabClass } from "@/lib/sub-tabs";
 import { Copy, Check, Plus, RefreshCw, Trash2, ChevronRight, ChevronDown, Users, Shield, UserPlus } from "lucide-react";
 import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
@@ -222,13 +223,13 @@ function UserMgmtTab() {
 
         {resetResult && (
           <div className="mb-2 p-2 bg-green-500/10 border border-green-500/30 rounded-md flex items-center gap-2 text-xs">
-            <span className="text-white/70">
+            <span className="text-amber-100">
               New temp password for <span className="font-semibold text-white">{resetResult.username}</span>:
             </span>
             <code className="font-mono font-bold bg-zinc-900 px-2 py-0.5 rounded text-white">{resetResult.tempPassword}</code>
             <button
               onClick={() => setResetResult(null)}
-              className="ml-auto text-white/70 hover:text-white"
+              className="ml-auto text-amber-100 hover:text-white"
             >
               Dismiss
             </button>
@@ -236,7 +237,7 @@ function UserMgmtTab() {
         )}
 
         {usersLoading ? (
-          <p className="text-xs text-white/70 animate-pulse">Loading…</p>
+          <p className="text-xs text-amber-100 animate-pulse">Loading…</p>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-black text-[#d4af37]">
@@ -253,30 +254,30 @@ function UserMgmtTab() {
               {users.map(u => (
                 <tr key={u.id} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-2.5 py-1 font-medium text-white">{u.username}</td>
-                  <td className="px-2.5 py-1 text-white/70 font-mono text-[10px]">{u.email}</td>
+                  <td className="px-2.5 py-1 text-amber-100 font-mono text-[10px]">{u.email}</td>
                   <td className="px-2.5 py-1">
                     <span className={cn(
                       "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
                       u.role === "admin"
                         ? "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
-                        : "bg-zinc-900 text-white/70 border-[#d4af37]/20"
+                        : "bg-zinc-900 text-amber-100 border-[#d4af37]/20"
                     )}>
                       {u.role}
                     </span>
                   </td>
-                  <td className="px-2.5 py-1 text-right text-white/70 tabular-nums">
+                  <td className="px-2.5 py-1 text-right text-amber-100 tabular-nums">
                     {new Date(u.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-2.5 py-1 text-right tabular-nums">
                     {u.lastLoginAt
-                      ? <span className="text-white/70 text-[10px]">{new Date(u.lastLoginAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
-                      : <span className="text-white/50 italic">never</span>}
+                      ? <span className="text-amber-100 text-[10px]">{new Date(u.lastLoginAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                      : <span className="text-amber-100/80 italic">never</span>}
                   </td>
                   <td className="px-2.5 py-1 text-right">
                     <button
                       onClick={() => resetPassword(u.id, u.username)}
                       disabled={resettingId === u.id}
-                      className="text-[10px] text-white/70 hover:text-[#d4af37] transition-colors disabled:opacity-50"
+                      className="text-[10px] text-amber-100 hover:text-[#d4af37] transition-colors disabled:opacity-50"
                     >
                       {resettingId === u.id ? "Resetting…" : "Reset Password"}
                     </button>
@@ -318,7 +319,7 @@ function UserMgmtTab() {
               />
               <button
                 onClick={copyCode}
-                className="flex items-center gap-1.5 text-xs text-white/70 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-amber-100 hover:text-white border border-[#d4af37]/20 rounded-md px-2.5 py-1.5 transition-colors"
               >
                 {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
                 {copied ? "Copied!" : "Copy"}
@@ -328,9 +329,9 @@ function UserMgmtTab() {
         </div>
 
         {invitesLoading ? (
-          <p className="text-xs text-white/70 animate-pulse">Loading codes…</p>
+          <p className="text-xs text-amber-100 animate-pulse">Loading codes…</p>
         ) : invites.length === 0 ? (
-          <p className="text-xs text-white/70">No invite codes yet.</p>
+          <p className="text-xs text-amber-100">No invite codes yet.</p>
         ) : (
           <table className="w-full text-xs">
             <thead className="bg-black text-[#d4af37]">
@@ -346,21 +347,21 @@ function UserMgmtTab() {
               {invites.map(inv => (
                 <tr key={inv.code} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
                   <td className="px-2.5 py-1 font-mono font-bold text-white">{inv.code}</td>
-                  <td className="px-2.5 py-1 text-white/70">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                  <td className="px-2.5 py-1 text-amber-100">{new Date(inv.createdAt).toLocaleDateString()}</td>
                   <td className="px-2.5 py-1">
                     {inv.usedBy ? (
-                      <span className="text-white/70 text-[10px]">Used</span>
+                      <span className="text-amber-100 text-[10px]">Used</span>
                     ) : (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-green-500/15 text-green-400 border-green-500/30">
                         Pending
                       </span>
                     )}
                   </td>
-                  <td className="px-2.5 py-1 text-white/70 font-mono text-[10px]">{inv.usedByEmail ?? "—"}</td>
+                  <td className="px-2.5 py-1 text-amber-100 font-mono text-[10px]">{inv.usedByEmail ?? "—"}</td>
                   <td className="px-2.5 py-1 text-right">
                     <button
                       onClick={() => deleteCode(inv.code)}
-                      className="text-[10px] text-white/70 hover:text-red-400 transition-colors"
+                      className="text-[10px] text-amber-100 hover:text-red-400 transition-colors"
                     >
                       Delete
                     </button>
@@ -497,7 +498,7 @@ function CacheMonitorTab() {
   }
 
   function hitRateColor(rate: string) {
-    if (rate === "—") return "text-white/70";
+    if (rate === "—") return "text-amber-100";
     const n = parseInt(rate);
     if (n >= 70) return "text-green-400";
     if (n >= 40) return "text-yellow-400";
@@ -538,7 +539,7 @@ function CacheMonitorTab() {
       </div>
 
       {isLoading ? (
-        <p className="text-xs text-white/70 animate-pulse">Loading…</p>
+        <p className="text-xs text-amber-100 animate-pulse">Loading…</p>
       ) : (
         <div className="overflow-x-auto rounded-md border border-[#d4af37]/25">
           <table className="w-full text-sm">
@@ -566,11 +567,11 @@ function CacheMonitorTab() {
                     >
                       <td className="pl-2 pr-1 py-1.5">
                         {isExpanded
-                          ? <ChevronDown className="w-3 h-3 text-white/70" />
-                          : <ChevronRight className="w-3 h-3 text-white/70" />}
+                          ? <ChevronDown className="w-3 h-3 text-amber-100" />
+                          : <ChevronRight className="w-3 h-3 text-amber-100" />}
                       </td>
                       <td className="px-3 py-1.5 font-medium text-white">{displayName}</td>
-                      <td className="px-3 py-1.5 text-white/70" onClick={e => e.stopPropagation()}>
+                      <td className="px-3 py-1.5 text-amber-100" onClick={e => e.stopPropagation()}>
                         {TTL_EDITABLE_CACHES.has(row.name) ? (
                           <select
                             value={TTL_OPTIONS.some(o => o.ms === row.ttlMs) ? row.ttlMs : ""}
@@ -589,10 +590,10 @@ function CacheMonitorTab() {
                           fmtTtlHuman(row.ttlMs)
                         )}
                       </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-white/70">{row.hits ?? "—"}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-white/70">{row.misses ?? "—"}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-amber-100">{row.hits ?? "—"}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-amber-100">{row.misses ?? "—"}</td>
                       <td className={cn("px-3 py-1.5 text-right tabular-nums font-semibold", hitRateColor(row.hitRate))}>{row.hitRate}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-white/70">
+                      <td className="px-3 py-1.5 text-right tabular-nums text-amber-100">
                         {row.entryCount === 0 ? "—" : `${row.entryCount}`}
                       </td>
                       <td className="px-3 py-1.5 text-right">
@@ -600,7 +601,7 @@ function CacheMonitorTab() {
                           <button
                             onClick={e => handleClear(e, row.name)}
                             disabled={clearMutation.isPending}
-                            className="flex items-center gap-1 ml-auto text-[10px] text-white/70 hover:text-red-400 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1 ml-auto text-[10px] text-amber-100 hover:text-red-400 transition-colors disabled:opacity-50"
                           >
                             <Trash2 className="w-3 h-3" />
                             Clear
@@ -612,7 +613,7 @@ function CacheMonitorTab() {
                       row.entries.length === 0 ? (
                         <tr key={`${row.name}-empty`} className="bg-zinc-900/40">
                           <td />
-                          <td colSpan={7} className="py-1.5 pl-3 text-[10px] text-white/70 italic">No data cached yet</td>
+                          <td colSpan={7} className="py-1.5 pl-3 text-[10px] text-amber-100 italic">No data cached yet</td>
                         </tr>
                       ) : (
                         row.entries.map(entry => {
@@ -622,20 +623,20 @@ function CacheMonitorTab() {
                           return (
                             <tr key={`${row.name}-${entry.key}`} className="bg-zinc-900/40">
                               <td />
-                              <td colSpan={2} className="py-1 pl-3 font-mono text-[10px] text-white/70 uppercase tracking-wide">
+                              <td colSpan={2} className="py-1 pl-3 font-mono text-[10px] text-amber-100 uppercase tracking-wide">
                                 {entry.key}
                                 {entry.label && (
-                                  <span className={cn("ml-2 normal-case font-sans", entry.stale ? "text-red-400 font-semibold" : "text-white/70")}>
+                                  <span className={cn("ml-2 normal-case font-sans", entry.stale ? "text-red-400 font-semibold" : "text-amber-100")}>
                                     {entry.label}
                                   </span>
                                 )}
                               </td>
-                              <td colSpan={2} className="py-1 text-[10px] text-white/70">
+                              <td colSpan={2} className="py-1 text-[10px] text-amber-100">
                                 {entry.stale ? "no data" : `${formatDuration(ageMs)} ago`}
                               </td>
                               <td colSpan={3} className={cn(
                                 "py-1 pr-3 text-right text-[10px] tabular-nums",
-                                entry.stale || isExpiringSoon ? "text-red-400 font-semibold" : "text-white/70"
+                                entry.stale || isExpiringSoon ? "text-red-400 font-semibold" : "text-amber-100"
                               )}>
                                 {entry.stale ? "SOURCE DEAD" : `expires in ${formatDuration(expiresMs)}`}
                               </td>
@@ -652,7 +653,7 @@ function CacheMonitorTab() {
         </div>
       )}
       {data && (
-        <p className="text-[10px] text-white/70 mt-2">
+        <p className="text-[10px] text-amber-100 mt-2">
           Generated at {new Date(data.generatedAt).toLocaleTimeString()}
         </p>
       )}
@@ -677,7 +678,7 @@ function InboxTab() {
             onClick={() => setSub(t.id)}
             className={cn(
               "px-2.5 py-1.5 transition-colors",
-              sub === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]",
+              sub === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-amber-100 hover:text-[#d4af37]",
             )}
           >
             {t.label}
@@ -748,26 +749,28 @@ export default function Settings() {
   const visibleTabs = tabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
-    <div className="min-h-[100dvh] bg-zinc-900">
+    <div className="h-[100dvh] overflow-hidden bg-zinc-900">
       <TopNav />
       {/* Custom chrome (sticky header + tabs outside scroll). Same contract as AppPage:
-          viewport lock + data-lenis-prevent on the scroll pane — do not use bare pt-14. */}
+          viewport lock + data-lenis-prevent on the scroll pane — do not use bare pt-14.
+          h+overflow-hidden: stop main.mt-14 margin-collapse → document scroll. */}
       <main className="flex flex-col mt-14 h-[calc(100dvh-3.5rem)] min-h-0 overflow-hidden">
         {/* No page title — TopNav gear already says Settings */}
         <div className="shrink-0 border-b border-[#d4af37]/20 bg-zinc-950 px-4 py-1.5">
-          <div className="inline-flex rounded border border-[#d4af37]/20 overflow-hidden text-[11px] font-semibold">
-            {visibleTabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={cn(
-                  "px-2.5 py-1.5 transition-colors",
-                  tab === t.id ? "bg-[#d4af37] text-black" : "bg-zinc-950 text-white/70 hover:text-[#d4af37]",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="inline-flex items-center gap-0.5 flex-wrap">
+            {visibleTabs.map((t, i) => {
+              const hues = ["sky", "violet", "amber", "orange", "emerald", "rose", "gold"] as const;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={subTabClass(tab === t.id, hues[i % hues.length]!, "md")}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 

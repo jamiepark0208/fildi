@@ -77,7 +77,7 @@ function NameRow({ n }: { n: Name }) {
       <button type="button" onClick={() => s && setOpen(!open)} className="flex-1 min-w-0 text-left flex items-center gap-2">
         <span className="w-14 text-[10px] text-amber-200/50">{n.short_options > 0 ? `${n.short_options} put${n.short_options > 1 ? "s" : ""}` : "shares"}</span>
         <span
-          className={cn("w-16 tabular-nums text-[11px]", si == null ? "text-zinc-400" : si >= 30 ? "text-red-300" : si >= 15 ? "text-amber-300" : "text-amber-200/60")}
+          className={cn("w-16 tabular-nums text-[11px]", si == null ? "text-amber-100" : si >= 30 ? "text-red-300" : si >= 15 ? "text-amber-300" : "text-amber-200/60")}
           title="Short interest, % of free float (LSEG, daily)"
         >
           {si == null ? "SI —" : `SI ${si.toFixed(0)}%`}
@@ -91,7 +91,7 @@ function NameRow({ n }: { n: Name }) {
             <span className="truncate text-amber-100/70">{s.bullets?.[0]}</span>
           </span>
         ) : (
-          <span className="flex-1 text-[10px] text-zinc-400">call summary pending</span>
+          <span className="flex-1 text-[10px] text-amber-100">call summary pending</span>
         )}
       </button>
       </div>
@@ -123,7 +123,7 @@ function YourNames() {
     <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-3">
       <div className="text-[11px] font-semibold text-[#d4af37] mb-1">Your names</div>
       <ul>{data.map((n) => <NameRow key={n.ticker} n={n} />)}</ul>
-      <p className="mt-1 text-[10px] text-zinc-400">
+      <p className="mt-1 text-[10px] text-amber-100">
         SI = short interest % of float (context, not a signal yet). Tap a row for the last earnings call: 5 points, financing, risks.
       </p>
     </div>
@@ -290,7 +290,7 @@ export function PortfolioAlertsPanel() {
         {data.cleared.length > 0 && (
           <p className="text-[10px] text-emerald-400/70">Cleared since last check: {data.cleared.join(", ")}</p>
         )}
-        <p className="text-[10px] text-zinc-400">
+        <p className="text-[10px] text-amber-100">
           Odds come from each option's own price (market-implied, not a forecast), with your past expiries' tendency to breach together.
           You decide; closing is shown only as what it would change.
         </p>

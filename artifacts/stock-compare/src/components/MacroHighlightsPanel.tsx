@@ -79,7 +79,7 @@ const CATEGORY_META: Record<
 const IMPORTANCE_BADGE: Record<EventToday["importance"], string> = {
   high:   "bg-red-900/60 text-red-300 border-red-700/50",
   medium: "bg-yellow-900/60 text-yellow-300 border-yellow-700/50",
-  low:    "bg-zinc-800 text-zinc-400 border-zinc-700",
+  low:    "bg-zinc-800 text-amber-100 border-zinc-700",
 };
 
 function fmtTime(iso: string) {
@@ -137,7 +137,7 @@ function BulletRow({ bullet }: { bullet: Bullet }) {
             </span>
           ))}
         </div>
-        <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{bullet.body}</p>
+        <p className="text-[11px] text-amber-100 leading-snug mt-0.5">{bullet.body}</p>
         {bullet.metric && (
           <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium">
             {bullet.metric.direction === "up"   && <TrendingUp   className="h-3 w-3 text-green-400" />}
@@ -145,7 +145,7 @@ function BulletRow({ bullet }: { bullet: Bullet }) {
             <span className={cn(
               bullet.metric.direction === "up"   ? "text-green-400"
               : bullet.metric.direction === "down" ? "text-red-400"
-              : "text-zinc-400"
+              : "text-amber-100"
             )}>
               {bullet.metric.label}: {bullet.metric.value}
             </span>
@@ -215,7 +215,7 @@ export function MacroHighlightsPanel() {
           <Sparkles className="h-4 w-4 text-primary" />
           AI Highlights
           {payload && (
-            <span className="text-[10px] text-muted-foreground font-normal ml-1">
+            <span className="text-[10px] text-amber-100 font-normal ml-1">
               {fmtDate(payload.marketDate)} · {fmtTime(payload.generatedAt)}
             </span>
           )}
@@ -235,7 +235,7 @@ export function MacroHighlightsPanel() {
           )}
           <button
             onClick={() => setOpen((o) => !o)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-amber-100 hover:text-foreground transition-colors"
           >
             {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
@@ -249,8 +249,8 @@ export function MacroHighlightsPanel() {
           {/* Loading spinner (initial page load) */}
           {isLoading && (
             <div className="flex items-center gap-2 py-4 justify-center">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Loading…</span>
+              <Loader2 className="h-4 w-4 animate-spin text-amber-100" />
+              <span className="text-xs text-amber-100">Loading…</span>
             </div>
           )}
 
@@ -258,7 +258,7 @@ export function MacroHighlightsPanel() {
           {generateMutation.isPending && (
             <div className="flex items-center gap-2 py-6 justify-center">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-amber-100">
                 Fetching news, market data, and calendar events…
               </span>
             </div>
@@ -266,14 +266,14 @@ export function MacroHighlightsPanel() {
 
           {/* Legacy cache notice */}
           {!generateMutation.isPending && isLegacy && (
-            <p className="text-xs text-muted-foreground italic py-2">
+            <p className="text-xs text-amber-100 italic py-2">
               Format updated — click Generate to refresh.
             </p>
           )}
 
           {/* Empty state */}
           {!isLoading && !generateMutation.isPending && isEmpty && (
-            <p className="text-xs text-muted-foreground italic py-2">
+            <p className="text-xs text-amber-100 italic py-2">
               No highlights yet — click Generate for today's brief.
             </p>
           )}

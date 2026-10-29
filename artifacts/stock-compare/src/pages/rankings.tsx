@@ -204,20 +204,20 @@ export default function Rankings() {
 
           {tab === "fundamental" && (
             fundLoading ? (
-              <p className="text-sm text-muted-foreground animate-pulse">Loading fundamental rankings…</p>
+              <p className="text-sm text-amber-100 animate-pulse">Loading fundamental rankings…</p>
             ) : fundamentalRankings.length >= 2 ? (
               <RankingsLeaderboard
                 scores={fundamentalRankings}
                 scoredAsOf={serverRankings?.[0]?.computedAt ?? null}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">No fundamental rankings yet — scores rebuild after nightly enrichment.</p>
+              <p className="text-sm text-amber-100">No fundamental rankings yet — scores rebuild after nightly enrichment.</p>
             )
           )}
 
           {tab === "technical" && (
             techLoading ? (
-              <p className="text-sm text-muted-foreground animate-pulse">Loading technical rankings…</p>
+              <p className="text-sm text-amber-100 animate-pulse">Loading technical rankings…</p>
             ) : technicalScores.length >= 2 ? (
               <TechnicalLeaderboard
                 scores={technicalScores}
@@ -226,7 +226,7 @@ export default function Rankings() {
                 scoredAsOf={technicalScoredAsOf}
               />
             ) : (
-              <p className="text-sm text-muted-foreground">No technical rankings yet — open Technical once scores are cached.</p>
+              <p className="text-sm text-amber-100">No technical rankings yet — open Technical once scores are cached.</p>
             )
           )}
 

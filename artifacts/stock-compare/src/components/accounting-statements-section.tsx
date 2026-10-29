@@ -223,7 +223,7 @@ function SectorPeersStrip({ ticker }: { ticker: string }) {
   const peers = (data?.ranked ?? []).filter(p => p.ticker !== ticker).slice(0, 6);
 
   if (isLoading) {
-    return <div className="text-xs text-foreground/60 animate-pulse">Loading sector peers…</div>;
+    return <div className="text-xs text-amber-100 animate-pulse">Loading sector peers…</div>;
   }
   if (peers.length === 0) return null;
 
@@ -370,7 +370,7 @@ export function AccountingStatementsSection({ ticker }: { ticker: string }) {
             onClick={() => setSubTab(t.id)}
             className={cn(
               "px-2.5 py-1.5 transition-colors",
-              subTab === t.id ? "bg-teal-500 text-black" : "bg-secondary/30 text-foreground/60 hover:text-teal-300",
+              subTab === t.id ? "bg-teal-500 text-black" : "bg-secondary/30 text-amber-100 hover:text-teal-300",
             )}
           >
             {t.label}

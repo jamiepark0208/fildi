@@ -48,9 +48,9 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
   if (data == null) return null;
   if (!data.valued) {
     return (
-      <div className="rounded border border-[#d4af37]/15 bg-zinc-950/60 px-2.5 py-2 text-[10px] text-zinc-400">
+      <div className="rounded border border-[#d4af37]/15 bg-zinc-950/60 px-2.5 py-2 text-[10px] text-amber-100">
         <span className="text-amber-100/70 font-semibold">DCF (lab)</span>
-        <span className="ml-1.5 rounded border border-zinc-600/50 px-1 text-[9px] text-zinc-500">lab — not in fair value</span>
+        <span className="ml-1.5 rounded border border-zinc-600/50 px-1 text-[9px] text-amber-100/80">lab — not in fair value</span>
         <div className="mt-1">{data.reason ?? "Not valued"}</div>
       </div>
     );
@@ -66,9 +66,9 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
     <div className="rounded border border-[#d4af37]/20 bg-zinc-950/70 px-2.5 py-2 space-y-2 text-[10.5px]" title={asOf ? `as of ${asOf}` : undefined}>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-amber-100 font-semibold">DCF (lab)</span>
-        <span className="rounded border border-zinc-600/50 px-1 text-[9px] text-zinc-500">lab — not in fair value</span>
+        <span className="rounded border border-zinc-600/50 px-1 text-[9px] text-amber-100/80">lab — not in fair value</span>
         {p50 != null && <span className="font-mono text-amber-100/90">P50 {formatCurrency(p50)}</span>}
-        {price != null && <span className="text-zinc-500">price {formatCurrency(price)}</span>}
+        {price != null && <span className="text-amber-100/80">price {formatCurrency(price)}</span>}
       </div>
 
       {p10 != null && p90 != null && (
@@ -80,12 +80,12 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
               <div className="absolute -top-0.5 -bottom-0.5 w-0.5 bg-sky-400" style={{ left: `${pctPos(price)}%` }} title={`Price ${formatCurrency(price)}`} />
             )}
           </div>
-          <div className="flex justify-between text-[9px] text-zinc-500 font-mono">
+          <div className="flex justify-between text-[9px] text-amber-100/80 font-mono">
             <span>P10 {formatCurrency(p10)}</span>
             <span>P90 {formatCurrency(p90)}</span>
           </div>
           {price_pct != null && (
-            <div className="text-zinc-400">Price sits at P{Math.round(price_pct * 100)} of outcomes</div>
+            <div className="text-amber-100">Price sits at P{Math.round(price_pct * 100)} of outcomes</div>
           )}
           {risk?.expensive && (
             <div className="text-amber-300" title={risk.read ?? undefined}>
@@ -96,7 +96,7 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
       )}
 
       {reverse && (
-        <div className="text-zinc-400">
+        <div className="text-amber-100">
           {reverse.growth_pct == null
             ? "Price above our P98 growth outcome"
             : `Price needs revenue +${((reverse.implied_cagr5 ?? 0) * 100).toFixed(0)}%/yr for 5 years (P${Math.round((reverse.growth_pct ?? 0) * 100)} of similar firms)`}
@@ -118,7 +118,7 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
       <AssumTable rows={ops} />
       {bridge.length > 0 && (
         <div className="space-y-1 pt-1">
-          <div className="text-[9px] uppercase tracking-wide text-zinc-500">From enterprise value to equity</div>
+          <div className="text-[9px] uppercase tracking-wide text-amber-100/80">From enterprise value to equity</div>
           <AssumTable rows={bridge} />
         </div>
       )}
@@ -132,7 +132,7 @@ function AssumTable({ rows }: { rows: Assum[] }) {
     <div className="space-y-0.5">
       {rows.map((a) => (
         <div key={a.key} className="flex justify-between gap-2" title={a.source}>
-          <span className={cn("text-zinc-400 truncate", a.key.startsWith("claim:") && "text-rose-300/70", a.key.startsWith("asset:") && "text-emerald-300/70")}>
+          <span className={cn("text-amber-100 truncate", a.key.startsWith("claim:") && "text-rose-300/70", a.key.startsWith("asset:") && "text-emerald-300/70")}>
             {a.label}
           </span>
           <span className="font-mono text-zinc-200 shrink-0">{fmtAssum(a.value, a.unit)}</span>

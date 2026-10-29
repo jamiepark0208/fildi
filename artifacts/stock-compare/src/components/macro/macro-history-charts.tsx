@@ -6,7 +6,7 @@ import {
 import { Loader2, Landmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChartPoint, IndicatorHistory, SepData, SepActuals, SepMetric, LiquiditySignal } from "./macro-page-types";
-import { LIQUIDITY_LEVEL_STYLE } from "./macro-format";
+import { LIQUIDITY_LEVEL_STYLE, fmtChartDate } from "./macro-format";
 
 // ── Rate History Chart ──────────────────────────────────────────────────────────
 
@@ -69,18 +69,14 @@ export function RateHistoryChart({
             <XAxis
               dataKey="date"
               tick={{ fontSize: 9, fill: "#cbd5e1" }}
-              tickFormatter={(d: string) =>
-                new Date(d).toLocaleDateString("en-US", { month: "short", year: "2-digit" })
-              }
-              interval={Math.floor(data.length / 6)}
+              tickFormatter={fmtChartDate}
+              interval={Math.max(0, Math.floor(filtered.length / 6))}
             />
             <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} domain={["auto", "auto"]} tickFormatter={yFormatter} />
             <Tooltip
               contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
               formatter={(v: unknown) => tooltipFormatter(v as number)}
-              labelFormatter={(d: string) =>
-                new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-              }
+              labelFormatter={fmtChartDate}
             />
             {referenceLines?.map(rl => (
               <ReferenceLine key={rl.label} y={rl.y} stroke={rl.color} strokeDasharray="4 3" strokeOpacity={0.5}
@@ -231,12 +227,12 @@ export function DualLineHistoryChart({
           <LineChart data={merged} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#222" />
             <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#cbd5e1" }}
-              tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}
-              interval={Math.floor(merged.length / 6)} />
+              tickFormatter={fmtChartDate}
+              interval={Math.max(0, Math.floor(merged.length / 6))} />
             <YAxis tick={{ fontSize: 9, fill: "#cbd5e1" }} domain={["auto", "auto"]} tickFormatter={yFormatter} />
             <Tooltip contentStyle={{ background: "#111", border: "1px solid #333", fontSize: 11 }}
               formatter={(v: unknown, name: unknown) => tooltipFormatter(v as number, name as string)}
-              labelFormatter={(d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} />
+              labelFormatter={fmtChartDate} />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
             {referenceLines?.map(rl => (
               <ReferenceLine key={rl.label} y={rl.y} stroke={rl.color} strokeDasharray="4 3" strokeOpacity={0.5}
@@ -247,7 +243,7 @@ export function DualLineHistoryChart({
           </LineChart>
         </ResponsiveContainer>
       ) : (
-        <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
+        <div className="h-[160px] flex items-center justify-center text-xs text-amber-100">
           No data
         </div>
       )}
@@ -297,10 +293,8 @@ export function IndicatorHistoryChart({
             <XAxis
               dataKey="date"
               tick={{ fontSize: 9, fill: "#cbd5e1" }}
-              tickFormatter={(d: string) =>
-                new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short" })
-              }
-              interval={Math.floor(data.data.length / 8)}
+              tickFormatter={fmtChartDate}
+              interval={Math.max(0, Math.floor(data.data.length / 8))}
             />
             <YAxis
               tick={{ fontSize: 9, fill: "#cbd5e1" }}
@@ -315,9 +309,7 @@ export function IndicatorHistoryChart({
                 data.isYoY ? `${v.toFixed(2)}%` : `${v.toFixed(2)} ${data.unit}`,
                 data.label,
               ]}
-              labelFormatter={(d: string) =>
-                new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-              }
+              labelFormatter={fmtChartDate}
             />
             <Area
               type="monotone" dataKey="value" stroke={color}
@@ -400,10 +392,8 @@ export function SepDotsChart({
           <XAxis
             dataKey="date"
             tick={{ fontSize: 9, fill: "#cbd5e1" }}
-            tickFormatter={(d: string) =>
-              new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short" })
-            }
-            interval={Math.floor(combined.length / 8)}
+            tickFormatter={fmtChartDate}
+            interval={Math.max(0, Math.floor(combined.length / 8))}
           />
           <YAxis
             tick={{ fontSize: 9, fill: "#cbd5e1" }}
@@ -415,9 +405,7 @@ export function SepDotsChart({
             formatter={(v: number, name: string) => [
               `${v.toFixed(2)}${metricUnit}`, name === "actual" ? "Actual" : "SEP Projection",
             ]}
-            labelFormatter={(d: string) =>
-              new Date(d).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-            }
+            labelFormatter={fmtChartDate}
           />
           <Area
             type="monotone" dataKey="actual" stroke="#60a5fa"

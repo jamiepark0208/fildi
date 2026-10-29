@@ -37,8 +37,8 @@ export function EventsPanel({ ticker }: { ticker: string }) {
         <tbody>
           {data.rows.map((r, i) => (
             <tr key={`${r.filed}-${r.category}-${i}`} className={gridRow(i)}>
-              <td className={cn(GRID_TD, "text-amber-100")}>{formatMdYy(r.filed)}</td>
-              <td className={cn(GRID_TD, "text-white")}>{label(r.category)}</td>
+              <td className={cn(GRID_TD, "whitespace-nowrap")}>{formatMdYy(r.filed)}</td>
+              <td className={GRID_TD}>{label(r.category)}</td>
             </tr>
           ))}
         </tbody>

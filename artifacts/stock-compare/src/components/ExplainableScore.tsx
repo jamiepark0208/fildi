@@ -58,7 +58,7 @@ export function ExplainableScore({
         onClick={e => e.stopPropagation()}
       >
         {/* Static one-liner — always visible immediately */}
-        <p className="text-muted-foreground leading-snug">{copy}</p>
+        <p className="text-amber-100 leading-snug">{copy}</p>
 
         {/* AI explanation */}
         {state.status === "done" && state.text && (
@@ -66,7 +66,7 @@ export function ExplainableScore({
             {parseBullets(state.text).map((bullet, i) => (
               <p key={i} className="leading-snug text-foreground/90">• {bullet}</p>
             ))}
-            <p className="text-muted-foreground/60 text-[10px] pt-0.5">
+            <p className="text-amber-100/60 text-[10px] pt-0.5">
               AI narrative — not a trade recommendation.
             </p>
           </div>
@@ -100,7 +100,7 @@ export function ExplainableScore({
             href={`/scorecard?tab=${guideTab}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1 text-[11px] text-amber-100 hover:text-foreground transition-colors"
             onClick={e => e.stopPropagation()}
           >
             <BookOpen className="w-3 h-3" />

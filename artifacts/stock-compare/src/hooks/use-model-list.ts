@@ -146,7 +146,7 @@ export const VERDICT_CHIPS: Record<string, { code: string; className: string }> 
   yellow: { code: "INC", className: "bg-yellow-500/25 text-yellow-200" },
   red: { code: "AVD", className: "bg-red-500/25 text-red-300" },
   purple: { code: "ETF", className: "bg-purple-500/25 text-purple-300" },
-  "": { code: "WCH", className: "bg-white/10 text-white/50" },
+  "": { code: "WCH", className: "bg-white/10 text-amber-100/80" },
 };
 
 export const VERDICT_LABELS: Record<string, string> = {

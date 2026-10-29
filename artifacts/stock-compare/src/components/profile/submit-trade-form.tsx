@@ -20,7 +20,7 @@ const TRADE_TYPES = [
 type TradeTypeId = typeof TRADE_TYPES[number]["id"]
 
 const CONFIDENCE_OPTS = ["Speculative", "Low", "Moderate", "High", "Strong"]
-const CONF_COLORS = ["text-white/70 border-[#d4af37]/20 bg-zinc-900", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
+const CONF_COLORS = ["text-amber-100 border-[#d4af37]/20 bg-zinc-900", "text-orange-400 border-orange-500/40 bg-orange-500/15", "text-yellow-400 border-yellow-500/40 bg-yellow-500/15", "text-green-400 border-green-500/40 bg-green-500/15", "text-emerald-400 border-emerald-500/40 bg-emerald-500/15"]
 
 export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
   const [tradeType, setTradeType] = useState<TradeTypeId>("SELL_PUT")
@@ -118,7 +118,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
             className={cn("text-[11px] font-semibold px-2.5 py-1 rounded-full border transition-all",
               tradeType === t.id
                 ? "bg-[#d4af37] text-black border-[#d4af37]"
-                : "bg-zinc-950 text-white/70 border-[#d4af37]/20 hover:text-[#d4af37]"
+                : "bg-zinc-950 text-amber-100 border-[#d4af37]/20 hover:text-[#d4af37]"
             )}>
             {t.label}
           </button>
@@ -131,7 +131,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       {/* ── OPTIONS: expiry tabs + strike chain ── */}
       {isOption && ticker && (
         <div className="space-y-1.5">
-          {chainLoading && <p className="text-xs text-white/70 animate-pulse">Loading chain…</p>}
+          {chainLoading && <p className="text-xs text-amber-100 animate-pulse">Loading chain…</p>}
           {!chainLoading && expiryChains.length > 0 && (
             <>
               {/* Expiry selector */}
@@ -141,7 +141,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                     className={cn("text-[10px] px-2 py-0.5 rounded border transition-all",
                       (selectedExpiry || expiryChains[0]?.expiry) === c.expiry
                         ? "bg-[#d4af37] text-black border-[#d4af37]"
-                        : "text-white/70 border-[#d4af37]/20 hover:text-[#d4af37]"
+                        : "text-amber-100 border-[#d4af37]/20 hover:text-[#d4af37]"
                     )}>
                     {c.expiry} <span className="opacity-60">{c.dte}d</span>
                   </button>
@@ -191,7 +191,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="flex items-center gap-3 bg-amber-500/10 border border-[#d4af37]/30 rounded px-3 py-2">
                   <span className="text-xs font-bold text-[#d4af37]">{tradeType.replace("_"," ")} {selectedStrike} @ ${selectedPremium}</span>
                   <div className="ml-auto flex items-center gap-1.5">
-                    <label className="text-xs text-white/70">Contracts</label>
+                    <label className="text-xs text-amber-100">Contracts</label>
                     <input type="number" min="1" step="1" value={contracts} onChange={e => setContracts(e.target.value)}
                       className="w-14 bg-zinc-900 border border-[#d4af37]/20 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50" />
                   </div>
@@ -212,7 +212,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
             { label: "Target",      val: targetPrice, set: setTargetPrice, placeholder: "optional" },
           ].map(({ label, val, set, placeholder, required, step, min }) => (
             <div key={label} className="space-y-1">
-              <label className="text-xs text-white/70">{label}</label>
+              <label className="text-xs text-amber-100">{label}</label>
               <input required={required} type="number" min={min ?? "0"} step={step ?? "0.01"}
                 value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
                 className={inp} />
@@ -223,7 +223,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Confidence */}
       <div className="space-y-1">
-        <label className="text-xs text-white/70">Confidence</label>
+        <label className="text-xs text-amber-100">Confidence</label>
         <div className="flex gap-1.5 flex-wrap">
           {CONFIDENCE_OPTS.map((label, i) => (
             <button key={i} type="button" onClick={() => setConf(i + 1)}
@@ -238,7 +238,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs text-white/70">Rationale</label>
+        <label className="text-xs text-amber-100">Rationale</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
           placeholder="Your rationale…"
           className="w-full bg-zinc-900 border border-[#d4af37]/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 resize-none" />
@@ -268,22 +268,22 @@ function TickerSearch({ value, onChange }: { value: string; onChange: (t: string
   function pick(ticker: string) { onChange(ticker); setInput(ticker); setOpen(false) }
   return (
     <div className="relative space-y-1">
-      <label className="text-xs text-white/70">Ticker</label>
+      <label className="text-xs text-amber-100">Ticker</label>
       <input value={input}
         onChange={e => { setInput(e.target.value.toUpperCase()); setOpen(true) }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search ticker…"
-        className="w-full bg-white border border-[#d4af37]/30 rounded px-2 py-1.5 text-sm text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50" />
+        className="w-full bg-white border border-[#d4af37]/30 rounded px-2 py-1.5 text-sm text-black placeholder:text-amber-100/80 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/50" />
       {open && debouncedQ.length >= 1 && (
         <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-zinc-950 border border-[#d4af37]/25 rounded-md shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-          {isFetching && <div className="px-3 py-2 text-xs text-white/70 animate-pulse">Searching…</div>}
-          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-white/70">No results</div>}
+          {isFetching && <div className="px-3 py-2 text-xs text-amber-100 animate-pulse">Searching…</div>}
+          {!isFetching && results.length === 0 && <div className="px-3 py-2 text-xs text-amber-100">No results</div>}
           {results.map((r: { ticker: string; name?: string }) => (
             <button key={r.ticker} type="button" onMouseDown={() => pick(r.ticker)}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-amber-500/10 transition-colors text-left">
               <span className="font-bold text-white w-14 shrink-0">{r.ticker}</span>
-              <span className="text-white/70 truncate">{r.name}</span>
+              <span className="text-amber-100 truncate">{r.name}</span>
             </button>
           ))}
         </div>

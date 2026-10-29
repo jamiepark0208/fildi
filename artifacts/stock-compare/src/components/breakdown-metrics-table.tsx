@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import {
   ESTIMATE_FIELDS,
@@ -9,6 +10,7 @@ import {
   type MetricTipCtx,
   type ProvTipField,
 } from "@/lib/provenance-display";
+import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { DataTip } from "./data-tip";
 
 /** Fund family scores are 0–100. Pass max={5} only for legacy displays. */
@@ -22,14 +24,14 @@ export function ScoreBadge({
   tip?: string;
 }) {
   if (score == null || !Number.isFinite(score)) {
-    return <span className="font-mono text-sm text-zinc-500">—</span>;
+    return <span className="font-mono text-[11px] text-amber-100/80">—</span>;
   }
   const pct = max === 100 ? score : (score / max) * 100;
   const color =
     pct >= 70 ? "text-green-400" : pct >= 50 ? "text-yellow-400" : pct >= 35 ? "text-orange-400" : "text-red-400";
   return (
     <DataTip tip={tip}>
-      <span className={cn("font-bold font-mono tabular-nums text-sm", color)}>
+      <span className={cn("font-bold font-mono tabular-nums text-[11px]", color)}>
         {max === 100 ? score.toFixed(0) : `${score}/${max}`}
       </span>
     </DataTip>
@@ -56,7 +58,7 @@ export interface MetricGroup {
   sectionId?: string;
 }
 
-function MetricValue({
+function MetricReading({
   row,
   prov,
   metrics,
@@ -81,8 +83,8 @@ function MetricValue({
     <DataTip tip={tip}>
       <span
         className={cn(
-          "inline-flex items-center gap-1 text-[10px] font-mono font-semibold shrink-0",
-          row.good === true ? "text-green-400" : row.good === false ? "text-red-400" : "text-foreground",
+          "inline-flex items-center justify-end gap-0.5 text-[11px] font-mono font-semibold tabular-nums whitespace-nowrap",
+          row.good === true ? "text-emerald-400" : row.good === false ? "text-rose-400" : "text-white",
         )}
       >
         {showDot && (
@@ -92,7 +94,7 @@ function MetricValue({
           />
         )}
         {estimate && (
-          <span className="text-[9px] font-bold text-sky-400/90 border border-sky-400/40 rounded px-0.5 leading-none">
+          <span className="text-[8px] font-bold text-sky-300 border border-sky-400/50 rounded px-0.5 leading-none">
             E
           </span>
         )}
@@ -102,6 +104,9 @@ function MetricValue({
   );
 }
 
+const EMPTY: MetricRowData = { label: "", value: "" };
+
+/** One 8-col GRID row: Value×2 · Growth×2 · Quality×2 · Safety×2 (metric | reading each). */
 export function BreakdownMetricsTable({
   groups,
   byField,
@@ -111,47 +116,102 @@ export function BreakdownMetricsTable({
   byField?: Map<string, ProvTipField>;
   metrics?: MetricTipCtx | null;
 }) {
+  // Expect Value, Growth, Quality, Safety — pad/truncate to 4 slots for stable columns.
+  const cols = [0, 1, 2, 3].map((i) => groups[i] ?? { title: "—", score: null, rows: [] as MetricRowData[] });
+  const maxRows = Math.max(1, ...cols.map((g) => g.rows.length));
+
   return (
-    <div className="grid grid-cols-4 gap-2" id="bd-score-evidence">
-      {groups.map(group => (
-        <div
-          key={group.title}
-          id={group.sectionId}
-          className="bg-zinc-950 border border-[#d4af37]/20 rounded-lg p-2.5"
-        >
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold tracking-tight text-[#d4af37] truncate">
-              {group.title}
-            </span>
-            <ScoreBadge
-              score={group.score}
-              max={100}
-              tip={`${group.title} family score · computed · peer-relative fund model`}
-            />
-          </div>
-          <div className="space-y-1">
-            {group.rows.map((row, i) => {
-              const provTip = row.fieldKey ? formatProvenanceTip(byField?.get(row.fieldKey)) : undefined;
-              const sanity = row.fieldKey ? fieldSanityTip(row.fieldKey, metrics ?? {}) : undefined;
-              const labelTip = joinTips(row.tip, provTip, sanity);
-              return (
-                <div key={i} className="flex justify-between items-center gap-1.5 min-w-0">
-                  <DataTip tip={labelTip} className="min-w-0 shrink">
-                    <span className="text-[10px] text-amber-100/70 whitespace-nowrap overflow-hidden text-ellipsis block max-w-full">
-                      {row.label}
-                    </span>
-                  </DataTip>
-                  <MetricValue
-                    row={row}
-                    prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined}
-                    metrics={metrics}
+    <div className={GRID_WRAP} id="bd-score-evidence">
+      <table className="w-full border-collapse table-fixed">
+        <thead>
+          <tr className={GRID_HEADER}>
+            {cols.map((g, gi) => (
+              <th
+                key={g.sectionId ?? `${g.title}-${gi}`}
+                id={g.sectionId}
+                colSpan={2}
+                className={cn(
+                  GRID_TH,
+                  "text-left py-0.5",
+                  gi > 0 && "border-l border-[#d4af37]/20",
+                )}
+              >
+                <span className="inline-flex items-baseline gap-1.5">
+                  <span>{g.title}</span>
+                  <ScoreBadge
+                    score={g.score}
+                    max={100}
+                    tip={`${g.title} family score · computed · peer-relative fund model`}
                   />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: maxRows }, (_, ri) => (
+            <tr key={ri} className={gridRow(ri)}>
+              {cols.map((g, gi) => {
+                const row = g.rows[ri] ?? EMPTY;
+                const blank = !row.label;
+                const provTip = row.fieldKey ? formatProvenanceTip(byField?.get(row.fieldKey)) : undefined;
+                const sanity = row.fieldKey ? fieldSanityTip(row.fieldKey, metrics ?? {}) : undefined;
+                const labelTip = joinTips(row.tip, provTip, sanity);
+                return (
+                  <FragmentPair
+                    key={`${gi}-${ri}`}
+                    gi={gi}
+                    blank={blank}
+                    label={row.label}
+                    labelTip={labelTip}
+                    reading={
+                      blank ? null : (
+                        <MetricReading
+                          row={row}
+                          prov={row.fieldKey ? byField?.get(row.fieldKey) : undefined}
+                          metrics={metrics}
+                        />
+                      )
+                    }
+                  />
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
+  );
+}
+
+function FragmentPair({
+  gi,
+  blank,
+  label,
+  labelTip,
+  reading,
+}: {
+  gi: number;
+  blank: boolean;
+  label: string;
+  labelTip?: string;
+  reading: ReactNode;
+}) {
+  const edge = gi > 0 ? "border-l border-[#d4af37]/15" : "";
+  return (
+    <>
+      <td className={cn(GRID_TD, "py-0.5 px-1 text-[10px] text-white min-w-0 overflow-hidden", edge, blank && "text-transparent")}>
+        {blank ? "\u00a0" : (
+          <DataTip tip={labelTip}>
+            <span className="cursor-help whitespace-nowrap overflow-hidden text-ellipsis block max-w-full">
+              {label}
+            </span>
+          </DataTip>
+        )}
+      </td>
+      <td className={cn(GRID_TD, "py-0.5 px-1 text-right min-w-0 overflow-hidden")}>
+        <div className="overflow-hidden text-ellipsis whitespace-nowrap max-w-full">{reading}</div>
+      </td>
+    </>
   );
 }

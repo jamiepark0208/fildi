@@ -1,8 +1,11 @@
 /**
  * Rankings › Structures › Backtest lab (S076). Per-structure results from the 2021→ backtest.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { STRUCTURES_META_SLOT_ID } from "./structure-slots";
 import {
   Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceDot, ReferenceLine,
   ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis,
@@ -11,6 +14,10 @@ import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { DataTip } from "@/components/data-tip";
 import { formatMdYy } from "@/lib/format";
+import { THEME_META, THEME_ORDER, themeOf, simpleOf, type TradeTheme } from "./structure-themes";
+import { StructurePicksTable, useStructuresBoard, type StructurePick } from "./structure-picks";
+import { LongOptionBoard } from "./LongOptionBoard";
+import { blendScores, deskAction } from "./structure-desk";
 
 type Sum = {
   n: number; mean: number; median: number; win: number; worst5: number; worst1: number; best5: number; t: number;
@@ -39,11 +46,20 @@ const GOLD = "#d4af37", GAIN = "#12a37a", LOSS = "#ef4444", AXIS = "#71717a", GR
 const AXIS_TICK = { fill: TXT, fontSize: 10 };
 const TIP_STYLE = { background: "#09090b", border: "1px solid rgba(212,175,55,0.4)", fontSize: 11, color: "#fef3c7" };
 
+/** Solid chips — Promising = yellow (Jamie 10-24). */
 const CHIP: Record<Verdict, { icon: string; label: string; cls: string }> = {
-  works: { icon: "✓", label: "Works", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
-  promising: { icon: "◐", label: "Promising", cls: "bg-amber-500/15 text-amber-200 border-amber-500/30" },
-  fails: { icon: "✕", label: "Fails", cls: "bg-red-500/15 text-red-300 border-red-500/30" },
-  untested: { icon: "·", label: "Untested", cls: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30" },
+  works: { icon: "✓", label: "Works", cls: "bg-emerald-700 text-white border-emerald-500" },
+  promising: { icon: "◐", label: "Promising", cls: "bg-yellow-400 text-black border-yellow-300" },
+  fails: { icon: "✕", label: "Fails", cls: "bg-red-800 text-white border-red-500" },
+  untested: { icon: "·", label: "Untested", cls: "bg-zinc-700 text-white border-zinc-500" },
+};
+
+/** Verdicts are BACKWARD-LOOKING S076 history only — not a forward forecast. */
+const VERDICT_TIP: Record<Verdict, string> = {
+  works: "BACKWARD-LOOKING (S076, 2021→ after fills). Structure made money historically. Not a forecast.",
+  promising: "BACKWARD-LOOKING. Positive in the backtest but not proven (small sample / luck). Not a forecast.",
+  fails: "BACKWARD-LOOKING. Lost money after fills (or lost vs cash-secured put). Example: long put FAIL = buying puts lost in a mostly rising 2021→ tape — not a claim puts can't work in a crash. Not forward-looking.",
+  untested: "BACKWARD-LOOKING. Not enough clean history to grade yet.",
 };
 
 const fin = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
@@ -51,13 +67,23 @@ const spct = (v: number | null | undefined, d = 1) =>
   !fin(v) ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toFixed(d)} %`;
 const upct = (v: number | null | undefined, d = 0) => (!fin(v) ? "—" : `${(v * 100).toFixed(d)} %`);
 const tone = (v: number | null | undefined) => (!fin(v) || v === 0 ? "text-white" : v > 0 ? "text-emerald-300" : "text-red-300");
+/** Win %: green ≥65, yellow ≥45, else red. */
+const winTone = (v: number | null | undefined) =>
+  !fin(v) ? "text-amber-100" : v >= 0.65 ? "text-emerald-300" : v >= 0.45 ? "text-yellow-300" : "text-red-300";
+/** Ret÷risk: green ≥0.10, yellow ≥0, else red. */
+const sharpeTone = (v: number | null | undefined) =>
+  !fin(v) ? "text-amber-100" : v >= 0.10 ? "text-emerald-300" : v >= 0 ? "text-yellow-300" : "text-red-300";
+/** Worst 5 % (negative): green > −10 %, yellow > −35 %, else red. −100 % = wiped the capital in that bad case. */
+const worstTone = (v: number | null | undefined) =>
+  !fin(v) ? "text-amber-100" : v > -0.10 ? "text-emerald-300" : v > -0.35 ? "text-yellow-300" : "text-red-300";
 const primary = (s: S): Sum => s.as_shown ?? s.all;
 const barValue = (s: S): number | undefined => primary(s)?.sharpe ?? primary(s)?.mean;
 
 function Chip({ s }: { s: S }) {
   const c = CHIP[s.verdict] ?? CHIP.untested;
+  const tip = [VERDICT_TIP[s.verdict] ?? VERDICT_TIP.untested, s.why].filter(Boolean).join("\n\n");
   return (
-    <DataTip tip={s.why || null}>
+    <DataTip tip={tip}>
       <span className={cn("px-1 rounded border text-[9px] font-bold uppercase tracking-wide whitespace-nowrap", c.cls)}>
         {c.icon} {c.label}
       </span>
@@ -102,29 +128,150 @@ function payoff(t: Tpl): { x: number; y: number; pos: number; neg: number }[] {
 }
 
 /* ---------- small pieces ---------- */
-function Card({ title, caption, children }: { title: string; caption?: string; children: ReactNode }) {
+function ChartPane({ title, tip, children }: { title: string; tip?: string; children: ReactNode }) {
   return (
-    <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-2 min-w-0">
-      <div className="text-[11px] font-semibold text-[#d4af37] mb-1">{title}</div>
-      <div className="h-[180px]">{children}</div>
-      {caption ? <div className="text-[10px] text-amber-100/50 mt-1">{caption}</div> : null}
-    </div>
-  );
-}
-const NoData = () => <div className="h-full flex items-center justify-center text-[11px] text-amber-100/50">No data</div>;
-
-function Tile({ label, tip, children }: { label: string; tip?: string; children: ReactNode }) {
-  return (
-    <div className="rounded border border-[#d4af37]/20 bg-black/40 px-2 py-1 min-w-[84px]">
-      <div className="text-[9px] uppercase tracking-wide text-amber-100/50">
-        <DataTip tip={tip}>{label}</DataTip>
+    <div className="rounded border border-[#d4af37]/25 bg-zinc-950 p-2 min-w-0">
+      <div className="text-[10px] font-semibold text-white mb-1 tracking-wide">
+        <DataTip tip={tip}>{title}</DataTip>
       </div>
-      <div className="font-mono tabular-nums text-sm font-semibold text-white">{children}</div>
+      <div className="h-[160px]">{children}</div>
+    </div>
+  );
+}
+const NoData = () => <div className="h-full flex items-center justify-center text-[11px] text-amber-100">No data</div>;
+
+type MetricCell = { label: string; tip?: string; value: ReactNode; cls?: string };
+
+/** One-row dense metrics (ag-grid look). */
+function CompactMetrics({ cells }: { cells: MetricCell[] }) {
+  return (
+    <div className={cn(GRID_WRAP, "w-full min-w-0")}>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className={GRID_HEADER}>
+            {cells.map((c) => (
+              <th key={c.label} className={cn(GRID_TH, "!py-0.5 !px-1.5 !text-[9px] text-right")}>
+                <DataTip tip={c.tip}>{c.label}</DataTip>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr className={gridRow(0)}>
+            {cells.map((c) => (
+              <td key={c.label} className={cn(GRID_TD, "!py-0.5 !px-1.5 text-right font-mono text-[11px] font-semibold tabular-nums", c.cls ?? "text-white")}>
+                {c.value}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }
 
-/** Diverging bar on a shared scale; value fraction, `scale` = max |value| shown. */
+const STOCK_STRUCT = new Set(["covered_call", "collar"]);
+
+/** Live pick → payoff template (same math as S076 example shape). */
+function pickToTpl(r: StructurePick, structureId: string): Tpl {
+  const ivs = r.legs.map((l) => l.iv).filter((v) => v > 0);
+  const iv = ivs.length ? ivs.reduce((a, b) => a + b, 0) / ivs.length : 0.3;
+  return {
+    spot: r.spot,
+    iv,
+    dte: r.dte,
+    credit: r.credit,
+    capital: r.capital,
+    stock: STOCK_STRUCT.has(structureId),
+    legs: r.legs.map((l) => ({ side: l.side, strike: l.strike, qty: l.qty, px: l.px, dte: r.dte })),
+  };
+}
+
+function ExpandDetail({
+  s, picks, asOf, sAll,
+}: {
+  s: S; picks: StructurePick[]; asOf: string | null; sAll: boolean;
+}) {
+  const tickersKey = picks.map((p) => p.ticker).join("|");
+  const [pickT, setPickT] = useState<string | null>(() => picks[0]?.ticker ?? null);
+  useEffect(() => {
+    if (!picks.length) { setPickT(null); return; }
+    setPickT((prev) => (prev && picks.some((p) => p.ticker === prev) ? prev : picks[0]!.ticker));
+  }, [s.id, tickersKey]); // eslint-disable-line react-hooks/exhaustive-deps -- tickersKey tracks pick set
+
+  const pick = useMemo(() => picks.find((p) => p.ticker === pickT) ?? null, [picks, pickT]);
+  const sSum = primary(s);
+  const tpl = useMemo(() => {
+    if (pick) return pickToTpl(pick, s.id);
+    return s.template;
+  }, [pick, s.id, s.template]);
+
+  const usdC = (v: number | null | undefined) =>
+    v == null || !Number.isFinite(v) ? "—" : `$${Math.abs(v * 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  const cells: MetricCell[] = pick
+    ? [
+        { label: "Pick", tip: "Selected morning pick — click another row below.", value: pick.ticker, cls: "text-[#d4af37]" },
+        { label: "Credit", tip: "Premium per contract (×100).", value: `${pick.credit >= 0 ? "+" : "−"}${usdC(pick.credit)}`, cls: pick.credit >= 0 ? "text-emerald-300" : "text-red-300" },
+        { label: "Capital", tip: "Cash / margin / max loss per contract.", value: usdC(pick.capital), cls: "text-amber-50" },
+        { label: "Win", tip: "Market-IV odds of profit at expiry.", value: upct(pick.p_mkt), cls: winTone(pick.p_mkt) },
+        { label: "Expected", tip: "2y history avg ÷ capital.", value: spct(pick.ev_rv_cap), cls: tone(pick.ev_rv_cap) },
+        { label: "Bad case", tip: "1-in-20 ÷ capital.", value: spct(pick.worst5, 0), cls: worstTone(pick.worst5) },
+        { label: "IV/RV", tip: "Implied ÷ 20d realized.", value: fin(pick.iv_rv) ? pick.iv_rv.toFixed(2) : "—", cls: "text-white" },
+        { label: "DTE", tip: "Days to expiry.", value: `${pick.dte}d`, cls: "text-amber-100" },
+      ]
+    : sSum
+      ? [
+          { label: "Avg", tip: "Avg past trade ÷ capital after fills.", value: spct(sSum.mean), cls: tone(sSum.mean) },
+          { label: "/$100", tip: "Avg result per $100 of stock.", value: per100(sSum.per_stock), cls: tone(sSum.per_stock) },
+          { label: "Ret÷risk", tip: "Mean ÷ sd.", value: fin(sSum.sharpe) ? sSum.sharpe!.toFixed(2) : "—", cls: sharpeTone(sSum.sharpe) },
+          { label: "Win", tip: "Share of past trades that made money.", value: upct(sSum.win), cls: winTone(sSum.win) },
+          { label: "Median", value: spct(sSum.median), cls: tone(sSum.median) },
+          { label: "Worst5%", value: spct(sSum.worst5), cls: worstTone(sSum.worst5) },
+          { label: "Trades", value: sSum.n, cls: "text-white" },
+          { label: "t", tip: "Confidence (t-stat).", value: fin(sSum.t) ? sSum.t.toFixed(1) : "—", cls: "text-white" },
+          { label: "Hold", value: fin(sSum.days) ? `${Math.round(sSum.days)}d` : "—", cls: "text-amber-100" },
+          ...(sAll ? [{ label: "Note", value: "all", tip: "All entries (not as-shown filter).", cls: "text-amber-100" } as MetricCell] : []),
+        ]
+      : [];
+
+  return (
+    <div className="space-y-2 w-full min-w-0">
+      {cells.length ? <CompactMetrics cells={cells} /> : null}
+      <StructurePicksTable
+        structureId={s.id}
+        rows={picks}
+        asOf={asOf}
+        selected={pickT}
+        onSelect={setPickT}
+      />
+      {s.id === "long_call" ? <LongOptionBoard side="call" /> : null}
+      {s.id === "long_put" ? <LongOptionBoard side="put" /> : null}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full min-w-0">
+        <ChartPane
+          title={pick ? `Payoff · ${pick.ticker}` : "Payoff at expiry"}
+          tip={pick ? `${pick.ticker} legs at morning fill · spot $${pick.spot.toFixed(2)}.` : "Example shape from backtest template."}
+        >
+          <PayoffChart t={tpl} />
+        </ChartPane>
+        <ChartPane
+          title="Cumulative excess"
+          tip="S076 structure history (all names) — same curve for every pick of this structure. Pick selection changes payoff + metrics above."
+        >
+          <EquityChart s={s} />
+        </ChartPane>
+        <ChartPane title="Outcome mix" tip="Distribution of past trade returns for this structure.">
+          <HistChart s={s} />
+        </ChartPane>
+        <ChartPane title="By regime" tip="Mean return when n ≥ 30 in each era / regime bucket.">
+          <WhenWorks s={s} />
+        </ChartPane>
+      </div>
+    </div>
+  );
+}
+
+/** Narrow diverging bar; `scale` = max |value| shown. */
 function DivBar({ v, scale }: { v: number | null | undefined; scale: number }) {
   const ok = fin(v);
   const raw = ok ? Math.abs(v) / (scale || 1) : 0;
@@ -132,7 +279,7 @@ function DivBar({ v, scale }: { v: number | null | undefined; scale: number }) {
   const w = Math.min(raw, 1) * 50;
   const gain = ok && v >= 0;
   return (
-    <div className="relative h-3 flex-1 min-w-0">
+    <div className="relative h-2.5 w-16 shrink-0">
       <div className="absolute inset-y-0 left-1/2 w-px bg-[#71717a]" />
       {ok ? (
         <div
@@ -141,7 +288,7 @@ function DivBar({ v, scale }: { v: number | null | undefined; scale: number }) {
         />
       ) : null}
       {clipped ? (
-        <span className="absolute -top-0.5 text-[10px] leading-3 text-amber-100" style={gain ? { right: 0 } : { left: 0 }}>
+        <span className="absolute -top-0.5 text-[9px] leading-3 text-amber-100" style={gain ? { right: 0 } : { left: 0 }}>
           {gain ? "›" : "‹"}
         </span>
       ) : null}
@@ -286,184 +433,264 @@ export function StructureLab() {
       return r.json();
     },
     staleTime: 30 * 60_000,
-    refetchOnWindowFocus: false,
+    refetchInterval: 60 * 60_000,
+    refetchOnWindowFocus: true,
   });
+  const board = useStructuresBoard();
   const [sel, setSel] = useState<string | null>(null);
-  const [table, setTable] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<TradeTheme>>(() => new Set());
+  const [metaSlot, setMetaSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setMetaSlot(document.getElementById(STRUCTURES_META_SLOT_ID));
+  }, []);
 
-  const sorted = useMemo(() => {
-    const list = [...(data?.structures ?? [])];
-    // rank by return ÷ risk: return-on-capital alone flatters margin structures (strangle capital = 20 % of the stock)
-    const key = (s: S) => primary(s)?.sharpe ?? primary(s)?.mean;
-    return list.sort((a, b) => {
-      const ka = key(a), kb = key(b);
-      if (!fin(ka) && !fin(kb)) return 0;
-      if (!fin(ka)) return 1;
-      if (!fin(kb)) return -1;
-      return kb - ka;
-    });
+  const blendById = useMemo(() => {
+    const list = data?.structures ?? [];
+    const scores = blendScores(list.map((s) => {
+      const p = primary(s);
+      return { sharpe: p?.sharpe, win: p?.win, mean: p?.mean, worst5: p?.worst5 };
+    }));
+    const m = new Map<string, number>();
+    list.forEach((s, i) => m.set(s.id, scores[i] ?? 0));
+    return m;
   }, [data]);
 
+  const byTheme = useMemo(() => {
+    const list = [...(data?.structures ?? [])].sort(
+      (a, b) => (blendById.get(b.id) ?? 0) - (blendById.get(a.id) ?? 0),
+    );
+    const map = new Map<TradeTheme, S[]>();
+    for (const t of THEME_ORDER) map.set(t, []);
+    for (const s of list) {
+      const th = themeOf(s.id);
+      (map.get(th) ?? map.get("hedge")!).push(s);
+    }
+    return THEME_ORDER.map((t) => ({ theme: t, rows: map.get(t) ?? [] })).filter((g) => g.rows.length);
+  }, [data, blendById]);
+
+  const flat = useMemo(() => byTheme.flatMap((g) => g.rows), [byTheme]);
+
   const scale = useMemo(() => {
-    const abs = sorted.map((s) => barValue(s)).filter(fin).map(Math.abs).sort((a, b) => a - b);
+    const abs = flat.map((s) => barValue(s)).filter(fin).map(Math.abs).sort((a, b) => a - b);
     if (!abs.length) return 0.01;
     return Math.max(abs[Math.min(abs.length - 1, Math.floor(abs.length * 0.95))], 0.001);
-  }, [sorted]);
+  }, [flat]);
 
-  if (isLoading) return <p className="text-xs text-amber-100 mt-3">Loading…</p>;
-  if (!data?.structures?.length) return <p className="text-xs text-amber-100/50 mt-3">Backtest not run yet (S076).</p>;
+  const pickCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of board.data?.structures ?? []) m.set(s.id, s.rows.length);
+    return m;
+  }, [board.data]);
 
-  const cur = sorted.find((s) => s.id === sel) ?? sorted[0];
-  const sum = primary(cur);
-  const allEntries = !cur.as_shown && !!cur.all;
+  if (isLoading) return <p className="text-xs text-amber-100 mt-1">Loading…</p>;
+  if (!data?.structures?.length) return <p className="text-xs text-amber-100 mt-1">Backtest not run yet (S076).</p>;
+
+  const totalPicks = [...pickCount.values()].reduce((a, b) => a + b, 0);
+  const toggle = (id: string) => setSel((prev) => (prev === id ? null : id));
+  const toggleTheme = (t: TradeTheme) => setCollapsed((prev) => {
+    const n = new Set(prev);
+    if (n.has(t)) n.delete(t);
+    else n.add(t);
+    return n;
+  });
+
+  const boardAsOf = board.data?.asOf ?? data.asOf;
+  const stanceAsOf = board.data?.stanceAsOf ?? boardAsOf;
+  const desk = deskAction(board.data?.stance, stanceAsOf);
+  // Stale if board date is before the last weekday (Fri when today is Sat/Sun/Mon-before-open).
+  const stale = (() => {
+    if (!boardAsOf) return true;
+    const d = new Date(`${String(boardAsOf).slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return true;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let lastWd = new Date(today);
+    while (lastWd.getDay() === 0 || lastWd.getDay() === 6) lastWd.setDate(lastWd.getDate() - 1);
+    // On weekend, last weekday is fine if board = that Friday; on a trading day, expect same calendar day.
+    const expect = today.getDay() === 0 || today.getDay() === 6 ? lastWd : today;
+    return d < new Date(expect.getFullYear(), expect.getMonth(), expect.getDate());
+  })();
+
+  const metaBar = (
+    <>
+      <span className="text-[#d4af37] font-bold tabular-nums">{formatMdYy(boardAsOf)}</span>
+      {stale ? (
+        <DataTip tip="Picks priced from the latest skew survey (daily.py → skew_survey.py → structures.py). Behind the last trading day means the survey job missed — re-run skew_survey + structures, or wait for Mon morning.">
+          <span className="text-yellow-300 font-semibold">stale</span>
+        </DataTip>
+      ) : null}
+      <span className="text-white font-semibold tabular-nums">{totalPicks} picks</span>
+      <span className="text-amber-100 tabular-nums">{data.structures.length} structures</span>
+      <DataTip tip={`${desk.tip} Desk as-of ${formatMdYy(stanceAsOf)}.`}>
+        <span className="text-white cursor-help max-w-[min(520px,42vw)] truncate">
+          <span className="text-[#d4af37] font-semibold mr-1">Do:</span>
+          {desk.line}
+        </span>
+      </DataTip>
+    </>
+  );
 
   return (
-    <div className="mt-4 space-y-2 text-xs">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-0.5">
-        <span className="text-[#d4af37] font-bold text-sm">
-          <DataTip tip={data.structures[0]?.method || null}>Backtest lab</DataTip>
-        </span>
-        <span className="text-amber-100/50">
-          {data.structures.length} structures · 2021 → · as of {formatMdYy(data.asOf)}
-        </span>
-      </div>
+    <div className="space-y-1.5 text-xs">
+      {metaSlot ? createPortal(metaBar, metaSlot) : (
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-0.5">{metaBar}</div>
+      )}
 
-      {/* Overview */}
-      <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-2">
-        <div className="flex items-baseline justify-between mb-1 gap-2">
-          <span className="text-[10px] text-amber-100/50">
-            <DataTip tip="Average trade result ÷ how much results swing (standard deviation). Same yardstick for every structure: return on capital alone flatters margin trades (a strangle's capital is 20 % of the stock). Cash-secured put is the benchmark.">
-              Ranked by return ÷ risk (higher = steadier money)
-            </DataTip>
-          </span>
-          <button
-            type="button" onClick={() => setTable((t) => !t)}
-            className="text-[10px] text-amber-100/50 hover:text-[#d4af37] underline decoration-dotted"
-          >
-            {table ? "bars" : "table"}
-          </button>
-        </div>
-        {table ? (
-          <div className={GRID_WRAP}>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className={GRID_HEADER}>
-                  {["Name", "Verdict", "n", "Mean", "Win", "Median", "Worst 5 %", "t", "2021–23", "2024 →"].map((h, i) => (
-                    <th key={h} className={cn(GRID_TH, i < 2 ? "text-left" : "text-right")}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((s, i) => {
-                  const p = primary(s);
-                  const eras = ERA_KEYS.map((k) => s.eras?.[k]);
-                  return (
-                    <tr key={s.id} className={cn(gridRow(i), "cursor-pointer")} onClick={() => setSel(s.id)}>
-                      <td className={cn(GRID_TD, "text-white", s.id === cur.id && "border-l-2 border-[#d4af37]")}>{s.name}</td>
-                      <td className={GRID_TD}><Chip s={s} /></td>
-                      <td className={cn(GRID_TD, "text-right font-mono text-amber-50")}>{p?.n ?? "—"}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono font-semibold", tone(p?.mean))}>{spct(p?.mean)}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono text-white")}>{upct(p?.win)}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono", tone(p?.median))}>{spct(p?.median)}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono text-red-300")}>{spct(p?.worst5)}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono text-amber-50")}>{fin(p?.t) ? p.t.toFixed(1) : "—"}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono", tone(eras[0]?.mean))}>{spct(eras[0]?.mean)}</td>
-                      <td className={cn(GRID_TD, "text-right font-mono", tone(eras[1]?.mean))}>{spct(eras[1]?.mean)}</td>
+      <div className={cn(GRID_WRAP, "w-full min-w-0")}>
+          <table className="w-full min-w-0 border-collapse">
+            <thead>
+              <tr className={GRID_HEADER}>
+                <th className={cn(GRID_TH, "text-left w-4")} aria-label="expand" />
+                <th className={cn(GRID_TH, "text-left")}>
+                  <DataTip tip="Option structure by trade theme. Hover a name for a plain-English shape.">
+                    Structure
+                  </DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-left")}>
+                  <DataTip tip="S076 historical verdict only (2021→ after fills). NOT a forward forecast.">
+                    Verdict
+                  </DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-right")}>
+                  <DataTip tip="Sort key: blend of four backtest ratios (within this table) — ret÷risk 40%, win rate 25%, avg return 20%, milder bad-tail 15%. Higher = better overall historically. Not a forecast.">
+                    Score
+                  </DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-right")}>
+                  <DataTip tip="One ratio: mean ÷ sd of past trades (steadiness). Used inside Score at 40%. Green ≥ 0.10.">
+                    Ret ÷ risk
+                  </DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-right hidden sm:table-cell")}>
+                  <DataTip tip="% of past trades that made any money. Inside Score at 25%.">Win</DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-right hidden md:table-cell")}>
+                  <DataTip tip="1-in-20 bad case ÷ capital. −100% = wiped capital in that case. Milder tails raise Score (15%).">
+                    Worst 5 %
+                  </DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-right hidden lg:table-cell")}>
+                  <DataTip tip="Average past trade ÷ capital. Inside Score at 20%.">Avg</DataTip>
+                </th>
+                <th className={cn(GRID_TH, "text-right")}>
+                  <DataTip tip="Today's morning picks for this structure (structures.py). Click a row in the expand to drive payoff + metrics.">
+                    Today
+                  </DataTip>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {byTheme.map(({ theme, rows }) => {
+                const meta = THEME_META[theme];
+                const isCollapsed = collapsed.has(theme);
+                return (
+                  <Fragment key={theme}>
+                    <tr
+                      className={cn(meta.headerCls, "cursor-pointer")}
+                      onClick={() => toggleTheme(theme)}
+                    >
+                      <td colSpan={9} className={cn(GRID_TD, "!py-0.5 leading-none")}>
+                        <span className="inline-flex items-center gap-1">
+                          {isCollapsed
+                            ? <ChevronRight className="w-3 h-3 text-white" />
+                            : <ChevronDown className="w-3 h-3 text-white" />}
+                          <DataTip tip={meta.tip}>
+                            <span className="text-white font-bold uppercase tracking-wide text-[10px]">
+                              {meta.label}
+                            </span>
+                          </DataTip>
+                          <span className="text-white/90 tabular-nums text-[10px] font-semibold">{rows.length}</span>
+                        </span>
+                      </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="space-y-0.5">
-            {sorted.map((s) => {
-              const p = primary(s);
-              return (
-                <button
-                  key={s.id} type="button" onClick={() => setSel(s.id)}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-1.5 py-0.5 text-left border-l-2",
-                    s.id === cur.id ? "border-[#d4af37] bg-[#d4af37]/5" : "border-transparent hover:bg-white/5",
-                  )}
-                >
-                  <span className="w-[30%] sm:w-[22%] truncate font-semibold text-white">{s.name}</span>
-                  <span className="hidden sm:inline-block w-[92px] shrink-0"><Chip s={s} /></span>
-                  <DivBar v={barValue(s)} scale={scale} />
-                  <span className={cn("w-14 text-right font-mono tabular-nums font-semibold", tone(barValue(s)))}>{fin(barValue(s)) ? (barValue(s) as number).toFixed(2) : "—"}</span>
-                  <span className="hidden md:inline w-16 text-right font-mono text-[10px] text-amber-100/50">win {upct(p?.win)}</span>
-                  <span className="hidden md:inline w-24 text-right font-mono text-[10px] text-amber-100/50">worst 5 % {spct(p?.worst5, 0)}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                    {!isCollapsed && rows.map((s, i) => {
+                      const p = primary(s);
+                      const open = sel === s.id;
+                      const nToday = pickCount.get(s.id) ?? 0;
+                      const bv = barValue(s);
+                      const blend = blendById.get(s.id) ?? 0;
+                      const picks = board.data?.structures.find((b) => b.id === s.id)?.rows ?? [];
+                      const sAll = !s.as_shown && !!s.all;
+                      const simple = simpleOf(s.id, s.description);
+                      return (
+                        <Fragment key={s.id}>
+                          <tr
+                            className={cn(gridRow(i), "cursor-pointer", open && "bg-[#d4af37]/10")}
+                            onClick={() => toggle(s.id)}
+                          >
+                            <td className={cn(GRID_TD, "w-4 text-[#d4af37]")}>
+                              {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            </td>
+                            <td className={cn(GRID_TD, "text-white font-semibold")}>
+                              <DataTip tip={simple}>{s.name}</DataTip>
+                            </td>
+                            <td className={GRID_TD}><Chip s={s} /></td>
+                            <td className={cn(
+                              GRID_TD, "text-right font-mono font-semibold",
+                              blend >= 0.65 ? "text-emerald-300" : blend >= 0.4 ? "text-yellow-300" : "text-red-300",
+                            )}>
+                              <DataTip tip="Blend rank 0–1 across structures (ret÷risk 40 · win 25 · avg 20 · tail 15). Table sorted by this.">
+                                {blend.toFixed(2)}
+                              </DataTip>
+                            </td>
+                            <td className={cn(GRID_TD, "text-right")}>
+                              <DataTip tip="Return ÷ risk (mean ÷ sd). One input to Score.">
+                                <span className="inline-flex items-center justify-end gap-1.5">
+                                  <DivBar v={bv} scale={scale} />
+                                  <span className={cn("w-10 font-mono tabular-nums font-semibold", sharpeTone(bv))}>
+                                    {fin(bv) ? bv.toFixed(2) : "—"}
+                                  </span>
+                                </span>
+                              </DataTip>
+                            </td>
+                            <td className={cn(GRID_TD, "text-right font-mono hidden sm:table-cell", winTone(p?.win))}>
+                              <DataTip tip="Share of past trades that made money (any amount).">{upct(p?.win)}</DataTip>
+                            </td>
+                            <td className={cn(GRID_TD, "text-right font-mono hidden md:table-cell", worstTone(p?.worst5))}>
+                              <DataTip tip={
+                                !fin(p?.worst5) ? null
+                                  : p!.worst5 <= -0.99
+                                    ? "−100 % = in the worst 5 % of past trades, the loss wiped ~all of the capital tied up (or more on undefined risk). Common on long options and naked short vol."
+                                    : `1 in 20 past trades lost ${spct(p?.worst5, 0)} of capital or more.`
+                              }>
+                                {spct(p?.worst5, 0)}
+                              </DataTip>
+                            </td>
+                            <td className={cn(GRID_TD, "text-right font-mono hidden lg:table-cell", tone(p?.mean))}>
+                              <DataTip tip="Average past trade ÷ capital after fills.">{spct(p?.mean)}</DataTip>
+                            </td>
+                            <td className={cn(
+                              GRID_TD, "text-right font-mono tabular-nums",
+                              nToday ? "text-white font-bold" : "text-amber-100",
+                            )}>
+                              {nToday || "—"}
+                            </td>
+                          </tr>
+                          {open ? (
+                            <tr className="bg-zinc-950 border-y border-[#d4af37]/30">
+                              <td
+                                colSpan={9}
+                                className="p-2 space-y-2 w-full min-w-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExpandDetail
+                                  s={s}
+                                  picks={picks}
+                                  asOf={board.data?.asOf ?? null}
+                                  sAll={sAll}
+                                />
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
       </div>
-
-      {/* Detail */}
-      <div className="rounded border border-[#d4af37]/20 bg-zinc-950 p-2 space-y-2">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-white font-semibold text-sm">{cur.name}</span>
-          <Chip s={cur} />
-          <span className="text-amber-100/50 truncate max-w-full">{cur.description}</span>
-        </div>
-        {cur.why ? <p className="text-[11px] text-amber-100/70 leading-snug">{cur.why}</p> : null}
-        {sum ? (
-          <>
-            <div className="flex flex-wrap gap-1.5 items-stretch">
-              <Tile label="Avg / trade" tip="Average past trade result as % of the capital it tied up, after realistic fills and minus what the cash would have earned in T-bills. Covered call / collar: compared with just holding the shares.">
-                <span className={tone(sum.mean)}>{spct(sum.mean)}</span>
-              </Tile>
-              <Tile label="Per $100 stock" tip="Average result per trade per $100 of the stock's price — comparable across structures.">
-                <span className={tone(sum.per_stock)}>{per100(sum.per_stock)}</span>
-              </Tile>
-              <Tile label="Return ÷ risk" tip="Mean ÷ standard deviation of trade results. Higher = steadier. CSP is the benchmark.">
-                {fin(sum.sharpe) ? sum.sharpe.toFixed(2) : "—"}
-              </Tile>
-              <Tile label="Win rate" tip="Share of past trades that made money (any amount).">{upct(sum.win)}</Tile>
-              <Tile label="Median" tip="The middle trade: half did better, half worse. Far below the average = a few big wins carry it."><span className={tone(sum.median)}>{spct(sum.median)}</span></Tile>
-              <Tile label="Worst 5 %" tip="The bad-case trade: 1 in 20 past trades lost this much of the capital or more."><span className="text-red-300">{spct(sum.worst5)}</span></Tile>
-              <Tile label="Trades" tip="Past trades in the backtest (2021 →, every Monday, ~260 names), only those the board would have shown.">{sum.n}</Tile>
-              <Tile label="Confidence" tip="t-stat of the mean. 2 or more ≈ unlikely to be luck.">t {fin(sum.t) ? sum.t.toFixed(1) : "—"}</Tile>
-              <Tile label="Avg hold" tip="Days from entry to expiry (held to expiry, no early exit).">{fin(sum.days) ? `${Math.round(sum.days)}d` : "—"}</Tile>
-              {allEntries ? <span className="self-end text-[10px] text-amber-100/50">(all entries)</span> : null}
-            </div>
-            {sum.scen ? (
-              <div className="text-[10px] text-amber-100/50">
-                <DataTip tip="Same trades re-priced with far-OTM option prices ±10 %; a verdict that flips is pricing-sensitive.">
-                  Pricing check
-                </DataTip>
-                : cheap {spct(sum.scen.cheap)} · base {spct(sum.scen.base)} · rich {spct(sum.scen.rich)}
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-[11px] text-amber-100/50">No trades in the backtest for this structure.</p>
-        )}
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <Card
-          title="Payoff at expiry"
-          caption={cur.template ? `Example: $100 stock, IV 50 %, ${cur.template.dte} days — the shape, not today's pick.` : undefined}
-        >
-          <PayoffChart t={cur.template} />
-        </Card>
-        <Card title="Cumulative excess return" caption="Sum of monthly average trade results (equal weight).">
-          <EquityChart s={cur} />
-        </Card>
-        <Card title="Outcome distribution">
-          <HistChart s={cur} />
-        </Card>
-        <Card title="When it works" caption="n < 30 → hidden">
-          <WhenWorks s={cur} />
-        </Card>
-      </div>
-
-      <p className="text-[10px] text-amber-100/50 px-0.5">
-        Backtest S076 · held to expiry · fills bid + 23 % of spread · earnings weeks excluded · not advice
-      </p>
     </div>
   );
 }

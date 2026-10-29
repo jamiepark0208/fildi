@@ -1,20 +1,39 @@
-// "Memo header" of StockBreakdown: our fund model chips + trade overlay + bull/bear cases.
+// "Memo header" of StockBreakdown: total score + trade chips + bull/bear cases.
 import { BullBearCases } from "../market-sentiment-section";
-import { ScoreBadge } from "../breakdown-metrics-table";
 import { PillarChip, type BreakdownData } from "./stock-breakdown-parts";
 import { freshnessBand } from "@/lib/provenance-display";
 import { formatMdYy } from "@/lib/format";
 import { useBreakdownMeta } from "./breakdown-meta-context";
 import { DataTip } from "../data-tip";
+import { cn } from "@/lib/utils";
 
-function shortAge(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (!Number.isFinite(days) || days < 0) return null;
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 30) return `${days}d ago`;
-  return formatMdYy(iso);
+/** Oval trade chip — label over value (same size/shape as PillarChip). */
+function TradeChip({
+  tip,
+  className,
+  label,
+  value,
+}: {
+  tip?: string;
+  className: string;
+  label: string;
+  value: string;
+}) {
+  const chip = (
+    <span
+      className={cn(
+        "inline-flex flex-col items-center justify-center px-2 py-0.5 rounded-full border shrink-0",
+        "text-[8px] font-semibold uppercase tracking-wide leading-none",
+        className,
+      )}
+    >
+      <span className="font-sans">{label}</span>
+      <span className="font-mono tabular-nums text-[10px] font-bold leading-none mt-0.5 normal-case tracking-normal">
+        {value}
+      </span>
+    </span>
+  );
+  return tip ? <DataTip tip={tip}>{chip}</DataTip> : chip;
 }
 
 export function MemoHeader({ data }: { data: BreakdownData }) {
@@ -27,9 +46,9 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
     catalysts.some((l) => !/^(Earnings|Next earnings)/i.test(l)) ||
     (data.bullBullets?.length ?? 0) > 0 ||
     (data.bearBullets?.length ?? 0) > 0;
-  const scoredLabel = shortAge(se?.scoredAt);
-  const inputsLabel = shortAge(se?.inputsAsOf);
   const inputsStale = freshnessBand(se?.inputsAsOf) === "stale";
+  const stampIso = se?.scoredAt ?? se?.inputsAsOf ?? null;
+  const stamp = stampIso ? formatMdYy(stampIso) : null;
   const etf = data.etfProfile;
   if (etf) {
     const aum = etf.totalAssets != null
@@ -39,142 +58,91 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
         : `$${etf.totalAssets.toFixed(0)}`
       : "—";
     return (
-      <div id="bd-memo-header" className="mt-0.5 space-y-1.5">
-        <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-lg px-2.5 py-2 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]">ETF</span>
-            {etf.family ? <span className="text-[11px] text-amber-100/80">{etf.family}</span> : null}
-            {etf.category ? (
-              <span className="text-[10px] font-semibold italic px-1.5 py-0.5 rounded border border-violet-400/60 text-violet-200 bg-violet-500/20">
-                {etf.category}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-mono tabular-nums text-white">
-            <span>Yield <b className="text-[#d4af37]">{etf.yield != null ? `${(etf.yield * 100).toFixed(2)}%` : "—"}</b></span>
-            <span>AUM <b>{aum}</b></span>
-            <span>YTD <b className={etf.ytdReturn != null && etf.ytdReturn >= 0 ? "text-green-400" : "text-red-400"}>
-              {etf.ytdReturn != null ? `${(etf.ytdReturn * 100).toFixed(1)}%` : "—"}
-            </b></span>
-            <span>P/E <b>{etf.trailingPe != null ? etf.trailingPe.toFixed(1) : "—"}</b></span>
-          </div>
-          {etf.holdings.length > 0 ? (
-            <p className="text-[10px] text-amber-200/50 truncate">
-              Top: {etf.holdings.slice(0, 8).map((h) => h.symbol).join(" · ")}
-            </p>
+      <div id="bd-memo-header" className="mt-0.5 space-y-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]">ETF</span>
+          {etf.family ? <span className="text-[11px] text-white">{etf.family}</span> : null}
+          {etf.category ? (
+            <span className="text-[10px] font-bold italic px-2 py-0.5 rounded-full border border-violet-500 bg-violet-500 text-white">
+              {etf.category}
+            </span>
           ) : null}
-          <p className="text-[10px] text-amber-100/70 italic">
-            Stock fund model / peer scores N/A for ETFs — price chart + yield/AUM above.
-          </p>
+          <span className="text-[11px] font-mono tabular-nums text-white">
+            Yield <b className="text-[#d4af37]">{etf.yield != null ? `${(etf.yield * 100).toFixed(2)}%` : "—"}</b>
+            {" · "}AUM <b>{aum}</b>
+            {" · "}YTD{" "}
+            <b className={etf.ytdReturn != null && etf.ytdReturn >= 0 ? "text-green-400" : "text-red-400"}>
+              {etf.ytdReturn != null ? `${(etf.ytdReturn * 100).toFixed(1)}%` : "—"}
+            </b>
+          </span>
         </div>
       </div>
     );
   }
+  const total = (se?.modelScore ?? se?.total) != null ? Math.round(se?.modelScore ?? se!.total!) : "—";
   return (
-    <div id="bd-memo-header" className="mt-0.5 space-y-1.5">
-      {/* Our peer-relative fund model — not the Street (WRDS/LSEG) panel below */}
-      <div className="bg-zinc-950 border border-[#d4af37]/25 rounded-lg px-2.5 py-2 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <DataTip tip="Peer-relative fundamentals — separate from Street (WRDS/LSEG) below">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4af37]">
-              Our Fund
+    <div id="bd-memo-header" className="mt-0.5 space-y-1">
+      {/* No box border — oval pills like Industrials tags; TOTAL larger, rest uniform. */}
+      <div className="flex flex-nowrap items-center gap-x-1 min-w-0 overflow-x-auto py-0.5">
+        <DataTip tip="Peer-relative fund score (not Street)">
+          <span className="inline-flex flex-col items-center justify-center px-2.5 py-1 rounded-full border border-[#d4af37] bg-[#d4af37] text-black shrink-0 leading-none">
+            <span className="text-[9px] font-bold uppercase tracking-wide font-sans">Total</span>
+            <span className="font-mono tabular-nums text-[13px] font-bold leading-none mt-0.5">{total}</span>
+          </span>
+        </DataTip>
+        {se?.activeAdjPoints ? (
+          <DataTip tip={meta?.tipFundPillar("Desk")}>
+            <span className="inline-flex flex-col items-center justify-center px-2 py-0.5 rounded-full border border-amber-400/60 text-amber-300 shrink-0 leading-none">
+              <span className="text-[8px] font-semibold uppercase tracking-wide">Desk</span>
+              <span className="font-mono tabular-nums text-[10px] font-bold leading-none mt-0.5">
+                {se.deskScore != null ? se.deskScore.toFixed(0) : "—"}
+                <span className="ml-0.5">({se.activeAdjPoints >= 0 ? "+" : ""}{se.activeAdjPoints})</span>
+              </span>
             </span>
           </DataTip>
-          <span className="text-base leading-none">
-            <ScoreBadge
-              score={se?.modelScore ?? se?.total}
-              max={100}
-              tip={meta?.tipFundPillar("Tot")}
-            />
-          </span>
-          {se?.activeAdjPoints ? (
-            <DataTip tip={meta?.tipFundPillar("Desk")}>
-              <span className="text-[11px] font-mono text-amber-200">
-                <span className="font-semibold">Desk</span>{" "}
-                <span className="font-bold">{se.deskScore != null ? se.deskScore.toFixed(0) : "—"}</span>
-                <span className="text-amber-100/80 ml-1 italic">
-                  (adj {se.activeAdjPoints >= 0 ? "+" : ""}{se.activeAdjPoints})
-                </span>
-              </span>
-            </DataTip>
-          ) : null}
-          <PillarChip label="V" score={se?.value} title={meta?.tipFundPillar("V") ?? "Value pillar"} />
-          <PillarChip label="G" score={se?.growth} title={meta?.tipFundPillar("G") ?? "Growth pillar"} />
-          <PillarChip label="Q" score={se?.quality} title={meta?.tipFundPillar("Q") ?? "Quality pillar"} />
-          <PillarChip label="S" score={se?.safety} title={meta?.tipFundPillar("S") ?? "Safety pillar"} />
-          {se?.style && (
-            <DataTip tip="Style bucket from fund scorer (computed)">
-              <span className="text-[10px] font-semibold italic px-1.5 py-0.5 rounded border border-violet-400/60 text-violet-200 bg-violet-500/20">
-                {se.style}
-              </span>
-            </DataTip>
-          )}
-          {se?.confidence && (
-            <DataTip tip="Fund-score confidence from input coverage (computed)">
-              <span className="text-[10px] font-semibold text-sky-200 underline decoration-sky-500/50 underline-offset-2">
-                {se.confidence} conf
-              </span>
-            </DataTip>
-          )}
-          {inputsStale && (
-            <DataTip tip="Fundamentals inputs older than 30d — score may lag; not excluded from rankings yet (needs Jamie)">
-              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-400/60 text-orange-200 bg-orange-500/20">
-                STALE inputs
-              </span>
-            </DataTip>
-          )}
-        </div>
-        {(scoredLabel || inputsLabel) && (
-          <DataTip
-            tip={[
-              se?.scoredAt ? `fund_score_computed_at ${se.scoredAt}` : null,
-              se?.inputsAsOf ? `fundamentals_last_fetched ${se.inputsAsOf}` : null,
-            ].filter(Boolean).join(" · ")}
-          >
-            <p className="text-[9px] text-amber-100/50 font-mono">
-              {scoredLabel ? <>computed {scoredLabel}</> : null}
-              {scoredLabel && inputsLabel ? " · " : null}
-              {inputsLabel ? <>inputs as of {inputsLabel}</> : null}
-            </p>
+        ) : null}
+        <PillarChip label="Value" score={se?.value} title={meta?.tipFundPillar("V") ?? "Value pillar"} />
+        <PillarChip label="Growth" score={se?.growth} title={meta?.tipFundPillar("G") ?? "Growth pillar"} />
+        <PillarChip label="Quality" score={se?.quality} title={meta?.tipFundPillar("Q") ?? "Quality pillar"} />
+        <PillarChip label="Safety" score={se?.safety} title={meta?.tipFundPillar("S") ?? "Safety pillar"} />
+        {inputsStale && (
+          <DataTip tip="Inputs >30d old">
+            <span className="text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-orange-500 bg-orange-500 text-black shrink-0">
+              STALE
+            </span>
           </DataTip>
         )}
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-[#d4af37]/15 pt-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-sky-300">Trade</span>
-          {tr?.techScore != null && (
-            <PillarChip label="Tech" score={tr.techScore} title={meta?.tipTrade("tech") ?? "Technical score"} />
-          )}
-          {tr?.ivVsRealized != null && (
-            <DataTip tip={meta?.tipTrade("ivRv")}>
-              <span className="text-[11px] font-mono font-bold tabular-nums text-white px-1.5 py-0.5 rounded border border-sky-400/50 bg-sky-500/15">
-                IV/RV {tr.ivVsRealized.toFixed(2)}
-              </span>
-            </DataTip>
-          )}
-          {tr?.atmPutIv != null && (
-            <DataTip tip={meta?.tipTrade("iv")}>
-              <span className="text-[11px] font-mono font-bold tabular-nums text-white px-1.5 py-0.5 rounded border border-cyan-400/50 bg-cyan-500/15">
-                IV {tr.atmPutIv.toFixed(0)}%
-              </span>
-            </DataTip>
-          )}
-          {(tr?.earningsDaysOut != null || earns) && (
-            <DataTip tip={meta?.tipTrade("er") ?? "Next earnings"}>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border bg-yellow-500/25 text-yellow-200 border-yellow-400/60">
-                {tr?.earningsDaysOut != null ? `ER ${tr.earningsDaysOut}d` : earns}
-              </span>
-            </DataTip>
-          )}
-          {tr?.streetEventRisk && (
-            <DataTip tip="Street event risk — large |breadth| or |SUE| (WRDS/IBES derived)">
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-400/70 text-red-200 bg-red-500/20">
-                Event risk
-              </span>
-            </DataTip>
-          )}
-          {!tr?.techScore && tr?.ivVsRealized == null && tr?.atmPutIv == null && !tr?.earningsDaysOut && !earns && !tr?.streetEventRisk && (
-            <span className="text-[10px] text-amber-100/70 italic">No trade overlay yet</span>
-          )}
-        </div>
+
+        {tr?.techScore != null && (
+          <PillarChip label="Tech" score={tr.techScore} title="Technical score" />
+        )}
+        {tr?.ivVsRealized != null && (
+          <TradeChip tip="ATM put IV ÷ 20d realized vol" className="border-sky-500 bg-sky-500 text-black"
+            label="IV/RV" value={tr.ivVsRealized.toFixed(2)} />
+        )}
+        {tr?.atmPutIv != null && (
+          <TradeChip tip="ATM put implied vol" className="border-cyan-400 bg-cyan-400 text-black"
+            label="IV" value={`${tr.atmPutIv.toFixed(0)}%`} />
+        )}
+        {(tr?.earningsDaysOut != null || earns) && (
+          <TradeChip tip="Days to next earnings" className="border-amber-400 bg-amber-400 text-black"
+            label="ER" value={tr?.earningsDaysOut != null ? `${tr.earningsDaysOut}d` : String(earns)} />
+        )}
+        {tr?.streetEventRisk && (
+          <TradeChip tip="Street event risk (breadth / SUE)" className="border-rose-500 bg-rose-500 text-white"
+            label="Event" value="risk" />
+        )}
+        {!tr?.techScore && tr?.ivVsRealized == null && tr?.atmPutIv == null && !tr?.earningsDaysOut && !earns && !tr?.streetEventRisk && (
+          <span className="text-[10px] text-white italic shrink-0">No trade overlay</span>
+        )}
+
+        {stamp && (
+          <DataTip tip={["Score as-of", se?.style ? `· ${se.style}` : null, se?.confidence ? `· ${se.confidence} conf` : null].filter(Boolean).join(" ")}>
+            <span className="ml-auto text-[12px] font-mono font-semibold tabular-nums text-white shrink-0 cursor-help">
+              {stamp}
+            </span>
+          </DataTip>
+        )}
       </div>
       {hasCases && (
         <div id="bd-cases">
@@ -183,6 +151,7 @@ export function MemoHeader({ data }: { data: BreakdownData }) {
             bearBullets={data.bearBullets ?? []}
             catalysts={catalysts}
             eventBulletsGeneratedAt={data.eventBulletsGeneratedAt}
+            metricsAsOf={se?.inputsAsOf ?? se?.scoredAt ?? null}
           />
         </div>
       )}
