@@ -213,7 +213,7 @@ export function OutsideValuesBox({
 
   const disagree =
     streetMedian != null && streetMedian > 0 && cashMedian != null && cashMedian > 0
-      && streetMedian / cashMedian > 2;
+      && Math.max(streetMedian / cashMedian, cashMedian / streetMedian) > 2;
 
   const hasDcfBand = dcfLab?.valued && dcfLab.p10 != null && dcfLab.p90 != null;
   const hasMs = !!(tc?.morningstar?.bull || tc?.morningstar?.bear);
