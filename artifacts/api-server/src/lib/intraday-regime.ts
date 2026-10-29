@@ -306,10 +306,9 @@ function explainCheckpoint(args: {
 }
 
 function weekRiskLine(w: WeekPutRisk): string {
-  const flags = [w.rv20 > w.vix ? `RV20 ${w.rv20.toFixed(1)} > VIX ${w.vix.toFixed(1)}` : null,
-    w.atrPct > 0.8 ? `ATR in top ${Math.round((1 - w.atrPct) * 100)}% of the year` : null,
+  const flags = [w.atrPct > 0.8 ? `ATR in top ${Math.round((1 - w.atrPct) * 100)}% of the year` : null,
     w.er20 < 0.4 ? `choppy (ER ${w.er20.toFixed(2)})` : null].filter(Boolean);
-  return `1–2 wk put risk: ${w.level} (${w.flags}/3${flags.length ? `: ${flags.join(", ")}` : ""}) — ${Math.round(w.pBreach5d * 100)}% 5-day breach odds for a VIX-sized SPY put (S130, 1993–2026)`;
+  return `1–2 wk put risk: ${w.level} (${w.flags}/2${flags.length ? `: ${flags.join(", ")}` : ""}) — ${Math.round(w.pBreach5d * 100)}% 5-day breach odds for a VIX-sized SPY put (S130 v2, 1993–2026; RV20 ${w.rv20.toFixed(1)} vs VIX ${w.vix.toFixed(1)} is context only)`;
 }
 
 function configKey(dateKey: string): string {

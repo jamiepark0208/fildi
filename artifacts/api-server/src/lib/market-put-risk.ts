@@ -2,18 +2,19 @@
 //
 // S130 tested the 8 TradingView regime detectors + classic regime signals on 33 years of SPY/QQQ/IWM/DIA daily
 // bars. None calls 5/10-day direction out of sample (AUC 0.50–0.52). What does repeat in both halves is
-// how often a VIX-sized put (≈ 0.16Δ) gets breached. Three flags, each passing on its own:
-//   realised vol (20 d) > VIX   — no variance premium: strikes sized by implied vol are too close (t 5.7 / 3.5)
-//   ATR percentile (1 y) > 80   — volatility clusters (forexobroker "volatile" regime)
-//   efficiency ratio (20 d) < 0.4 — choppy tape (KK / StrixEDGE); ER > 0.4 cut breaches 12.8 → 7.4 %
-// 5-day breach of a VIX-sized put by flag count (1993–2009 / 2010–26): 0 → 6.1 / 6.5 %, 1 → 10 / 10 %,
-// 2 → 18 / 13 %, 3 → 20 / 16 %. Inputs use closes through the prior session only.
+// how often a put sized by the ETF's own implied vol (≈ 0.16Δ) gets breached. Two flags, each passing on its own
+// (v2 10-28: puts sized by each ETF's own VIX/VXN/VXD — v1 sized every ETF by VIX, which made 'RV20 > VIX' look
+// strong when it mostly flagged QQQ/IWM being more volatile than SPX; with own IV it fails, S137, so it's dropped):
+//   ATR percentile (1 y) > 80     — volatility clusters (forexobroker "volatile" regime), t 2.0 / 2.4
+//   efficiency ratio (20 d) < 0.4 — choppy tape (KK / StrixEDGE); ER > 0.4 → 5.4 vs 10.3 % breach, t −3.7 / −3.3
+// 5-day breach by flag count (1993–2009 / 2010–26): 0 → 5.2 / 5.2 %, 1 → 9.8 / 9.1 %, 2 → 14.6 / 12.3 %
+// (SPY alone 5.0 / 8.6 / 11.6 %). Inputs use closes through the prior session only.
 import { and, desc, eq, lt } from "drizzle-orm";
 import { db, pricesHistorical } from "@workspace/db";
 import { yahooFinance } from "./yahoo-client.js";
 import { logger } from "./logger.js";
 
-export type WeekRiskLevel = "low" | "normal" | "elevated" | "high";
+export type WeekRiskLevel = "low" | "normal" | "high";
 
 export interface WeekPutRisk {
   flags: number;
@@ -27,8 +28,8 @@ export interface WeekPutRisk {
   asOf: string;
 }
 
-const LEVELS: WeekRiskLevel[] = ["low", "normal", "elevated", "high"];
-const P_BREACH = [0.064, 0.10, 0.152, 0.175];
+const LEVELS: WeekRiskLevel[] = ["low", "normal", "high"];
+const P_BREACH = [0.052, 0.094, 0.133];
 const VENDOR_DEADLINE_MS = 8_000;
 
 const memo = new Map<string, WeekPutRisk | null>();
@@ -57,7 +58,8 @@ export function computeWeekPutRisk(bars: { high: number; low: number; close: num
   const lr = c.slice(-21).map((x, i, a) => i === 0 ? 0 : Math.log(x / a[i - 1])).slice(1);
   const mean = lr.reduce((s, x) => s + x, 0) / lr.length;
   const rv20 = Math.sqrt(lr.reduce((s, x) => s + (x - mean) ** 2, 0) / (lr.length - 1)) * Math.sqrt(252) * 100;
-  const flags = Number(rv20 > vix) + Number(atrPct > 0.8) + Number(er20 < 0.4);
+  // rv20 vs VIX is shown as context only (failed as a flag with each ETF's own implied vol, S137).
+  const flags = Number(atrPct > 0.8) + Number(er20 < 0.4);
   return { flags, level: LEVELS[flags], pBreach5d: P_BREACH[flags], vix, rv20, atrPct, er20, asOf: bars[n].date };
 }
 

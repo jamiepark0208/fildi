@@ -19,7 +19,7 @@ export interface RegimeRisk {
 /** S130 1–2-week market put risk (daily, prior closes). */
 export interface WeekRisk {
   flags: number;
-  level: "low" | "normal" | "elevated" | "high";
+  level: "low" | "normal" | "high";
   pBreach5d: number;
   vix: number;
   rv20: number;
@@ -27,7 +27,7 @@ export interface WeekRisk {
   er20: number;
 }
 
-const WEEK_TEXT: Record<WeekRisk["level"], string> = { low: "text-sky-400", normal: "text-zinc-200", elevated: "text-amber-400", high: "text-red-500" };
+const WEEK_TEXT: Record<WeekRisk["level"], string> = { low: "text-sky-400", normal: "text-zinc-200", high: "text-red-500" };
 
 export interface RegimeCheckpoint {
   minAfterOpen: number;
@@ -234,7 +234,7 @@ export function RegimeBanner({
             {week && (
               <span
                 className={cn("font-semibold", WEEK_TEXT[week.level])}
-                title={`1–2 week SPY put risk (S130, 33 yrs): ${week.flags}/3 flags — realised vol ${week.rv20.toFixed(1)} vs VIX ${week.vix.toFixed(1)}, ATR percentile ${Math.round(week.atrPct * 100)}, efficiency ${week.er20.toFixed(2)}. 5-day breach odds of a VIX-sized put: 0 flags 6%, 1 10%, 2 15%, 3 18%.`}
+                title={`1–2 week SPY put risk (S130 v2, 33 yrs): ${week.flags}/2 flags — ATR percentile ${Math.round(week.atrPct * 100)} (flag > 80), efficiency ${week.er20.toFixed(2)} (flag < 0.4). 5-day breach odds of a put sized by implied vol: 0 flags 5%, 1 9%, 2 13%. Realised vol ${week.rv20.toFixed(1)} vs VIX ${week.vix.toFixed(1)} shown for context (not a tested flag).`}
               >
                 · 1–2 wk: {week.level} {Math.round(week.pBreach5d * 100)}%
               </span>

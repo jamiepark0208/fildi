@@ -16,8 +16,9 @@ Indicators (implemented from the published descriptions / open code):
   Classic    close > 200 d SMA (Faber 2007) · 12-1 m time-series momentum (Moskowitz et al. 2012) · VIX level ·
              VIX/VIX3M term (inverted = stress) · VIX − 20 d realised vol (variance premium; Bollerslev et al. 2009) ·
              credit HYG/IEF 50 d trend · breadth proxy RSP/SPY 50 d trend · CBOE SKEW
-Outcomes: 5 / 10-day forward return and sign; put breach = close(t+h) < K, K = S·exp(−σ√(h/252)), σ = VIX/100
-(≈ a 0.16Δ put; VIX for every ticker, so compare labels within a ticker); worst close drawdown over h.
+Outcomes: 5 / 10-day forward return and sign; put breach = close(t+h) < K, K = S·exp(−σ√(h/252)), σ = the ETF's
+own implied vol index (VIX / VXN / VXD; ≈ a 0.16Δ put); worst close drawdown over h. (v1 used VIX for every ETF —
+S137 showed that mostly flagged the higher-vol ETFs; v2 fixes it and drops IWM, which has no implied index.)
 Grading: non-overlapping samples (every h-th day), halves 1993–2009 / 2010–2026, label vs complement.
 Pass = same sign both halves, |t| ≥ 2 in each, and adds over "close > 200 d" (the free baseline).
 """
@@ -166,8 +167,11 @@ def main() -> int:
     if "RSP" in D:
         r = (D["RSP"].close / D["SPY"].close).dropna(); ext["breadth"] = np.sign(r / r.rolling(50).mean() - 1)
     rows = []
-    for tk in ["SPY", "QQQ", "IWM", "DIA"]:
-        F = features(D[tk], vix, ext)
+    # Each ETF's own implied vol (S137 found VIX-for-all mostly flags "QQQ/IWM are more volatile than SPX");
+    # IWM has no index on Yahoo (RVX delisted) → excluded rather than sized with the wrong vol.
+    own_iv = {"SPY": "^VIX", "QQQ": "^VXN", "DIA": "^VXD"}
+    for tk in [t for t in ["SPY", "QQQ", "DIA"] if own_iv[t] in D]:
+        F = features(D[tk], D[own_iv[tk]].close, ext)
         for h in (5, 10):
             O = outcomes(F, h)
             X = F.join(O).iloc[252::h].dropna(subset=["fwd", "vix"]).copy()  # non-overlapping
@@ -176,7 +180,7 @@ def main() -> int:
     A = pd.concat(rows)
     A["half"] = np.where(A.index < SPLIT, "H1", "H2")
     L = ["# S130 — Daily regime detectors vs 1–2-week direction and put breaches", "",
-         f"{len(A):,} non-overlapping ticker-windows (SPY/QQQ/IWM/DIA, h = 5 and 10 trading days), "
+         f"{len(A):,} non-overlapping ticker-windows (SPY/VIX, QQQ/VXN, DIA/VXD — each ETF sized by its own implied vol; h = 5 and 10), "
          f"{A.index.min():%Y-%m} → {A.index.max():%Y-%m}; H1 < 2010 ≤ H2.", "",
          "Base rates: " + "; ".join(f"h{h} up {100 * A[A.h == h].up.mean():.0f} %, breach {100 * A[A.h == h].breach.mean():.1f} %" for h in (5, 10)), ""]
 
