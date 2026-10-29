@@ -347,33 +347,29 @@ function renderFrags(frags: Frag[]): ReactNode[] {
   return frags.map((f, i) => {
     switch (f.kind) {
       case "bold":
-        return <strong key={i} className="font-semibold text-amber-50">{f.text}</strong>;
+        return <strong key={i} className="font-semibold text-white">{f.text}</strong>;
       case "italic":
-        return <em key={i} className="italic text-amber-100/55">{f.text}</em>;
+        return <em key={i} className="italic text-amber-100">{f.text}</em>;
       case "ticker":
         return (
-          <span key={i} className="font-mono font-bold text-[#d4af37] underline decoration-[#d4af37]/35 underline-offset-2">
+          <span key={i} className="font-mono font-bold text-[#d4af37]">
             {f.text}
           </span>
         );
       case "num":
-        return <span key={i} className="font-mono tabular-nums text-sky-300/90">{f.text}</span>;
+        return <span key={i} className="font-mono tabular-nums font-semibold text-white">{f.text}</span>;
       case "risk":
-        return <span key={i} className="font-medium text-rose-300/85">{f.text}</span>;
+        return <span key={i} className="font-semibold text-rose-300">{f.text}</span>;
       case "opp":
-        return <span key={i} className="font-medium text-emerald-300/80">{f.text}</span>;
+        return <span key={i} className="font-semibold text-emerald-300">{f.text}</span>;
       case "sector":
-        return (
-          <span key={i} className="font-semibold text-violet-300/90 underline decoration-violet-400/40 underline-offset-2">
-            {f.text}
-          </span>
-        );
+        return <span key={i} className="font-semibold text-white">{f.text}</span>;
       case "bull":
         return <span key={i} className="font-semibold text-emerald-400">{f.text}</span>;
       case "bear":
         return <span key={i} className="font-semibold text-rose-400">{f.text}</span>;
       case "neut":
-        return <span key={i} className="font-semibold text-amber-300">{f.text}</span>;
+        return <span key={i} className="font-semibold text-[#d4af37]">{f.text}</span>;
       default:
         return <span key={i}>{f.text}</span>;
     }
@@ -382,8 +378,13 @@ function renderFrags(frags: Frag[]): ReactNode[] {
 
 /** Invisible card chrome — div for structure only, no border waste. */
 const CARD_TONE = "border-transparent bg-transparent";
+/** Muse / desk section titles — readable gold, not micro-caps. */
 const SECTION_HDR =
-  "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#d4af37]";
+  "flex items-center gap-2 text-[13px] font-bold uppercase tracking-[0.06em] text-[#d4af37]";
+/** Body copy for Muse brief + desk bullets. */
+const MUSE_BODY = "text-[13px] text-white leading-relaxed";
+const MUSE_DOT = "mt-[7px] w-1.5 h-1.5 rounded-full bg-[#d4af37] shrink-0";
+const MUSE_LIST = "grid sm:grid-cols-2 gap-x-6 gap-y-2.5";
 
 function sectionMeta(_title: string) {
   return { tone: CARD_TONE };
@@ -846,15 +847,15 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
           opts?.className,
         )}
       >
-        <div className={cn(SECTION_HDR, "mb-1")}>
-          <TrendingUp className="w-3 h-3 shrink-0" />
+        <div className={cn(SECTION_HDR, "mb-2")}>
+          <TrendingUp className="w-3.5 h-3.5 shrink-0" />
           <h3>{sec.title}</h3>
         </div>
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {sec.bullets.map((b, i) => (
-            <li key={i} className="group flex items-start gap-1.5" title={opts?.sourceHint ?? digSourceTitle(summary?.sources ?? [])}>
-              <span className="mt-[6px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
-              <p className="flex-1 text-[12px] text-white leading-[1.35]">
+            <li key={i} className="group flex items-start gap-2" title={opts?.sourceHint ?? digSourceTitle(summary?.sources ?? [])}>
+              <span className={MUSE_DOT} />
+              <p className={cn("flex-1", MUSE_BODY)}>
                 {renderFrags(parseInline(b))}
               </p>
               {isAdmin && (
@@ -882,29 +883,29 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
 
   const modelContractsCard = modelContracts.length > 0 ? (
     <div className={cn("rounded-md border px-0 py-1 h-full min-h-0 flex flex-col", CARD_TONE)}>
-      <div className={cn(SECTION_HDR, "mb-1 shrink-0")}>
-        <TrendingUp className="w-3 h-3 shrink-0" />
+      <div className={cn(SECTION_HDR, "mb-2 shrink-0")}>
+        <TrendingUp className="w-3.5 h-3.5 shrink-0" />
         <h3>Model contracts</h3>
       </div>
-      <ul className="space-y-1 overflow-y-auto min-h-0 flex-1">
+      <ul className="space-y-2 overflow-y-auto min-h-0 flex-1">
         {modelContracts.map((c) => {
           const tip = [c.folder, c.verdict ? (VERDICT_LABELS[c.verdict] ?? c.verdict) : "", c.status]
             .filter(Boolean)
             .join(" · ");
           const color = VERDICT_COLORS[c.verdict] ?? "#d4af37";
           return (
-            <li key={`${c.ticker}-${c.folder}`} className="text-[12px] leading-snug text-white">
+            <li key={`${c.ticker}-${c.folder}`} className={MUSE_BODY}>
               <span
-                className="font-mono font-bold underline decoration-current/30 underline-offset-2"
+                className="font-mono font-bold"
                 style={{ color }}
                 title={tip}
               >
                 {c.ticker}
               </span>
               {": sell "}
-              <span className={c.side === "put" ? "text-emerald-400" : "text-sky-300"}>{c.side}</span>
+              <span className={c.side === "put" ? "text-emerald-400" : "text-white"}>{c.side}</span>
               {" "}
-              <span className="font-mono tabular-nums text-sky-300">
+              <span className="font-mono tabular-nums font-semibold text-white">
                 {c.strike != null ? `$${c.strike}` : "?"}
               </span>
               {" exp "}
@@ -1099,9 +1100,9 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
 
         {/* Active Muse tab (AM | EOD) — sections only; title lives in header tabs */}
         {activeMuse && (
-          <div className="space-y-2">
+          <div className="space-y-5">
             {activeMuse.stale && (
-              <p className="text-[10px] text-amber-300 font-mono">
+              <p className="text-[12px] text-amber-200 font-mono">
                 Prior session · {activeMuse.asOfYmd ? formatMdYy(activeMuse.asOfYmd) : activeMuse.file}
               </p>
             )}
@@ -1133,17 +1134,17 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                     .map((r) => ({ lead: r.lead, soWhat: r.soWhat })),
                 );
                 return (
-                  <div key={sec.title} className="space-y-2">
-                    <div className="space-y-1">
+                  <section key={sec.title} className="space-y-3 border-t border-[#d4af37]/15 pt-4 first:border-t-0 first:pt-0">
+                    <div className="space-y-2">
                       <div className={SECTION_HDR}>{sec.title}</div>
-                      <ul className={cn("gap-x-4 gap-y-1.5", split ? "grid sm:grid-cols-2" : "space-y-1")}>
+                      <ul className={cn(split ? MUSE_LIST : "space-y-2")}>
                         {splitRows.map((r, i) => (
                           <li
                             key={i}
-                            className="flex items-start gap-1.5 text-[11px] text-white leading-snug"
+                            className={cn("flex items-start gap-2", MUSE_BODY)}
                             title={r.raw}
                           >
-                            <span className="mt-[5px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
+                            <span className={MUSE_DOT} />
                             <span className="min-w-0 flex-1">
                               {renderFrags(parseInline(r.fact, { lean: true }))}
                             </span>
@@ -1152,12 +1153,12 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                       </ul>
                     </div>
                     {soWhatSyn.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="space-y-2 pl-0 sm:pl-0">
                         <div className={SECTION_HDR}>So what?</div>
-                        <ul className="grid sm:grid-cols-2 gap-x-4 gap-y-1">
+                        <ul className={MUSE_LIST}>
                           {soWhatSyn.map((line, i) => (
-                            <li key={i} className="flex items-start gap-1.5 text-[11px] text-white leading-snug">
-                              <span className="mt-[5px] w-1 h-1 rounded-full bg-amber-400/70 shrink-0" />
+                            <li key={i} className={cn("flex items-start gap-2", MUSE_BODY)}>
+                              <span className={MUSE_DOT} />
                               <span className="min-w-0 flex-1">
                                 {renderFrags(parseInline(line, { lean: true }))}
                               </span>
@@ -1166,34 +1167,29 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                         </ul>
                       </div>
                     )}
-                  </div>
+                  </section>
                 );
               }
 
               return (
-                <div key={sec.title} className="space-y-1">
+                <section key={sec.title} className="space-y-2 border-t border-[#d4af37]/15 pt-4 first:border-t-0 first:pt-0">
                   <div className={SECTION_HDR}>{sec.title}</div>
-                  <ul
-                    className={cn(
-                      "gap-x-4 gap-y-1.5",
-                      split ? "grid sm:grid-cols-2" : "space-y-1",
-                    )}
-                  >
+                  <ul className={cn(split ? MUSE_LIST : "space-y-2")}>
                     {sec.bullets.map((b, i) => {
                       const text = isImpl ? compressImplicationBullet(b) : compressMuseBullet(b);
                       const lead = isImpl ? splitImplicationLead(text) : null;
                       return (
                         <li
                           key={i}
-                          className="flex items-start gap-1.5 text-[11px] text-white leading-snug"
+                          className={cn("flex items-start gap-2", MUSE_BODY)}
                           title={b}
                         >
-                          <span className="mt-[5px] w-1 h-1 rounded-full bg-[#d4af37]/50 shrink-0" />
+                          <span className={MUSE_DOT} />
                           <span className="min-w-0 flex-1">
                             {lead ? (
                               <>
-                                <span className="font-semibold text-[#d4af37]">{lead.lead}:</span>
-                                {" "}
+                                <span className="font-semibold text-[#d4af37]">{lead.lead}</span>
+                                <span className="text-amber-100"> — </span>
                                 {renderFrags(parseInline(lead.body, { lean: true }))}
                               </>
                             ) : (
@@ -1204,7 +1200,7 @@ export function DailyNewsPanel({ compact = false }: { compact?: boolean }) {
                       );
                     })}
                   </ul>
-                </div>
+                </section>
               );
             })}
           </div>
