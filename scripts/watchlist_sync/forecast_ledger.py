@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 import sys
 from zoneinfo import ZoneInfo
 
@@ -79,6 +80,56 @@ def weekly_up_rate(closes: list[tuple[dt.date, float]]) -> tuple[float, int]:
     return (sum(ups) / len(ups), len(ups)) if ups else (0.5, 0)
 
 
+EARNINGS_UP_BASE = 0.48
+_SKEW_DELTA_PUT, _SKEW_DELTA_CALL, _SKEW_DELTA_BAND = -0.25, 0.25, 0.05
+
+
+def clip_prob(p: float, lo: float = 0.35, hi: float = 0.65) -> float:
+    return max(lo, min(hi, p))
+
+
+def starmine_up_prob(pred_surprise_pct: float | None) -> tuple[float, dict]:
+    if pred_surprise_pct is None:
+        return clip_prob(0.5), {"pred_surprise_pct_fq1": None}
+    p = 1 / (1 + math.exp(-0.08 * pred_surprise_pct))
+    return clip_prob(p), {"pred_surprise_pct_fq1": round(float(pred_surprise_pct), 4)}
+
+
+def skew_up_prob(skew_vol_pts: float, median_vol_pts: float) -> tuple[float, dict]:
+    """A308 / S127 forward: higher put-minus-call skew → lower P(reaction up)."""
+    p = 0.5 - 2 * (float(skew_vol_pts) - float(median_vol_pts))
+    return clip_prob(p), {"skew_vol_pts": round(float(skew_vol_pts), 4),
+                          "skew_median_vol_pts": round(float(median_vol_pts), 4)}
+
+
+def _vol_pts(iv: float) -> float:
+    return iv * 100.0 if iv < 3 else iv
+
+
+def _pick_delta_leg(rows: list[tuple], side: str, target: float) -> float | None:
+    """rows: (side, delta, iv, oi, strike) — best quote by |delta−target| within band."""
+    best = None
+    for s, delta, iv, oi, _k in rows:
+        if s != side or delta is None or iv is None or iv <= 0:
+            continue
+        dist = abs(float(delta) - target)
+        if dist > _SKEW_DELTA_BAND:
+            continue
+        key = (dist, -(oi or 0))
+        if best is None or key < best[0]:
+            best = (key, _vol_pts(float(iv)))
+    return None if best is None else best[1]
+
+
+def skew_25x25_vol_pts(legs: list[tuple]) -> float | None:
+    """25Δ put IV − 25Δ call IV in vol points (A308 spec)."""
+    put_iv = _pick_delta_leg(legs, "put", _SKEW_DELTA_PUT)
+    call_iv = _pick_delta_leg(legs, "call", _SKEW_DELTA_CALL)
+    if put_iv is None or call_iv is None:
+        return None
+    return put_iv - call_iv
+
+
 def reliability(pairs: list[tuple[float, bool]], bins: int = 5) -> list[dict]:
     out = []
     for i in range(bins):
@@ -104,6 +155,96 @@ def _rows_from_predictions(preds: list[dict], made_at: dt.datetime) -> list[tupl
                      made_at.astimezone(PT).date(), x["expiry"],
                      json.dumps({"strike": float(x["strike"]), "account": x["account"], "src": "pm_alerts"})))
     return rows
+
+
+_UPCOMING_EARNINGS = """SELECT ticker, MIN(d)::date AS report_date FROM (
+  SELECT UPPER(ticker) AS ticker, event_date AS d FROM lseg_research.events
+    WHERE event_type = 'EarningsReleases' AND event_date BETWEEN %s AND %s
+  UNION ALL
+  SELECT UPPER(ticker), report_date::date FROM earnings_calendar
+    WHERE report_date::date BETWEEN %s AND %s AND is_confirmed = true
+) x GROUP BY ticker ORDER BY 2, 1"""
+
+
+def _upcoming_earnings(conn, today: dt.date, horizon: int = 7) -> list[tuple[str, dt.date]]:
+    end = today + dt.timedelta(days=horizon)
+    return conn.execute(_UPCOMING_EARNINGS, (today, end, today, end)).fetchall()
+
+
+def _pred_surprise(conn, ticker: str, as_of: dt.date) -> float | None:
+    r = conn.execute("""SELECT pred_surprise_pct_fq1::float FROM lseg_research.signals_daily
+                        WHERE ticker = %s AND as_of <= %s AND pred_surprise_pct_fq1 IS NOT NULL
+                        ORDER BY as_of DESC LIMIT 1""", (ticker, as_of)).fetchone()
+    return float(r[0]) if r and r[0] is not None else None
+
+
+def _skew_survey_legs(conn, ticker: str, as_of: dt.date, report_date: dt.date) -> tuple[float | None, dict]:
+    """Skew from optlab.skew_survey on `as_of`, expiry = nearest after the report."""
+    r = conn.execute("""SELECT side, delta::float, iv::float, COALESCE(oi, 0), strike::float, expiry::date
+                        FROM optlab.skew_survey WHERE ticker = %s AND as_of = %s AND expiry > %s""",
+                     (ticker, as_of, report_date)).fetchall()
+    if not r:
+        return None, {"skew_as_of": str(as_of), "skew_src": "optlab.skew_survey", "skew_missing": "no_ladder_rows"}
+    by_exp: dict[dt.date, list] = {}
+    for row in r:
+        by_exp.setdefault(row[5], []).append(row[:5])
+    expiry = min(by_exp)
+    legs = []
+    for s, d, iv, oi, k in by_exp[expiry]:
+        side = "put" if str(s).lower().startswith("p") else "call"
+        legs.append((side, d, iv, oi, k))
+    skew = skew_25x25_vol_pts(legs)
+    meta = {"skew_as_of": str(as_of), "skew_expiry": str(expiry), "skew_src": "optlab.skew_survey"}
+    if skew is None:
+        meta["skew_missing"] = "no_25d_legs"
+        return None, meta
+    if abs(skew) > 40:
+        meta["skew_missing"] = "skew_outlier"
+        return None, meta
+    meta["skew_vol_pts"] = round(skew, 4)
+    return skew, meta
+
+
+def _earnings_up_rows(conn, now: dt.datetime, today: dt.date) -> list[tuple]:
+    upcoming = _upcoming_earnings(conn, today)
+    if not upcoming:
+        return []
+    skew_by: dict[str, tuple[float | None, dict]] = {}
+    signal_days: dict[str, dt.date] = {}
+    for ticker, report_date in upcoming:
+        day_before = report_date - dt.timedelta(days=1)
+        signal_days[ticker] = day_before
+        if today < day_before:
+            skew_by[ticker] = (None, {"skew_as_of": str(day_before), "skew_missing": "pending_day_before"})
+        else:
+            skew_by[ticker] = _skew_survey_legs(conn, ticker, day_before, report_date)
+    medians: dict[dt.date, float] = {}
+    for sig in set(signal_days.values()):
+        vals = [v[0] for t, v in skew_by.items() if signal_days[t] == sig and v[0] is not None]
+        if vals:
+            vals.sort()
+            medians[sig] = vals[len(vals) // 2]
+    out: list[tuple] = []
+    for ticker, report_date in upcoming:
+        qid = f"earnup:{ticker}:{report_date}"
+        question = f"Will {ticker} earnings reaction (LSEG move_pct) be up on {report_date}?"
+        sig = signal_days[ticker]
+        ps = _pred_surprise(conn, ticker, today)
+        skew, sk_meta = skew_by[ticker]
+        base_meta = {"report_date": str(report_date), "signal_day": str(sig)}
+        if skew is None or sig not in medians:
+            base_meta["skew_missing"] = sk_meta.get("skew_missing", "no_median")
+        out.append((qid, question, "earnings_up", ticker, "base_rate", EARNINGS_UP_BASE, now, today, report_date,
+                    json.dumps({**base_meta, "src": "S127"})))
+        sp, sm_meta = starmine_up_prob(ps)
+        out.append((qid, question, "earnings_up", ticker, "starmine", round(sp, 4), now, today, report_date,
+                    json.dumps({**base_meta, **sm_meta})))
+        if skew is None or sig not in medians:
+            continue
+        sp_sk, sk_pmeta = skew_up_prob(skew, medians[sig])
+        out.append((qid, question, "earnings_up", ticker, "skew", round(sp_sk, 4), now, today, report_date,
+                    json.dumps({**base_meta, **sk_meta, **sk_pmeta})))
+    return out
 
 
 def log(conn, now: dt.datetime | None = None) -> dict:
@@ -140,6 +281,7 @@ def log(conn, now: dt.datetime | None = None) -> dict:
             if n:
                 rows.append((f"upweek:{t}:{fri}", f"Will {t} close the week of {fri} above last week's close?", "index_up_week",
                              t, "base_rate", round(p, 4), now, today, fri, json.dumps({"weeks": n})))
+    rows += _earnings_up_rows(conn, now, today)
     for row in rows:
         conn.execute(UPSERT, row)
     conn.commit()
@@ -312,6 +454,17 @@ def _r_earnings(conn, t, d, m):
     return (mv > float(m["implied"]), {"realized": round(mv, 4)})
 
 
+def _r_earnings_up(conn, t, d, m):
+    rd = dt.date.fromisoformat(m["report_date"])
+    r = conn.execute("""SELECT move_pct::float FROM lseg_research.earnings_moves WHERE ticker = %s
+                        AND report_date BETWEEN %s AND %s ORDER BY report_date LIMIT 1""",
+                     (t, rd - dt.timedelta(days=1), rd + dt.timedelta(days=1))).fetchone()
+    if not r:
+        return None
+    move = float(r[0])
+    return (move > 0, {"move_pct": round(move, 4)})
+
+
 def _r_fvpt(conn, t, d, m):
     r = conn.execute("""SELECT value, obs_date FROM lseg_research.starmine_history WHERE ticker = %s AND metric = 'pt_mean'
                         AND obs_date <= %s ORDER BY obs_date DESC LIMIT 1""", (t, d)).fetchone()
@@ -392,7 +545,7 @@ def _r_structure(conn, t, d, m):
 
 
 EXTRA_RESOLVERS = {"sim_structure": _r_structure, "index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
-                   "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings,
+                   "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings, "earnings_up": _r_earnings_up,
                    "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed, "abn_1s_5d": _r_abn_1s_5d}
 
 

@@ -9,7 +9,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from forecast_ledger import (  # noqa: E402
-    _meta_dict, brier, put_otm, reliability, resolve, week_friday, weekly_up_rate,
+    _meta_dict, brier, put_otm, reliability, resolve, skew_up_prob, week_friday, weekly_up_rate,
 )
 
 
@@ -47,6 +47,17 @@ class ForecastLedger(unittest.TestCase):
         self.assertEqual(_meta_dict(None), {})
         self.assertEqual(_meta_dict('{"strike": 10}'), {"strike": 10})
         self.assertEqual(_meta_dict({"strike": 10}), {"strike": 10})
+
+    def test_skew_up_prob_mapping(self):
+        p_med, _ = skew_up_prob(0.0, 0.0)
+        self.assertAlmostEqual(p_med, 0.5)
+        p_hi, m = skew_up_prob(2.0, 0.0)
+        self.assertAlmostEqual(p_hi, 0.35)
+        self.assertEqual(m["skew_vol_pts"], 2.0)
+        p_lo, _ = skew_up_prob(-2.0, 0.0)
+        self.assertAlmostEqual(p_lo, 0.65)
+        p_clip, _ = skew_up_prob(10.0, 0.0)
+        self.assertAlmostEqual(p_clip, 0.35)
 
 
 class FakeResult:
