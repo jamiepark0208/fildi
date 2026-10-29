@@ -25,7 +25,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
-from a314_changepoint import eval_method, mde_pp, minute_placebo  # noqa: E402
+from a314_changepoint import minute_placebo  # noqa: E402
 from s130_daily_regime import SPLIT, load as load_daily_json, tstat  # noqa: E402
 from s139_event_regime import load, risk_score  # noqa: E402
 
@@ -35,6 +35,115 @@ DAILY_JSON = HERE.parent / "out" / "opt" / "s130_long_daily.json"
 M = json.loads((HERE.parent / "out" / "opt" / "S126_model.json").read_text())
 _mins = np.array(sorted(int(k) for k in M["rngMedianByMin"]))
 _meds = np.array([M["rngMedianByMin"][str(k)] for k in _mins])
+
+FINDING3_ARMS = frozenset({"mesa_it_fall", "chop_zone_trend"})
+Z_MDE = 1.96 + 0.84
+
+
+def mde_pp_from_t(eff_pp: float, t: float) -> float:
+    if not math.isfinite(eff_pp) or not math.isfinite(t) or abs(t) < 1e-9:
+        return float("nan")
+    return Z_MDE * abs(eff_pp) / abs(t)
+
+
+def day_gap_stats(
+    e: pd.DataFrame, p: pd.DataFrame, outcome: str
+) -> tuple[float, float, int]:
+    """Event−placebo daily mean gap; effect (pp) and t from the same day-level series."""
+    ed = e.groupby("d")[outcome].mean()
+    pd_ = p.groupby("d")[outcome].mean()
+    jj = ed.index.intersection(pd_.index)
+    diff = ed[jj] - pd_[jj]
+    if len(diff) < 3 or diff.std(ddof=1) == 0:
+        return float("nan"), float("nan"), len(diff)
+    eff_pp = 100 * diff.mean()
+    t = diff.mean() / (diff.std(ddof=1) / np.sqrt(len(diff)))
+    return float(eff_pp), float(t), len(diff)
+
+
+def eval_method(R: pd.DataFrame, ev: str, outcome: str, claim: str, source: str, rng) -> dict:
+    e_all = R[R[ev]]
+    p_all = minute_placebo(R, ev, rng)
+    if len(e_all) < 30:
+        n_d = e_all.d.nunique()
+        return dict(
+            name=ev,
+            claim=claim,
+            source=source,
+            verdict=f"FAIL (sparse n={len(e_all)} events, {n_d} days)",
+            pass_bar=False,
+            eff={"H1": float("nan"), "H2": float("nan")},
+            ts={"H1": float("nan"), "H2": float("nan")},
+            mde={"H1": float("nan"), "H2": float("nan")},
+            outcome=outcome,
+        )
+    eff, ts, mde, ns = {}, {}, {}, {}
+    for h in ("H1", "H2"):
+        e = e_all[e_all.half == h]
+        p = p_all[p_all.half == h] if len(p_all) else e.iloc[:0]
+        if len(e) < 15 or len(p) < 15:
+            eff[h] = ts[h] = mde[h] = float("nan")
+            ns[h] = 0
+            continue
+        eff[h], ts[h], ns[h] = day_gap_stats(e, p, outcome)
+        mde[h] = mde_pp_from_t(eff[h], ts[h])
+    e1, e2 = eff["H1"], eff["H2"]
+    t1, t2 = ts["H1"], ts["H2"]
+    same = np.sign(e1) == np.sign(e2) and math.isfinite(e1) and math.isfinite(e2) and e1 != 0
+    pass_bar = same and abs(t1) >= 2 and abs(t2) >= 2
+    verdict = "PASS intraday" if pass_bar else "FAIL"
+    return dict(
+        name=ev,
+        claim=claim,
+        source=source,
+        outcome=outcome,
+        eff=eff,
+        ts=ts,
+        mde=mde,
+        ns=ns,
+        n_ev=len(e_all),
+        pass_bar=pass_bar,
+        verdict=verdict,
+    )
+
+
+def drop_odds_by_level(R: pd.DataFrame, col: str) -> str:
+    """P(drop≥½ATR) with vs without event, by S126 level, both halves (family 2 table format)."""
+    R = R.copy()
+    R["lvl"] = np.searchsorted(M["cuts"], R["score"])
+    chunks = []
+    for h in ("H1", "H2"):
+        parts = []
+        sub = R[R.half == h]
+        for i, lv in enumerate(M["levels"]):
+            base = sub[sub.lvl == i]
+            if len(base) < 80:
+                continue
+            on, off = base[base[col]], base[~base[col]]
+            if len(on) < 5 or len(off) < 20:
+                continue
+            parts.append(f"{lv} {100 * on.dropx.mean():.1f}/{100 * off.dropx.mean():.1f}")
+        if parts:
+            chunks.append(f"{h} " + ", ".join(parts))
+    return "; ".join(chunks)
+
+
+def incr_candidate(R: pd.DataFrame, col: str) -> tuple[bool, float, float]:
+    """Finding 3: |t|≥2 both halves on incr coef (same sign), claim or opposite."""
+    t1, t2 = incremental_t(R, col)
+    ok = (
+        math.isfinite(t1)
+        and math.isfinite(t2)
+        and abs(t1) >= 2
+        and abs(t2) >= 2
+        and np.sign(t1) == np.sign(t2)
+    )
+    return ok, t1, t2
+
+
+def incr_pass(R: pd.DataFrame, col: str, expect: int) -> tuple[bool, float, float]:
+    ok, t1, t2 = incr_candidate(R, col)
+    return ok and np.sign(t1) == expect, t1, t2
 
 YAHOO_TICKERS = ("SPY", "QQQ", "DIA", "^VIX", "^VXN", "^VXD", "HYG", "IEF", "RSP", "IWM")
 
@@ -200,12 +309,15 @@ def build_intraday_panel() -> pd.DataFrame:
         Hrs = hurst_rs(C, 100)
         fdi = ehlers_fdi(H, L, 30)
         it_proxy = ema_s(C, 12)
+        it_line = ehlers_it(C)
         chop = choppiness(H, L, C, 14)
         wt_cross_up = (wt1 > wt2) & (np.r_[False, wt1[:-1] <= wt2[:-1]])
         wt_cross_dn = (wt1 < wt2) & (np.r_[False, wt1[:-1] >= wt2[:-1]])
         sq_release = sq_off & np.r_[False, sq_on[:-1]]
         it_fall = np.full(len(C), False)
         it_fall[3:] = (it_proxy[3:] - it_proxy[:-3]) / (np.abs(it_proxy[:-3]) + 1e-9) < -0.0015
+        it_pine_fall = np.full(len(C), False)
+        it_pine_fall[3:] = (it_line[3:] - it_line[:-3]) / (np.abs(it_line[:-3]) + 1e-9) < -0.0015
 
         closes = np.array([g.c.iloc[-1] for g in days])
         highs = np.array([g.h.max() for g in days])
@@ -246,6 +358,7 @@ def build_intraday_panel() -> pd.DataFrame:
                         fdi_chop=fdi[gi] > 1.5 if np.isfinite(fdi[gi]) else False,
                         fdi_trend=fdi[gi] < 1.3 if np.isfinite(fdi[gi]) else False,
                         mesa_it_fall=bool(it_fall[gi]),
+                        mesa_pine_it_fall=bool(it_pine_fall[gi]) if np.isfinite(it_line[gi]) else False,
                         chop_high=chop[gi] > 61.8 if np.isfinite(chop[gi]) else False,
                         chop_zone_trend=chop[gi] < 38.2 if np.isfinite(chop[gi]) else False,
                     )
@@ -287,7 +400,7 @@ INTRA_METHODS = [
     ("hurst_chop", "dropx", "Hurst<0.45 → higher drop (mean-revert chop)", "rolling R/S Hurst", +1),
     ("fdi_chop", "rest_rng", "FDI>1.5 chop → higher rest range", "Ehlers FDI", +1),
     ("fdi_trend", "dropx", "FDI<1.3 trend → lower drop", "Ehlers FDI", -1),
-    ("mesa_it_fall", "dropx", "IT −0.1%/3bar → higher drop (MESA/IT slope)", "Ehlers Instantaneous Trendline", +1),
+    ("mesa_it_fall", "dropx", "EMA12 slope −0.15%/3bar → higher drop (5m; Pine IT on daily S130)", "Ehlers IT proxy (EMA12)", +1),
     ("chop_high", "rest_rng", "CHOP>61.8 → higher rest range (chop)", "Choppiness Index", +1),
     ("chop_zone_trend", "dropx", "CHOP<38.2 trend zone → lower drop", "Chop Zone / CHOP", -1),
 ]
@@ -307,6 +420,8 @@ def daily_flags() -> pd.DataFrame:
         fdi = ehlers_fdi(h, l, 30)
         it = ehlers_it(c)
         chop = choppiness(h, l, c, 14)
+        it_fall_d = np.full(len(c), False)
+        it_fall_d[3:] = (it[3:] - it[:-3]) / (np.abs(it[:-3]) + 1e-9) < -0.0015
         F = pd.DataFrame(
             {
                 "squeeze_rel": sq_off & np.r_[False, sq_on[:-1]],
@@ -314,6 +429,7 @@ def daily_flags() -> pd.DataFrame:
                 "hurst_tr": Hrs > 0.55,
                 "fdi_ch": fdi > 1.5,
                 "chop_hi": chop > 61.8,
+                "mesa_it_fall": it_fall_d,
             },
             index=d.index,
         )
@@ -402,15 +518,24 @@ def main() -> int:
     connect().close()
     rng = np.random.default_rng(3144)
     print("A314 family4: intraday panel…", flush=True)
+    need_cols = {"mesa_pine_it_fall"}
     if PANEL_CACHE.is_file():
         R = pd.read_pickle(PANEL_CACHE)
+        if not need_cols.issubset(R.columns):
+            R = build_intraday_panel()
+            R.to_pickle(PANEL_CACHE)
     else:
         R = build_intraday_panel()
         PANEL_CACHE.parent.mkdir(parents=True, exist_ok=True)
         R.to_pickle(PANEL_CACHE)
     split = R["_split"].iloc[0]
-    lines = [f"# A314 family 4 — TV regime/trend tools", f"SPY+QQQ {R.d.nunique()}d · H1<{split}≤H2 · minute placebo · incr=logit(dropx~S126+event)", ""]
+    lines = [
+        f"# A314 family 4 — TV regime/trend tools",
+        f"SPY+QQQ {R.d.nunique()}d · H1<{split}≤H2 · day-mean event−placebo gap · incr=logit(dropx~S126+event) · **no ship**",
+        "",
+    ]
     passers = []
+    incr_live: list[str] = []
     for col, outcome, claim, src, expect in INTRA_METHODS:
         g = eval_method(R, col, outcome, claim, src, rng)
         if "eff" not in g:
@@ -421,32 +546,34 @@ def main() -> int:
             g["pass_bar"] = False
             g["verdict"] = "FAIL (wrong sign vs claim)"
         t1, t2 = g["ts"]["H1"], g["ts"]["H2"]
-        if g.get("pass_bar") and math.isfinite(t1) and math.isfinite(e1) and np.sign(t1) != np.sign(e1):
-            g["pass_bar"] = False
-            g["verdict"] = "FAIL (t vs effect sign)"
         inc1, inc2 = incremental_t(R, col)
-        inc_ok = (
-            math.isfinite(inc1)
-            and math.isfinite(inc2)
-            and abs(inc1) >= 2
-            and abs(inc2) >= 2
-            and np.sign(inc1) == np.sign(inc2)
-        )
+        inc_ok, _, _ = incr_pass(R, col, expect)
+        live_incr, _, _ = incr_candidate(R, col)
+        if live_incr and col in FINDING3_ARMS:
+            incr_live.append(col)
         if g.get("pass_bar") and not inc_ok:
             g["pass_bar"] = False
             g["verdict"] = "FAIL (incr over S126)"
-        mde = g["mde"]
-        mde_s = f"{mde:.1f}pp" if math.isfinite(mde) else "n/a"
+        m1, m2 = g["mde"]["H1"], g["mde"]["H2"]
+        mf = lambda x: f"{x:.1f}" if math.isfinite(x) else "n/a"
         ef = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
         tf = lambda x: f"{x:+.1f}" if math.isfinite(x) else "n/a"
         v = g["verdict"]
         n_ev = g.get("n_ev", R[col].sum() if col in R.columns else 0)
+        tag = " · **Live incr**" if col in FINDING3_ARMS and live_incr and not g.get("pass_bar") else ""
         lines.append(
-            f"- **{col}** · {src} · {claim} · n={n_ev} · eff {ef(e1)}/{ef(e2)}pp · t {tf(t1)}/{tf(t2)} · "
-            f"incr {tf(inc1)}/{tf(inc2)} · MDE≈{mde_s} · **{v}**"
+            f"- **{col}** · {src} · {claim} · n={n_ev} · eff {ef(e1)}/{ef(e2)} · t {tf(t1)}/{tf(t2)} · "
+            f"incr {tf(inc1)}/{tf(inc2)} · MDE {mf(m1)}/{mf(m2)}pp · **{v}**{tag}"
         )
         if g.get("pass_bar"):
             passers.append(col)
+
+    for col in incr_live:
+        if col in passers:
+            continue
+        odds = drop_odds_by_level(R, col)
+        if odds:
+            lines.append(f"- **{col} drop odds** (% with/without by S126): {odds}")
 
     print("daily flags…", flush=True)
     A = daily_flags()
@@ -456,23 +583,28 @@ def main() -> int:
         ("hurst_tr", "Hurst trend (daily) → breach", "Hurst R/S"),
         ("fdi_ch", "FDI chop (daily) → breach", "Ehlers FDI"),
         ("chop_hi", "CHOP>61.8 (daily) → breach", "Choppiness"),
+        ("mesa_it_fall", "Pine IT slope fall (daily) → breach", "Ehlers IT"),
     ]
     daily_ts = []
     for col, claim, src in daily_map:
         t1, t2 = grade_daily(A, col)
-        daily_ts.append(f"{col} {t1:+.1f}/{t2:+.1f}")
+        if col == "mesa_it_fall" and A[col].sum() < 25:
+            daily_ts.append(f"{col} sparse")
+        else:
+            daily_ts.append(f"{col} {t1:+.1f}/{t2:+.1f}")
     lines.append(
         "- **daily S130** · "
         + "; ".join(daily_ts)
         + " · breach t · **FAIL daily** (no |t|≥2 both halves)"
     )
 
-    if passers:
+    put_cols = [c for c in FINDING3_ARMS if c in incr_live]
+    if put_cols:
         lines += ["", "## Put benchmark"]
-        for col in passers[:2]:
-            lines.append(f"- {put_overlay(R, col)}")
+        for col in put_cols:
+            lines.append(f"- `{col}` {put_overlay(R, col)}")
     else:
-        lines.append("- put overlay: none (no intraday PASS)")
+        lines.append("- put overlay: none (no PASS / Live incr)")
 
     packet = "\n".join(lines[:25]) + "\n"
     OUT.write_text(packet)
