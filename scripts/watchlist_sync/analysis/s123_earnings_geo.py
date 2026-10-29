@@ -12,6 +12,7 @@ Writes: out/opt/S123.md
 """
 from __future__ import annotations
 
+import json
 import math
 import sys
 from collections import defaultdict
@@ -265,13 +266,87 @@ def main() -> int:
             x = s[st]
             lines.append(f"| {st} | {x['n']} | {100*x['mean_ret']:+.1f}% | {x['p_dd10']:.0f}% |")
 
-    lines += [
+    # --- Test 2: S076 monthly equity × cycle state (no trade-level dates needed) ---
+    # Unblocks A295 T2: structure_backtest.payload.equity has {m, ret, n} per month.
+    st_by_m = {r["m"]: r["st"] for r in rows}
+    STRUCTS = ("csp", "jade_lizard", "covered_call", "short_strangle")
+    HALF2A, HALF2B = date(2021, 1, 1), date(2024, 1, 1)  # A295: 2021–23 / 2024→
+
+    def month_t_stat(vals):
+        if len(vals) < 3:
+            return float("nan")
+        # crude month-block t vs 0
+        mu = float(np.mean(vals))
+        sd = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
+        return mu / (sd / math.sqrt(len(vals))) if sd > 1e-12 else float("nan")
+
+    t2_lines = [
         "",
-        "## Next",
-        "If Round 2/3 PASS: join S076 + S101 by month; else geo stress (GPR expanding 90th / WTI +15% 3m) as alternate state; opposite-side / combo round before stop.",
+        "## Test 2 — structures (S076 monthly equity × cycle)",
+        "",
+        "Join: `structure_backtest.payload.equity` month ret × cycle state (working stress=`late`).",
+        "PASS: |late − upcycle| mean ret ≥ 0.25%/trade equiv (here: monthly mean) with month-t ≥ 2 in **both** halves (2021–23 / 2024→).",
+        "",
+        "| structure | half | late n/mean | up n/mean | Δ (late−up) | t_late | t_up | t_Δ | pass? |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---|",
+    ]
+    t2_struct_pass = {}  # sid -> {early, late}
+    for sid in STRUCTS:
+        t2_struct_pass[sid] = {"early": False, "late": False}
+        rec = conn.execute(
+            "SELECT payload FROM watchlist_sync.structure_backtest WHERE structure = %s",
+            (sid,),
+        ).fetchone()
+        if not rec:
+            t2_lines.append(f"| {sid} | — | missing payload | | | | | | FAIL |")
+            continue
+        eq = (rec[0] or {}).get("equity") or []
+        by = {"late": {"early": [], "late": []}, "upcycle": {"early": [], "late": []}}
+        for e in eq:
+            m = e.get("m")
+            st = st_by_m.get(m)
+            if st not in ("late", "upcycle"):
+                continue
+            y = int(m[:4])
+            half = "early" if y < 2024 else "late"
+            if y < 2021:
+                continue
+            by[st][half].append(float(e["ret"]))
+        for half in ("early", "late"):
+            lv, uv = by["late"][half], by["upcycle"][half]
+            if len(lv) < 3 or len(uv) < 3:
+                t2_lines.append(
+                    f"| {sid} | {half} | n={len(lv)} | n={len(uv)} | thin | | | | FAIL |"
+                )
+                continue
+            ml, mu = float(np.mean(lv)), float(np.mean(uv))
+            delta = ml - mu
+            # t on paired months unavailable → t on late / up / on concatenated signed Δ proxy
+            tl, tu = month_t_stat(lv), month_t_stat(uv)
+            # Welch-ish Δ t
+            vl, vu = float(np.var(lv, ddof=1)), float(np.var(uv, ddof=1))
+            se = math.sqrt(vl / len(lv) + vu / len(uv))
+            td = delta / se if se > 1e-12 else float("nan")
+            ok = abs(delta) >= 0.0025 and abs(td) >= 2.0
+            t2_struct_pass[sid][half] = ok
+            t2_lines.append(
+                f"| {sid} | {half} | {len(lv)}/{100*ml:+.2f}% | {len(uv)}/{100*mu:+.2f}% | "
+                f"{100*delta:+.2f}% | {tl:.2f} | {tu:.2f} | {td:.2f} | {'PASS' if ok else 'FAIL'} |"
+            )
+
+    both = [s for s, h in t2_struct_pass.items() if h["early"] and h["late"]]
+    t2_lines += [
+        "",
+        f"**Test 2 verdict: {'PASS (' + ','.join(both) + ')' if both else 'FAIL'}** — "
+        "need both halves for same structure. Monthly equity join (no S076 trade-date rebuild).",
+        "",
+        "## Notes",
+        "- T2 uses month-level S076 equity (unblocks missing trade dates).",
+        "- T3 peek already soft-FAIL in prior packet (band shift < 5 bp).",
         "",
         "Refs: A295",
     ]
+    lines += t2_lines
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(lines) + "\n")
     print(OUT.read_text())
