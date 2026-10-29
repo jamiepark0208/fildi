@@ -196,7 +196,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-21: VWAP timing now; ORB declined) |
 | [A220](asks/A220.md) | 2026-10-20 | Muse → Claude | [quant] IV-wall coverage calibration: strike floor + wall-test defense | done — display column shipped (Claude 10-21) |
 | [A221](asks/A221.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Book concentration: covariance clusters, marginal risk at entry, equal-risk sizing | done (Cursor 10-28: S140 FAIL cluster cap)|
-| [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | planned (Claude 10-21: marginal over put edge) |
+| [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | done (Cursor 10-28: S141 FAIL)|
 | [A223](asks/A223.md) | 2026-10-20 | Muse → Claude | Pilot: NautilusTrader as study engine (re-run S064, three gates) | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
 | [A224](asks/A224.md) | 2026-10-20 | Muse → Cursor | Test: Vibe-Trading — Shadow Account on Jamie's journal, alpha-zoo funnel, options cross-check | declined — rebutted by Muse 10-22 (Jamie ruling), awaiting re-review |
 | [A225](asks/A225.md) | 2026-10-20 | Muse → Cursor | Test: Superpowers + Claude Mem gated installs (Mac lane weak spots) | parked (Superpowers deferred; Mem declined) |
