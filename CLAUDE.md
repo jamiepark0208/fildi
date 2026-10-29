@@ -42,6 +42,7 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | Grep patterns for hot files (macro, schema, merge-trusted, nightly-enrichment, cache-registry) | .claude/skills/hot-files.md |
 | Backtest / "does X help trades?" | research/studies/PLAYBOOK.md |
 | Study judgment (comparators, verdict wording, review packet) | .agents/skills/fildi-quant-research/SKILL.md |
+| Indicator / pattern study (lows/highs, S/R, liquidity, momentum, volume, skew) | .agents/skills/fildi-pattern-research/SKILL.md |
 | Data source choice (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |
 | Is a score / rec working? | .agents/skills/fildi-grade-quality/SKILL.md |
 | Reviewing a study | research/studies/REVIEW.md |

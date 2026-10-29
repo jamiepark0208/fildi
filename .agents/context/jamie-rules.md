@@ -48,3 +48,4 @@
 - Don't make him relay messages between agents (10-05).
 
 - **Indicators (Jamie 10-26):** Jamie uses TradingView indicators for regime, confidence, entry/close timing, context, momentum, RSI, liquidity, S/R and volume. Test an indicator in the role it was built for (timing, exits, re-sell, cross-name pick) — never reject it from a hold-to-expiry filter test; and give it a display/context use even when it has no measured edge. Map + results: `.agents/context/indicators.md`.
+- **Indicators are context, not pass/fail (Jamie 10-29):** "I never asked for indicators to lead to long-term gains — find patterns for the lows and highs of a period; nobody said they were perfect." Test with `.agents/skills/fildi-pattern-research` (forward turning-point label, lift tiers strong/useful/weak, confluence + one combined model, then trade translation). Never gate an indicator on "adds over the risk score at |t| ≥ 2 both halves"; report the lift.
