@@ -51,6 +51,8 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 6. **Ties:** binary/discrete features need average ranks (`rank()` in the harness) — argsort ranks garbled S045 v1.
 7. **Dates:** check the weekday before calling a day "missed" (10-17-2026 is a Saturday).
 
+**Put-engine changes: benchmark gate (Jamie 10-28).** Before any factor / regime / strike rule reaches put_recs, register it as a variant in `analysis/put_benchmark.py` and get **BETTER** vs the live engine (holdout and pre-2023 both). It also lists the Alpaca wheel score and fixed 0.11Δ as public/naive baselines.
+
 ## 5. From result to product (the A167 pattern)
 1. Find where the feature enters (`codegraph`): put lane = `lib/option-scoring` → `option-score-snapshots.ts` (Rankings) **and** `model-track-record.ts` (Friday model_recs → Model List); both read `api-server/src/lib/put-scoring-inputs.ts`.
 2. Make it a champion param (`scorecard_params`, lane options/tech/fund/fair_value), default = old behaviour.

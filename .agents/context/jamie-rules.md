@@ -33,6 +33,7 @@
 
 - **Design dynamic, not one pinned answer (10-24):** show the range side by side (e.g. put ladder: every Δ band with kept %, income, worst 5 %, and the tickers that fit each band) so Jamie picks the level; the default/recommended row is highlighted, not the only one shown. Apply to any parameter (delta, DTE, horizon, risk tier) where a single cutoff hides the trade-off.
 - **Same inputs, direction flips by strategy (10-24):** every option strategy uses the same inputs; selling options wants the richest options, buying wants the cheapest (a requirement — a gate, not an optional angle); bullish trades want strong names, bearish weak. One home: `scripts/watchlist_sync/strategy_rules.json` (Rankings › Rules) — each input × strategy cell carries want, verdict, where live, study. Test every cell before it ranks; untested cells are the study queue.
+- **Benchmark gate (10-28):** any change to how puts are picked (new factor, regime signal, band/strike rule, gate) must run `scripts/watchlist_sync/analysis/put_benchmark.py` (S088 real-fill puts vs the live engine, the Alpaca public baseline and fixed 0.11Δ) and show **BETTER** — holdout 2023→ higher book bp (t ≥ 2) or equal bp with a better worst-5 % week, and not worse before 2023. 'Holdout only' / SAME = don't ship. Add new ideas as variants there.
 
 ## Communication
 - Caveman: answer first, terse, keep numbers and caveats, no code in chat (10-06, 10-15).
