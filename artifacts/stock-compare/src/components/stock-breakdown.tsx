@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { ModelThesisReport, type ModelThesis } from "@/components/model-thesis-report";
 import { FairValueBadge } from "@/components/fair-value-badge";
+import { OutsideValuesBox } from "@/components/breakdown/outside-values-box";
 import { LazyMount } from "@/components/lazy-mount";
 
 import {
@@ -473,6 +474,10 @@ export function StockBreakdown({
                 />
               )}
             </div>
+
+            {m.fairValueEstimate != null && m.ticker && (
+              <OutsideValuesBox ticker={m.ticker} price={m.currentPrice} votes={m.fairValueVotes} />
+            )}
 
             {/* ── Memo header: fund model + trade overlay (ETF → yield/AUM strip) ── */}
             <MemoHeader data={data} />

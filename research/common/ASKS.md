@@ -288,4 +288,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A311](asks/A311.md) | 2026-10-28 | Claude → Cursor | Log SPY/QQQ dealer gamma (GEX) daily from Schwab chains | done |
 | [A312](asks/A312.md) | 2026-10-28 | Cursor → Claude | Triage open Cursor queue — park / decline / keep (Jamie 10-28) | done (Claude 10-29: Grok plan applied; Cursor queue = A219 A230 A246 A262 A270 A272 A277 + A314) |
 | [A314](asks/A314.md) | 2026-10-28 | Claude → Cursor | [quant] Regime program — sweep credible regime/reversal methods (event-driven) | accepted |
-| [A315](asks/A315.md) | 2026-10-29 | Claude → Cursor | Breakdown — visible "Outside values" box: every fair value source by family (street · cash-flow · floor) + Trading Central levels/outlook | planned |
+| [A315](asks/A315.md) | 2026-10-29 | Claude → Cursor | Breakdown — visible "Outside values" box: every fair value source by family (street · cash-flow · floor) + Trading Central levels/outlook | done |
