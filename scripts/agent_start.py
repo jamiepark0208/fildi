@@ -118,6 +118,18 @@ def main() -> None:
             div, stale = (th.split("|") + [""])[:2]
             say(f"6d key themes: view ≠ signposts [{div or 'none'}] · stale/missing signposts [{stale or 'none'}] "
                 "→ update research/market-views/themes.json (fildi-market-thesis § 5)")
+        # 10-29 (Jamie): megacap reports → market-level read. Per-name notes are automatic (earnings_notes.py, daily via
+        # transcripts.py); the cross-company thesis needs an agent, so flag megacap prints newer than the last THESIS file.
+        theses = sorted((ROOT / "research/market-views").glob("THESIS_*.md"))
+        since = theses[-1].stem.split("_", 1)[1] if theses else "2000-01-01"
+        mc = subprocess.run(["sh", "-c", "export $(grep -h '^DATABASE_URL=' .env.local | xargs) && psql \"$DATABASE_URL\" -Atc "
+                             "\"SELECT string_agg(ticker || ' ' || to_char(report_date, 'MM-DD'), ', ' ORDER BY report_date) "
+                             "FROM public.earnings_calendar WHERE ticker IN ('AAPL','MSFT','NVDA','GOOGL','AMZN','META','AVGO','TSLA') "
+                             f"AND report_date > '{since}' AND report_date < CURRENT_DATE\""],
+                            cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        if mc:
+            say(f"6e megacap earnings since THESIS_{since}: {mc} → market read with fildi-market-thesis (new THESIS + LOG C#); "
+                "per-name notes are automatic")
         # 10-24 (Jamie): A228 sat in 'revise' 3 days with no owner action → new work duplicated it. Untouched > 3 days = stalled.
         stalled = []
         for l in open_rows:

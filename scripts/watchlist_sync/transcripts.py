@@ -24,14 +24,17 @@ import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from datetime import date, datetime
 
 from build_plan import connect, rows
+import earnings_notes
 
 AV_DAILY_CAP, AV_RESERVE = 25, 5
+MEGACAPS = {"AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "AVGO", "TSLA"}   # = themes.json baskets.megacaps
 MODEL = "claude-haiku-5-5"
 MAX_CHARS = 60_000      # ~15k tokens; long calls are cut after the Q&A start + tail
 DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.earnings_transcripts (
   ticker text NOT NULL, quarter text NOT NULL, status text NOT NULL, fetched_at timestamptz NOT NULL DEFAULT now(),
   segments int, av_sentiment float8, transcript jsonb, summary jsonb, summary_model text, PRIMARY KEY (ticker, quarter));
-CREATE TABLE IF NOT EXISTS watchlist_sync.transcript_checks (ticker text PRIMARY KEY, checked_at timestamptz NOT NULL, quarter text)"""
+CREATE TABLE IF NOT EXISTS watchlist_sync.transcript_checks (ticker text PRIMARY KEY, checked_at timestamptz NOT NULL, quarter text);
+ALTER TABLE watchlist_sync.transcript_checks ADD COLUMN IF NOT EXISTS period date"""
 SCHEMA_VERSION = 2
 PROMPT = """You are an equity analyst extracting model inputs from an earnings call, for a trader who sells weekly puts and keeps an
 FCF / fair-value model on this stock. Return ONLY one JSON object, every string ≤ 25 words, numbers as plain numbers (USD in millions,
@@ -98,7 +101,18 @@ def queue(conn) -> list[tuple[int, str]]:
                                         WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans) AND kind = 'option'""")}
     t3 = {r["t"] for r in rows(conn, "SELECT DISTINCT ticker AS t FROM model_recs WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM model_recs)")}
     checked = {r["ticker"]: r["checked_at"] for r in rows(conn, "SELECT ticker, checked_at FROM watchlist_sync.transcript_checks")}
+    # tier 0 (10-29): reported in the last 10 days and followed (book, megacaps, plan, published puts, model universe) — the call
+    # matters most the day after; AV posts ~1 day late, so a just-reported name stays first until its transcript lands.
+    recent = {r["t"] for r in rows(conn, """SELECT DISTINCT ticker AS t FROM public.earnings_calendar
+                                            WHERE report_date BETWEEN CURRENT_DATE - 10 AND CURRENT_DATE - 1""")}
+    pub = {r["t"] for r in rows(conn, """SELECT ticker AS t FROM watchlist_sync.put_recs_daily
+                                         WHERE pass AND as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily)""")}
+    rank = lambda t: (0 if t in t1 else 1 if t in MEGACAPS else 2 if t in t2 | pub else 3)
+    t0 = sorted(recent & (t1 | t2 | t3 | pub | MEGACAPS), key=rank)
     out, seen = [], set()
+    for t in t0:
+        seen.add(t)
+        out.append((0, t))
     for tier, names in ((1, t1), (2, t2), (3, t3)):
         for t in sorted(names - seen, key=lambda t: (checked.get(t) is not None, checked.get(t) or 0)):
             if "." in t or len(t) > 5:
@@ -112,11 +126,15 @@ _CALLS: dict[str, int] = {}  # anthropic / finnhub calls this run → api_usage 
 _AI_USAGE: list[tuple[str, int, int]] = []  # (ticker, in, out) per Haiku call → ai_usage_log at the end (A130)
 
 
+_PERIOD: dict[str, str | None] = {}
+
+
 def latest_quarter(ticker: str) -> str | None:
     _CALLS["finnhub"] = _CALLS.get("finnhub", 0) + 1
     vendor_gate.wait("Finnhub")
     d = get_json(f"https://finnhub.io/api/v1/stock/earnings?symbol={urllib.parse.quote(ticker)}&token={env('FINNHUB_API_KEY')}", 30)
     done = [x for x in d if isinstance(x, dict) and x.get("actual") is not None and x.get("year") and x.get("quarter")] if isinstance(d, list) else []
+    _PERIOD[ticker] = done[0].get("period") if done else None   # fiscal quarter end → earnings_notes matches the report date
     return f"{done[0]['year']}Q{done[0]['quarter']}" if done else None
 
 
@@ -149,7 +167,9 @@ def fetch_store(conn, t: str, quarter: str) -> str:
     if summary:
         summary["schema"] = SCHEMA_VERSION
     conn.execute("""INSERT INTO watchlist_sync.earnings_transcripts (ticker, quarter, status, segments, av_sentiment, transcript, summary, summary_model)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (ticker, quarter) DO NOTHING""",
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (ticker, quarter) DO UPDATE SET status = excluded.status, segments = excluded.segments,
+                      av_sentiment = excluded.av_sentiment, transcript = excluded.transcript, summary = excluded.summary,
+                      summary_model = excluded.summary_model WHERE earnings_transcripts.status = 'empty'""",
                  (t, quarter, "ok" if segs else "empty", len(segs), sum(sent) / len(sent) if sent else None,
                   json.dumps(segs) if segs else None, json.dumps(summary) if summary else None, MODEL if summary else None))
     conn.commit()
@@ -172,6 +192,18 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
         return json.loads(out[out.index("{"): out.rindex("}") + 1])
     except ValueError:
         return None
+
+
+def _summ_note(ticker: str, prompt: str) -> str:
+    """One short Haiku call for earnings_notes (text only; every number comes from the stored summary)."""
+    body = json.dumps({"model": MODEL, "max_tokens": 400, "thinking": {"type": "disabled"}, "output_config": {"effort": "low"},
+                       "messages": [{"role": "user", "content": prompt}]}).encode()   # Haiku 5.5 thinks by default and ate the budget
+    _CALLS["anthropic"] = _CALLS.get("anthropic", 0) + 1
+    r = get_json("https://api.anthropic.com/v1/messages", 60, body,
+                 {"content-type": "application/json", "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"})
+    u = r.get("usage") or {}
+    _AI_USAGE.append((ticker, int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)))
+    return "".join(c.get("text", "") for c in r.get("content", [])).strip()
 
 
 def resummarize(conn) -> None:
@@ -197,7 +229,9 @@ def main() -> None:
     conn.commit()
     if not dry:
         resummarize(conn)
-    have = {(r["ticker"], r["quarter"]) for r in rows(conn, "SELECT ticker, quarter FROM watchlist_sync.earnings_transcripts")}
+    # 'empty' = AV had no transcript yet (it posts ~1 day after the call): retry daily for 10 days, then give up
+    have = {(r["ticker"], r["quarter"]) for r in rows(conn, """SELECT ticker, quarter FROM watchlist_sync.earnings_transcripts
+                                                             WHERE status <> 'empty' OR fetched_at < now() - interval '10 days'""")}
     budget = AV_DAILY_CAP - AV_RESERVE - av_used_today(conn)
     q = queue(conn)
     if dry:
@@ -216,8 +250,9 @@ def main() -> None:
             except Exception:  # noqa: BLE001
                 continue
             time.sleep(1.1)  # Finnhub 60/min
-            conn.execute("""INSERT INTO watchlist_sync.transcript_checks (ticker, checked_at, quarter) VALUES (%s, now(), %s)
-                            ON CONFLICT (ticker) DO UPDATE SET checked_at = now(), quarter = excluded.quarter""", (t, quarter))
+            conn.execute("""INSERT INTO watchlist_sync.transcript_checks (ticker, checked_at, quarter, period) VALUES (%s, now(), %s, %s)
+                            ON CONFLICT (ticker) DO UPDATE SET checked_at = now(), quarter = excluded.quarter, period = excluded.period""",
+                         (t, quarter, _PERIOD.get(t)))
             conn.commit()
             if not quarter or (t, quarter) in have:
                 continue
@@ -240,6 +275,8 @@ def main() -> None:
         # tone/guidance trend: back-fill up to 3 prior quarters for book names (tier 1) once the latest quarters are done
         PRIOR = 3
         for tier, t in q:
+            if tier == 0:
+                continue
             if tier != 1 or budget <= 0:
                 break
             latest = conn.execute("SELECT quarter FROM watchlist_sync.transcript_checks WHERE ticker = %s", (t,)).fetchone()
@@ -266,9 +303,13 @@ def main() -> None:
                 fetched += 1
                 time.sleep(1.5)
 
-    latest_pass([x for x in q if x[0] == 1])
+    latest_pass([x for x in q if x[0] <= 1])
     backfill_pass()
     latest_pass([x for x in q if x[0] > 1])
+    try:
+        n_notes = earnings_notes.run(conn, _summ_note)
+    except Exception as e:  # noqa: BLE001 — notes must never fail the transcript run
+        n_notes = f"error {e}"
     for src, n in _CALLS.items():
         conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES (%s, (now() AT TIME ZONE 'America/Los_Angeles')::date, %s, now())
                         ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made, updated_at = now()""", (src, n))
@@ -276,7 +317,7 @@ def main() -> None:
         conn.execute("""INSERT INTO ai_usage_log (user_id, ticker, surface_type, cached, input_tokens, output_tokens, model)
                         VALUES (NULL, %s, 'transcripts', false, %s, %s, %s)""", (t, i, o, MODEL))
     conn.commit()
-    msg = f"fetched {fetched}, AV budget left {budget}"
+    msg = f"fetched {fetched}, AV budget left {budget}, earnings notes {n_notes}"
     try:
         os.makedirs("/tmp/fildi-logs", exist_ok=True)
         with open("/tmp/fildi-logs/transcripts-last.json", "w") as fh:  # Settings › Scheduled Tasks reads this

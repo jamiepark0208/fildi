@@ -127,10 +127,16 @@ export async function getTickersMissingUpcomingDate(allTickers: string[]): Promi
   // "missing" after ~17:00 PT (UTC already rolled to tomorrow) — wasted fetch.
   const today = etDayKey();
   const futureRows = await db
-    .select({ ticker: earningsCalendar.ticker })
+    .select({ ticker: earningsCalendar.ticker, reportDate: earningsCalendar.reportDate, fetchedAt: earningsCalendar.fetchedAt })
     .from(earningsCalendar)
     .where(and(inArray(earningsCalendar.ticker, normalized), gte(earningsCalendar.reportDate, today)));
-  const haveFuture = new Set(futureRows.map(r => r.ticker.toUpperCase()));
+  // 10-29: AAPL kept a 10-29 row fetched 10-04 after Apple moved to 11-02 — a date ≤ 10 days out counts only if
+  // re-confirmed in the last 3 days, so moved dates get re-fetched before the print.
+  const todayMs = Date.parse(today);
+  const DAY = 24 * 60 * 60 * 1000;
+  const haveFuture = new Set(futureRows
+    .filter(r => Date.parse(String(r.reportDate)) - todayMs > 10 * DAY || (r.fetchedAt && Date.now() - new Date(r.fetchedAt).getTime() < 3 * DAY))
+    .map(r => r.ticker.toUpperCase()));
   return normalized.filter(t => !haveFuture.has(t));
 }
 
@@ -244,6 +250,16 @@ export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuar
             fetchedAt: sql`now()`,
           },
         });
+    }
+    // 10-29 (AAPL 10-29 → 11-02, NVDA 11-17 + 11-18): a moved date left the old unreported row behind. Drop unreported
+    // rows within 21 days of an upcoming date the vendor just returned.
+    for (const r of rows) {
+      const date = r.reportDate.slice(0, 10);
+      if (r.epsActual != null || date < today) continue;
+      await tx.execute(sql`
+        DELETE FROM earnings_calendar
+        WHERE ticker = ${upperTicker} AND eps_actual IS NULL AND report_date <> ${date}
+          AND report_date BETWEEN (${date}::date - 21) AND (${date}::date + 21)`);
     }
   }).catch(err => {
     logger.warn({ ticker: upperTicker, err }, "writeEarningsHistory transaction failed");
