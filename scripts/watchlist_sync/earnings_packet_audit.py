@@ -11,20 +11,57 @@ table mistake breaks. Run after ANY parser change and before saying the notes ar
   yoy_ratio        current / year-ago within 0.2–5× for revenue (a wrong prior column)
   eps_vs_fh        GAAP EPS vs Finnhub actual within 50× (GAAP vs adjusted can differ a lot; 50× = a share-count row)
 
-    .venv/bin/python earnings_packet_audit.py            # table of failures + counts
+    .venv/bin/python earnings_packet_audit.py            # full population: table of failures + counts
+
+When it runs (cost ~50 ms / report; 75 reports = 3.8 s on 10-30, growing with history):
+  full population  only when the parser changed — sha256 of earnings_packet.py differs from the last full audit
+                   (~/.fildi/earnings_packet_audit.json) — or by hand (this CLI)
+  new reports      otherwise, only packets built in this run (earnings_notes.run passes them)
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
+from pathlib import Path
 
 import earnings_packet as ep
 from build_plan import connect, rows
 
 
-def audit(conn) -> tuple[int, int, list[str]]:
-    pks = rows(conn, """SELECT p.ticker, p.report_date, p.packet, f.fmp_shares_outstanding::float8 sh
-                        FROM watchlist_sync.earnings_packets p LEFT JOIN fmp_fundamentals f ON f.ticker = p.ticker
-                        WHERE p.status = 'ok'""")
+STATE = Path.home() / ".fildi" / "earnings_packet_audit.json"
+
+
+def parser_hash() -> str:
+    return hashlib.sha256(Path(ep.__file__).read_bytes()).hexdigest()[:16]
+
+
+def audit_if_needed(conn, built: list[tuple[str, object]]) -> tuple[str, int, int, list[str]]:
+    """Full audit when the parser changed since the last full one; else only this run's new packets; else nothing."""
+    h = parser_hash()
+    try:
+        last = json.loads(STATE.read_text()).get("hash")
+    except (OSError, ValueError):
+        last = None
+    if h != last:
+        n, k, fails = audit(conn)
+        if not k:   # remember only a clean pass, so a failing parser is re-audited every run until fixed
+            STATE.parent.mkdir(parents=True, exist_ok=True)
+            STATE.write_text(json.dumps({"hash": h, "reports": n}))
+        return "full", n, k, fails
+    if built:
+        n, k, fails = audit(conn, built)
+        return "new", n, k, fails
+    return "skip", 0, 0, []
+
+
+def audit(conn, only: list[tuple[str, object]] | None = None) -> tuple[int, int, list[str]]:
+    sql = """SELECT p.ticker, p.report_date, p.packet, f.fmp_shares_outstanding::float8 sh
+             FROM watchlist_sync.earnings_packets p LEFT JOIN fmp_fundamentals f ON f.ticker = p.ticker
+             WHERE p.status = 'ok'"""
+    if only:
+        sql += " AND (p.ticker, p.report_date) IN (" + ",".join(["(%s, %s::date)"] * len(only)) + ")"
+    pks = rows(conn, sql, tuple(x for pair in only for x in pair) if only else None)
     fails, n, match, has_fh, eps_n = [], 0, 0, 0, 0
     for r in pks:
         pk, t = r["packet"], r["ticker"]

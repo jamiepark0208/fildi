@@ -310,7 +310,7 @@ def _due_8k(conn) -> list[dict]:
         ORDER BY e.report_date, e.ticker""", (LOOKBACK_DAYS,))
 
 
-def run_8k(conn, ask, dry: bool = False, only: str | None = None) -> int:
+def run_8k(conn, ask, dry: bool = False, only: str | None = None, built: list | None = None) -> int:
     import earnings_packet
     n = 0
     for r in _due_8k(conn):
@@ -326,6 +326,8 @@ def run_8k(conn, ask, dry: bool = False, only: str | None = None) -> int:
             conn.rollback()
             print(f"  packet {t} {rd}: {str(e)[:120]}")
             continue
+        if pk and built is not None:
+            built.append((t, rd))
         if not pk or not pk["bridge"].get("revenue") and not pk["bridge"].get("operating_income"):
             continue   # no 8-K yet, or a release without a parsable income statement → the transcript path covers it
         x = pk["reaction"]   # timed off the 8-K filing date (the calendar date can be a stale vendor date)
@@ -349,12 +351,13 @@ def run_8k(conn, ask, dry: bool = False, only: str | None = None) -> int:
 
 def run(conn, ask, dry: bool = False) -> int:
     """Write due notes; returns how many reports got notes. `ask(ticker, prompt, model=…) -> str` = transcripts._summ_note."""
-    n = run_8k(conn, ask, dry)
+    built: list = []
+    n = run_8k(conn, ask, dry, built=built)
     run_briefs(conn, ask, dry)
-    import earnings_packet_audit   # B18: every run re-checks the whole population; a failure reaches the daily log
-    k_all, k_bad, fails = earnings_packet_audit.audit(conn)
+    import earnings_packet_audit   # B18: full population only when the parser changed, else just this run's packets
+    mode, k_all, k_bad, fails = earnings_packet_audit.audit_if_needed(conn, built)
     if k_bad:
-        print(f"WARN earnings packet audit: {k_bad} of {k_all} fail — " + "; ".join(fails[:5]))
+        print(f"WARN earnings packet audit ({mode}): {k_bad} of {k_all} fail — " + "; ".join(fails[:5]))
     for r in _due(conn):
         x = _reaction(conn, r["ticker"], r["report_date"])
         if not x:
