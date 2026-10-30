@@ -43,7 +43,7 @@ LINES = {
     "other_income": r"^(total )?other income( \(expense\))?,? net$|^other income \(expense\)$|^non-?operating income( \(expense\))?,? net$",
     "pretax": r"^(income|earnings)( \(loss\))?( from continuing operations)? before ?(provision for |\(provision\) benefit for |benefit \(provision\) for )?income ?tax(es| expense)?|^pre-?tax (earnings|income)$|^earnings before (income )?taxes$",
     "tax": r"^(provision for|benefit \(provision\) for|\(provision\) benefit for|income tax(es)?( expense| provision)?)( income)?( taxes)?(, net)?$|^income tax (expense|provision)( \(benefit\))?$",
-    "net_income": r"^net (income|earnings)( \(loss\))?$|^net (income|earnings) attributable to [a-z .,&']+$",
+    "net_income": r"^net (income|earnings|loss|\(loss\) income|income \(loss\))( \(loss\))?$|^net (income|earnings) attributable to [a-z .,&']+$",
     "eps_diluted": r"^diluted( eps| (net )?(earnings|income)( \(loss\))? per (common |ordinary )?share\b.*)?$|^(net )?(earnings|income)( \(loss\))? per diluted share$|^(earnings|net income) per (common )?share[ ,–-]+diluted$",
     "cfo": r"^net cash (provided by|from|generated (by|from)) (\(used in\) )?(operating activities|operations)$|^cash flows? from operating activities$",
     "capex": r"^purchases of property and equipment|^capital expenditures|^additions to property",
@@ -137,12 +137,16 @@ def parse_release(html: bytes) -> dict:
     blob = " ".join(p.text[:40]).lower()
     doc_scale = 1e-3 if "in thousands" in blob and "in millions" not in blob else 1.0
     per_table: list[dict[str, dict]] = []
+    ffo: list[dict] = []   # REIT FFO / AFFO per share rows (the number REIT consensus is on)
     compact: list[str] = []
     for ti, tab in enumerate(p.tables):
         hdr: list[tuple[int, int]] = []
         block, found, section = [], {}, ""
         head = (p.pre[ti] + " " + " ".join(c for r in tab[:5] for c in r)).lower()
         scale = 1e-3 if "thousands" in head else (1.0 if "millions" in head else doc_scale)   # → $ millions
+        # Q3 releases often show cash flow for nine months only (CMG 10-28: '$1.9 B operating cash flow' was year-to-date)
+        ytd = bool(re.search(r"(six|nine|twelve) months|year[- ]to[- ]date|\bytd\b", head)) and not re.search(
+            r"three months|quarter ended|\bq[1-4]\b|\b[1-4]q\d\d", head)
         for r in tab:
             label = next((c for c in r if c and not _num([c]) and c not in ("$", ")", "%")), "")
             label = re.sub(r"(?<=[a-z)])\s?\(?\d\)?$", "", label)   # footnote marks: 'Diluted1', 'Revenue (2)'
@@ -169,13 +173,17 @@ def parse_release(html: bytes) -> dict:
                 continue
             block.append(f"{label}: {cur:g}" + (f" (yr ago {prior:g})" if prior is not None else ""))
             key = label.lower().rstrip(":").strip()
+            if re.search(r"\b(a?ffo|funds from operations)\b", key) and re.search(r"per (diluted |common )?(share|unit)|diluted", key) \
+                    and abs(cur) < 100 and not ytd:
+                ffo.append({"cur": cur, "prior": prior, "label": label,
+                            "rank": 0 if re.search(r"normalized|core|as adjusted|adjusted", key) else 1 if "affo" not in key else 2})
             for name, rx in LINES.items():
                 if name in found or not re.search(rx, key):
                     continue
                 if name == "eps_diluted" and (abs(cur) > 500 or re.search(r"shares|average|weighted", section) and "per" not in key):
                     continue   # the 'Diluted' share-count row, not EPS
                 k = 1.0 if name == "eps_diluted" else scale
-                found[name] = {"cur": round(cur * k, 3), "prior": round(prior * k, 3) if prior is not None else None, "label": label}
+                found[name] = {"cur": round(cur * k, 3), "prior": round(prior * k, 3) if prior is not None else None, "label": label, "t": ti, **({"ytd": True} if ytd else {})}
         per_table.append(found)
         if any(":" in b for b in block):
             compact.append(" | ".join(block))
@@ -189,9 +197,13 @@ def parse_release(html: bytes) -> dict:
     cf = next((f for f in per_table if "cfo" in f and "capex" in f), {})
     lines.update({k: v for k, v in is_.items() if k in inc})
     lines.update({k: v for k, v in cf.items() if k in ("cfo", "capex")})
-    for f in per_table:
+    for f in per_table:   # still-missing lines; income lines only come from the income statement once one is found
         for k, v in f.items():
-            lines.setdefault(k, v)
+            if not (is_ and k in inc and k != "eps_diluted"):   # EPS often sits in its own per-share table
+                lines.setdefault(k, v)
+    if ffo:
+        f = min(ffo, key=lambda x: (x["prior"] is None, x["rank"]))   # quarter rows carry a year-ago column; guidance rows don't
+        lines["ffo_per_share"] = {k: f[k] for k in ("cur", "prior", "label")}
     return {"lines": lines, "tables": compact, "text": p.text, "unit": 1e6}   # lines are in $ millions (per-table scale)
 
 
@@ -199,10 +211,11 @@ def bridge(lines: dict) -> dict:
     """Operating vs non-operating, tax rate, FCF; current quarter vs a year ago. Missing lines stay None (never a stand-in 0)."""
     g = lambda k, w="cur": (lines.get(k) or {}).get(w)  # noqa: E731
     out: dict = {}
-    for k in ("revenue", "operating_income", "net_income", "eps_diluted"):
+    for k in ("revenue", "operating_income", "net_income", "eps_diluted", "ffo_per_share"):
         c, p = g(k), g(k, "prior")
         out[k] = c
-        out[k + "_yoy_pct"] = round(100 * (c / p - 1), 1) if c is not None and p not in (None, 0) and p > 0 else None
+        y = round(100 * (c / p - 1), 1) if c is not None and p not in (None, 0) and p > 0 else None
+        out[k + "_yoy_pct"] = y if y is None or abs(y) <= 500 else None   # > 5× = a mismatched prior column, not news
     oi, pt, rev = g("operating_income"), g("pretax"), g("revenue")
     out["op_margin_pct"] = round(100 * oi / rev, 1) if oi is not None and rev else None
     pm = g("operating_income", "prior"), g("revenue", "prior")
@@ -213,12 +226,14 @@ def bridge(lines: dict) -> dict:
         ppt, poi = g("pretax", "prior"), g("operating_income", "prior")
         out["non_operating_prior"] = round(ppt - poi, 3) if None not in (ppt, poi) else None
     tax = g("tax")
-    out["tax_rate_pct"] = round(100 * abs(tax) / pt, 1) if tax is not None and pt else None
+    tr = round(100 * abs(tax) / pt, 1) if tax is not None and pt else None
+    out["tax_rate_pct"] = tr if tr is not None and pt > 0 and tr <= 60 else None   # loss years / wrong row → no rate
     cfo, capex = g("cfo"), g("capex")
     if cfo is not None and capex is not None:
-        out["fcf"] = round(cfo - abs(capex), 3)
+        sfx = "_ytd" if (lines.get("cfo") or {}).get("ytd") else ""   # year-to-date only → never shown as the quarter
+        out["fcf" + sfx] = round(cfo - abs(capex), 3)
         pc, pk = g("cfo", "prior"), g("capex", "prior")
-        out["fcf_prior"] = round(pc - abs(pk), 3) if None not in (pc, pk) else None
+        out["fcf" + sfx + "_prior"] = round(pc - abs(pk), 3) if None not in (pc, pk) else None
     if g("fcf_reported") is not None:   # the company's own definition (net of proceeds / leases) wins when it reports one
         out["fcf_company"], out["fcf_company_prior"] = g("fcf_reported"), g("fcf_reported", "prior")
     return out
@@ -363,8 +378,9 @@ def build(conn, ticker: str, rd: date) -> dict | None:
     if fh and rv:   # sanity vs Finnhub's reported revenue (10-30 backfill: PCAR picked a segment table, ARE a thousands table)
         r = rv * 1e6 / fh
         if 900 < r < 1100:     # unit missed → thousands
+            t_rev = rel["lines"]["revenue"].get("t")
             for k, ln in rel["lines"].items():
-                if k != "eps_diluted":
+                if k != "eps_diluted" and ln.get("t") == t_rev:   # only the table whose unit was missed (ARE: net income was elsewhere)
                     ln.update(cur=ln["cur"] / 1000, prior=ln["prior"] / 1000 if ln["prior"] is not None else None)
         elif abs(r - 1) > 0.2:   # wrong table: drop the income lines rather than show a segment as the company (EPS + cash flow stay)
             for k in ("revenue", "operating_income", "other_income", "pretax", "tax", "net_income"):

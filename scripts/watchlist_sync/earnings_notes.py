@@ -31,7 +31,8 @@ MAX = 280                 # = scripts/stock_notes.py MAX
 BRIDGE_MODEL = "claude-sonnet-5-5"
 BRIDGE_PROMPT = """Write ONE neutral note (at most 260 characters, count them) for an internal stock-notes log on {ticker}'s report of {date}.
 Explain what separated EPS and free cash flow from operating income this quarter: the non-operating swing, any named one-off with its
-$ amount, and capex. Use only numbers that appear in the JSON, in $ billions with one decimal when the JSON is in millions.
+$ amount, and capex. Use only numbers that appear in the JSON. Write amounts of $1 billion or more as '$X.X B', smaller ones as '$X M' (the JSON is in millions). Lines marked ytd and fcf_ytd are
+year-to-date, not the quarter: say 'year-to-date' whenever you use them.
 If a line is missing, leave it out silently — never mention the JSON, missing data, or what cannot be computed.
 No opinion, no adjectives like strong/weak/great/disappointing, no advice, no price targets. Plain text, one or two sentences.
 JSON (amounts in {unit}): {packet}"""
@@ -132,7 +133,22 @@ def numbers_note_8k(pk: dict, x: dict) -> str:
         parts.append(f"op income {_b(b['operating_income'], u)}" + (f" {b['operating_income_yoy_pct']:+.1f} %" if b.get("operating_income_yoy_pct") is not None else "")
                      + (f", margin {b['op_margin_pct']:.1f} % vs {b['op_margin_prior_pct']:.1f} %" if b.get("op_margin_prior_pct") is not None else ""))
     # Street estimates are on the company's adjusted basis: compare like with like, show GAAP apart when they differ
+    if b.get("ffo_per_share") is not None:   # REITs: FFO/share is the earnings line that matters; GAAP EPS carries depreciation
+        lab = pk["lines"]["ffo_per_share"]["label"].lower()
+        name = "AFFO/share" if "affo" in lab else "core FFO/share" if re.search(r"normalized|core|adjusted", lab) else "FFO/share"
+        parts.append(f"{name} {b['ffo_per_share']:g}"
+                     + (f" ({b['ffo_per_share_yoy_pct']:+.1f} % y/y)" if b.get("ffo_per_share_yoy_pct") is not None else ""))
+        if b.get("eps_diluted") is not None:   # Finnhub mixes FFO actuals with GAAP estimates for REITs → no 'vs est' here
+            parts.append(f"GAAP EPS {b['eps_diluted']:g}")
+        out = "; ".join(parts[:1] + [", ".join(parts[1:])]) + "."
+        return out if len(out) <= MAX else ". ".join(parts[:2]) + "."
     eps, adj = b.get("eps_diluted"), st.get("finnhub_epsActual")
+    if any(re.search(r"funds from operations|\bffo\b", t, re.I) for t in pk.get("tables", [])):   # REIT, FFO row not parsable
+        parts.append(f"GAAP EPS {eps:g}" if eps is not None else "")
+        parts.append(f"FFO/share {adj:g} (Finnhub)" if adj is not None else "")
+        parts = [x for x in parts if x]
+        out = "; ".join(parts[:1] + [", ".join(parts[1:])]) + "."
+        return out if len(out) <= MAX else ". ".join(parts[:2]) + "."
     est = st.get("finnhub_epsEstimate") if adj is not None else st.get("eps_estimate")
     basis = adj if adj is not None else eps
     if basis is not None:
@@ -192,9 +208,12 @@ def bridge_template(pk: dict) -> str:
         parts.append(f"Non-operating {_b(b['non_operating'], u)}" + (f" vs {_b(b['non_operating_prior'], u)} a year ago" if b.get("non_operating_prior") is not None else "")
                      + (f" ({b['non_operating_share_of_pretax_pct']:.0f} % of pretax)" if b.get("non_operating_share_of_pretax_pct") is not None else ""))
     fcf, fp = (b.get("fcf_company"), b.get("fcf_company_prior")) if b.get("fcf_company_prior") is not None else (b.get("fcf"), b.get("fcf_prior"))
+    ytd = fcf is None and b.get("fcf_ytd") is not None
+    if ytd:
+        fcf, fp = b["fcf_ytd"], b.get("fcf_ytd_prior")
     if fcf is not None:
         cx = pk["lines"].get("capex") or {}
-        parts.append(f"FCF {_b(fcf, u)}" + (f" vs {_b(fp, u)}" if fp is not None else "")
+        parts.append(f"{'year-to-date ' if ytd else ''}FCF {_b(fcf, u)}" + (f" vs {_b(fp, u)}" if fp is not None else "")
                      + (f", capex {_b(abs(cx['cur']), u)} vs {_b(abs(cx['prior']), u)}" if cx.get("prior") is not None else ""))
     out = "; ".join(parts) + "." if parts else ""
     if pk["one_offs"] and len(out) + 20 < MAX:
