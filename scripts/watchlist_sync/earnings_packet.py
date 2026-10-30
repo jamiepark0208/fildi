@@ -307,6 +307,16 @@ def build(conn, ticker: str, rd: date) -> dict | None:
     _store_raw(conn, url, ticker, raw)
     rel = parse_release(raw)
     street = _street_revenue(ticker, rd)
+    fh, rv = street.get("revenueActual"), (rel["lines"].get("revenue") or {}).get("cur")
+    if fh and rv:   # sanity vs Finnhub's reported revenue (10-30 backfill: PCAR picked a segment table, ARE a thousands table)
+        r = rv * 1e6 / fh
+        if 900 < r < 1100:     # unit missed → thousands
+            for k, ln in rel["lines"].items():
+                if k != "eps_diluted":
+                    ln.update(cur=ln["cur"] / 1000, prior=ln["prior"] / 1000 if ln["prior"] is not None else None)
+        elif abs(r - 1) > 0.2:   # wrong table: drop the income lines rather than show a segment as the company (EPS + cash flow stay)
+            for k in ("revenue", "operating_income", "other_income", "pretax", "tax", "net_income"):
+                rel["lines"].pop(k, None)
     cal = rows(conn, "SELECT eps_actual::float8 a, eps_estimate::float8 e FROM earnings_calendar WHERE ticker = %s AND report_date = %s",
                (ticker, rd))
     tr = rows(conn, """SELECT quarter, summary FROM watchlist_sync.earnings_transcripts
