@@ -85,6 +85,17 @@ def main() -> None:
         inbox = (ROOT / "research/inbox.md").read_text().split("\n---", 1)
         items = [l for l in (inbox[1] if len(inbox) > 1 else "").splitlines() if l.strip()]
         say(f"5 inbox: {len(items)} line(s)" + (" → triage (split, dedupe, P1–P3, file, clear)" if items else ""))
+        # 5b Ops digest (rail A) — read-only pointer; never writes ASKS.md
+        dig = ROOT / ".cursor/context/ops-digest-latest.md"
+        if dig.exists():
+            head = dig.read_text()[:500]
+            empty = "Empty-OK:** yes" in head or "Empty-OK: yes" in head
+            stale_m = re.search(r"stale[^:]*:\s*\*\*(\d+)\*\*", head)
+            say(f"5b ops-digest: {'empty-OK' if empty else 'needs eyes'}"
+                + (f" · stale={stale_m.group(1)}" if stale_m else "")
+                + " → .cursor/context/ops-digest-latest.md")
+        else:
+            say("5b ops-digest: missing — run node scripts/ops-digest.mjs (or wait for Sunday LaunchAgent)")
         # 5c perf-watch (10-28): restart loops, slow/hung routes, 5xx, poll storms, blocked event loop — from the live API log
         rc, out = sh("node scripts/perf-watch.mjs", log, timeout=90)
         say(f"5c {last(out)}" + (" → read ~/.fildi/perf-watch.md, run each signal's check, fix the cause (don't wait for Jamie)" if rc == 1 else ""))
@@ -142,6 +153,14 @@ def main() -> None:
         rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/data_freshness.py", log)
         bad = [l for l in out.splitlines() if l.startswith("✗")]
         say(f"11 data freshness: {last(out, pat='freshness')}" + (f" — STALE: {'; '.join(b[2:90] for b in bad[:4])} → fix the job (not just re-run)" if bad else ""))
+        # 11b WRDS login (Jamie 10-29: a broken login went unreported). Reads the last connect result only — no network,
+        # no Duo push. A failure is told to Jamie in one line, never retried by the agent.
+        try:
+            ws = json.loads((Path.home() / ".fildi" / "wrds-status.json").read_text())
+            if not ws.get("ok"):
+                say(f"11b WRDS: FAILED {ws.get('at', '')[:16]} — {ws.get('msg', '')} (last ok {str(ws.get('last_ok'))[:10]}) → tell Jamie in one line")
+        except (OSError, ValueError):
+            pass
         # UI crashes from Jamie's browser → ~/.fildi/ui-crashes.jsonl (RouteErrorBoundary + window.error).
         # Agents act on these without Jamie re-reporting. Token-cheap: ≤2 lines.
         try:
