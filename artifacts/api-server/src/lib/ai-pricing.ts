@@ -1,16 +1,15 @@
 /**
- * One home for metered LLM prices (A130). $ per million tokens, Anthropic first-party list prices
- * (claude-api skill, cached 2026-10-06). Estimates only — the Anthropic console bill is the truth.
+ * Metered LLM prices (A130) — from llm-models.json (E8, shared with Python llm.py). $ per million tokens, first-party list
+ * prices (claude-api skill, cached 2026-10-06). Estimates only — the Anthropic console bill is the truth.
  */
-export const LLM_PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
-  "claude-haiku-4-5": { input: 1, output: 5 },
-  "claude-sonnet-5-5": { input: 2, output: 10 },
-  "claude-opus-5-5": { input: 4, output: 20 },
-};
+import LLM from "./llm-models.json" with { type: "json" };
+
+export const LLM_PRICE_PER_MTOK: Record<string, { input: number; output: number }> = Object.fromEntries(
+  Object.entries(LLM.models).map(([id, m]) => [id, { input: m.input, output: m.output }]),
+);
 
 /** Legacy rows have no model: they were all Haiku 4.5 (the only model before A130). */
-export const LEGACY_MODEL = "claude-haiku-4-5";
+export const LEGACY_MODEL = LLM.legacy_model;
 
 /** Strip a date suffix (claude-haiku-4-5-20251001 → claude-haiku-4-5). */
 export function priceKey(model: string | null | undefined): string {

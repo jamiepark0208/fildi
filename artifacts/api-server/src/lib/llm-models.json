@@ -1,0 +1,11 @@
+{
+  "_doc": "One home for Claude model ids, list prices ($/MTok) and the 'thinking off' request per model (E8, 10-30). Read by lib/ai-pricing.ts + lib/haiku.ts (TS) and scripts/watchlist_sync/llm.py (Python). Source: claude-api skill model table (cached 2026-10-06). thinking_off null = send no thinking param (Haiku 4.5: off by default; Opus 5.5: cannot be turned off, lower effort instead).",
+  "tiers": { "haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5" },
+  "models": {
+    "claude-haiku-5-5": { "input": 0.1, "output": 0.5, "thinking_off": { "type": "disabled" } },
+    "claude-haiku-4-5": { "input": 1, "output": 5, "thinking_off": null },
+    "claude-sonnet-5-5": { "input": 2, "output": 10, "thinking_off": { "type": "between_tools" } },
+    "claude-opus-5-5": { "input": 4, "output": 20, "thinking_off": null }
+  },
+  "legacy_model": "claude-haiku-4-5"
+}

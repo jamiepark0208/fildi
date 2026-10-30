@@ -20,6 +20,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import llm  # noqa: E402  (E8 one Claude wrapper + model registry)
 import vendor_gate  # noqa: E402  (A303 shared cross-process budget)
 from datetime import date, datetime
 
@@ -123,7 +124,6 @@ def queue(conn) -> list[tuple[int, str]]:
 
 
 _CALLS: dict[str, int] = {}  # anthropic / finnhub calls this run → api_usage at the end
-_AI_USAGE: list[tuple[str, int, int]] = []  # (ticker, in, out) per Haiku call → ai_usage_log at the end (A130)
 
 
 _PERIOD: dict[str, str | None] = {}
@@ -180,14 +180,9 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
     text = "\n".join(f"{s.get('speaker', '')} ({s.get('title', '')}): {s.get('content', '')}" for s in segs)
     if len(text) > MAX_CHARS:
         text = text[: MAX_CHARS - 15_000] + "\n…\n" + text[-15_000:]
-    body = json.dumps({"model": MODEL, "max_tokens": 3500,
-                       "messages": [{"role": "user", "content": PROMPT.format(ticker=ticker, quarter=quarter, text=text)}]}).encode()
     _CALLS["anthropic"] = _CALLS.get("anthropic", 0) + 1
-    r = get_json("https://api.anthropic.com/v1/messages", 120, body,
-                 {"content-type": "application/json", "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"})
-    u = r.get("usage") or {}
-    _AI_USAGE.append((ticker, int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)))
-    out = "".join(c.get("text", "") for c in r.get("content", []))
+    out = llm.ask(PROMPT.format(ticker=ticker, quarter=quarter, text=text), MODEL, max_tokens=3500, think=True, effort=None,
+                  ticker=ticker, surface="transcripts")   # same request as before E8: model's default thinking + effort
     try:
         return json.loads(out[out.index("{"): out.rindex("}") + 1])
     except ValueError:
@@ -195,16 +190,11 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
 
 
 def _summ_note(ticker: str, prompt: str, model: str = MODEL) -> str:
-    """One short call for earnings_notes (Haiku for the call note, Sonnet for the 8-K bridge; numbers checked by the caller)."""
-    off = {"type": "disabled"} if "haiku" in model else {"type": "between_tools"}   # Sonnet 5.5 rejects 'disabled' (400)
-    body = json.dumps({"model": model, "max_tokens": 400, "thinking": off, "output_config": {"effort": "low"},
-                       "messages": [{"role": "user", "content": prompt}]}).encode()   # Haiku 5.5 thinks by default and ate the budget
+    """One short call for earnings_notes (Haiku for the call note, Sonnet for the 8-K bridge; numbers checked by the caller).
+    Thinking off + effort low (Haiku 5.5 thinks by default and ate the budget); the wrapper picks each model's 'off' form."""
     _CALLS["anthropic"] = _CALLS.get("anthropic", 0) + 1
-    r = get_json("https://api.anthropic.com/v1/messages", 60, body,
-                 {"content-type": "application/json", "x-api-key": env("ANTHROPIC_API_KEY"), "anthropic-version": "2023-06-01"})
-    u = r.get("usage") or {}
-    _AI_USAGE.append((ticker, int(u.get("input_tokens") or 0), int(u.get("output_tokens") or 0)))
-    return "".join(c.get("text", "") for c in r.get("content", [])).strip()
+    return llm.ask(prompt, model, max_tokens=400, effort="low", ticker=ticker,
+                   surface="earnings_notes_sonnet" if "sonnet" in model else "earnings_notes")
 
 
 def resummarize(conn) -> None:
@@ -314,9 +304,7 @@ def main() -> None:
     for src, n in _CALLS.items():
         conn.execute("""INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES (%s, (now() AT TIME ZONE 'America/Los_Angeles')::date, %s, now())
                         ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made, updated_at = now()""", (src, n))
-    for t, i, o in _AI_USAGE:  # same table as the API server's callHaiku (Settings › API Monitor › AI spend)
-        conn.execute("""INSERT INTO ai_usage_log (user_id, ticker, surface_type, cached, input_tokens, output_tokens, model)
-                        VALUES (NULL, %s, 'transcripts', false, %s, %s, %s)""", (t, i, o, MODEL))
+    llm.flush(conn)   # same table as the API server's callHaiku, with the model that actually ran (Settings › API Monitor › AI spend)
     conn.commit()
     msg = f"fetched {fetched}, AV budget left {budget}, earnings notes {n_notes}"
     try:

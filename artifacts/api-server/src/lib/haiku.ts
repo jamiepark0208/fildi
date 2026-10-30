@@ -6,8 +6,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import { logApiCall } from "./api-logger.js";
 import { recordAiUsage } from "./ai-usage.js";
 
+import LLM from "./llm-models.json" with { type: "json" };
+
 const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
-export const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+/** E8 (10-30): ids + 'thinking off' form come from llm-models.json, shared with scripts/watchlist_sync/llm.py.
+ *  Haiku 4.5 → 5.5: 10× cheaper ($0.10 / $0.50 per MTok); thinking off + effort low keeps the old no-thinking behaviour. */
+export const HAIKU_MODEL: string = LLM.tiers.haiku;
+const HAIKU_OFF = (LLM.models as Record<string, { thinking_off: { type: string } | null }>)[HAIKU_MODEL]?.thinking_off;
 
 export interface HaikuCallOpts {
   prompt: string;
@@ -33,7 +38,8 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
       model: HAIKU_MODEL,
       max_tokens: opts.maxTokens,
       messages: [{ role: "user", content: opts.prompt }],
-    });
+      ...(HAIKU_OFF ? { thinking: HAIKU_OFF, output_config: { effort: "low" } } : {}),
+    } as Anthropic.MessageCreateParamsNonStreaming);
   } catch (err) {
     // Failed calls still count toward the API Monitor and show up in api.log.
     logApiCall({
@@ -46,7 +52,7 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
     });
     throw err;
   }
-  const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
+  const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
   const inputTokens = msg.usage?.input_tokens ?? 0;
   const outputTokens = msg.usage?.output_tokens ?? 0;
 
