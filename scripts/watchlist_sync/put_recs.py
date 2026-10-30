@@ -214,6 +214,40 @@ def book_groups(conn, recs: list[dict]) -> list[dict]:
     return out
 
 
+NEWS_GAP_SIGMA, NEWS_GAP_MIN_PCT = 3.0, 5.0   # move vs prior close that reads as news, not drift
+NEWS_8K = {"merger_agreement", "acquisition_agreement", "tender_offer", "going_private_transaction", "control_acquisition",
+           "deal_termination", "guidance_issuance_or_update", "guidance_withdrawal", "preliminary_results", "regulatory_investigation",
+           "material_litigation", "class_action_filing", "cybersecurity_incident", "ceo_departure", "cfo_departure",
+           "restructuring_plan", "asset_impairment", "public_offering", "private_placement"}
+
+
+def news_flags(conn, recs: list[dict], as_of: date, rv: dict) -> None:
+    """News check (10-29 MRVL −12 % on Lumentum deal news, no 8-K yet): awareness only, never a gate — S025/S031 found gap
+    drops recover no worse than other drops. rec['news'] = today's move vs the prior close when it is ≥ 3σ (21-day RV) and
+    ≥ 5 %, plus material 8-Ks filed in the last 7 days (corporate_events)."""
+    names = [r["ticker"] for r in recs]
+    prev = {t: (c, d) for t, c, d in conn.execute("""SELECT DISTINCT ON (UPPER(ticker)) UPPER(ticker), close::float8, date
+                                                     FROM prices_historical WHERE UPPER(ticker) = ANY(%s) AND date < %s
+                                                     ORDER BY UPPER(ticker), date DESC""", (names, as_of)).fetchall()}
+    k8 = defaultdict(list)
+    for t, f, c in conn.execute("""SELECT UPPER(ticker), filed, category FROM public.corporate_events
+                                   WHERE UPPER(ticker) = ANY(%s) AND filed >= %s::date - 7 AND category = ANY(%s)
+                                   ORDER BY filed DESC""", (names, as_of, sorted(NEWS_8K))).fetchall():
+        k8[t].append(f"{f} {c.replace('_', ' ')}")
+    for r in recs:
+        t, s = r["ticker"], r.get("spot")
+        cl, cd = prev.get(t) or (None, None)
+        gap = None
+        if s and cl and rv.get(t):
+            mv = 100 * (s / cl - 1)
+            sig = abs(mv) / (100 * rv[t] / math.sqrt(252))
+            if sig >= NEWS_GAP_SIGMA and abs(mv) >= NEWS_GAP_MIN_PCT:
+                gap = {"move_pct": round(mv, 1), "sigma": round(sig, 1), "vs_close": str(cd)}
+        if gap or k8.get(t):
+            r["news"] = {"gap": gap, "filings_8k": k8.get(t, [])[:3],
+                         "note": "check the news before selling (awareness, not a gate)"}
+
+
 def rich_context(conn, recs: list[dict]) -> None:
     """Display facts per rich-lane pick (S110: shown, not scored): street target upside, fair value, nearest ≥ 2-method support
     zone below spot and where the strike sits vs it (S088 zones on LSEG daily bars, bars ≤ today)."""
@@ -365,7 +399,12 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     for bg in book_groups(conn, out):
         print(f"  book group: {len(bg['list'])} of {bg['of_list']} published move together ({', '.join(bg['list'])}; corr {bg['corr']}); "
               f"held {', '.join(bg['held']) or 'none'}")
-    last ={LANE["near_low"]["record"]["name"]: 1, LANE["closer"]["record"]["name"]: 2}   # S110 paths rank after the rule's tiers
+    news_flags(conn, [r for r in out if r.get("strike") is not None], as_of, rv)
+    for r in out:
+        if (r.get("news") or {}).get("gap") and r["pass_"]:
+            g = r["news"]["gap"]
+            print(f"  news gap: {r['ticker']} {g['move_pct']:+.1f} % vs {g['vs_close']} close ({g['sigma']}σ) — published, check the news")
+    last = {LANE["near_low"]["record"]["name"]: 1, LANE["closer"]["record"]["name"]: 2}   # S110 paths rank after the rule's tiers
     for i, r in enumerate(sorted((r for r in out if r.get("rich")), key=lambda r: (last.get(r["rich"]["tier"], 0), -r["rich"]["score"])), 1):
         r["rich"]["rank"] = i
     return as_of, out, market
