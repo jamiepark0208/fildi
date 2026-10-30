@@ -25,8 +25,10 @@ var MAX_THREADS = 60;
 var MAX_RUNTIME_MS = 4.5 * 60 * 1000;
 var NEWER_THAN = '3d';
 var RETENTION_DAYS = 21;
-var BODY_PLAIN_MAX = 12000;
-var BODY_HTML_MAX = 20000;
+// 10-30 (D0): was 12000 / 20000 — cut the back half of 47 % of briefs (Bloomberg, LSEG, Daily Upside). Whole bodies now;
+// the ceilings only guard a malformed message (Drive file limit is far above). Ingest keeps the JSON 400 d in vendor_raw.
+var BODY_PLAIN_MAX = 200000;
+var BODY_HTML_MAX = 400000;
 var MAX_LINKS = 40;
 
 function saveDeskBriefs() {
@@ -319,6 +321,54 @@ function ensureLabels_() {
 function getOrCreateFolder_(name) {
   var it = DriveApp.getFoldersByName(name);
   return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+}
+
+/**
+ * One-time re-save (10-30 D0): rewrite the JSON of every labelled message from the last `days` (≤ 21 = Drive retention) with
+ * whole bodies, replacing the truncated file of the same Gmail id. Run by hand from the editor: resaveDeskBriefs() — it stops at
+ * the runtime cap and resumes where it left off on the next run (ScriptProperties 'resaveStart').
+ */
+function resaveDeskBriefs(days) {
+  var t0 = Date.now();
+  var account = accountTag_();
+  var banner = account + '_' + SCRIPT_REV + '_resave';
+  var folder = getOrCreateFolder_(FOLDER_NAME);
+  var byId = {};
+  var it = folder.getFiles();
+  while (it.hasNext()) {
+    var f = it.next();
+    var m = f.getName().match(/-([0-9a-f]{16})-/);
+    if (m) (byId[m[1]] = byId[m[1]] || []).push(f);
+  }
+  var props = PropertiesService.getScriptProperties();
+  var start = Number(props.getProperty('resaveStart') || 0);
+  var query = 'label:' + LABEL_NAME + ' newer_than:' + (days || 21) + 'd';
+  var rewritten = 0, done = false;
+  while (!done) {
+    var threads = GmailApp.search(query, start, 50);
+    if (!threads.length) { done = true; break; }
+    for (var i = 0; i < threads.length; i++) {
+      if (Date.now() - t0 >= MAX_RUNTIME_MS) {
+        props.setProperty('resaveStart', String(start + i));
+        console.log('[' + banner + '] runtime cap at thread ' + (start + i) + ', rewritten=' + rewritten + ' — run again to continue');
+        return;
+      }
+      var messages = threads[i].getMessages();
+      for (var j = 0; j < messages.length; j++) {
+        var message = messages[j];
+        var parsed = parseMessage_(message, detectSource_(message.getSubject() || '', message.getFrom() || ''), account, banner);
+        var old = byId[parsed.gmailMessageId] || [];
+        if (!old.length) continue;   // outside Drive retention or never saved — the normal trigger handles new mail
+        var name = old[0].getName();
+        for (var k = 0; k < old.length; k++) old[k].setTrashed(true);
+        folder.createFile(Utilities.newBlob(JSON.stringify(parsed, null, 2), 'application/json', name));
+        rewritten++;
+      }
+    }
+    start += threads.length;
+  }
+  props.deleteProperty('resaveStart');
+  console.log('[' + banner + '] done, rewritten=' + rewritten);
 }
 
 function listFileNames_(folder) {

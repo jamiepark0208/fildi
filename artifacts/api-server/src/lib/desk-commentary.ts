@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { desc, eq, gte, sql } from "drizzle-orm";
 import { db, deskCommentaries, type DeskCommentary } from "@workspace/db";
 import { logger } from "./logger.js";
+import { rememberVendorPayload } from "./vendor-raw.js";
 import {
   KIND_LABEL,
   KIND_PRIORITY,
@@ -222,6 +223,12 @@ export async function ingestDeskCommentaries(opts?: {
       if (opts?.dryRun) {
         result.inserted++;
         continue;
+      }
+      if (file.endsWith(".json")) {
+        // rule 4c: keep the Drive JSON whole (bodyHtml + outboundLinks); Drive prunes at 21 d, vendor_raw keeps 400 d
+        await rememberVendorPayload({ source: "gmail_desk", endpoint: "drive_json", key: file, payload: JSON.parse(raw) }).catch((err) =>
+          logger.warn({ err: String(err), file }, "desk-commentary: vendor_raw store failed"),
+        );
       }
       const status = await upsertParsed(parsed);
       if (status === "inserted") result.inserted++;

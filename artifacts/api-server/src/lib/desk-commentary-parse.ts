@@ -4,6 +4,10 @@
 import { basename } from "node:path";
 import { normalizeDeskPayload } from "./desk-commentary-normalize.js";
 
+/** Whole email body (D0 10-30: the old 12,000 cut dropped the back half of 47 % of emails). The ceiling only guards
+ *  against a malformed file; real briefs are 10–60k. Readers that feed an LLM cap their own input. */
+export const MAX_BODY_CHARS = 200_000;
+
 export type DeskKind =
   | "us_overnight"
   | "us_market_recap"
@@ -251,7 +255,7 @@ export function parseEml(raw: string, driveFileName: string): ParsedDeskItem {
     receivedAt: Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt,
     tickersMentioned: extractTickers(plain + " " + subject),
     synopsis: extractSynopsis(plain),
-    bodyPlain: plain.slice(0, 12000),
+    bodyPlain: plain.slice(0, MAX_BODY_CHARS),
     driveFileName,
     meta: { messageId, parser: "eml", fileSource: parsed.source },
   };
@@ -267,7 +271,7 @@ export function parseJsonSidecar(raw: string, driveFileName: string): ParsedDesk
       "factset_streetaccount";
     const subject = String(j.subject ?? "");
     const receivedAt = new Date(String(j.receivedAt ?? Date.now()));
-    const bodyPlain = String(j.bodyPlain ?? "").slice(0, 12000);
+    const bodyPlain = String(j.bodyPlain ?? "").slice(0, MAX_BODY_CHARS);
     const gmailFromJson = j.gmailMessageId ? String(j.gmailMessageId) : null;
     const norm = normalizeDeskPayload({
       source: srcHint,
@@ -324,5 +328,5 @@ export function parseJsonSidecar(raw: string, driveFileName: string): ParsedDesk
 function cleanBodyForStore(plain: string): string {
   return plain
     .replace(/ZjQcmQRYFpfptBannerStart[\s\S]*?ZjQcmQRYFpfptBannerEnd/gi, " ")
-    .slice(0, 12000);
+    .slice(0, MAX_BODY_CHARS);
 }

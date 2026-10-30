@@ -33,6 +33,10 @@ Live Drive JSON with `script: desk_v1` / `account: desk` means **Code.gs is stal
 5. Run once manually; Executions log must show `[usc_v2]` or `[personal_v2]` (not `desk_v1`).
 6. Confirm a new Drive file has `parserVersion: 2`, `bodyHtml`, `outboundLinks`.
 7. Prune uses **filename** `YYYY-MM-DD_` (not Drive create-date) so remtimed sync still drops >21d `.eml`/`.json`.
+8. **10-30 (D0, whole bodies):** after pasting, run `resaveDeskBriefs()` once from the editor in each project (re-run if the log says
+   "runtime cap") — rewrites the last 21 days with whole bodies (old cap 12k plain / 20k HTML cut 47 % of briefs). The Mac ingest
+   picks the rewritten files up by mtime and updates rows by Gmail id; raw JSON is kept 400 d in `vendor_raw` (gmail_desk/drive_json).
+   10-30 Drive files show `script: desk_v2`, `account: desk` → `ACCOUNT_TAG` is unset (cosmetic: can't tell which inbox).
 
 ### Every scheduled run (automatic)
 
