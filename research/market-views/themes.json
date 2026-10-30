@@ -1,6 +1,6 @@
 {
   "_doc": "Key Themes registry (Macro › Key Themes; Jamie 10-28). One home for themes, signposts, scenarios and theme baskets. Claude maintains it in every market-thesis session (.agents/skills/fildi-market-thesis § Themes). Signpost kinds: chart (macro-charts cache series), fred (macro-data series field), revision (median LSEG 30-day EPS drift of a basket, %), flow (basket market-cap change minus whole-universe change, pp), cds (LSEG 5y CDS bp: level or change), gov (Treasury cash flows), manual (value typed here with as_of; stale after stale_days). bull_if / bear_if = [op, value]; neither → neutral. share_overrides = company-wide share count for dual-class names priced on one line (GOOGL = A+B+C, BRK.B in B-equivalents; approximate, re-check yearly). Thresholds are judgment calls labelled as such, not fitted — grading lives in theme_snapshots + LOG.md.",
-  "updated": "2026-10-27",
+  "updated": "2026-10-29",
   "share_overrides": {
     "GOOGL": 12100000000,
     "BRK.B": 2157000000
@@ -109,7 +109,8 @@
       "refs": [
         "THESIS_2026-10-27.md#3",
         "LOG V2",
-        "A293"
+        "A293",
+        "THESIS_2026-10-29.md"
       ],
       "signposts": [
         {
@@ -179,7 +180,7 @@
           "label": "Hyperscaler 2027 capex consensus ($B)",
           "kind": "manual",
           "value": 1000,
-          "as_of": "2026-10-27",
+          "as_of": "2026-10-29",
           "stale_days": 30,
           "bull_if": [
             ">=",
@@ -190,7 +191,25 @@
             850
           ],
           "unit": "$B",
-          "note": "FactSet/Street; update after each hyperscaler print (this week)"
+          "note": "10-29: GOOGL 2027 capex \"increase significantly\", AMZN \"meaningfully\" above ~$220 B, MSFT accelerating H1 2027 (supplier delays), META no 2027 guide; Aug consensus $935 B, UBS $1.45 T, GS ~$1.14 T (THESIS_2026-10-29)"
+        },
+        {
+          "id": "spender_fcf",
+          "label": "Hyperscalers with negative quarterly FCF (of GOOGL META MSFT AMZN)",
+          "kind": "manual",
+          "value": 2,
+          "as_of": "2026-10-29",
+          "stale_days": 100,
+          "bull_if": [
+            "<=",
+            0
+          ],
+          "bear_if": [
+            ">=",
+            3
+          ],
+          "unit": "of 4",
+          "note": "Q3 2026: GOOGL −$9.1 B (incl. $5.2 B EC fine), META −$2.1 B, MSFT +$18.6 B; AMZN not yet checked. Spender cash = the market's new worry (THESIS_2026-10-29 #4, #7); judgment thresholds"
         }
       ]
     },
