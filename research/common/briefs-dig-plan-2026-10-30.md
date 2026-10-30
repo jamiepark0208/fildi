@@ -19,6 +19,12 @@ For extraction, yes (typed facts per email, ~150/day). For the dig, no — the d
 and writes a so-what; that is Sonnet (≤ 10/day) with code-checked numbers. Weekly synthesis = Opus. Model ids/usage through ONE
 wrapper (engine E8 below) — today TS uses Haiku 4.5 and Python Haiku 5.5 / Sonnet 5.5 via raw HTTP.
 
+## Progress
+- **D0 (10-30):** ingest keeps whole bodies (≤ 200k) + raw Drive JSON → vendor_raw (601 files, 11 MB). Root cause was the Apps Script (12k plain / 20k HTML caps) → fixed in repo + `resaveDeskBriefs()`; **needs Jamie: paste Code.gs in both Apps Script projects, run resaveDeskBriefs() once** (desk-commentaries.md step 8). Bar met only after that (0 bodies at exactly 12,000).
+- **E8 (10-30):** `artifacts/api-server/src/lib/llm-models.json` = one registry (ids, prices, thinking-off form) for haiku.ts / ai-pricing.ts / Python `llm.py` (official SDK, retries). TS Haiku 4.5 → 5.5 (A/B on a StreetAccount email: 1.4 s vs 2.4 s, $0.0003 vs $0.0020, no unsupported claim vs one). ai_usage_log now has the real model (Sonnet notes were logged as Haiku).
+- **E2 (10-30, notes side):** `research/lseg/earnings_window.py` = one window; notes read lseg_research.earnings_moves (release date, amc/bmo). Old window wrong for every amc/bmo report; 66/66 agree ≤ 0.5 pp; 55 notes rewritten. Left: `analysis/option_derive.py` realized move → read the same table.
+- **B18 audit cost (10-30):** earnings audit full only when the parser hash changes (3.6 s), else this run's packets (18 ms) or skip (0 ms).
+
 ## Build order — briefs dig (each stage has a pass/fail bar; one stage per session)
 | # | Stage | Builds on (Existing:) | Pass / fail |
 |---|---|---|---|
