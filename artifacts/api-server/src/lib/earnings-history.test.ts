@@ -1,6 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { prioritizeMissingUpcoming, etDayKey } from "./earnings-history.js";
+import {
+  prioritizeMissingUpcoming,
+  etDayKey,
+  isStaleUpcomingDuplicate,
+  wouldDeleteUnreportedStaleRow,
+} from "./earnings-history.js";
 
 // A240 fix-up (157b21d0 review finding 1): missingUpcoming starvation.
 describe("prioritizeMissingUpcoming", () => {
@@ -42,5 +47,27 @@ describe("etDayKey", () => {
   it("matches the UTC day when well within ET daytime hours", () => {
     const d = new Date("2026-10-21T15:00:00Z"); // 11:00 EDT
     assert.equal(etDayKey(d), "2026-10-21");
+  });
+});
+
+// A317 — dual upcoming vendor dates must not delete each other (Claude plan 2026-10-30).
+describe("isStaleUpcomingDuplicate / wouldDeleteUnreportedStaleRow", () => {
+  it("(a) two returned upcoming dates 1 day apart are both kept", () => {
+    const returned = ["2026-11-17", "2026-11-18"];
+    assert.equal(isStaleUpcomingDuplicate("2026-11-17", returned), false);
+    assert.equal(isStaleUpcomingDuplicate("2026-11-18", returned), false);
+  });
+
+  it("(b) B17 regression: stale unreported row near sole returned date is deleted", () => {
+    assert.equal(isStaleUpcomingDuplicate("2026-10-29", ["2026-11-02"]), true);
+    assert.equal(wouldDeleteUnreportedStaleRow("2026-10-29", null, ["2026-11-02"]), true);
+  });
+
+  it("(c) reported row inside ±21d window is never a delete candidate", () => {
+    assert.equal(wouldDeleteUnreportedStaleRow("2026-10-29", "1.42", ["2026-11-02"]), false);
+  });
+
+  it("(d) unreported row outside ±21d of returned upcoming is kept", () => {
+    assert.equal(isStaleUpcomingDuplicate("2026-10-02", ["2026-11-02"]), false);
   });
 });

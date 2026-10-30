@@ -27,6 +27,30 @@ export function isFiscalPeriodEndDate(dateStr: string): boolean {
   return /-(03-31|06-30|09-30|12-31)$/.test(dateStr.slice(0, 10));
 }
 
+/** A317 — mirrors stale-upcoming DELETE predicate for unit tests. */
+export function isStaleUpcomingDuplicate(
+  reportDate: string,
+  returnedUpcomingDates: readonly string[],
+): boolean {
+  const d = reportDate.slice(0, 10);
+  if (returnedUpcomingDates.includes(d)) return false;
+  for (const u of returnedUpcomingDates) {
+    const a = new Date(`${d}T12:00:00Z`).getTime();
+    const b = new Date(`${u.slice(0, 10)}T12:00:00Z`).getTime();
+    if (Math.abs(a - b) / 86_400_000 <= 21) return true;
+  }
+  return false;
+}
+
+export function wouldDeleteUnreportedStaleRow(
+  reportDate: string,
+  epsActual: string | null,
+  returnedUpcomingDates: readonly string[],
+): boolean {
+  if (epsActual != null) return false;
+  return isStaleUpcomingDuplicate(reportDate, returnedUpcomingDates);
+}
+
 export interface EarningsQuarter {
   reportDate: string;
   epsEstimate: number | null;
@@ -251,15 +275,26 @@ export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuar
           },
         });
     }
-    // 10-29 (AAPL 10-29 → 11-02, NVDA 11-17 + 11-18): a moved date left the old unreported row behind. Drop unreported
-    // rows within 21 days of an upcoming date the vendor just returned.
-    for (const r of rows) {
-      const date = r.reportDate.slice(0, 10);
-      if (r.epsActual != null || date < today) continue;
+    // B17 / A317: drop stale unreported duplicates near a returned upcoming date, but keep every date in this payload.
+    const returnedUpcoming = [
+      ...new Set(
+        rows
+          .filter(r => r.epsActual == null && r.reportDate.slice(0, 10) >= today)
+          .map(r => r.reportDate.slice(0, 10)),
+      ),
+    ];
+    if (returnedUpcoming.length > 0) {
+      const inReturned = sql.join(returnedUpcoming.map(d => sql`${d}`), sql`, `);
+      const nearAnyReturned = sql.join(
+        returnedUpcoming.map(d => sql`report_date BETWEEN (${d}::date - 21) AND (${d}::date + 21)`),
+        sql` OR `,
+      );
       await tx.execute(sql`
         DELETE FROM earnings_calendar
-        WHERE ticker = ${upperTicker} AND eps_actual IS NULL AND report_date <> ${date}
-          AND report_date BETWEEN (${date}::date - 21) AND (${date}::date + 21)`);
+        WHERE ticker = ${upperTicker}
+          AND eps_actual IS NULL
+          AND report_date NOT IN (${inReturned})
+          AND (${nearAnyReturned})`);
     }
   }).catch(err => {
     logger.warn({ ticker: upperTicker, err }, "writeEarningsHistory transaction failed");
