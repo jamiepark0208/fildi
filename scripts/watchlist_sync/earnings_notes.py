@@ -351,6 +351,10 @@ def run(conn, ask, dry: bool = False) -> int:
     """Write due notes; returns how many reports got notes. `ask(ticker, prompt, model=…) -> str` = transcripts._summ_note."""
     n = run_8k(conn, ask, dry)
     run_briefs(conn, ask, dry)
+    import earnings_packet_audit   # B18: every run re-checks the whole population; a failure reaches the daily log
+    k_all, k_bad, fails = earnings_packet_audit.audit(conn)
+    if k_bad:
+        print(f"WARN earnings packet audit: {k_bad} of {k_all} fail — " + "; ".join(fails[:5]))
     for r in _due(conn):
         x = _reaction(conn, r["ticker"], r["report_date"])
         if not x:

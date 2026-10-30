@@ -53,7 +53,7 @@ ONE_OFF = re.compile(r"\b(gains?|loss(es)?|charges?|fines?|impairments?|mark[- ]
                      r"restructuring|severance|one-time|non-recurring|legal (matter|accrual)|write-?(down|off)s?|divestiture)\b", re.I)
 MONEY = re.compile(r"\$\s?\d[\d,.]*\s*(billion|million|thousand)?", re.I)
 YEAR = re.compile(r"\b20\d\d\b")
-PERIOD = re.compile(r"\b(?:Q([1-4])\s+)?(20\d\d)\b|\bQ([1-4])\s?['’](\d\d)\b|\b([1-4])Q\s?['’]?(\d\d)\b")
+PERIOD = re.compile(r"\bQ([1-4])\s*(20\d\d)\b|\b([1-4])Q\s*(20\d\d)\b|\bQ([1-4])\s?['’](\d\d)\b|\b([1-4])Q\s?['’]?(\d\d)\b|\b(20\d\d)\b")
 
 
 class _Tables(HTMLParser):
@@ -105,31 +105,53 @@ class _Tables(HTMLParser):
         self._buf = []
 
 
-def _num(cells: list[str]) -> list[float]:
-    """Numbers in a row's cells; '(1,234)' → -1234, '—' → 0. '$' / '%' / ')' fragments in their own cells are skipped."""
+def _num_raw(cells: list[str]) -> list[tuple[float, bool]]:
+    """(value, is_percent) for every number in a row; '(1,234)' → -1234, '—' → 0; '$' / ')' fragments skipped."""
     out = []
-    for c in cells:
-        c = c.replace("$", "").replace("%", "").replace("—", "—").strip()
+    cs = [c.strip() for c in cells]
+    for i, c in enumerate(cs):
+        nxt = next((x for x in cs[i + 1:] if x and x not in (")",)), "")
+        pct = "%" in c or bool(re.search(r"\bbps?\b", c, re.I)) or nxt.startswith("%") or bool(re.fullmatch(r"(?i)bps?", nxt))
+        c = c.replace("$", "").replace("%", "").replace("\u2014", "—").strip()
         if c in ("—", "-", "–"):
-            out.append(0.0)
+            out.append((0.0, pct))
             continue
         m = re.fullmatch(r"\(?\s*(-?[\d,]*\.?\d+)\s*\)?", c)
         if m and re.search(r"\d", c):
             v = float(m.group(1).replace(",", ""))
-            out.append(-v if c.startswith("(") else v)
+            out.append((-v if c.startswith("(") else v, pct))
     return out
+
+
+def _num(cells: list[str], pct_mask: tuple[bool, ...] | None = None) -> list[float]:
+    """Numbers in a row without percent / basis-point columns. A '% of revenue' or '% change' column read as a value shifted
+    CMG/ODFL's year-ago revenue to 100.0 (10-30 audit); CMG marks '%' on the first row only → pct_mask carries the column
+    positions learned from that row to the rest of the table."""
+    raw = _num_raw(cells)
+    if pct_mask and len(pct_mask) == len(raw):
+        return [v for (v, p), m in zip(raw, pct_mask) if not (p or m)]
+    return [v for v, p in raw if not p]
 
 
 def _years(cells: list[str]) -> list[tuple[int, int]]:
-    """Column periods of a header row: (year, quarter) — quarter 0 for year-only headers ('2025 2026 2025 2026')."""
+    """Column periods of a header row: (year, quarter) — quarter 0 for year-only headers ('2025 2026 2025 2026').
+    'Q3 2026' / '3Q 2026' / "Q3'26" / '3Q26' / '2026'. Comparison cells ('3Q26 vs 2Q26', '% change') are not periods (USB 10-15)."""
     out = []
     for c in cells:
-        for q1, y1, q2, y2, q3, y3 in PERIOD.findall(c):   # 'Q3 2026' / '2026' / "Q3'26" / '3Q26'
-            out.append((int(y1), int(q1 or 0)) if y1 else (2000 + int(y2 or y3), int(q2 or q3)))
+        if re.search(r"\bvs\.?\b|change|chg|%", c, re.I):
+            continue
+        c = re.sub(r"(?i)\b(first|second|third|fourth)\s*quarter\s*", lambda m: "Q%d " % ("first second third fourth".split().index(
+            m.group(1).lower()) + 1), c)   # 'ThirdQuarter2026' (BAC) → 'Q3 2026'
+        for a, b, c2, d, e, f, g, h, y in PERIOD.findall(c):
+            if y:
+                out.append((int(y), 0))
+            else:
+                q, yy = next((q, yy) for q, yy in ((a, b), (c2, d), (e, f), (g, h)) if q)
+                out.append((int(yy) if len(yy) == 4 else 2000 + int(yy), int(q)))
     return out
 
 
-def parse_release(html: bytes) -> dict:
+def parse_release(html: bytes, fh_revenue: float | None = None) -> dict:
     """{'lines': {name: {'cur', 'prior', 'label'}}, 'tables': compact text of every numeric table, 'text': [paragraphs]}."""
     p = _Tables()
     p.feed(html.decode("utf-8", "replace"))
@@ -141,19 +163,30 @@ def parse_release(html: bytes) -> dict:
     compact: list[str] = []
     for ti, tab in enumerate(p.tables):
         hdr: list[tuple[int, int]] = []
+        hdr_cells: list[tuple[int, int] | None] = []   # every header cell: its period, or None for '$ change' / 'vs' / '% chg'
         block, found, section = [], {}, ""
         head = (p.pre[ti] + " " + " ".join(c for r in tab[:5] for c in r)).lower()
-        scale = 1e-3 if "thousands" in head else (1.0 if "millions" in head else doc_scale)   # → $ millions
+        scale = 1e-3 if "thousands" in head else 1.0 if "millions" in head else 1e3 if "billions" in head else doc_scale   # → $ M
         # Q3 releases often show cash flow for nine months only (CMG 10-28: '$1.9 B operating cash flow' was year-to-date)
-        ytd = bool(re.search(r"(six|nine|twelve) months|year[- ]to[- ]date|\bytd\b", head)) and not re.search(
-            r"three months|quarter ended|\bq[1-4]\b|\b[1-4]q\d\d", head)
+        cells_head = " ".join(c for r in tab[:5] for c in r).lower()   # the table's own header — prose above it says 'nine months' too
+        ytd = bool(re.search(r"(six|nine|twelve) months|year[- ]to[- ]date|\bytd\b", cells_head)) and not re.search(
+            r"three months|3 months|13 weeks|quarter|\bq[1-4]\b|\b[1-4]q", cells_head)
+        masks: dict[int, tuple[bool, ...]] = {}   # row length → percent columns, learned from mixed value/% rows only
         for r in tab:
             label = next((c for c in r if c and not _num([c]) and c not in ("$", ")", "%")), "")
             label = re.sub(r"(?<=[a-z)])\s?\(?\d\)?$", "", label)   # footnote marks: 'Diluted1', 'Revenue (2)'
-            nums = _num(r[1:]) if label else _num(r)
+            raw = _num_raw(r[1:]) if label else _num_raw(r)
+            flags = tuple(p for _, p in raw)
+            if any(flags) and not all(flags) and len(raw) not in masks:   # an all-% row (ROE, margins) is a ratio row, not a layout
+                masks[len(raw)] = flags
+            nums = _num(r[1:] if label else r, masks.get(len(raw)))
             ys = _years(r)
             if len(ys) >= 2 and (not nums or all(1990 < abs(v) < 2100 or v in (1, 2, 3, 4) for v in nums)):
                 hdr = ys      # header row: year order tells which column is the current quarter
+                cells = [c for c in r if c and c != "$"]
+                per = [(_years([c]) or [None])[0] if len(_years([c])) <= 1 else None for c in cells]
+                first = next((i for i, x in enumerate(per) if x), 0)
+                hdr_cells = per[first:]
                 continue
             if not label or not nums:
                 if label and not nums:
@@ -161,12 +194,21 @@ def parse_release(html: bytes) -> dict:
                     section = label.lower()
                 continue
             cur = prior = None
-            if hdr and len(nums) >= 2:
-                cols = hdr * (len(nums) // len(hdr)) if len(nums) > len(hdr) and len(nums) % len(hdr) == 0 else hdr
+            if hdr_cells and len(hdr_cells) == len(raw) and sum(x is not None for x in hdr_cells) >= 2:
+                # one value per header cell (CSX 'Fav / (Unfav)', USB '3Q26 vs 2Q26', RS 'Chg'): map by position
+                top = max(x for x in hdr_cells if x)
+                ci = hdr_cells.index(top)
+                pi = next((i for i, x in enumerate(hdr_cells) if x == (top[0] - 1, top[1])), None)
+                if not raw[ci][1]:
+                    cur, prior = raw[ci][0], raw[pi][0] if pi is not None and not raw[pi][1] else None
+            m_ = masks.get(len(raw))
+            hdr_ = [h for h, m in zip(hdr, m_) if not m] if m_ and len(hdr) == len(m_) else hdr   # '% change vs 2025' header cols
+            if cur is None and hdr_ and len(nums) >= 2:
+                cols = hdr_ * (len(nums) // len(hdr_)) if len(nums) > len(hdr_) and len(nums) % len(hdr_) == 0 else hdr_
                 top = max(cols)
                 ci = cols.index(top)   # first column of the latest period (a later repeat is TTM / year-to-date)
                 pi = next((i for i, y in enumerate(cols) if y == (top[0] - 1, top[1])), None)
-                if len(nums) >= len(cols) - 1 and ci < len(nums):   # a trailing blank '% change' column is allowed
+                if len(cols) - 1 <= len(nums) <= len(cols) + 1 and ci < len(nums):   # ± one blank / unmarked change column
                     cur, prior = nums[ci], nums[pi] if pi is not None and pi < len(nums) else None
             if cur is None:   # no period header → compact text only; never guess which column is this quarter
                 block.append(f"{label}: " + " / ".join(f"{v:g}" for v in nums[:6]))
@@ -180,9 +222,12 @@ def parse_release(html: bytes) -> dict:
             for name, rx in LINES.items():
                 if name in found or not re.search(rx, key):
                     continue
-                if name == "eps_diluted" and (abs(cur) > 500 or re.search(r"shares|average|weighted", section) and "per" not in key):
+                if name == "eps_diluted" and (abs(cur) > 500 or re.search(r"shares|average|weighted", section) and "per" not in key
+                                              or key == "diluted" and abs(cur) >= 100 and not re.search(r"per share|earnings|eps", section)):
                     continue   # the 'Diluted' share-count row, not EPS
                 k = 1.0 if name == "eps_diluted" else scale
+                if ytd and name in ("revenue", "operating_income", "other_income", "pretax", "tax", "net_income", "eps_diluted"):
+                    continue   # a year-to-date-only table never supplies the quarter's income lines (BAC 10-14: 9-month EPS)
                 found[name] = {"cur": round(cur * k, 3), "prior": round(prior * k, 3) if prior is not None else None, "label": label, "t": ti, **({"ytd": True} if ytd else {})}
         per_table.append(found)
         if any(":" in b for b in block):
@@ -192,10 +237,18 @@ def parse_release(html: bytes) -> dict:
     # first table holding both operating cash flow and capex; anything still missing from the first table that has it.
     inc = ("revenue", "operating_income", "other_income", "pretax", "tax", "net_income", "eps_diluted")
     lines: dict[str, dict] = {}
-    is_ = next((f for f in per_table if "pretax" in f and ("revenue" in f or "operating_income" in f)), None) \
-        or next((f for f in per_table if "net_income" in f and ("revenue" in f or "operating_income" in f)), {})
+    # the income statement = the table holding the most income lines (a highlights / segment table holds 2–3; SBUX 10-27)
+    cands = [f for f in per_table if ("pretax" in f or "net_income" in f) and ("revenue" in f or "operating_income" in f)]
+    # with Finnhub's reported revenue in hand, the table whose revenue matches it wins (ground truth beats line counts)
+    def fit(f):
+        rv = (f.get("revenue") or {}).get("cur")
+        ok = bool(fh_revenue and rv and any(abs(rv * 1e6 * m / fh_revenue - 1) < 0.02 for m in (1, 1e-3, 1e3)))
+        return (ok, sum(k in f for k in inc))
+    is_ = max(cands, key=fit, default={})
     cf = next((f for f in per_table if "cfo" in f and "capex" in f), {})
     lines.update({k: v for k, v in is_.items() if k in inc})
+    if "revenue" in lines and "operating_income" in lines and lines["operating_income"]["cur"] > lines["revenue"]["cur"] * 1.001:
+        lines.pop("operating_income")   # operating income above revenue = a mis-read row (AM 10-27)
     lines.update({k: v for k, v in cf.items() if k in ("cfo", "capex")})
     for f in per_table:   # still-missing lines; income lines only come from the income statement once one is found
         for k, v in f.items():
@@ -205,6 +258,29 @@ def parse_release(html: bytes) -> dict:
         f = min(ffo, key=lambda x: (x["prior"] is None, x["rank"]))   # quarter rows carry a year-ago column; guidance rows don't
         lines["ffo_per_share"] = {k: f[k] for k in ("cur", "prior", "label")}
     return {"lines": lines, "tables": compact, "text": p.text, "unit": 1e6}   # lines are in $ millions (per-table scale)
+
+
+def sanity_vs_street(rel: dict, fh_revenue: float | None, shares: float | None = None) -> None:
+    """In place: 8-K revenue vs Finnhub's reported revenue (10-30 backfill: PCAR picked a segment table, ARE a thousands table).
+    ~1000× → that one table missed '(in thousands)': rescale only its lines. > 20 % off → wrong table: drop the income lines
+    (a blank beats a segment shown as the company). Checked by earnings_packet_audit.py."""
+    L = rel["lines"]
+    ni, eps = (L.get("net_income") or {}).get("cur"), (L.get("eps_diluted") or {}).get("cur")
+    if shares and ni and eps and abs(eps) > 0.05 and not 0.5 <= abs(ni) * 1e6 / abs(eps) / shares <= 2:
+        L.pop("eps_diluted")   # net income ÷ EPS ≠ share count → the EPS row is another column or section (USB 10-15)
+    rv = (L.get("revenue") or {}).get("cur")
+    if not (fh_revenue and rv):
+        return
+    r = rv * 1e6 / fh_revenue
+    f = 1 / 1000 if 900 < r < 1100 else 1000 if 0.0009 < r < 0.0011 else None   # missed '(in thousands)' / '(in billions)'
+    if f:
+        t_rev = rel["lines"]["revenue"].get("t")
+        for k, ln in rel["lines"].items():
+            if k != "eps_diluted" and ln.get("t") == t_rev:
+                ln.update(cur=ln["cur"] * f, prior=ln["prior"] * f if ln["prior"] is not None else None)
+    elif abs(r - 1) > 0.2:
+        for k in ("revenue", "operating_income", "other_income", "pretax", "tax", "net_income"):
+            rel["lines"].pop(k, None)
 
 
 def bridge(lines: dict) -> dict:
@@ -372,19 +448,10 @@ def build(conn, ticker: str, rd: date) -> dict | None:
         conn.commit()
         return None
     _store_raw(conn, url, ticker, raw)
-    rel = parse_release(raw)
     street = _street_revenue(ticker, rd)
-    fh, rv = street.get("revenueActual"), (rel["lines"].get("revenue") or {}).get("cur")
-    if fh and rv:   # sanity vs Finnhub's reported revenue (10-30 backfill: PCAR picked a segment table, ARE a thousands table)
-        r = rv * 1e6 / fh
-        if 900 < r < 1100:     # unit missed → thousands
-            t_rev = rel["lines"]["revenue"].get("t")
-            for k, ln in rel["lines"].items():
-                if k != "eps_diluted" and ln.get("t") == t_rev:   # only the table whose unit was missed (ARE: net income was elsewhere)
-                    ln.update(cur=ln["cur"] / 1000, prior=ln["prior"] / 1000 if ln["prior"] is not None else None)
-        elif abs(r - 1) > 0.2:   # wrong table: drop the income lines rather than show a segment as the company (EPS + cash flow stay)
-            for k in ("revenue", "operating_income", "other_income", "pretax", "tax", "net_income"):
-                rel["lines"].pop(k, None)
+    rel = parse_release(raw, street.get("revenueActual"))
+    sh = rows(conn, "SELECT fmp_shares_outstanding::float8 s FROM fmp_fundamentals WHERE ticker = %s", (ticker,))
+    sanity_vs_street(rel, street.get("revenueActual"), sh[0]["s"] if sh else None)
     cal = rows(conn, "SELECT eps_actual::float8 a, eps_estimate::float8 e FROM earnings_calendar WHERE ticker = %s AND report_date = %s",
                (ticker, rd))
     tr = rows(conn, """SELECT quarter, summary FROM watchlist_sync.earnings_transcripts

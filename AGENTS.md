@@ -12,7 +12,7 @@
 
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).
-**Shared financial skills (every agent, Jamie 10-20):** `.agents/skills/fildi-quant-research` (studies, backtests, scenarios — the judgment rules) · `fildi-market-data` (sources, budgets) · `fildi-market-thesis` (test a market view: claim tree, analogs, money flows, scenarios, scored) · `fildi-grade-quality` (is a score/rec working) · `fildi-pattern-research` (indicators as context: forward turning-point labels, lift tiers, confluence + combined model — Jamie 10-29). Study reviews: `research/studies/REVIEW.md`.
+**Shared financial skills (every agent, Jamie 10-20):** `.agents/skills/fildi-quant-research` (studies, backtests, scenarios — the judgment rules) · `fildi-market-data` (sources, budgets) · `fildi-market-thesis` (test a market view: claim tree, analogs, money flows, scenarios, scored) · `fildi-grade-quality` (is a score/rec working) · `fildi-pattern-research` (indicators as context: forward turning-point labels, lift tiers, confluence + combined model — Jamie 10-29) · `fildi-briefs-dig` (Jamie's tradedash-brief emails → typed facts → verify vs our data → so-what → graded claims; plan `research/common/briefs-dig-plan-2026-10-30.md` — Jamie 10-30). Study reviews: `research/studies/REVIEW.md`.
 **Shared-file safety (10-20 incident):** edit shared tables with the Edit tool or `scripts/md_rows.py`; never `open(p,'w')` in an expression that reads `p`. `.agents/hooks/shield.mjs restore <path>` undoes a truncation.
 
 ## Tool adapters (do not duplicate policy into these)
