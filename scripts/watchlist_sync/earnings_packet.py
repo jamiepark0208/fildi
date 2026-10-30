@@ -9,6 +9,8 @@ Per report (ticker, report_date) one packet in watchlist_sync.earnings_packets:
   street    EPS estimate (earnings_calendar) + revenue estimate (Finnhub calendar) — never blocks when missing
   reaction  close before → first close after the report (earnings_notes._reaction)
   call      stored transcript summary when it is in (AV); the packet is built without it and refreshed when it lands
+  briefs    Jamie's tradedash-brief newsletters (Gmail label → Drive → desk_commentaries): sentences naming the company in the
+            2 days after the 8-K — what the street read into the print beyond the table numbers
 Used by earnings_notes.py (numbers + bridge notes) and any agent writing an earnings read (`--print T`).
 
     .venv/bin/python earnings_packet.py --print GOOGL [--date 2026-10-28]   # build + show (no notes written)
@@ -277,6 +279,56 @@ def _street_revenue(ticker: str, rd: date) -> dict:
         return {"error": str(e)[:120]}
 
 
+_STOP = {"the", "bank", "first", "american", "general", "united", "international", "national", "global", "group", "holdings", "corp"}
+
+
+def company_name(conn, ticker: str) -> str | None:
+    """SEC registrant name ('Alphabet Inc.') — the briefs say 'Alphabet', rarely 'GOOGL'."""
+    cik = cik_for(conn, ticker)
+    return _get_json(f"https://data.sec.gov/submissions/CIK{cik}.json").get("name") if cik else None
+
+
+_EARN = re.compile(r"\b(results?|quarter(ly)?|revenue|sales|guidance|guide[ds]?|outlook|forecast|capex|capital (spending|expenditure)|margins?|"
+                   r"beat|miss(ed)?|topped|fell short|shares (fell|rose|jumped|slid|dropped|climbed|sank|surged)|"
+                   r"(fell|rose|jumped|slid|dropped|climbed|sank|surged) \d|after[- ]hours|reported|earnings|profit|cloud|backlog|demand)\b", re.I)
+_PREVIEW = re.compile(r"\b(will report|reports? (later|after|before|on)|ahead of|expect(s|ed)? a .{0,20}move|due (to report|out)|preview|"
+                      r"set to report|on deck|to watch)\b", re.I)
+
+
+def briefs_for(conn, ticker: str, name: str | None, filed: date, hour: str | None = None, limit: int = 8) -> list[dict]:
+    """Post-print sentences naming the company in desk_commentaries (Jamie's tradedash-brief label), 8-K day → 2 days after.
+    After-close reports start at 13:00 PT on the filing day (earlier mail is preview). Ranked by earnings words; tables,
+    links and previews dropped; ≤ 2 per source."""
+    stem = next((w for w in re.findall(r"[A-Za-z][A-Za-z&'.-]+", name or "") if len(w) >= 4 and w.lower() not in _STOP), None)
+    alts = [re.escape(ticker)] + ([re.escape(ticker[:-1])] if ticker in ("GOOGL",) else []) + ([re.escape(stem.rstrip(".,"))] if stem else [])
+    rx = re.compile(r"\b(" + "|".join(alts) + r")\b")
+    start = f"{filed} 13:00" if (hour or "").lower() == "amc" else f"{filed} 04:00"
+    cands = []
+    for r in rows(conn, """SELECT source, subject, received_at, body_plain FROM desk_commentaries
+                           WHERE received_at >= %s::timestamp AT TIME ZONE 'America/Los_Angeles' AND received_at < %s::date + 3
+                             AND COALESCE(noise_score, 0) < 50 AND body_plain ~ %s ORDER BY received_at""",
+                  (start, filed, rx.pattern.replace("\\b", "\\y"))):
+        body = re.sub(r"<https?://[^>]*>|https?://\S+", "", r["body_plain"] or "").replace("*", "")
+        sents = [x.strip(" -–") for x in re.split(r"(?<=[.!?])\s+|\s*[•·▪]\s*|\[ \]", " ".join(body.split())) if x.strip()]
+        for x in sents:   # the matching sentence / bullet only — neighbours in a digest are other companies
+            if not rx.search(x) or len(x) < 40 or _PREVIEW.search(x):
+                continue
+            if sum(ch.isdigit() for ch in x) > 0.25 * len(x):   # quote tables
+                continue
+            score = len(_EARN.findall(x))
+            if score:
+                cands.append((score, r, x[:450]))
+    out, per = [], {}
+    for score, r, txt in sorted(cands, key=lambda c: -c[0]):
+        if per.get(r["source"], 0) >= 2 or any(txt[:80] in o["text"] or o["text"][:80] in txt for o in out):
+            continue
+        per[r["source"]] = per.get(r["source"], 0) + 1
+        out.append({"source": r["source"], "subject": r["subject"], "at": str(r["received_at"])[:16], "text": txt})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _store_raw(conn, url: str, ticker: str, raw: bytes) -> None:
     conn.execute("""INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
                     VALUES ('edgar', '8k_ex99_1', %s, %s, %s::jsonb, %s)
@@ -329,6 +381,8 @@ def build(conn, ticker: str, rd: date) -> dict | None:
                    **{"finnhub_" + k: v for k, v in street.items()}},
         "reaction": earnings_notes._reaction(conn, ticker, filed),   # the 8-K date is the real report date
         "call": tr[0]["summary"] if tr else None,
+        "name": (name := company_name(conn, ticker)),
+        "briefs": briefs_for(conn, ticker, name, filed, street.get("hour")),
         "tables": rel["tables"][:14],
         "highlights": [s for s in rel["text"] if (MONEY.search(s) or "%" in s) and not re.match(r"^\(?[a-z\d]\)\s?", s)][:25],
     }

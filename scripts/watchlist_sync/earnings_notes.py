@@ -7,6 +7,8 @@ Per report, kind 'earnings', author 'auto':
   1. numbers (no LLM, tag src:8k:<T>:<date>): 2-day move vs usual + SPY; revenue + operating income y/y, margin; EPS vs estimate.
   2. bridge (Sonnet, tag src:8k): why EPS / FCF moved apart from operating income — non-operating swing, named one-offs, capex.
      Every number in the draft must appear in the packet (± rounding, millions ↔ billions) or it falls back to a template.
+  2b. street read (Sonnet, tag src:briefs:<T>:<date>): what Jamie's tradedash-brief newsletters (desk_commentaries) added beyond
+     the table — segment / guidance vs consensus, the reaction driver — named by source; written once the 2-day window closes.
   3. the call (Haiku, tag src:transcript:<T>:<Q>): what management guided and what analysts pushed on — when the transcript lands.
      Without an 8-K packet (foreign filers) the transcript path also writes the v1 numbers note.
 Neutral voice: facts and both sides, no opinion, no advice (notes are history, never a forecast — AGENTS.md read-next 7).
@@ -141,8 +143,13 @@ def numbers_note_8k(pk: dict, x: dict) -> str:
     return out if len(out) <= MAX else ". ".join(parts[:2]) + "."
 
 
-META = re.compile(r"\bJSON\b|not (reported|broken out|available|disclosed|listed|given)|isn't|is not (reported|broken)|no (named )?one-offs?|"
+META = re.compile(r"\bJSON\b|\bexcerpts?\b|not (reported|broken out|available|disclosed|listed|given)|isn't|is not (reported|broken)|no (named )?one-offs?|"
                   r"cannot be|can't be|no bridge", re.I)   # the note states facts, never what the packet lacks
+BRIEFS_PROMPT = """Write ONE neutral note (at most 260 characters, count them) for an internal stock-notes log on {ticker}'s report of {date}.
+From the newsletter excerpts below, state what the coverage added beyond revenue/operating income/EPS: segment or guidance numbers vs
+consensus, and what it said drove the share move. Attribute briefly (e.g. 'StreetAccount:', 'Bloomberg:'). Use only facts and numbers
+in the excerpts; ignore promotional or unrelated lines. No opinion of your own, no advice. Plain text, one or two sentences.
+Excerpts: {briefs}"""
 _NUM = re.compile(r"(?<![\w.])-?\d[\d,]*\.?\d*")
 
 
@@ -215,6 +222,52 @@ def bridge_note(pk: dict, ask) -> str:
     return txt or bridge_template(pk)
 
 
+def briefs_note(pk: dict, ask) -> str:
+    """Street read from the briefs; every number must come from the excerpts or the packet. Empty when nothing passes."""
+    ex = [f"[{b['source']}] {b['text']}" for b in pk.get("briefs") or []]
+    if not ex:
+        return ""
+    chk = {**pk, "highlights": pk.get("highlights", []) + ex}
+    p = BRIEFS_PROMPT.format(ticker=pk["ticker"], date=pk.get("filed") or pk["report_date"], briefs="\n".join(ex))
+    try:
+        txt = " ".join(ask(pk["ticker"], p, model=BRIDGE_MODEL).split())
+        bad = numbers_ok(txt, chk) + (["meta talk"] if META.search(txt) else [])
+        if len(txt) > MAX or bad:
+            why = (f"it was {len(txt)} characters (limit 260)" if len(txt) > MAX else "") + (f"; not in the excerpts: {bad}" if bad else "")
+            txt = " ".join(ask(pk["ticker"], p + f"\n\nYour last draft failed because {why}. Rewrite it:\n{txt}", model=BRIDGE_MODEL).split())
+        return "" if len(txt) > MAX or numbers_ok(txt, chk) or META.search(txt) else txt
+    except Exception:  # noqa: BLE001 — no street-read note this run; retried next run
+        return ""
+
+
+def run_briefs(conn, ask, dry: bool = False, only: str | None = None) -> int:
+    """Packets whose 2-day briefs window has closed and that have no street-read note yet."""
+    import earnings_packet
+    n = 0
+    for r in rows(conn, """SELECT ticker, report_date, packet FROM watchlist_sync.earnings_packets p
+                           WHERE status = 'ok' AND (packet->>'filed')::date BETWEEN CURRENT_DATE - %s AND CURRENT_DATE - 2
+                             AND NOT EXISTS (SELECT 1 FROM fund_score_notes n WHERE n.ticker = p.ticker
+                                 AND n.tags @> jsonb_build_array('src:briefs:' || p.ticker || ':' || p.report_date::text))""",
+                  (LOOKBACK_DAYS,)):
+        t, pk = r["ticker"], r["packet"]
+        if only and t != only:
+            continue
+        filed = date.fromisoformat(pk["filed"])
+        pk["name"] = pk.get("name") or earnings_packet.company_name(conn, t)
+        pk["briefs"] = earnings_packet.briefs_for(conn, t, pk["name"], filed, (pk.get("street") or {}).get("finnhub_hour"))
+        conn.execute("UPDATE watchlist_sync.earnings_packets SET packet = %s::jsonb WHERE ticker = %s AND report_date = %s",
+                     (json.dumps(pk, default=str), t, r["report_date"]))
+        body = briefs_note(pk, ask)
+        x = _reaction(conn, t, filed)
+        if dry:
+            print(f"{t} {filed} briefs {len(pk['briefs'])}\n  {body}")
+        elif body and x:
+            _insert(conn, t, "", body, x["to"], f"src:briefs:{t}:{r['report_date']}")
+        conn.commit()
+        n += bool(body)
+    return n
+
+
 def _insert(conn, t: str, q: str, body: str, as_of, src: str | None = None) -> None:
     tags = ["earnings", src or f"src:transcript:{t}:{q}"]
     conn.execute("""INSERT INTO fund_score_notes (ticker, as_of, body, author, tags, linked_snapshot_as_of)
@@ -278,6 +331,7 @@ def run_8k(conn, ask, dry: bool = False, only: str | None = None) -> int:
 def run(conn, ask, dry: bool = False) -> int:
     """Write due notes; returns how many reports got notes. `ask(ticker, prompt, model=…) -> str` = transcripts._summ_note."""
     n = run_8k(conn, ask, dry)
+    run_briefs(conn, ask, dry)
     for r in _due(conn):
         x = _reaction(conn, r["ticker"], r["report_date"])
         if not x:
@@ -299,7 +353,9 @@ def run(conn, ask, dry: bool = False) -> int:
 if __name__ == "__main__":
     import transcripts
     with connect() as c:
-        if "--8k" in sys.argv:   # one ticker's 8-K notes: --8k GOOGL [--print]
+        if "--briefs" in sys.argv:   # one ticker's street-read note: --briefs AMZN [--print]
+            print(f"briefs notes: {run_briefs(c, transcripts._summ_note, dry='--print' in sys.argv, only=sys.argv[sys.argv.index('--briefs') + 1].upper())}")
+        elif "--8k" in sys.argv:   # one ticker's 8-K notes: --8k GOOGL [--print]
             print(f"8-K notes: {run_8k(c, transcripts._summ_note, dry='--print' in sys.argv, only=sys.argv[sys.argv.index('--8k') + 1].upper())}")
         else:
             print(f"earnings notes: {run(c, transcripts._summ_note, dry='--print' in sys.argv)}")

@@ -102,8 +102,8 @@
       "thesis": "Hyperscaler capex (~$700–800 B in 2026, > $1 T consensus 2027) keeps flowing to suppliers: chips, memory, optics, power.",
       "view": {
         "stance": "bull",
-        "p": 0.7,
-        "text": "Demand is real; money lands on suppliers, not spenders (A293).",
+        "p": 0.65,
+        "text": "Demand is real; money lands on suppliers, not spenders (A293). 10-30: 3 of 4 hyperscalers now FCF-negative (AMZN −$34.8 B, GOOGL −$9.1 B, META −$2.1 B) yet none cut capex (GOOGL kept CY26 $195–205 B, higher 2027; AMZN steady) — supplier bull holds, spender cash is the risk: watch for a capex cut or debt-funded spend.",
         "check": "2027-01-31"
       },
       "refs": [
