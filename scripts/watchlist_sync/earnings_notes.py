@@ -27,6 +27,9 @@ from datetime import date
 
 from build_plan import connect, rows
 
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "research" / "lseg"))
+from earnings_window import window_idx  # noqa: E402  (E2: one report-day window, shared with sync_earnings_moves.py)
+
 MAX = 280                 # = scripts/stock_notes.py MAX
 BRIDGE_MODEL = "claude-sonnet-5-5"
 BRIDGE_PROMPT = """Write ONE neutral note (at most 260 characters, count them) for an internal stock-notes log on {ticker}'s report of {date}.
@@ -58,31 +61,40 @@ def _due(conn) -> list[dict]:
                           AND n.tags @> jsonb_build_array('src:transcript:' || t.ticker || ':' || t.quarter))""", (LOOKBACK_DAYS,))
 
 
-def _reaction(conn, t: str, rd: date) -> dict | None:
-    """Close before the report date → first close after it (covers before-open and after-close reports). None until that close exists."""
+def _reaction(conn, t: str, rd: date, hour: str | None = None) -> dict | None:
+    """Report-day move (E2, 10-30): the window is research/lseg/earnings_window (amc: report-day close → next close; bmo:
+    prior close → report-day close; unknown: 2 days) and the move is lseg_research.earnings_moves when its nightly row exists
+    — the same number Research / options history show. Before 10-30 this took prior close → next close for every report
+    (TXN amc +0.6 % vs −1.8 %, T bmo −2.9 % vs −6.4 %). None until the 'after' close exists."""
     def closes(sym):
         return [(d, c) for d, c in conn.execute("""SELECT date, close::float8 FROM prices_historical
                                                     WHERE UPPER(ticker) = %s AND date BETWEEN %s::date - 120 AND %s::date + 7
                                                     ORDER BY date""", (sym, rd, rd)).fetchall() if c]
+    lseg = rows(conn, """SELECT report_date, move_pct::float8 m FROM lseg_research.earnings_moves
+                         WHERE ticker = %s AND report_date BETWEEN %s::date - 1 AND %s::date + 1 AND move_pct IS NOT NULL
+                         ORDER BY abs(report_date - %s::date) LIMIT 1""", (t, rd, rd, rd))
+    if lseg:   # LSEG's event time is the release; an 8-K can be filed the morning after (ELS: released 10-20 amc, filed 10-21)
+        rd = lseg[0]["report_date"]
     s, m = closes(t), closes("SPY")
-    pre = [x for x in s if x[0] < rd]
-    post = [x for x in s if x[0] > rd]
-    if len(pre) < 61 or not post:
+    when = (hour or "unknown").lower() if (hour or "").lower() in ("amc", "bmo") else "unknown"
+    i0, i1 = window_idx([d for d, _ in s], rd, when)
+    if i0 < 61 or i1 >= len(s) or (s[i1][0] - s[i0][0]).days > 7:
         return None
-    p0, p1, d1 = pre[-1][1], post[0][1], post[0][0]
-    rets = [math.log(pre[i][1] / pre[i - 1][1]) for i in range(len(pre) - 60, len(pre))]
-    sd = (sum(r * r for r in rets) / len(rets) - (sum(rets) / len(rets)) ** 2) ** 0.5 * math.sqrt(2)
-    spy0 = next((c for d, c in reversed(m) if d < rd), None)
-    spy1 = next((c for d, c in m if d == d1), None)
-    mv = p1 / p0 - 1
-    return {"move": 100 * mv, "z": abs(math.log(p1 / p0)) / sd if sd else None, "to": d1,
-            "spy": 100 * (spy1 / spy0 - 1) if spy0 and spy1 else None}
+    (d0, p0), (d1, p1) = s[i0], s[i1]
+    mv = lseg[0]["m"] / 100 if lseg else p1 / p0 - 1
+    n = 1 if when != "unknown" else 2
+    rets = [math.log(s[k][1] / s[k - 1][1]) for k in range(i0 - 59, i0 + 1)]
+    sd = (sum(r * r for r in rets) / len(rets) - (sum(rets) / len(rets)) ** 2) ** 0.5 * math.sqrt(n)
+    spy = dict(m)
+    return {"move": 100 * mv, "z": abs(math.log(1 + mv)) / sd if sd else None, "to": d1, "days": n, "rd": rd,
+            "spy": 100 * (spy[d1] / spy[d0] - 1) if d0 in spy and d1 in spy else None,
+            "source": "lseg_earnings_moves" if lseg else "prices_historical"}
 
 
 def numbers_note(r: dict, x: dict) -> str:
     s = r["summary"] or {}
     parts = [f"{r['quarter']} report {r['report_date']:%m-%d}: {x['move']:+.1f} % to the {x['to']:%m-%d} close"
-             + (f" ({x['z']:.1f}× its usual 2-day move" if x["z"] is not None else " (")
+             + (f" ({x['z']:.1f}× its usual {x.get('days', 2)}-day move" if x["z"] is not None else " (")
              + (f"; SPY {x['spy']:+.1f} %)" if x["spy"] is not None else ")")]
     if r["eps_a"] is not None and r["eps_e"]:
         parts.append(f"EPS {r['eps_a']:g} vs est {r['eps_e']:.2f} ({100 * (r['eps_a'] - r['eps_e']) / abs(r['eps_e']):+.0f} %)")
@@ -121,8 +133,8 @@ def _b(v: float | None, unit: float) -> str:
 
 def numbers_note_8k(pk: dict, x: dict) -> str:
     b, u, st = pk["bridge"], pk.get("unit") or 1e6, pk["street"]
-    parts = [f"Report {date.fromisoformat(pk.get('filed') or pk['report_date']):%m-%d}: {x['move']:+.1f} % to the {x['to']:%m-%d} close"
-             + (f" ({x['z']:.1f}× its usual 2-day move" if x["z"] is not None else " (")
+    parts = [f"Report {x.get('rd') or date.fromisoformat(pk.get('filed') or pk['report_date']):%m-%d}: {x['move']:+.1f} % to the {x['to']:%m-%d} close"
+             + (f" ({x['z']:.1f}× its usual {x.get('days', 2)}-day move" if x["z"] is not None else " (")
              + (f"; SPY {x['spy']:+.1f} %)" if x["spy"] is not None else ")")]
     ra, re_ = st.get("finnhub_revenueActual"), st.get("finnhub_revenueEstimate")
     if b.get("revenue") is not None:
@@ -277,7 +289,7 @@ def run_briefs(conn, ask, dry: bool = False, only: str | None = None) -> int:
         conn.execute("UPDATE watchlist_sync.earnings_packets SET packet = %s::jsonb WHERE ticker = %s AND report_date = %s",
                      (json.dumps(pk, default=str), t, r["report_date"]))
         body = briefs_note(pk, ask)
-        x = _reaction(conn, t, filed)
+        x = _reaction(conn, t, filed, (pk.get("street") or {}).get("finnhub_hour"))
         if dry:
             print(f"{t} {filed} briefs {len(pk['briefs'])}\n  {body}")
         elif body and x:

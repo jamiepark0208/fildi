@@ -462,7 +462,7 @@ def build(conn, ticker: str, rd: date) -> dict | None:
         "lines": rel["lines"], "bridge": bridge(rel["lines"]), "one_offs": one_offs(rel["text"], street.get("quarter")),
         "street": {"eps_estimate": cal[0]["e"] if cal else None, "eps_actual": cal[0]["a"] if cal else None,
                    **{"finnhub_" + k: v for k, v in street.items()}},
-        "reaction": earnings_notes._reaction(conn, ticker, filed),   # the 8-K date is the real report date
+        "reaction": earnings_notes._reaction(conn, ticker, filed, street.get("hour")),   # 8-K date = real report date
         "call": tr[0]["summary"] if tr else None,
         "name": (name := company_name(conn, ticker)),
         "briefs": briefs_for(conn, ticker, name, filed, street.get("hour")),

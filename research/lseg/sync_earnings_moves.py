@@ -11,9 +11,9 @@ Usage: .venv/bin/python sync_earnings_moves.py [--tickers … | coverage default
 from __future__ import annotations
 
 import argparse
-from bisect import bisect_left, bisect_right
 from datetime import date, datetime, timedelta, timezone
 
+from earnings_window import window_move  # one home, also used by watchlist_sync/earnings_notes.py
 from _session import add_lseg_universe_args, clean, connect_local, load_ric_map, lseg_session, resolve_lseg_universe
 from db import ensure_schema, get_last_ok, log_pull, upsert_sync_state
 
@@ -26,24 +26,6 @@ VALUES (%s, %s, %s, %s, now())
 ON CONFLICT (ticker, report_date) DO UPDATE SET move_pct = EXCLUDED.move_pct,
   price_source = EXCLUDED.price_source, computed_at = now()
 """
-
-
-def window_move(closes: list[tuple[date, float]], d: date, when: str = "unknown") -> float | None:
-    days = [c[0] for c in closes]
-    i_on = bisect_left(days, d)
-    on_day = i_on < len(days) and days[i_on] == d
-    i_prev = i_on - 1
-    i_next = bisect_right(days, d)
-    if when == "amc" and on_day:
-        i_prev, i_next = i_on, i_on + 1
-    elif when == "bmo" and on_day:
-        i_next = i_on
-    if i_prev < 0 or i_next >= len(closes):
-        return None
-    (d0, p0), (d1, p1) = closes[i_prev], closes[i_next]
-    if (d1 - d0).days > 7 or p0 <= 0:  # gap in data → don't trust
-        return None
-    return (p1 / p0 - 1) * 100
 
 
 def main() -> None:
