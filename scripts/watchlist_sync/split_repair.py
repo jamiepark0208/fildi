@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import subprocess
 from collections import defaultdict
 from fractions import Fraction
@@ -151,7 +152,8 @@ def main() -> None:
     if fixed:
         cmd = ["pnpm", "exec", "tsx", "src/scripts/backfill-stale-prices.ts", f"--tickers={','.join(sorted(set(fixed)))}"]
         print("recomputing technicals via Cursor's script:", " ".join(cmd))
-        r = subprocess.run(cmd, cwd=ROOT / "artifacts" / "api-server", capture_output=True, text=True, timeout=600)
+        r = subprocess.run(cmd, cwd=ROOT / "artifacts" / "api-server", capture_output=True, text=True, timeout=600,
+                           env={**os.environ, "PATH": f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"})   # launchd PATH lacks pnpm
         print((r.stdout or r.stderr)[-600:])
 
 
