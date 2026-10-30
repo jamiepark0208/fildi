@@ -136,7 +136,7 @@ def numbers_note_8k(pk: dict, x: dict) -> str:
     if basis is not None:
         gaap = f"GAAP EPS {eps:g}; " if eps is not None and adj is not None and abs(eps - adj) > 0.02 * max(abs(adj), 0.05) else ""
         same = est and basis * est > 0 and abs(basis / est - 1) <= 1   # sign flip / > 100 % = different bases (REIT FFO vs GAAP)
-        parts.append(gaap + (f"{'adj ' if gaap else ''}EPS {basis:g}") + (f" vs est {est:.2f} ({100 * (basis - est) / abs(est):+.0f} %)" if same else ""))
+        parts.append(gaap + (f"{'adj ' if gaap else 'street ' if eps is None and adj is not None else ''}EPS {basis:g}") + (f" vs est {est:.2f} ({100 * (basis - est) / abs(est):+.0f} %)" if same else ""))
     out = "; ".join(parts[:1] + [", ".join(parts[1:])]) + "." if len(parts) > 1 else parts[0] + "."
     return out if len(out) <= MAX else ". ".join(parts[:2]) + "."
 
