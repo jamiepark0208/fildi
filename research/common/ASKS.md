@@ -291,3 +291,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A315](asks/A315.md) | 2026-10-29 | Claude → Cursor | Breakdown — visible "Outside values" box: every fair value source by family (street · cash-flow · floor) + Trading Central levels/outlook | done |
 | [A316](asks/A316.md) | 2026-10-29 | Claude → Cursor | Put list — show "moves with" group + news-gap tag per put idea + AI explain lines | done |
 | [A317](asks/A317.md) | 2026-10-30 | Muse → Cursor | writeEarningsHistory deletes all upcoming dates when vendor returns two within 21 days | done |
+| [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | planned (changes: segment 0 ruler audit first) |
