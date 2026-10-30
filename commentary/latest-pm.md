@@ -1,43 +1,53 @@
-# Evening Market Recap — Wednesday, October 28, 2026 (post-close)
+# Evening Market Recap — Thursday, October 29, 2026 (post-close, ET)
 
-**Banner:** S&P 500 7,743.98 (+0.28%) · Dow 52,475.10 (+0.19%) · Nasdaq 26,549.85 (+0.27%) · 10Y 5.05% (+6 bp) · Brent $115.32 (+1.26%) · VIX 16.91 (−3.5%)
+**Banner:** S&P 7,720.39 (−0.30%) | Dow 52,342.56 (−0.25%) | Nasdaq 26,184.72 (−1.38%) | 10Y 4.99% (−6 bp) | Brent $114.88 (−0.38%) | VIX ~17.1 (+~1%)
 
-**What moved today**
-- The Fed held, as priced — and the market took it calmly. The FOMC kept the target range at 3.75–4.00% in a 10–2 vote, with Lisa Cook and Beth Hammack dissenting in favor of a quarter-point hike. The statement upgraded the economy to a "strong" pace, called inflation "elevated," and said the accumulation of more information will guide the stance toward the 2% goal. December hike odds moved to ~85% after the meeting.
-- Warsh's press conference was the second act, not a surprise. He declined forward guidance, said Thursday's Q3 GDP should show strong investment and spending, and announced fewer policy votes ahead: eight meetings in 2027 with only six policy votes, and two non-vote meetings in 2028. The curve steepened on the day — 2Y eased to 4.67% while 10Y rose to 5.05% and 30Y to 5.37%.
-- Chips led the cash session. Micron rose 5.86% and Broadcom 2.77% after SK Hynix's record quarter kept the memory bid alive; technology added 0.48% for a fourth straight gain. Vertiv jumped ~17% on its blowout quarter and raised outlook; Oracle surged ~11% after its investor day.
-- Oil stayed the inflation tail. Brent settled at $115.32 (+1.26%) and WTI at $102.78 (+2.88%), after the EIA reported a 1.9M-barrel crude draw against a ~0.3M consensus draw; gasoline inventories rose 3.9M barrels. Gold settled at $4,051.60 (−0.56%); bitcoin traded near $81,120 (+0.62%).
-- Asia set the tone, Europe drifted. KOSPI surged 6.63% to 6,012.44, Taiwan +2.04%, Nikkei +1.08%, Shanghai +0.91%. In Europe, DAX +0.44% and FTSE 100 +0.07% closed higher while the STOXX 600 added just 0.06% — a cautious session ahead of the Fed, not a risk-off one.
-- After the close, the hyperscaler split landed. Microsoft rose ~3–4% in extended trading on an Azure-driven beat; Alphabet fell ~9–10% on earnings and revenue misses and negative free cash flow, despite stronger cloud revenue. ServiceNow also disappointed, per the after-close notes. Thursday's open inherits that divergence, not a single tech verdict.
+## What moved today
 
-**Breadth and leadership**
-- Breadth was positive but not broad: 8 of 11 S&P sectors rose. Technology (+0.48%), energy (+0.41%), and financials (+0.36%) led; utilities (−0.88%), real estate (−0.65%), and consumer staples (−0.38%) lagged. The Nasdaq 100 (+0.55%) and Russell 2000 (+0.41%) both beat the S&P, so the advance extended beyond the mega-caps — modestly.
-- Rates and vol tell the split story: stocks heard patience, bonds heard a tightening bias. VIX fell for a third session to 16.91 even as long yields rose — a calm equity tape sitting on top of a 5%+ 10Y and $115 Brent, not a tape that has priced the December question away.
+- Alphabet's earnings miss did the damage: GOOGL fell 12.64%, its worst day on record in one closing account, dragging the Nasdaq down 1.38% and snapping the S&P 500's three-day winning streak.
+- The selloff was narrow, not broad: most S&P stocks rose, health care (+2.40%) and real estate (+2.21%) led, the equal-weight S&P ETF rose 1.20%, and the Russell 2000 gained 1.01% to 2,859.22.
+- The morning's macro prints were strong, not soft: Q3 GDP advanced 3.4% annualized vs ~3.2% consensus, September PCE landed in line per the morning brief, and jobless claims came in at 194,000 vs 199,000 expected. Growth-plus-sticky-inflation kept the December-hike case alive even as the 10Y rallied.
+- The ECB held at a 2.50% deposit rate, and the day's second central-bank headline was personnel, not policy: Christine Lagarde announced she will leave the ECB early, in February 2027. Sources reporting after the decision pointed to a December hike followed by a pause.
+- After the bell, the AI-spending verdict extended: Amazon missed on EPS ($1.89 vs ~$1.96–$2.01 consensus) and revenue ($201.9B vs ~$202.1–$202.3B expected) despite AWS growing 39%, with ~$220B of planned 2026 capex and −$42.4B trailing free cash flow; Intel beat on Q3 EPS but guided Q4 revenue to $15.0–$16.0B, below expectations. Amazon fell ~6% after hours in early reports, Intel ~17–20%.
 
-**What changed vs the morning thesis**
-- Right: the hold was the base case (~92–95% priced pre-meeting) and it arrived; tech led into the close; oil stayed elevated and the EIA draw reinforced it; the morning's warning that a beat alone would not hold a gap proved out — Alphabet missed and fell hard after hours, while Microsoft's Azure beat held.
-- Wrong / shifted: the morning flagged a hawkish Warsh presser as the vol risk; the actual presser was tight-lipped on guidance, and the hawkish signal came through the statement language, the two hike dissents, and the December pricing (~85%) rather than a press-conference surprise. The morning also carried the goods deficit at a −$130.4B consensus; the actual September advance print was −$134.9B, wider than expected, with wholesale inventories +0.6% vs +0.5% expected.
-- Also shifted: the Bank of Canada hiked to 2.50% (from 2.25%), and the UK Budget landed with growth forecasts cut — neither derailed the US tape, but both confirm the global backdrop is tightening-biased, not easing.
-- Single-name discipline held: F5 fell over 20% on guidance and a downgrade, and the morning's "no short puts into a gap" names stayed gap-risky — Vertiv's +17% and Oracle's +11% were moves to respect, not chase.
+## Breadth and leadership
 
-**Book impact**
-- A quiet +0.28% tape with VIX down to 16.91 is friendly to existing short premium — decay worked today, and the Fed event passed without a vol spike. No book snapshot was available for this run (see Systems line), so position-specific DTE calls below are posture, not position checks.
-- Tonight's GOOGL/MSFT split is the warning for single-name premium: a ~9–10% after-hours drop in Alphabet is exactly the gap that naked short puts cannot absorb. Any GOOGL-adjacent short premium needs a spread structure and a Thursday-morning reassessment, not a hold-and-hope.
-- Event windows ahead are stacked, not spaced: GDP and PCE at 8:30 AM ET Thursday, ECB at 9:15 AM ET, Amazon after the close Thursday, then Friday's Employment Cost Index, Chicago PMI, Bank of Japan decision — and October expiry Friday. New premium sold tonight is sold into that stack.
-- DTE posture into tomorrow: favor broad-index premium over single-name earnings premium; keep strikes outside Thursday's gap range on any tech name; and treat Thursday's close as the effective deadline for October expiry shorts — under Robinhood's rule, ITM shorts can be sold in the last 30 minutes Friday, so close or roll by Thursday's close, not Friday's expiry.
+- 9 of 11 S&P sectors rose; communication services (−1.87%) and technology (−1.18%) were the only notable losers, per the closing account. Defensives beat growth by ~1.6 points on average.
+- Rates eased even as equities fell in tech: the 10Y dropped ~6 bp to 4.99%, and the dollar index slipped 0.31% to 101.87. That is a rotation into safety and duration, not a rates shock.
+- Vol stayed contained: VIX ~17.1, up only ~1% on the day. The index tape is calm; the single-name tape is not.
+- Asia split overnight: Nikkei +1.10% to 64,659.47, while Shanghai −0.82%, Hang Seng −0.59%, and KOSPI −1.24% on Samsung weakness. Europe rallied into and after the ECB: STOXX 600 +0.77% to 649.11, CAC +1.05%, DAX +1.31%, FTSE +0.26%.
+- Commodities: WTI $102.00 (−0.76%), gold $4,031.70 (−0.49%), bitcoin ~$78,926 (−2.88%), below $80,000.
 
-**Risk/events for tomorrow (ET)**
-- Thu Oct 29, 8:30 AM — Q3 GDP advance (consensus ~3.0–3.2% vs 2.2% prior), September PCE (core MoM +0.3%, core YoY +3.1%; headline YoY ~3.6–3.7%), personal income/spending, jobless claims (~199–200K vs 194K).
-- Thu Oct 29, 9:15 AM — ECB decision (hold at 2.50% deposit rate expected); press conference follows.
-- Thu Oct 29, before open — Eli Lilly, Mastercard, Merck, Caterpillar report.
-- Thu Oct 29, after close — Amazon, Intel, Sandisk, Gilead report.
-- Fri Oct 30 — Bank of Japan decision (overnight), Employment Cost Index 8:30 AM (+0.8% q/q expected), Chicago PMI 9:45 AM (~54.8 vs 58.8 prior), ExxonMobil and Chevron before the bell, October expiry.
+## What changed vs the morning thesis
 
-**Context**
-- 1-day: S&P +0.28% to 7,743.98, Dow +0.19% to 52,475.10, Nasdaq +0.27% to 26,549.85, Russell 2000 +0.41% to 2,830.51; third straight gain for the major indexes, +1.6% over the three-session run.
-- Wider frame: the S&P sits ~1.0% below its October 6 high and is up ~13.1% year to date; Brent is up ~78% year to date on the WTI measure cited in today's pulse (WTI from ~$57 to ~$102 since January). One-week and one-month index levels were not re-verified in tonight's sources and are not stated here.
-- Rates: 10Y 5.05% (+6 bp on the day, +5 bp in the intraday pulse), 30Y 5.37% (+7 bp), 2Y 4.67% (−3 bp) — the 2s10s gap widened 9 bp to 38 bp.
+- Right: the morning brief called this a single-name gap day, not an index-trend day — and it was. GOOGL −12.6%, ServiceNow −26.95%, and Caterpillar −9% on a beat that still sold all confirmed the gap risk; the index fell only 0.30%.
+- Right: Microsoft's beat did not save tech. MSFT gave back its premarket gain and closed −0.16%, and the morning's warning that GOOGL's print was "charging for AI spend now" proved to be the day's theme, extended after hours by Amazon and Intel.
+- Right: health care/defensive growth paid — Eli Lilly rose 6.63% on its raised outlook, the morning's one green large-cap call.
+- Wrong/shifted: the morning brief framed the ECB as a rate window to watch; the actual news was Lagarde's exit, which matters more for 2027 ECB leadership than for tomorrow's tape. And the morning's "avoid fresh short premium in GOOGL into tonight's Amazon print" now reads as the right instinct for the wrong reason — the risk was not a GOOGL bounce, it was a second leg down in the whole hyperscaler complex.
+- Unchanged: the 10Y above 5% at the open eased to 4.99% by the close, but the December-hike pricing (~83–85% cited) did not go away — strong GDP plus sticky PCE keeps it live.
 
-**Systems:** MacBook Pro online, but no fildi API/scheduler/price probe is available via paired-device tools, so API, scheduler freshness, price liveness, and the live book snapshot are unverified from this run.
+## Book impact
 
-Sources: The Edge US Market Wrap Oct 28 (closes, sectors, par yields, Brent $115.32, WTI $102.78, gold $4,051.60, VIX 16.91, bitcoin $81,122.52, Asia/Europe closes); Pulsafi Market Pulse Oct 28 (S&P 7,743.98 +0.28%, Nasdaq 26,549.85 +0.27%, Dow 52,475.10 +0.19%, 10Y 5.05%, bitcoin $81,119, three-day run +1.6%, YTD +13.1%, 1.0% below Oct 6 high); Investopedia Stock Market Today Oct 28 (10–2 vote, 10Y near 5.04%, December hike odds 85%, GOOGL +1.5% / MSFT −0.1% in session); Zacks FOMC/Earnings notes Oct 28 (Cook/Hammack dissents, MSFT beat, GOOGL/NOW miss); Reuters FOMC view Oct 28 (statement language, economy "strong," yields after presser); NY Post Fed hold Oct 28 (December odds 85%, fewer policy votes 2027/2028); InvestingLive Americas FX wrap Oct 28 (BoC hike to 2.50%, goods deficit −$134.9B vs −$130.2B expected, wholesale inventories +0.6% vs +0.5%, WTI high $103.55, MSFT +4.31% / GOOGL −~10% after hours); Curve Ahead midday Oct 28 (EIA crude −1.9M, gasoline +3.9M, Micron +4.50% midday, Vertiv +12.75% midday); Motley Fool Stock Market Today Oct 28 (Vertiv ~17%, Oracle +11%, F5 −20%+); Admiral Markets earnings calendar (Thu GDP/PCE/claims/ECB/AMZN, Fri BoJ/ECI/Chicago PMI); morning brief 2026-10-28-am.md (morning thesis, consensus/prior, expiry discipline).
+- Note on positions: no live book snapshot this evening — the Mac is online but the paired-device tools expose no shell or database command, so this section uses the standing book posture, not fresh positions. No position data was pulled or printed.
+- The Oct 30 expiry deadline was today's close, not Friday's expiry: any Oct 30 ITM shorts not closed or rolled by today's close now sit inside Robinhood's last-30-minutes Friday window. That is the first check tomorrow morning.
+- Index short premium held up far better than single-name premium today: the S&P fell only 0.30% with breadth positive, so index spreads decayed on schedule while single-name shorts in software, semis, and hyperscalers took gap risk (NOW −27%, FTNT and GOOGL double-digit). Keep new premium index-first into Friday.
+- After-hours Amazon/Intel weakness points to a soft tech open Friday. Do not add new short premium in AMZN, INTC, or the AI-capex complex before the open — overnight gaps are the live tail, and VIX ~17 understates single-name vol here.
+- DTE posture: with the BoJ overnight, ECI and Chicago PMI in the morning, and October expiry mechanics on Friday, keep new shorts short-dated and wide, and size for a second gap day rather than a mean-reversion day.
+
+## Risk/events for tomorrow (Friday, October 30, ET)
+
+- Overnight — Bank of Japan rate decision (hold at 1.25% expected); watch USD/JPY near 157.6 for any surprise.
+- 8:30 AM — Employment Cost Index Q3 (cons. +0.8% q/q, prior +0.9%).
+- 9:45 AM — Chicago PMI October (cons. 54.8, prior 58.8).
+- Before open — ExxonMobil earnings; also the Oct 30 options expiry session, with Robinhood's last-30-minutes assignment-risk window at the close.
+- No major tech names report after Friday's close; next week's prints (Apple, Palantir) are the next single-name event window.
+
+## Context
+
+- S&P 500: 7,720.39 today (−0.30% 1-day); up 12.8% year-to-date and ~1.3% below its October 6 high, per the closing pulse. 1-week and 1-month figures were not recomputed from verified closes this evening and are not stated here.
+- 10Y: 4.99% today (−6 bp 1-day; −27 bp over the past month, per the same pulse).
+- Brent: $114.88 today (−0.38% 1-day), still above $110 and elevated on Middle East supply risk despite the diplomacy-driven pullback.
+
+Sources: Cappnotes "Closing Look — Thursday, October 29, 2026"; Invezz "Nasdaq closes 1.38% lower"; TradingView/Stocktwits after-hours wrap; Zacks "Amazon the Latest Mag 7 to Miss Q3 Estimates"; Longbridge US market diary; InvestingLive Americas wrap (ECB, Lagarde, yields); Reuters "Trading Day" Oct 29 (Lagarde resignation, comms services −6.6%); Pulsafi market pulse Oct 29; morning brief 2026-10-29-am.md (GDP/PCE/claims, ECB expectations, tomorrow's calendar).
+
+Systems: Mac online — fildi API/scheduler/price freshness unverified (no shell or database command exposed via paired-device tools).
