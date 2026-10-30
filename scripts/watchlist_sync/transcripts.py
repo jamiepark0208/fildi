@@ -194,9 +194,10 @@ def summarize(ticker: str, quarter: str, segs: list[dict]) -> dict | None:
         return None
 
 
-def _summ_note(ticker: str, prompt: str) -> str:
-    """One short Haiku call for earnings_notes (text only; every number comes from the stored summary)."""
-    body = json.dumps({"model": MODEL, "max_tokens": 400, "thinking": {"type": "disabled"}, "output_config": {"effort": "low"},
+def _summ_note(ticker: str, prompt: str, model: str = MODEL) -> str:
+    """One short call for earnings_notes (Haiku for the call note, Sonnet for the 8-K bridge; numbers checked by the caller)."""
+    off = {"type": "disabled"} if "haiku" in model else {"type": "between_tools"}   # Sonnet 5.5 rejects 'disabled' (400)
+    body = json.dumps({"model": model, "max_tokens": 400, "thinking": off, "output_config": {"effort": "low"},
                        "messages": [{"role": "user", "content": prompt}]}).encode()   # Haiku 5.5 thinks by default and ate the budget
     _CALLS["anthropic"] = _CALLS.get("anthropic", 0) + 1
     r = get_json("https://api.anthropic.com/v1/messages", 60, body,

@@ -197,8 +197,8 @@
           "id": "spender_fcf",
           "label": "Hyperscalers with negative quarterly FCF (of GOOGL META MSFT AMZN)",
           "kind": "manual",
-          "value": 2,
-          "as_of": "2026-10-29",
+          "value": 3,
+          "as_of": "2026-10-30",
           "stale_days": 100,
           "bull_if": [
             "<=",
@@ -209,7 +209,7 @@
             3
           ],
           "unit": "of 4",
-          "note": "Q3 2026: GOOGL −$9.1 B (incl. $5.2 B EC fine), META −$2.1 B, MSFT +$18.6 B; AMZN not yet checked. Spender cash = the market's new worry (THESIS_2026-10-29 #4, #7); judgment thresholds"
+          "note": "Q3 2026: GOOGL −$9.1 B (incl. $5.2 B EC fine), META −$2.1 B, MSFT +$18.6 B; AMZN −$34.8 B (8-K: op cash $42.4 B − capex $77.3 B; company TTM FCF −$42.4 B vs +$14.8 B a year ago). Spender cash = the market's new worry (THESIS_2026-10-29 #4, #7); judgment thresholds"
         }
       ]
     },
