@@ -30,6 +30,7 @@ var RETENTION_DAYS = 21;
 var BODY_PLAIN_MAX = 200000;
 var BODY_HTML_MAX = 400000;
 var MAX_LINKS = 40;
+var RESAVE_REV = 'body200k'; // bump to re-run resaveDeskBriefs once via the trigger
 
 function saveDeskBriefs() {
   runNewMailIngest_('saveDeskBriefs');
@@ -40,6 +41,12 @@ function saveFactsetBriefs() {
 }
 
 function runNewMailIngest_(entryName) {
+  // One-shot backfill per RESAVE_REV, run by the normal trigger (no manual Run). Resumes across ticks; skips ingest while busy.
+  var sp = PropertiesService.getScriptProperties();
+  if (sp.getProperty('resaveDoneRev') !== RESAVE_REV) {
+    if (resaveDeskBriefs()) sp.setProperty('resaveDoneRev', RESAVE_REV);
+    return;
+  }
   var t0 = Date.now();
   var account = accountTag_();
   var banner = account + '_' + SCRIPT_REV;
@@ -351,7 +358,7 @@ function resaveDeskBriefs(days) {
       if (Date.now() - t0 >= MAX_RUNTIME_MS) {
         props.setProperty('resaveStart', String(start + i));
         console.log('[' + banner + '] runtime cap at thread ' + (start + i) + ', rewritten=' + rewritten + ' — run again to continue');
-        return;
+        return false;
       }
       var messages = threads[i].getMessages();
       for (var j = 0; j < messages.length; j++) {
@@ -369,6 +376,7 @@ function resaveDeskBriefs(days) {
   }
   props.deleteProperty('resaveStart');
   console.log('[' + banner + '] done, rewritten=' + rewritten);
+  return true;
 }
 
 function listFileNames_(folder) {
