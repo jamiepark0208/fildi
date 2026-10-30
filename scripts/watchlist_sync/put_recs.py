@@ -187,6 +187,33 @@ def move_groups(conn, names: list[str], days: int = 126, min_corr: float = 0.5) 
     return out
 
 
+def book_groups(conn, recs: list[dict]) -> list[dict]:
+    """Book-level theme exposure (Jamie 10-29: awareness only — never a cap or gate; a sector-only crash SHOULD bias the list).
+    Published puts + held stocks clustered by move_groups; each published rec gets book_group = the other published names and
+    held names that move with it, and how many of them share its expiry. Returns the groups with ≥ 2 published names."""
+    pub = [r for r in recs if r["pass_"] and r.get("strike") is not None]
+    held = {t for (t,) in conn.execute("""SELECT DISTINCT UPPER(symbol) FROM portfolio_positions
+                                         WHERE snapshot_id = (SELECT MAX(id) FROM portfolio_snapshots)""")}
+    names = sorted({r["ticker"] for r in pub} | held)
+    g = move_groups(conn, names)
+    by_id: dict[int, list[str]] = defaultdict(list)
+    for t, x in g.items():
+        by_id[x["id"]].append(t)
+    exp = {r["ticker"]: r.get("expiry") for r in pub}
+    out = []
+    for r in pub:
+        x = g.get(r["ticker"])
+        if not x:
+            continue
+        mates = by_id[x["id"]]
+        lst = [t for t in mates if t in exp]
+        r["book_group"] = {"list": lst, "held": sorted(t for t in mates if t in held), "corr": x["corr"],
+                           "same_expiry": sum(1 for t in lst if exp[t] == r.get("expiry")), "of_list": len(pub)}
+        if len(lst) >= 2 and r["ticker"] == min(lst):
+            out.append(r["book_group"])
+    return out
+
+
 def rich_context(conn, recs: list[dict]) -> None:
     """Display facts per rich-lane pick (S110: shown, not scored): street target upside, fair value, nearest ≥ 2-method support
     zone below spot and where the strike sits vs it (S088 zones on LSEG daily bars, bars ≤ today)."""
@@ -335,7 +362,10 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     for i, r in enumerate(ranked, 1):
         r["rank"] = i
     rich_context(conn, [r for r in out if r.get("rich")])
-    last = {LANE["near_low"]["record"]["name"]: 1, LANE["closer"]["record"]["name"]: 2}   # S110 paths rank after the rule's tiers
+    for bg in book_groups(conn, out):
+        print(f"  book group: {len(bg['list'])} of {bg['of_list']} published move together ({', '.join(bg['list'])}; corr {bg['corr']}); "
+              f"held {', '.join(bg['held']) or 'none'}")
+    last ={LANE["near_low"]["record"]["name"]: 1, LANE["closer"]["record"]["name"]: 2}   # S110 paths rank after the rule's tiers
     for i, r in enumerate(sorted((r for r in out if r.get("rich")), key=lambda r: (last.get(r["rich"]["tier"], 0), -r["rich"]["score"])), 1):
         r["rich"]["rank"] = i
     return as_of, out, market
