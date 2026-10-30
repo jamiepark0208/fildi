@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ModelThesis } from "@/components/model-thesis-report";
 import { HouseViewWarnings } from "@/components/live/house-view-card";
 import { PutBandSelector } from "@/components/put-band-selector";
+import { bookGroupChip, engineAwareness, newsChip } from "@/lib/model-list-awareness";
 
 /** Shared Model value cols — VIEW chip + SCR/RANK (universe put score or section confidence). */
 export const WATCHLIST_ROW =
@@ -169,6 +170,13 @@ function ItemRow({
       ? `call tech score ${Math.round(item.score)} — not used as edge`
       : null;
   const bandWhy = (item.why ?? []).find((w) => /your (setting|fixed band)/i.test(w));
+  const putAware =
+    folderKey === "sell_puts"
+      ? (() => {
+          const a = engineAwareness(item.contract);
+          return { group: bookGroupChip(a.book_group), news: newsChip(a.news) };
+        })()
+      : null;
   return (
     <div
       onClick={onSelect}
@@ -219,7 +227,7 @@ function ItemRow({
       >
         {metric.rank}
       </span>
-      <span className="flex items-center justify-end gap-0.5">
+      <span className="flex flex-wrap items-center justify-end gap-0.5 max-w-[11rem] leading-tight">
         {item.role === "held" && (
           <TagChip code="H" className="bg-[#3b82f6]/25 text-[#93c5fd]">H</TagChip>
         )}
@@ -252,6 +260,26 @@ function ItemRow({
             </TooltipContent>
           </Tooltip>
         )}
+        {putAware?.group ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[7px] px-0.5 rounded bg-zinc-500/25 text-zinc-200 cursor-help max-w-[5.5rem] truncate">
+                {putAware.group.label}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs whitespace-pre-wrap">{putAware.group.tip}</TooltipContent>
+          </Tooltip>
+        ) : null}
+        {putAware?.news ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[7px] px-0.5 rounded bg-zinc-500/25 text-zinc-200 cursor-help max-w-[5.5rem] truncate">
+                {putAware.news.label}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs whitespace-pre-wrap">{putAware.news.tip}</TooltipContent>
+          </Tooltip>
+        ) : null}
       </span>
     </div>
   );

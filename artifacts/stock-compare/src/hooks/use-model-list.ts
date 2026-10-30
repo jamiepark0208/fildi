@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
+import type { PutEngineAwareness } from "@/lib/model-list-awareness";
 
 export type ModelListWinRate = {
   rate: number; lo: number; hi: number; n: number; delta: number; dte: number;
@@ -58,6 +59,8 @@ export type ModelListItem = {
       value_trap?: boolean;
       cyclical?: boolean;
     };
+    /** Band-engine snapshot + awareness tags (book_group, news); display only. */
+    engine?: PutEngineAwareness & Record<string, unknown>;
   } | null;
   /** every adjustment applied to this item: what changed, from → to, and why (watchlist_sync.model_items.adjustments) */
   adjustments?: { what: string; from: number | string; to: number | string; why: string }[];

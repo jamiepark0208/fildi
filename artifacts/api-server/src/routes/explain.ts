@@ -2,6 +2,7 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
+import { bookGroupPromptLine, engineAwarenessFromContract, newsPromptLine } from "../lib/model-list-awareness.js";
 import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
 import { validate } from "../middleware/validate.js";
 import { markAiCached } from "../middleware/rateLimiter.js";
@@ -484,6 +485,11 @@ function buildModelPickPrompt(b: ContextBundle, e: ModelPickExtra): string {
   }
   for (const y of ((it.why ?? []) as unknown[]).slice(0, 12)) facts.push(`Model note: ${String(y)}`);
   if ((it.flags ?? []).length) facts.push(`Risk flags: ${(it.flags as string[]).join("; ")}`);
+  const awareness = engineAwarenessFromContract(c as Record<string, unknown> | null);
+  const bgLine = bookGroupPromptLine(String(it.ticker), awareness.book_group);
+  if (bgLine) facts.push(bgLine);
+  const newsLine = newsPromptLine(awareness.news);
+  if (newsLine) facts.push(newsLine);
   for (const n of b.notes ?? []) facts.push(`Desk note (dated history, not a forecast): ${n}`);
 
   return `You explain one recommendation from the Fildi Model List to its owner, an experienced options seller who decides every trade themselves. Use ONLY the facts below. Never invent numbers, prices or events; if something isn't in the facts, don't mention it.
