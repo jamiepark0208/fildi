@@ -153,7 +153,7 @@ def contract_context(conn) -> tuple[dict, dict, dict]:
 
 
 ENGINE_KEYS = ("market_state", "sector", "stock_state", "band_target", "band", "strike", "expiry", "delta", "rank", "put_edge_q",
-               "iv_rv", "hist_bp", "hist_kept", "income_wk_pct", "why")
+               "iv_rv", "hist_bp", "hist_kept", "income_wk_pct", "why", "book_group", "news")   # last two: awareness only
 TECH_KEYS = ("ut_dir", "stc_bull", "fear_greed", "sweep_age", "bos_dir")
 
 
