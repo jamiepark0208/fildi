@@ -18,7 +18,7 @@ pip install -r requirements.txt
 ```bash
 # Monthly IBES revisions/surprises → Postgres wrds_research.* (TTL 28d, watermarked)
 # All syncs, one connection = one Duo approval (10-29): python run_batch.py [gics ibes crsp ...]; --list
-# A rejected login is never retried (lockout); status → ~/.fildi/wrds-status.json → agent_start 11b
+# A rejected login is never retried; after a failure unattended runs skip until WRDS_ATTENDED=1 succeeds; status → ~/.fildi/wrds-status.json → agent_start 11b
 python sync_ibes.py --universe book
 
 # Quarterly CRSP returns → wrds_research.crsp_dsf (TTL 90d; data lags ~2024-12)

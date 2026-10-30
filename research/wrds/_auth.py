@@ -72,6 +72,18 @@ def connect(retries: int = 2, backoff_sec: float = 2.0):
     global _shared
     if _shared is not None:
         return _shared
+    # Unattended callers (monthly GICS in openjev_controls, agents) never try again after a failed login: each try could
+    # be one more rejection toward a Duo lockout. Only a run with Jamie present (WRDS_ATTENDED=1) clears it.
+    if os.environ.get("WRDS_ATTENDED") != "1" and STATUS.exists():
+        import json
+
+        try:
+            last = json.loads(STATUS.read_text())
+        except ValueError:
+            last = {}
+        if last.get("ok") is False:
+            raise RuntimeError(f"WRDS skipped: last login failed {str(last.get('at'))[:16]} — Jamie runs "
+                               "`WRDS_ATTENDED=1 .venv/bin/python run_batch.py` once with Duo at hand")
     load_wrds_env()
     user = os.environ.get("WRDS_USERNAME") or None
     password = os.environ.get("WRDS_PASSWORD") or None
