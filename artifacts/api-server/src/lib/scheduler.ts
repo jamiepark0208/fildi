@@ -29,6 +29,7 @@ import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
 import { ingestDeskCommentaries } from "./desk-commentary.js";
 import { extractPendingDeskFacts } from "./desk-facts.js";
+import { resolvePendingDeskFacts } from "./desk-fact-resolve.js";
 import { ingestFedSpeeches } from "./figure-views-ingest.js";
 import { autoResolveOpenViews } from "./figure-views-auto-resolve.js";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "./schwab-auth.js";
@@ -525,6 +526,12 @@ export async function runDeskIngestJob() {
       return null;
     });
     if (facts) logger.info(facts, "scheduler: desk facts extract complete");
+    // D2: check analyst / calendar facts vs our tables (code; ≤ 10 Yahoo refreshes, 15 s deadline each)
+    const checked = await resolvePendingDeskFacts({ limit: 200 }).catch((err) => {
+      logger.warn({ err: String(err) }, "scheduler: desk facts resolve failed");
+      return null;
+    });
+    if (checked) logger.info(checked, "scheduler: desk facts resolve complete");
   } catch (err) {
     logger.error({ err }, "scheduler: desk commentary ingest failed");
   } finally {

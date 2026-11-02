@@ -8,7 +8,10 @@
  */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sql } from "drizzle-orm";
+import { db } from "@workspace/db";
 import { unwrapRedirectUrl } from "./desk-commentary-normalize.js";
+import { parseAnalystClaim } from "./desk-fact-resolve.js";
 import { logger } from "./logger.js";
 
 export type DigKind =
@@ -248,6 +251,38 @@ export async function digContentLinks(
   return facts.slice(0, 16);
 }
 
+const TEASER_RE = /(\d+)\s+new analyst ratings? published/i;
+
+/**
+ * E6 (briefs dig D2): Live reads the one extractor's facts (desk_facts) instead of re-parsing bodies.
+ * Per commentary id: DigFacts from analyst_action + earnings_detail facts, or absent when the email has no ok/empty run yet
+ * (caller falls back to the body regex). TipRanks teasers keep the shallow form so the Yahoo enrich step still runs.
+ */
+export async function deskFactsAsDig(ids: number[]): Promise<Map<number, DigFact[]>> {
+  const out = new Map<number, DigFact[]>();
+  if (!ids.length) return out;
+  const arr = sql.raw(`ARRAY[${ids.map(Number).join(",")}]::int[]`);
+  const runs = await db.execute(sql`SELECT commentary_id FROM desk_fact_runs WHERE status IN ('ok', 'empty') AND commentary_id = ANY(${arr})`)
+    .catch(() => ({ rows: [] as unknown[] }));
+  for (const r of runs.rows as { commentary_id: number }[]) out.set(Number(r.commentary_id), []);
+  if (!out.size) return out;
+  const facts = await db.execute(sql`SELECT f.commentary_id, f.kind, f.tickers, f.claim, c.source FROM desk_facts f
+    JOIN desk_commentaries c ON c.id = f.commentary_id
+    WHERE f.commentary_id = ANY(${arr}) AND f.kind IN ('analyst_action', 'earnings_detail') AND jsonb_array_length(f.tickers) > 0
+    ORDER BY f.id`).catch(() => ({ rows: [] as unknown[] }));
+  for (const f of facts.rows as { commentary_id: number; kind: string; tickers: string[]; claim: string; source: string }[]) {
+    const list = out.get(Number(f.commentary_id));
+    if (!list) continue;
+    const teaser = TEASER_RE.exec(f.claim);
+    const a = f.kind === "analyst_action" ? parseAnalystClaim(f.claim).action : null;
+    const kind: DigKind = f.kind === "earnings_detail" ? "earnings" : teaser ? "analyst_rating"
+      : a === "up" ? "upgrade" : a === "down" ? "downgrade" : a === "pt" || parseAnalystClaim(f.claim).pt != null ? "price_target" : "analyst_rating";
+    const detail = teaser ? `${teaser[1]} new analyst rating(s)` : f.claim.slice(0, 160);
+    for (const ticker of f.tickers) if (isPlausibleDigTicker(ticker)) list.push({ ticker, kind, detail, source: f.source });
+  }
+  return out;
+}
+
 export interface DeskDigInput {
   source: string;
   subject: string;
@@ -263,10 +298,10 @@ export interface DeskDigInput {
  */
 export async function digDeskItem(
   row: DeskDigInput,
-  opts?: { allowCrawl?: boolean },
+  opts?: { allowCrawl?: boolean; facts?: DigFact[] },
 ): Promise<DigFact[]> {
   const text = `${row.subject}\n${row.synopsis ?? ""}\n${row.bodyPlain ?? ""}`;
-  let facts = extractDigFactsFromText(text, row.source);
+  let facts = opts?.facts ?? extractDigFactsFromText(text, row.source);
   const allShallow = facts.length > 0 && facts.every(isShallowDigFact);
   const needsFetch =
     (facts.length < 2 || allShallow) &&

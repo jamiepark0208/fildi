@@ -35,6 +35,7 @@ import {
   newsSessionWindow,
 } from "../lib/desk-commentary-normalize.js";
 import {
+  deskFactsAsDig,
   digDeskItem,
   filterDisplayDigFacts,
   formatDigFactsForPrompt,
@@ -1034,6 +1035,7 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
 
     const digById = new Map<number, DigFact[]>();
     let allDigFacts: DigFact[] = [];
+    const extracted = await deskFactsAsDig(digCandidates.map((r) => r.id)).catch(() => new Map<number, DigFact[]>());
     for (const r of digCandidates) {
       const meta = (r.meta ?? {}) as { contentLinks?: Array<{ url: string }> };
       const tickers = rowTickers(r);
@@ -1048,7 +1050,7 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
           synopsis: r.synopsis,
           contentLinks: meta.contentLinks,
         },
-        { allowCrawl: bookHit || themeHit },
+        { allowCrawl: bookHit || themeHit, facts: extracted.get(r.id) },
       );
       digById.set(r.id, facts);
       allDigFacts.push(...facts);
