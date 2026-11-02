@@ -1,43 +1,11 @@
 /**
- * Disputed-gold pick for merge-trusted.
- * FactSet is the ruler only on fields where it matched an agreeing free cluster
- * at least 80% of the time (measured 2026-10-30, n≥15). Everywhere else an
- * agreeing free cluster wins, and FactSet is not written as gold.
- * Signed values stay, including large and small negative price/earnings.
+ * A318 segments 1+2 — one pick function for disputed gold.
+ * Timeliness first, then cheapest free source inside the ruler band (FIELD_DEFS order).
+ * FactSet is ruler only on measured ruler fields; never gold elsewhere.
  */
 
 import { COHORT_MODULUS } from "./data-ops-config.js";
-import { factsetRulerFields, isFactsetRulerField } from "./factset-ruler-table.js";
-
-/** @deprecated use isFactsetRulerField / loadRulerTable */
-export function getFactsetRulerFields(): Set<string> {
-  try {
-    return factsetRulerFields();
-  } catch {
-    return new Set(["forwardPe"]);
-  }
-}
-
-/**
- * Scarce sources refresh on a 14-day cohort, not every night.
- * A row younger than that, versus the newest pull on the cell, still votes.
- * STALE_DAYS (7) is the dashboard freshness bar. Using it here dropped NVDA's
- * June filing because Yahoo's pull was nine days later.
- */
-const STALE_MS = COHORT_MODULUS * 86_400_000;
-
-/**
- * Polygon the vendor is live (prices, grouped daily, short interest: thousands of
- * calls a week on the API tab). The fundamentals endpoint is not: /vX/reference/financials
- * returns GONE, so those rows are a frozen snapshot (polygon-client.ts).
- * A snapshot may confirm a fresh Yahoo, Finnhub, FMP, or Alpha Vantage value.
- * It may not pair with EDGAR to outvote that fresher number. A snapshot pulled
- * inside the 14-day window votes on its own.
- * FMP and Alpha Vantage rotate on the same 14-day cohort. An older pull can
- * confirm any fresh quote with the same value, including EDGAR.
- * No currency column is stored. US names stay in reported dollars. Margins are decimals.
- */
-const POLYGON_CONFIRM_HOSTS = new Set(["yahoo", "finnhub", "fmp", "alpha_vantage"]);
+import { isFactsetRulerField } from "./factset-ruler-table.js";
 
 export type GoldQuote = { src: string; val: number; pulledAt?: number | null };
 
@@ -49,11 +17,81 @@ export type DisputedPick = {
   hold: boolean;
 };
 
-function within(a: number, b: number, relTol: number, absTol: number): boolean {
-  const rel = Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b), 1e-9);
-  return rel <= relTol || Math.abs(a - b) <= absTol;
+export type PickFieldGoldResult = DisputedPick & {
+  /** Ruler field: FactSet present but free cluster won in band. */
+  factsetDisagrees?: boolean;
+  ruler?: number;
+  bandRel?: number;
+  bandAbs?: number;
+};
+
+/** Flow / TTM fields — EDGAR annual never wins the cheap pick. */
+export const FLOW_FIELDS = new Set([
+  "grossMargin", "operatingMargin", "netMargin", "returnOnEquity", "returnOnAssets", "roic",
+  "revenueGrowthYoY", "revenueGrowthYoyPrior", "epsGrowth",
+  "totalRevenue", "netIncome", "ebitda", "ebit", "interestExpense", "effectiveTaxRate", "earningsPerShare",
+  "freeCashFlow", "quarterlyOperatingCashFlow",
+]);
+
+/** Band uses 3 pp absolute floor on these (20% relative OR 3 pp, whichever is wider). */
+export const FRACTION_FIELDS = new Set([
+  "grossMargin", "operatingMargin", "netMargin", "returnOnEquity", "returnOnAssets", "roic",
+  "revenueGrowthYoY", "revenueGrowthYoyPrior", "epsGrowth", "dividendYield", "effectiveTaxRate",
+]);
+
+const REL_BAND = 0.2;
+const PP_BAND = 0.03;
+const EDGAR_BALANCE_MAX_LAG_MS = 120 * 86_400_000;
+const STALE_MS = COHORT_MODULUS * 86_400_000;
+
+const SOURCE_FRESH_MS: Record<string, number> = {
+  yahoo: 7 * 86_400_000,
+  finnhub: 14 * 86_400_000,
+  fmp: 1 * 86_400_000,
+  alpha_vantage: 30 * 86_400_000,
+  factset: 1 * 86_400_000,
+  polygon: STALE_MS,
+  edgar: EDGAR_BALANCE_MAX_LAG_MS,
+};
+
+const POLYGON_CONFIRM_HOSTS = new Set(["yahoo", "finnhub", "fmp", "alpha_vantage"]);
+
+export function bandTolerances(field: string): { rel: number; abs: number } {
+  const abs = FRACTION_FIELDS.has(field) ? PP_BAND : 0;
+  return { rel: REL_BAND, abs };
 }
 
+/** Value b within band of ruler a (relative 20% or fraction pp, whichever is wider). */
+export function inBand(field: string, ruler: number, candidate: number): boolean {
+  const { rel, abs } = bandTolerances(field);
+  const denom = Math.max(Math.abs(ruler), Math.abs(candidate), 1e-9);
+  if (Math.abs(candidate - ruler) / denom <= rel) return true;
+  if (abs > 0 && Math.abs(candidate - ruler) <= abs) return true;
+  return false;
+}
+
+function within(a: number, b: number, relTol: number, absTol: number): boolean {
+  const rel = Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b), 1e-9);
+  return rel <= relTol || (absTol > 0 && Math.abs(a - b) <= absTol);
+}
+
+function sign(n: number): number {
+  if (n > 0) return 1;
+  if (n < 0) return -1;
+  return 0;
+}
+
+function hardFight(a: number, b: number): boolean {
+  const absA = Math.abs(a);
+  const absB = Math.abs(b);
+  if (absA < 0.02 && absB < 0.02) return false;
+  if ((a > 0) !== (b > 0) && absA >= 0.02 && absB >= 0.02) return true;
+  const lo = Math.min(absA, absB);
+  const hi = Math.max(absA, absB);
+  return lo > 0 && hi / lo >= 3;
+}
+
+/** Polygon snapshot may confirm fresher hosts; stale alone does not vote with EDGAR. */
 function eligibleVotes(free: GoldQuote[]): GoldQuote[] {
   const times = free.map((q) => q.pulledAt).filter((t): t is number => t != null && Number.isFinite(t));
   const newest = times.length > 0 ? Math.max(...times) : null;
@@ -61,7 +99,7 @@ function eligibleVotes(free: GoldQuote[]): GoldQuote[] {
     newest == null || q.pulledAt == null || !Number.isFinite(q.pulledAt) || newest - q.pulledAt <= STALE_MS;
   const freshOnes = free.filter(fresh);
   const confirms = (q: GoldQuote, hosts: GoldQuote[]) =>
-    hosts.some((f) => within(q.val, f.val, 0.15, 0.03));
+    hosts.some((f) => within(q.val, f.val, 0.15, PP_BAND));
   return free.filter((q) => {
     if (fresh(q) && q.src !== "polygon") return true;
     if (q.src === "polygon") {
@@ -73,28 +111,50 @@ function eligibleVotes(free: GoldQuote[]): GoldQuote[] {
   });
 }
 
-/** Sign flip or a 3× scale gap. Ordinary vendor gaps are not a review. */
-function hardFight(a: number, b: number): boolean {
-  const absA = Math.abs(a);
-  const absB = Math.abs(b);
-  if (absA < 0.02 && absB < 0.02) return false;
-  if ((a > 0) !== (b > 0) && absA >= 0.02 && absB >= 0.02) return true;
-  const lo = Math.min(absA, absB);
-  const hi = Math.max(absA, absB);
-  return lo > 0 && hi / lo >= 3;
+/** Drop EDGAR on flow fields; drop stale EDGAR on balance sheet vs newest pull. */
+export function filterTimely(field: string, free: GoldQuote[]): GoldQuote[] {
+  const eligible = eligibleVotes(free);
+  if (FLOW_FIELDS.has(field)) {
+    return eligible.filter((q) => q.src !== "edgar");
+  }
+  const times = eligible
+    .map((q) => q.pulledAt)
+    .filter((t): t is number => t != null && Number.isFinite(t));
+  const newest = times.length > 0 ? Math.max(...times) : null;
+  return eligible.filter((q) => {
+    if (q.src !== "edgar" || newest == null || q.pulledAt == null) return true;
+    return newest - q.pulledAt <= EDGAR_BALANCE_MAX_LAG_MS;
+  });
 }
 
-function sign(n: number): number {
-  if (n > 0) return 1;
-  if (n < 0) return -1;
-  return 0;
+/** Among in-band candidates, drop stale vs newest pull, then FIELD_DEFS order (array order). */
+function pickCheapestTimely(field: string, ordered: GoldQuote[], ruler: number): GoldQuote | null {
+  const inBandQ = ordered.filter((q) => inBand(field, ruler, q.val));
+  if (inBandQ.length === 0) return null;
+  const times = inBandQ
+    .map((q) => q.pulledAt)
+    .filter((t): t is number => t != null && Number.isFinite(t));
+  const newest = times.length > 0 ? Math.max(...times) : null;
+  const freshEnough = inBandQ.filter((q) => {
+    if (newest == null || q.pulledAt == null || !Number.isFinite(q.pulledAt)) return true;
+    const window = SOURCE_FRESH_MS[q.src] ?? STALE_MS;
+    return newest - q.pulledAt <= window;
+  });
+  const pool = freshEnough.length > 0 ? freshEnough : inBandQ;
+  if (newest != null && pool.some((q) => q.pulledAt != null)) {
+    const maxT = Math.max(...pool.map((q) => q.pulledAt ?? newest));
+    const freshest = pool.filter((q) => (q.pulledAt ?? newest) >= maxT);
+    return freshest[0] ?? pool[0]!;
+  }
+  return pool[0]!;
 }
 
-/** Largest subset that pairwise agrees (15% or 3 percentage points). Priority order kept. */
-function numericCluster(free: GoldQuote[]): GoldQuote[] {
+/** Largest subset pairwise agreeing at cluster band (20% / 3 pp). Preserves priority order. */
+function numericCluster(field: string, free: GoldQuote[]): GoldQuote[] {
+  const { rel, abs } = bandTolerances(field);
   let best: GoldQuote[] = [];
   const n = free.length;
-  const agree = (a: number, b: number) => within(a, b, 0.15, 0.03);
+  const agree = (a: number, b: number) => within(a, b, rel, abs);
   for (let mask = 1; mask < (1 << n); mask++) {
     const group: GoldQuote[] = [];
     for (let i = 0; i < n; i++) if (mask & (1 << i)) group.push(free[i]!);
@@ -102,7 +162,10 @@ function numericCluster(free: GoldQuote[]): GoldQuote[] {
     let ok = true;
     for (let i = 0; i < group.length && ok; i++) {
       for (let j = i + 1; j < group.length; j++) {
-        if (!agree(group[i]!.val, group[j]!.val)) { ok = false; break; }
+        if (!agree(group[i]!.val, group[j]!.val)) {
+          ok = false;
+          break;
+        }
       }
     }
     if (ok) best = group;
@@ -110,10 +173,6 @@ function numericCluster(free: GoldQuote[]): GoldQuote[] {
   return best;
 }
 
-/**
- * Free sources that share a sign opposite FactSet. That is a basis mismatch
- * (GAAP loss vs adjusted profit), not a reason to store FactSet.
- */
 function basisCluster(free: GoldQuote[], factset: number | undefined): GoldQuote[] {
   if (factset == null || !Number.isFinite(factset)) return [];
   const fs = sign(factset);
@@ -124,52 +183,113 @@ function basisCluster(free: GoldQuote[], factset: number | undefined): GoldQuote
   return [];
 }
 
-/**
- * No agreeing cluster. Store the priority source.
- * Needs Review only when another same-concept quote flips the sign or is 3× away.
- * A plain gap is vendor noise; the field definition already names the source.
- */
 function settlePriority(fallback: GoldQuote, rest: GoldQuote[], forceReview: boolean): DisputedPick {
   const review = forceReview || rest.some((q) => q.src !== fallback.src && hardFight(fallback.val, q.val));
   return { source: fallback.src, value: fallback.val, divergent: review, hold: false };
 }
 
-export function pickDisputedGold(args: {
+/**
+ * Single pick for merge-trusted disputed branch and database-agent NR.
+ * `free` must be in FIELD_DEFS priority order (cheapest first).
+ */
+export function pickFieldGold(args: {
   field: string;
-  /** Priority order. First is cheapest (Yahoo before Finnhub before FMP). */
   free: GoldQuote[];
   factset?: number;
   existing?: number | null;
-}): DisputedPick {
-  const free = eligibleVotes(args.free.filter((q) => Number.isFinite(q.val)));
+}): PickFieldGoldResult {
+  const timely = filterTimely(args.field, args.free.filter((q) => Number.isFinite(q.val)));
   const existing = args.existing ?? null;
   const factset = args.factset != null && Number.isFinite(args.factset) ? args.factset : undefined;
+  const { rel, abs } = bandTolerances(args.field);
 
-  if (free.length === 0) {
+  if (timely.length === 0) {
     if (factset != null && isFactsetRulerField(args.field)) {
-      return { source: "factset", value: factset, divergent: false, hold: false };
+      return {
+        source: "factset",
+        value: factset,
+        divergent: false,
+        hold: false,
+        ruler: factset,
+        bandRel: rel,
+        bandAbs: abs,
+      };
     }
-    return { source: "none", value: existing ?? NaN, divergent: true, hold: existing != null };
+    return {
+      source: "none",
+      value: existing ?? NaN,
+      divergent: true,
+      hold: existing != null,
+      ruler: factset,
+      bandRel: rel,
+      bandAbs: abs,
+    };
   }
 
   if (isFactsetRulerField(args.field) && factset != null) {
-    const inBand = free.filter((q) => within(q.val, factset, 0.20, 0.02));
-    if (inBand.length > 0) {
-      return { source: inBand[0]!.src, value: inBand[0]!.val, divergent: false, hold: false };
+    const inBandPick = pickCheapestTimely(args.field, timely, factset);
+    if (inBandPick) {
+      return {
+        source: inBandPick.src,
+        value: inBandPick.val,
+        divergent: false,
+        hold: false,
+        ruler: factset,
+        bandRel: rel,
+        bandAbs: abs,
+      };
     }
-    const rulerCluster = numericCluster(free);
+    const rulerCluster = numericCluster(args.field, timely);
     if (rulerCluster.length >= 2) {
-      return { source: rulerCluster[0]!.src, value: rulerCluster[0]!.val, divergent: false, hold: false };
+      return {
+        source: rulerCluster[0]!.src,
+        value: rulerCluster[0]!.val,
+        divergent: false,
+        hold: false,
+        factsetDisagrees: true,
+        ruler: factset,
+        bandRel: rel,
+        bandAbs: abs,
+      };
     }
-    return settlePriority(free[0]!, free, true);
+    return {
+      ...settlePriority(timely[0]!, timely, true),
+      factsetDisagrees: true,
+      ruler: factset,
+      bandRel: rel,
+      bandAbs: abs,
+    };
   }
 
-  const numeric = numericCluster(free);
-  const basis = basisCluster(free, factset);
-  const basisTight = numericCluster(basis);
+  const numeric = numericCluster(args.field, timely);
+  const basis = basisCluster(timely, factset);
+  const basisTight = numericCluster(args.field, basis);
   const cluster = numeric.length >= 2 ? numeric : basisTight;
   if (cluster.length >= 2) {
-    return { source: cluster[0]!.src, value: cluster[0]!.val, divergent: false, hold: false };
+    const ruler = cluster[0]!.val;
+    const picked = pickCheapestTimely(args.field, cluster, ruler) ?? cluster[0]!;
+    return {
+      source: picked.src,
+      value: picked.val,
+      divergent: false,
+      hold: false,
+      ruler,
+      bandRel: rel,
+      bandAbs: abs,
+    };
   }
-  return settlePriority(free[0]!, free, false);
+
+  const fallback = timely[0]!;
+  return {
+    ...settlePriority(fallback, timely, false),
+    ruler: factset ?? fallback.val,
+    bandRel: rel,
+    bandAbs: abs,
+  };
+}
+
+/** @deprecated alias */
+export function pickDisputedGold(args: Parameters<typeof pickFieldGold>[0]): DisputedPick {
+  const { factsetDisagrees: _f, ruler: _r, bandRel: _br, bandAbs: _ba, ...pick } = pickFieldGold(args);
+  return pick;
 }

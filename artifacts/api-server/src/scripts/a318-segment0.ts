@@ -6,11 +6,54 @@ import { sql } from "drizzle-orm";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { db } from "@workspace/db";
+import { db, tickerFundamentals } from "@workspace/db";
 import { loadRulerTable } from "../lib/factset-ruler-table.js";
 import { computeAndPersistFundamentalScores } from "../lib/fundamentals-db.js";
 import { getLatestRegime } from "../routes/regime.js";
 import { runMergeTrusted } from "./merge-trusted.js";
+
+async function snapshotProvenanceTables() {
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS a318_prov_before_seg0 AS
+    SELECT ticker, field, winning_source, winning_value, divergent, fetched_at, updated_at
+    FROM field_provenance WHERE false
+  `));
+  await db.execute(sql.raw(`TRUNCATE a318_prov_before_seg0`));
+  await db.execute(sql`
+    INSERT INTO a318_prov_before_seg0 (ticker, field, winning_source, winning_value, divergent, fetched_at, updated_at)
+    SELECT ticker, field, winning_source, winning_value, divergent, fetched_at, updated_at FROM field_provenance
+  `);
+}
+
+async function snapshotProvenanceAfterSeg0() {
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS a318_prov_after_seg0 AS
+    SELECT ticker, field, winning_source, winning_value, divergent, fetched_at, updated_at
+    FROM field_provenance WHERE false
+  `));
+  await db.execute(sql.raw(`TRUNCATE a318_prov_after_seg0`));
+  await db.execute(sql`
+    INSERT INTO a318_prov_after_seg0 (ticker, field, winning_source, winning_value, divergent, fetched_at, updated_at)
+    SELECT ticker, field, winning_source, winning_value, divergent, fetched_at, updated_at FROM field_provenance
+  `);
+}
+
+async function topGoldFieldForTicker(ticker: string): Promise<string | null> {
+  const res = await db.execute(sql`
+    SELECT fp.field,
+           ABS(fp.winning_value::float8 - b.winning_value::float8) AS delta
+    FROM field_provenance fp
+    INNER JOIN a318_prov_before_seg0 b
+      ON fp.ticker = b.ticker AND fp.field = b.field
+    WHERE UPPER(fp.ticker) = ${ticker}
+      AND (fp.winning_value IS DISTINCT FROM b.winning_value
+           OR fp.winning_source IS DISTINCT FROM b.winning_source)
+    ORDER BY delta DESC NULLS LAST
+    LIMIT 1
+  `);
+  const rows = (Array.isArray(res) ? res : (res as unknown as { rows?: { field: string }[] }).rows) ?? [];
+  return rows[0]?.field ?? null;
+}
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../out/a318-segment0");
 const SNAPSHOT_TABLE = "a318_segment0_fund_score_before";
@@ -55,6 +98,18 @@ async function snapshotFundScores(tickers: string[]) {
   const csvRows = (Array.isArray(csvRes) ? csvRes : (csvRes as { rows?: unknown[] }).rows) ?? [];
   const lines = ["ticker,fund_total", ...csvRows.map((r: { ticker: string; fund_total: string }) => `${r.ticker},${r.fund_total ?? ""}`)];
   writeFileSync(join(OUT_DIR, "fund-score-before.csv"), lines.join("\n") + "\n");
+
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS a318_tf_at_seg0 (ticker text PRIMARY KEY, row jsonb NOT NULL)
+  `));
+  await db.execute(sql.raw(`TRUNCATE a318_tf_at_seg0`));
+  const tfRows = await db.select().from(tickerFundamentals);
+  for (const r of tfRows) {
+    if (!tickers.includes(r.ticker.toUpperCase())) continue;
+    await db.execute(sql`
+      INSERT INTO a318_tf_at_seg0 (ticker, row) VALUES (${r.ticker.toUpperCase()}, ${JSON.stringify(r)}::jsonb)
+    `);
+  }
   return tickers.length;
 }
 
@@ -118,10 +173,15 @@ async function scoreDelta() {
 
   const top10 = [...deltas]
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
-    .slice(0, 10)
-    .map((d) => ({ ticker: d.ticker, delta: d.delta, field: "?" }));
+    .slice(0, 10);
 
-  return { nChanged: deltas.length, medianAbs, movers: top10 };
+  const movers: { ticker: string; delta: number; field: string | null }[] = [];
+  for (const d of top10) {
+    const field = await topGoldFieldForTicker(d.ticker);
+    movers.push({ ticker: d.ticker, delta: d.delta, field: field ?? "peer_recalc" });
+  }
+
+  return { nChanged: deltas.length, medianAbs, movers };
 }
 
 async function main() {
@@ -144,11 +204,15 @@ async function main() {
     stdio: "inherit",
   });
 
+  console.error("[a318-s0] provenance before snapshot…");
+  await snapshotProvenanceTables();
+
   console.error("[a318-s0] merge-trusted…");
   await runMergeTrusted();
   const regime = await getLatestRegime();
   console.error(`[a318-s0] fund_score recompute regime=${regime ?? "null"}`);
   await computeAndPersistFundamentalScores(regime);
+  await snapshotProvenanceAfterSeg0();
 
   const ruler = loadRulerTable();
   const rulerSet = new Set(ruler.rows.filter((r) => r.factsetRuler).map((r) => r.field));

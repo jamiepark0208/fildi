@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * Lean TradeDash maintenance — run periodically (LaunchAgent / cron), NOT forever.
+ * Failure modes + hardeners: scripts/maintain-FAILURE-MODES.md
+ * Proof ledger: /tmp/fildi-logs/auto-ledger.jsonl (scripts/auto-ledger.mjs)
  *
  * Default (safe, no process kills):
  *   node scripts/maintain.mjs
@@ -25,7 +27,8 @@
  *           --scan=0. Polygon calls stay on polygon.gate inside the script. scheduler.ts is not involved.
  *     Full nightly-enrichment ONLY if last enrichment_runs success ≥ 4 days
  *   node scripts/maintain.mjs --dry-run
- *     Print the morning chain (no writes).
+ *     Local smoke only: print morning chain + health --desk-only + ledger write +
+ *     research soft-fail classifier. No enrich, no Yahoo/FMP/Polygon, no LLM tokens.
  *   node scripts/maintain.mjs --step=unused-feeds
  *     Run only that feed step and stamp timings.unusedFeeds on maintain-last.json.
  *   node scripts/maintain.mjs --drain-nr[=40]
@@ -47,6 +50,7 @@ import { spawn, spawnSync, execSync } from "node:child_process";
 import {
   existsSync, mkdirSync, readdirSync, statSync, renameSync,
   createReadStream, createWriteStream, writeFileSync, readFileSync, unlinkSync, openSync,
+  appendFileSync,
 } from "node:fs";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
@@ -131,6 +135,8 @@ const REPORT_FULL = join(LOG_DIR, "maintain-full-last.json");
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB → gzip + keep .1.gz
 const ENRICH_DUE_DAYS = 4;
 const DEFAULT_DRAIN_NR = 40;
+/** A318 seg 1+2: FactSet NR drain only when remaining ≥ 80 (not drainNr+20). */
+const FACTSET_DRAIN_MIN_REMAINING = 80;
 
 /** Action markers that prove today’s full pass (UI verifyChecks). */
 const FULL_PASS_ACTION_RE =
@@ -604,7 +610,8 @@ function budgetSnapshot() {
     if (s.name === "factset" && Number(s.remaining) < 20) anomalies.push("factset_remaining_<20");
   }
   const nrN = Number(String(nr).trim());
-  if (Number.isFinite(nrN) && nrN > 500) anomalies.push(`needs_review_${nrN}`);
+  // Needs Review is the queue. A count over 500 is printed as NR= on the report.
+  // It does not fail the morning job. FactSet used to close fights and hide them.
   const unscoredN = Number(String(unscoredActive).trim());
   // Soft ceiling: coverage/safety gates are intentional; rising counts = enrich gap.
   if (Number.isFinite(unscoredN) && unscoredN > 8) anomalies.push(`unscored_active_${unscoredN}`);
@@ -674,8 +681,83 @@ function printMorningChain() {
     "option_history.py",
     "research queue (only after the list is final)",
   ];
-  console.log("[maintain] dry-run --enrich-if-due morning chain");
+  console.log("[maintain] dry-run --enrich-if-due morning chain (not executed)");
   for (const s of steps) console.log(`  - ${s}`);
+}
+
+/** Classify research child result — shared by live path + dry-run unit check. */
+function classifyResearchResult(r) {
+  if (!r) return { soft: true, tag: "spawn_error" };
+  if (r.signal || r.status == null) return { soft: true, tag: r.signal || "timeout" };
+  if (r.status !== 0) return { soft: true, tag: `exit_${r.status}` };
+  return { soft: false, tag: "exit_0" };
+}
+
+/**
+ * Local-only dry-run proof: desk health (no vendor HTTP) + ledger + research soft classifier.
+ * Does not enrich, restart, or call Yahoo/FMP/Polygon/LLM.
+ */
+async function runDryRunSmoke() {
+  printMorningChain();
+  mkdirSync(LOG_DIR, { recursive: true });
+  console.log("\n[maintain] dry-run desk health (no vendor APIs)…");
+  const health = spawnSync(
+    process.execPath,
+    [join(ROOT, "scripts/health-check.mjs"), "--desk-only", "--json"],
+    { encoding: "utf8", cwd: ROOT, timeout: 30_000 },
+  );
+  if (health.status !== 0 && !health.stdout) {
+    console.error("[maintain] dry-run health-check failed to spawn", health.error || health.stderr);
+    process.exit(2);
+  }
+  let summary;
+  try {
+    summary = JSON.parse(health.stdout || "{}");
+  } catch (e) {
+    console.error("[maintain] dry-run health JSON parse fail", e.message);
+    process.exit(2);
+  }
+  const deskRows = (summary.results || []).filter((r) =>
+    ["api_healthz", "vite", "postgres", "macro_data_cache", "macro_charts_cache"].includes(r.name),
+  );
+  for (const r of deskRows) {
+    console.log(`  ${r.ok ? "OK" : "FAIL"}  ${r.name}  ${r.detail || ""}`);
+  }
+
+  // Unit: research soft classifier (no python spawn)
+  const cases = [
+    { status: 0, signal: null, expectSoft: false },
+    { status: null, signal: "SIGTERM", expectSoft: true },
+    { status: 1, signal: null, expectSoft: true },
+  ];
+  console.log("\n[maintain] dry-run research soft classifier…");
+  for (const c of cases) {
+    const got = classifyResearchResult(c);
+    const pass = got.soft === c.expectSoft;
+    console.log(`  ${pass ? "OK" : "FAIL"}  status=${c.status} signal=${c.signal} → soft=${got.soft} (${got.tag})`);
+    if (!pass) process.exit(2);
+  }
+
+  const { appendAutoLedger } = await import("./auto-ledger.mjs");
+  const entry = appendAutoLedger({
+    id: "maintain-dry-run",
+    rail: "A",
+    goal: "dry-run local smoke (no vendor APIs)",
+    ok: !!summary.processOk,
+    value: summary.processOk ? "NO MATERIAL CHANGE" : "FAILED",
+    actions: ["dry_run", "desk_only_health"],
+    softFailed: summary.softFailed || [],
+    evidence: {
+      deskOnly: true,
+      processOk: summary.processOk,
+      softFailed: summary.softFailed,
+      results: deskRows,
+    },
+    note: "maintain --dry-run",
+  });
+  console.log(`\n[maintain] dry-run ledger → ${entry.evidencePath || "auto-ledger.jsonl"}`);
+  console.log(`[maintain] dry-run done  processOk=${summary.processOk} softFailed=${(summary.softFailed || []).join(",") || "—"}`);
+  process.exit(summary.processOk ? 0 : 1);
 }
 
 /** One chain step. Merges timings.unusedFeeds into the existing report; does not rerun the morning chain. */
@@ -703,7 +785,7 @@ function runUnusedFeedsStepOnly() {
 
 async function main() {
   if (args.has("--dry-run")) {
-    printMorningChain();
+    await runDryRunSmoke();
     return;
   }
   if (args.has("--step=unused-feeds")) {
@@ -741,6 +823,13 @@ async function main() {
   if (args.has("--once-per-day")) {
     const day = etDay();
     const st = readJson(DAY_STATE) || {};
+    // The 08:00 ET chain runs before the cash close, then marks the day done, so the
+    // official session never gets a bar (10-29: 806 names stuck on the prior close).
+    // After 16:00 ET, and again overnight before the next chain, fill that session only.
+    if (etHour() >= 16 || etHour() < 8) {
+      const fill = runApiTsx("src/scripts/backfill-stale-prices.ts", [], 20);
+      console.log(`[maintain] closed-session prices exit ${fill.status ?? fill.signal ?? "spawn_error"}`);
+    }
     if (etHour() < 8) { console.log(`[maintain] ${day}: before 08:00 ET — the day's chain starts at 05:00 PT`); return; }
     if (st.day === day && st.done) { console.log(`[maintain] ${day}: chain already complete — skip`); return; }
     if (st.day === day && (st.attempts || 0) >= 3) { console.log(`[maintain] ${day}: 3 attempts used — skip until tomorrow`); return; }
@@ -760,6 +849,8 @@ async function main() {
   const apiAgeDays = apiStart != null ? (Date.now() - apiStart) / 86400_000 : null;
 
   const actions = [];
+  /** Research child timeout/SIGTERM/nonzero — soft only (never jobOk fail). */
+  const researchSoftWarns = [];
   let restart = null;
 
   // Prefer heal (adopt pidfiles / kill drift) over full restart when ports are up.
@@ -895,12 +986,12 @@ async function main() {
   let drainMerged = false;
   if (drainNr > 0 && !dataDoneToday && !lateOpenListFirst) {
     const rem = factsetRemaining();
-    if (rem >= drainNr + 20) {
-      drain = runDrainNr(drainNr);
+    if (rem >= FACTSET_DRAIN_MIN_REMAINING) {
+      drain = runDrainNr(Math.min(drainNr, DEFAULT_DRAIN_NR));
       actions.push(`drain_nr_${drainNr}_rem_${rem}_exit_${drain.status}`);
       drainMerged = drain.status === 0;
     } else {
-      actions.push(`drain_nr_skipped_rem_${rem}_need_${drainNr + 20}`);
+      actions.push(`drain_nr_skipped_rem_${rem}_need_${FACTSET_DRAIN_MIN_REMAINING}`);
     }
   }
 
@@ -928,12 +1019,12 @@ async function main() {
       runHeavyDataBeforeList();
       if (drainNr > 0) {
         const rem = factsetRemaining();
-        if (rem >= drainNr + 20) {
-          drain = runDrainNr(drainNr);
+        if (rem >= FACTSET_DRAIN_MIN_REMAINING) {
+          drain = runDrainNr(Math.min(drainNr, DEFAULT_DRAIN_NR));
           actions.push(`drain_nr_${drainNr}_rem_${rem}_exit_${drain.status}`);
           drainMerged = drain.status === 0;
         } else {
-          actions.push(`drain_nr_skipped_rem_${rem}_need_${drainNr + 20}`);
+          actions.push(`drain_nr_skipped_rem_${rem}_need_${FACTSET_DRAIN_MIN_REMAINING}`);
         }
       }
       runScoresAndPrecompute(drainMerged);
@@ -990,9 +1081,18 @@ async function main() {
         const t0 = Date.now();
         const dir = join(ROOT, "scripts/watchlist_sync");
         const py = needsLseg ? join(ROOT, "research/lseg/.venv/bin/python") : join(dir, ".venv/bin/python");
-        const r = spawnSync(py, [rel, ...extra], { encoding: "utf8", cwd: dir, timeout: 45 * 60 * 1000 });
+        // Cap 25m — was 45m; SIGTERM after long hang looked like "job OK" with no desk value.
+        const r = spawnSync(py, [rel, ...extra], { encoding: "utf8", cwd: dir, timeout: 25 * 60 * 1000 });
         timings[`research_${name}`] = Date.now() - t0;
-        actions.push(`research_${name}_exit_${r.status ?? r.signal ?? "spawn_error"}`);
+        const cls = classifyResearchResult(r);
+        if (cls.soft) {
+          // Soft: never LaunchAgent FAILED — research is optional after production.
+          actions.push(`research_${name}_soft_${cls.tag}`);
+          researchSoftWarns.push(name);
+          console.warn(`[maintain] research ${name} soft-fail (${cls.tag}) — not hard-fail`);
+        } else {
+          actions.push(`research_${name}_exit_0`);
+        }
       }
     }
 
@@ -1111,6 +1211,66 @@ async function main() {
     }
   }
 
+  // Persist full health rows so Settings › API can show Yahoo/DNS without re-probing.
+  const healthResults = Array.isArray(health.results) ? health.results : [];
+  const yahooRow = healthResults.find((r) => r?.name === "yahoo_chart");
+  const dnsPublic = healthResults.find((r) => r?.name === "dns_public");
+  const dnsSystem = healthResults.find((r) => r?.name === "dns_system");
+  const slowVendors = healthResults.filter((r) => r?.ok && r?.slow).map((r) => r.name);
+  const softFailed = [
+    ...(Array.isArray(health.softFailed)
+      ? health.softFailed
+      : healthResults.filter((r) => !r.ok && r.soft).map((r) => r.name)),
+  ];
+  if (yahooRow && yahooRow.ok === false && !finalFlags.vendorFailed.includes("yahoo_chart")) {
+    finalFlags.vendorFailed = [...finalFlags.vendorFailed, "yahoo_chart"];
+  }
+  if (dnsPublic && dnsPublic.ok === false && !finalFlags.vendorFailed.includes("dns_public")) {
+    finalFlags.vendorFailed = [...finalFlags.vendorFailed, "dns_public"];
+  }
+  if (yahooRow?.ok === false) mergedActions.push("vendor_warn:yahoo_chart");
+  if (dnsSystem && !dnsSystem.ok) mergedActions.push("dns_wedge_detected");
+  if (slowVendors.length) mergedActions.push(`vendor_slow:${slowVendors.join("|")}`);
+  for (const n of researchSoftWarns) {
+    if (!softFailed.includes(`research_${n}`)) softFailed.push(`research_${n}`);
+  }
+  // Desk poisoned caches (soft) — surface in softFailed already via health; stamp action for ledger.
+  for (const n of ["macro_data_cache", "macro_charts_cache"]) {
+    const row = healthResults.find((r) => r?.name === n);
+    if (row && row.ok === false) mergedActions.push(`desk_smoke_warn:${n}`);
+  }
+
+  // Self-heal beyond "report it": if Yahoo is down AND system DNS is wedged, bounce API
+  // so dns-bypass.ts is loaded. Rate-limit: at most once per 30 min (prior report).
+  let vendorRestart = null;
+  if (
+    restartIfUnhealthy &&
+    yahooRow?.ok === false &&
+    dnsSystem && !dnsSystem.ok &&
+    finalFlags.processOk
+  ) {
+    const prior = readPriorReport(REPORT);
+    const priorTs = typeof prior?.ts === "string" ? Date.parse(prior.ts) : 0;
+    const priorHad = Array.isArray(prior?.actions) && prior.actions.includes("vendor_path_restart");
+    const coolMs = 30 * 60_000;
+    if (!priorHad || !priorTs || Date.now() - priorTs > coolMs) {
+      try {
+        const r = healLocalStack(
+          { ...health, processOk: false, processFailed: ["api_healthz"], results: health.results },
+          mergedActions,
+        );
+        vendorRestart = r.restart;
+        mergedActions.push("vendor_path_restart");
+        health = r.health;
+        Object.assign(finalFlags, processFlags(health));
+      } catch (e) {
+        console.warn("[maintain] vendor_path_restart failed", String(e?.message || e).slice(0, 120));
+      }
+    } else {
+      mergedActions.push("vendor_path_restart_skipped_cooldown");
+    }
+  }
+
   const report = {
     ts: new Date().toISOString(),
     mode,
@@ -1118,12 +1278,15 @@ async function main() {
     timings,
     healthOk: !!health.ok,
     processOk: finalFlags.processOk,
-    vendorsOk: finalFlags.vendorFailed.length === 0,
+    vendorsOk: finalFlags.vendorFailed.length === 0 && slowVendors.length === 0 && softFailed.length === 0,
     ok: jobOk,
     failureClass,
     healthPass: health.pass ?? null,
     healthFail: health.fail ?? null,
-    failedChecks: (health.results || []).filter((r) => !r.ok).map((r) => r.name),
+    healthResults,
+    slowVendors,
+    softFailed,
+    failedChecks: healthResults.filter((r) => !r.ok).map((r) => r.name),
     processFailed: finalFlags.processFailed,
     vendorFailed: finalFlags.vendorFailed,
     enrichSoftWarns,
@@ -1141,9 +1304,62 @@ async function main() {
     peerHealth,
     postMerge,
     budget,
-    restart,
+    restart: restart || vendorRestart,
   };
   writeFileSync(REPORT, JSON.stringify(report, null, 2));
+  // Settings › API Monitor + rolling history (catch intermittent Yahoo/DNS wedges).
+  try {
+    const yh = yahooRow || null;
+    const overall =
+      !yh || yh.ok === false || (dnsPublic && !dnsPublic.ok)
+        ? "down"
+        : yh.slow || slowVendors.length || softFailed.length
+          ? "warn"
+          : "ok";
+    const snap = {
+      checkedAt: report.ts,
+      source: "maintain",
+      dnsBypass: { active: true, servers: ["1.1.1.1", "8.8.8.8", "9.9.9.9"] },
+      yahooCircuit: { open: false, openUntil: null, failStreak: 0 },
+      livePriceTtlSec: 120,
+      probes: healthResults.filter((r) =>
+        ["yahoo_chart", "dns_public", "dns_system"].includes(r?.name),
+      ),
+      maintain: {
+        ts: report.ts,
+        vendorsOk: report.vendorsOk,
+        yahooChart: yh ? { ok: !!yh.ok, ms: yh.ms ?? null, detail: yh.detail } : null,
+        dnsSystem: dnsSystem
+          ? { ok: !!dnsSystem.ok, ms: dnsSystem.ms ?? null, detail: dnsSystem.detail }
+          : null,
+        vendorFailed: report.vendorFailed,
+        softFailed,
+      },
+      overall,
+    };
+    writeFileSync(join(LOG_DIR, "vendor-health-last.json"), JSON.stringify(snap, null, 2));
+    const histPath = join(LOG_DIR, "vendor-health-history.jsonl");
+    appendFileSync(
+      histPath,
+      JSON.stringify({
+        ts: report.ts,
+        overall,
+        yahooOk: yh ? !!yh.ok : null,
+        yahooMs: yh?.ms ?? null,
+        dnsSystemOk: dnsSystem ? !!dnsSystem.ok : null,
+        dnsPublicOk: dnsPublic ? !!dnsPublic.ok : null,
+        vendorFailed: report.vendorFailed,
+        softFailed,
+      }) + "\n",
+    );
+    // Cap history so Settings stay snappy (keep last ~200 runs).
+    try {
+      const lines = readFileSync(histPath, "utf8").trim().split("\n").filter(Boolean);
+      if (lines.length > 220) writeFileSync(histPath, lines.slice(-200).join("\n") + "\n");
+    } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   if (args.has("--once-per-day") && enrichIfDue) {
     // Data steps the Model List reads; a failed one (killed in a dark wake, exit 1/2) is retried next fire, not "done".
     const dataFailed = actions.filter((a) =>
@@ -1200,6 +1416,8 @@ async function main() {
   console.log(`  health: ${report.healthOk ? "OK" : "DEGRADED"} (${report.healthPass ?? "?"} pass / ${report.healthFail ?? "?"} fail)`);
   if (report.processFailed?.length) console.log(`  process failed: ${report.processFailed.join(", ")}`);
   if (report.vendorFailed?.length) console.log(`  vendor warn: ${report.vendorFailed.join(", ")}`);
+  if (report.softFailed?.length) console.log(`  soft warn: ${report.softFailed.join(", ")}`);
+  if (report.slowVendors?.length) console.log(`  slow: ${report.slowVendors.join(", ")}`);
   if (enrichSoftWarns.length) console.log(`  enrich soft: ${enrichSoftWarns.join(", ")}`);
   console.log(`  api pid=${apiPid ?? "—"} age_days=${report.apiAgeDays ?? "—"}  vite pid=${vitePid ?? "—"}`);
   console.log(`  logs rotated=${logs.rotated.length} pruned_gz=${logs.pruned}`);
@@ -1212,6 +1430,46 @@ async function main() {
   if (actions.length) console.log(`  actions: ${actions.join(", ")}`);
   console.log(`  report: ${REPORT}`);
 
+  // Auto-ledger (rail A proof) — Jamie digs /tmp/fildi-logs/auto-ledger.jsonl
+  try {
+    const { appendAutoLedger } = await import("./auto-ledger.mjs");
+    const healed = mergedActions.some((a) => /process_healed|vendor_path_restart|healed:/.test(a));
+    const value = !jobOk
+      ? "FAILED"
+      : healed
+        ? "IMPROVED"
+        : softFailed.length || researchSoftWarns.length || slowVendors.length
+          ? "NO MATERIAL CHANGE"
+          : "NO MATERIAL CHANGE";
+    appendAutoLedger({
+      id: "maintain",
+      rail: "A",
+      goal: "Local stack up; desk path probes; soft vendor/DNS; research soft-fail",
+      ok: jobOk,
+      value,
+      ms: report.ms,
+      actions: mergedActions,
+      softFailed,
+      evidence: {
+        processOk: report.processOk,
+        vendorsOk: report.vendorsOk,
+        softFailed,
+        slowVendors,
+        researchSoftWarns,
+        failedChecks: report.failedChecks,
+        healthPass: report.healthPass,
+        healthFail: report.healthFail,
+      },
+      note: softFailed.length
+        ? `soft: ${softFailed.join(",")}`
+        : healed
+          ? "healed"
+          : null,
+    });
+  } catch (e) {
+    console.warn("[maintain] auto-ledger skip", String(e?.message || e).slice(0, 100));
+  }
+
   if (!jobOk) {
     const why =
       failureClass === "process"
@@ -1220,6 +1478,25 @@ async function main() {
           ? "Enrich/peer/scores step failed — see maintain-last.json"
           : "Maintain failed — open Settings → Scheduled Tasks";
     notifyMac("Fildi Maintain FAILED", why);
+  } else if (
+    yahooRow?.ok === false ||
+    (dnsSystem && !dnsSystem.ok) ||
+    softFailed.includes("macro_data_cache") ||
+    softFailed.includes("macro_charts_cache")
+  ) {
+    // Soft path death — not LaunchAgent FAILED, but Jamie should see a warn (DNS/Yahoo loop class).
+    notifyMac(
+      "Fildi Maintain WARN",
+      [
+        yahooRow?.ok === false ? "Yahoo down" : null,
+        dnsSystem && !dnsSystem.ok ? "system DNS wedged" : null,
+        softFailed.includes("macro_data_cache") ? "macro-data cache empty" : null,
+        softFailed.includes("macro_charts_cache") ? "macro-charts cache empty" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+        .slice(0, 180) || "vendor/desk soft fail — Settings › API",
+    );
   }
 
   process.exit(jobOk ? 0 : 1);

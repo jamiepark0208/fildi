@@ -1,4 +1,5 @@
 import { isFactsetRulerField } from "./factset-ruler-table.js";
+import { pickFieldGold } from "./gold-pick.js";
 
 /**
  * Database Agent — Needs Review mediation (cheapest accurate gold).
@@ -34,6 +35,7 @@ export type SourceQuote = {
   value: number;
   /** true = local research / already-paid cache, not a live vendor pull */
   cached?: boolean;
+  pulledAt?: number | null;
 };
 
 export type ResolveDecision =
@@ -163,51 +165,30 @@ export function decideNeedsReview(input: {
     if (kept.length >= 1 && scaleDropped.length > 0) free = kept;
   }
 
-  // Edgar secondary: if yahoo/fmp/finnhub exist, ignore edgar for mediation.
-  if (field && EDGAR_SECONDARY_FIELDS.has(field)) {
-    const nonEdgar = free.filter((q) => q.source !== "edgar");
-    const edgarOnly = free.filter((q) => q.source === "edgar");
-    if (nonEdgar.length >= 1 && edgarOnly.length >= 1) {
-      const clusters0 = clusterQuotes(nonEdgar);
-      if (clusters0[0]?.length >= 1) {
-        const pick = cheapestOf(clusters0[0])!;
-        // If non-edgar already agree, or only one non-edgar left after scale drop
-        if (clusters0[0].length >= 2 || nonEdgar.length === 1 || clusters0.length === 1) {
-          return {
-            action: "override",
-            source: pick.source,
-            value: pick.value,
-            reason: "primary_vs_edgar",
-            cluster: clusters0[0],
-            rejected: [...edgarOnly, ...scaleDropped, ...clusters0.slice(1).flat()],
-            research,
-          };
-        }
-      }
+  // Derived gold tip (P/B from price÷book) — before shared pick (0 API).
+  if (derived && free.length > 0) {
+    const inBand = free.filter(
+      (q) => Math.abs(q.value - derived.value) / Math.max(Math.abs(derived.value), 1e-9) <= 0.25,
+    );
+    if (inBand.length > 0) {
+      return {
+        action: "override",
+        source: "manual",
+        value: derived.value,
+        reason: "derived_confirms_cheap",
+        cluster: [{ source: "derived", value: derived.value }, ...inBand],
+        rejected: free.filter((f) => !inBand.includes(f)).concat(scaleDropped),
+        research: [...research, derived],
+      };
     }
   }
 
-  const clusters = clusterQuotes(free);
-  const best = clusters[0] ?? [];
-  const rejected = [...clusters.slice(1).flat(), ...scaleDropped];
-
-  // Majority (≥2 agreeing) → cheapest in cluster
-  if (best.length >= 2) {
-    const pick = cheapestOf(best)!;
-    return {
-      action: "override",
-      source: pick.source,
-      value: pick.value,
-      reason: scaleDropped.length ? "scale_outlier_drop" : "majority_cheap",
-      cluster: best,
-      rejected,
-      research,
-    };
-  }
-
-  // Research: confirm singleton OR pick free nearest to research median
+  // Research: WRDS/LSEG confirm only — before shared pick.
   if (research.length > 0 && free.length > 0) {
     const researchAnchor = research[0].value;
+    const clusters = clusterQuotes(free);
+    const best = clusters[0] ?? [];
+    const rejected = [...clusters.slice(1).flat(), ...scaleDropped];
     if (best.length === 1 && valuesClose(best[0].value, researchAnchor, 0.2)) {
       return {
         action: "override",
@@ -233,81 +214,53 @@ export function decideNeedsReview(input: {
     }
   }
 
-  // FactSet tips only on ruler fields (A318 segment 0). Never store FactSet as gold elsewhere.
-  if (factset && free.length > 0 && (!field || isFactsetRulerField(field))) {
-    const near = nearestTo(factset.value, free);
-    if (near && near.dist <= 0.2) {
-      return {
-        action: "override",
-        source: near.q.source,
-        value: near.q.value,
-        reason: "factset_nearest_free",
-        cluster: [near.q],
-        rejected: free.filter((f) => f.source !== near.q.source).concat(scaleDropped),
-        research,
-      };
-    }
-  }
+  const orderedFree = [...free].sort(
+    (a, b) => costOf(a.source) - costOf(b.source) || a.source.localeCompare(b.source),
+  );
+  const pick = pickFieldGold({
+    field: field ?? "",
+    free: orderedFree.map((q) => ({
+      src: q.source,
+      val: q.value,
+      pulledAt: q.pulledAt ?? null,
+    })),
+    factset: factset?.value,
+  });
 
-  if (free.length >= 1 && field && !isFactsetRulerField(field) && best.length < 2) {
-    const pick = cheapestOf(free.length ? free : best)!;
+  if (pick.source === "none") {
     return {
-      action: "override",
-      source: pick.source,
-      value: pick.value,
-      reason: "singleton_cheap",
-      cluster: best.length >= 1 ? best : [pick],
-      rejected,
+      action: "skip",
+      reason: "ambiguous",
+      cluster: orderedFree.map((q) => ({ source: q.source, value: q.value })),
+      rejected: scaleDropped,
       research,
     };
   }
 
-  // Derived gold tip (P/B from price÷book) when FactSet absent. Prefer derived literal
-  // when ≥1 free source within 25% (sanity) — matches merge computePriceToBook.
-  if (derived && free.length > 0) {
-    const inBand = free.filter(
-      (q) => Math.abs(q.value - derived.value) / Math.max(Math.abs(derived.value), 1e-9) <= 0.25,
-    );
-    if (inBand.length > 0) {
-      return {
-        action: "override",
-        source: "manual",
-        value: derived.value,
-        reason: "derived_confirms_cheap",
-        cluster: [{ source: "derived", value: derived.value }, ...inBand],
-        rejected: free.filter((f) => !inBand.includes(f)).concat(scaleDropped),
-        research: [...research, derived],
-      };
-    }
+  if (pick.source === "factset" && field && !isFactsetRulerField(field)) {
+    return { action: "skip", reason: "ambiguous", cluster: [], rejected: free, research };
   }
 
-  // After scale drop, only one free left
-  if (best.length === 1 && rejected.filter((r) => !scaleDropped.includes(r)).length === 0) {
-    const pick = best[0];
-    return {
-      action: "override",
-      source: pick.source,
-      value: pick.value,
-      reason: scaleDropped.length ? "scale_outlier_drop" : "singleton_cheap",
-      cluster: best,
-      rejected,
-      research,
-    };
-  }
+  const clusterQuotesList = orderedFree.filter((q) => valuesClose(q.value, pick.value, 0.15));
+  const reason = pick.divergent
+    ? "singleton_cheap"
+    : clusterQuotesList.length >= 2
+      ? scaleDropped.length
+        ? "scale_outlier_drop"
+        : "majority_cheap"
+      : factset && field && isFactsetRulerField(field) && valuesClose(pick.value, factset.value, 0.2)
+        ? "factset_nearest_free"
+        : "majority_cheap";
 
-  if (best.length === 1 && scaleDropped.length > 0 && clusters.length === 1) {
-    return {
-      action: "override",
-      source: best[0].source,
-      value: best[0].value,
-      reason: "scale_outlier_drop",
-      cluster: best,
-      rejected,
-      research,
-    };
-  }
-
-  return { action: "skip", reason: "ambiguous", cluster: best, rejected, research };
+  return {
+    action: "override",
+    source: pick.source,
+    value: pick.value,
+    reason,
+    cluster: clusterQuotesList.length ? clusterQuotesList : [{ source: pick.source, value: pick.value }],
+    rejected: orderedFree.filter((f) => f.source !== pick.source).concat(scaleDropped),
+    research,
+  };
 }
 
 /** Encode decision into manual_overrides.note — shown in cell popup. */

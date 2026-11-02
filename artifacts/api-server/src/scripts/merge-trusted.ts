@@ -23,7 +23,7 @@ import {
   fieldProvenance, manualOverrides, pricesHistorical,
   type ManualOverridesRow,
 } from "@workspace/db";
-import { pickDisputedGold } from "../lib/gold-pick.js";
+import { pickFieldGold } from "../lib/gold-pick.js";
 import { isFactsetRulerField } from "../lib/factset-ruler-table.js";
 import {
   computeTrailingPeg,
@@ -39,6 +39,9 @@ import {
   resolvePegGrowth,
 } from "../lib/derived-metrics.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "../lib/derived-metrics.js";
 
@@ -244,6 +247,8 @@ export type ResolveResult = {
   divergent: boolean;
   /** Keep the gold number already stored. Provenance stays; the cell is flagged. */
   hold?: boolean;
+  /** Ruler field: FactSet out of band vs picked free gold (A318 review finding 3). */
+  factsetDisagree?: { ruler: number; picked: number; bandRel: number; bandAbs: number };
 } | null;
 
 // ── Internal: resolve from a pre-built index ──────────────────────────────────
@@ -326,7 +331,7 @@ function resolveFromIndex(
     !isFactsetRulerField(tf) &&
     freeOrdered.length > 0;
   if ((divergent || factsetRedecide) && freeOrdered.length > 0) {
-    const picked = pickDisputedGold({
+    const picked = pickFieldGold({
       field: tf,
       free: freeOrdered.map((o) => ({
         src: o.src,
@@ -337,13 +342,22 @@ function resolveFromIndex(
       existing: existingVal ?? null,
     });
     if (picked.source !== "none") {
-      return {
+      const out: Exclude<ResolveResult, null> = {
         source: picked.source,
         value: picked.value,
         isOverride: false,
         divergent: picked.divergent,
         hold: picked.hold,
       };
+      if (picked.factsetDisagrees && picked.ruler != null && Number.isFinite(picked.ruler)) {
+        out.factsetDisagree = {
+          ruler: picked.ruler,
+          picked: picked.value,
+          bandRel: picked.bandRel ?? 0.2,
+          bandAbs: picked.bandAbs ?? 0,
+        };
+      }
+      return out;
     }
   }
 
@@ -536,6 +550,14 @@ export async function runMergeTrusted() {
   for (const { tfCol } of VALID_FIELD_DEFS) fieldNullCount[tfCol as string] = 0;
 
   const now = new Date();
+  const factsetDisagreeLog: Array<{
+    ticker: string;
+    field: string;
+    ruler: number;
+    picked: number;
+    bandRel: number;
+    bandAbs: number;
+  }> = [];
 
   for (const ticker of allTickers) {
     const byField = index.get(ticker) ?? new Map();
@@ -573,6 +595,13 @@ export async function runMergeTrusted() {
         update[fieldDef.tfCol as string] = result.value;
         sourceUsage[result.source] = (sourceUsage[result.source] ?? 0) + 1;
         provenanceBatch.push({ field: fieldDef.tfCol as string, result });
+        if (result.factsetDisagree) {
+          factsetDisagreeLog.push({
+            ticker,
+            field: fieldDef.tfCol as string,
+            ...result.factsetDisagree,
+          });
+        }
 
         const { changed, from } = isChanged(existing?.[fieldDef.tfCol as string], result.value);
         if (changed) changedFields.push({ field: fieldDef.tfCol as string, from, to: result.value });
@@ -826,6 +855,20 @@ export async function runMergeTrusted() {
   console.log(`  Total fields written:  ${totalFieldsWritten}`);
   console.log(`  Source usage breakdown: ${srcBreakdown}`);
   console.log(`  Fields null >20% of tickers: ${highNullFields.length > 0 ? highNullFields.join(", ") : "none"}`);
+
+  if (factsetDisagreeLog.length > 0) {
+    const byField: Record<string, number> = {};
+    for (const row of factsetDisagreeLog) {
+      byField[row.field] = (byField[row.field] ?? 0) + 1;
+    }
+    const outDir = join(dirname(fileURLToPath(import.meta.url)), "../../out/a318-segment12");
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(
+      join(outDir, "factset-disagrees.json"),
+      JSON.stringify({ count: factsetDisagreeLog.length, byField, rows: factsetDisagreeLog }, null, 2) + "\n",
+    );
+    console.log(`  FactSet ruler disagrees (free cluster won): ${factsetDisagreeLog.length}`);
+  }
 }
 
 // CLI entrypoint only — when imported (e.g. by nightly-enrichment in the long-lived

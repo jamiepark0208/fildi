@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pickDisputedGold } from "./gold-pick.js";
+import {
+  pickDisputedGold,
+  pickFieldGold,
+  inBand,
+  filterTimely,
+  bandTolerances,
+} from "./gold-pick.js";
 
 describe("pickDisputedGold", () => {
   it("on a FactSet-ruler field, cheapest source inside 20% wins over a closer expensive one", () => {
@@ -139,16 +145,63 @@ describe("pickDisputedGold", () => {
   it("a stale FMP row can confirm a fresh EDGAR value with the same number", () => {
     const now = Date.UTC(2026, 9, 29);
     const pick = pickDisputedGold({
-      field: "freeCashFlow",
-      factset: -6_000_000_000,
+      field: "totalDebt",
       free: [
-        { src: "yahoo", val: 22_700_000_000, pulledAt: now },
         { src: "fmp", val: 73_300_000_000, pulledAt: now - 100 * 86_400_000 },
         { src: "edgar", val: 73_300_000_000, pulledAt: now },
       ],
     });
     assert.equal(pick.source, "fmp");
     assert.equal(pick.value, 73_300_000_000);
+    assert.equal(pick.divergent, false);
+  });
+
+  it("timeliness: stale finnhub loses to newer yahoo inside the band", () => {
+    const now = Date.UTC(2026, 10, 1);
+    const pick = pickFieldGold({
+      field: "operatingMargin",
+      factset: 0.1,
+      free: [
+        { src: "yahoo", val: 0.11, pulledAt: now },
+        { src: "finnhub", val: 0.105, pulledAt: now - 20 * 86_400_000 },
+      ],
+    });
+    assert.equal(pick.source, "yahoo");
+    assert.equal(pick.value, 0.11);
+  });
+
+  it("band: 3pp beats 20% on fraction fields near zero", () => {
+    assert.equal(inBand("operatingMargin", 0.01, 0.035), true);
+    assert.equal(inBand("operatingMargin", 0.01, 0.05), false);
+    const t = bandTolerances("operatingMargin");
+    assert.equal(t.abs, 0.03);
+  });
+
+  it("band: level fields use 20% relative only", () => {
+    assert.equal(inBand("totalRevenue", 100, 118), true);
+    assert.equal(inBand("totalRevenue", 100, 130), false);
+  });
+
+  it("no cluster: top free source with divergent", () => {
+    const pick = pickFieldGold({
+      field: "peRatio",
+      free: [
+        { src: "yahoo", val: 5 },
+        { src: "fmp", val: 20 },
+      ],
+    });
+    assert.equal(pick.source, "yahoo");
+    assert.equal(pick.divergent, true);
+  });
+
+  it("ruler-only FactSet when no free sources on a ruler field", () => {
+    const pick = pickFieldGold({
+      field: "forwardPe",
+      factset: 12,
+      free: [],
+    });
+    assert.equal(pick.source, "factset");
+    assert.equal(pick.value, 12);
     assert.equal(pick.divergent, false);
   });
 });

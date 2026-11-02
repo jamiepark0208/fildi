@@ -94,18 +94,21 @@ describe("decideNeedsReview", () => {
     if (d.action === "override") assert.notEqual(d.source, "factset");
   });
 
-  it("skips when free sources fight and no FactSet/research", () => {
+  it("singleton fight stays override with divergent (no null gold)", () => {
     const d = decideNeedsReview({
       free: [
         { source: "yahoo", value: 0.1 },
         { source: "fmp", value: 0.5 },
       ],
     });
-    assert.equal(d.action, "skip");
-    if (d.action === "skip") assert.equal(d.reason, "ambiguous");
+    assert.equal(d.action, "override");
+    if (d.action === "override") {
+      assert.equal(d.source, "yahoo");
+      assert.equal(d.reason, "singleton_cheap");
+    }
   });
 
-  it("primary_vs_edgar drops edgar on grossProfit", () => {
+  it("drops edgar on grossProfit via timeliness pick (yahoo wins)", () => {
     const d = decideNeedsReview({
       field: "grossProfit",
       free: [
@@ -116,7 +119,6 @@ describe("decideNeedsReview", () => {
     assert.equal(d.action, "override");
     if (d.action === "override") {
       assert.equal(d.source, "yahoo");
-      assert.ok(d.reason === "primary_vs_edgar" || d.reason === "scale_outlier_drop");
     }
   });
 

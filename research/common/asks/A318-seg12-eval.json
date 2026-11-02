@@ -1,0 +1,245 @@
+{
+  "sample": [
+    {
+      "ticker": "APO",
+      "field": "currentRatio",
+      "beforeGold": "0.0404",
+      "afterGold": "1.948",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "CE",
+      "field": "dividendYield",
+      "beforeGold": "0.0023999999",
+      "afterGold": "0.0210621",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "IVZ",
+      "field": "ffoProxy",
+      "beforeGold": "693900000",
+      "afterGold": "-125800000",
+      "source": "derived",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "WING",
+      "field": "forwardPeg",
+      "beforeGold": "0.43947923110577836",
+      "afterGold": "0.29621581756310367",
+      "source": "derived",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "CCJ",
+      "field": "grossMargin",
+      "beforeGold": "0.35112998",
+      "afterGold": "0.26899999999999996",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "DD",
+      "field": "netMargin",
+      "beforeGold": "0.00787",
+      "afterGold": "0.0275",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "PAAS",
+      "field": "priceToBook",
+      "beforeGold": "2.152817",
+      "afterGold": "3.1122",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "NBIX",
+      "field": "returnOnAssets",
+      "beforeGold": "0.11704001",
+      "afterGold": "0.1473",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "GOOGL",
+      "field": "sharesOutstanding",
+      "beforeGold": "12116000000",
+      "afterGold": "12088000000",
+      "source": "edgar",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "CRDO",
+      "field": "currentRatio",
+      "beforeGold": "7.399",
+      "afterGold": "10.153",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "AMZN",
+      "field": "freeCashFlow",
+      "beforeGold": "132777000000",
+      "afterGold": "9806624768",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "IVZ",
+      "field": "netIncome",
+      "beforeGold": "538000000",
+      "afterGold": "-281700000",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "LUMN",
+      "field": "returnOnAssets",
+      "beforeGold": "-0.0315",
+      "afterGold": "-0.008719999",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "CG",
+      "field": "totalRevenue",
+      "beforeGold": "4779800000",
+      "afterGold": "3213200000",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "KGC",
+      "field": "dividendYield",
+      "beforeGold": "0.0069999998",
+      "afterGold": "0.021718099999999997",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "JHX",
+      "field": "priceToBook",
+      "beforeGold": "2.338509",
+      "afterGold": "1.7433",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "REGN",
+      "field": "returnOnAssets",
+      "beforeGold": "0.06526",
+      "afterGold": "0.106",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "OWL",
+      "field": "totalRevenue",
+      "beforeGold": "567754000",
+      "afterGold": "2870178000",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "RELY",
+      "field": "priceToBook",
+      "beforeGold": "4.536063",
+      "afterGold": "3.3205",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "CRWV",
+      "field": "returnOnAssets",
+      "beforeGold": "-0.00244",
+      "afterGold": "-0.0359",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "WING",
+      "field": "forwardPe",
+      "beforeGold": "29.741556",
+      "afterGold": "20.04627",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "GOOGL",
+      "field": "freeCashFlow",
+      "beforeGold": "73266000000",
+      "afterGold": "22665000960",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "TTWO",
+      "field": "operatingMargin",
+      "beforeGold": "0.0051499996",
+      "afterGold": "-0.024",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "SG",
+      "field": "returnOnAssets",
+      "beforeGold": "-0.09035",
+      "afterGold": "0.016",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "INTC",
+      "field": "freeCashFlow",
+      "beforeGold": "-4949000000",
+      "afterGold": "4866375168",
+      "source": "yahoo",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "TKO",
+      "field": "returnOnAssets",
+      "beforeGold": "0.04496",
+      "afterGold": "0.014500000000000002",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "ESTC",
+      "field": "operatingMargin",
+      "beforeGold": "-0.00606",
+      "afterGold": "-0.0264",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "NOV",
+      "field": "returnOnAssets",
+      "beforeGold": "0.03446",
+      "afterGold": "0.0084",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "HUT",
+      "field": "returnOnAssets",
+      "beforeGold": "-0.09742",
+      "afterGold": "-0.0404",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    },
+    {
+      "ticker": "RKT",
+      "field": "returnOnAssets",
+      "beforeGold": "0.028099999",
+      "afterGold": "0.0088",
+      "source": "finnhub",
+      "period": "2026-11-02"
+    }
+  ],
+  "poolSize": 36
+}
