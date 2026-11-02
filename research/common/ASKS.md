@@ -291,7 +291,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A315](asks/A315.md) | 2026-10-29 | Claude → Cursor | Breakdown — visible "Outside values" box: every fair value source by family (street · cash-flow · floor) + Trading Central levels/outlook | done |
 | [A316](asks/A316.md) | 2026-10-29 | Claude → Cursor | Put list — show "moves with" group + news-gap tag per put idea + AI explain lines | done |
 | [A317](asks/A317.md) | 2026-10-30 | Muse → Cursor | writeEarningsHistory deletes all upcoming dates when vendor returns two within 21 days | done |
-| [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | done (seg 1+2, awaiting Claude review) |
+| [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | revise (seg 1+2 eval 15/21 < bar; Finnhub annual keys + SEC TTM source) |
 | [A319](asks/A319.md) | 2026-11-01 | Muse → Cursor | LSE free data as fildi research lane (never live) — validation study | planned |
 | [A320](asks/A320.md) | 2026-11-02 | Muse → Cursor | Chronos-Bolt fair retest: less-smooth targets, adopt/drop gate + catalog row | planned |
 | [A321](asks/A321.md) | 2026-11-02 | Muse → Cursor | FinBERT real-headline validation: adopt as triage or drop + catalog row | planned |
