@@ -25,6 +25,7 @@ import { resolvePeers } from "../lib/peer-resolver.js";
 import { getTaxonomyPeers } from "../lib/peer-classifier.js";
 import { rankCompetitors } from "../lib/peer-rankings.js";
 import { isAnalystDataFresh, parseAnalystHistory, readAnalystEventsFromDb, writeAnalystEvents, readFmpAnalystEventsFromDb } from "../lib/analyst-events.js";
+import { readDeskAnalystActions } from "../lib/desk-fact-resolve.js";
 import { parseAnalystHeadlines } from "../lib/analyst-headline-parser.js";
 import { isEarningsDataFresh, readEarningsHistoryFromDb, writeEarningsHistory, fetchLiveEarningsHistory, ensureUpcomingEarnings, type EarningsQuarter } from "../lib/earnings-history.js";
 import { logger } from "../lib/logger.js";
@@ -893,7 +894,7 @@ type BreakdownPayload = {
   recommendations: unknown;
   analystActions: Array<{
     firm: string; toGrade: string; fromGrade: string; action: string; date: string | null;
-    priceTarget?: number | null; source?: "yahoo" | "fmp" | "headline";
+    priceTarget?: number | null; source?: "yahoo" | "fmp" | "headline" | "desk";
   }>;
   analystPriceTargets: Array<{
     firm: string; analyst: string | null; priceTarget: number | null; date: string | null;
@@ -1164,7 +1165,10 @@ router.get("/stocks/breakdown", async (req, res) => {
         date: e.date, priceTarget: e.priceTarget, source: "headline" as const,
       }));
 
-    analystActions = [...yahooActionsTagged, ...fmpGradeActions, ...headlineActions];
+    // Briefs dig D2: desk-email analyst actions our feeds lack (verdict 'none' vs analyst_events).
+    const deskActions = await readDeskAnalystActions(upperTicker);
+
+    analystActions = [...yahooActionsTagged, ...fmpGradeActions, ...headlineActions, ...deskActions];
 
     const fmpPriceTargets = fmpEvents
       .filter(e => e.action === "price-target" && e.priceTarget != null)

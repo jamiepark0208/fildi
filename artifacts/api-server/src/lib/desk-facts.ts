@@ -206,7 +206,7 @@ export function listFacts(clean: string, universe: Set<string>): DeskFact[] {
   let day = "";
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!.trim();
-    if (line.length <= 60 && DAY_LINE.test(line)) day = line.replace(/[:•*]/g, "").trim();
+    if (line.length <= 60 && DAY_LINE.test(line) && !/\$|\d{2,}[BMK%]/.test(line)) day = line.replace(/[:•*]/g, "").trim();
     const m = LIST_LABEL.exec(line);
     if (!m) continue;
     const first = listTickers(m[2] ?? "", universe);

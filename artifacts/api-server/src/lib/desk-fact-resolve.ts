@@ -8,11 +8,12 @@
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { writeAnalystEvents } from "./analyst-events.js";
+import { applyDeskEarningsDate, fetchLiveEarningsHistory, writeEarningsHistory } from "./earnings-history.js";
 import { fetchYahooAnalystActions } from "./yahoo-analyst-client.js";
 import { ensureDeskFactsTables } from "./desk-facts.js";
 import { logger } from "./logger.js";
 
-export const RESOLVER_VERSION = 2;
+export const RESOLVER_VERSION = 3;
 
 export type Verdict = "agree" | "disagree" | "none" | "n/a";
 export interface Resolution { verdict: Verdict; ourValue: Record<string, unknown> }
@@ -84,7 +85,8 @@ export function resolveAnalyst(claim: string, rows: EventRow[]): Resolution {
   const pts = hits.map((r) => (r.price_target != null ? Number(r.price_target) : null)).filter((n): n is number => n != null && n > 0);
   const ptOk = c.pt == null || !pts.length || pts.some((p) => Math.abs(p - c.pt!) / c.pt! <= 0.01);
   const dirs = hits.map((r) => ROW_DIR[r.action.toLowerCase()]).filter(Boolean);
-  const dirBad = (c.action === "up" || c.action === "down") && dirs.length > 0 && !dirs.includes(c.action);
+  const opposite = c.action === "up" ? "down" : c.action === "down" ? "up" : null;
+  const dirBad = opposite != null && dirs.includes(opposite) && !dirs.includes(c.action);
   const best = hits[0]!;
   return {
     verdict: ptOk && !dirBad ? "agree" : "disagree",
@@ -120,6 +122,7 @@ export function listFactDate(claim: string, receivedPtDate: string): string | nu
   }
   const wd = WEEKDAYS.findIndex((w) => head.startsWith(w));
   if (wd < 0) return null;
+  if (!/^[a-z]+day\W*$/.test(head)) return ymd(base); // prose caught as a day line ("Friday. $44B of 7-year notes…")
   while (base.getUTCDay() !== wd) base.setUTCDate(base.getUTCDate() + 1);
   return ymd(base);
 }
@@ -170,7 +173,8 @@ export async function resolvePendingDeskFacts(opts?: { limit?: number; days?: nu
     ORDER BY received_at DESC LIMIT ${limit}`);
   const facts = r.rows as unknown as FactRow[];
   const out: Record<Verdict, number> = { agree: 0, disagree: 0, none: 0, "n/a": 0 };
-  if (!facts.length) return out;
+  const fix = () => fixCalendarDisagreements().catch((err) => logger.warn({ err: String(err) }, "desk-fact-resolve: calendar fix failed"));
+  if (!facts.length) { await fix(); return out; }
 
   // Refresh Yahoo analyst history for names not fetched since the email (capped, sequential, deadlined).
   const analyst = facts.filter((f) => f.kind === "analyst_action");
@@ -220,5 +224,86 @@ export async function resolvePendingDeskFacts(opts?: { limit?: number; days?: nu
     await db.execute(sql`UPDATE desk_facts SET verdict = ${res.verdict}, our_value = ${JSON.stringify(res.ourValue)}::jsonb,
       resolved_at = now(), resolver_version = ${RESOLVER_VERSION} WHERE id = ${f.id}`);
   }
+  await fix();
   return out;
+}
+
+const CAL_FIX_PER_RUN = 10;
+
+/**
+ * Upcoming dates where a tier-A desk list disagrees with earnings_calendar: re-fetch the vendor first (our row is often
+ * just stale — 25 / 31 on 11-02); if the vendor still disagrees, the desk date wins (Finnhub estimates — AXON, PAA).
+ * Skips tickers whose desk emails give different dates. Capped + deadlined (rule 8c).
+ */
+export async function fixCalendarDisagreements(): Promise<{ refetched: number; deskSet: number; ambiguous: number }> {
+  const r = await db.execute(sql`SELECT d->>'t' AS t, f.our_value->>'date' AS desk, f.id, c.subject
+    FROM desk_facts f JOIN desk_commentaries c ON c.id = f.commentary_id, jsonb_array_elements(f.our_value->'disagree') d
+    WHERE f.kind = 'guidance_calendar' AND f.verdict = 'disagree' AND f.source_tier = 'A'
+      AND (f.our_value->>'date')::date >= CURRENT_DATE AND f.received_at > now() - interval '14 days'`);
+  const byT = new Map<string, { dates: Set<string>; ids: number[]; subject: string }>();
+  for (const x of r.rows as { t: string; desk: string; id: number; subject: string }[]) {
+    const e = byT.get(x.t) ?? { dates: new Set<string>(), ids: [], subject: x.subject };
+    e.dates.add(x.desk); e.ids.push(x.id); byT.set(x.t, e);
+  }
+  const out = { refetched: 0, deskSet: 0, ambiguous: 0 };
+  const touched = new Set<number>();
+  // Every upcoming tier-A list date per ticker (agreeing facts too): a name listed 11-04 post-close AND 11-05 pre-open is ambiguous.
+  const all = await db.execute(sql`SELECT d.t, f.our_value->>'date' AS desk FROM desk_facts f, jsonb_array_elements_text(f.tickers) d(t)
+    WHERE f.kind = 'guidance_calendar' AND f.origin = 'list' AND f.source_tier = 'A' AND f.our_value ? 'date'
+      AND (f.our_value->>'date')::date >= CURRENT_DATE AND f.received_at > now() - interval '14 days'`);
+  for (const x of all.rows as { t: string; desk: string }[]) byT.get(x.t)?.dates.add(x.desk);
+  const clear = [...byT].filter(([, e]) => e.dates.size === 1);
+  out.ambiguous = byT.size - clear.length;
+  for (const [t, e] of clear.slice(0, CAL_FIX_PER_RUN)) {
+    const date = [...e.dates][0]!;
+    const rows = await Promise.race([fetchLiveEarningsHistory(t, "desk-calendar-recheck"), new Promise<never[]>((res) => setTimeout(() => res([]), 20_000))]).catch(() => []);
+    if (rows.length) await writeEarningsHistory(t, rows).catch(() => {});
+    const now = await db.execute(sql`SELECT 1 FROM earnings_calendar WHERE ticker = ${t} AND report_date = ${date}::date`);
+    if (now.rows.length) out.refetched++;
+    else { await applyDeskEarningsDate(t, date, "desk:A", `${e.subject} (desk_facts ${e.ids[0]})`); out.deskSet++; }
+    e.ids.forEach((id) => touched.add(id));
+  }
+  // Re-check the touched facts on the next pass.
+  if (touched.size) await db.execute(sql`UPDATE desk_facts SET resolved_at = NULL WHERE id = ANY(${sql.raw(`ARRAY[${[...touched].join(",")}]::int[]`)})`);
+  if (out.refetched || out.deskSet) logger.info(out, "desk-fact-resolve: calendar fixes");
+  return out;
+}
+
+// ── desk analyst actions for Breakdown (the ones our feeds lack) ────────────
+
+const GRADE = "(?:strong buy|strong sell|buy|sell|hold|overweight|underweight|equal[- ]weight|neutral|outperform|underperform|market perform|sector perform|peer perform|perform|in-line|accumulate|reduce|positive|negative)";
+const VERB = "(?:upgrad|downgrad|initiat|rais|lower|cut|maintain|reiterat|lift|boost|trim|start|resum|reduc|keep|affirm)";
+
+/** Broker named in a desk claim: "… at Barclays" or the capitalised words before the verb ("Cantor Fitzgerald (Deepak M.) raised …"). */
+export function parseFirm(claim: string): string | null {
+  const at = new RegExp(`\\b${VERB}\\w*\\b[^;]*?\\bat ([A-Z][\\w&.'-]*(?:\\s+(?:[A-Z&][\\w&.'-]*|of)){0,3})`).exec(claim);
+  if (at) return at[1]!.replace(/\s+(?:on|after|with|to|from)$/i, "").trim();
+  const lead = new RegExp(`^([A-Z][\\w&.'-]*(?:\\s+(?:[A-Z&][\\w&.'-]*|of)){0,3}?)\\s*(?:\\([^)]*\\)\\s*)?${VERB}`).exec(claim);
+  return lead ? lead[1]!.trim() : null;
+}
+
+export interface DeskAnalystAction { firm: string; toGrade: string; fromGrade: string; action: string; date: string; priceTarget: number | null; source: "desk" }
+
+/** Breakdown: desk analyst actions the checker found no feed row for (verdict none), last 365 d, one per firm per day. */
+export async function readDeskAnalystActions(ticker: string): Promise<DeskAnalystAction[]> {
+  const r = await db.execute(sql`SELECT claim, (received_at AT TIME ZONE 'America/Los_Angeles')::date::text AS d FROM desk_facts
+    WHERE kind = 'analyst_action' AND verdict = 'none' AND tickers = ${JSON.stringify([ticker.toUpperCase()])}::jsonb
+      AND received_at > now() - interval '365 days' ORDER BY received_at DESC LIMIT 60`).catch(() => ({ rows: [] as unknown[] }));
+  // Oldest first so a call repeated in next-day emails keeps its first date (same firm + action + PT within 3 d).
+  const seen = new Map<string, number>();
+  const out: DeskAnalystAction[] = [];
+  for (const x of (r.rows as { claim: string; d: string }[]).reverse()) {
+    const firm = parseFirm(x.claim);
+    if (!firm || /^(the|several|analysts?|wall street)$/i.test(firm)) continue;
+    const c = parseAnalystClaim(x.claim);
+    const k = `${firm.toLowerCase()}|${c.action}|${c.pt}`;
+    const t = Date.parse(x.d);
+    if (seen.has(k) && t - seen.get(k)! <= 3 * 864e5) continue;
+    seen.set(k, t);
+    const to = new RegExp(`\\b(?:to|at|as) (${GRADE})\\b`, "i").exec(x.claim)?.[1] ?? (/\b(maintain|reiterat|keeps?)\w*\s+(\w+(?:[- ]\w+)?)/i.exec(x.claim)?.[2] ?? "");
+    const from = new RegExp(`\\bfrom (${GRADE})\\b`, "i").exec(x.claim)?.[1] ?? "";
+    out.push({ firm, toGrade: to.replace(/\b\w/g, (m) => m.toUpperCase()), fromGrade: from.replace(/\b\w/g, (m) => m.toUpperCase()),
+               action: c.action == null || c.action === "pt" ? "main" : c.action, date: x.d, priceTarget: c.pt, source: "desk" });
+  }
+  return out.reverse();
 }

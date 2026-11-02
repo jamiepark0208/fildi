@@ -32,6 +32,7 @@ describe("desk-fact-resolve analyst", () => {
     assert.equal(resolveAnalyst(claim, [row("Cantor Fitzgerald", "main", "380")]).verdict, "disagree");
     assert.equal(resolveAnalyst("Citizens downgraded Alphabet to market perform", [row("Citizens", "up", null)]).verdict, "disagree");
     assert.equal(resolveAnalyst(claim, [row("UBS", "main", "350")]).verdict, "none");
+    assert.equal(resolveAnalyst("JPMorgan upgraded Palantir to overweight with $262 target", [row("JP Morgan", "init", "262")]).verdict, "agree");
     assert.equal(resolveAnalyst("Rocket Lab USA (RKLB): 1 new analyst rating published", []).verdict, "n/a");
   });
 });
@@ -43,6 +44,7 @@ describe("desk-fact-resolve calendar", () => {
     assert.equal(listFactDate("Monday · Post-market: these companies report", "2026-10-30"), "2026-11-02");
     assert.equal(listFactDate("After the close: these companies report", "2026-11-02"), "2026-11-02");
     assert.equal(listFactDate("Monday 04-Jan · Pre-open: these companies report", "2026-12-30"), "2027-01-04");
+    assert.equal(listFactDate("Friday. $44B of 7-year notes on Thursday. · After the close: these companies report", "2026-10-27"), "2026-10-27");
   });
 
   it("agree / disagree / none per ticker", () => {
@@ -51,5 +53,16 @@ describe("desk-fact-resolve calendar", () => {
     assert.equal(r.verdict, "disagree");
     assert.deepEqual(r.ourValue, { date: "2026-11-02", agree: 1, none: 1, pastOnly: 1, disagree: [{ t: "NVDA", ours: ["2026-11-17"] }], nDisagree: 1 });
     assert.equal(resolveCalendar("2026-11-02", ["AAPL", "PGR"], ours, "2026-10-30").verdict, "agree");
+  });
+});
+
+describe("desk-fact-resolve firm", () => {
+  it("reads the broker from desk claims", async () => {
+    const { parseFirm } = await import("./desk-fact-resolve.js");
+    assert.equal(parseFirm("Cantor Fitzgerald (Deepak Mathivanan) raised Meta target to $860 from $840"), "Cantor Fitzgerald");
+    assert.equal(parseFirm("Instacart downgraded to equal weight from overweight at Barclays"), "Barclays");
+    assert.equal(parseFirm("Ross Stores initiated outperform at Wolfe Research; PT $279"), "Wolfe Research");
+    assert.equal(parseFirm("Jefferies lowered Intel target price to $85 from $120"), "Jefferies");
+    assert.equal(parseFirm("Broadcom has plummeted some 33% from its high."), null);
   });
 });

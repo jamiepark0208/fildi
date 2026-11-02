@@ -19,7 +19,7 @@ export interface AnalystAction {
   action: string;
   date: string | null;
   priceTarget?: number | null;
-  source?: "yahoo" | "fmp" | "headline";
+  source?: "yahoo" | "fmp" | "headline" | "desk";
 }
 
 export interface AnalystPriceTarget {
@@ -35,6 +35,7 @@ export interface AnalystPriceTarget {
 const SOURCE_LABEL: Record<string, string> = {
   fmp: "FMP",
   headline: "News-derived",
+  desk: "Desk email",
 };
 
 function SourceBadge({ source }: { source?: string }) {
@@ -46,7 +47,8 @@ function SourceBadge({ source }: { source?: string }) {
         "text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded",
         source === "headline" ? "bg-yellow-500/15 text-yellow-400" : "bg-primary/15 text-primary",
       )}
-      title={source === "headline" ? "Parsed from a news headline — lower confidence" : "Archived from FMP's analyst feed"}
+      title={source === "headline" ? "Parsed from a news headline — lower confidence"
+        : source === "desk" ? "From a desk newsletter (tradedash-brief); not in our Yahoo/FMP feeds" : "Archived from FMP's analyst feed"}
     >
       {label}
     </span>

@@ -240,11 +240,49 @@ async function getModelListPoolTickers(): Promise<string[]> {
   return list.map((r) => String((r as { ticker: string }).ticker).toUpperCase());
 }
 
+/**
+ * 11-02 (briefs dig D2): a tier-A desk list (FactSet) beat our vendors on upcoming dates — Finnhub stores estimates as
+ * dates (AXON 11-02 vs company 11-05, PAA 11-03 vs 11-06). A desk date that a vendor re-fetch still contradicts is kept
+ * here, and vendor writes may not replace it until it passes.
+ */
+export async function ensureEarningsDateOverrides(): Promise<void> {
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS earnings_date_overrides (
+    ticker text NOT NULL, report_date date NOT NULL, source text NOT NULL, evidence text, set_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (ticker, report_date))`);
+}
+
+async function activeOverrides(ticker: string): Promise<string[]> {
+  const r = await db.execute(sql`SELECT report_date::text AS d FROM earnings_date_overrides
+    WHERE ticker = ${ticker} AND report_date >= CURRENT_DATE - 1`).catch(() => ({ rows: [] as unknown[] }));
+  return (r.rows as { d: string }[]).map((x) => x.d);
+}
+
+/** Set an upcoming report date from desk evidence: keep the vendor's EPS estimate, drop other unreported dates ±21 d. */
+export async function applyDeskEarningsDate(ticker: string, date: string, source: string, evidence: string): Promise<void> {
+  const t = ticker.toUpperCase();
+  await ensureEarningsDateOverrides();
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`INSERT INTO earnings_date_overrides (ticker, report_date, source, evidence) VALUES (${t}, ${date}, ${source}, ${evidence})
+      ON CONFLICT (ticker, report_date) DO UPDATE SET evidence = EXCLUDED.evidence, set_at = now()`);
+    await tx.execute(sql`INSERT INTO earnings_calendar (ticker, report_date, is_confirmed, eps_estimate, fetched_at)
+      SELECT ${t}, ${date}::date, true, (SELECT eps_estimate FROM earnings_calendar WHERE ticker = ${t} AND eps_actual IS NULL
+        AND report_date BETWEEN ${date}::date - 21 AND ${date}::date + 21 ORDER BY abs(report_date - ${date}::date) LIMIT 1), now()
+      ON CONFLICT (ticker, report_date) DO UPDATE SET is_confirmed = true, fetched_at = now()`);
+    await tx.execute(sql`DELETE FROM earnings_calendar WHERE ticker = ${t} AND eps_actual IS NULL AND report_date <> ${date}::date
+      AND report_date BETWEEN ${date}::date - 21 AND ${date}::date + 21`);
+  });
+}
+
 /** Upsert live-fetched (FMP or Finnhub) rows into earnings_calendar (past + upcoming quarters). */
 export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuarter[]): Promise<void> {
   const upperTicker = ticker.toUpperCase();
   if (rows.length === 0) return;
   const today = new Date().toISOString().slice(0, 10);
+  // Desk override dates win over vendor upcoming dates within ±21 d until they pass.
+  const overrides = await activeOverrides(upperTicker);
+  const nearOverride = (d: string) => overrides.some((o) => o !== d && Math.abs(Date.parse(o) - Date.parse(d)) <= 21 * 864e5);
+  rows = rows.filter((r) => !(r.epsActual == null && r.reportDate.slice(0, 10) >= today && nearOverride(r.reportDate.slice(0, 10))));
+  if (rows.length === 0) return;
 
   await db.transaction(async tx => {
     for (const r of rows) {
@@ -277,11 +315,12 @@ export async function writeEarningsHistory(ticker: string, rows: RawEarningsQuar
     }
     // B17 / A317: drop stale unreported duplicates near a returned upcoming date, but keep every date in this payload.
     const returnedUpcoming = [
-      ...new Set(
-        rows
+      ...new Set([
+        ...rows
           .filter(r => r.epsActual == null && r.reportDate.slice(0, 10) >= today)
           .map(r => r.reportDate.slice(0, 10)),
-      ),
+        ...overrides,
+      ]),
     ];
     if (returnedUpcoming.length > 0) {
       const inReturned = sql.join(returnedUpcoming.map(d => sql`${d}`), sql`, `);
