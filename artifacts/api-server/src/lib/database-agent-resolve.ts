@@ -1,3 +1,5 @@
+import { isFactsetRulerField } from "./factset-ruler-table.js";
+
 /**
  * Database Agent — Needs Review mediation (cheapest accurate gold).
  *
@@ -231,9 +233,8 @@ export function decideNeedsReview(input: {
     }
   }
 
-  // FactSet referee before derived — FS equity/BVPS is usually cleaner than gold equity
-  // that may itself be contested (ALAB P/B lesson).
-  if (factset && free.length > 0) {
+  // FactSet tips only on ruler fields (A318 segment 0). Never store FactSet as gold elsewhere.
+  if (factset && free.length > 0 && (!field || isFactsetRulerField(field))) {
     const near = nearestTo(factset.value, free);
     if (near && near.dist <= 0.2) {
       return {
@@ -246,13 +247,17 @@ export function decideNeedsReview(input: {
         research,
       };
     }
+  }
+
+  if (free.length >= 1 && field && !isFactsetRulerField(field) && best.length < 2) {
+    const pick = cheapestOf(free.length ? free : best)!;
     return {
       action: "override",
-      source: "factset",
-      value: factset.value,
-      reason: "factset_nearest_free",
-      cluster: [factset],
-      rejected: [...free, ...scaleDropped],
+      source: pick.source,
+      value: pick.value,
+      reason: "singleton_cheap",
+      cluster: best.length >= 1 ? best : [pick],
+      rejected,
       research,
     };
   }

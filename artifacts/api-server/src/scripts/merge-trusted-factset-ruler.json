@@ -1,0 +1,129 @@
+{
+  "generatedAt": "2026-11-02T13:07:34.422Z",
+  "probeNote": "Cells with ≥2 free sources pairwise agreeing (10% rel for cluster gate) and FactSet present; in-band = |FactSet−median(free)| within 20%/3pp band.",
+  "minClusterRel": 0.1,
+  "factsetBandRel": 0.2,
+  "rulerThreshold": 0.8,
+  "rows": [
+    {
+      "field": "currentRatio",
+      "n": 289,
+      "inBandShare": 0.869,
+      "factsetRuler": true
+    },
+    {
+      "field": "debtToEquity",
+      "n": 189,
+      "inBandShare": 0.714,
+      "factsetRuler": false
+    },
+    {
+      "field": "earningsPerShare",
+      "n": 5,
+      "inBandShare": 0.6,
+      "factsetRuler": false
+    },
+    {
+      "field": "ebit",
+      "n": 8,
+      "inBandShare": 0.375,
+      "factsetRuler": false
+    },
+    {
+      "field": "ebitda",
+      "n": 30,
+      "inBandShare": 0.533,
+      "factsetRuler": false
+    },
+    {
+      "field": "epsGrowth",
+      "n": 72,
+      "inBandShare": 0.153,
+      "factsetRuler": false
+    },
+    {
+      "field": "forwardPe",
+      "n": 312,
+      "inBandShare": 0.958,
+      "factsetRuler": true
+    },
+    {
+      "field": "freeCashFlow",
+      "n": 71,
+      "inBandShare": 0.465,
+      "factsetRuler": false
+    },
+    {
+      "field": "grossMargin",
+      "n": 434,
+      "inBandShare": 0.903,
+      "factsetRuler": true
+    },
+    {
+      "field": "netIncome",
+      "n": 285,
+      "inBandShare": 0.351,
+      "factsetRuler": false
+    },
+    {
+      "field": "netMargin",
+      "n": 505,
+      "inBandShare": 0.562,
+      "factsetRuler": false
+    },
+    {
+      "field": "operatingMargin",
+      "n": 291,
+      "inBandShare": 0.698,
+      "factsetRuler": false
+    },
+    {
+      "field": "pegRatio",
+      "n": 57,
+      "inBandShare": 0.158,
+      "factsetRuler": false
+    },
+    {
+      "field": "peRatio",
+      "n": 353,
+      "inBandShare": 0.635,
+      "factsetRuler": false
+    },
+    {
+      "field": "priceToBook",
+      "n": 165,
+      "inBandShare": 0.836,
+      "factsetRuler": true
+    },
+    {
+      "field": "quarterlyOperatingCashFlow",
+      "n": 15,
+      "inBandShare": 0.067,
+      "factsetRuler": false
+    },
+    {
+      "field": "returnOnAssets",
+      "n": 86,
+      "inBandShare": 0.872,
+      "factsetRuler": true
+    },
+    {
+      "field": "returnOnEquity",
+      "n": 363,
+      "inBandShare": 0.543,
+      "factsetRuler": false
+    },
+    {
+      "field": "totalRevenue",
+      "n": 467,
+      "inBandShare": 0.792,
+      "factsetRuler": false
+    },
+    {
+      "field": "totalStockholdersEquity",
+      "n": 97,
+      "inBandShare": 0.825,
+      "factsetRuler": true
+    }
+  ]
+}

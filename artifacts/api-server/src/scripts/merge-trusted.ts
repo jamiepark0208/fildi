@@ -23,6 +23,8 @@ import {
   fieldProvenance, manualOverrides, pricesHistorical,
   type ManualOverridesRow,
 } from "@workspace/db";
+import { pickDisputedGold } from "../lib/gold-pick.js";
+import { isFactsetRulerField } from "../lib/factset-ruler-table.js";
 import {
   computeTrailingPeg,
   computeForwardPeg,
@@ -123,6 +125,7 @@ export const FIELD_DEFS: FieldDef[] = [
   // The residual Yahoo-vs-FMP gap is genuine operating-lease inclusion — see DIVERGENCE_TOL.
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["fmp","totalDebt"]] },
   { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"], ["polygon","totalStockholdersEquity"]] },
+  // Shares stay a reported count. Market cap / price is circular (the cap is shares × price) and is not a source.
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"], ["factset","currentRatio"]] },
@@ -239,6 +242,8 @@ export type ResolveResult = {
   value: number;
   isOverride: boolean;
   divergent: boolean;
+  /** Keep the gold number already stored. Provenance stays; the cell is flagged. */
+  hold?: boolean;
 } | null;
 
 // ── Internal: resolve from a pre-built index ──────────────────────────────────
@@ -249,12 +254,16 @@ function resolveFromIndex(
   fieldDef: FieldDef,
   byField: Map<string, Map<string, number>>,
   override: ManualOverridesRow | undefined,
+  existingVal?: number | null,
+  pulledByField?: Map<string, Map<string, number>>,
+  priorWinningSource?: string | null,
 ): ResolveResult {
   const { tfCol, priority } = fieldDef;
   const tf = tfCol as string;
 
   // Ordered (source → value) following priority; first sfField alias per source wins.
   const ordered: Array<{ src: string; val: number }> = [];
+  const pulledForSrc = new Map<string, number>();
   const seenSrc = new Set<string>();
   for (const [src, sfField] of priority) {
     if (seenSrc.has(src)) continue;
@@ -262,6 +271,8 @@ function resolveFromIndex(
     if (val === undefined || !isFinite(val)) continue;
     if (skipYahooZeroDividend(tf, src, val, byField, priority)) continue;
     ordered.push({ src, val });
+    const pull = pulledByField?.get(sfField)?.get(src);
+    if (pull != null) pulledForSrc.set(src, pull);
     seenSrc.add(src);
   }
   const orderedBySrc = new Map(ordered.map(o => [o.src, o.val]));
@@ -279,13 +290,17 @@ function resolveFromIndex(
     }
   }
 
-  // Override takes precedence over normal priority
+  // Override takes precedence over normal priority. Once an admin/agent picks a source,
+  // the cell leaves Needs Review (divergent cleared) even if free sources still disagree.
   if (override) {
+    const overrideIsFactsetNonRuler =
+      override.overrideSource === "factset" && !isFactsetRulerField(tf);
+    if (!overrideIsFactsetNonRuler) {
     // Literal value override (overrideSource = 'manual')
     if (override.overrideValue !== null) {
       const v = parseFloat(String(override.overrideValue));
       if (isFinite(v)) {
-        return { source: override.overrideSource, value: v, isOverride: true, divergent };
+        return { source: override.overrideSource, value: v, isOverride: true, divergent: false };
       }
     }
     // Source-preference override: use best value from the specified source. Look up
@@ -295,32 +310,69 @@ function resolveFromIndex(
     // Falls back to the ordered map for sources whose sfField alias differs from tfCol.
     const srcVal = byField.get(tf)?.get(override.overrideSource) ?? orderedBySrc.get(override.overrideSource);
     if (srcVal !== undefined) {
-      return { source: override.overrideSource, value: srcVal, isOverride: true, divergent };
+      return { source: override.overrideSource, value: srcVal, isOverride: true, divergent: false };
     }
     // overrideSource has no data — fall through to normal priority
+    }
   }
 
-  // FactSet referee: when free sources disagree, pick the free source closest to
-  // FactSet (within REFEREE_MATCH_TOL). Provenance stays on that free source —
-  // FactSet is the judge, not the default gold author. Only write winning_source=
-  // factset when no free source is close enough (use FactSet's own value).
-  const REFEREE_MATCH_TOL = 0.20; // 20% relative — settle to nearest free source
+  // Disputed cells: FactSet rules only forwardPe, gross margin, current ratio,
+  // equity, and price/book. Else an agreeing free cluster wins. FactSet is not
+  // stored as gold when nothing cheap is close. No cluster → keep the stored
+  // number and leave the cell in Needs Review.
   const factsetVal = orderedBySrc.get("factset");
-  if (divergent && factsetVal !== undefined) {
-    let best: { src: string; val: number; dist: number } | null = null;
-    for (const o of freeOrdered) {
-      const dist = Math.abs(o.val - factsetVal) / Math.max(Math.abs(factsetVal), 1e-9);
-      if (!best || dist < best.dist) best = { src: o.src, val: o.val, dist };
+  const factsetRedecide =
+    priorWinningSource === "factset" &&
+    !isFactsetRulerField(tf) &&
+    freeOrdered.length > 0;
+  if ((divergent || factsetRedecide) && freeOrdered.length > 0) {
+    const picked = pickDisputedGold({
+      field: tf,
+      free: freeOrdered.map((o) => ({
+        src: o.src,
+        val: o.val,
+        pulledAt: pulledForSrc.get(o.src) ?? null,
+      })),
+      factset: factsetVal,
+      existing: existingVal ?? null,
+    });
+    if (picked.source !== "none") {
+      return {
+        source: picked.source,
+        value: picked.value,
+        isOverride: false,
+        divergent: picked.divergent,
+        hold: picked.hold,
+      };
     }
-    if (best && best.dist <= REFEREE_MATCH_TOL) {
-      return { source: best.src, value: best.val, isOverride: false, divergent: false };
-    }
-    return { source: "factset", value: factsetVal, isOverride: false, divergent: false };
   }
 
   // Normal priority walk: first non-null source wins (FactSet last in FIELD_DEFS → null fill only)
   if (ordered.length > 0) {
-    const winner = ordered[0];
+    let winner = ordered[0]!;
+    if (winner.src === "factset" && !isFactsetRulerField(tf)) {
+      const alt = freeOrdered[0];
+      if (alt) {
+        winner = alt;
+        if (!divergent && freeOrdered.length >= 2) {
+          const comparable = PERIOD_SENSITIVE_TFCOLS.has(tf)
+            ? freeOrdered.filter((o) => o.src !== "edgar")
+            : freeOrdered;
+          if (comparable.length >= 2) {
+            divergent = isMaterialDivergence(tf, comparable[0]!.val, comparable[1]!.val);
+          }
+        }
+        if (factsetRedecide || priorWinningSource === "factset") divergent = true;
+      } else if (existingVal != null && Number.isFinite(existingVal)) {
+        return {
+          source: priorWinningSource ?? "none",
+          value: existingVal,
+          isOverride: false,
+          divergent: true,
+          hold: true,
+        };
+      }
+    }
     return { source: winner.src, value: winner.val, isOverride: false, divergent };
   }
 
@@ -393,12 +445,18 @@ export async function runMergeTrusted() {
   const trackedTickers = new Set(regRows.map(r => r.ticker));
   console.log(`Canonical universe: ${trackedTickers.size} tickers (fetch_fundamentals=true in ticker_registry)\n`);
 
-  const [sfRows, overrideRows, existingRows] = await Promise.all([
+  const [sfRows, overrideRows, existingRows, provRows] = await Promise.all([
     db.select().from(sourceFundamentals),
     db.select().from(manualOverrides),
     db.select().from(tickerFundamentals),
+    db.select({
+      ticker: fieldProvenance.ticker,
+      field: fieldProvenance.field,
+      winningSource: fieldProvenance.winningSource,
+    }).from(fieldProvenance),
   ]);
   const existingMap = new Map(existingRows.map(r => [r.ticker, r as Record<string, unknown>]));
+  const priorWinMap = new Map(provRows.map((r) => [`${r.ticker}:${r.field}`, r.winningSource]));
 
   // Treat a value as "changed" only past a small tolerance — avoids logging
   // noise from float round-tripping through numeric/string DB columns.
@@ -410,8 +468,9 @@ export async function runMergeTrusted() {
   }
   const fmt = (n: number | null) => n == null ? "—" : Number(n.toFixed(4)).toString();
 
-  // Index: ticker → sfField → source → value
+  // Index: ticker → sfField → source → value, plus pull time (not the statement period).
   const index = new Map<string, Map<string, Map<string, number>>>();
+  const pulledIndex = new Map<string, Map<string, Map<string, number>>>();
   for (const row of sfRows) {
     if (!trackedTickers.has(row.ticker)) continue;
     const val = parseFloat(String(row.value));
@@ -420,6 +479,13 @@ export async function runMergeTrusted() {
     const byField = index.get(row.ticker)!;
     if (!byField.has(row.field)) byField.set(row.field, new Map());
     byField.get(row.field)!.set(row.source, val);
+    const ms = row.fetchedAt ? new Date(row.fetchedAt).getTime() : NaN;
+    if (Number.isFinite(ms)) {
+      if (!pulledIndex.has(row.ticker)) pulledIndex.set(row.ticker, new Map());
+      const byPull = pulledIndex.get(row.ticker)!;
+      if (!byPull.has(row.field)) byPull.set(row.field, new Map());
+      byPull.get(row.field)!.set(row.source, ms);
+    }
   }
 
   // Override index: `${ticker}:${field}` → ManualOverridesRow
@@ -477,13 +543,31 @@ export async function runMergeTrusted() {
     const provenanceBatch: Array<{ field: string; result: Exclude<ResolveResult, null> }> = [];
     const tickerNullFields: string[] = [];
     const changedFields: Array<{ field: string; from: number | null; to: number }> = [];
+    const holdFields: string[] = [];
     const existing = existingMap.get(ticker);
 
     for (const fieldDef of VALID_FIELD_DEFS) {
       // Empty priority = gold-only derived field (e.g. forwardPeg) — filled in applyDerived.
       if (fieldDef.priority.length === 0) continue;
       const override = overrideIndex.get(`${ticker}:${fieldDef.tfCol}`);
-      const result = resolveFromIndex(fieldDef, byField, override);
+      const existingRaw = existing?.[fieldDef.tfCol as string];
+      const existingVal = existingRaw != null && existingRaw !== "" ? Number(existingRaw) : null;
+      const result = resolveFromIndex(
+        fieldDef,
+        byField,
+        override,
+        existingVal != null && Number.isFinite(existingVal) ? existingVal : null,
+        pulledIndex.get(ticker),
+        priorWinMap.get(`${ticker}:${fieldDef.tfCol as string}`),
+      );
+
+      if (result?.hold) {
+        if (existingVal != null && Number.isFinite(existingVal)) {
+          update[fieldDef.tfCol as string] = existingVal;
+        }
+        holdFields.push(fieldDef.tfCol as string);
+        continue;
+      }
 
       if (result) {
         update[fieldDef.tfCol as string] = result.value;
@@ -530,6 +614,17 @@ export async function runMergeTrusted() {
     // Forward P/E from consensus forward EPS when vendors omit the ratio.
     const forwardEps = forwardEpsByTicker.get(ticker) ?? null;
     fillIfMissing("forwardPe", computeForwardPeFromPriceEps(price, forwardEps));
+    // Gross profit only when the same source has both legs. Do not mix a Yahoo margin with an EDGAR revenue.
+    if (update.grossProfit == null) {
+      for (const src of ["yahoo", "finnhub", "fmp", "edgar"] as const) {
+        const margin = byField.get("grossMargin")?.get(src);
+        const rev = byField.get("totalRevenue")?.get(src) ?? byField.get("annualTotalRevenue")?.get(src);
+        if (margin != null && rev != null && rev !== 0 && margin > -1 && margin < 2) {
+          fillIfMissing("grossProfit", rev * margin);
+          break;
+        }
+      }
+    }
     fillIfMissing(
       "roic",
       computeApproxRoic({
@@ -627,9 +722,10 @@ export async function runMergeTrusted() {
       .some((k) => (existing as Record<string, unknown>)[k] != null);
     if (!hasGold && Object.values(update).every((v) => v == null)) continue;
 
-    const divergentFields = provenanceBatch
-      .filter(({ result }) => result.divergent)
-      .map(({ field }) => field);
+    const divergentFields = [
+      ...provenanceBatch.filter(({ result }) => result.divergent).map(({ field }) => field),
+      ...holdFields,
+    ];
     const discrepancyFlags = divergentFields.length > 0 ? divergentFields.join(",") : null;
 
     const overrideFieldsList = provenanceBatch
@@ -664,6 +760,15 @@ export async function runMergeTrusted() {
             updatedAt:     now,
           },
         });
+    }
+
+    if (holdFields.length > 0) {
+      await db.execute(sql`
+        UPDATE field_provenance
+        SET divergent = true, updated_at = ${now}
+        WHERE ticker = ${ticker}
+          AND field IN (${sql.join(holdFields.map((f) => sql`${f}`), sql`, `)})
+      `);
     }
 
     // Owned-null fields must not leave stale vendor provenance (audit honesty).

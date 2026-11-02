@@ -65,8 +65,9 @@ describe("decideNeedsReview", () => {
     }
   });
 
-  it("factset_nearest_free picks free source near FactSet", () => {
+  it("factset_nearest_free picks free source near FactSet on ruler fields", () => {
     const d = decideNeedsReview({
+      field: "forwardPe",
       free: [
         { source: "yahoo", value: 0.22 },
         { source: "fmp", value: 0.45 },
@@ -78,6 +79,19 @@ describe("decideNeedsReview", () => {
       assert.equal(d.source, "yahoo");
       assert.equal(d.reason, "factset_nearest_free");
     }
+  });
+
+  it("never stores FactSet as gold on non-ruler fields", () => {
+    const d = decideNeedsReview({
+      field: "operatingMargin",
+      free: [
+        { source: "yahoo", value: -0.01 },
+        { source: "fmp", value: 0.5 },
+      ],
+      factset: { source: "factset", value: 0.19 },
+    });
+    assert.equal(d.action, "override");
+    if (d.action === "override") assert.notEqual(d.source, "factset");
   });
 
   it("skips when free sources fight and no FactSet/research", () => {
