@@ -293,3 +293,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A317](asks/A317.md) | 2026-10-30 | Muse → Cursor | writeEarningsHistory deletes all upcoming dates when vendor returns two within 21 days | done |
 | [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | planned (changes: segment 0 ruler audit first) |
 | [A319](asks/A319.md) | 2026-11-01 | Muse → Cursor | LSE free data as fildi research lane (never live) — validation study | planned |
+| [A320](asks/A320.md) | 2026-11-02 | Muse → Cursor | Chronos-Bolt fair retest: less-smooth targets, adopt/drop gate + catalog row | planned |
+| [A321](asks/A321.md) | 2026-11-02 | Muse → Cursor | FinBERT real-headline validation: adopt as triage or drop + catalog row | planned |
+| [A322](asks/A322.md) | 2026-11-02 | Muse → Cursor | Setup-but-unused credentials verdict: Codiv keep/drop, S&P Global auth+license check | planned |
+| [A323](asks/A323.md) | 2026-11-02 | Muse → Cursor | Settings catalog freshness: registry-driven rows + backfill post-Oct-24 tools | planned |
