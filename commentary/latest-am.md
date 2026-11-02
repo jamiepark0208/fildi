@@ -1,62 +1,74 @@
-# Morning market brief — Friday, October 30, 2026 (pre-market edition)
+# Morning Market Brief — Monday, November 2, 2026 (Pre-Market)
 
-## Banner
-S&P fut −1.0% | Dow fut ~flat (+0.0–0.1%) | Nasdaq fut −2.3% | 10Y ~4.94% (−~5 bp) | Brent $116.70 (+1.6%) | VIX ~18.6 (+~8% vs 17.20 close)
-
-Figures are pre-market snapshots from early Friday morning ET; Nasdaq futures widened from about −1.7% overnight to about −2.3% by the morning read. Treat them as positioning into the open, not a session result.
+**Banner:** S&P fut +0.5% (~7,654) · Dow fut +0.6% (~52,233) · Nasdaq fut +0.8% (~28,773) · 10Y 4.92% (−1 bp) · Brent ~$109 (−4%) · VIX ~19.3 (vs 19.42 Fri close)
 
 ## What's moving
-- Tech-led selloff, not a broad rout: Nasdaq futures down ~2.3% while Dow futures are essentially flat. Thursday set the tone — S&P −0.30% to 7,720.39, Dow −0.25%, Nasdaq −1.38% — with most sector funds and small caps rising on Thursday even as tech fell.
-- Amazon and Intel earnings after Thursday's close are the overnight trigger. Amazon fell ~7% pre-market; Intel fell ~25–26% pre-market on a weak Q4 outlook.
-- Alphabet's Thursday drop (−12% on the session after its Q3 miss) still hangs over tech, with its shares slightly lower again pre-market Friday.
-- Oil is the offset: Brent ~$116.70 (+1.6%), WTI ~$103.52 (+1.5%), on Houthi attacks on Saudi Arabia and reports of possible renewed US action against Iran.
-- Treasuries are bid on the same risk-off move: 10Y touched a seven-week low of 4.892% in Asian trade and was ~4.94% in European trade (−5.2 bp); 30Y ~5.30% (−3.3 bp).
-- Asia fell with tech: Nikkei −2.1% to −2.5% at the close, Kospi −4.76%, Shanghai −0.60%, while Hang Seng rose +1.5–1.7%. The Bank of Japan held at 1.25%.
-- Europe Friday morning was mixed: FTSE 100 +0.40%, STOXX Europe 600 −0.07%, DAX −0.12%, CAC 40 +0.22% — oil support against tech drag.
-- Bitcoin fell ~3% to ~$77,700 after a reported ~$6.36bn hack at Binance. Gold slipped below $4,000/oz, to ~$3,979–4,002, despite the bond bid.
+
+- **Futures steadying after Friday's rout.** Friday closed hard: S&P 500 7,580.07 (−1.82%), Nasdaq 25,437 (−2.86%), Dow 51,770.31 (−1.09%), VIX 19.42 (+12.91%). Premarket futures point to a gap-up open, led by Nasdaq.
+- **Oil down sharply on diplomacy hopes.** Brent fell ~4% to ~$108–110 and WTI slipped back below $100 (~$99.60–100.60) as U.S.–Iran talks continued in Doha, with reports of a possible path to reopening the Strait of Hormuz. Tanker-attack risk keeps a premium in place — this is a de-escalation trade, not a resolved one.
+- **Tech/AI trying to stabilize after a brutal October.** The Nasdaq fell 5.3% in October, its worst month since March 2025, on AI-spending worries; the Nasdaq-100 shed over $2.5 trillion in market value in October. Megacaps and semis are firmer premarket (Nvidia +1%+, SOXX +~2%, memory ETF DRAM +~4%).
+- **Yields quiet near a seven-week low.** 10Y ~4.92–4.93%, 30Y ~5.30–5.31%, little changed in Asian/European trade. Markets price roughly a 73–75% chance of a Fed hike in December — a hawkish backdrop even as yields ease.
+- **Overnight: Asia rebounded, Europe flat.** Japan +~0.3–0.4% (Nikkei ~63,554), Shanghai +1.16% (~3,641), KOSPI +2.28%, Hang Seng +0.66%. Europe opened subdued: STOXX 600 ~flat (~646.4), FTSE −0.1 to −0.3%, DAX ~flat.
+- **Gold and bitcoin stabilizing.** Gold ~$3,905–3,915 (+0.4–0.9%), still below $4,000 after Friday's slide to a ~one-year low. Bitcoin ~$77,700–78,100, flat to slightly higher after last week's crypto selloff and hack headlines.
 
 ## Why it matters
-- The split — Dow flat, Nasdaq −2.3% — points to an AI-spending repricing, not broad economic capitulation: the question is capex, free cash flow, and payback time, not a single growth print.
-- The Treasury rally does not settle the Fed path. Oil near $117 keeps an inflation tail in play, and markets still price a significant chance of a December hike even after the Fed, ECB, and BoJ all held this week.
-- Gold falling while bonds rally is a warning sign for cross-asset positioning: leveraged liquidation / margin-covering can dominate safe-haven flows on a gap day.
-- ECI landing exactly in line (see Data) removes one labour-cost surprise, but it does not remove the earnings-driven vol window at the open.
+
+- This is a bounce inside a downtrend, not a trend change: Friday's S&P close broke below its 100-day moving average and below the 7,677 shelf that had held for weeks; 7,650 in futures is the first reclaim level to watch.
+- The oil drop is the main relief valve today — lower crude eases near-term inflation worry and helped yields and equities — but Brent is still up 13.6% for October and near six-month highs, so energy-driven headline risk is not gone.
+- The week is stacked: midterms Tuesday, Treasury refunding Wednesday, jobs Friday, and Apple/Palantir tonight. Today's ISM print is a warm-up; position sizing should assume the real volatility arrives Tue–Fri.
+- December-hike pricing (~73–75%) sitting alongside a 4.92% 10Y means rate risk cuts both ways: a hot ISM prices-paid print or strong jobs data lifts yields and pressures growth multiples again.
 
 ## What to watch today (ET)
-- 8:30 AM — Q3 Employment Cost Index: already released, in line (see Data).
-- 9:45 AM — Chicago PMI, October: consensus ~54.6–56.0 (sources differ) vs 58.8 prior.
-- 10:00 AM — University of Michigan consumer sentiment, final October: consensus ~69.0 vs 68.9 prior.
-- 12:00 PM — Fed's Daly speaks.
-- 12:30 PM — Fed's Musalem speaks.
-- Before the open — Earnings: Exxon Mobil (XOM), Chevron (CVX), AbbVie (ABBV), AstraZeneca (AZN), BP (BP). XOM and CVX both beat on refining strength (see Single names).
-- After the close — No major reporter flagged for today.
-- Tomorrow / next: Monday, Nov 2 — ISM manufacturing. US clocks go back Sunday, Nov 1.
+
+- **9:45 AM — S&P Global final manufacturing PMI (Oct):** consensus 56.0, prior 56.0
+- **10:00 AM — ISM Manufacturing PMI (Oct):** consensus 54.5–54.7, prior 54.5 — the day's main event; prices-paid component is the focus (consensus 77.2, prior 77.9) after factory price inflation ran at its fastest since mid-2022
+- **10:00 AM — Construction spending (Sep, m/m):** consensus +0.4%, prior +0.9%
+- **11:30 AM — Treasury bill auctions:** 13-week ($95B) and 26-week ($82B)
+- **2:00 PM — Fed Senior Loan Officer Opinion Survey (Q3)**
+- **Fed speaker:** Austan Goolsbee (Chicago Fed) on today's calendar
+- **Treasury:** quarterly refunding financing estimates posted today; coupon announcement lands Wednesday
+- **After close — earnings:** Apple, Palantir, Vertex, Williams, Diamondback, ON Semiconductor, Roku
+- **Tomorrow (Tue Nov 3) — key:** U.S. midterm elections (all 435 House seats, 35 Senate seats; results overnight into Wed Asia); JOLTS job openings 10:00 AM (~7.1M expected, prior 7.08M); before open: Shopify, Pfizer; after close: AMD, Amgen, Arista, Booking
 
 ## Data
-- Q3 Employment Cost Index (released 8:30 AM ET today): +0.8% q/q vs +0.8% consensus vs +0.9% in Q2. Wages +0.7% q/q (vs +0.9% prior); benefits +0.9% (vs +1.0% prior). Year-on-year labour costs +3.4%, unchanged from the year to June.
-- Q3 GDP, advance (Thursday): +3.4% annualised vs ~3.2% consensus vs +2.2% in Q2.
-- September PCE (Thursday): core +0.3% m/m vs +0.3% consensus vs +0.3% prior; headline 3.6% y/y, core 3.1% y/y.
-- Thursday closes: S&P 500 7,720.39 (−0.30%), Nasdaq Composite −1.38%, Dow −0.25%.
+
+- No U.S. prints released yet at brief time (pre-market, ~6:10 AM PT / 9:10 AM ET). Today's scheduled prints are listed above with consensus vs prior; actuals will be covered in the evening recap.
+- Already out overnight: China manufacturing PMI 52.0 (consensus 52.0, prior 52.1); Japan final manufacturing PMI 53.3 (in line with consensus/flash).
 
 ## Single names
-- AMZN, ~−7% pre-market — Q3 revenue $201.9bn (+12%), EPS $1.89 vs $2.01 consensus; AWS +39% to $46bn, but a cautious Q4 guide and AI-capex / free-cash-flow worry drove the drop. So what: the options market had priced ±8.0% for this report, so a −7% gap is inside the priced move — do not chase short premium after the gap; let the open set the range first.
-- INTC, ~−25–26% pre-market — Weak Q4 outlook on continued PC weakness. So what: a gap this large reprices vol outright; new short premium here is gap risk, not income, on day one.
-- RDDT, ~−23% pre-market; PINS, ~−8% — Reddit warned Google AI search referrals fell by more than 1m per week on average in October and that daily active uniques could fall by a low double-digit percentage in Q4 from ~130m; Pinterest guided weak Q4 revenue. So what: headline-gap names, not put-selling candidates today.
-- GOOGL — Down more than 12% Thursday after Q3 EPS $2.12 vs $2.94 expected (Visible Alpha) on revenue $127.58bn vs $127.89bn expected, plus negative free cash flow of $9.07bn; slightly lower pre-market Friday. So what: the Alphabet overhang keeps tech premium bid into the open.
-- XOM, ~+2% pre-market; CVX, ~+1% — Both beat on soaring refining margins; XOM adjusted EPS $4.23, CVX $5.28, with refining now rivalling upstream for XOM for the first time in at least six years. So what: energy strength supports the Dow leg, but Brent near $117 is a geopolitical headline premium — keep any energy strikes wide.
-- Bitcoin, ~$77,700 (−~3%) — Binance hack headline. So what: watch the cross-asset margin/liquidation channel at the open rather than treating crypto as an isolated move.
+
+- **Apple (AAPL) — after close, EPS est ~$1.98–2.03:** so what — the largest index weight reporting tonight; iPhone demand, services, and holiday-quarter guidance set the tone into Tuesday's open. Stock flat to −0.4% premarket. Do not carry unhedged short premium through this print.
+- **Palantir (PLTR) — after close, +1.5% premarket:** so what — the week's most volatile reporter (median 12.4% move on report days, every report ≥5%). Size any PLTR premium as a gap-risk trade, not a theta trade.
+- **Intel (INTC) — −0.6% premarket after −28.6% Friday:** so what — Friday was its worst day since at least the 1980s on a weak Q4 guide; a second leg down would re-pressure the whole semi complex (SOXX fell 17% in October).
+- **Okta (OKTA) — +3.6% premarket:** so what — joining the S&P 500, replacing Kenvue; index-add flows, not fundamentals, drive today's move.
+- **Nvidia / semis (NVDA +1%+, SOXX +~2%, DRAM +~4%):** so what — the bounce leaders; if semis fail to hold the bounce, the Nasdaq reclaim fails with them.
+- **SpaceX (SPCX) — +~2% premarket; EchoStar +7%:** so what — report of SpaceX talks to buy Boost Mobile or use its network; satellite/telecom sympathy, not a broad-market signal.
+- **Marriott, Estée Lauder — before open:** so what — travel and beauty reads on consumer spending; Estée Lauder is also a sentiment check for the broader consumer name set.
+- **Alstom (Europe) — −27%:** so what — cut its annual margin forecast on German platform execution problems; a single-name European industrial warning, not a U.S. signal, but a reminder that guidance cuts are being punished hard this season.
 
 ## Implications (option-selling book)
-- Today is October 30 expiry. Any remaining today-expiry ITM shorts face Robinhood action in the last 30 minutes before the close; the effective close-or-roll window was Thursday's close, not Friday's expiry — manage before the final 30 minutes, do not assume a Friday-close exit.
-- Event windows today: 9:45 AM Chicago PMI and 10:00 AM Michigan sentiment are the morning vol windows; Daly (12:00 PM) and Musalem (12:30 PM) are a second, midday window.
-- DTE posture: avoid new 0DTE / short-DTE tech shorts into a −2.3% Nasdaq gap and single-name earnings gaps. If selling at all, favour longer DTE and wider strikes.
-- Strike width: widen tech strikes after the AMZN/INTC/RDDT gaps, and keep energy strikes wide while Brent carries a war premium near $117.
-- Premium richness vs tail risk: VIX ~18.6 vs a 17.20 close is higher, not panic — richer premium today is compensation for real gap risk, not free income. Prefer diversified/index exposure over concentrated post-gap earnings names.
 
-## Context
-- 1-day (Thursday close): S&P 500 −0.30% to 7,720.39; Dow −0.25%; Nasdaq −1.38%.
-- 1-week (Oct 23 close to Oct 29 close): S&P 500 +1.27%; Nasdaq Composite +0.88%; Dow +0.24%; STOXX Europe 600 +2.10%; FTSE 100 +0.30% — so Friday's gap gives back part, not all, of the week's gain.
-- 1-month: 10Y was 4.98% at the Oct 29 Treasury close, −28 bp vs one month earlier. Brent is near $117 after finishing the prior week at $116.93 (+6.6% on that week) on the war premium. No verified 1-month S&P figure is included here rather than inventing one.
+- **Today is a 0DTE / short-dated caution day, not a premium-harvest day:** ISM at 10:00 AM ET plus Apple/Palantir after the close bracket the session. Keep new short premium outside today's event windows or size for a gap.
+- **DTE posture: favor 7+ DTE over weeklies into Tue–Fri.** Midterms Tuesday, refunding Wednesday, BoE Thursday, jobs Friday — four separate gap events. Short-dated premium collected today gets tested repeatedly.
+- **Strike width: stay wide on index, wider on single names.** VIX ~19 with Friday's intraday spike to ~23.9 still fresh; a failed bounce re-tests Friday's lows fast. On AAPL/PLTR specifically, no short premium through tonight's prints unless defined-risk and sized for a double-digit gap.
+- **Premium richness vs tail risk: premium is available, tails are live.** Elevated VIX plus election/jobs event risk means headline premium overstates edge — collect it on diversified index spreads, not naked single-name exposure, and keep powder dry for post-jobs levels.
 
-Sources: TipRanks pre-market report, Oct 30, 5:36 AM EDT (https://www.tipranks.com/news/stock-market-today-oct-30-nasdaq-futures-fall-as-amazon-and-intel-earnings-raise-ai-trade-concerns); Invezz, Oct 30, 07:06 AM (https://invezz.com/news/2026/10/30/5-things-to-know-before-wall-street-opens-on-october-30/); AP via 94.7 QDR, Oct 30 (https://www.947qdr.com/2026/10/30/us-futures-fall-as-amazon-intel-and-alphabet-weigh-on-wall-street/); Morningstar/Dow Jones Treasury yields, Oct 30, 06:39 ET (https://www.morningstar.com/news/dow-jones/202610304394/us-treasury-yields-fall-eurozone-bond-yields-mixed-after-gdp-data-update); Reuters Treasury/FX, Oct 30 (https://www.reuters.com/world/asia-pacific/yen-steady-before-boj-ai-jitters-drive-treasury-rally-weigh-dollar-2026-10-30/); TalkMarkets Market Pulse, Oct 30, 7:00 AM EDT (https://talkmarkets.com/article/market-pulse-friday-oct-30); CPA UK Business News, Oct 30 (https://cpa.co.uk/uk-business-news-today-30-october-2026-economy-markets-insolvencies/); Volalytics VIX Dashboard, Oct 30, 07:31 CDT (https://www.volalytics.com/Analytics/VIX/DashboardNew); Reuters ECI, Oct 30 (https://www.reuters.com/business/us-labor-costs-rise-moderately-third-quarter-2026-10-30/); Seeking Alpha ECI, Oct 30 (https://seekingalpha.com/news/4661372-employment-cost-index-growth-decelerates-in-q3-as-expected); Morningstar/WSJ Data Week Ahead, Oct 29 (https://www.morningstar.com/news/dow-jones/2026102912111/employment-cost-index-on-tap-data-week-ahead); AlphaTrader Market Radar, Oct 30 (https://alphatradernews.com/2026/10/30/tech-stays-bearish-stocks-consolidate-ahead-of-eci-chicago-pmi-and-fed-remarks-market-radar-20261030/); Reuters via WIXX on XOM/CVX, Oct 30 (https://wixx.com/2026/10/30/exxon-chevron-earnings-propelled-by-war-driven-refining-surge/); Reuters via KTWB on Reddit/Pinterest, Oct 30 (https://ktwb.com/2026/10/30/reddit-pinterest-shares-tumble-on-weak-user-and-revenue-growth/); TickerOn earnings calendar, week of Oct 26–30 (https://tickeron.com/trading-investing-101/q3-2026-earnings-preview-october-2630-2026--msft-googl-amzn-lly-v-ma-xom-cvx/); EarningsWatcher expected moves, week of Oct 26–30 (https://earnings-watcher.com/earnings-this-week); Weekly Markets Recap, Oct 30 (https://my-passive-income.eu/weekly-markets-recap-october-30-2026/).
+## Context (verified levels only)
 
-Systems: Mac online, fildi API/scheduler probe not available via paired-device commands — unverified
+- **S&P 500:** Friday 7,580.07 (−1.82% 1-day); October: retreated for the month (Nasdaq −5.3% in October, worst since March 2025). 1-week / 1-month S&P closes beyond October direction not verified in today's sources — not stated.
+- **10Y:** ~4.92% this morning vs ~4.99% prior reference in one source (down ~6 bp); near its lowest in seven weeks; 30Y ~5.30%.
+- **Brent:** ~$108–110 this morning, down ~4% today, after +13.6% in October to a six-month high; WTI back below $100.
+- **VIX:** ~19.2–19.4 premarket vs 19.42 Friday close (+12.91% Friday); Friday intraday spike reached ~23.9 before fading.
+
+## Sources
+
+- Reuters via Investopedia/TipRanks: futures, Friday closes, midterms, earnings — https://www.investopedia.com/5-things-to-know-stock-market-november-2-2026-12206140 · https://www.tipranks.com/news/stock-market-today-nov-2-futures-rise-ahead-of-earnings-and-midterm-elections-oil-prices-fall
+- Morningstar/Dow Jones: Treasury yields — https://www.morningstar.com/news/dow-jones/20261102833/treasury-yields-little-changed-in-asian-trade-ahead-of-midterms-key-data-this-week · https://www.morningstar.com/news/dow-jones/202611022334/us-treasury-european-bond-yields-fall-as-oil-prices-drop-update
+- Saxo Morning Brew, eOption morning preview: overnight Asia/Europe, futures snapshot — https://www.home.saxo/en-ch/content/articles/morning-brew/morning-brew-november-2-2026-02112026 · https://www.eoption.com/morning-preview-november-02-2026/
+- Economic calendar: XTB, Nowflation, Weekend Spread — https://www.xtb.com/int/market-analysis/news-and-research/economic-calendar-global-series-of-industrial-pmi-indicators-and-tech-giants-results · https://nowflation.com/calendar · https://theweekendspread.substack.com/p/the-week-ahead-november-2-to-6
+- Earnings week: https://jorgai.com/blog/stock-market-week-ahead-november-2-6-2026-amd-palantir-qualcomm-uber-earnings-moves-election-day-jobs-report · https://thehairytimes.com/stock-market-this-week-nov-2-6/
+- Treasury auctions: https://yielddocket.com/treasury-auctions/calendar/
+- VIX: https://www.volalytics.com/Analytics/VIX/DashboardNew · https://swingfolio.com/daily/us/2026-11-02/morning
+- Commodities: https://www.samuelandcotrading.com/us-open-market-brief-2-november-2026-cheaper-oil-buys-a-breather/ · https://www.dailyforex.com/forex-news/2026/11/forex-today-2-november-2026/251286
+
+Systems: Mac online — fildi API unverified (no shell/HTTP probe command exposed on the paired Mac; best-effort probe not possible this run)
