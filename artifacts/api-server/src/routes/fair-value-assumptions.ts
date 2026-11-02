@@ -11,6 +11,7 @@ import { requireAdmin } from "../middleware/requireAdmin.js";
 import { getChampionScorecardParams } from "../lib/scorecard-params.js";
 import { impliedGrowth, type FvTickerInput, type FairValueParams } from "../lib/fair-value.js";
 import { loadMarket } from "../lib/fair-value-snapshots.js";
+import { loadFairValueV2 } from "../lib/fair-value-v2.js";
 import { persistFairValueSnapshots } from "../lib/fair-value-snapshots.js";
 import { COHORT_PARAMS, INPUT_FIELDS, OVERRIDABLE_INPUTS, ensureAssumptionTables, type InputField } from "../lib/fv-assumptions.js";
 
@@ -291,6 +292,18 @@ router.get("/fair-value/:ticker/external", async (req, res, next) => {
         source: "Yahoo insights (Trading Central / Argus / Morningstar text)" } : null,
       note: "Outside + extra-model values, display only, grouped by family (street · cash-flow · floor) — never blended across families. Each gap is vs the price that source used. Reverse DCF: /fair-value/:ticker/dcf.",
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** A283 fv-2.0.0 — three chips (street · cash-flow range · reverse DCF), headline only when families agree within 2×. DB only. */
+router.get("/fair-value/:ticker/v2", async (req, res, next) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
+  const price = Number(req.query["price"]);
+  try {
+    return res.json({ ticker: t, ...(await loadFairValueV2(t, Number.isFinite(price) && price > 0 ? price : null)) });
   } catch (err) {
     return next(err);
   }

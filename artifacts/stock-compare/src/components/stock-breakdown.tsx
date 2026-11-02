@@ -457,7 +457,7 @@ export function StockBreakdown({
                     ?? formatDerivedTip({ label: "Beta", kind: "sourced", source: "fundamentals merge", asOf: data?.scoreEvidence?.inputsAsOf })}
                 />
               )}
-              {m.fairValueEstimate != null && (
+              {(m.fairValueEstimate != null || m.ticker) && (
                 <FairValueBadge
                   ticker={m.ticker}
                   fairValue={m.fairValueEstimate} low={m.fairValueLow} high={m.fairValueHigh}

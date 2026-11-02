@@ -155,6 +155,9 @@ def models(conn) -> int:
             out["fildi_rim"] = (v, {"k": round(k, 4), "book_ps": round(b, 2), "eps_path": [round(e, 2) for e in path],
                                     "payout": round(payout, 3), "family": "cash-flow"})
         ebit = float(r["ebit"]) if r["ebit"] is not None else None
+        # 11-02: EBIT above the whole market cap = financials in another currency (SKHY: won EBIT on US shares → $43,931).
+        if ebit and ebit > price * sh:
+            ebit = None
         if ebit and ebit > 0 and x.get("mode") == "standard":
             tax = min(max(float(r["tax"]) if r["tax"] is not None else 0.21, 0.0), 0.35)
             tax = tax if tax >= 0.05 else 0.21  # 1–4 % effective rates (loss carryforwards) are not a steady state

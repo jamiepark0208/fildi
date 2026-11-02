@@ -257,7 +257,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A280](asks/A280.md) | 2026-10-26 | Claude → Cursor | Live › Portfolio alerts: show put_manage_daily (take + re-sell at ≥ 4× pace, hold, no trend stops; S103) | done |
 | [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | parked (Claude 10-29, A312: indicator families now run via A314; revisit after 12-11 token cliff) |
 | [A282](asks/A282.md) | 2026-10-26 | Muse → Cursor | Repair: indicators.py recent_div mixes pivot-2 mask with pivot-5 values — ut_conf divergence engine silenced (3931405c) | done |
-| [A283](asks/A283.md) | 2026-10-27 | Jamie → Claude | [quant] Fair value v2 — analyst-style probabilistic DCF (sector defaults, stock overrides, scenarios) | needs Jamie |
+| [A283](asks/A283.md) | 2026-10-27 | Jamie → Claude | [quant] Fair value v2 — analyst-style probabilistic DCF (sector defaults, stock overrides, scenarios) | done (fv-2.0.0 chips shipped 11-02) |
 | [A284](asks/A284.md) | 2026-10-27 | Claude → Cursor | Breakdown — show outside intrinsic values (StarMine, FMP DCF) next to Fildi fair value | done (Cursor 10-28: Outside estimates in FairValueBadge on open) |
 | [A285](asks/A285.md) | 2026-10-27 | Muse → Cursor | Repair: fundamentals-db TDZ crash — reviewedRows/reviewed used before declaration, score recompute throws | done (Cursor 10-27: hoist kept + attachPeerReviewed test + dry-run ok) |
 | [A289](asks/A289.md) | 2026-10-27 | Claude → Cursor | Breakdown › Assumptions — DCF v2 (lab) block: range vs price, reverse DCF, assumptions with sources | done (Cursor 10-28: DCF lab block on Assumptions tab) |
