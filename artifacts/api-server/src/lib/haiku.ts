@@ -23,6 +23,8 @@ export interface HaikuCallOpts {
   userId?: number;
   /** "_" for non-ticker surfaces */
   ticker?: string;
+  /** Request deadline (rule 8c); SDK default is 10 min. */
+  timeoutMs?: number;
 }
 
 export interface HaikuCallResult {
@@ -39,7 +41,7 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
       max_tokens: opts.maxTokens,
       messages: [{ role: "user", content: opts.prompt }],
       ...(HAIKU_OFF ? { thinking: HAIKU_OFF, output_config: { effort: "low" } } : {}),
-    } as Anthropic.MessageCreateParamsNonStreaming);
+    } as Anthropic.MessageCreateParamsNonStreaming, opts.timeoutMs ? { timeout: opts.timeoutMs, maxRetries: 1 } : undefined);
   } catch (err) {
     // Failed calls still count toward the API Monitor and show up in api.log.
     logApiCall({

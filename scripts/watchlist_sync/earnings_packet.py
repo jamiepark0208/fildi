@@ -370,7 +370,6 @@ def _street_revenue(ticker: str, rd: date) -> dict:
         return {"error": str(e)[:120]}
 
 
-_STOP = {"the", "bank", "first", "american", "general", "united", "international", "national", "global", "group", "holdings", "corp"}
 
 
 def company_name(conn, ticker: str) -> str | None:
@@ -379,42 +378,31 @@ def company_name(conn, ticker: str) -> str | None:
     return _get_json(f"https://data.sec.gov/submissions/CIK{cik}.json").get("name") if cik else None
 
 
-_EARN = re.compile(r"\b(results?|quarter(ly)?|revenue|sales|guidance|guide[ds]?|outlook|forecast|capex|capital (spending|expenditure)|margins?|"
-                   r"beat|miss(ed)?|topped|fell short|shares (fell|rose|jumped|slid|dropped|climbed|sank|surged)|"
-                   r"(fell|rose|jumped|slid|dropped|climbed|sank|surged) \d|after[- ]hours|reported|earnings|profit|cloud|backlog|demand)\b", re.I)
-_PREVIEW = re.compile(r"\b(will report|reports? (later|after|before|on)|ahead of|expect(s|ed)? a .{0,20}move|due (to report|out)|preview|"
-                      r"set to report|on deck|to watch)\b", re.I)
+# D1 (10-30): briefs come from desk_facts (one extractor, lib/desk-facts.ts) — no per-feature regex over email bodies (B19).
+_BRIEF_KINDS = {"earnings_detail": 0, "guidance_calendar": 1, "analyst_action": 2, "corporate_event": 3, "opinion": 4,
+                "cross_company_theme": 5, "market_structure": 6, "shock_risk": 7}
 
 
 def briefs_for(conn, ticker: str, name: str | None, filed: date, hour: str | None = None, limit: int = 8) -> list[dict]:
-    """Post-print sentences naming the company in desk_commentaries (Jamie's tradedash-brief label), 8-K day → 2 days after.
-    After-close reports start at 13:00 PT on the filing day (earlier mail is preview). Ranked by earnings words; tables,
-    links and previews dropped; ≤ 2 per source."""
-    stem = next((w for w in re.findall(r"[A-Za-z][A-Za-z&'.-]+", name or "") if len(w) >= 4 and w.lower() not in _STOP), None)
-    alts = [re.escape(ticker)] + ([re.escape(ticker[:-1])] if ticker in ("GOOGL",) else []) + ([re.escape(stem.rstrip(".,"))] if stem else [])
-    rx = re.compile(r"\b(" + "|".join(alts) + r")\b")
+    """Post-print facts tagged with the ticker in desk_facts (Jamie's tradedash-brief label), 8-K day → 2 days after.
+    After-close reports start at 13:00 PT on the filing day (earlier mail is preview); dated future events dropped.
+    Ranked by kind then source tier; ≤ 2 per source. `name` kept for the call signature (the extractor resolves names)."""
     start = f"{filed} 13:00" if (hour or "").lower() == "amc" else f"{filed} 04:00"
-    cands = []
-    for r in rows(conn, """SELECT source, subject, received_at, body_plain FROM desk_commentaries
-                           WHERE received_at >= %s::timestamp AT TIME ZONE 'America/Los_Angeles' AND received_at < %s::date + 3
-                             AND COALESCE(noise_score, 0) < 50 AND body_plain ~ %s ORDER BY received_at""",
-                  (start, filed, rx.pattern.replace("\\b", "\\y"))):
-        body = re.sub(r"<https?://[^>]*>|https?://\S+", "", r["body_plain"] or "").replace("*", "")
-        sents = [x.strip(" -–") for x in re.split(r"(?<=[.!?])\s+|\s*[•·▪]\s*|\[ \]", " ".join(body.split())) if x.strip()]
-        for x in sents:   # the matching sentence / bullet only — neighbours in a digest are other companies
-            if not rx.search(x) or len(x) < 40 or _PREVIEW.search(x):
-                continue
-            if sum(ch.isdigit() for ch in x) > 0.25 * len(x):   # quote tables
-                continue
-            score = len(_EARN.findall(x))
-            if score:
-                cands.append((score, r, x[:450]))
     out, per = [], {}
-    for score, r, txt in sorted(cands, key=lambda c: -c[0]):
+    cands = sorted(rows(conn, """SELECT c.source, c.subject, f.received_at, f.claim, f.kind, f.source_tier
+                                 FROM desk_facts f JOIN desk_commentaries c ON c.id = f.commentary_id
+                                 WHERE f.tickers ? %s AND f.kind = ANY(%s)
+                                   AND f.received_at >= %s::timestamp AT TIME ZONE 'America/Los_Angeles' AND f.received_at < %s::date + 3
+                                   AND COALESCE(c.noise_score, 0) < 50
+                                   AND NOT (COALESCE(f.horizon, '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND f.horizon::date > f.received_at::date)""",
+                           (ticker, list(_BRIEF_KINDS), start, filed)),
+                   key=lambda r: (_BRIEF_KINDS[r["kind"]], r["source_tier"], r["received_at"]))
+    for r in cands:
+        txt = r["claim"]
         if per.get(r["source"], 0) >= 2 or any(txt[:80] in o["text"] or o["text"][:80] in txt for o in out):
             continue
         per[r["source"]] = per.get(r["source"], 0) + 1
-        out.append({"source": r["source"], "subject": r["subject"], "at": str(r["received_at"])[:16], "text": txt})
+        out.append({"source": r["source"], "subject": r["subject"], "at": str(r["received_at"])[:16], "text": txt, "kind": r["kind"]})
         if len(out) >= limit:
             break
     return out

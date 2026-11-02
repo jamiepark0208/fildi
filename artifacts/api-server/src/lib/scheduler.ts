@@ -28,6 +28,7 @@ import { runEventBulletCheck } from "./event-bullets.js";
 import { runEarningsHistoryBackfill } from "./earnings-history.js";
 import { runFmpAnalystFeedPoll } from "./fmp-analyst-feed.js";
 import { ingestDeskCommentaries } from "./desk-commentary.js";
+import { extractPendingDeskFacts } from "./desk-facts.js";
 import { ingestFedSpeeches } from "./figure-views-ingest.js";
 import { autoResolveOpenViews } from "./figure-views-auto-resolve.js";
 import { getSchwabAccessToken, getSchwabAuthStatus } from "./schwab-auth.js";
@@ -518,6 +519,12 @@ export async function runDeskIngestJob() {
     lastDeskIngestRun = new Date();
     await setConfigDate(LAST_DESK_INGEST_RUN_KEY, lastDeskIngestRun);
     logger.info(result, "scheduler: desk commentary ingest complete");
+    // D1: typed facts for new emails (Haiku, sequential, ≤ 20 per run, 2-min deadline each)
+    const facts = await extractPendingDeskFacts({ limit: 20 }).catch((err) => {
+      logger.warn({ err: String(err) }, "scheduler: desk facts extract failed");
+      return null;
+    });
+    if (facts) logger.info(facts, "scheduler: desk facts extract complete");
   } catch (err) {
     logger.error({ err }, "scheduler: desk commentary ingest failed");
   } finally {
