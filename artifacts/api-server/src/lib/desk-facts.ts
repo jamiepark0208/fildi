@@ -44,6 +44,7 @@ const MAX_BODY_CHARS = 120_000;
 const MAX_FACTS = 150;
 /** v2: long emails are extracted in line-aligned chunks (v1 recall 0.48 — one call stopped at ~60–150 facts on 30–70k digests). */
 const CHUNK_CHARS = 15_000;
+const EXTRACT_CONCURRENCY = 4;
 
 export async function ensureDeskFactsTables(): Promise<void> {
   await db.execute(sql`
@@ -298,7 +299,7 @@ export async function extractAndStore(row: PendingRow): Promise<number> {
 
 /**
  * Background step after ingest (scheduler): emails from the last `days` with no run at this version / body, or an error
- * older than 1 h. Sequential, capped per run (rule 8c) — pages never wait on this.
+ * older than 1 h. 4 in flight, capped per run (rule 8c) — pages never wait on this.
  */
 export async function extractPendingDeskFacts(opts?: { limit?: number; days?: number; ids?: number[] }): Promise<{ done: number; facts: number; errors: number }> {
   await ensureDeskFactsTables();
@@ -315,14 +316,19 @@ export async function extractPendingDeskFacts(opts?: { limit?: number; days?: nu
            OR (f.status = 'error' AND f.ran_at < now() - interval '1 hour'))
     ORDER BY c.received_at DESC LIMIT ${limit}`);
   const out = { done: 0, facts: 0, errors: 0 };
-  for (const row of r.rows as unknown as PendingRow[]) {
-    try {
-      out.facts += await extractAndStore(row);
-      out.done++;
-    } catch (err) {
-      out.errors++;
-      logger.warn({ err: String(err), id: row.id }, "desk-facts: extract failed");
+  // Output-token bound (~6 s / email alone) → EXTRACT_CONCURRENCY emails in flight, never more (rule 8c).
+  const queue = [...(r.rows as unknown as PendingRow[])];
+  const worker = async () => {
+    for (let row = queue.shift(); row; row = queue.shift()) {
+      try {
+        out.facts += await extractAndStore(row);
+        out.done++;
+      } catch (err) {
+        out.errors++;
+        logger.warn({ err: String(err), id: row.id }, "desk-facts: extract failed");
+      }
     }
-  }
+  };
+  await Promise.all(Array.from({ length: EXTRACT_CONCURRENCY }, worker));
   return out;
 }
