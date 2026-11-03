@@ -52,6 +52,8 @@ const SOURCE_FRESH_MS: Record<string, number> = {
   factset: 1 * 86_400_000,
   polygon: STALE_MS,
   edgar: EDGAR_BALANCE_MAX_LAG_MS,
+  /** Filed date stored in fetched_at — allow up to ~15mo stale vs newest pull in band. */
+  sec: 450 * 86_400_000,
 };
 
 const POLYGON_CONFIRM_HOSTS = new Set(["yahoo", "finnhub", "fmp", "alpha_vantage"]);
@@ -101,6 +103,8 @@ function eligibleVotes(free: GoldQuote[]): GoldQuote[] {
   const confirms = (q: GoldQuote, hosts: GoldQuote[]) =>
     hosts.some((f) => within(q.val, f.val, 0.15, PP_BAND));
   return free.filter((q) => {
+    // SEC rows use filing date in pulledAt — not subject to the 14d bronze staleness gate.
+    if (q.src === "sec") return true;
     if (fresh(q) && q.src !== "polygon") return true;
     if (q.src === "polygon") {
       if (fresh(q)) return true;
@@ -127,10 +131,20 @@ export function filterTimely(field: string, free: GoldQuote[]): GoldQuote[] {
   });
 }
 
+/** SEC companyfacts TTM — prefer filing when still inside the ruler band (pull-time vendors lie). */
+const SEC_TTM_FIELDS = new Set([
+  "freeCashFlow", "totalRevenue", "netIncome", "grossMargin", "operatingMargin", "netMargin",
+  "returnOnAssets", "currentRatio", "priceToBook",
+]);
+
 /** Among in-band candidates, drop stale vs newest pull, then FIELD_DEFS order (array order). */
 function pickCheapestTimely(field: string, ordered: GoldQuote[], ruler: number): GoldQuote | null {
   const inBandQ = ordered.filter((q) => inBand(field, ruler, q.val));
   if (inBandQ.length === 0) return null;
+  if (SEC_TTM_FIELDS.has(field)) {
+    const sec = inBandQ.find((q) => q.src === "sec");
+    if (sec) return sec;
+  }
   const times = inBandQ
     .map((q) => q.pulledAt)
     .filter((t): t is number => t != null && Number.isFinite(t));
@@ -140,10 +154,32 @@ function pickCheapestTimely(field: string, ordered: GoldQuote[], ruler: number):
     const window = SOURCE_FRESH_MS[q.src] ?? STALE_MS;
     return newest - q.pulledAt <= window;
   });
-  const pool = freshEnough.length > 0 ? freshEnough : inBandQ;
+  const hasStaleConfirm = inBandQ.some(
+    (stale) =>
+      stale.pulledAt != null &&
+      newest != null &&
+      newest - stale.pulledAt > STALE_MS &&
+      inBandQ.some(
+        (fresh) =>
+          fresh !== stale &&
+          fresh.val === stale.val &&
+          fresh.pulledAt != null &&
+          newest - fresh.pulledAt <= STALE_MS,
+      ),
+  );
+  const pool = hasStaleConfirm ? inBandQ : freshEnough.length > 0 ? freshEnough : inBandQ;
+  const sameVal = pool.length >= 2 && pool.every((q) => q.val === pool[0]!.val);
+  if (sameVal) {
+    for (const q of ordered) {
+      if (pool.some((p) => p.src === q.src && p.val === q.val)) return q;
+    }
+  }
   if (newest != null && pool.some((q) => q.pulledAt != null)) {
     const maxT = Math.max(...pool.map((q) => q.pulledAt ?? newest));
     const freshest = pool.filter((q) => (q.pulledAt ?? newest) >= maxT);
+    for (const q of ordered) {
+      if (freshest.some((f) => f.src === q.src && f.val === q.val)) return q;
+    }
     return freshest[0] ?? pool[0]!;
   }
   return pool[0]!;

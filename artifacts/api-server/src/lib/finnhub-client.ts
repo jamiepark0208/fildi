@@ -3,6 +3,7 @@ import { logApiCall } from "./api-logger.js";
 import { mapFinnhubDropped, vendorRawFromHttpUrl } from "./dropped-vendor-fields.js";
 import { persistMappedFields } from "./vendor-raw.js";
 import { logger } from "./logger.js";
+import { finnhubQuarterlyOrAnnual } from "./finnhub-metric-period.js";
 
 export interface FinnhubFundamentalsData {
   finnhub_peRatio?:               number;
@@ -235,8 +236,8 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     // Finnhub, like pb/currentRatioAnnual — not percentages. pct() was wrongly dividing
     // them by 100, producing values ~100x too small vs fmp's debtToEquity.
     finnhub_debtToEquity:         n(m["totalDebt/totalEquityAnnual"]),
-    finnhub_currentRatio:         n(m["currentRatioAnnual"]),
-    finnhub_quickRatio:           n(m["quickRatioAnnual"]),
+    finnhub_currentRatio:         finnhubQuarterlyOrAnnual(m, "currentRatioQuarterly", "currentRatioAnnual"),
+    finnhub_quickRatio:           finnhubQuarterlyOrAnnual(m, "quickRatioQuarterly", "quickRatioAnnual"),
     finnhub_fcfMargin:            pct(m["fcfMargin"]),
     finnhub_fcfPerShare:          n(m["fcfPerShareTTM"]),
     finnhub_bookValue:            n(m["bookValue"]),
@@ -249,7 +250,7 @@ export async function fetchFinnhubFundamentals(ticker: string): Promise<FinnhubF
     finnhub_longTermDebtToEquity: n(m["longtermDebtTotalEquity"]),
     finnhub_netDebtToEquity:      n(m["netDebtToTotalEquity"]),
     finnhub_earningsPerShare:     n(m["epsBasicExclExtraItemsTTM"]),
-    finnhub_priceToBook:          n(m["pbAnnual"]),
+    finnhub_priceToBook:          finnhubQuarterlyOrAnnual(m, "pbQuarterly", "pbAnnual"),
     finnhub_52weekHigh:           n(m["52WeekHigh"]),
     finnhub_52weekLow:            n(m["52WeekLow"]),
     finnhub_marketCap:            n(m["marketCapitalization"]),

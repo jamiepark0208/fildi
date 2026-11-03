@@ -4,9 +4,9 @@
       "ticker": "APO",
       "field": "currentRatio",
       "beforeGold": "0.0404",
-      "afterGold": "1.948",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "0.0563",
+      "source": "finnhub",
+      "period": "2026-11-03"
     },
     {
       "ticker": "CE",
@@ -14,15 +14,15 @@
       "beforeGold": "0.0023999999",
       "afterGold": "0.0210621",
       "source": "finnhub",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "IVZ",
       "field": "ffoProxy",
       "beforeGold": "693900000",
-      "afterGold": "-125800000",
+      "afterGold": "74400000",
       "source": "derived",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "WING",
@@ -30,7 +30,7 @@
       "beforeGold": "0.43947923110577836",
       "afterGold": "0.29621581756310367",
       "source": "derived",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "CCJ",
@@ -38,31 +38,31 @@
       "beforeGold": "0.35112998",
       "afterGold": "0.26899999999999996",
       "source": "finnhub",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "DD",
       "field": "netMargin",
       "beforeGold": "0.00787",
-      "afterGold": "0.0275",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.0120206067544362",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "PAAS",
       "field": "priceToBook",
       "beforeGold": "2.152817",
-      "afterGold": "3.1122",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "2.152817",
+      "source": "yahoo",
+      "period": "2026-11-03"
     },
     {
       "ticker": "NBIX",
       "field": "returnOnAssets",
       "beforeGold": "0.11704001",
-      "afterGold": "0.1473",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.152558682654153",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "GOOGL",
@@ -70,47 +70,47 @@
       "beforeGold": "12116000000",
       "afterGold": "12088000000",
       "source": "edgar",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "CRDO",
       "field": "currentRatio",
       "beforeGold": "7.399",
-      "afterGold": "10.153",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "7.39935407362551",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "AMZN",
       "field": "freeCashFlow",
       "beforeGold": "132777000000",
-      "afterGold": "9806624768",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "-46892000000",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "IVZ",
       "field": "netIncome",
       "beforeGold": "538000000",
-      "afterGold": "-281700000",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "-81500000",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "LUMN",
       "field": "returnOnAssets",
       "beforeGold": "-0.0315",
-      "afterGold": "-0.008719999",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "-0.0321214592678566",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "CG",
       "field": "totalRevenue",
       "beforeGold": "4779800000",
-      "afterGold": "3213200000",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "3611300000",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "KGC",
@@ -118,47 +118,47 @@
       "beforeGold": "0.0069999998",
       "afterGold": "0.021718099999999997",
       "source": "finnhub",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "JHX",
       "field": "priceToBook",
       "beforeGold": "2.338509",
-      "afterGold": "1.7433",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "2.46832559570682",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "REGN",
       "field": "returnOnAssets",
       "beforeGold": "0.06526",
-      "afterGold": "0.106",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.113920727972701",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "OWL",
       "field": "totalRevenue",
       "beforeGold": "567754000",
-      "afterGold": "2870178000",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "3068990000",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "RELY",
       "field": "priceToBook",
       "beforeGold": "4.536063",
-      "afterGold": "3.3205",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "4.75930694121124",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "CRWV",
       "field": "returnOnAssets",
       "beforeGold": "-0.00244",
-      "afterGold": "-0.0359",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "-0.0373240647304208",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "WING",
@@ -166,79 +166,79 @@
       "beforeGold": "29.741556",
       "afterGold": "20.04627",
       "source": "finnhub",
-      "period": "2026-11-02"
+      "period": "2026-11-03"
     },
     {
       "ticker": "GOOGL",
       "field": "freeCashFlow",
       "beforeGold": "73266000000",
-      "afterGold": "22665000960",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "19747000000",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "TTWO",
       "field": "operatingMargin",
       "beforeGold": "0.0051499996",
-      "afterGold": "-0.024",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "-0.0241232333806924",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "SG",
       "field": "returnOnAssets",
       "beforeGold": "-0.09035",
-      "afterGold": "0.016",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.0158271115839731",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "INTC",
       "field": "freeCashFlow",
       "beforeGold": "-4949000000",
-      "afterGold": "4866375168",
-      "source": "yahoo",
-      "period": "2026-11-02"
+      "afterGold": "3768000000",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "TKO",
       "field": "returnOnAssets",
       "beforeGold": "0.04496",
-      "afterGold": "0.014500000000000002",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.0418512987470536",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "ESTC",
       "field": "operatingMargin",
       "beforeGold": "-0.00606",
-      "afterGold": "-0.0264",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "-0.026418356679444",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "NOV",
       "field": "returnOnAssets",
       "beforeGold": "0.03446",
-      "afterGold": "0.0084",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.0132966935555359",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "HUT",
       "field": "returnOnAssets",
       "beforeGold": "-0.09742",
-      "afterGold": "-0.0404",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "-0.0999647229618841",
+      "source": "sec",
+      "period": "2026-11-03"
     },
     {
       "ticker": "RKT",
       "field": "returnOnAssets",
       "beforeGold": "0.028099999",
-      "afterGold": "0.0088",
-      "source": "finnhub",
-      "period": "2026-11-02"
+      "afterGold": "0.0278032267276963",
+      "source": "sec",
+      "period": "2026-11-03"
     }
   ],
   "poolSize": 36

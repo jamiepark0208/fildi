@@ -8,6 +8,13 @@ from build_plan import connect, rows
 
 FRACTION = {"grossMargin", "netMargin", "operatingMargin", "returnOnAssets", "dividendYield"}
 NI = ["NetIncomeLoss", "ProfitLoss", "NetIncomeLossAvailableToCommonStockholdersBasic"]
+NI_COMMON = [
+    "NetIncomeLossAvailableToCommonStockholdersBasic",
+    "NetIncomeLossAvailableToCommonStockholdersDiluted",
+    "NetIncomeLoss",
+    "ProfitLoss",
+]
+NI_ATTRIBUTABLE = NI_COMMON[:2]
 REV = ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenuesNetOfInterestExpense", "SalesRevenueNet"]
 ASSETS = ["Assets"]
 EQ = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"]
@@ -48,8 +55,6 @@ def main():
     out = []
     for c in cells:
         t, f = c["ticker"], c["field"]
-        if f in ("freeCashFlow", "totalRevenue") or (f == "operatingMargin" and t == "TTWO"):
-            continue  # judged last session
         if t not in cache:
             try:
                 cache[t] = F.companyfacts(conn, t)
@@ -63,13 +68,15 @@ def main():
         else:
             rev = F.ttm_flow(facts, REV)
             asof = (rev or {}).get("end") or date.today().isoformat()
-            ni = F.ttm_flow(facts, ["NetIncomeLoss"]) or F.ttm_flow(facts, NI)
+            ni = F.ttm_flow(facts, NI_COMMON) or F.ttm_flow(facts, ["NetIncomeLoss"])
             if f == "returnOnAssets":
+                ni_roa = F.ttm_flow(facts, NI_ATTRIBUTABLE) or F.ttm_flow(facts, ["NetIncomeLoss"])
                 a = F.balance(facts, ASSETS, asof)
                 a0 = F.balance(facts, ASSETS, (date.fromisoformat(a["end"]) - timedelta(days=360)).isoformat()) if a else None
-                if ni and a:
+                if ni_roa and a:
                     avg = (a["value"] + a0["value"]) / 2 if a0 and a0["value"] else a["value"]
-                    truth = ni["value"] / avg
+                    truth = ni_roa["value"] / avg
+                    ni = ni_roa
                     note = f"NI {ni['value']/1e6:.0f}M ({ni['end']}) / avg assets {avg/1e6:.0f}M; end-assets ROA {ni['value']/a['value']:.4f}"
             elif f in ("grossMargin", "netMargin", "operatingMargin"):
                 num = {"grossMargin": F.ttm_flow(facts, ["GrossProfit"]),
@@ -107,6 +114,15 @@ def main():
             elif f == "netIncome":
                 truth = ni["value"] if ni else None
                 note = f"{ni['how']} end {ni['end']}" if ni else ""
+            elif f == "freeCashFlow":
+                ocf = F.ttm_flow(facts, F.FLOWS["ocf"])
+                capex = F.ttm_flow(facts, F.FLOWS["capex"])
+                if ocf and capex:
+                    truth = ocf["value"] - capex["value"]
+                    note = f"ocf {ocf['value']/1e6:.0f}M − capex {capex['value']/1e6:.0f}M ({ocf['end']})"
+            elif f == "totalRevenue":
+                truth = rev["value"] if rev else None
+                note = f"{rev['how']} end {rev['end']}" if rev else ""
             elif f == "ffoProxy":
                 da = F.ttm_flow(facts, ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization", "DepreciationAmortizationAndAccretionNet"])
                 if ni and da:
@@ -120,6 +136,14 @@ def main():
         tr = "—" if r["truth"] is None else f"{r['truth']:.4g}"
         print(f"{r['ticker']:5} {r['field']:17} before {r['before']:.4g} {'✓' if r['before_ok'] else '✗' if r['before_ok'] is False else '?'}  "
               f"after {r['after']:.4g} {'✓' if r['after_ok'] else '✗' if r['after_ok'] is False else '?'}  SEC {tr}  | {r['note']}")
+    judged = [r for r in out if r["truth"] is not None]
+    excl = [r for r in out if r["truth"] is None]
+    after_ok = sum(1 for r in judged if r["after_ok"])
+    before_ok = sum(1 for r in judged if r["before_ok"])
+    print(
+        f"\nSUMMARY judged={len(judged)}/{len(out)} after_ok={after_ok} before_ok={before_ok} "
+        f"excluded={len(excl)}"
+    )
     json.dump(out, open(sys.argv[1], "w"), indent=1, default=str)
 
 

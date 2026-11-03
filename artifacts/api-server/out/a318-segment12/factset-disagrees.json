@@ -1,14 +1,22 @@
 {
-  "count": 311,
+  "count": 219,
   "byField": {
+    "currentRatio": 14,
     "forwardPe": 32,
     "returnOnAssets": 88,
-    "currentRatio": 46,
-    "priceToBook": 90,
-    "grossMargin": 24,
-    "totalStockholdersEquity": 31
+    "grossMargin": 26,
+    "totalStockholdersEquity": 31,
+    "priceToBook": 28
   },
   "rows": [
+    {
+      "ticker": "AA",
+      "field": "currentRatio",
+      "ruler": 1.673044,
+      "picked": 2.3072,
+      "bandRel": 0.2,
+      "bandAbs": 0
+    },
     {
       "ticker": "AAOI",
       "field": "forwardPe",
@@ -32,30 +40,6 @@
       "picked": -0.28133,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "ACHR",
-      "field": "currentRatio",
-      "ruler": 6.87482,
-      "picked": 10.213,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "ADBE",
-      "field": "priceToBook",
-      "ruler": 7.752315585370719,
-      "picked": 11.5294,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "ADI",
-      "field": "priceToBook",
-      "ruler": 6.066108424087809,
-      "picked": 3.3827,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "ADI",
@@ -82,14 +66,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "AEM",
-      "field": "currentRatio",
-      "ruler": 3.290372,
-      "picked": 2.02,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "AFRM",
       "field": "currentRatio",
       "ruler": 19.877054,
@@ -108,32 +84,16 @@
     {
       "ticker": "ALOY",
       "field": "grossMargin",
-      "ruler": 0.45951771,
+      "ruler": 0.42857146999999995,
       "picked": 0.29679,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "AM",
-      "field": "currentRatio",
-      "ruler": 1.458599,
-      "picked": 0.842,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "AMAT",
       "field": "forwardPe",
       "ruler": 35.61609525847966,
       "picked": 26.12755,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "AMAT",
-      "field": "priceToBook",
-      "ruler": 17.03380646603309,
-      "picked": 9.0271,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -146,26 +106,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "APA",
-      "field": "priceToBook",
-      "ruler": 2.079691034929282,
-      "picked": 2.6380982,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "APO",
       "field": "totalStockholdersEquity",
       "ruler": 42140000000,
       "picked": 23341000000,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "APO",
-      "field": "currentRatio",
-      "ruler": 0.059515,
-      "picked": 1.948,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -181,7 +125,7 @@
       "ticker": "ARES",
       "field": "priceToBook",
       "ruler": 4.727622351568542,
-      "picked": 11.61726,
+      "picked": 3.46240563046093,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -197,33 +141,9 @@
       "ticker": "ARRY",
       "field": "returnOnAssets",
       "ruler": 0.02509194,
-      "picked": -0.056600000000000004,
+      "picked": -0.055848233238866,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "ASML",
-      "field": "priceToBook",
-      "ruler": 23.907523075537476,
-      "picked": 1344.5585,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "ASND",
-      "field": "currentRatio",
-      "ruler": 4.513998,
-      "picked": 2.991,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "ASTS",
-      "field": "priceToBook",
-      "ruler": 11.348558144383366,
-      "picked": 6.483621,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "ASTS",
@@ -274,14 +194,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "BAM",
-      "field": "currentRatio",
-      "ruler": 6.979493,
-      "picked": 1.6345,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "BAX",
       "field": "returnOnAssets",
       "ruler": 0.05161644,
@@ -298,26 +210,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "BE",
-      "field": "priceToBook",
-      "ruler": 33.7237187751661,
-      "picked": 26.736,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "BE",
-      "field": "currentRatio",
-      "ruler": 4.465298,
-      "picked": 5.9801,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "BEAM",
       "field": "returnOnAssets",
       "ruler": -0.39565249999999996,
-      "picked": -0.17013,
+      "picked": -0.0623003608985308,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -346,18 +242,18 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "BILI",
-      "field": "priceToBook",
-      "ruler": 2.155486869384767,
-      "picked": 4.3741,
+      "ticker": "BMBL",
+      "field": "forwardPe",
+      "ruler": 3.2659573757902107,
+      "picked": 6.37234,
       "bandRel": 0.2,
       "bandAbs": 0
     },
     {
       "ticker": "BMBL",
-      "field": "forwardPe",
-      "ruler": 3.2659573757902107,
-      "picked": 6.37234,
+      "field": "priceToBook",
+      "ruler": 0.5880556758948882,
+      "picked": 1.5304036,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -368,22 +264,6 @@
       "picked": 0.091450006,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "BMNR",
-      "field": "currentRatio",
-      "ruler": 78.384613,
-      "picked": 36.683,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "BMRN",
-      "field": "currentRatio",
-      "ruler": 3.208064,
-      "picked": 2.387,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "BOX",
@@ -403,9 +283,9 @@
     },
     {
       "ticker": "BSX",
-      "field": "priceToBook",
-      "ruler": 2.217876287591114,
-      "picked": 5.833,
+      "field": "currentRatio",
+      "ruler": 2.144766,
+      "picked": 1.2402,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -414,6 +294,22 @@
       "field": "totalStockholdersEquity",
       "ruler": 16605666016,
       "picked": 8665526000,
+      "bandRel": 0.2,
+      "bandAbs": 0
+    },
+    {
+      "ticker": "BX",
+      "field": "currentRatio",
+      "ruler": 12.372327,
+      "picked": 0.971,
+      "bandRel": 0.2,
+      "bandAbs": 0
+    },
+    {
+      "ticker": "CABA",
+      "field": "priceToBook",
+      "ruler": 1.909090909090909,
+      "picked": 1.2022293,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -429,15 +325,15 @@
       "ticker": "CAG",
       "field": "returnOnAssets",
       "ruler": 0.040688129999999996,
-      "picked": -0.10339999999999999,
+      "picked": -0.0980802226663888,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
     {
-      "ticker": "CAMT",
+      "ticker": "CARR",
       "field": "returnOnAssets",
-      "ruler": 0.11593285,
-      "picked": 0.0294,
+      "ruler": 0.0675213,
+      "picked": 0.02982,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -445,7 +341,7 @@
       "ticker": "CAVA",
       "field": "grossMargin",
       "ruler": 0.6945428499999999,
-      "picked": 0.37733,
+      "picked": 0.16757561708065,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -454,30 +350,6 @@
       "field": "forwardPe",
       "ruler": 43.47666120809772,
       "picked": 31.009678,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "CDE",
-      "field": "currentRatio",
-      "ruler": 5.984096,
-      "picked": 3.654,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "CELH",
-      "field": "priceToBook",
-      "ruler": 3.1472253560804044,
-      "picked": 6.149947,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "CHTR",
-      "field": "priceToBook",
-      "ruler": 0.890639250564491,
-      "picked": 1.8843,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -507,14 +379,6 @@
     },
     {
       "ticker": "CL",
-      "field": "priceToBook",
-      "ruler": 169.6359473219977,
-      "picked": 1179.5417,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "CL",
       "field": "returnOnAssets",
       "ruler": 0.18746332,
       "picked": 0.12120000000000002,
@@ -541,23 +405,15 @@
       "ticker": "CLSK",
       "field": "currentRatio",
       "ruler": 15.392011,
-      "picked": 4.1805,
+      "picked": 5.912,
       "bandRel": 0.2,
       "bandAbs": 0
     },
     {
-      "ticker": "CMG",
-      "field": "currentRatio",
-      "ruler": 0.894416,
-      "picked": 0.715,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "CMPS",
+      "ticker": "CLX",
       "field": "priceToBook",
-      "ruler": 12.01081081081081,
-      "picked": 18.571426,
+      "ruler": 69.48991004960143,
+      "picked": 117.05644,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -578,26 +434,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "CNC",
-      "field": "priceToBook",
-      "ruler": 1.464779481787589,
-      "picked": 1.0137,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "CNH",
       "field": "currentRatio",
       "ruler": 3.079296,
       "picked": 4.883,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "COHU",
-      "field": "priceToBook",
-      "ruler": 3.980864505240632,
-      "picked": 3.168943,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -626,28 +466,12 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "CRDO",
-      "field": "priceToBook",
-      "ruler": 8.763636363636362,
-      "picked": 11.482348,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "CRL",
       "field": "returnOnAssets",
       "ruler": 0.07322064,
       "picked": 0.04107,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "CRWD",
-      "field": "priceToBook",
-      "ruler": 35.58336432765543,
-      "picked": 24.9828,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "CSCO",
@@ -664,30 +488,6 @@
       "picked": 0.0018000001,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "DKNG",
-      "field": "priceToBook",
-      "ruler": 11.2960837089884,
-      "picked": 17.896427,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "DOCN",
-      "field": "priceToBook",
-      "ruler": 8.177423360941981,
-      "picked": 12.008404,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "DPZ",
-      "field": "currentRatio",
-      "ruler": 0.816662,
-      "picked": 0.488,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "EBAY",
@@ -709,7 +509,7 @@
       "ticker": "ECHO",
       "field": "returnOnAssets",
       "ruler": 0.23899778000000002,
-      "picked": 0.01319,
+      "picked": -0.114423424666714,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -730,14 +530,6 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "ENPH",
-      "field": "currentRatio",
-      "ruler": 2.950068,
-      "picked": 2.0654,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "ENTG",
       "field": "totalStockholdersEquity",
       "ruler": 4423505859,
@@ -749,7 +541,7 @@
       "ticker": "ESTC",
       "field": "returnOnAssets",
       "ruler": 0.10135127000000001,
-      "picked": -0.0057300003,
+      "picked": 0.135956379877269,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -789,7 +581,15 @@
       "ticker": "FLUT",
       "field": "returnOnAssets",
       "ruler": 0.02886116,
-      "picked": -0.00176,
+      "picked": -0.0298188829970388,
+      "bandRel": 0.2,
+      "bandAbs": 0.03
+    },
+    {
+      "ticker": "FOUR",
+      "field": "grossMargin",
+      "ruler": 0.6864709499999999,
+      "picked": 0.35904998,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -797,31 +597,15 @@
       "ticker": "FRO",
       "field": "returnOnAssets",
       "ruler": 0.37077438,
-      "picked": 0.14246,
+      "picked": -0.00277474982636035,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
     {
-      "ticker": "FTAI",
+      "ticker": "GDDY",
       "field": "priceToBook",
-      "ruler": 15.390775037956667,
-      "picked": 40.083843,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "FTI",
-      "field": "priceToBook",
-      "ruler": 6.755679434788605,
-      "picked": 8.572457,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "FTV",
-      "field": "currentRatio",
-      "ruler": 0.90795,
-      "picked": 1.241,
+      "ruler": 68.89520433683893,
+      "picked": 2003.7736,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -829,17 +613,9 @@
       "ticker": "GEV",
       "field": "returnOnAssets",
       "ruler": 0.10213050000000001,
-      "picked": 0.03217,
+      "picked": 0.147463340397389,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "GILD",
-      "field": "priceToBook",
-      "ruler": 12.613404834733965,
-      "picked": 16.701637,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "GILD",
@@ -874,26 +650,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "GOOGL",
-      "field": "returnOnAssets",
-      "ruler": 0.25465401,
-      "picked": 0.12958999,
-      "bandRel": 0.2,
-      "bandAbs": 0.03
-    },
-    {
       "ticker": "GOSS",
       "field": "totalStockholdersEquity",
       "ruler": -15800000,
       "picked": -122760000,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "GOSS",
-      "field": "currentRatio",
-      "ruler": 1.054074,
-      "picked": 0.528,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -904,14 +664,6 @@
       "picked": 0.023340002,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "GRAB",
-      "field": "priceToBook",
-      "ruler": 2.267983332918852,
-      "picked": 1.6335142,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "HAL",
@@ -930,22 +682,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "HALO",
-      "field": "currentRatio",
-      "ruler": 14.971014,
-      "picked": 2.709,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "HIMS",
-      "field": "currentRatio",
-      "ruler": 1.129323,
-      "picked": 1.8981,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "HL",
       "field": "forwardPe",
       "ruler": 12.526385957115876,
@@ -954,18 +690,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "HL",
-      "field": "currentRatio",
-      "ruler": 6.293706,
-      "picked": 2.7178,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "HON",
       "field": "priceToBook",
       "ruler": 3.942960524063324,
-      "picked": 8.9082,
+      "picked": 2.9823,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -986,22 +714,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "HP",
-      "field": "priceToBook",
-      "ruler": 1.4884228982200522,
-      "picked": 0.8062,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "HPE",
-      "field": "priceToBook",
-      "ruler": 2.368100543749418,
-      "picked": 1.3047,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "HUN",
       "field": "forwardPe",
       "ruler": 53.29323811682459,
@@ -1010,44 +722,12 @@
       "bandAbs": 0
     },
     {
-      "ticker": "HUT",
-      "field": "priceToBook",
-      "ruler": 8.57793787461027,
-      "picked": 5.0725875,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "HYLN",
-      "field": "priceToBook",
-      "ruler": 4.813953333122786,
-      "picked": 3.4246576,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "HYLN",
       "field": "returnOnAssets",
       "ruler": -0.34005966,
-      "picked": -0.18340999,
+      "picked": -0.255308843710479,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "IBM",
-      "field": "priceToBook",
-      "ruler": 5.414215070815969,
-      "picked": 8.481,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "ILMN",
-      "field": "priceToBook",
-      "ruler": 11.780025262236471,
-      "picked": 14.848629,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "INCY",
@@ -1075,14 +755,6 @@
     },
     {
       "ticker": "IONQ",
-      "field": "priceToBook",
-      "ruler": 5.5238861367990575,
-      "picked": 3.4402199,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "IONQ",
       "field": "returnOnAssets",
       "ruler": -0.27134058,
       "picked": -0.14468999,
@@ -1090,44 +762,12 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "IONS",
-      "field": "currentRatio",
-      "ruler": 5.624415,
-      "picked": 7.893,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "IREN",
-      "field": "priceToBook",
-      "ruler": 5.92454844199481,
-      "picked": 2.1754928,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "IVZ",
       "field": "returnOnAssets",
       "ruler": 0.04537692,
-      "picked": -0.0029,
+      "picked": -0.00291227443273182,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "JBHT",
-      "field": "priceToBook",
-      "ruler": 7.107455866360685,
-      "picked": 5.1905,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "JBHT",
-      "field": "currentRatio",
-      "ruler": 1.191217,
-      "picked": 0.8289,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "JBS",
@@ -1138,18 +778,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "JOBY",
-      "field": "priceToBook",
-      "ruler": 3.4214335327877685,
-      "picked": 2.7359018,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "KEYS",
       "field": "returnOnAssets",
       "ruler": 0.15867752,
-      "picked": 0.072270006,
+      "picked": 0.111642743221691,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1165,7 +797,7 @@
       "ticker": "KMI",
       "field": "currentRatio",
       "ruler": 0.474221,
-      "picked": 0.6372,
+      "picked": 0.67,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1186,6 +818,14 @@
       "bandAbs": 0.03
     },
     {
+      "ticker": "LEU",
+      "field": "priceToBook",
+      "ruler": 4.905454442517856,
+      "picked": 1.53496125112373,
+      "bandRel": 0.2,
+      "bandAbs": 0
+    },
+    {
       "ticker": "LITE",
       "field": "returnOnAssets",
       "ruler": 0.22154848000000002,
@@ -1203,17 +843,17 @@
     },
     {
       "ticker": "LRCX",
-      "field": "totalStockholdersEquity",
-      "ruler": 18184023438,
-      "picked": 12470921000,
+      "field": "priceToBook",
+      "ruler": 17.929156233037617,
+      "picked": 28.2946,
       "bandRel": 0.2,
       "bandAbs": 0
     },
     {
-      "ticker": "LUMN",
-      "field": "currentRatio",
-      "ruler": 0.718431,
-      "picked": 0.964,
+      "ticker": "LRCX",
+      "field": "totalStockholdersEquity",
+      "ruler": 18184023438,
+      "picked": 12470921000,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1226,10 +866,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "LUNR",
-      "field": "currentRatio",
-      "ruler": 1.480742,
-      "picked": 4.9572,
+      "ticker": "LVS",
+      "field": "priceToBook",
+      "ruler": 18.396881415102897,
+      "picked": 52.6802,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1250,34 +890,18 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "LYV",
-      "field": "priceToBook",
-      "ruler": 92.53805234086263,
-      "picked": 483.08127,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "MARA",
       "field": "returnOnAssets",
       "ruler": -0.4283802,
-      "picked": -0.26298,
+      "picked": -0.57261381499468,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
     {
-      "ticker": "MARA",
-      "field": "currentRatio",
-      "ruler": 1.126459,
-      "picked": 0.891,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "MCO",
-      "field": "currentRatio",
-      "ruler": 1.175596,
-      "picked": 1.7397,
+      "ticker": "MCD",
+      "field": "priceToBook",
+      "ruler": 617.6252444204706,
+      "picked": -183.751609281369,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1285,7 +909,7 @@
       "ticker": "MDGL",
       "field": "returnOnAssets",
       "ruler": -0.12766441,
-      "picked": -0.17844,
+      "picked": -0.28769138054164,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1314,26 +938,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "MKSI",
-      "field": "currentRatio",
-      "ruler": 1.595347,
-      "picked": 1.144,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "MMM",
-      "field": "priceToBook",
-      "ruler": 23.54099058043831,
-      "picked": 18.0879,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "MNDY",
       "field": "returnOnAssets",
       "ruler": 0.14326761,
-      "picked": 0.013830001,
+      "picked": 0.0626258534830759,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1352,14 +960,6 @@
       "picked": 0.1638,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "MPC",
-      "field": "priceToBook",
-      "ruler": 3.8490422649446137,
-      "picked": 6.5973887,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "MPC",
@@ -1386,22 +986,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "MRK",
-      "field": "priceToBook",
-      "ruler": 6.3674308327743345,
-      "picked": 4.9663,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "MRNA",
-      "field": "priceToBook",
-      "ruler": 3.8114164264655783,
-      "picked": 1.3321,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "MRNA",
       "field": "grossMargin",
       "ruler": 0.1811487,
@@ -1421,15 +1005,7 @@
       "ticker": "MRVL",
       "field": "priceToBook",
       "ruler": 12.674508683345122,
-      "picked": 4.7977,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "MRVL",
-      "field": "currentRatio",
-      "ruler": 3.083842,
-      "picked": 2.0061,
+      "picked": 8.11097957003173,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1438,6 +1014,14 @@
       "field": "totalStockholdersEquity",
       "ruler": 561424875000,
       "picked": 442387000000,
+      "bandRel": 0.2,
+      "bandAbs": 0
+    },
+    {
+      "ticker": "MSTR",
+      "field": "priceToBook",
+      "ruler": 0.9635510705397606,
+      "picked": 0.6875,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1453,7 +1037,7 @@
       "ticker": "MTSI",
       "field": "returnOnAssets",
       "ruler": 0.19154922,
-      "picked": 0.063769996,
+      "picked": 0.116107768573853,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1464,38 +1048,6 @@
       "picked": 0.6568,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "NBIS",
-      "field": "priceToBook",
-      "ruler": 6.424677725810484,
-      "picked": 4.6101,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "NBIX",
-      "field": "currentRatio",
-      "ruler": 2.694661,
-      "picked": 1.872,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "NET",
-      "field": "priceToBook",
-      "ruler": 66.3415021238846,
-      "picked": 47.3284,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "NFLX",
-      "field": "priceToBook",
-      "ruler": 9.534614539714504,
-      "picked": 16.0972,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "NI",
@@ -1514,34 +1066,34 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "NTAP",
-      "field": "priceToBook",
-      "ruler": 24.624029928085616,
-      "picked": 15.8785,
+      "ticker": "NRG",
+      "field": "grossMargin",
+      "ruler": 0.27307911,
+      "picked": 0.18795,
       "bandRel": 0.2,
-      "bandAbs": 0
+      "bandAbs": 0.03
     },
     {
       "ticker": "NTNX",
       "field": "returnOnAssets",
       "ruler": 0.12359952,
-      "picked": 0.045110002,
+      "picked": 0.361675692564174,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
     {
       "ticker": "NTSK",
-      "field": "priceToBook",
-      "ruler": 173.92216786243623,
-      "picked": 68.61979,
+      "field": "returnOnAssets",
+      "ruler": -0.03815365,
+      "picked": -0.37225,
       "bandRel": 0.2,
-      "bandAbs": 0
+      "bandAbs": 0.03
     },
     {
       "ticker": "NVDA",
       "field": "returnOnAssets",
       "ruler": 0.55749542,
-      "picked": 0.8141000000000002,
+      "picked": 0.836767806477922,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1554,42 +1106,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "NVTS",
-      "field": "returnOnAssets",
-      "ruler": -0.43645480999999997,
-      "picked": -0.089899994,
-      "bandRel": 0.2,
-      "bandAbs": 0.03
-    },
-    {
-      "ticker": "ODFL",
-      "field": "priceToBook",
-      "ruler": 9.842598018001762,
-      "picked": 7.6052,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "OKLO",
-      "field": "priceToBook",
-      "ruler": 2.0332088674598183,
-      "picked": 1.5296956,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "OKLO",
       "field": "totalStockholdersEquity",
       "ruler": 2952032227,
       "picked": 1476210000,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "OLLI",
-      "field": "priceToBook",
-      "ruler": 2.5685920419720722,
-      "picked": 3.5749,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1602,14 +1122,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "ON",
-      "field": "priceToBook",
-      "ruler": 5.15860578952847,
-      "picked": 3.8650703,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "ONDS",
       "field": "returnOnAssets",
       "ruler": 0.041403129999999996,
@@ -1618,34 +1130,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "ONDS",
-      "field": "currentRatio",
-      "ruler": 7.053414,
-      "picked": 4.8364,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "ONON",
-      "field": "priceToBook",
-      "ruler": 4.443281199499513,
-      "picked": 7.7568,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "OPEN",
-      "field": "priceToBook",
-      "ruler": 3.2187241243289186,
-      "picked": 1.9067796,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "OPEN",
       "field": "returnOnAssets",
       "ruler": -0.16404764,
-      "picked": -0.109069996,
+      "picked": -0.51840490797546,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1653,7 +1141,7 @@
       "ticker": "ORCL",
       "field": "priceToBook",
       "ruler": 4.428769711024724,
-      "picked": 16.7896,
+      "picked": 6.4329,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1662,22 +1150,6 @@
       "field": "grossMargin",
       "ruler": 0.96042236,
       "picked": 0.53859,
-      "bandRel": 0.2,
-      "bandAbs": 0.03
-    },
-    {
-      "ticker": "OWL",
-      "field": "priceToBook",
-      "ruler": 3.553126114651434,
-      "picked": 10.5656,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "OWL",
-      "field": "returnOnAssets",
-      "ruler": 0.09948407,
-      "picked": 0.006500000000000001,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1693,7 +1165,7 @@
       "ticker": "OWL",
       "field": "currentRatio",
       "ruler": 4.043258,
-      "picked": 0.7516,
+      "picked": 0.8081,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1706,10 +1178,18 @@
       "bandAbs": 0
     },
     {
+      "ticker": "P",
+      "field": "returnOnAssets",
+      "ruler": 0.16805606999999997,
+      "picked": 0.024230001,
+      "bandRel": 0.2,
+      "bandAbs": 0.03
+    },
+    {
       "ticker": "PBR",
       "field": "priceToBook",
       "ruler": 1.3840530250560443,
-      "picked": 0.9767,
+      "picked": 1.0746,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1733,7 +1213,7 @@
       "ticker": "PLUG",
       "field": "grossMargin",
       "ruler": 0.02187978,
-      "picked": -0.24747999,
+      "picked": -0.185456808142059,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1741,25 +1221,9 @@
       "ticker": "PLUG",
       "field": "returnOnAssets",
       "ruler": -0.25312283999999996,
-      "picked": -0.122250006,
+      "picked": -0.591867150011918,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "PODD",
-      "field": "priceToBook",
-      "ruler": 5.42305381188909,
-      "picked": 7.3214025,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "PSX",
-      "field": "priceToBook",
-      "ruler": 2.949538227445507,
-      "picked": 1.7871,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "PSX",
@@ -1794,14 +1258,6 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "QBTS",
-      "field": "currentRatio",
-      "ruler": 7.499773,
-      "picked": 20.545,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "QSI",
       "field": "returnOnAssets",
       "ruler": -0.64095985,
@@ -1826,46 +1282,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "RDDT",
-      "field": "priceToBook",
-      "ruler": 7.156873490216357,
-      "picked": 4.945813,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "RGTI",
-      "field": "priceToBook",
-      "ruler": 10.818181719098773,
-      "picked": 6.9832406,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "RIG",
-      "field": "priceToBook",
-      "ruler": 0.7077222911523294,
-      "picked": 0.92619777,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "RIOT",
-      "field": "priceToBook",
-      "ruler": 3.5524436234508623,
-      "picked": 2.2086208,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "RIOT",
-      "field": "currentRatio",
-      "ruler": 2.77669,
-      "picked": 1.585,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "RIVN",
       "field": "totalStockholdersEquity",
       "ruler": 5090462891,
@@ -1874,26 +1290,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "RKLB",
-      "field": "priceToBook",
-      "ruler": 14.919301996189008,
-      "picked": 21.6411,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "RKLB",
-      "field": "currentRatio",
-      "ruler": 5.21346,
-      "picked": 4.0826,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "RUM",
       "field": "returnOnAssets",
       "ruler": -0.10916335999999999,
-      "picked": -0.059299998,
+      "picked": 0.207677013531697,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1914,26 +1314,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "RVMD",
-      "field": "priceToBook",
-      "ruler": 19.92044434872161,
-      "picked": 15.323058,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "RVMD",
-      "field": "returnOnAssets",
-      "ruler": -0.5777204499999999,
-      "picked": -0.30122,
-      "bandRel": 0.2,
-      "bandAbs": 0.03
-    },
-    {
       "ticker": "RXRX",
       "field": "grossMargin",
       "ruler": -0.42710758,
-      "picked": 0.0349,
+      "picked": 0.0348548928102669,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -1942,14 +1326,6 @@
       "field": "forwardPe",
       "ruler": 40.840191880362845,
       "picked": 78.73867837989299,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "S",
-      "field": "priceToBook",
-      "ruler": 4.442416790156481,
-      "picked": 3.4031,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -1978,22 +1354,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "SHAK",
-      "field": "priceToBook",
-      "ruler": 4.371625094808372,
-      "picked": 6.5959,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "SITM",
-      "field": "currentRatio",
-      "ruler": 5.271955,
-      "picked": 19.445,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "SJM",
       "field": "returnOnAssets",
       "ruler": 0.07084424,
@@ -2011,9 +1371,17 @@
     },
     {
       "ticker": "SMMT",
+      "field": "priceToBook",
+      "ruler": 47.43010494983297,
+      "picked": 19.206549,
+      "bandRel": 0.2,
+      "bandAbs": 0
+    },
+    {
+      "ticker": "SMMT",
       "field": "returnOnAssets",
       "ruler": -0.51597515,
-      "picked": -1.01611,
+      "picked": -2.68152524083451,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -2034,18 +1402,10 @@
       "bandAbs": 0
     },
     {
-      "ticker": "SMR",
-      "field": "currentRatio",
-      "ruler": 24.034483,
-      "picked": 37.88,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "SNOW",
+      "ticker": "SNDK",
       "field": "priceToBook",
-      "ruler": 53.66647461096938,
-      "picked": 33.9123,
+      "ruler": 6.264372804735819,
+      "picked": 13.301361,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -2053,7 +1413,15 @@
       "ticker": "SNOW",
       "field": "returnOnAssets",
       "ruler": 0.07935828,
-      "picked": -0.1261,
+      "picked": -0.129186473104518,
+      "bandRel": 0.2,
+      "bandAbs": 0.03
+    },
+    {
+      "ticker": "SPCE",
+      "field": "grossMargin",
+      "ruler": -17.27580078,
+      "picked": 2.90944123314065,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -2075,17 +1443,25 @@
     },
     {
       "ticker": "STLA",
+      "field": "grossMargin",
+      "ruler": 0.11648225999999999,
+      "picked": 0.06554,
+      "bandRel": 0.2,
+      "bandAbs": 0.03
+    },
+    {
+      "ticker": "STX",
       "field": "priceToBook",
-      "ruler": 0.25751497898113596,
-      "picked": 0.18649833,
+      "ruler": 19.71585880442415,
+      "picked": 70.74097,
       "bandRel": 0.2,
       "bandAbs": 0
     },
     {
-      "ticker": "STLA",
-      "field": "grossMargin",
-      "ruler": 0.11648225999999999,
-      "picked": 0.06554,
+      "ticker": "STX",
+      "field": "returnOnAssets",
+      "ruler": 0.59312977,
+      "picked": 0.29354998,
       "bandRel": 0.2,
       "bandAbs": 0.03
     },
@@ -2122,28 +1498,20 @@
       "bandAbs": 0
     },
     {
-      "ticker": "SYM",
-      "field": "priceToBook",
-      "ruler": 4.974304532361125,
-      "picked": 7.105694,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "TCOM",
-      "field": "priceToBook",
-      "ruler": 1.0958636076731034,
-      "picked": 1.8679,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "TCOM",
       "field": "returnOnAssets",
       "ruler": 0.05844037,
-      "picked": 0.0913,
+      "picked": 0.133624368607368,
       "bandRel": 0.2,
       "bandAbs": 0.03
+    },
+    {
+      "ticker": "TEAM",
+      "field": "priceToBook",
+      "ruler": 8.790840225868935,
+      "picked": 54.49126,
+      "bandRel": 0.2,
+      "bandAbs": 0
     },
     {
       "ticker": "TEAM",
@@ -2162,42 +1530,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "TENB",
-      "field": "priceToBook",
-      "ruler": 17.990349556335183,
-      "picked": 24.827394,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "TER",
-      "field": "priceToBook",
-      "ruler": 17.848793331518333,
-      "picked": 10.8426,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "TM",
-      "field": "priceToBook",
-      "ruler": 0.8643876645781231,
-      "picked": 15.718718,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "TME",
       "field": "priceToBook",
       "ruler": 1.0560351653094495,
       "picked": 2.0805,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "TOST",
-      "field": "priceToBook",
-      "ruler": 6.696967534557217,
-      "picked": 8.939053,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -2218,10 +1554,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "TSM",
-      "field": "priceToBook",
-      "ruler": 9.421754074772856,
-      "picked": 7.2731,
+      "ticker": "TROW",
+      "field": "currentRatio",
+      "ruler": 1.413491,
+      "picked": 4.039,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -2229,17 +1565,9 @@
       "ticker": "TTWO",
       "field": "returnOnAssets",
       "ruler": 0.12764303,
-      "picked": -0.00621,
+      "picked": -0.0341789166008833,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "TXN",
-      "field": "priceToBook",
-      "ruler": 13.820734611729483,
-      "picked": 9.687,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "TXRH",
@@ -2258,14 +1586,6 @@
       "bandAbs": 0
     },
     {
-      "ticker": "UMC",
-      "field": "priceToBook",
-      "ruler": 4.50050832309062,
-      "picked": 1.6408,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "UNH",
       "field": "totalStockholdersEquity",
       "ruler": 105376539062,
@@ -2275,25 +1595,9 @@
     },
     {
       "ticker": "USAR",
-      "field": "grossMargin",
-      "ruler": 0.23644801999999998,
-      "picked": -0.097399995,
-      "bandRel": 0.2,
-      "bandAbs": 0.03
-    },
-    {
-      "ticker": "USAR",
       "field": "totalStockholdersEquity",
       "ruler": 2295000000,
       "picked": -17031223,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "USAR",
-      "field": "currentRatio",
-      "ruler": 21.705883,
-      "picked": 32.787,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -2322,28 +1626,12 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "VG",
-      "field": "priceToBook",
-      "ruler": 3.110902734687808,
-      "picked": 4.057401,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "VIST",
       "field": "grossMargin",
       "ruler": 0.42130531,
       "picked": 0.82515,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "VLO",
-      "field": "priceToBook",
-      "ruler": 3.9839522461173056,
-      "picked": 2.0928,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "VLO",
@@ -2354,10 +1642,10 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "VNOM",
-      "field": "currentRatio",
-      "ruler": 8.951417,
-      "picked": 6.374,
+      "ticker": "VNET",
+      "field": "priceToBook",
+      "ruler": 2.030786020411075,
+      "picked": 3.3807917,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -2386,28 +1674,12 @@
       "bandAbs": 0.03
     },
     {
-      "ticker": "WAT",
-      "field": "priceToBook",
-      "ruler": 14.898377302950673,
-      "picked": 3.0221853,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "WDAY",
       "field": "returnOnAssets",
       "ruler": 0.15352251,
       "picked": 0.0738,
       "bandRel": 0.2,
       "bandAbs": 0.03
-    },
-    {
-      "ticker": "WDC",
-      "field": "priceToBook",
-      "ruler": 10.307396882024145,
-      "picked": 15.238247,
-      "bandRel": 0.2,
-      "bandAbs": 0
     },
     {
       "ticker": "WDC",
@@ -2428,7 +1700,7 @@
     {
       "ticker": "WOLF",
       "field": "priceToBook",
-      "ruler": 1.9625000000000001,
+      "ruler": 1.861607142857143,
       "picked": 1.2325463,
       "bandRel": 0.2,
       "bandAbs": 0
@@ -2453,7 +1725,7 @@
       "ticker": "WPM",
       "field": "currentRatio",
       "ruler": 1.330142,
-      "picked": 7.7846,
+      "picked": 0.466,
       "bandRel": 0.2,
       "bandAbs": 0
     },
@@ -2474,28 +1746,20 @@
       "bandAbs": 0
     },
     {
-      "ticker": "WYNN",
-      "field": "currentRatio",
-      "ruler": 0.880594,
-      "picked": 1.6331,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
-      "ticker": "XPEV",
-      "field": "priceToBook",
-      "ruler": 3.26752941218029,
-      "picked": 4.2614,
-      "bandRel": 0.2,
-      "bandAbs": 0
-    },
-    {
       "ticker": "XPO",
       "field": "forwardPe",
       "ruler": 31.708290860606763,
       "picked": 45.64302887958514,
       "bandRel": 0.2,
       "bandAbs": 0
+    },
+    {
+      "ticker": "ZM",
+      "field": "returnOnAssets",
+      "ruler": 0.13194459,
+      "picked": 0.06107,
+      "bandRel": 0.2,
+      "bandAbs": 0.03
     }
   ]
 }

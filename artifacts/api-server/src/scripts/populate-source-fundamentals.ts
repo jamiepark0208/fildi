@@ -16,6 +16,16 @@ import {
   avFundamentals,
   sourceFundamentals,
 } from "@workspace/db";
+import { finnhubFieldTimelinessMs, finnhubQuarterlyOrAnnual } from "../lib/finnhub-metric-period.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const execFileAsync = promisify(execFile);
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const SEC_SYNC_PY = join(REPO_ROOT, "scripts/watchlist_sync/dcf/sec_gold_fields.py");
+const WATCHLIST_VENV = join(REPO_ROOT, "scripts/watchlist_sync/.venv/bin/python");
 
 type Row = Record<string, unknown>;
 
@@ -233,6 +243,8 @@ async function populateFromTable(
   fieldMap: Record<string, string>,
   fetchedAtKey: string,
   transforms: Record<string, (v: number) => number> = {},
+  fetchedAtForField?: (row: Row, canonical: string, defaultAt: Date) => Date,
+  valueOverride?: (row: Row, canonical: string, numVal: number) => number | undefined,
 ) {
   let tickers = 0;
   let totalFields = 0;
@@ -248,9 +260,12 @@ async function populateFromTable(
       if (val === null || val === undefined) continue;
       let numVal = typeof val === "string" ? parseFloat(val) : Number(val);
       if (!isFinite(numVal)) continue;
+      const overridden = valueOverride?.(row, canonical, numVal);
+      if (overridden !== undefined && isFinite(overridden)) numVal = overridden;
       if (transforms[canonical]) numVal = transforms[canonical](numVal);
       if (isRejected(canonical, numVal)) { rejected++; continue; }
-      batch.push({ ticker, source, field: canonical, value: String(numVal), fetchedAt });
+      const at = fetchedAtForField?.(row, canonical, fetchedAt) ?? fetchedAt;
+      batch.push({ ticker, source, field: canonical, value: String(numVal), fetchedAt: at });
     }
 
     if (batch.length === 0) continue;
@@ -272,6 +287,35 @@ async function populateFromTable(
   }
 
   return { tickers, totalFields, rejected };
+}
+
+async function loadFinnhubMetricByTicker(tickers: string[]): Promise<Map<string, Record<string, unknown>>> {
+  const out = new Map<string, Record<string, unknown>>();
+  if (tickers.length === 0) return out;
+  const res = await db.execute(sql`
+    SELECT DISTINCT ON (key) key AS ticker, payload->'metric' AS metric
+    FROM vendor_raw
+    WHERE source = 'finnhub'
+      AND endpoint = '/api/v1/stock/metric?metric=all'
+      AND key IN (${sql.join(tickers.map((t) => sql`${t}`), sql`, `)})
+    ORDER BY key, fetched_on DESC
+  `);
+  const list = (Array.isArray(res) ? res : (res as unknown as { rows?: { ticker: string; metric: unknown }[] }).rows) ?? [];
+  for (const row of list) {
+    const m = row.metric;
+    if (m && typeof m === "object") out.set(String(row.ticker).toUpperCase(), m as Record<string, unknown>);
+  }
+  return out;
+}
+
+export async function syncSecSourceFundamentals(tickers?: string[]): Promise<void> {
+  const py = WATCHLIST_VENV;
+  const args = tickers?.length ? tickers : ["--scored-book"];
+  await execFileAsync(py, [SEC_SYNC_PY, ...args], {
+    cwd: REPO_ROOT,
+    timeout: 600_000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -297,12 +341,41 @@ export async function runPopulateSourceFundamentals() {
   console.log(`  → ${edgar.tickers} tickers, ${edgar.totalFields} fields, ${edgar.rejected} rejected`);
 
   console.log("Populating from finnhub_fundamentals …");
+  const finnhubMetrics = await loadFinnhubMetricByTicker(
+    (finnhubRows as Row[]).map((r) => String(r["ticker"]).toUpperCase()),
+  );
+  const finnhubTimelinessFields = new Set(["currentRatio", "priceToBook", "quickRatio"]);
   // Finnhub is inconsistent: most tickers are already decimal (0.0287 = 2.87%),
   // but some (e.g. AAPL) store percent points (0.35 = 0.35%). Values >20% as a
   // fraction are rare in our universe — treat those as percent points.
-  const finnhub = await populateFromTable(finnhubRows as Row[], "finnhub", FINNHUB_FIELDS, "fetchedAt", {
-    dividendYield: (v) => (v > 0.2 ? v / 100 : v),
-  });
+  const finnhub = await populateFromTable(
+    finnhubRows as Row[],
+    "finnhub",
+    FINNHUB_FIELDS,
+    "fetchedAt",
+    { dividendYield: (v) => (v > 0.2 ? v / 100 : v) },
+    (row, canonical, defaultAt) => {
+      if (!finnhubTimelinessFields.has(canonical)) return defaultAt;
+      const ticker = String(row["ticker"]).toUpperCase();
+      const metric = finnhubMetrics.get(ticker);
+      return new Date(finnhubFieldTimelinessMs(metric, canonical, defaultAt));
+    },
+    (row, canonical) => {
+      if (!finnhubTimelinessFields.has(canonical)) return undefined;
+      const metric = finnhubMetrics.get(String(row["ticker"]).toUpperCase());
+      if (!metric) return undefined;
+      if (canonical === "currentRatio") {
+        return finnhubQuarterlyOrAnnual(metric, "currentRatioQuarterly", "currentRatioAnnual");
+      }
+      if (canonical === "priceToBook") {
+        return finnhubQuarterlyOrAnnual(metric, "pbQuarterly", "pbAnnual");
+      }
+      if (canonical === "quickRatio") {
+        return finnhubQuarterlyOrAnnual(metric, "quickRatioQuarterly", "quickRatioAnnual");
+      }
+      return undefined;
+    },
+  );
   console.log(`  → ${finnhub.tickers} tickers, ${finnhub.totalFields} fields, ${finnhub.rejected} rejected`);
 
   console.log("Populating from fmp_fundamentals …");
@@ -352,6 +425,15 @@ export async function runPopulateSourceFundamentals() {
     ON CONFLICT (ticker, source, field) DO NOTHING
   `);
   console.log("  → fill-in complete (only where source had PE+growth but no PEG)");
+
+  console.log("\nSyncing SEC TTM → source_fundamentals (sec, filed date = timeliness) …");
+  try {
+    await syncSecSourceFundamentals();
+    console.log("  → sec sync complete");
+  } catch (err) {
+    console.error("  → sec sync failed:", err);
+    throw err;
+  }
 }
 
 // CLI entrypoint only — when imported (e.g. by nightly-enrichment running in the
