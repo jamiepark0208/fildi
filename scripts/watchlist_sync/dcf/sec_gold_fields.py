@@ -69,7 +69,16 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
     rev = F.ttm_flow(facts, F.FLOWS["revenue"])
     ocf = F.ttm_flow(facts, F.FLOWS["ocf"])
     capex = F.ttm_flow(facts, F.FLOWS["capex"])
-    ni = F.ttm_flow(facts, F.FLOWS["net_income"])
+    # 11-03: net income / margin to common too — FLOWS["net_income"] picks the largest tag (ProfitLoss incl. minority: TKO 661 M vs 230 M)
+    ni = _roa_ni_numerator(facts, rev)
+    if ni is None:   # filer tags only ProfitLoss (AEIS, FLEX, GWRE) or no revenue TTM: fine when there is no minority stake
+        nil = F.ttm_flow(facts, ["NetIncomeLoss"])   # attributable to the parent: right with or without a minority stake
+        pl = F.ttm_flow(facts, ["ProfitLoss"])
+        if nil and (not pl or nil["end"] >= pl["end"]):   # a tag the filer stopped using must not win (AEIS NetIncomeLoss)
+            ni = nil
+        elif pl:
+            nci = F.balance(facts, ["MinorityInterest"], pl["end"])
+            ni = pl if not (nci and nci.get("value")) else None
     op = F.ttm_flow(facts, F.FLOWS["operating_income"])
     gp = _gross_profit(facts, rev)
     asof = (rev or ocf or ni or {}).get("end") or date.today().isoformat()
