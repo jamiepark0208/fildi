@@ -1,0 +1,9 @@
+{
+  "source": "scripts/watchlist_sync/put_consistency.py",
+  "sha256": "b387a3df999cc4d0df512b281b46113a4c4e885d33e16940eced1dbd8af41cbf",
+  "case": "All source tables empty must not pass strict verification",
+  "actual_exit": 0,
+  "expected_exit": 1,
+  "output": "",
+  "pass": false
+}

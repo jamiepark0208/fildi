@@ -1,0 +1,47 @@
+{
+  "source": "artifacts/api-server/src/lib/option-score-snapshots.ts",
+  "sha256": "27a5e52d0a2a418442c23cd3de7092a70480a4f4a7ad5f81c5244f5151600f8c",
+  "results": [
+    {
+      "label": "Healthy engine works without legacy snapshots",
+      "expected": [
+        {
+          "strike": 100,
+          "engine": true
+        }
+      ],
+      "actual": [],
+      "engineReads": 0,
+      "pass": false
+    },
+    {
+      "label": "Missing engine never silently substitutes another picker",
+      "expected": [],
+      "actual": [
+        {
+          "strike": 105,
+          "engine": false
+        }
+      ],
+      "engineReads": 1,
+      "pass": false
+    },
+    {
+      "label": "Healthy engine overrides a conflicting legacy snapshot",
+      "expected": [
+        {
+          "strike": 100,
+          "engine": true
+        }
+      ],
+      "actual": [
+        {
+          "strike": 100,
+          "engine": true
+        }
+      ],
+      "engineReads": 1,
+      "pass": true
+    }
+  ]
+}
