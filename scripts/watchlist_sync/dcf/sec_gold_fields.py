@@ -12,18 +12,29 @@ from build_plan import connect, rows  # noqa: E402
 import financials as F  # noqa: E402
 
 EQ = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"]
-# ROA: NI attributable to common only (not consolidated NI with minority interest).
-NI_COMMON = [
-    "NetIncomeLossAvailableToCommonStockholdersBasic",
-    "NetIncomeLossAvailableToCommonStockholdersDiluted",
-]
+ROA_NI_CONCEPTS = (
+    ["NetIncomeLossAvailableToCommonStockholdersBasic"],
+    ["NetIncomeLoss"],
+)
+
+
+def _roa_ni_numerator(facts: dict, rev: dict | None) -> dict | None:
+    """Basic NI to common, else NetIncomeLoss; never Diluted. TTM end must be ≥ revenue TTM end."""
+    if not rev:
+        return None
+    rev_end = str(rev["end"])[:10]
+    for concepts in ROA_NI_CONCEPTS:
+        ni = F.ttm_flow(facts, concepts)
+        if ni and str(ni["end"])[:10] >= rev_end:
+            return ni
+    return None
 
 
 def _load_facts(conn, ticker: str) -> dict | None:
     """Prefer vendor_raw; refresh from SEC when trimmed cache lacks net_income (ROA/NI)."""
     facts = F.stored_facts(conn, ticker)
     gaap = (facts or {}).get("facts", {}).get("us-gaap", {}) or {}
-    if facts and any(c in gaap for c in F.FLOWS["net_income"]):
+    if facts and any(c in gaap for c in F.FLOWS["net_income"]) and "Assets" in gaap:
         return facts
     return F.companyfacts(conn, ticker)
 
@@ -87,7 +98,7 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
     if rev and ni and rev["value"]:
         add("netMargin", ni["value"] / rev["value"], rev)
 
-    ni_common = F.ttm_flow(facts, NI_COMMON)
+    ni_common = _roa_ni_numerator(facts, rev)
     assets = F.balance(facts, ["Assets"], asof)
     if ni_common and assets and assets.get("value"):
         prior_end = (date.fromisoformat(assets["end"]) - timedelta(days=360)).isoformat()
