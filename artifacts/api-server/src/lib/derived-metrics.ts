@@ -123,6 +123,66 @@ export function computeEvRatio(
   return isFinite(ratio) ? ratio : null;
 }
 
+/** Same tolerance used for P/S currency-mix gate and per-ratio vendor agreement. */
+export function priceRatiosAgree(derived: number, vendor: number): boolean {
+  const absA = Math.abs(derived);
+  const absB = Math.abs(vendor);
+  const maxAbs = Math.max(absA, absB);
+  const minAbs = Math.min(absA, absB);
+  if (maxAbs < 0.02) return true;
+  if ((derived > 0) !== (vendor > 0)) return false;
+  if (minAbs > 0 && maxAbs / minAbs >= 3) return false;
+  const absDiff = Math.abs(derived - vendor);
+  if (absDiff / maxAbs > 0.25) return false;
+  return true;
+}
+
+/** EV/EBITDA outside this band is not gold (vendor garbage or unit mix). */
+export function isEvEbitdaGoldCandidate(val: number): boolean {
+  return isFinite(val) && val > 0 && val <= 200;
+}
+
+/** GICS Financials — EV ratios are not meaningful on banks/brokers. */
+export function isGicsFinancialsSector(sector: string | null | undefined): boolean {
+  if (!sector?.trim()) return false;
+  return /financial/i.test(sector.trim());
+}
+
+/**
+ * Force-derived price ratio from USD close + gold levels.
+ * USD filers: always when math is defined.
+ * Unknown currency: only when derived agrees with that field's current vendor gold.
+ */
+export function shouldForceDerivedPriceRatio(opts: {
+  financialCurrency: string | null | undefined;
+  derived: number | null;
+  vendorGold: number | null | undefined;
+  /** Other vendor ratios for the same field (priority order) when currency is unknown. */
+  vendorAlternates?: Array<number | null | undefined>;
+}): boolean {
+  const fc = opts.financialCurrency?.trim().toUpperCase();
+  if (fc && fc !== "USD") return false;
+  if (opts.derived == null || !isFinite(opts.derived)) return false;
+  if (fc === "USD") return true;
+  const vendors = [opts.vendorGold, ...(opts.vendorAlternates ?? [])].filter(
+    (v): v is number => v != null && isFinite(v),
+  );
+  if (vendors.length === 0) return false;
+  return vendors.some((v) => priceRatiosAgree(opts.derived!, v));
+}
+
+/** GICS Financials and financial peer groups — EV ratios are not meaningful. */
+export function skipDerivedEvRatios(opts: {
+  sector: string | null | undefined;
+  peerGroupId: string | null | undefined;
+}): boolean {
+  if (isGicsFinancialsSector(opts.sector)) return true;
+  const pg = opts.peerGroupId?.trim() ?? "";
+  if (/^financials\./i.test(pg)) return true;
+  if (/(broker|capital_markets|asset_management|investment_bank)/i.test(pg)) return true;
+  return false;
+}
+
 /** True when gold levels are in USD (or agree with vendor P/S); else keep vendor ratios. */
 export function canDerivePriceRatiosFromUsdClose(opts: {
   financialCurrency: string | null | undefined;
@@ -136,17 +196,8 @@ export function canDerivePriceRatiosFromUsdClose(opts: {
   if (fc === "USD") return true;
   const derivedPs = computePriceToSales(opts.price, opts.revenue, opts.shares);
   const vendorPs = opts.vendorPriceToSales;
-  if (derivedPs == null || vendorPs == null) return true;
-  const absA = Math.abs(derivedPs);
-  const absB = Math.abs(vendorPs);
-  const maxAbs = Math.max(absA, absB);
-  const minAbs = Math.min(absA, absB);
-  if (maxAbs < 0.02) return true;
-  if ((derivedPs > 0) !== (vendorPs > 0)) return false;
-  if (minAbs > 0 && maxAbs / minAbs >= 3) return false;
-  const absDiff = Math.abs(derivedPs - vendorPs);
-  if (absDiff / maxAbs > 0.25) return false;
-  return true;
+  if (derivedPs == null || vendorPs == null) return false;
+  return priceRatiosAgree(derivedPs, vendorPs);
 }
 
 export function computePriceToBook(

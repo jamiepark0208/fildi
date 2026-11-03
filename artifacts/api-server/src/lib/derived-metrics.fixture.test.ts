@@ -14,6 +14,9 @@ import {
   computePeFromPriceEps,
   resolvePegGrowth,
   canDerivePriceRatiosFromUsdClose,
+  shouldForceDerivedPriceRatio,
+  isEvEbitdaGoldCandidate,
+  isGicsFinancialsSector,
   computePriceToSales,
 } from "../lib/derived-metrics.js";
 
@@ -107,6 +110,31 @@ describe("price-ratio derive gate (USD close)", () => {
       }),
       false,
     );
+  });
+
+  it("per-ratio gate: unknown currency requires vendor agreement (TCOM-shaped P/E leak)", () => {
+    assert.equal(
+      shouldForceDerivedPriceRatio({
+        financialCurrency: null,
+        derived: 1.19,
+        vendorGold: 20,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldForceDerivedPriceRatio({
+        financialCurrency: null,
+        derived: 19,
+        vendorGold: 20,
+      }),
+      true,
+    );
+  });
+
+  it("EV/EBITDA gold band rejects Yahoo garbage", () => {
+    assert.equal(isEvEbitdaGoldCandidate(2059), false);
+    assert.equal(isEvEbitdaGoldCandidate(35.7), true);
+    assert.equal(isGicsFinancialsSector("Financial Services"), true);
   });
 });
 

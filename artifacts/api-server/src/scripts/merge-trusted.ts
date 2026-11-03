@@ -39,7 +39,9 @@ import {
   computeOperatingMargin,
   computeReturnOnEquity,
   resolvePegGrowth,
-  canDerivePriceRatiosFromUsdClose,
+  shouldForceDerivedPriceRatio,
+  isEvEbitdaGoldCandidate,
+  skipDerivedEvRatios,
 } from "../lib/derived-metrics.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -306,6 +308,7 @@ function resolveFromIndex(
     if (seenSrc.has(src)) continue;
     const val = byField.get(sfField)?.get(src);
     if (val === undefined || !isFinite(val)) continue;
+    if (tf === "evEbitda" && !isEvEbitdaGoldCandidate(val)) continue;
     // EDGAR sometimes stores 0 shares. That is missing, not a count. A real
     // count from an older pull (Yahoo) has to be allowed to win.
     if ((tf === "sharesOutstanding" || tf === "sharesOutstandingPrior") && val <= 0) continue;
@@ -491,8 +494,17 @@ export async function writeProvenance(
 export async function runMergeTrusted() {
   const { ensureVendorRawSchema } = await import("../lib/vendor-raw.js");
   await ensureVendorRawSchema();
-  const regRows = await db.select({ ticker: tickerRegistry.ticker }).from(tickerRegistry).where(eq(tickerRegistry.fetchFundamentals, true));
+  const regRows = await db
+    .select({
+      ticker: tickerRegistry.ticker,
+      sector: tickerRegistry.sector,
+      peerGroupId: tickerRegistry.primaryPeerGroupId,
+    })
+    .from(tickerRegistry)
+    .where(eq(tickerRegistry.fetchFundamentals, true));
   const trackedTickers = new Set(regRows.map(r => r.ticker));
+  const sectorByTicker = new Map(regRows.map((r) => [r.ticker, r.sector ?? null]));
+  const peerGroupByTicker = new Map(regRows.map((r) => [r.ticker, r.peerGroupId ?? null]));
   console.log(`Canonical universe: ${trackedTickers.size} tickers (fetch_fundamentals=true in ticker_registry)\n`);
 
   const [sfRows, overrideRows, existingRows, provRows] = await Promise.all([
@@ -697,21 +709,51 @@ export async function runMergeTrusted() {
     fillIfMissing("debtToEquity", computeDebtToEquity(update.totalDebt, update.totalStockholdersEquity));
     // Price ratios always use the latest close and the gold level already picked.
     // A vendor P/E from July is not comparable with one from November.
-    const vendorPsForGate =
-      update.priceToSales ??
-      byField.get("priceToSales")?.get("yahoo") ??
-      byField.get("psRatio")?.get("finnhub") ??
-      byField.get("priceToSales")?.get("fmp") ??
-      null;
-    const derivePriceRatios = canDerivePriceRatiosFromUsdClose({
-      financialCurrency: financialCurrencyByTicker.get(ticker),
-      price,
-      revenue: update.totalRevenue,
-      shares: update.sharesOutstanding,
-      vendorPriceToSales: vendorPsForGate,
+    const financialCurrency = financialCurrencyByTicker.get(ticker);
+    const skipEvDerive = skipDerivedEvRatios({
+      sector: sectorByTicker.get(ticker),
+      peerGroupId: peerGroupByTicker.get(ticker),
     });
+    const vendorRatioAlternates = (tfCol: string): number[] => {
+      const def = VALID_FIELD_DEFS.find((d) => (d.tfCol as string) === tfCol);
+      if (!def) return [];
+      const out: number[] = [];
+      const seen = new Set<string>();
+      for (const [src, sfField] of def.priority) {
+        if (seen.has(src)) continue;
+        seen.add(src);
+        const v = byField.get(sfField)?.get(src);
+        if (v != null && isFinite(v)) out.push(v);
+      }
+      return out;
+    };
     const forceDerived = (field: string, value: number | null) => {
-      if (!derivePriceRatios) return;
+      if (skipEvDerive && (field === "evEbitda" || field === "evRevenue")) return;
+      if ((field === "evEbitda" || field === "evRevenue") && value != null && value < 0) return;
+      const vendorGold = update[field] ?? null;
+      const alternates = vendorRatioAlternates(field).filter(
+        (v) => vendorGold == null || Math.abs(v - vendorGold) > 1e-9,
+      );
+      let allowForce = shouldForceDerivedPriceRatio({
+        financialCurrency,
+        derived: value,
+        vendorGold,
+        vendorAlternates: alternates,
+      });
+      if (
+        !allowForce &&
+        field === "evEbitda" &&
+        value != null &&
+        isEvEbitdaGoldCandidate(value) &&
+        vendorGold != null &&
+        isFinite(vendorGold) &&
+        !isEvEbitdaGoldCandidate(vendorGold)
+      ) {
+        allowForce = true;
+      }
+      if (!allowForce) {
+        return;
+      }
       if (overrideIndex.get(`${ticker}:${field}`)) return;
       const prior = provenanceBatch.find((p) => p.field === field);
       if (prior?.result.isOverride) return;
@@ -732,7 +774,15 @@ export async function runMergeTrusted() {
         changedFields.splice(idx, 1);
       }
     };
-    forceDerived("peRatio", computePeFromPriceEps(price, update.earningsPerShare));
+    for (const peCandidate of [
+      computePeFromPriceEps(price, byField.get("earningsPerShare")?.get("factset") ?? null),
+      computePeFromPriceEps(price, byField.get("trailingEps")?.get("yahoo") ?? null),
+      computePeFromPriceEps(price, update.earningsPerShare),
+    ]) {
+      if (peCandidate == null) continue;
+      forceDerived("peRatio", peCandidate);
+      if (provenanceBatch.find((p) => p.field === "peRatio")?.result.source === "derived") break;
+    }
     forceDerived(
       "priceToBook",
       computePriceToBook(price, update.totalStockholdersEquity, update.sharesOutstanding),
@@ -751,6 +801,47 @@ export async function runMergeTrusted() {
       "evRevenue",
       computeEvRatio(price, update.sharesOutstanding, update.totalDebt, update.cashAndEquivalents, update.totalRevenue),
     );
+    {
+      let evGold: number | null =
+        update.evEbitda ??
+        (existing?.evEbitda != null && existing.evEbitda !== ""
+          ? Number(existing.evEbitda)
+          : null);
+      if (evGold != null && Number.isFinite(evGold) && !isEvEbitdaGoldCandidate(evGold)) {
+        const derivedEv = skipEvDerive
+          ? null
+          : computeEvRatio(
+              price,
+              update.sharesOutstanding,
+              update.totalDebt,
+              update.cashAndEquivalents,
+              update.ebitda,
+            );
+        if (derivedEv != null && isEvEbitdaGoldCandidate(derivedEv)) {
+          update.evEbitda = derivedEv;
+          sourceUsage["derived"] = (sourceUsage["derived"] ?? 0) + 1;
+          const prev = provenanceBatch.find((p) => p.field === "evEbitda");
+          const result = { source: "derived", value: derivedEv, isOverride: false, divergent: false };
+          if (prev) prev.result = result;
+          else provenanceBatch.push({ field: "evEbitda", result });
+        } else {
+          (update as Record<string, unknown>).evEbitda = null;
+          const prev = provenanceBatch.find((p) => p.field === "evEbitda");
+          const nr = { source: "none", value: evGold, isOverride: false, divergent: true };
+          if (prev) prev.result = nr;
+          else provenanceBatch.push({ field: "evEbitda", result: nr });
+        }
+      }
+    }
+    if (skipEvDerive) {
+      for (const f of ["evEbitda", "evRevenue"] as const) {
+        const pb = provenanceBatch.find((p) => p.field === f);
+        if (pb?.result.source === "derived") {
+          (update as Record<string, unknown>)[f] = null;
+          pb.result = { source: "none", value: pb.result.value, isOverride: false, divergent: true };
+        }
+      }
+    }
     // Gross profit only when the same source has both legs. Do not mix a Yahoo margin with an EDGAR revenue.
     if (update.grossProfit == null) {
       for (const src of ["yahoo", "finnhub", "fmp", "edgar"] as const) {
