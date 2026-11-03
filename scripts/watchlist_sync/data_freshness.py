@@ -47,7 +47,11 @@ CHECKS = [
     ("watchlist_sync.put_ladder", "as_of", 8, "Rankings › Put ladder · weekly S088 run (daily.py --if-due)"),
     ("watchlist_sync.long_option_board", "as_of", 3, "Rankings › Long options · daily.py S086 step"),
 ]
-PER_NAME = [("optlab.underlying", "date", "ticker"), ("lseg_research.daily_history", "date", "ticker")]
+# (table, date col, key, active-names filter). 11-03: names that left option_history's universe (book / top-30 recs change)
+# stop updating by design — only names it fetched in the last 3 days can be frozen (16/63 false alarm on 11-02).
+PER_NAME = [("optlab.underlying", "date", "ticker",
+             "ticker IN (SELECT ticker FROM optlab.underlying_fetched WHERE fetched_at > now() - interval '3 days')"),
+            ("lseg_research.daily_history", "date", "ticker", "TRUE")]
 FUTURE = [("public.indicator_cache", "scored_date"), ("public.option_score_snapshots", "as_of"), ("public.model_recs", "snapshot_date")]
 MISSING_INPUT_MAX_SHARE = 0.15   # A243 10-22: 83/180 (46 %) of sell-put candidates blocked for missing inputs, no check caught it
 
@@ -169,10 +173,10 @@ def main() -> None:
         if bad or show_all:
             lines.append(f"{'✗' if bad else '✓'} {table}: newest {last} · {lag} trading day(s) behind {ref} (max {max_lag}) — {what}")
     # per-name staleness: MAX over all names hid optlab.underlying freezing name by name (10-20)
-    for table, col, key in PER_NAME:
+    for table, col, key, active in PER_NAME:
         try:
             n_all, n_old = conn.execute(f"SELECT COUNT(*), COUNT(*) FILTER (WHERE m < %s) FROM (SELECT {key}, MAX({col}) m "
-                                        f"FROM {table} GROUP BY {key}) x", (ref - timedelta(days=4),)).fetchone()
+                                        f"FROM {table} WHERE {active} GROUP BY {key}) x", (ref - timedelta(days=4),)).fetchone()
         except Exception:
             conn.rollback()
             continue

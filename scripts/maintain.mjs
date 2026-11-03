@@ -388,7 +388,7 @@ function runModelListDaily() {
   const r = spawnSync(join(dir, ".venv/bin/python"), ["daily.py", "--if-needed"], {
     encoding: "utf8",
     cwd: dir,
-    // 11-03: was 45 min — a full run takes ~76 min (11-02), so every attempt was killed mid-model and the list never published
+    // Hang guard only: steps carry their own 30-min limit and a killed run resumes at its unfinished step (11-03).
     timeout: 120 * 60 * 1000,
   });
   return {
@@ -1007,7 +1007,10 @@ async function main() {
     //      only, once per ET day. Its failure is reported on its own, never as a stack failure.
     //      Not before 10:00 ET: opening-half-hour spreads fail L2. Late-open (A236) builds the list on yesterday's
     //      scores + fresh prices/earnings, then catches up heavy data below.
-    modelList = etHour() >= 10 ? runModelListDaily()
+    const dayState = readJson(DAY_STATE) || {};
+    modelList = dayState.day === etDay() && dayState.modelListBlocked
+      ? { status: 2, stdoutTail: `skip: needs action (${dayState.modelListBlocked}) — retrying cannot fix it`, ms: 0 }
+      : etHour() >= 10 ? runModelListDaily()
       : { status: 0, stdoutTail: "skip: market closed — the list builds at 10:00 ET (opening spreads)", ms: 0 };
     timings.modelList = modelList.ms;
     actions.push(`model_list_exit_${modelList.status}`);
@@ -1367,7 +1370,12 @@ async function main() {
       /^(backfill_stale_prices|backfill_market_breadth|enrich_earnings|post_merge_scores|morning_precompute)_exit_(?!0(_|$))/.test(a));
     const st = readJson(DAY_STATE) || {};
     const dataDone = dataDoneToday || dataFailed.length === 0;
-    const waitingForOpen = modelList?.status === 0 && !modelListDoneToday(modelList);
+    // 11-03: daily.py exit codes carry the failure cause. 75 = network / vendor outage or another run in progress → refund,
+    // retry next fire. 2 = auth (Jamie) or code error (agent) → no more attempts today, raise it. 1 / killed = resume next fire.
+    const waitingForOpen = (modelList?.status === 0 && !modelListDoneToday(modelList)) || modelList?.status === 75;
+    const needsAction = modelList?.status === 2
+      ? (/cause: (\w+)/.exec(modelList.stdoutTail || "")?.[1] ?? st.modelListBlocked ?? "unknown") : null;
+    if (needsAction) actions.push(`model_list_needs_action:${needsAction}`);
     writeFileSync(DAY_STATE, JSON.stringify({
       ...st,
       day: etDay(),
@@ -1376,6 +1384,7 @@ async function main() {
       done: dataDone && modelListDoneToday(modelList),
       // waiting ≠ failing — refund even when a data step failed (10-22: stale-prices exit 2 burned all 3 pre-open → no list; A243)
       attempts: waitingForOpen ? Math.max(0, (st.attempts || 1) - 1) : st.attempts,
+      modelListBlocked: needsAction ?? undefined,
       finishedAt: new Date().toISOString(),
     }));
   }

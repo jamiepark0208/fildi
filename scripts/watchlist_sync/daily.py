@@ -152,13 +152,51 @@ def full_run_on(d) -> bool:
     return False
 
 
+STEP_TIMEOUT_S = 1800
+
+# 11-03 failure causes (first match wins) → what the scheduler does next. A blind retry re-ran the whole chain into the same
+# wall; now: network/vendor outage → defer (attempt refunded), auth → needs Jamie, code error → needs an agent, timeout →
+# resume at that step next attempt.
+CAUSES = [
+    ("network", r"ENOTFOUND|getaddrinfo|EADDRNOTAVAIL|ECONNREFUSED|ENETUNREACH|Network is unreachable|nodename nor servname|"
+                r"Temporary failure in name resolution|No route to host|fetch failed"),
+    ("auth", r"\b401\b|Unauthorized|refresh token|invalid_grant|re-?auth|login required|Duo"),
+    ("vendor", r"\b(429|502|503|504)\b|rate limit|circuit open|vendor unreachable|ReadTimeout|timed out"),
+    ("code", r"Traceback \(most recent call last\)|SyntaxError|TypeError|NameError|AttributeError|KeyError|ImportError|ModuleNotFoundError"),
+]
+
+
+def cause_of(r: dict) -> str:
+    if r["ok"]:
+        return "ok"
+    if r["code"] == 124:
+        return "timeout"
+    import re
+    for cause, pat in CAUSES:
+        if re.search(pat, r.get("full") or r["tail"] or ""):
+            return cause
+    return "other"
+
+
 def run(name, py, cwd, args) -> dict:
     t0 = time.time()
-    p = subprocess.run([str(py), *args], cwd=cwd, capture_output=True, text=True, timeout=1800,
-                       env={**os.environ, "LSEG_PRIORITY": "1"})  # production: LSEG reserve over research pulls
-    out = "\n".join(l for l in (p.stdout + p.stderr).splitlines() if "Warning" not in l)
+    try:
+        p = subprocess.run([str(py), *args], cwd=cwd, capture_output=True, text=True, timeout=STEP_TIMEOUT_S,
+                           env={**os.environ, "LSEG_PRIORITY": "1"})  # production: LSEG reserve over research pulls
+        code, raw = p.returncode, p.stdout + p.stderr
+    except subprocess.TimeoutExpired as e:   # 11-03: was uncaught → daily.py died with no run log
+        code = 124
+        raw = ((e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")) + f"\ntimeout after {STEP_TIMEOUT_S}s"
+    out = "\n".join(l for l in raw.splitlines() if "Warning" not in l)
     tail = "\n".join(out.splitlines()[-4:])
-    return {"step": name, "ok": p.returncode == 0, "code": p.returncode, "seconds": round(time.time() - t0, 1), "tail": tail}
+    r = {"step": name, "ok": code == 0, "code": code, "seconds": round(time.time() - t0, 1), "tail": tail, "full": out[-6000:]}
+    r["cause"] = cause_of(r)
+    r.pop("full")
+    return r
+
+
+def inflight_path(day) -> Path:
+    return HERE / "out" / "runs" / f"inflight-{day}.json"
 
 
 def main() -> None:
@@ -195,8 +233,28 @@ def main() -> None:
         stages = [s for s in stages if s != "lseg"]
     if not R.market_open():
         print("note: market is closed. LSEG IV and Robinhood quotes are only trustworthy in session (yellow tags / L2 would be provisional)")
+    # 11-03 resume: a scheduled run picks up today's interrupted run (killed / timed out / deferred) at the first step that
+    # did not finish, instead of re-running ~1 h of done steps. A code failure is not resumed blindly: the failed step re-runs.
+    day = datetime.now(R.ET).date()
+    inflight = inflight_path(day)
+    done: set[str] = set()
     log = {"started": datetime.now().isoformat(timespec="seconds"), "stages": stages, "steps": []}
+    if a.if_needed and inflight.is_file():
+        try:
+            prev = json.loads(inflight.read_text())
+            if prev.get("stages") == stages:
+                log = {**prev, "resumed": prev.get("resumed", 0) + 1}
+                done = {x["step"] for x in prev.get("steps", []) if x.get("ok")}
+                print(f"resume: {len(done)} step(s) already done today (attempt {log['resumed'] + 1})")
+        except (ValueError, OSError):
+            pass
+
+    def save_inflight() -> None:
+        inflight.parent.mkdir(parents=True, exist_ok=True)
+        inflight.write_text(json.dumps({**log, "status": "running"}, indent=1))
+
     status = "ok"
+    cause = "ok"
     for st in stages:
         if st == "verify" and not a.verified and not quotes_ingested():
             # quotes normally arrive from the Robinhood export session (COLLECT_PROTOCOL Step 13); the optional deterministic
@@ -206,8 +264,12 @@ def main() -> None:
                 STAGES["verify"] = [("Robinhood quotes (rh_client)", PY, HERE, ["rh_client.py", "fetch"])]
             # else: verify_plan evaluate re-prices on Schwab live quotes (exit 3 if Schwab is unavailable too)
         for name, py, cwd, args in STAGES[st]:
+            if name in done:
+                print(f"↷ {st:<9} {name:<24} done earlier today")
+                continue
             r = run(name, py, cwd, args)
             log["steps"].append(r)
+            save_inflight()
             print(f"{'✓' if r['ok'] else '✗'} {st:<9} {name:<24} {r['seconds']:>6}s  {r['tail'].splitlines()[-1] if r['tail'] else ''}"[:220])
             # 10-28: a surface showing another put / an unscored pick must reach the run log, not scroll by
             log.setdefault("warnings", []).extend(l for l in (r["tail"] or "").splitlines() if l.startswith("WARN put consistency"))
@@ -221,7 +283,8 @@ def main() -> None:
                 print("→ no Robinhood quotes and Schwab unavailable: plan built but not verified/published; re-run `daily.py --from verify`")
                 break
             if not r["ok"]:
-                status = f"failed at {name}"
+                cause = r["cause"]
+                status = f"failed at {name} ({cause})"
                 print(r["tail"])
                 break
         if status != "ok":
@@ -230,11 +293,24 @@ def main() -> None:
         r = run("house view", PY, HERE, ["house_view.py", "--no-log"])
         log["steps"].append(r)
     log["status"] = status
+    log["cause"] = cause
     out = HERE / "out" / "runs"
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{datetime.now():%Y%m%d_%H%M%S}.json").write_text(json.dumps(log, indent=1))
+    if status in ("ok", "awaiting_verification"):
+        (out / f"{datetime.now():%Y%m%d_%H%M%S}.json").write_text(json.dumps(log, indent=1))
+        inflight.unlink(missing_ok=True)
+    else:
+        # keep the in-flight log so the next attempt resumes; also a dated copy for the record
+        log_failed = {**log, "steps": [x for x in log["steps"] if x["step"] != "house view"]}
+        inflight.write_text(json.dumps({**log_failed, "status": status}, indent=1))
+        (out / f"{datetime.now():%Y%m%d_%H%M%S}.json").write_text(json.dumps(log, indent=1))
     print(f"status: {status}")
-    sys.exit(0 if status in ("ok", "awaiting_verification") else 1)
+    print(f"cause: {cause}")
+    # exit: 0 ok · 75 deferred (network / vendor outage: retry later, attempt refunded) · 2 needs action (auth → Jamie,
+    # code error → agent; retrying cannot fix it) · 1 other failure / timeout (next attempt resumes at the failed step)
+    if status in ("ok", "awaiting_verification"):
+        sys.exit(0)
+    sys.exit({"network": 75, "vendor": 75, "auth": 2, "code": 2}.get(cause, 1))
 
 
 if __name__ == "__main__":
