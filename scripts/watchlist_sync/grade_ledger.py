@@ -120,7 +120,9 @@ def main() -> None:
                 move = st / s0 - 1
                 spy_move = (close_on_or_before(spy, exp)[1] / close_on_or_before(spy, it["run_date"])[1] - 1) if spy else 0
                 checks = (src.get("verify_checks") or []) + (src.get("l1_checks") or [])
-                data_warn = [x["check"] for x in checks if not x.get("pass") and x.get("check") in ("live_spot_drift", "spot_fresh", "fildi_premium_gap", "model_spot_matches_close")]
+                # live_spot_drift is not a data error here: P&L uses the live fill and the real expiry close, so a stock
+                # that moved between the model run and the live quote is a real outcome (11-03: it hid MRVL -4 % in the semis crash).
+                data_warn = [x["check"] for x in checks if not x.get("pass") and x.get("check") in ("spot_fresh", "fildi_premium_gap", "model_spot_matches_close")]
                 er_in = any(it["run_date"] < d <= exp for d in er.get(t, []))
                 # Outcome: prefer risk-adjusted / premium-kept over raw win/lose (Step 4 targets).
                 # Tiers: best / good / flat / bad / very_bad (still maps learn gates via good|bad|flat).
