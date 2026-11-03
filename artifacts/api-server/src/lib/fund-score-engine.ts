@@ -159,6 +159,7 @@ export function scoreUniverse(
         ibesRevBreadth: ibes?.revBreadth ?? null,
         ibesSue: ibes?.sue ?? null,
         ibesFwdGrowth: ibes?.fwdGrowth ?? null,
+        negativeEquityLeverage: params?.negativeEquityLeverage ?? "sanitized",
       });
       // Suspect guards
       if (m.key === "netmgn" && v != null && Math.abs(v) > 1) v = null;

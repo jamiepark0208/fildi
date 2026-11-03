@@ -148,4 +148,9 @@ describe("ratio fill-ins", () => {
     assert.equal(computeReturnOnEquity(20, 100), 0.2);
     assert.equal(computeDebtToEquity(50, 100), 0.5);
   });
+
+  it("negative equity → null D/E and ROE (A329 segment 1)", () => {
+    assert.equal(computeReturnOnEquity(20, -100), null);
+    assert.equal(computeDebtToEquity(50, -100), null);
+  });
 });

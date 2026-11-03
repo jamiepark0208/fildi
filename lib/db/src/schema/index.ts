@@ -333,6 +333,8 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   // Phase 1A additions — data source tracking
   lastSource:         text('last_source').default('fmp'),
   dataQualityScore:   numeric('data_quality_score'), // 0-1, percentage of non-null fields
+  /** A329: book equity < 0 — D/E and ROE gold cleared; fund score uses worst leverage bucket. */
+  negativeEquity:     boolean('negative_equity').notNull().default(false),
   // Regime active when this row's scores were last computed — audit trail for regime-driven rank shifts
   regimeAtScore:      text('regime_at_score'),
 

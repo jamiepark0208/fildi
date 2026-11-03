@@ -51,6 +51,8 @@ export type ScoreUniverseParams = {
    * had only ibesFwdGrowth). Callers warn via missingDefaultOptionals() when a champion drops a code default.
    */
   optionalMetrics?: MetricKey[];
+  /** A329 before/after: legacy reads negative vendor D/E; sanitized uses worst leverage + skip ROE. */
+  negativeEquityLeverage?: "legacy" | "sanitized";
 };
 
 export function withRanks(scored: ScoredTicker[]): (ScoredTicker & { rank: number })[] {

@@ -2,6 +2,7 @@
  * A329 — Stock DB L0+L1 audit (fetch_fundamentals universe × FIELD_DEFS).
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --smoke
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --full
+ *   pnpm exec tsx src/scripts/stock-db-audit.ts --full --segment leverage_returns
  * L2 SEC: artifacts/api-server/scripts/stock-db-audit-l2.py
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,12 +20,14 @@ import {
 import { etDateKey } from "../lib/market-hours.js";
 import {
   CAUSE_META,
+  ERROR_RATE_EXCLUDED_CAUSES,
   rankTopFlags,
   type SpecCause,
 } from "../lib/stock-db-audit-l3.js";
 import {
   SMOKE_TICKERS,
   auditCell,
+  SEGMENT_LEVERAGE_RETURNS_FIELDS,
   type AuditFinding,
   type FundRow,
   type SourceVal,
@@ -39,11 +42,19 @@ const OUT_DIR = join(REPO, "artifacts/api-server/out/audit");
 const args = new Set(process.argv.slice(2));
 const smoke = args.has("--smoke");
 const full = args.has("--full");
+const segmentArg = process.argv.find((a) => a.startsWith("--segment="))?.split("=")[1]
+  ?? (process.argv.includes("--segment") ? process.argv[process.argv.indexOf("--segment") + 1] : null);
+const segmentLeverage = segmentArg === "leverage_returns";
 if (!smoke && !full) {
-  console.error("Usage: stock-db-audit.ts --smoke | --full");
+  console.error("Usage: stock-db-audit.ts --smoke | --full [--segment leverage_returns]");
   process.exit(1);
 }
 const runId = etDateKey();
+
+const AUDIT_FIELDS = segmentLeverage
+  ? AUDIT_FIELD_LIST.filter((f) => SEGMENT_LEVERAGE_RETURNS_FIELDS.has(f))
+  : AUDIT_FIELD_LIST;
+const CLEAN_SAMPLE_MIN = segmentLeverage ? 400 : 1;
 
 type TickerPack = {
   ticker: string;
@@ -188,13 +199,19 @@ function summarize(findings: AuditFinding[]) {
     L1: { ok: 0, flag: 0, skip: 0 },
   };
   const byCause: Record<string, number> = {};
+  const byCauseErrorRate: Record<string, number> = {};
   const skipReasons: Record<string, number> = {};
   for (const f of findings) {
     byLayer[f.layer][f.status] += 1;
-    if (f.class) byCause[f.class] = (byCause[f.class] ?? 0) + 1;
+    if (f.class) {
+      byCause[f.class] = (byCause[f.class] ?? 0) + 1;
+      if (!ERROR_RATE_EXCLUDED_CAUSES.has(f.class as SpecCause)) {
+        byCauseErrorRate[f.class] = (byCauseErrorRate[f.class] ?? 0) + 1;
+      }
+    }
     if (f.skipReason) skipReasons[f.skipReason] = (skipReasons[f.skipReason] ?? 0) + 1;
   }
-  return { byLayer, byCause, skipReasons };
+  return { byLayer, byCause, byCauseErrorRate, skipReasons };
 }
 
 async function persist(findings: AuditFinding[]) {
@@ -238,7 +255,10 @@ function writeCleanSample(findings: AuditFinding[], tickers: string[]) {
     okCells.push({ ticker: f.ticker, field: f.field, gold: f.gold, cohort: "clean" });
   }
   const rng = mulberry32(329);
-  const n = Math.max(1, Math.ceil(okCells.length * 0.05));
+  const n = Math.min(
+    okCells.length,
+    Math.max(CLEAN_SAMPLE_MIN, Math.ceil(okCells.length * 0.05)),
+  );
   const picked: typeof okCells = [];
   const pool = [...okCells];
   while (picked.length < n && pool.length > 0) {
@@ -257,8 +277,12 @@ function readL2Summary(): L2Summary | null {
   const p = join(OUT_DIR, `l2-results-${runId}.json`);
   if (!existsSync(p)) return null;
   try {
-    const j = JSON.parse(readFileSync(p, "utf8")) as { summary: L2Summary };
-    return j.summary;
+    const j = JSON.parse(readFileSync(p, "utf8")) as {
+      summary: L2Summary & { runId?: string; cells?: number; cleanMisses?: unknown[] };
+    };
+    const s = j.summary;
+    if (!s?.flagged?.judged || !s?.clean?.judged) return null;
+    return { flagged: s.flagged, clean: s.clean };
   } catch {
     return null;
   }
@@ -271,13 +295,14 @@ function writeReport(
   l2Summary: L2Summary | null,
 ) {
   mkdirSync(OUT_DIR, { recursive: true });
-  const { byLayer, byCause, skipReasons } = summarize(findings);
+  const { byLayer, byCause, byCauseErrorRate, skipReasons } = summarize(findings);
   const flags = findings.filter((f) => f.status === "flag");
   const top = rankTopFlags(flags, modelList, 20);
+  const segmentLabel = segmentLeverage ? " · segment leverage_returns" : "";
   const lines = [
-    `# Stock DB audit ${runId} (${smoke && !full ? "smoke" : "full"})`,
+    `# Stock DB audit ${runId} (${smoke && !full ? "smoke" : "full"}${segmentLabel})`,
     "",
-    `Tickers: ${tickers.length} (fetch_fundamentals universe) · Fields: ${AUDIT_FIELD_LIST.length} · Cells: ${findings.length}`,
+    `Tickers: ${tickers.length} (fetch_fundamentals universe) · Fields: ${AUDIT_FIELDS.length} · Cells: ${findings.length}`,
     "",
     "## L0/L1 status",
     `- L0 ok ${byLayer.L0.ok} flag ${byLayer.L0.flag} skip ${byLayer.L0.skip}`,
@@ -293,14 +318,20 @@ function writeReport(
       .sort((a, b) => b[1] - a[1])
       .map(([c, n]) => {
         const meta = CAUSE_META[c as SpecCause];
-        return `- ${c}: ${n} — guard ${meta?.guard ?? "?"}`;
+        const ex = ERROR_RATE_EXCLUDED_CAUSES.has(c as SpecCause) ? " [excluded from error rate]" : "";
+        return `- ${c}: ${n} — guard ${meta?.guard ?? "?"}${ex}`;
       }),
+    "",
+    "## L3 causes (error-rate set)",
+    ...Object.entries(byCauseErrorRate)
+      .sort((a, b) => b[1] - a[1])
+      .map(([c, n]) => `- ${c}: ${n}`),
     "",
     l2Summary?.flagged && l2Summary?.clean   // an older L2 file has the blended shape only → treat as not run
       ? [
-          "## L2 SEC (flagged vs clean 5% sample)",
+          "## L2 SEC (flagged vs clean sample)",
           `- flagged: judged ${l2Summary.flagged.judged} ok ${l2Summary.flagged.ok} rate ${(l2Summary.flagged.rate * 100).toFixed(1)}% CI95 [${(l2Summary.flagged.ci95[0] * 100).toFixed(1)}%, ${(l2Summary.flagged.ci95[1] * 100).toFixed(1)}%]`,
-          `- clean sample: judged ${l2Summary.clean.judged} ok ${l2Summary.clean.ok} rate ${(l2Summary.clean.rate * 100).toFixed(1)}% CI95 [${(l2Summary.clean.ci95[0] * 100).toFixed(1)}%, ${(l2Summary.clean.ci95[1] * 100).toFixed(1)}%]`,
+          `- clean sample: judged ${l2Summary.clean.judged} ok ${l2Summary.clean.ok} rate ${(l2Summary.clean.rate * 100).toFixed(1)}% CI95 [${(l2Summary.clean.ci95[0] * 100).toFixed(1)}%, ${(l2Summary.clean.ci95[1] * 100).toFixed(1)}%] (drawn n≥${CLEAN_SAMPLE_MIN})`,
         ].join("\n")
       : "## L2 SEC sample\n- (run stock-db-audit-l2.py after this)",
     "",
@@ -325,14 +356,14 @@ function writeReport(
 async function main() {
   const tickers = await loadTickers();
   const modelList = await loadModelListTickers().catch(() => new Set<string>());
-  console.log(`A329 audit ${smoke && !full ? "smoke" : "full"} tickers=${tickers.length} fields=${AUDIT_FIELD_LIST.length}`);
+  console.log(`A329 audit ${smoke && !full ? "smoke" : "full"}${segmentLeverage ? " segment1" : ""} tickers=${tickers.length} fields=${AUDIT_FIELDS.length}`);
   const packs = await buildPacks(tickers);
   const findings: AuditFinding[] = [];
 
   for (const t of tickers) {
     const pack = packs.get(t);
     if (!pack) continue;
-    for (const field of AUDIT_FIELD_LIST) {
+    for (const field of AUDIT_FIELDS) {
       const gold = goldForField(pack, field);
       const prov = pack.prov.get(field);
       findings.push(

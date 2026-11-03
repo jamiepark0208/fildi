@@ -54,6 +54,8 @@ export type FundRowInput = {
   ffoProxy: number | null;
   peerGroupId: string | null;
   scoringMode: string | null;
+  totalStockholdersEquity?: number | null;
+  negativeEquity?: boolean;
   /** 10-27: false = peer mapping not reviewed (auto-classified) → scored, but kept out of the cohort norms. Unset = reviewed. */
   peerReviewed?: boolean;
 };

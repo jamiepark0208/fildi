@@ -25,6 +25,8 @@ const fixture = JSON.parse(
   vendorDisagree: AuditInput;
   vendorInTol: AuditInput;
   inputMissing: AuditInput;
+  negativeEquityDe: AuditInput;
+  pegVendorDef: AuditInput;
 };
 
 describe("stock-db-audit-guards", () => {
@@ -97,6 +99,18 @@ describe("stock-db-audit L1", () => {
 
   it("picker drift ignores immaterial replay gap", () => {
     assert.equal(shouldFlagPickerDrift("peRatio", 20, 20.001), false);
+  });
+
+  it("negative equity D/E identity → negative_equity cause", () => {
+    const r = auditL0(fixture.negativeEquityDe);
+    assert.equal(r.status, "flag");
+    assert.equal(r.class, "negative_equity");
+  });
+
+  it("PEG vendor gap → definition_mismatch not vendor_unit_bug", () => {
+    const r = auditL1(fixture.pegVendorDef);
+    assert.equal(r.status, "flag");
+    assert.equal(r.class, "definition_mismatch");
   });
 });
 

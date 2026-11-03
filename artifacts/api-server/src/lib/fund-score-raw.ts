@@ -16,6 +16,7 @@ import {
 } from "./fund-score-guards.js";
 import type { FundRowInput, MetricKey } from "./fund-score-types.js";
 import { approxWacc } from "./fund-score-tilt.js";
+import { hasNegativeEquity, NEGATIVE_EQUITY_WORST_DE } from "./negative-equity-policy.js";
 
 export function rawMetricValue(
   key: MetricKey,
@@ -26,6 +27,7 @@ export function rawMetricValue(
     ibesRevBreadth?: number | null;
     ibesSue?: number | null;
     ibesFwdGrowth?: number | null;
+    negativeEquityLeverage?: "legacy" | "sanitized";
   },
 ): number | null {
   const mcap = r.marketCap;
@@ -98,6 +100,12 @@ export function rawMetricValue(
         ? r.netIncome / r.totalRevenue
         : null);
     case "roe":
+      if (
+        hasNegativeEquity(r.totalStockholdersEquity)
+        && extras?.negativeEquityLeverage !== "legacy"
+      ) {
+        return null;
+      }
       return r.returnOnEquity;
     case "fcfmgn":
       return r.freeCashFlow != null && r.totalRevenue && r.totalRevenue !== 0
@@ -130,6 +138,10 @@ export function rawMetricValue(
     case "cr":
       return r.currentRatio;
     case "de":
+      if (hasNegativeEquity(r.totalStockholdersEquity)) {
+        if (extras?.negativeEquityLeverage === "legacy") return r.debtToEquity;
+        return NEGATIVE_EQUITY_WORST_DE;
+      }
       return r.debtToEquity;
     case "netDebtEbitda":
       return netDebtToEbitda(r.totalDebt, r.cashAndEquivalents, r.ebitda);

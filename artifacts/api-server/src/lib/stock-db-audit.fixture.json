@@ -48,5 +48,25 @@
     "sources": [],
     "divergent": false,
     "winningSource": "yahoo"
+  },
+  "negativeEquityDe": {
+    "ticker": "SBUX",
+    "field": "debtToEquity",
+    "gold": -3.29,
+    "price": null,
+    "fund": { "totalDebt": 20000, "totalStockholdersEquity": -5000 },
+    "sources": [],
+    "divergent": false,
+    "winningSource": "yahoo"
+  },
+  "pegVendorDef": {
+    "ticker": "FIX",
+    "field": "pegRatio",
+    "gold": 1.5,
+    "price": null,
+    "fund": { "peRatio": 30, "epsGrowth": 0.2 },
+    "sources": [{ "source": "yahoo", "field": "pegRatio", "value": 4.5 }],
+    "divergent": false,
+    "winningSource": "derived"
   }
 }

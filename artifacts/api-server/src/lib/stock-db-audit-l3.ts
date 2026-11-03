@@ -9,9 +9,14 @@ export type SpecCause =
   | "nci_vs_to_common"
   | "stale_pull"
   | "vendor_unit_bug"
+  | "definition_mismatch"
+  | "negative_equity"
   | "split_not_applied"
   | "stand_in_zero"
   | "two_pickers";
+
+/** L3 causes excluded from segment error-rate totals (expected vendor definition gaps). */
+export const ERROR_RATE_EXCLUDED_CAUSES = new Set<SpecCause>(["definition_mismatch"]);
 
 export type SkipReason = "gold_null" | "no_l0_identity" | "non_usd";
 
@@ -52,6 +57,16 @@ export const CAUSE_META: Record<SpecCause, CauseMeta> = {
     guard: "stock-db-audit-guards.ts:shouldFlagVendorGap",
     test: "stock-db-audit.test.ts vendor in tolerance ok",
   },
+  definition_mismatch: {
+    rootCause: "Vendor field uses a different formula or growth base than gold (e.g. PEG).",
+    guard: "merge-trusted.ts:owned pegRatio = peRatio ÷ gold epsGrowth",
+    test: "stock-db-audit.test.ts peg vendor gap → definition_mismatch",
+  },
+  negative_equity: {
+    rootCause: "Shareholders equity is negative; D/E and ROE must not be scored from vendor ratios.",
+    guard: "negative-equity-policy.ts:applyNegativeEquityGoldPolicy",
+    test: "stock-db-audit.test.ts negative equity identity",
+  },
   split_not_applied: {
     rootCause: "Share count or price not split-adjusted vs mcap identity.",
     guard: "stock-db-audit-guards.ts:missingL0Inputs shares+price",
@@ -86,6 +101,24 @@ export function inferSpecCause(
   evidence: string | null,
 ): SpecCause {
   const { field, fund } = input;
+  const eqRaw = fund.totalStockholdersEquity;
+  const eq =
+    eqRaw == null || eqRaw === ""
+      ? null
+      : typeof eqRaw === "number"
+        ? eqRaw
+        : parseFloat(String(eqRaw));
+  const negativeEq = eq != null && Number.isFinite(eq) && eq < 0;
+  if (
+    negativeEq
+    && (field === "debtToEquity" || field === "returnOnEquity")
+    && (pipelineClass === "identity_mismatch" || (input.gold != null && input.gold < 0))
+  ) {
+    return "negative_equity";
+  }
+  if ((field === "pegRatio" || field === "forwardPeg") && pipelineClass === "vendor_disagreement") {
+    return "definition_mismatch";
+  }
   if (pipelineClass === "unit_scale") return "vendor_unit_bug";
   if (pipelineClass === "share_mcap_mismatch") {
     return evidence?.includes("mcap") ? "adr_scaling" : "split_not_applied";

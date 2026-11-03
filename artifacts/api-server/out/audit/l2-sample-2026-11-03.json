@@ -1,0 +1,3321 @@
+{
+  "runId": "2026-11-03",
+  "tickers": [
+    "A",
+    "AA",
+    "AAL",
+    "AAOI",
+    "AAPL",
+    "ABBV",
+    "ABNB",
+    "ABT",
+    "ACGL",
+    "ACHR",
+    "ACLS",
+    "ACN",
+    "ADBE",
+    "ADI",
+    "ADM",
+    "ADP",
+    "ADSK",
+    "ADYEN",
+    "AEE",
+    "AEIS",
+    "AEM",
+    "AEP",
+    "AER",
+    "AES",
+    "AFG",
+    "AFL",
+    "AFRM",
+    "AGI",
+    "AGNC",
+    "AHR",
+    "AIG",
+    "AIT",
+    "AIZ",
+    "AJG",
+    "AKAM",
+    "ALAB",
+    "ALB",
+    "ALGN",
+    "ALL",
+    "ALLE",
+    "ALLY",
+    "ALM",
+    "ALNY",
+    "ALOY",
+    "AM",
+    "AMAT",
+    "AMCR",
+    "AMD",
+    "AME",
+    "AMG",
+    "AMGN",
+    "AMH",
+    "AMKR",
+    "AMP",
+    "AMRZ",
+    "AMT",
+    "AMZN",
+    "ANET",
+    "AON",
+    "APA",
+    "APD",
+    "APG",
+    "APH",
+    "APLD",
+    "APO",
+    "APP",
+    "AR",
+    "ARE",
+    "ARES",
+    "ARM",
+    "ARMK",
+    "ARRY",
+    "ARW",
+    "AS",
+    "ASML",
+    "ASND",
+    "ASTS",
+    "ATI",
+    "ATO",
+    "AU",
+    "AVGO",
+    "AVTR",
+    "AVY",
+    "AWK",
+    "AXON",
+    "AXP",
+    "AXTA",
+    "AZN",
+    "AZO",
+    "BA",
+    "BABA",
+    "BAC",
+    "BALL",
+    "BAM",
+    "BAP",
+    "BAX",
+    "BB",
+    "BBIO",
+    "BBY",
+    "BDX",
+    "BE",
+    "BEAM",
+    "BEN",
+    "BF.B",
+    "BG",
+    "BHP",
+    "BIDU",
+    "BIIB",
+    "BILI",
+    "BILL",
+    "BJ",
+    "BKNG",
+    "BKR",
+    "BLK",
+    "BMBL",
+    "BMNR",
+    "BMRN",
+    "BMY",
+    "BN",
+    "BNGO",
+    "BNTX",
+    "BNY",
+    "BOX",
+    "BP",
+    "BPOP",
+    "BR",
+    "BRK.B",
+    "BRO",
+    "BSX",
+    "BSY",
+    "BTSG",
+    "BULL",
+    "BURL",
+    "BWA",
+    "BWXT",
+    "BX",
+    "C",
+    "CABA",
+    "CACI",
+    "CAG",
+    "CAH",
+    "CAMT",
+    "CARR",
+    "CART",
+    "CASY",
+    "CAT",
+    "CAVA",
+    "CB",
+    "CBOE",
+    "CBRE",
+    "CCEP",
+    "CCI",
+    "CCJ",
+    "CCK",
+    "CCL",
+    "CDE",
+    "CDNS",
+    "CDW",
+    "CE",
+    "CEG",
+    "CELH",
+    "CEVA",
+    "CF",
+    "CFG",
+    "CG",
+    "CHD",
+    "CHKP",
+    "CHRW",
+    "CHTR",
+    "CHYM",
+    "CI",
+    "CIEN",
+    "CIFR",
+    "CINF",
+    "CL",
+    "CLF",
+    "CLH",
+    "CLNE",
+    "CLS",
+    "CLSK",
+    "CLX",
+    "CMCSA",
+    "CME",
+    "CMG",
+    "CMI",
+    "CMPS",
+    "CMS",
+    "CNA",
+    "CNC",
+    "CNH",
+    "CNP",
+    "COF",
+    "COHR",
+    "COHU",
+    "COIN",
+    "COKE",
+    "COMP",
+    "COO",
+    "COP",
+    "COR",
+    "CORZ",
+    "COST",
+    "COTY",
+    "CPAY",
+    "CPB",
+    "CPNG",
+    "CPRT",
+    "CPT",
+    "CR",
+    "CRBG",
+    "CRCL",
+    "CRDO",
+    "CRH",
+    "CRL",
+    "CRM",
+    "CRML",
+    "CROX",
+    "CRS",
+    "CRSP",
+    "CRWD",
+    "CRWV",
+    "CSCO",
+    "CSGP",
+    "CSL",
+    "CSX",
+    "CTAS",
+    "CTSH",
+    "CVNA",
+    "CVS",
+    "CVX",
+    "CW",
+    "D",
+    "DAL",
+    "DASH",
+    "DD",
+    "DDD",
+    "DDOG",
+    "DE",
+    "DECK",
+    "DELL",
+    "DG",
+    "DGX",
+    "DHI",
+    "DHR",
+    "DINO",
+    "DIS",
+    "DKNG",
+    "DKS",
+    "DLR",
+    "DLTR",
+    "DNA",
+    "DOC",
+    "DOCN",
+    "DOCU",
+    "DOV",
+    "DOW",
+    "DPZ",
+    "DRI",
+    "DT",
+    "DTE",
+    "DTM",
+    "DUK",
+    "DUOL",
+    "DVA",
+    "DVN",
+    "DXCM",
+    "EBAY",
+    "ECHO",
+    "ECL",
+    "ED",
+    "EDIT",
+    "EFX",
+    "EG",
+    "EGP",
+    "EHC",
+    "EIX",
+    "EL",
+    "ELAN",
+    "ELS",
+    "ELV",
+    "EME",
+    "EMN",
+    "EMR",
+    "ENPH",
+    "ENSG",
+    "ENTG",
+    "EOG",
+    "EPD",
+    "EQH",
+    "EQIX",
+    "EQT",
+    "ERIE",
+    "ES",
+    "ESS",
+    "ESTC",
+    "ET",
+    "ETN",
+    "ETR",
+    "ETSY",
+    "EVR",
+    "EVRG",
+    "EW",
+    "EWBC",
+    "EXC",
+    "EXE",
+    "EXEL",
+    "EXPD",
+    "EXPE",
+    "EXR",
+    "F",
+    "FANG",
+    "FAST",
+    "FCNCA",
+    "FCX",
+    "FDS",
+    "FDX",
+    "FE",
+    "FERG",
+    "FFIV",
+    "FHN",
+    "FICO",
+    "FIG",
+    "FIS",
+    "FISV",
+    "FITB",
+    "FIVE",
+    "FIX",
+    "FLEX",
+    "FLUT",
+    "FN",
+    "FNF",
+    "FNV",
+    "FORM",
+    "FOUR",
+    "FOXA",
+    "FRO",
+    "FROG",
+    "FRSX",
+    "FSLR",
+    "FSLY",
+    "FTAI",
+    "FTI",
+    "FTNT",
+    "FTV",
+    "FUTU",
+    "GD",
+    "GDDY",
+    "GE",
+    "GEHC",
+    "GEN",
+    "GEV",
+    "GFL",
+    "GFS",
+    "GGG",
+    "GH",
+    "GILD",
+    "GIS",
+    "GKOS",
+    "GL",
+    "GLPI",
+    "GLW",
+    "GLXY",
+    "GM",
+    "GME",
+    "GMED",
+    "GNRC",
+    "GOLD",
+    "GOOGL",
+    "GOSS",
+    "GPC",
+    "GPN",
+    "GRAB",
+    "GRMN",
+    "GS",
+    "GSK",
+    "GWRE",
+    "GWW",
+    "H",
+    "HAL",
+    "HALO",
+    "HAS",
+    "HBAN",
+    "HCA",
+    "HD",
+    "HEI",
+    "HIG",
+    "HII",
+    "HIMS",
+    "HL",
+    "HLT",
+    "HMC",
+    "HON",
+    "HOOD",
+    "HP",
+    "HPE",
+    "HPQ",
+    "HRL",
+    "HST",
+    "HSY",
+    "HUBB",
+    "HUBS",
+    "HUM",
+    "HUN",
+    "HUT",
+    "HWM",
+    "HYLN",
+    "IBKR",
+    "IBM",
+    "ICE",
+    "ICLR",
+    "IDXX",
+    "IEX",
+    "IFF",
+    "ILMN",
+    "INCY",
+    "INGM",
+    "INSM",
+    "INTC",
+    "INTU",
+    "INVH",
+    "IOND",
+    "IONQ",
+    "IONS",
+    "IP",
+    "IQV",
+    "IR",
+    "IREN",
+    "IRM",
+    "ISRG",
+    "IT",
+    "ITT",
+    "ITW",
+    "IVZ",
+    "J",
+    "JAZZ",
+    "JBHT",
+    "JBL",
+    "JBS",
+    "JCI",
+    "JD",
+    "JEF",
+    "JHX",
+    "JKHY",
+    "JLL",
+    "JNJ",
+    "JOBY",
+    "JPM",
+    "KDP",
+    "KEY",
+    "KEYS",
+    "KGC",
+    "KHC",
+    "KIM",
+    "KKR",
+    "KLAC",
+    "KMB",
+    "KMI",
+    "KO",
+    "KOPN",
+    "KR",
+    "KTOS",
+    "KVUE",
+    "L",
+    "LAMR",
+    "LCID",
+    "LDI",
+    "LDOS",
+    "LECO",
+    "LEN",
+    "LEU",
+    "LH",
+    "LHX",
+    "LI",
+    "LII",
+    "LIN",
+    "LITE",
+    "LLY",
+    "LMT",
+    "LNG",
+    "LNT",
+    "LOW",
+    "LPLA",
+    "LQDA",
+    "LRCX",
+    "LSCC",
+    "LULU",
+    "LUMN",
+    "LUNR",
+    "LUV",
+    "LVS",
+    "LYB",
+    "LYFT",
+    "LYV",
+    "MA",
+    "MAA",
+    "MANH",
+    "MAR",
+    "MARA",
+    "MAS",
+    "MCD",
+    "MCHP",
+    "MCK",
+    "MCO",
+    "MDB",
+    "MDGL",
+    "MDLZ",
+    "MDT",
+    "MEDP",
+    "MELI",
+    "MET",
+    "META",
+    "MGM",
+    "MKC",
+    "MKL",
+    "MKSI",
+    "MLI",
+    "MLM",
+    "MMM",
+    "MNDY",
+    "MNST",
+    "MO",
+    "MOH",
+    "MP",
+    "MPC",
+    "MPLX",
+    "MPWR",
+    "MRK",
+    "MRNA",
+    "MRSH",
+    "MRVL",
+    "MS",
+    "MSCI",
+    "MSFT",
+    "MSI",
+    "MSTR",
+    "MTB",
+    "MTCH",
+    "MTD",
+    "MTRN",
+    "MTSI",
+    "MTZ",
+    "MU",
+    "NBIS",
+    "NBIX",
+    "NCLH",
+    "NDAQ",
+    "NDSN",
+    "NEE",
+    "NEM",
+    "NET",
+    "NFLX",
+    "NI",
+    "NIO",
+    "NJR",
+    "NKE",
+    "NLY",
+    "NNE",
+    "NNN",
+    "NOC",
+    "NOV",
+    "NOW",
+    "NRG",
+    "NSC",
+    "NTAP",
+    "NTDOY",
+    "NTES",
+    "NTLA",
+    "NTNX",
+    "NTRA",
+    "NTRS",
+    "NTSK",
+    "NU",
+    "NUE",
+    "NVDA",
+    "NVMI",
+    "NVO",
+    "NVR",
+    "NVT",
+    "NVTS",
+    "NWSA",
+    "NXPI",
+    "NXT",
+    "NYT",
+    "O",
+    "ODFL",
+    "OGE",
+    "OGS",
+    "OHI",
+    "OKE",
+    "OKLO",
+    "OKTA",
+    "OLLI",
+    "OLN",
+    "OMC",
+    "ON",
+    "ONDS",
+    "ONON",
+    "ONTO",
+    "OPEN",
+    "ORCL",
+    "ORLY",
+    "OTIS",
+    "OVV",
+    "OWL",
+    "OXY",
+    "P",
+    "PAA",
+    "PAAS",
+    "PAG",
+    "PAGS",
+    "PANW",
+    "PATH",
+    "PAYC",
+    "PAYX",
+    "PBR",
+    "PCAR",
+    "PCG",
+    "PDD",
+    "PEG",
+    "PEN",
+    "PEP",
+    "PFE",
+    "PFG",
+    "PFGC",
+    "PFLT",
+    "PG",
+    "PGR",
+    "PH",
+    "PHM",
+    "PINS",
+    "PKG",
+    "PLD",
+    "PLTR",
+    "PLUG",
+    "PM",
+    "PN",
+    "PNC",
+    "PNFP",
+    "PNW",
+    "PODD",
+    "POET",
+    "POWL",
+    "PPG",
+    "PPL",
+    "PR",
+    "PRU",
+    "PSA",
+    "PSX",
+    "PTC",
+    "PVH",
+    "PWR",
+    "PYPL",
+    "Q",
+    "QBTS",
+    "QCOM",
+    "QGEN",
+    "QLYS",
+    "QSI",
+    "QSR",
+    "QUBT",
+    "QXO",
+    "R",
+    "RBC",
+    "RBLX",
+    "RBRK",
+    "RCL",
+    "RDDT",
+    "RDW",
+    "REBN",
+    "REG",
+    "REGN",
+    "RELY",
+    "RF",
+    "RGA",
+    "RGEN",
+    "RGLD",
+    "RGTI",
+    "RHHBY",
+    "RIG",
+    "RIO",
+    "RIOT",
+    "RIVN",
+    "RJF",
+    "RKLB",
+    "RKT",
+    "RL",
+    "RMD",
+    "RNR",
+    "ROIV",
+    "ROK",
+    "ROKU",
+    "ROL",
+    "ROP",
+    "ROST",
+    "RPD",
+    "RPM",
+    "RPRX",
+    "RRC",
+    "RRX",
+    "RS",
+    "RSG",
+    "RTX",
+    "RUM",
+    "RUN",
+    "RVMD",
+    "RVTY",
+    "RXRX",
+    "RYAN",
+    "S",
+    "SAIA",
+    "SAIL",
+    "SAM",
+    "SAP",
+    "SBAC",
+    "SBUX",
+    "SCCO",
+    "SCHW",
+    "SCI",
+    "SE",
+    "SECZ",
+    "SEDG",
+    "SEIC",
+    "SG",
+    "SGI",
+    "SHAK",
+    "SHLS",
+    "SHOP",
+    "SHW",
+    "SITM",
+    "SJM",
+    "SKHY",
+    "SLB",
+    "SMCI",
+    "SMMT",
+    "SMR",
+    "SMTC",
+    "SN",
+    "SNA",
+    "SNAP",
+    "SNDK",
+    "SNOW",
+    "SNPS",
+    "SNX",
+    "SNY",
+    "SO",
+    "SOFI",
+    "SOLV",
+    "SOUN",
+    "SPCE",
+    "SPCX",
+    "SPG",
+    "SPGI",
+    "SPOT",
+    "SR",
+    "SRE",
+    "SSB",
+    "SSNC",
+    "STE",
+    "STLA",
+    "STLD",
+    "STRL",
+    "STT",
+    "STX",
+    "STZ",
+    "SUI",
+    "SUNB",
+    "SUPX",
+    "SVM",
+    "SW",
+    "SWK",
+    "SWKS",
+    "SWX",
+    "SYF",
+    "SYK",
+    "SYM",
+    "SYY",
+    "T",
+    "TAP",
+    "TCOM",
+    "TDG",
+    "TDY",
+    "TEAM",
+    "TECH",
+    "TECK",
+    "TEL",
+    "TEM",
+    "TENB",
+    "TER",
+    "TFC",
+    "TGT",
+    "THC",
+    "TIGO",
+    "TJX",
+    "TKO",
+    "TLN",
+    "TM",
+    "TME",
+    "TMO",
+    "TMUS",
+    "TOL",
+    "TOST",
+    "TPG",
+    "TPL",
+    "TPR",
+    "TRGP",
+    "TRMB",
+    "TROW",
+    "TRU",
+    "TRV",
+    "TSCO",
+    "TSEM",
+    "TSLA",
+    "TSM",
+    "TSN",
+    "TT",
+    "TTD",
+    "TTWO",
+    "TW",
+    "TWLO",
+    "TXN",
+    "TXRH",
+    "TXT",
+    "TYL",
+    "U",
+    "UAA",
+    "UAL",
+    "UBER",
+    "UDR",
+    "UHS",
+    "UI",
+    "ULTA",
+    "UMBF",
+    "UMC",
+    "UNH",
+    "UNM",
+    "UNP",
+    "UPS",
+    "UPST",
+    "URI",
+    "USAR",
+    "USB",
+    "USFD",
+    "UTHR",
+    "V",
+    "VALE",
+    "VEEV",
+    "VFC",
+    "VG",
+    "VICI",
+    "VIK",
+    "VIST",
+    "VLO",
+    "VLTO",
+    "VMC",
+    "VMRK",
+    "VNET",
+    "VNOM",
+    "VRSK",
+    "VRSN",
+    "VRT",
+    "VRTX",
+    "VST",
+    "VTR",
+    "VTRS",
+    "VZ",
+    "W",
+    "WAB",
+    "WAL",
+    "WAT",
+    "WCC",
+    "WCN",
+    "WDAY",
+    "WDC",
+    "WEC",
+    "WELL",
+    "WFC",
+    "WING",
+    "WM",
+    "WMB",
+    "WMG",
+    "WMT",
+    "WOLF",
+    "WPC",
+    "WPM",
+    "WRB",
+    "WSM",
+    "WSO",
+    "WST",
+    "WTFC",
+    "WTR",
+    "WTRG",
+    "WTS",
+    "WTW",
+    "WULF",
+    "WWD",
+    "WY",
+    "WYNN",
+    "XEL",
+    "XOM",
+    "XPEV",
+    "XPO",
+    "XYL",
+    "XYZ",
+    "YELP",
+    "YUM",
+    "YUMC",
+    "ZBH",
+    "ZBRA",
+    "ZG",
+    "ZION",
+    "ZM",
+    "ZS",
+    "ZTO",
+    "ZTS"
+  ],
+  "sample": [
+    {
+      "ticker": "UBER",
+      "field": "netMargin",
+      "gold": 0.1734,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FLEX",
+      "field": "netMargin",
+      "gold": 0.0332,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BF.B",
+      "field": "debtToEquity",
+      "gold": 0.6495000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDLZ",
+      "field": "debtToEquity",
+      "gold": 0.8379300000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ZS",
+      "field": "netMargin",
+      "gold": -0.018799999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GRMN",
+      "field": "netMargin",
+      "gold": 0.2447,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GNRC",
+      "field": "debtToEquity",
+      "gold": 0.49003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ABNB",
+      "field": "netMargin",
+      "gold": 0.2045,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IBM",
+      "field": "returnOnEquity",
+      "gold": 0.3294,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VIST",
+      "field": "debtToEquity",
+      "gold": 1.0650199999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PLD",
+      "field": "returnOnEquity",
+      "gold": 0.0788,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AKAM",
+      "field": "netMargin",
+      "gold": 0.0951,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ANET",
+      "field": "operatingMargin",
+      "gold": 0.4314,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CROX",
+      "field": "debtToEquity",
+      "gold": 1.21993,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AWK",
+      "field": "returnOnEquity",
+      "gold": 0.1015,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EXE",
+      "field": "debtToEquity",
+      "gold": 0.19207000000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BR",
+      "field": "netMargin",
+      "gold": 0.15039999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FCX",
+      "field": "operatingMargin",
+      "gold": 0.2676,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AM",
+      "field": "operatingMargin",
+      "gold": 0.5157,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DELL",
+      "field": "netMargin",
+      "gold": 0.0753,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MRSH",
+      "field": "netMargin",
+      "gold": 0.142,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NVDA",
+      "field": "operatingMargin",
+      "gold": 0.6517000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HEI",
+      "field": "netMargin",
+      "gold": 0.1638,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "URI",
+      "field": "debtToEquity",
+      "gold": 1.63662,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OKTA",
+      "field": "returnOnEquity",
+      "gold": 0.0426,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SBUX",
+      "field": "operatingMargin",
+      "gold": 0.0776638505098035,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GLPI",
+      "field": "netMargin",
+      "gold": 0.5853,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FN",
+      "field": "debtToEquity",
+      "gold": 0.00164,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TJX",
+      "field": "netMargin",
+      "gold": 0.0973,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TEM",
+      "field": "returnOnEquity",
+      "gold": -0.547,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TTD",
+      "field": "operatingMargin",
+      "gold": 0.196083257695799,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REGN",
+      "field": "netMargin",
+      "gold": 0.2786,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRH",
+      "field": "operatingMargin",
+      "gold": 0.137144177211941,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ATI",
+      "field": "netMargin",
+      "gold": 0.1009,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXN",
+      "field": "operatingMargin",
+      "gold": 0.40759999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BAX",
+      "field": "returnOnEquity",
+      "gold": -0.166,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WDC",
+      "field": "netMargin",
+      "gold": 0.6920000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CPAY",
+      "field": "debtToEquity",
+      "gold": 2.75291,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FLUT",
+      "field": "debtToEquity",
+      "gold": 1.34484,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PODD",
+      "field": "debtToEquity",
+      "gold": 0.66685,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRU",
+      "field": "debtToEquity",
+      "gold": 1.13212,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GS",
+      "field": "debtToEquity",
+      "gold": 6.712000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TDY",
+      "field": "debtToEquity",
+      "gold": 0.1821,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HWM",
+      "field": "netMargin",
+      "gold": 0.2052,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QXO",
+      "field": "netMargin",
+      "gold": -0.051699999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SCI",
+      "field": "returnOnEquity",
+      "gold": 0.3398,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GRMN",
+      "field": "debtToEquity",
+      "gold": 0.02513,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNC",
+      "field": "returnOnEquity",
+      "gold": 0.1261,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BSX",
+      "field": "debtToEquity",
+      "gold": 0.4225,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LRCX",
+      "field": "operatingMargin",
+      "gold": 0.36950000000000005,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BA",
+      "field": "operatingMargin",
+      "gold": 0.0489,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNFP",
+      "field": "debtToEquity",
+      "gold": 1.5007705178304347,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SEIC",
+      "field": "netMargin",
+      "gold": 0.28059999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LH",
+      "field": "debtToEquity",
+      "gold": 0.7912399999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HII",
+      "field": "operatingMargin",
+      "gold": 0.0529,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KLAC",
+      "field": "operatingMargin",
+      "gold": 0.4177,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WAB",
+      "field": "operatingMargin",
+      "gold": 0.1718,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOC",
+      "field": "returnOnEquity",
+      "gold": 0.257,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSCO",
+      "field": "returnOnEquity",
+      "gold": 0.3764,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BEN",
+      "field": "operatingMargin",
+      "gold": 0.0971139305670252,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "POWL",
+      "field": "debtToEquity",
+      "gold": 0.00334,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WY",
+      "field": "netMargin",
+      "gold": 0.0689,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ZS",
+      "field": "returnOnEquity",
+      "gold": -0.0276,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KGC",
+      "field": "operatingMargin",
+      "gold": 0.5261,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OGS",
+      "field": "debtToEquity",
+      "gold": 0.95903,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ET",
+      "field": "returnOnEquity",
+      "gold": 0.1524,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BHP",
+      "field": "operatingMargin",
+      "gold": 0.40619999999999995,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MNST",
+      "field": "returnOnEquity",
+      "gold": 0.24959999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRMB",
+      "field": "operatingMargin",
+      "gold": 0.15134,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SN",
+      "field": "debtToEquity",
+      "gold": 0.3211,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DNA",
+      "field": "debtToEquity",
+      "gold": 0.96152,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DTE",
+      "field": "netMargin",
+      "gold": 0.0704,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTCH",
+      "field": "operatingMargin",
+      "gold": 0.2815,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DXCM",
+      "field": "returnOnEquity",
+      "gold": 0.3619,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ISRG",
+      "field": "returnOnEquity",
+      "gold": 0.17,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFGC",
+      "field": "returnOnEquity",
+      "gold": 0.0763,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FFIV",
+      "field": "operatingMargin",
+      "gold": 0.247,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LII",
+      "field": "operatingMargin",
+      "gold": 0.198,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PPG",
+      "field": "operatingMargin",
+      "gold": 0.14016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LEU",
+      "field": "returnOnEquity",
+      "gold": 0.0706,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRGP",
+      "field": "netMargin",
+      "gold": 0.1354,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SCI",
+      "field": "debtToEquity",
+      "gold": 3.44863,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RHHBY",
+      "field": "operatingMargin",
+      "gold": 0.3176,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMI",
+      "field": "netMargin",
+      "gold": 0.07822,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRDO",
+      "field": "operatingMargin",
+      "gold": 0.31737820111939,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TGT",
+      "field": "netMargin",
+      "gold": 0.0408,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRCL",
+      "field": "netMargin",
+      "gold": 0.1553,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDLZ",
+      "field": "operatingMargin",
+      "gold": 0.11220000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DELL",
+      "field": "operatingMargin",
+      "gold": 0.0943,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSFT",
+      "field": "netMargin",
+      "gold": 0.4117,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MET",
+      "field": "debtToEquity",
+      "gold": 1.7993299999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRBG",
+      "field": "debtToEquity",
+      "gold": 1.27231,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SN",
+      "field": "netMargin",
+      "gold": 0.10060000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HUN",
+      "field": "netMargin",
+      "gold": -0.0305,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEP",
+      "field": "returnOnEquity",
+      "gold": 0.5057,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TW",
+      "field": "returnOnEquity",
+      "gold": 0.14463,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ATI",
+      "field": "returnOnEquity",
+      "gold": 0.2659,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CTAS",
+      "field": "netMargin",
+      "gold": 0.1782,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JAZZ",
+      "field": "debtToEquity",
+      "gold": 0.91828,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DRI",
+      "field": "netMargin",
+      "gold": 0.0885,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAAS",
+      "field": "netMargin",
+      "gold": 0.31980000000000003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRSK",
+      "field": "debtToEquity",
+      "gold": 14.94207047249191,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "USB",
+      "field": "netMargin",
+      "gold": 0.30010998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PDD",
+      "field": "netMargin",
+      "gold": 0.2043,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAVA",
+      "field": "operatingMargin",
+      "gold": 0.0762,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SOLV",
+      "field": "operatingMargin",
+      "gold": 0.249819494584838,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UPST",
+      "field": "returnOnEquity",
+      "gold": 0.0859,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DOV",
+      "field": "returnOnEquity",
+      "gold": 0.1543,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAYX",
+      "field": "operatingMargin",
+      "gold": 0.39189999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WMB",
+      "field": "returnOnEquity",
+      "gold": 0.2386,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ECL",
+      "field": "returnOnEquity",
+      "gold": 0.207,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COHU",
+      "field": "debtToEquity",
+      "gold": 0.42764,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VICI",
+      "field": "netMargin",
+      "gold": 0.675,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BG",
+      "field": "netMargin",
+      "gold": 0.011000000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LAMR",
+      "field": "operatingMargin",
+      "gold": 0.3169,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EXR",
+      "field": "operatingMargin",
+      "gold": 0.40909999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRT",
+      "field": "returnOnEquity",
+      "gold": 0.4211,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SSNC",
+      "field": "debtToEquity",
+      "gold": 1.13109,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXTA",
+      "field": "operatingMargin",
+      "gold": 0.12662,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "Q",
+      "field": "returnOnEquity",
+      "gold": 0.0764,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RPM",
+      "field": "debtToEquity",
+      "gold": 0.89022,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CI",
+      "field": "netMargin",
+      "gold": 0.0227,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LIN",
+      "field": "debtToEquity",
+      "gold": 0.65642,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBLX",
+      "field": "operatingMargin",
+      "gold": -0.197597612975284,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WSM",
+      "field": "returnOnEquity",
+      "gold": 0.5779,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NEM",
+      "field": "netMargin",
+      "gold": 0.34729999999999994,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BLK",
+      "field": "operatingMargin",
+      "gold": 0.3246,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HEI",
+      "field": "operatingMargin",
+      "gold": 0.2404,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UAA",
+      "field": "netMargin",
+      "gold": -0.0999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AFG",
+      "field": "netMargin",
+      "gold": 0.1164,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CSGP",
+      "field": "returnOnEquity",
+      "gold": 0.009,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "C",
+      "field": "debtToEquity",
+      "gold": 3.3718009713082515,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FNV",
+      "field": "netMargin",
+      "gold": 0.6379,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ISRG",
+      "field": "operatingMargin",
+      "gold": 0.2837,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLS",
+      "field": "returnOnEquity",
+      "gold": 0.5061,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BKR",
+      "field": "operatingMargin",
+      "gold": 0.13970000000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TT",
+      "field": "operatingMargin",
+      "gold": 0.1794,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXP",
+      "field": "netMargin",
+      "gold": 0.1481,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PYPL",
+      "field": "netMargin",
+      "gold": 0.1378,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TEAM",
+      "field": "netMargin",
+      "gold": -0.008199999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HWM",
+      "field": "debtToEquity",
+      "gold": 0.8779399999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YUMC",
+      "field": "returnOnEquity",
+      "gold": 0.1784,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNC",
+      "field": "netMargin",
+      "gold": 0.28832450000000004,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LLY",
+      "field": "netMargin",
+      "gold": 0.3353,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MLM",
+      "field": "netMargin",
+      "gold": 0.36729999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CBRE",
+      "field": "debtToEquity",
+      "gold": 1.12726,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SW",
+      "field": "operatingMargin",
+      "gold": 0.0471,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SGI",
+      "field": "operatingMargin",
+      "gold": 0.1243,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MLM",
+      "field": "operatingMargin",
+      "gold": 0.20629999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSI",
+      "field": "debtToEquity",
+      "gold": 3.5785,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBC",
+      "field": "returnOnEquity",
+      "gold": 0.0966,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLH",
+      "field": "operatingMargin",
+      "gold": 0.11720000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FITB",
+      "field": "netMargin",
+      "gold": 0.23038,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AFL",
+      "field": "operatingMargin",
+      "gold": 0.25722998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GMED",
+      "field": "debtToEquity",
+      "gold": 0.02347,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WFC",
+      "field": "operatingMargin",
+      "gold": 0.2534514,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BJ",
+      "field": "returnOnEquity",
+      "gold": 0.2735,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNX",
+      "field": "operatingMargin",
+      "gold": 0.0271,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ALAB",
+      "field": "netMargin",
+      "gold": 0.3074,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "R",
+      "field": "debtToEquity",
+      "gold": 2.7474000000000003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WRB",
+      "field": "debtToEquity",
+      "gold": 0.31527,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRGP",
+      "field": "returnOnEquity",
+      "gold": 0.7217,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UTHR",
+      "field": "netMargin",
+      "gold": 0.4156,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TT",
+      "field": "netMargin",
+      "gold": 0.1328,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "INSM",
+      "field": "debtToEquity",
+      "gold": 0.97654,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAPL",
+      "field": "operatingMargin",
+      "gold": 0.31970799762591884,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TKO",
+      "field": "netMargin",
+      "gold": 0.054400000000000004,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DHR",
+      "field": "returnOnEquity",
+      "gold": 0.0818,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TROW",
+      "field": "operatingMargin",
+      "gold": 0.2992289604637174,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CPB",
+      "field": "debtToEquity",
+      "gold": 1.82035,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ICE",
+      "field": "returnOnEquity",
+      "gold": 0.1413,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SCHW",
+      "field": "debtToEquity",
+      "gold": 0.77821,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AIZ",
+      "field": "netMargin",
+      "gold": 0.079,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FOUR",
+      "field": "debtToEquity",
+      "gold": 2.6232100000000003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ADBE",
+      "field": "debtToEquity",
+      "gold": 0.5719693710745934,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PCG",
+      "field": "debtToEquity",
+      "gold": 1.8787200000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNOW",
+      "field": "operatingMargin",
+      "gold": -0.227568230282482,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TTD",
+      "field": "returnOnEquity",
+      "gold": 0.15441,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNDK",
+      "field": "netMargin",
+      "gold": 0.5646,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "L",
+      "field": "operatingMargin",
+      "gold": 0.1402,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BPOP",
+      "field": "returnOnEquity",
+      "gold": 0.1624,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RL",
+      "field": "netMargin",
+      "gold": 0.1176,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DHI",
+      "field": "operatingMargin",
+      "gold": 0.12279999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MPWR",
+      "field": "operatingMargin",
+      "gold": 0.2872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRM",
+      "field": "netMargin",
+      "gold": 0.21989999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IT",
+      "field": "netMargin",
+      "gold": 0.12,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TWLO",
+      "field": "debtToEquity",
+      "gold": 0.11868000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FDX",
+      "field": "debtToEquity",
+      "gold": 1.35697,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AMP",
+      "field": "operatingMargin",
+      "gold": 0.3048,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PKG",
+      "field": "returnOnEquity",
+      "gold": 0.1487,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIVE",
+      "field": "returnOnEquity",
+      "gold": 0.2773,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GFL",
+      "field": "debtToEquity",
+      "gold": 1.34488,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RTX",
+      "field": "netMargin",
+      "gold": 0.0875,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LDOS",
+      "field": "netMargin",
+      "gold": 0.078,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RS",
+      "field": "netMargin",
+      "gold": 0.0638,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HON",
+      "field": "returnOnEquity",
+      "gold": 0.4121,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLX",
+      "field": "operatingMargin",
+      "gold": 0.1177,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NYT",
+      "field": "returnOnEquity",
+      "gold": 0.1947,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CHRW",
+      "field": "returnOnEquity",
+      "gold": 0.3601,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EBAY",
+      "field": "netMargin",
+      "gold": 0.185,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CE",
+      "field": "netMargin",
+      "gold": -0.1204,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NCLH",
+      "field": "operatingMargin",
+      "gold": 0.13570000000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "R",
+      "field": "returnOnEquity",
+      "gold": 0.17679999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UPS",
+      "field": "netMargin",
+      "gold": 0.0508,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IP",
+      "field": "debtToEquity",
+      "gold": 0.68509,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "A",
+      "field": "returnOnEquity",
+      "gold": 0.2047,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PHM",
+      "field": "debtToEquity",
+      "gold": 0.18434999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "URI",
+      "field": "netMargin",
+      "gold": 0.16329999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ED",
+      "field": "returnOnEquity",
+      "gold": 0.08962,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WMB",
+      "field": "debtToEquity",
+      "gold": 2.00371,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EFX",
+      "field": "operatingMargin",
+      "gold": 0.1883,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NNN",
+      "field": "debtToEquity",
+      "gold": 1.1211799999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "U",
+      "field": "returnOnEquity",
+      "gold": -0.1888,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WST",
+      "field": "netMargin",
+      "gold": 0.1698,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MRVL",
+      "field": "netMargin",
+      "gold": 0.2793,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PVH",
+      "field": "debtToEquity",
+      "gold": 0.86909,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNX",
+      "field": "debtToEquity",
+      "gold": 0.6482399999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GRAB",
+      "field": "debtToEquity",
+      "gold": 0.28224,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXON",
+      "field": "returnOnEquity",
+      "gold": 0.0591,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDB",
+      "field": "returnOnEquity",
+      "gold": 0.02,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFG",
+      "field": "debtToEquity",
+      "gold": 0.35307,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DPZ",
+      "field": "operatingMargin",
+      "gold": 0.1973,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HUBS",
+      "field": "operatingMargin",
+      "gold": 0.035699999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CNP",
+      "field": "returnOnEquity",
+      "gold": 0.09849999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KHC",
+      "field": "debtToEquity",
+      "gold": 0.52591,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EQIX",
+      "field": "operatingMargin",
+      "gold": 0.22510000000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CASY",
+      "field": "returnOnEquity",
+      "gold": 0.1968,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ED",
+      "field": "debtToEquity",
+      "gold": 1.10113,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CCEP",
+      "field": "operatingMargin",
+      "gold": 0.1270467,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CART",
+      "field": "operatingMargin",
+      "gold": 0.14730000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAT",
+      "field": "operatingMargin",
+      "gold": 0.1752,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TECK",
+      "field": "netMargin",
+      "gold": 0.17854,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DLTR",
+      "field": "operatingMargin",
+      "gold": 0.1106,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COTY",
+      "field": "returnOnEquity",
+      "gold": -0.1826,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAYX",
+      "field": "returnOnEquity",
+      "gold": 0.4711,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SMCI",
+      "field": "netMargin",
+      "gold": 0.0571,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRL",
+      "field": "debtToEquity",
+      "gold": 1.05047,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QUBT",
+      "field": "debtToEquity",
+      "gold": 0.014690000000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTD",
+      "field": "netMargin",
+      "gold": 0.2191,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CFG",
+      "field": "netMargin",
+      "gold": 0.245614,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNAP",
+      "field": "returnOnEquity",
+      "gold": -0.1461,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TW",
+      "field": "debtToEquity",
+      "gold": 0.02036,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARE",
+      "field": "netMargin",
+      "gold": -0.5301,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PR",
+      "field": "operatingMargin",
+      "gold": 0.358389115522947,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EQIX",
+      "field": "returnOnEquity",
+      "gold": 0.1149,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PH",
+      "field": "operatingMargin",
+      "gold": 0.2165,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CNC",
+      "field": "debtToEquity",
+      "gold": 0.7108199999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RPM",
+      "field": "netMargin",
+      "gold": 0.0866,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIS",
+      "field": "netMargin",
+      "gold": 0.2763,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZO",
+      "field": "netMargin",
+      "gold": 0.1265,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NYT",
+      "field": "operatingMargin",
+      "gold": 0.1582,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MAA",
+      "field": "returnOnEquity",
+      "gold": 0.0716,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BHP",
+      "field": "returnOnEquity",
+      "gold": 0.1941,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MCHP",
+      "field": "debtToEquity",
+      "gold": 0.8368800000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KVUE",
+      "field": "operatingMargin",
+      "gold": 0.1707,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLNE",
+      "field": "returnOnEquity",
+      "gold": -0.1668,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ACGL",
+      "field": "debtToEquity",
+      "gold": 0.17836,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AER",
+      "field": "netMargin",
+      "gold": 0.4315,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CB",
+      "field": "debtToEquity",
+      "gold": 0.32945,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNAP",
+      "field": "debtToEquity",
+      "gold": 2.19281,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSFT",
+      "field": "returnOnEquity",
+      "gold": 0.3321,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APH",
+      "field": "operatingMargin",
+      "gold": 0.2703,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FNF",
+      "field": "operatingMargin",
+      "gold": 0.1291,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GKOS",
+      "field": "returnOnEquity",
+      "gold": -0.2707,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BRO",
+      "field": "netMargin",
+      "gold": 0.1775,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ORCL",
+      "field": "returnOnEquity",
+      "gold": 0.42579999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BG",
+      "field": "debtToEquity",
+      "gold": 1.04737,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MRSH",
+      "field": "operatingMargin",
+      "gold": 0.2139,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VICI",
+      "field": "debtToEquity",
+      "gold": 0.60277,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ENSG",
+      "field": "debtToEquity",
+      "gold": 0.92027,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOC",
+      "field": "debtToEquity",
+      "gold": 0.95348,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OPEN",
+      "field": "debtToEquity",
+      "gold": 2.1488,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WM",
+      "field": "returnOnEquity",
+      "gold": 0.2892,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EGP",
+      "field": "netMargin",
+      "gold": 0.4105,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PINS",
+      "field": "returnOnEquity",
+      "gold": 0.065,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HPE",
+      "field": "debtToEquity",
+      "gold": 0.8403,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WSO",
+      "field": "operatingMargin",
+      "gold": 0.094,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRTX",
+      "field": "operatingMargin",
+      "gold": 0.3795,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEN",
+      "field": "operatingMargin",
+      "gold": 0.1245,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DOW",
+      "field": "debtToEquity",
+      "gold": 1.11913,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NNN",
+      "field": "netMargin",
+      "gold": 0.40353,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXTA",
+      "field": "returnOnEquity",
+      "gold": 0.13424,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WTRG",
+      "field": "netMargin",
+      "gold": 0.21600000000000003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MP",
+      "field": "debtToEquity",
+      "gold": 0.41402,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BBY",
+      "field": "returnOnEquity",
+      "gold": 0.4282,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ODFL",
+      "field": "returnOnEquity",
+      "gold": 0.2487,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PSX",
+      "field": "debtToEquity",
+      "gold": 0.91385,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NDSN",
+      "field": "returnOnEquity",
+      "gold": 0.1759,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JPM",
+      "field": "returnOnEquity",
+      "gold": 0.18013,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTB",
+      "field": "debtToEquity",
+      "gold": 0.6861911845631833,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VST",
+      "field": "debtToEquity",
+      "gold": 3.7327999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BILL",
+      "field": "netMargin",
+      "gold": -0.0068000000000000005,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NEE",
+      "field": "debtToEquity",
+      "gold": 1.61676,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FE",
+      "field": "netMargin",
+      "gold": 0.0721,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AA",
+      "field": "returnOnEquity",
+      "gold": 0.214,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MLI",
+      "field": "netMargin",
+      "gold": 0.1727,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NWSA",
+      "field": "netMargin",
+      "gold": 0.0635,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FHN",
+      "field": "netMargin",
+      "gold": 0.2806424,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIVE",
+      "field": "netMargin",
+      "gold": 0.1165,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GLPI",
+      "field": "operatingMargin",
+      "gold": 0.823,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ON",
+      "field": "netMargin",
+      "gold": 0.1017,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AON",
+      "field": "returnOnEquity",
+      "gold": 0.4263,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GWRE",
+      "field": "returnOnEquity",
+      "gold": 0.1003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WTR",
+      "field": "returnOnEquity",
+      "gold": 0.05785908278062079,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MAR",
+      "field": "operatingMargin",
+      "gold": 0.158,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LUV",
+      "field": "debtToEquity",
+      "gold": 0.97275,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXN",
+      "field": "netMargin",
+      "gold": 0.3425,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UAA",
+      "field": "debtToEquity",
+      "gold": 0.96356,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAAS",
+      "field": "debtToEquity",
+      "gold": 0.11427,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RTX",
+      "field": "debtToEquity",
+      "gold": 0.57229,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "O",
+      "field": "debtToEquity",
+      "gold": 0.74722,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CSX",
+      "field": "operatingMargin",
+      "gold": 0.364,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UAL",
+      "field": "netMargin",
+      "gold": 0.0546,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YELP",
+      "field": "debtToEquity",
+      "gold": 0.19131,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTSI",
+      "field": "netMargin",
+      "gold": 0.207,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UI",
+      "field": "debtToEquity",
+      "gold": 0.05551999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOW",
+      "field": "netMargin",
+      "gold": 0.0936426673579159,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DUOL",
+      "field": "netMargin",
+      "gold": 0.35869999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CI",
+      "field": "debtToEquity",
+      "gold": 0.7280500000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ABT",
+      "field": "debtToEquity",
+      "gold": 0.6477299999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OLLI",
+      "field": "operatingMargin",
+      "gold": 0.12300000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LHX",
+      "field": "returnOnEquity",
+      "gold": 0.0941,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PKG",
+      "field": "netMargin",
+      "gold": 0.07400000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LLY",
+      "field": "operatingMargin",
+      "gold": 0.42219999999999996,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OLLI",
+      "field": "netMargin",
+      "gold": 0.09789999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SWKS",
+      "field": "returnOnEquity",
+      "gold": 0.0504,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KMB",
+      "field": "returnOnEquity",
+      "gold": 1.2257,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXTA",
+      "field": "netMargin",
+      "gold": 0.064569995,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APG",
+      "field": "netMargin",
+      "gold": 0.040999999999999995,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FANG",
+      "field": "returnOnEquity",
+      "gold": 0.039,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTRN",
+      "field": "returnOnEquity",
+      "gold": 0.0941,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TMUS",
+      "field": "netMargin",
+      "gold": 0.11449999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BR",
+      "field": "debtToEquity",
+      "gold": 1.23939,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ANET",
+      "field": "returnOnEquity",
+      "gold": 0.3078,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SWK",
+      "field": "debtToEquity",
+      "gold": 0.58172,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MKL",
+      "field": "returnOnEquity",
+      "gold": 0.12389999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BF.B",
+      "field": "operatingMargin",
+      "gold": 0.2536,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "F",
+      "field": "netMargin",
+      "gold": -0.0393,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MA",
+      "field": "operatingMargin",
+      "gold": 0.5832999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRTX",
+      "field": "returnOnEquity",
+      "gold": 0.23309999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIS",
+      "field": "returnOnEquity",
+      "gold": 0.2256,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LH",
+      "field": "returnOnEquity",
+      "gold": 0.1157,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IRM",
+      "field": "operatingMargin",
+      "gold": 0.18760000000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TROW",
+      "field": "debtToEquity",
+      "gold": 0.03702,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EGP",
+      "field": "debtToEquity",
+      "gold": 0.51862,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAL",
+      "field": "netMargin",
+      "gold": -0.0079,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HIG",
+      "field": "debtToEquity",
+      "gold": 0.2316,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EW",
+      "field": "returnOnEquity",
+      "gold": 0.09175,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "S",
+      "field": "netMargin",
+      "gold": -0.3095,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ELS",
+      "field": "returnOnEquity",
+      "gold": 0.2227,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OVV",
+      "field": "debtToEquity",
+      "gold": 0.43734,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFE",
+      "field": "debtToEquity",
+      "gold": 0.74253,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CTSH",
+      "field": "debtToEquity",
+      "gold": 0.14479,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HEI",
+      "field": "returnOnEquity",
+      "gold": 0.183,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SPGI",
+      "field": "operatingMargin",
+      "gold": 0.4679,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTV",
+      "field": "netMargin",
+      "gold": 0.12380000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTAI",
+      "field": "netMargin",
+      "gold": 0.1594,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PGR",
+      "field": "returnOnEquity",
+      "gold": 0.354,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "INGM",
+      "field": "returnOnEquity",
+      "gold": 0.1023,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "U",
+      "field": "netMargin",
+      "gold": -0.2897,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AEP",
+      "field": "debtToEquity",
+      "gold": 1.61839,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ROP",
+      "field": "debtToEquity",
+      "gold": 0.50696,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CNH",
+      "field": "operatingMargin",
+      "gold": 0.0914489964256255,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GH",
+      "field": "operatingMargin",
+      "gold": -0.40240000000000004,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ESTC",
+      "field": "debtToEquity",
+      "gold": 0.4594,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GLW",
+      "field": "returnOnEquity",
+      "gold": 0.1593,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UMC",
+      "field": "operatingMargin",
+      "gold": 0.1977,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SHW",
+      "field": "netMargin",
+      "gold": 0.1074,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIG",
+      "field": "debtToEquity",
+      "gold": 0.04584,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CW",
+      "field": "debtToEquity",
+      "gold": 0.41481999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WSM",
+      "field": "debtToEquity",
+      "gold": 0.71369,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BABA",
+      "field": "returnOnEquity",
+      "gold": 0.0701,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBC",
+      "field": "debtToEquity",
+      "gold": 0.25364000000000003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WST",
+      "field": "operatingMargin",
+      "gold": 0.2045,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FITB",
+      "field": "debtToEquity",
+      "gold": 0.8349290812005156,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EIX",
+      "field": "netMargin",
+      "gold": 0.203,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TTWO",
+      "field": "operatingMargin",
+      "gold": -0.0241232333806924,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YELP",
+      "field": "netMargin",
+      "gold": 0.0859,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CDE",
+      "field": "netMargin",
+      "gold": 0.26817,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DUK",
+      "field": "returnOnEquity",
+      "gold": 0.09879999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRDO",
+      "field": "returnOnEquity",
+      "gold": 0.2716,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PODD",
+      "field": "netMargin",
+      "gold": 0.1229,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QLYS",
+      "field": "operatingMargin",
+      "gold": 0.3408,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APLD",
+      "field": "returnOnEquity",
+      "gold": -0.13623999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TTWO",
+      "field": "netMargin",
+      "gold": -0.0479,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NSC",
+      "field": "debtToEquity",
+      "gold": 1.05519,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CVNA",
+      "field": "netMargin",
+      "gold": 0.0626,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FCNCA",
+      "field": "returnOnEquity",
+      "gold": 0.10679999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OWL",
+      "field": "returnOnEquity",
+      "gold": 0.0376,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEG",
+      "field": "netMargin",
+      "gold": 0.1604,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARMK",
+      "field": "netMargin",
+      "gold": 0.019299999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARW",
+      "field": "operatingMargin",
+      "gold": 0.0337,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LULU",
+      "field": "netMargin",
+      "gold": 0.1278,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SUI",
+      "field": "debtToEquity",
+      "gold": 0.72848,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KEY",
+      "field": "debtToEquity",
+      "gold": 0.8197340817427997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARW",
+      "field": "returnOnEquity",
+      "gold": 0.1214,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GD",
+      "field": "returnOnEquity",
+      "gold": 0.1743,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AMT",
+      "field": "operatingMargin",
+      "gold": 0.4482,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LPLA",
+      "field": "debtToEquity",
+      "gold": 1.3537100000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BA",
+      "field": "debtToEquity",
+      "gold": 7.38525,
+      "cohort": "clean"
+    }
+  ]
+}

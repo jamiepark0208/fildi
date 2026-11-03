@@ -1,0 +1,26 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { applyNegativeEquityGoldPolicy, hasNegativeEquity } from "./negative-equity-policy.js";
+
+describe("negative-equity-policy", () => {
+  it("detects negative book equity", () => {
+    assert.equal(hasNegativeEquity(-1), true);
+    assert.equal(hasNegativeEquity(0), false);
+    assert.equal(hasNegativeEquity(100), false);
+  });
+
+  it("clears D/E and ROE gold and sets flag", () => {
+    const update: Record<string, unknown> = {
+      totalStockholdersEquity: -500,
+      debtToEquity: -3.2,
+      returnOnEquity: -0.4,
+    };
+    const prov: { field: string; result: { source: string; value: number | null; isOverride: boolean; divergent: boolean } }[] =
+      [];
+    applyNegativeEquityGoldPolicy(update, prov);
+    assert.equal(update.negativeEquity, true);
+    assert.equal(update.debtToEquity, null);
+    assert.equal(update.returnOnEquity, null);
+    assert.equal(prov.length, 0);
+  });
+});

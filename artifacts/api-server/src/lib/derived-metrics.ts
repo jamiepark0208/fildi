@@ -89,8 +89,8 @@ export function computeDebtToEquity(
   equity: number | null | undefined,
 ): number | null {
   if (totalDebt == null || equity == null || !isFinite(totalDebt) || !isFinite(equity)) return null;
-  if (equity === 0) return null;
-  const r = totalDebt / Math.abs(equity);
+  if (equity === 0 || equity < 0) return null;
+  const r = totalDebt / equity;
   return isFinite(r) && r >= 0 && r < 1000 ? r : null;
 }
 
@@ -253,7 +253,7 @@ export function computeReturnOnEquity(
   equity: number | null | undefined,
 ): number | null {
   if (netIncome == null || equity == null || !isFinite(netIncome) || !isFinite(equity)) return null;
-  if (equity === 0) return null;
-  const r = netIncome / Math.abs(equity);
+  if (equity === 0 || equity < 0) return null;
+  const r = netIncome / equity;
   return isFinite(r) && Math.abs(r) <= 5 ? r : null;
 }

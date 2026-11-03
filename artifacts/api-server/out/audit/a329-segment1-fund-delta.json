@@ -1,0 +1,48 @@
+{
+  "negativeEquityTickers": 49,
+  "universeRanked": 908,
+  "rankMoved10PctPts": [
+    {
+      "ticker": "HCA",
+      "beforeRank": 385,
+      "afterRank": 604,
+      "deltaPctPts": -24.118942731277535
+    },
+    {
+      "ticker": "ORLY",
+      "beforeRank": 485,
+      "afterRank": 676,
+      "deltaPctPts": -21.035242290748897
+    },
+    {
+      "ticker": "WYNN",
+      "beforeRank": 580,
+      "afterRank": 725,
+      "deltaPctPts": -15.969162995594711
+    },
+    {
+      "ticker": "PM",
+      "beforeRank": 112,
+      "afterRank": 248,
+      "deltaPctPts": -14.977973568281925
+    },
+    {
+      "ticker": "MAS",
+      "beforeRank": 641,
+      "afterRank": 763,
+      "deltaPctPts": -13.436123348017624
+    },
+    {
+      "ticker": "LOW",
+      "beforeRank": 400,
+      "afterRank": 517,
+      "deltaPctPts": -12.885462555066077
+    },
+    {
+      "ticker": "AZO",
+      "beforeRank": 632,
+      "afterRank": 745,
+      "deltaPctPts": -12.444933920704848
+    }
+  ]
+}

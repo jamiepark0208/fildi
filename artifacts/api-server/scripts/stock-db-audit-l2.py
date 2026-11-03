@@ -77,6 +77,16 @@ def sec_truth(conn, facts, ticker, field):
         p, _ = price(conn, ticker)
         if eq and sh and p and eq["value"]:
             return p * sh["value"] / eq["value"], "px×sh/eq"
+    if field == "returnOnEquity":
+        ni = fresh_ni(facts, NI_COMMON, (rev or {}).get("end"))
+        eq = F.balance(facts, EQ, asof)
+        if ni and eq and eq["value"]:
+            return ni["value"] / eq["value"], f"NI/equity {eq['end']}"
+    if field == "debtToEquity":
+        debt = F.balance(facts, ["LongTermDebt", "LongTermDebtNoncurrent", "DebtCurrent"], asof)
+        eq = F.balance(facts, EQ, asof)
+        if debt and eq and eq["value"]:
+            return debt["value"] / eq["value"], f"debt/equity {eq['end']}"
     if field == "totalRevenue" and rev:
         return rev["value"], rev["how"]
     return None, "not filing-checkable"
@@ -150,11 +160,23 @@ def main():
         )
     flagged = cohort_summary(judged, "flagged")
     clean = cohort_summary(judged, "clean")
+    clean_misses = [
+        {
+            "ticker": r["ticker"],
+            "field": r["field"],
+            "gold": r["gold"],
+            "truth": r["truth"],
+            "note": r["note"],
+        }
+        for r in judged
+        if r.get("cohort") == "clean" and r["truth"] is not None and not r["ok"]
+    ]
     summary = {
         "runId": run_id,
         "cells": len(cells),
         "flagged": flagged,
         "clean": clean,
+        "cleanMisses": clean_misses,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"l2-results-{run_id}.json").write_text(json.dumps({"summary": summary, "rows": judged}, indent=1))

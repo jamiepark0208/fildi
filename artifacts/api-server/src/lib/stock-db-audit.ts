@@ -15,6 +15,7 @@ import {
   computeReturnOnEquity,
   computeTrailingPeg,
 } from "./derived-metrics.js";
+import { hasNegativeEquity } from "./negative-equity-policy.js";
 import {
   missingL0Inputs,
   nonUsdSkipReason,
@@ -32,6 +33,16 @@ import { inBand, pickFieldGold, type GoldQuote } from "./gold-pick.js";
 export const SMOKE_TICKERS = [
   "AAPL", "BABA", "TSM", "TCOM", "KKR", "TKO", "C", "ASML", "RKT", "SKWD",
 ] as const;
+
+/** A329 round 3 — leverage + returns segment (all filer types). */
+export const SEGMENT_LEVERAGE_RETURNS_FIELDS = new Set([
+  "debtToEquity",
+  "returnOnEquity",
+  "returnOnAssets",
+  "grossMargin",
+  "operatingMargin",
+  "netMargin",
+]);
 
 export type AuditLayer = "L0" | "L1";
 export type RowStatus = "ok" | "flag" | "skip";
@@ -177,6 +188,19 @@ export function auditL0(input: AuditInput): AuditFinding {
   }
 
   if (gold == null) return finalizeSkip(base, "gold_null");
+
+  const bookEq = num(input.fund.totalStockholdersEquity);
+  if (
+    hasNegativeEquity(bookEq)
+    && (field === "debtToEquity" || field === "returnOnEquity")
+  ) {
+    return finalizeFlag(
+      base,
+      "identity_mismatch",
+      input,
+      `negative_equity gold=${gold} equity=${bookEq}`,
+    );
+  }
 
   if (FRACTION_FIELDS.has(field) && Math.abs(gold) > 1.5 && field !== "debtToEquity") {
     return finalizeFlag(

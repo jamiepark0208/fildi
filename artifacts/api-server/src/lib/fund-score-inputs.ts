@@ -58,6 +58,8 @@ export function rowToFundInput(
     annualOperatingCashFlow: n(row.annualOperatingCashFlow as string | null),
     tangibleBookValuePerShare: n((row as any).tangibleBookValuePerShare as string | null),
     ffoProxy: n((row as any).ffoProxy as string | null),
+    totalStockholdersEquity: n(row.totalStockholdersEquity),
+    negativeEquity: row.negativeEquity === true,
     peerGroupId,
     scoringMode,
   };

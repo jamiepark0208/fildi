@@ -44,6 +44,7 @@ import {
   isEvEbitdaGoldCandidate,
   skipDerivedEvRatios,
 } from "../lib/derived-metrics.js";
+import { applyNegativeEquityGoldPolicy } from "../lib/negative-equity-policy.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -908,6 +909,8 @@ export async function runMergeTrusted() {
         ? niForFfo + daForFfo
         : null;
     applyDerived("ffoProxy", ffoProxy);
+
+    applyNegativeEquityGoldPolicy(update as Record<string, unknown>, provenanceBatch);
 
     if (Object.keys(update).length === 0 && clearProvenanceFields.length === 0) continue;
     // 10-27: no vendor value at all and no gold data yet → don't create/stamp an empty "fetched" row (289 universe adds were
