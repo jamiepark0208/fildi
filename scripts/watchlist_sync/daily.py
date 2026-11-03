@@ -59,13 +59,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("IV rank resolver", SH, HERE, ["-c", f"{PY} iv_rank.py 2>&1 | tail -1"]),
         # A283: outside intrinsic values (StarMine from today's LSEG signals; FMP DCF weekly, ≤ 40 calls) → external_intrinsic. Soft.
         ("outside intrinsic values", SH, HERE, ["-c", f"{PY} dcf/external_iv.py --max 40 2>&1 | tail -1"]),
-        # Jamie 10-29: Trading Central valuation/levels/outlooks + Argus PT + Morningstar bull/bear text (Yahoo insights, free,
-        # ~1.2 s/name sequential, circuit-aware) → yahoo_insights_daily (+ argus_pt in external_intrinsic). Soft.
-        ("Yahoo insights (Trading Central)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/sync-yahoo-insights.ts 2>&1 "
-                                                       "| grep 'yahoo-insights:' | tail -1 || echo 'yahoo insights skipped'"]),
         # A289: DCF v2 lab detail (watchlist only until fv-2.0.0 is signed) → dcf_detail → Breakdown › Assumptions. Soft.
         ("DCF lab (watchlist)", SH, HERE, ["-c", f"{PY} ../../research/fair_value/dcf_watch.py --store 2>&1 | tail -1"]),
-        ("DCF grades", SH, HERE, ["-c", f"{PY} dcf/grade.py 2>&1 | tail -1"]),   # A283 step 2: rank IC vs fv-1.x / StarMine, drift, stability
         # Jamie 10-20: the noon-PT scan only reached the NEXT morning's plan (~19 h stale) → re-scan with live Schwab quotes first
         ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts 2>&1 "
                                          "| grep -o 'persisted.*' | tail -1 || echo 'option scan skipped (plan uses the last scan)'"]),
@@ -98,6 +93,12 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("pick odds", PY, HERE, ["pick_odds.py"]),  # A213: per-pick probabilities → watchlist_sync.pick_odds
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
         ("house view", PY, HERE, ["house_view.py"]),
+        # Jamie 10-29: Trading Central valuation/levels/outlooks + Argus PT + Morningstar bull/bear text (Yahoo insights, free,
+        # ~1.2 s/name sequential, circuit-aware) → yahoo_insights_daily (+ argus_pt in external_intrinsic). Soft.
+        # 11-03: after publish — nothing that builds the list reads it (fair value is display-only); was ~21 min ahead of the list.
+        ("Yahoo insights (Trading Central)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/sync-yahoo-insights.ts 2>&1 "
+                                                       "| grep 'yahoo-insights:' | tail -1 || echo 'yahoo insights skipped'"]),
+        ("DCF grades", SH, HERE, ["-c", f"{PY} dcf/grade.py 2>&1 | tail -1"]),   # A283 step 2: rank IC vs fv-1.x / StarMine, drift, stability (reads Trading Central/Argus → after it)
         # Key Themes (Jamie 10-28): Treasury cash flows → gov_flows_*; then the themes snapshot (signposts + unified read →
         # theme_snapshots, graded on each view's check date). Soft: a failure must not stop the plan.
         ("gov flows", SH, HERE, ["-c", f"{PY} gov_flows.py 2>&1 | tail -1"]),
