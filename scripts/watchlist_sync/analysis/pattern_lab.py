@@ -46,8 +46,15 @@ S151_K_ATR = 1.0
 S151_TOL = 0.25
 S151_HORIZONS = {"intra": 1, "week": 5, "month": 21, "quarter": 63}
 S151_FIT_END = pd.Timestamp("2021-12-31")
+S151_P3_FIT_END = FIT_END
+S151_P3_VAL_END = VAL_END
+S151_P3_HALF = pd.Timestamp("2023-12-31")
+S151_P3_HOLD_START = pd.Timestamp("2025-01-01")
+S151_CLOSE_TOL = 0.5
+S151_GEOMETRY_FEATS = {"close_loc", "prior_day_low", "prior_day_high", "bb_pctb", "stoch14", "pos20"}
 S151_SMOKE_TICKERS = "AAPL,MSFT,NVDA,AMZN,GOOGL,META,JPM,XOM,UNH,WMT".split(",")
 S151_CACHE = Path.home() / ".fildi" / "cache" / "pattern_lab_s151_panel.pkl"
+S151_HORIZON_LABEL = {"intra": "next_day", "week": "week", "month": "month", "quarter": "quarter"}
 
 
 def load(tickers: list[str] | None) -> pd.DataFrame:
@@ -208,6 +215,8 @@ def s151_horizon_labels(g: pd.DataFrame) -> pd.DataFrame:
         ok = fl.notna() & fh.notna() & fc.notna() & (a > 0)
         g[f"good_low_{name}"] = ((fl >= g.l - S151_TOL * a) & (fh >= g.c + S151_K_ATR * a)).astype(float).where(ok)
         g[f"good_high_{name}"] = ((fh <= g.h + S151_TOL * a) & (fl <= g.c - S151_K_ATR * a)).astype(float).where(ok)
+        g[f"good_low_close_{name}"] = ((fl >= g.c - S151_CLOSE_TOL * a) & (fh >= g.c + S151_K_ATR * a)).astype(float).where(ok)
+        g[f"good_high_close_{name}"] = ((fh <= g.c + S151_CLOSE_TOL * a) & (fl <= g.c - S151_K_ATR * a)).astype(float).where(ok)
         g[f"mae_low_{name}"] = ((g.c - fl) / a).where(ok)
         g[f"mfe_low_{name}"] = ((fh - g.c) / a).where(ok)
         g[f"ret_h_{name}"] = (fc / g.c - 1).where(ok)
@@ -308,6 +317,8 @@ def tier(lt: pd.DataFrame) -> pd.DataFrame:
                     "rate_H1": h1.rate, "rate_H2": h2.rate, "base_H1": h1.base, "base_H2": h2.base,
                     "z_H1": (h1.rate - h1.base) / h1.se if h1.se else np.nan, "z_H2": (h2.rate - h2.base) / h2.se if h2.se else np.nan,
                     "n": int(row.n.sum()), "tier": t})
+    if not res:
+        return pd.DataFrame(columns=["feature", "label", "bucket", "range", "lift_H1", "lift_H2", "tier", "n"])
     return pd.DataFrame(res).sort_values(["label", "lift_H1"], ascending=[True, False])
 
 
@@ -356,7 +367,10 @@ def confluence(p: pd.DataFrame) -> pd.DataFrame:
 def s151_panel(tickers: list[str] | None, rebuild: bool) -> pd.DataFrame:
     cache = S151_CACHE if not tickers else None
     if cache and cache.exists() and not rebuild and not tickers:
-        return pd.read_pickle(cache)
+        p = pd.read_pickle(cache)
+        if "good_low_close_week" in p.columns:
+            return p
+        rebuild = True
     raw = load(tickers)
     parts = []
     for t, g in raw.groupby("ticker"):
@@ -453,6 +467,300 @@ def s151_phase2_separation(p: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values(["horizon", "side", "abs_d"], ascending=[True, True, False])
 
 
+def s151_lift_table(
+    p: pd.DataFrame,
+    label: str,
+    feats: list[str] | None = None,
+    *,
+    fit_start: pd.Timestamp | None = None,
+    fit_end: pd.Timestamp | None = None,
+    check_end: pd.Timestamp | None = None,
+    half: pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Quintile edges from fit window; lift on check split H1/H2 (month-clustered SE)."""
+    feats = feats or FEATS_S151
+    fit_start = fit_start or pd.Timestamp("2016-01-01")
+    fit_end = fit_end or S151_P3_FIT_END
+    check_end = check_end or S151_P3_VAL_END
+    half = half or S151_P3_HALF
+    fit = p[(p.date >= fit_start) & (p.date <= fit_end) & p[label].notna()]
+    check = p[(p.date > fit_end) & (p.date <= check_end) & p[label].notna()]
+    out = []
+    for f in feats:
+        d_fit = fit[[f, label, "date"]].dropna()
+        if len(d_fit) < 5000:
+            continue
+        if f in BINARY:
+            edges = None
+        else:
+            edges = np.unique(np.nanquantile(d_fit[f], [0, 0.2, 0.4, 0.6, 0.8, 1.0]))
+            if len(edges) < 4:
+                continue
+        for half_name, h in (("H1", check[check.date <= half]), ("H2", check[check.date > half])):
+            d = h[[f, label, "date"]].dropna()
+            if len(d) < 2000:
+                continue
+            if f in BINARY:
+                d = d.assign(b=d[f].astype(int))
+                labels = [0, 1]
+            else:
+                d = d.assign(b=np.clip(np.searchsorted(edges, d[f], side="right") - 1, 0, len(edges) - 2))
+                labels = list(range(len(edges) - 1))
+            base = d[label].mean()
+            m = d.assign(mo=d.date.dt.to_period("M")).groupby(["b", "mo"])[label].agg(["mean", "size"]).reset_index()
+            for b in labels:
+                mb = m[m.b == b]
+                if mb["size"].sum() < 150:
+                    continue
+                rate = np.average(mb["mean"], weights=mb["size"])
+                se = mb["mean"].std(ddof=1) / np.sqrt(len(mb)) if len(mb) > 3 else np.nan
+                out.append({"feature": f, "label": label, "half": half_name, "bucket": b, "n": int(mb["size"].sum()),
+                            "rate": rate, "base": base, "lift": rate / base if base > 0 else np.nan, "se": se,
+                            "lo": float(d.loc[d.b == b, f].min()), "hi": float(d.loc[d.b == b, f].max())})
+    return pd.DataFrame(out)
+
+
+def s151_tier_with_geometry(lt: pd.DataFrame, lt_close: pd.DataFrame | None) -> pd.DataFrame:
+    if lt.empty:
+        return pd.DataFrame()
+    tr = tier(lt)
+    if lt_close is None or lt_close.empty:
+        tr["geometry_ok"] = True
+        return tr
+    tr2 = tier(lt_close).rename(columns={"lift_H1": "lift_close_H1", "lift_H2": "lift_close_H2", "tier": "tier_close"})
+    tr = tr.merge(tr2[["feature", "tier_close", "lift_close_H1", "lift_close_H2"]], on="feature", how="left")
+    geom = tr.feature.isin(S151_GEOMETRY_FEATS)
+    ok = ~geom | (
+        tr.tier_close.notna() & (tr.tier_close != "none")
+        & (tr.lift_close_H1 > 1) & (tr.lift_close_H2 > 1)
+        & (np.sign(tr.lift_H1 - 1) == np.sign(tr.lift_close_H1 - 1))
+    )
+    tr.loc[geom & ~ok, "tier"] = "none"
+    tr["geometry_ok"] = ok
+    return tr
+
+
+def _month_cluster_t(d: pd.DataFrame, mask: pd.Series, label: str) -> float:
+    sub = d.assign(hit=d[label].astype(float), sel=mask.astype(int))
+    mo = sub.groupby(sub.date.dt.to_period("M")).apply(
+        lambda g: g.loc[g.sel == 1, "hit"].mean() - g["hit"].mean() if g.sel.sum() >= 20 else np.nan, include_groups=False)
+    mo = mo.dropna()
+    if len(mo) < 4:
+        return np.nan
+    return float(mo.mean() / (mo.std(ddof=1) / np.sqrt(len(mo))))
+
+
+def _bh_adjust(pvals: list[float]) -> list[float]:
+    p = np.array([x if np.isfinite(x) else 1.0 for x in pvals], dtype=float)
+    n = len(p)
+    order = np.argsort(p)
+    adj = np.empty(n)
+    prev = 1.0
+    for rank, i in enumerate(order[::-1], start=1):
+        val = min(prev, p[i] * n / (n - rank + 1))
+        adj[i] = val
+        prev = val
+    return adj.tolist()
+
+
+def s151_pair_grid(p: pd.DataFrame, label: str, top_feats: list[str], side: str) -> pd.DataFrame:
+    """All pairs among top_feats; month-block t on check window; BH across pairs."""
+    check = p[(p.date > S151_P3_FIT_END) & (p.date <= S151_P3_VAL_END) & p[label].notna()].copy()
+    fit = p[(p.date >= pd.Timestamp("2016-01-01")) & (p.date <= S151_P3_FIT_END) & p[label].notna()]
+    rows = []
+    edges = {}
+    for f in top_feats:
+        if f in BINARY:
+            edges[f] = None
+            continue
+        d = fit[[f]].dropna()
+        if len(d) < 1000:
+            continue
+        edges[f] = np.unique(np.nanquantile(d[f], [0, 0.2, 0.4, 0.6, 0.8, 1.0]))
+    low_side = side == "low"
+
+    def ext_mask(frame: pd.DataFrame, f: str) -> pd.Series:
+        if f not in edges or edges[f] is None:
+            return frame[f].astype(int) == 1
+        b = np.clip(np.searchsorted(edges[f], frame[f], side="right") - 1, 0, len(edges[f]) - 2)
+        return b == (0 if low_side else len(edges[f]) - 2)
+
+    for i, f1 in enumerate(top_feats):
+        for f2 in top_feats[i + 1:]:
+            d = check.dropna(subset=[f1, f2, label])
+            if len(d) < 3000:
+                continue
+            m = ext_mask(d, f1) & ext_mask(d, f2)
+            if m.sum() < 200:
+                continue
+            h1 = d[d.date <= S151_P3_HALF]
+            h2 = d[d.date > S151_P3_HALF]
+            lifts = []
+            for h in (h1, h2):
+                base = h[label].mean()
+                mh = ext_mask(h, f1) & ext_mask(h, f2)
+                rate = h.loc[mh, label].mean()
+                lifts.append(rate / base if base > 0 else np.nan)
+            if not all(np.isfinite(x) and x > 1 for x in lifts):
+                continue
+            t = _month_cluster_t(d, ext_mask(d, f1) & ext_mask(d, f2), label)
+            rows.append({"f1": f1, "f2": f2, "label": label, "n": int((ext_mask(d, f1) & ext_mask(d, f2)).sum()),
+                         "lift_H1": lifts[0], "lift_H2": lifts[1], "t_check": t})
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    from scipy import stats
+    pvals = [2 * stats.t.sf(abs(t), df=8) if np.isfinite(t) else 1.0 for t in df.t_check]
+    df["p_raw"] = pvals
+    df["p_bh"] = _bh_adjust(pvals)
+    df["pass_bh"] = df.p_bh < 0.05
+    return df.sort_values("t_check", ascending=False)
+
+
+def s151_model_horizon(p: pd.DataFrame, label: str) -> dict:
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.metrics import roc_auc_score
+    d = p[p[label].notna()].copy()
+    fit = d.date <= S151_P3_FIT_END
+    val = (d.date > S151_P3_FIT_END) & (d.date <= S151_P3_VAL_END)
+    hold = d.date >= S151_P3_HOLD_START
+    feats = [f for f in FEATS_S151 if d.loc[fit, f].nunique() > 1]
+    X = d[feats].astype(float)
+    y = d[label].astype(int)
+    kw = dict(max_iter=250, learning_rate=0.05, max_leaf_nodes=31, min_samples_leaf=800, l2_regularization=1.0, random_state=0)
+    m = HistGradientBoostingClassifier(**kw).fit(X[fit], y[fit])
+    pv = m.predict_proba(X[val])[:, 1]
+    out = {"label": label, "auc_val": roc_auc_score(y[val], pv) if val.sum() > 100 else np.nan}
+    q = pd.qcut(pv, 10, labels=False, duplicates="drop")
+    out["top_decile_lift_val"] = y[val][q == q.max()].mean() / y[val].mean()
+    m2 = HistGradientBoostingClassifier(**kw).fit(X[fit | val], y[fit | val])
+    if hold.sum() < 500:
+        out["auc_hold"] = np.nan
+        out["hold_top_decile_lift"] = np.nan
+    else:
+        ph = m2.predict_proba(X[hold])[:, 1]
+        out["auc_hold"] = roc_auc_score(y[hold], ph)
+        qh = pd.qcut(ph, 10, labels=False, duplicates="drop")
+        out["hold_top_decile_lift"] = y[hold][qh == qh.max()].mean() / y[hold].mean()
+    return out
+
+
+def s151_confluence(p: pd.DataFrame, label: str, side: str) -> pd.DataFrame:
+    d = p[p[label].notna()].copy()
+    if side == "low":
+        c = ((d.rsi14 < 35).astype(int) + (d.rsi2 < 35).astype(int) + (d.bb_pctb < 0.2).astype(int)
+             + (d.close_loc > 0.55).astype(int) + (d.sup_dist < 0.75).astype(int) + (d.down_climax == 1).astype(int))
+    else:
+        c = ((d.rsi14 > 65).astype(int) + (d.rsi2 > 65).astype(int) + (d.bb_pctb > 0.8).astype(int)
+             + (d.close_loc < 0.45).astype(int) + (d.res_dist < 0.75).astype(int) + (d.up_climax == 1).astype(int))
+    d = d.assign(k=c.clip(upper=5), per=np.where(d.date >= S151_P3_HOLD_START, "hold",
+                                                  np.where(d.date > S151_P3_FIT_END, "check", "fit")))
+    return d.groupby(["per", "k"]).agg(n=(label, "size"), rate=(label, "mean")).reset_index()
+
+
+def s151_bars5m_panel(daily: pd.DataFrame) -> pd.DataFrame:
+    """Rest-of-session good low/high from ~09:35 ET; features lagged from prior close (2024-10→)."""
+    try:
+        import psycopg
+    except ImportError:
+        return pd.DataFrame()
+    snap = daily.sort_values(["ticker", "date"]).copy()
+    snap["feat_date"] = snap.date
+    feat_cols = [f for f in FEATS_S151 if f in snap.columns]
+    lag = snap.groupby("ticker")[feat_cols + ["atr", "date"]].shift(1)
+    lag["ticker"] = snap.ticker.values
+    lag["date"] = snap.date.values
+    with connect() as conn:
+        uni = set(snap.ticker.unique())
+        tickers = [t for (t,) in conn.execute(
+            "SELECT DISTINCT ticker FROM optlab.bars_5m"
+        ).fetchall() if t in uni]
+    rows = []
+    for tk in tickers:
+        g = lag[lag.ticker == tk].dropna(subset=["atr"])
+        if g.empty:
+            continue
+        with connect() as conn:
+            raw = pd.read_sql(
+                "SELECT ts, o, h, l, c FROM optlab.bars_5m WHERE ticker=%s ORDER BY ts", conn, params=(tk,))
+        if raw.empty:
+            continue
+        raw["ts"] = pd.to_datetime(raw.ts, utc=True).dt.tz_convert("America/New_York")
+        m = raw.ts.dt.hour * 60 + raw.ts.dt.minute
+        raw = raw[(m >= 570) & (m < 960)].copy()
+        raw["d"] = pd.to_datetime(raw.ts.dt.date)
+        by_day = {d: sub for d, sub in raw.groupby("d")}
+        for _, row in g.iterrows():
+            d = row.date
+            if d < pd.Timestamp("2024-10-01"):
+                continue
+            bars = by_day.get(d)
+            if bars is None or len(bars) < 8:
+                continue
+            early = bars[bars.ts.dt.hour * 60 + bars.ts.dt.minute <= 575]
+            rest = bars[bars.ts.dt.hour * 60 + bars.ts.dt.minute > 575]
+            if early.empty or rest.empty:
+                continue
+            sig_l, sig_c = float(early.l.min()), float(early.c.iloc[-1])
+            fl, fh = float(rest.l.min()), float(rest.h.max())
+            a = float(row.atr)
+            if not a > 0:
+                continue
+            ok = True
+            good_low = float((fl >= sig_l - S151_TOL * a) and (fh >= sig_c + S151_K_ATR * a))
+            good_high = float((fh <= early.h.max() + S151_TOL * a) and (fl <= sig_c - S151_K_ATR * a))
+            good_low_close = float((fl >= sig_c - S151_CLOSE_TOL * a) and (fh >= sig_c + S151_K_ATR * a))
+            rec = {f: row[f] for f in feat_cols if f in row.index}
+            rec.update({"ticker": tk, "date": d, "good_low_rest": good_low, "good_high_rest": good_high,
+                          "good_low_rest_close": good_low_close, "atr": a})
+            rows.append(rec)
+    return pd.DataFrame(rows)
+
+
+def s151_phase3(p: pd.DataFrame, p2: pd.DataFrame) -> dict:
+    """Prospective lifts, pairs (BH), model, confluence; dual geometry labels."""
+    out: dict = {"tiers": [], "pairs": [], "models": [], "confluence": [], "bars5m_tiers": None}
+    for name in S151_HORIZONS:
+        for side in ("low", "high"):
+            lab = f"good_{side}_{name}"
+            lab_close = f"good_{side}_close_{name}"
+            lt = s151_lift_table(p, lab)
+            lt_c = s151_lift_table(p, lab_close)
+            tr = s151_tier_with_geometry(lt, lt_c)
+            tr = tr.assign(horizon=name, side=side, label_geom=lab)
+            out["tiers"].append(tr)
+            top = p2[(p2.horizon == name) & (p2.side == side)].head(15).feature.tolist()
+            if len(top) >= 2:
+                pg = s151_pair_grid(p, lab, top, side)
+                if not pg.empty:
+                    pg = pg.assign(horizon=name, side=side)
+                    out["pairs"].append(pg)
+            out["models"].append({**s151_model_horizon(p, lab), "horizon": name, "side": side})
+            out["confluence"].append(s151_confluence(p, lab, side).assign(horizon=name, side=side))
+    out["tiers_df"] = pd.concat(out["tiers"], ignore_index=True) if out["tiers"] else pd.DataFrame()
+    out["pairs_df"] = pd.concat(out["pairs"], ignore_index=True) if out["pairs"] else pd.DataFrame()
+    out["conf_df"] = pd.concat(out["confluence"], ignore_index=True) if out["confluence"] else pd.DataFrame()
+    b5 = s151_bars5m_panel(p)
+    if not b5.empty:
+        lt = s151_lift_table(
+            b5, "good_low_rest", [f for f in FEATS_S151 if f in b5.columns],
+            fit_start=pd.Timestamp("2024-10-01"), fit_end=pd.Timestamp("2025-06-30"),
+            check_end=pd.Timestamp("2026-06-30"), half=pd.Timestamp("2025-12-31"),
+        )
+        lt_c = s151_lift_table(
+            b5, "good_low_rest_close", [f for f in FEATS_S151 if f in b5.columns],
+            fit_start=pd.Timestamp("2024-10-01"), fit_end=pd.Timestamp("2025-06-30"),
+            check_end=pd.Timestamp("2026-06-30"), half=pd.Timestamp("2025-12-31"),
+        )
+        if not lt.empty:
+            tr = s151_tier_with_geometry(lt, lt_c)
+            tr = tr.assign(block="bars_5m_rest_day", side="low")
+            out["bars5m_tiers"] = tr
+        out["bars5m_n"] = len(b5)
+        out["bars5m_base"] = b5.good_low_rest.mean()
+    return out
+
+
 def s151_hand_check_row(p: pd.DataFrame, ticker: str = "AAPL", horizon: str = "week") -> dict:
     """One explicit label row for manual verification in the packet."""
     col = f"good_low_{horizon}"
@@ -484,13 +792,22 @@ def run_s151(tickers: list[str] | None, rebuild: bool) -> None:
     p2 = s151_phase2_separation(fit_p)
     p2.to_csv(OUT / f"s151_phase2_{tag}.csv", index=False)
     hand = s151_hand_check_row(p)
+    p3 = s151_phase3(p, p2)
+    if not p3["tiers_df"].empty:
+        p3["tiers_df"].to_csv(OUT / f"s151_phase3_tiers_{tag}.csv", index=False)
+    if not p3["pairs_df"].empty:
+        p3["pairs_df"].to_csv(OUT / f"s151_phase3_pairs_{tag}.csv", index=False)
+    if not p3["conf_df"].empty:
+        p3["conf_df"].to_csv(OUT / f"s151_phase3_confluence_{tag}.csv", index=False)
+    hz_note = ", ".join(f"{S151_HORIZON_LABEL.get(k, k)}={v}d" for k, v in S151_HORIZONS.items())
     lines = [
         "# S151 — turning points by horizon (A328)",
         "",
         f"Panel: **{p.ticker.nunique()}** names · **{len(p):,}** day-rows · {p.date.min().date()} → {p.date.max().date()}",
-        "Labels: forward-only good low/high (0.25 ATR hold, 1 ATR rally/fall); horizons: "
-        + ", ".join(f"{k}={v}d" for k, v in S151_HORIZONS.items()) + ".",
+        "Labels: forward-only good low/high (0.25 ATR hold on day low/high, 1 ATR rally/fall from close); "
+        f"close-anchored control (hold 0.5 ATR from close). Horizons: {hz_note} (`intra` = **next session**, not rest-of-day).",
         f"Phase 2 fit window: 2016-01-01 → {S151_FIT_END.date()} (hypothesis generation only).",
+        f"Phase 3: quintiles fit ≤ {S151_P3_FIT_END.date()}, check {S151_P3_HALF.date()} halves on 2023–24, holdout ≥ {S151_P3_HOLD_START.date()} once.",
         "",
         "## Phase 1 — label base rates",
         "",
@@ -510,9 +827,59 @@ def run_s151(tickers: list[str] | None, rebuild: bool) -> None:
     else:
         top = p2.groupby(["horizon", "side"]).head(8)
         lines.append(top.round(3).to_string(index=False))
-    lines += ["", "## Notes", "- Survivorship: static LSEG universe; no vendor calls.", "- `intra`=1 session on daily bars (true rest-of-day needs bars_5m; phase 4).", "- Verdict: Claude (phases 3–4 not run)."]
+    lines += ["", "## Phase 3 — prospective lifts (check 2023–24, geometry filter on range features)", ""]
+    tr = p3["tiers_df"]
+    if tr.empty:
+        lines.append("_No tier rows._")
+    else:
+        show = tr[tr.tier != "none"].sort_values(["horizon", "side", "lift_H1"], ascending=[True, True, False])
+        cols = ["horizon", "side", "feature", "range", "lift_H1", "lift_H2", "tier", "geometry_ok", "n"]
+        cols = [c for c in cols if c in show.columns]
+        if show.empty:
+            lines.append("_No feature reached useful/strong tier after geometry filter._")
+        else:
+            lines.append(show.groupby(["horizon", "side"]).head(6)[cols].round(3).to_string(index=False))
+    lines += ["", "### Phase 3 — top 2-factor pairs (BH q<0.05, same-sign lift both halves)", ""]
+    pg = p3["pairs_df"]
+    if pg.empty:
+        lines.append("_No passing pairs._")
+    else:
+        hit = pg[pg.pass_bh].sort_values("t_check", ascending=False).groupby(["horizon", "side"]).head(3)
+        if hit.empty:
+            lines.append("_No pairs survived BH at q<0.05._")
+        else:
+            lines.append(hit[["horizon", "side", "f1", "f2", "lift_H1", "lift_H2", "t_check", "p_bh", "n"]].round(3).to_string(index=False))
+    lines += ["", "### Phase 3 — HistGradientBoosting (fit ≤2022, AUC check, holdout once)", ""]
+    for m in p3["models"]:
+        av = m.get("auc_val", float("nan"))
+        tv = m.get("top_decile_lift_val", float("nan"))
+        ah = m.get("auc_hold", float("nan"))
+        th = m.get("hold_top_decile_lift", float("nan"))
+        lines.append(
+            f"- {m['horizon']} {m['side']}: AUC check **{av:.3f}** · top-decile lift check **{tv:.2f}×** · "
+            f"holdout AUC **{ah:.3f}** · holdout top-decile **{th:.2f}×**"
+        )
+    lines += ["", "### Phase 3 — bars_5m rest-of-session block (2024-10→, signal ~09:35, features lagged 1d)", ""]
+    b5t = p3.get("bars5m_tiers")
+    if b5t is None or (isinstance(b5t, pd.DataFrame) and b5t.empty):
+        lines.append("_bars_5m panel empty (DATABASE_URL or no overlap)._")
+    else:
+        lines.append(f"Rows **{p3.get('bars5m_n', 0):,}** · rest-day good-low base **{p3.get('bars5m_base', float('nan')):.1%}**")
+        bshow = b5t[b5t.tier != "none"] if isinstance(b5t, pd.DataFrame) else pd.DataFrame()
+        if bshow.empty:
+            lines.append("_No useful tiers on rest-of-day labels._")
+        else:
+            lines.append(bshow.head(8)[["feature", "range", "lift_H1", "lift_H2", "tier", "n"]].round(3).to_string(index=False))
+    lines += [
+        "",
+        "## Notes",
+        "- Survivorship: static LSEG universe; no vendor calls on daily panel.",
+        "- Range features (close_loc, etc.) count only if lift holds on **low-anchored and close-anchored** labels.",
+        "- Phase 4 (trades / execution grid) not run.",
+        "- Verdict: Claude.",
+    ]
     (OUT / "S151.md").write_text("\n".join(lines) + "\n")
-    print((OUT / "S151.md").read_text())
+    print((OUT / "S151.md").read_text()[:5000])
 
 
 def main() -> None:
