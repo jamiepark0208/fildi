@@ -213,13 +213,20 @@ def _latest_basic_wa(facts: dict, near_end: str | None = None) -> dict | None:
     return max(vals, key=lambda x: (x["end"], x["filed"], x["start"]))
 
 
+def filing_shares_to_ads(ordinary_sh: float, adr_ratio: int | None) -> float:
+    """Every share count from 20-F / companyfacts (ordinary) → US-listed ADS (price is per ADS)."""
+    if not adr_ratio or adr_ratio <= 1:
+        return ordinary_sh
+    return ordinary_sh / adr_ratio
+
+
 def adr_ads_shares(*, dei: float, basic: float, fmp_sh: float | None = None) -> tuple[float | None, int | None]:
     """Map 20-F ordinary basic WA → US ADS count (price is per ADS). Returns (ads, adr_ratio)."""
     if dei <= 0 or basic <= 0 or basic / dei < 5:
         return None, None
     best_r, best_ads, best_err = None, None, None
     for ratio in ADR_RATIOS:
-        ads = basic / ratio
+        ads = filing_shares_to_ads(basic, ratio)
         err = abs(ads - fmp_sh) / fmp_sh if fmp_sh else abs(ads - dei) / max(ads, 1.0)
         if best_err is None or err < best_err:
             best_r, best_ads, best_err = ratio, ads, err
@@ -231,7 +238,32 @@ def adr_ads_shares(*, dei: float, basic: float, fmp_sh: float | None = None) -> 
     return best_ads, best_r
 
 
-def shares(facts: dict, conn=None, ticker: str | None = None) -> dict | None:
+def detect_adr_ratio(
+    facts: dict, conn=None, ticker: str | None = None, near_end: str | None = None,
+) -> int | None:
+    """ADR ordinary→ADS ratio when 20-F dei is mis-scaled vs ordinary basic WA (same rule as shares())."""
+    dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
+    if not vals:
+        return None
+    u = max(vals, key=lambda x: (x["end"], x["filed"]))
+    tot = sum(x["val"] for x in vals if x["end"] == u["end"] and x["filed"] == u["filed"])
+    basic = _latest_basic_wa(facts, near_end or u["end"])
+    if not basic:
+        return None
+    fmp_sh = None
+    if conn and ticker:
+        r = rows(
+            conn,
+            "SELECT fmp_shares_outstanding::float8 sh FROM fmp_fundamentals WHERE ticker = %s AND fmp_shares_outstanding > 0",
+            (ticker.upper(),),
+        )
+        fmp_sh = float(r[0]["sh"]) if r else None
+    _, ratio = adr_ads_shares(dei=tot, basic=float(basic["val"]), fmp_sh=fmp_sh)
+    return ratio
+
+
+def shares(facts: dict, conn=None, ticker: str | None = None, adr_ratio: int | None = None) -> dict | None:
     dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
     vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
     if not vals:
@@ -246,29 +278,33 @@ def shares(facts: dict, conn=None, ticker: str | None = None) -> dict | None:
     tot = sum(x["val"] for x in vals if x["end"] == u["end"] and x["filed"] == u["filed"])
     raw = {"value": tot, "concept": "dei:EntityCommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
     basic = _latest_basic_wa(facts, raw.get("end"))
-    fmp_sh = None
-    if conn and ticker:
-        r = rows(
-            conn,
-            "SELECT fmp_shares_outstanding::float8 sh FROM fmp_fundamentals WHERE ticker = %s AND fmp_shares_outstanding > 0",
-            (ticker.upper(),),
-        )
-        fmp_sh = float(r[0]["sh"]) if r else None
     if basic:
-        ads, ratio = adr_ads_shares(dei=raw["value"], basic=float(basic["val"]), fmp_sh=fmp_sh)
-        if ads is not None and ratio is not None:
+        ratio = adr_ratio
+        if ratio is None and conn and ticker:
+            ratio = detect_adr_ratio(facts, conn, ticker, raw.get("end"))
+        if ratio:
+            ads = filing_shares_to_ads(float(basic["val"]), ratio)
+            fmp_note = ""
+            if conn and ticker:
+                r = rows(
+                    conn,
+                    "SELECT fmp_shares_outstanding::float8 sh FROM fmp_fundamentals WHERE ticker = %s AND fmp_shares_outstanding > 0",
+                    (ticker.upper(),),
+                )
+                if r:
+                    fmp_note = f" (vendor {float(r[0]['sh'])/1e6:.0f}M)"
             return {
                 **raw,
                 "value": ads,
                 "concept": f"WeightedAverageNumberOfSharesOutstandingBasic/{ratio} ADS",
                 "end": basic["end"],
                 "filed": basic["filed"],
-                "how": f"20-F dei mis-scaled vs ordinary basic; ÷{ratio} for US ADS (vendor {fmp_sh/1e6:.0f}M)" if fmp_sh else f"20-F basic÷{ratio} ADS",
+                "how": f"20-F dei mis-scaled vs ordinary basic; ÷{ratio} for US ADS{fmp_note}",
             }
     return raw
 
 
-def dilution(facts: dict, asof: str) -> dict:
+def dilution(facts: dict, asof: str, adr_ratio: int | None = None) -> dict:
     """Unvested RSUs, options outstanding and their weighted strike at the latest instant ≤ asof (stale > 400 d → none)."""
     out = {}
     for k, c in DILUTION.items():
@@ -276,7 +312,8 @@ def dilution(facts: dict, asof: str) -> dict:
         if vals:
             u = max(vals, key=lambda x: (x["end"], x["filed"]))
             if _days(u["end"], asof) <= 400:
-                out[k] = {"value": u["val"], "end": u["end"], "filed": u["filed"]}
+                val = filing_shares_to_ads(u["val"], adr_ratio) if k != "strike" else u["val"]
+                out[k] = {"value": val, "end": u["end"], "filed": u["filed"]}
     unrec = [u for u in _units(facts, UNRECOGNIZED) if not u.get("start") and u["end"] <= asof]
     if unrec:
         u = max(unrec, key=lambda x: (x["end"], x["filed"]))
@@ -290,7 +327,8 @@ def dilution(facts: dict, asof: str) -> dict:
         if vals:
             w[k] = max(vals, key=lambda x: (x["end"], x["filed"], x["start"]))
     if len(w) == 2 and w["diluted"]["end"] == w["basic"]["end"] and w["diluted"]["start"] == w["basic"]["start"]:
-        out["dil_gap"] = {"value": max(w["diluted"]["val"] - w["basic"]["val"], 0), "end": w["diluted"]["end"]}
+        gap = max(w["diluted"]["val"] - w["basic"]["val"], 0)
+        out["dil_gap"] = {"value": filing_shares_to_ads(gap, adr_ratio), "end": w["diluted"]["end"]}
     return out
 
 
@@ -330,8 +368,9 @@ def ttm_base(conn, ticker: str, facts: dict | None = None) -> dict | None:
     out = {k: ttm_flow(facts, v) for k, v in FLOWS.items()}
     asof = (out.get("revenue") or {}).get("end") or date.today().isoformat()
     out.update({k: balance(facts, v, asof) for k, v in BALANCES.items()})
-    out["shares"] = shares(facts, conn, ticker)
-    out["dilution"] = dilution(facts, asof)
+    adr_ratio = detect_adr_ratio(facts, conn, ticker, asof)
+    out["shares"] = shares(facts, conn, ticker, adr_ratio=adr_ratio)
+    out["dilution"] = dilution(facts, asof, adr_ratio=adr_ratio)
     # A288: conversion price — prefer dimension-free; else per-tranche segments; vintage-match to face end.
     face_end = (out.get("convert_debt") or {}).get("end")
     cp_raw = _units(facts, CONVERT_PRICE, "USD/shares")

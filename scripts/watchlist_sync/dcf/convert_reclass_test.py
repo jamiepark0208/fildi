@@ -50,12 +50,22 @@ def main() -> None:
     assert reclass(1e9, 0.0, 40.0) == (0.0, 0.0)
     assert reclass(0.0, 20.0, 40.0) == (0.0, 0.0)
 
-    # Finding 1: BABA-like gap ≥ 30% shares → zero rsu/opt; converts guarded separately
+    # Finding 1: BABA ADS — gap scaled ÷8 (~83M on 2,321M base); guard must not zero
+    gap_ads = F.filing_shares_to_ads(667e6, 8)
+    assert abs(gap_ads - 83.375e6) < 1
     extra, csh, debt, rsu = apply_guards(
-        shares=1_850e6, rsu=667e6, opt_net=0.0, gap=667e6,
+        shares=2_321e6, rsu=gap_ads, opt_net=0.0, gap=gap_ads,
         convert_sh=0.0, reclassed_face=0.0, debt_sec=10e9,
     )
-    assert rsu == 0.0 and extra == 0.0 and abs(debt - 10e9) < 1
+    assert abs(rsu - gap_ads) < 1 and abs(extra - gap_ads) < 1 and abs(debt - 10e9) < 1
+    assert (rsu + 0) < 0.3 * 2_321e6
+
+    # Unscaled ordinary gap on wrong base (1,858M dei) hit ≥30% guard; ADS base + scaled gap does not
+    extra, csh, debt, rsu = apply_guards(
+        shares=1_858e6, rsu=667e6, opt_net=0.0, gap=667e6,
+        convert_sh=0.0, reclassed_face=0.0, debt_sec=10e9,
+    )
+    assert rsu == 0.0 and extra == 0.0
 
     # Finding 3: gap path skips convert_sh and restores face
     extra, csh, debt, rsu = apply_guards(
