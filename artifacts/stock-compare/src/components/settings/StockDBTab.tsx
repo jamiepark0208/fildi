@@ -11,17 +11,62 @@ import type {
 import { formatSector } from "./stockdb/stock-db-types";
 import {
   COLS, TECH_COLS, FAMILY_COLORS, TECH_FAMILY_COLORS, techFamilies, LOG_TRANSFORM_COLS, headerLines,
-  visibleFundCols, familyFieldCols, fundTableWidthPx, COL_W, SCORE_FAMILY_ORDER, type FundFamily,
+  HIGHER_IS_BETTER, LOWER_IS_BETTER, NEGATIVE_IS_BAD, colRole, COL_ROLE_NOTE,
+  visibleFundCols, familyFieldCols, valueFieldCols, fundTableWidthPx, COL_W, SCORE_FAMILY_ORDER, type FundFamily,
 } from "./stockdb/stock-db-columns";
 import {
   getSectorPalette, coverageColor, coverageBarColor, FAMILY_LABEL, FAMILY_CHIP, FAMILY_SOLID, FAMILY_CELL_BG,
 } from "./stockdb/stock-db-palette";
 import {
   calcCoverage, fmt, isSuspect, computeGroupZScores, isNearZeroBase, fmtDate, enrichRunChip, sourceAgeLabel, sourceAgeTitle,
+  groupMedian, groupTrimmedMean, numericMedian, trimmedMean, metricTone,
 } from "./stockdb/stock-db-formatters";
 import { VendorCrossCheckPanel } from "./stockdb/vendor-cross-check-panel";
 import { StockDbSummaryBar } from "./stockdb/stock-db-summary-bar";
 import { PeerGroupsTab } from "./PeerGroupsTab";
+import { formatCompactCurrency } from "@/lib/format";
+
+const DERIVED_INPUTS: Record<string, { label: string; field: string }[]> = {
+  peRatio: [{ label: "EPS", field: "earningsPerShare" }],
+  pegRatio: [{ label: "P/E", field: "peRatio" }, { label: "EPS growth", field: "epsGrowth" }],
+  forwardPe: [{ label: "Fwd EPS", field: "forwardEps" }],
+  forwardPeg: [{ label: "Fwd P/E", field: "forwardPe" }, { label: "EPS growth", field: "epsGrowth" }],
+  priceToBook: [{ label: "Equity", field: "totalStockholdersEquity" }, { label: "Shares", field: "sharesOutstanding" }],
+  priceToSales: [{ label: "Revenue", field: "totalRevenue" }, { label: "Shares", field: "sharesOutstanding" }],
+  evEbitda: [{ label: "Debt", field: "totalDebt" }, { label: "Cash", field: "cashAndEquivalents" }, { label: "EBITDA", field: "ebitda" }, { label: "Shares", field: "sharesOutstanding" }],
+  evRevenue: [{ label: "Debt", field: "totalDebt" }, { label: "Cash", field: "cashAndEquivalents" }, { label: "Revenue", field: "totalRevenue" }, { label: "Shares", field: "sharesOutstanding" }],
+};
+
+function fieldByName(data: ProvenanceData | undefined, field: string): FieldProv | null {
+  return data?.fields.find(f => f.field === field) ?? null;
+}
+
+function usedSource(f: FieldProv) {
+  return f.sources.find(s => s.status === "used" && s.value != null) ?? null;
+}
+
+function newerSourceNote(f: FieldProv): string | null {
+  const used = usedSource(f);
+  if (!used?.fetchedAt || used.value == null) return null;
+  const usedT = Date.parse(used.fetchedAt);
+  if (!Number.isFinite(usedT)) return null;
+  let best: { text: string; t: number } | null = null;
+  for (const s of f.sources) {
+    if (s.source === used.source || s.value == null || !s.fetchedAt || s.status === "excluded") continue;
+    const t = Date.parse(s.fetchedAt);
+    if (!Number.isFinite(t) || t < usedT + 45 * 86_400_000) continue;
+    if (best && t < best.t) continue;
+    const gap = Math.abs(s.value - used.value) / Math.max(Math.abs(used.value), 1e-9);
+    const when = fmtDate(s.fetchedAt);
+    best = {
+      t,
+      text: gap > 0.05
+        ? `Newer ${s.source} ${s.value.toPrecision(4)} on ${when} differs ${Math.round(gap * 100)}% from the gold source.`
+        : `Newer ${s.source} ${s.value.toPrecision(4)} on ${when} agrees within ${Math.round(gap * 100)}%. Gold is still the older source.`,
+    };
+  }
+  return best?.text ?? null;
+}
 
 function SortIcon({ colKey, sortCol, sortDir }: { colKey: string; sortCol: string | null; sortDir: "asc" | "desc" }) {
   if (sortCol !== colKey) return <span className="opacity-20 ml-0.5 inline-block w-2.5 text-center">↕</span>;
@@ -43,7 +88,24 @@ const _persist = {
 
 const families = ["value", "growth", "quality", "safety", "meta"] as const;
 
-type ActiveCell = { ticker: string; field: string; rect: DOMRect; tooltipParts: string[] };
+function famCovFor(entries: { fundamentals?: FundamentalsRow | null }[]): FamilyCovSummary {
+  return Object.fromEntries(
+    families.map(fam => {
+      const famCols = COLS.filter(c => c.family === fam);
+      const filled = entries.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
+      return [fam, { filled, total: entries.length * famCols.length }];
+    }),
+  );
+}
+
+type ActiveCell = { ticker: string; field: string; rect: DOMRect; tooltipParts: string[]; tone?: "good" | "mid" | "bad"; z?: number };
+
+function rankMarkTitle(tone: "good" | "mid" | "bad", z?: number): string {
+  const place = tone === "good" ? "good end" : tone === "bad" ? "bad end" : "middle";
+  if (z == null) return place + " of this sub-sector";
+  const side = z > 0 ? "high" : z < 0 ? "low" : "at the median";
+  return `z = ${z.toFixed(1)} · ${side} vs this sub-sector · ${place}`;
+}
 
 export function StockDBTab() {
   const { isAdmin } = useAuth();
@@ -63,7 +125,7 @@ export function StockDBTab() {
   const fundCols = useMemo(() => visibleFundCols(expandedFamily), [expandedFamily]);
   /** Pad empty field slots to widest family — expand/collapse keeps the same table width. */
   const maxFamilyFields = useMemo(
-    () => Math.max(0, ...SCORE_FAMILY_ORDER.map(f => familyFieldCols(f).length)),
+    () => Math.max(valueFieldCols().length, ...SCORE_FAMILY_ORDER.map(f => familyFieldCols(f).length)),
     [],
   );
   const widthPadCols = Math.max(0, maxFamilyFields - fundCols.filter(c => c.kind === "field").length);
@@ -171,6 +233,15 @@ export function StockDBTab() {
     refetchInterval: 5 * 60_000,
   });
   const divergentItems = divergentData?.items ?? [];
+  const reviewByField = useMemo(() => {
+    const grouped = new Map<string, DivergentItem[]>();
+    for (const item of divergentItems) {
+      const rows = grouped.get(item.field) ?? [];
+      rows.push(item);
+      grouped.set(item.field, rows);
+    }
+    return [...grouped.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  }, [divergentItems]);
 
 
   const { data, isLoading, isError, refetch } = useQuery<StockDBEntry[]>({
@@ -184,6 +255,41 @@ export function StockDBTab() {
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+  const repMutation = useMutation({
+    mutationFn: async ({ ticker, peerRep }: { ticker: string; peerRep: boolean }) => {
+      const r = await fetch("/api/fundamentals/peer-rep", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker, peerRep }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<{ ticker: string; peerRep: boolean }>;
+    },
+    onMutate: async ({ ticker, peerRep }) => {
+      await qc.cancelQueries({ queryKey: ["admin-stock-db"] });
+      const prev = qc.getQueryData<StockDBEntry[]>(["admin-stock-db"]);
+      qc.setQueryData<StockDBEntry[]>(["admin-stock-db"], old =>
+        old?.map(e => e.ticker === ticker ? { ...e, isPeerRep: peerRep } : e),
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["admin-stock-db"], ctx.prev);
+    },
+  });
+
+  const suspectCount = useMemo(() => {
+    if (!data) return 0;
+    let n = 0;
+    for (const row of data) {
+      for (const col of COLS) {
+        const raw = row.fundamentals?.[col.key];
+        if (raw != null && isSuspect(col, String(raw))) n++;
+      }
+    }
+    return n;
+  }, [data]);
 
   // On first data load: collapse all sectors + groups (headers live under each expanded sector)
   useEffect(() => {
@@ -252,10 +358,10 @@ export function StockDBTab() {
   // Provenance/override editing is admin-only (backed by requireAdmin routes), but the
   // suspect/discrepancy flag popup (tooltipParts) is plain client-side info anyone can see —
   // so non-admins still get a click popup when a cell has flags, just without the edit UI.
-  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLElement>, tooltipParts: string[]) => {
+  const openCell = useCallback((ticker: string, field: string, e: React.MouseEvent<HTMLElement>, tooltipParts: string[], tone?: "good" | "mid" | "bad", z?: number) => {
     if (!isAdmin && tooltipParts.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    setActiveCell({ ticker, field, rect, tooltipParts });
+    setActiveCell({ ticker, field, rect, tooltipParts, tone, z });
     setOverrideSrc(activeProv?.override?.source ?? "");
     setOverrideVal(activeProv?.override?.value != null ? String(activeProv.override.value) : "");
     setOverrideNote(activeProv?.override?.note ?? "");
@@ -314,6 +420,19 @@ export function StockDBTab() {
           const cmp = a.ticker.localeCompare(b.ticker);
           return sortDir === "asc" ? cmp : -cmp;
         }
+        if (sortCol === "marketCap") {
+          const aVal = a.marketCap;
+          const bVal = b.marketCap;
+          if (aVal == null && bVal == null) return 0;
+          if (aVal == null) return 1;
+          if (bVal == null) return -1;
+          return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+        }
+        if (sortCol === "peerRep") {
+          const cmp = Number(a.isPeerRep) - Number(b.isPeerRep);
+          if (cmp !== 0) return sortDir === "asc" ? cmp : -cmp;
+          return a.ticker.localeCompare(b.ticker);
+        }
         const aRaw = a.fundamentals?.[sortCol as keyof FundamentalsRow] ?? null;
         const bRaw = b.fundamentals?.[sortCol as keyof FundamentalsRow] ?? null;
         const aVal = aRaw != null ? parseFloat(aRaw as string) : null;
@@ -323,7 +442,7 @@ export function StockDBTab() {
         if (bVal == null) return -1;
         return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       }
-      if (a.isWatchlist !== b.isWatchlist) return a.isWatchlist ? -1 : 1;
+      if (a.isPeerRep !== b.isPeerRep) return a.isPeerRep ? -1 : 1;
       return a.ticker.localeCompare(b.ticker);
     };
 
@@ -345,33 +464,18 @@ export function StockDBTab() {
       const groupList = [...groups.entries()].map(([groupId, entries]) => {
         const sortedEntries = entries.sort(sortFn);
         const coverage = calcCoverage(sortedEntries);
-        const famCov: FamilyCovSummary = Object.fromEntries(
-          families.map(fam => {
-            const famCols = COLS.filter(c => c.family === fam);
-            const filled = sortedEntries.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
-            return [fam, { filled, total: sortedEntries.length * famCols.length }];
-          })
-        );
         return {
           groupId,
           groupName: entries[0]?.peerGroupName ?? groupId.split(".")[1] ?? groupId,
           entries: sortedEntries,
           coverage,
           count: entries.length,
-          famCov,
         };
       });
       // Sort by total filled cells (coverage% × count) so large well-covered groups rank above tiny 100%-coverage groups
       groupList.sort((a, b) => (b.coverage * b.count) - (a.coverage * a.count) || b.count - a.count);
       const allEntries = groupList.flatMap(g => g.entries);
-      const sectorFamCov: FamilyCovSummary = Object.fromEntries(
-        families.map(fam => {
-          const famCols = COLS.filter(c => c.family === fam);
-          const filled = allEntries.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
-          return [fam, { filled, total: allEntries.length * famCols.length }];
-        })
-      );
-      return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length, famCov: sectorFamCov };
+      return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length, famCov: famCovFor(allEntries) };
     });
     sectorList.sort((a, b) => b.count - a.count);
 
@@ -391,14 +495,7 @@ export function StockDBTab() {
     if (unclassified.length > 0) {
       const unc = unclassified.sort(sortFn);
       const uncCov = calcCoverage(unc);
-      const uncFamCov: FamilyCovSummary = Object.fromEntries(
-        families.map(fam => {
-          const famCols = COLS.filter(c => c.family === fam);
-          const filled = unc.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
-          return [fam, { filled, total: unc.length * famCols.length }];
-        })
-      );
-      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov, famCov: uncFamCov });
+      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov, famCov: famCovFor(unc) });
       rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov, entries: unc });
       for (const entry of unc) {
         rows.push({ kind: "row", sectorId: "__unclassified", groupId: "__unclassified", entry, ri: ri++ });
@@ -423,6 +520,44 @@ export function StockDBTab() {
       for (const col of COLS) {
         const scores = computeGroupZScores(entries, col.key, LOG_TRANSFORM_COLS.has(col.key as string));
         if (scores.size > 0) colMap.set(col.key as string, scores);
+      }
+      if (colMap.size > 0) result.set(gid, colMap);
+    }
+    return result;
+  }, [data]);
+
+  // Good / mid / bad vs the other names in the same sub-sector. Direction depends on the column.
+  const toneMap = useMemo(() => {
+    const result = new Map<string, Map<string, Map<string, "good" | "mid" | "bad">>>();
+    const byGroup = new Map<string, StockDBEntry[]>();
+    for (const e of data ?? []) {
+      const gid = e.peerGroupId ?? "__unclassified";
+      if (!byGroup.has(gid)) byGroup.set(gid, []);
+      byGroup.get(gid)!.push(e);
+    }
+    const keys = [...HIGHER_IS_BETTER, ...LOWER_IS_BETTER];
+    for (const [gid, entries] of byGroup) {
+      const colMap = new Map<string, Map<string, "good" | "mid" | "bad">>();
+      for (const key of keys) {
+        const higher = HIGHER_IS_BETTER.has(key);
+        const lossBad = NEGATIVE_IS_BAD.has(key);
+        const col = COLS.find(c => c.key === key);
+        const pairs: { ticker: string; v: number }[] = [];
+        for (const e of entries) {
+          const raw = e.fundamentals?.[key as keyof NonNullable<StockDBEntry["fundamentals"]>];
+          if (raw == null) continue;
+          const s = String(raw);
+          if (col && (isSuspect(col, s) || isNearZeroBase(col, s))) continue;
+          const v = parseFloat(s);
+          if (isFinite(v)) pairs.push({ ticker: e.ticker, v });
+        }
+        const pool = lossBad ? pairs.filter(p => p.v >= 0).map(p => p.v) : pairs.map(p => p.v);
+        const tones = new Map<string, "good" | "mid" | "bad">();
+        for (const p of pairs) {
+          const tone = lossBad && p.v < 0 ? "bad" : metricTone(p.v, pool, higher);
+          if (tone) tones.set(p.ticker, tone);
+        }
+        if (tones.size > 0) colMap.set(key, tones);
       }
       if (colMap.size > 0) result.set(gid, colMap);
     }
@@ -456,6 +591,8 @@ export function StockDBTab() {
         coverage={coverage}
         enrichChip={isAdmin ? enrichChip?.text ?? null : null}
         enrichTitle={isAdmin ? enrichChip?.title ?? null : null}
+        reviewCount={isAdmin ? divergentItems.length : null}
+        suspectCount={isAdmin ? suspectCount : null}
       />
 
       {/* Vendor + Needs Review on one compact row */}
@@ -479,38 +616,34 @@ export function StockDBTab() {
                 <span className="text-[10px] font-semibold px-1 py-0 rounded border bg-orange-500/25 text-orange-200 border-orange-400/50">
                   {divergentItems.length}
                 </span>
-                <span className="text-white/80 truncate">no override yet</span>
+                <span className="text-white/80 truncate">sign flip or 3×</span>
               </button>
               {reviewExpanded && (
                 <div className="border-t border-[#d4af37]/20 overflow-auto max-h-64">
                   <table className="text-xs w-full border-collapse">
                     <thead className="sticky top-0 bg-black text-[#d4af37]">
                       <tr className="border-b border-[#d4af37]/25">
-                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Ticker</th>
                         <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Field</th>
-                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Current value</th>
-                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Source used</th>
-                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Age</th>
-                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5"></th>
+                        <th className="text-right font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Count</th>
+                        <th className="text-left font-semibold text-[11px] uppercase tracking-wider px-2 py-0.5">Tickers</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800">
-                      {divergentItems.map(item => (
-                        <tr key={`${item.ticker}:${item.field}`} className="bg-zinc-900/70 even:bg-zinc-800/60 hover:bg-amber-500/10 transition-colors">
-                          <td className="px-2 py-0.5 font-mono font-semibold text-white">{item.ticker}</td>
-                          <td className="px-2 py-0.5 font-mono text-amber-100">{item.field}</td>
-                          <td className="px-2 py-0.5 text-right font-mono tabular-nums text-amber-100">
-                            {item.winningValue != null ? item.winningValue.toPrecision(5) : "—"}
-                          </td>
-                          <td className="px-2 py-0.5 text-amber-100">{item.winningSource ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-amber-100">{fmtDate(item.fetchedAt)}</td>
-                          <td className="px-2 py-0.5 text-right">
-                            <button
-                              onClick={e => openCell(item.ticker, item.field, e, [])}
-                              className="text-[10px] px-2 py-0.5 border border-[#d4af37]/20 rounded hover:text-white text-amber-100 transition-colors"
-                            >
-                              Review
-                            </button>
+                      {reviewByField.map(([field, items]) => (
+                        <tr key={field} className="bg-zinc-900/70 even:bg-zinc-800/60">
+                          <td className="px-2 py-0.5 font-mono text-amber-100">{field}</td>
+                          <td className="px-2 py-0.5 text-right font-mono tabular-nums text-white">{items.length}</td>
+                          <td className="px-2 py-0.5 font-mono text-amber-100">
+                            {items.slice(0, 8).map(item => (
+                              <button
+                                key={item.ticker}
+                                onClick={e => openCell(item.ticker, item.field, e, [`Needs Review: sign flip or 3× on ${item.field}`])}
+                                className="mr-1.5 hover:text-white"
+                              >
+                                {item.ticker}
+                              </button>
+                            ))}
+                            {items.length > 8 ? <span className="text-white">+{items.length - 8}</span> : null}
                           </td>
                         </tr>
                       ))}
@@ -681,6 +814,8 @@ export function StockDBTab() {
           {viewMode === "fundamentals" && (
             <colgroup>
               <col style={{ width: COL_W.ticker }} />
+              <col style={{ width: COL_W.mcap }} />
+              <col style={{ width: COL_W.rep }} />
               {fundCols.map((vc, i) => (
                 <col key={vc.kind === "score" ? `s-${vc.id}` : `f-${String(vc.col.key)}-${i}`} style={{ width: vc.kind === "score" ? COL_W.score : COL_W.field }} />
               ))}
@@ -693,11 +828,34 @@ export function StockDBTab() {
             <tr>
               <th
                 className="sticky left-0 z-30 bg-zinc-950 border-b border-r border-[#d4af37]/30 px-1.5 py-1 text-left font-semibold text-[12px] uppercase tracking-wide cursor-pointer hover:bg-zinc-800 select-none text-[#d4af37]"
+                style={{ width: COL_W.ticker, minWidth: COL_W.ticker }}
                 onClick={() => handleSort("ticker")}
               >
                 <span className="inline-flex items-center gap-0.5">
                   Ticker
                   <SortIcon colKey="ticker" sortCol={sortCol} sortDir={sortDir} />
+                </span>
+              </th>
+              <th
+                className="sticky z-30 bg-zinc-950 border-b border-r border-[#d4af37]/30 px-1 py-1 text-right font-semibold text-[11px] uppercase tracking-wide cursor-pointer hover:bg-zinc-800 select-none text-[#d4af37]"
+                style={{ left: COL_W.ticker, width: COL_W.mcap, minWidth: COL_W.mcap }}
+                onClick={() => handleSort("marketCap")}
+                title="Latest close × shares outstanding"
+              >
+                <span className="inline-flex items-center gap-0.5">
+                  Mkt
+                  <SortIcon colKey="marketCap" sortCol={sortCol} sortDir={sortDir} />
+                </span>
+              </th>
+              <th
+                className="sticky z-30 bg-zinc-950 border-b border-r border-[#d4af37]/30 px-0.5 py-1 text-center font-semibold text-[11px] uppercase tracking-wide cursor-pointer hover:bg-zinc-800 select-none text-[#d4af37]"
+                style={{ left: COL_W.ticker + COL_W.mcap, width: COL_W.rep, minWidth: COL_W.rep }}
+                onClick={() => handleSort("peerRep")}
+                title="Gold ticker. The checkbox is this mark. Display only — does not change the score."
+              >
+                <span className="inline-flex items-center gap-0.5">
+                  Rep
+                  <SortIcon colKey="peerRep" sortCol={sortCol} sortDir={sortDir} />
                 </span>
               </th>
               {viewMode === "fundamentals"
@@ -752,11 +910,17 @@ export function StockDBTab() {
                   const cov = colCoverage[col.key as string];
                   const pct = cov && cov.total > 0 ? Math.round((cov.filled / cov.total) * 100) : 0;
                   const lines = headerLines(col.label);
+                  const role = vc.asInput ? "input" : colRole(col.key as string);
+                  const roleNote = vc.asInput
+                    ? `Input to the ratio beside it. ${COL_ROLE_NOTE[col.key as string] ?? "The fund score may also read this column under its own family."}`
+                    : (COL_ROLE_NOTE[col.key as string] ?? (role === "input"
+                      ? "Input. The fund score does not read this column. A scored ratio is built from it."
+                      : "Score. The fund score reads this column."));
                   return (
                     <th
                       key={col.key as string}
                       onClick={() => handleSort(col.key as string)}
-                      title={cov ? `${cov.filled}/${cov.total} filled` : undefined}
+                      title={[cov ? `${cov.filled}/${cov.total} filled` : "", roleNote].filter(Boolean).join(" · ")}
                       className={cn(
                         "border-b border-[#d4af37]/30 text-center px-0.5 py-1.5 text-[11px] font-normal cursor-pointer hover:bg-zinc-800/80 select-none align-bottom overflow-hidden",
                         i < fundColCount - 1 && "border-r border-[#d4af37]/10",
@@ -778,6 +942,9 @@ export function StockDBTab() {
                         {cov && (
                           <span className={cn("text-[10px] font-normal tabular-nums", coverageColor(pct))}>{pct}%</span>
                         )}
+                        <span className={cn("text-[9px] uppercase tracking-wide", role === "input" ? "text-amber-200/70" : "text-sky-300/80")}>
+                          {role === "input" ? "input" : "score"}
+                        </span>
                       </div>
                     </th>
                   );
@@ -813,7 +980,7 @@ export function StockDBTab() {
               if (item.kind === "sector") {
                 const isCollapsed = collapsedSectors.has(item.sectorId);
                 const pal = getSectorPalette(item.sectorId);
-                const colSpan = (viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 1;
+                const colSpan = (viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 3;
                 const isFirstSector = !displayData.slice(0, idx).some((x) => x.kind === "sector");
                 return (
                   <>
@@ -881,7 +1048,7 @@ export function StockDBTab() {
                     className="cursor-pointer select-none hover:bg-[#d4af37]/10 transition-colors border-b border-zinc-800"
                     onClick={() => toggleGroup(item.groupId)}
                   >
-                    <td colSpan={(viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 1} className={cn("p-0 border-l-4", pal.border)}>
+                    <td colSpan={(viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 3} className={cn("p-0 border-l-4", pal.border)}>
                       <div className="flex items-center gap-1.5 pl-6 pr-2 py-1 bg-zinc-900">
                         {isCollapsed
                           ? <ChevronRight className="h-3 w-3 text-[#d4af37] flex-shrink-0" />
@@ -900,6 +1067,57 @@ export function StockDBTab() {
                       </div>
                     </td>
                   </tr>
+                  {!isCollapsed && viewMode === "fundamentals" && (["med", "avg"] as const).map(kind => (
+                    <tr key={`${kind}-${item.groupId}-${idx}`} className="border-b border-zinc-800 bg-zinc-900">
+                      <td
+                        className={cn("sticky left-0 z-10 border-r border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide", pal.num)}
+                        style={{ width: COL_W.ticker, minWidth: COL_W.ticker }}
+                        title={kind === "med"
+                          ? "Median of this group. Blanks, invalid values, and growth rates off a near-zero base are left out."
+                          : "Average after dropping those same blanks, plus the statistical outliers this grid marks (|z| > 3)."}
+                      >
+                        {kind}
+                      </td>
+                      <td
+                        className="sticky z-10 border-r border-zinc-800 bg-zinc-900"
+                        style={{ left: COL_W.ticker, width: COL_W.mcap, minWidth: COL_W.mcap }}
+                      />
+                      <td
+                        className="sticky z-10 border-r border-zinc-800 bg-zinc-900"
+                        style={{ left: COL_W.ticker + COL_W.mcap, width: COL_W.rep, minWidth: COL_W.rep }}
+                      />
+                      {fundCols.map((vc, ci) => {
+                        const scoreVals = vc.kind === "score" && vc.key
+                          ? item.entries.map(e => {
+                              const raw = e.fundamentals?.[vc.key!];
+                              return raw != null ? parseFloat(String(raw)) : NaN;
+                            }).filter(n => isFinite(n))
+                          : [];
+                        const value = vc.kind === "score"
+                          ? (kind === "med" ? numericMedian(scoreVals) : trimmedMean(scoreVals, false))
+                          : (kind === "med"
+                            ? groupMedian(item.entries, vc.col)
+                            : groupTrimmedMean(item.entries, vc.col, LOG_TRANSFORM_COLS.has(vc.col.key as string)));
+                        const text = value == null ? "—" : vc.kind === "score" ? value.toFixed(0) : fmt(String(value), vc.col.fmt);
+                        return (
+                          <td
+                            key={`${kind}-${vc.kind === "score" ? vc.id : vc.col.key as string}`}
+                            className={cn(
+                              "px-1 py-0.5 text-center font-mono tabular-nums text-[11px] font-semibold",
+                              pal.num,
+                              ci < fundColCount - 1 && "border-r border-zinc-800/60",
+                            )}
+                            title={value == null ? "No usable values" : (kind === "med" ? "Median" : "Outlier-excluded average")}
+                          >
+                            {text}
+                          </td>
+                        );
+                      })}
+                      {Array.from({ length: widthPadCols }, (_, i) => (
+                        <td key={`${kind}-pad-${i}`} className="p-0" aria-hidden />
+                      ))}
+                    </tr>
+                  ))}
                 </>
                 );
               }
@@ -916,25 +1134,46 @@ export function StockDBTab() {
                   className={cn(
                     "group border-b border-zinc-800/80 transition-colors",
                     "hover:bg-[#d4af37]/12",
-                    row.isWatchlist && "border-l-2 border-l-[#d4af37]",
+                    row.isPeerRep && "border-l-2 border-l-[#d4af37]",
                   )}
                 >
-                  {/* Ticker — sticky; watchlist = gold fill like Fundamentals tab */}
-                  <td className={cn(
-                    "sticky left-0 z-10 border-r border-zinc-800 px-1.5 py-0.5 font-mono whitespace-nowrap",
-                    row.isWatchlist
-                      ? "bg-[#d4af37] text-black group-hover:bg-[#e0c04a]"
-                      : "bg-zinc-950 group-hover:bg-[#2a2618]",
-                  )}>
+                  {/* Ticker — sticky; checked rep = gold fill */}
+                  <td
+                    className={cn(
+                      "sticky left-0 z-10 border-r border-zinc-800 px-1.5 py-0.5 font-mono whitespace-nowrap",
+                      row.isPeerRep
+                        ? "bg-[#d4af37] text-black group-hover:bg-[#e0c04a]"
+                        : "bg-zinc-950 group-hover:bg-[#2a2618]",
+                    )}
+                    style={{ width: COL_W.ticker, minWidth: COL_W.ticker }}
+                  >
                     <div className="flex items-center gap-1">
-                      <span className={row.isWatchlist ? "font-semibold text-black" : "text-white"}>{row.ticker}</span>
-                      {row.isWatchlist && (
-                        <span className="text-[9px] leading-none font-semibold text-black/70">rep</span>
-                      )}
+                      <span className={row.isPeerRep ? "font-semibold text-black" : "text-white"}>{row.ticker}</span>
                       {!f && (
                         <span className="text-[9px] leading-none font-normal text-amber-100/70">no data</span>
                       )}
                     </div>
+                  </td>
+                  <td
+                    className="sticky z-10 border-r border-zinc-800 px-1 py-0.5 text-right font-mono tabular-nums text-white/90 bg-zinc-950 group-hover:bg-[#2a2618]"
+                    style={{ left: COL_W.ticker, width: COL_W.mcap, minWidth: COL_W.mcap }}
+                    title={row.marketCap != null ? formatCompactCurrency(row.marketCap) : "No close or share count"}
+                  >
+                    {formatCompactCurrency(row.marketCap)}
+                  </td>
+                  <td
+                    className="sticky z-10 border-r border-zinc-800 px-0.5 py-0.5 text-center bg-zinc-950 group-hover:bg-[#2a2618]"
+                    style={{ left: COL_W.ticker + COL_W.mcap, width: COL_W.rep, minWidth: COL_W.rep }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={row.isPeerRep}
+                      disabled={!isAdmin}
+                      title={row.isPeerRep ? "Gold ticker. Uncheck to clear it. Does not change the score." : "Mark as a gold ticker. Does not change the score."}
+                      onClick={e => e.stopPropagation()}
+                      onChange={() => repMutation.mutate({ ticker: row.ticker, peerRep: !row.isPeerRep })}
+                      className="h-3 w-3 accent-[#d4af37] cursor-pointer disabled:cursor-default"
+                    />
                   </td>
 
                   {/* Score + optional expanded family fields */}
@@ -948,6 +1187,9 @@ export function StockDBTab() {
                       const display = vc.key
                         ? (raw == null || Number.isNaN(num) ? "—" : num.toFixed(0))
                         : (style ? style.replace(/_/g, " ").slice(0, 8) : "—");
+                      const tone = vc.key
+                        ? toneMap.get(row.peerGroupId ?? "__unclassified")?.get(vc.key as string)?.get(row.ticker)
+                        : null;
                       return (
                         <td
                           key={`score-${vc.id}-${row.ticker}`}
@@ -956,7 +1198,11 @@ export function StockDBTab() {
                             "px-1 py-0.5 text-center font-mono whitespace-nowrap tabular-nums font-bold overflow-hidden",
                             ci < fundColCount - 1 && "border-r border-zinc-800/60",
                             FAMILY_CELL_BG[vc.family],
-                            isNull ? "bg-red-600 text-white" : (FAMILY_LABEL[vc.family] ?? "text-white"),
+                            isNull ? "bg-red-600 text-white"
+                              : tone === "good" ? "text-emerald-400"
+                              : tone === "bad" ? "text-red-400"
+                              : tone === "mid" ? "text-yellow-300"
+                              : (FAMILY_LABEL[vc.family] ?? "text-white"),
                             vc.expandable && "cursor-pointer",
                             expandedFamily === vc.id && "ring-1 ring-inset ring-white/30",
                           )}
@@ -981,6 +1227,7 @@ export function StockDBTab() {
                     const z = zScoreMap.get(row.peerGroupId ?? "__unclassified")?.get(col.key as string)?.get(row.ticker);
                     const isStatOutlier = z != null && Math.abs(z) > 3.0;
                     const suspect = hardInvalid || isStatOutlier;
+                    const tone = toneMap.get(row.peerGroupId ?? "__unclassified")?.get(col.key as string)?.get(row.ticker);
                     const flags = f?.discrepancyFlags?.split(",") ?? [];
                     const hasFlag = flags.includes(col.key as string);
                     const overrideFlags = f?.overrideFlags?.split(",") ?? [];
@@ -991,19 +1238,22 @@ export function StockDBTab() {
                     const justRefetched = justSucceeded.has(`${row.ticker}:${col.key as string}`);
                     const tooltipParts: string[] = [];
                     if (isMissing) tooltipParts.push(`Missing ${col.label} — expected field, no value in DB`);
-                    if (suspect) {
-                      if (hardInvalid) tooltipParts.push(`Suspect: ${col.label} value is structurally invalid (e.g. negative when it shouldn't be)`);
-                      else if (isStatOutlier) tooltipParts.push(`Outlier: z = ${z!.toFixed(1)} — unusually ${z! > 0 ? "high" : "low"} vs peer group median`);
-                    }
-                    if (hasFlag) tooltipParts.push(`Discrepancy: multiple data sources report different values for ${col.label}`);
+                    if (hardInvalid) tooltipParts.push(`Suspect: ${col.label} value is structurally invalid (e.g. negative when it shouldn't be)`);
+                    const higher = HIGHER_IS_BETTER.has(col.key as string);
+                    const lower = LOWER_IS_BETTER.has(col.key as string);
+                    const rank = isStatOutlier && z != null && (higher || lower)
+                      ? ((higher ? z > 0 : z < 0) ? "good" : "bad")
+                      : tone;
+                    if (hasFlag) tooltipParts.push(`Needs Review: another source flips the sign or is 3× this ${col.label}`);
                     if (hasAgent) tooltipParts.push(`Database Agent override for ${col.label} — see popup trail`);
                     else if (hasOverride) tooltipParts.push(`Manual override active for ${col.label} — a source other than default priority was picked after review`);
                     return (
                       <td
                         key={col.key as string}
-                        onClick={(e) => openCell(row.ticker, col.key as string, e, tooltipParts)}
+                        onClick={(e) => openCell(row.ticker, col.key as string, e, tooltipParts, rank, z ?? undefined)}
                         className={cn(
-                          "px-1 py-0.5 text-center font-mono whitespace-nowrap tabular-nums font-normal text-white/90 overflow-hidden",
+                          "px-1 py-0.5 text-center font-mono whitespace-nowrap tabular-nums font-normal overflow-hidden",
+                          rank === "good" ? "text-emerald-400" : rank === "bad" ? "text-red-400" : rank === "mid" ? "text-yellow-300" : "text-white/90",
                           (isAdmin || tooltipParts.length > 0) && "cursor-pointer",
                           ci < fundColCount - 1 && "border-r border-zinc-800/60",
                           isActive && "outline outline-1 outline-[#d4af37]/50 -outline-offset-1",
@@ -1059,7 +1309,7 @@ export function StockDBTab() {
             })}
             {visibleRows === 0 && tickerFilter && (
               <tr>
-                <td colSpan={(viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 1} className="py-8 text-center text-amber-200/40 text-xs">
+                <td colSpan={(viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 3} className="py-8 text-center text-amber-200/40 text-xs">
                   No tickers match "{tickerFilter}"
                 </td>
               </tr>
@@ -1085,9 +1335,11 @@ export function StockDBTab() {
       </PopoverAnchor>
 
       <PopoverContent
-        className="w-80 p-0 text-xs overflow-hidden bg-zinc-950 border border-[#d4af37]/25 shadow-lg shadow-black/60"
+        className="w-80 p-0 text-xs overflow-y-auto overscroll-contain bg-zinc-950 border border-[#d4af37]/25 shadow-lg shadow-black/60 max-h-[var(--radix-popover-content-available-height)]"
         align="start"
         sideOffset={4}
+        collisionPadding={12}
+        onWheel={(e) => e.stopPropagation()}
         onInteractOutside={() => setActiveCell(null)}
       >
         {!isAdmin && activeCell && (
@@ -1121,8 +1373,19 @@ export function StockDBTab() {
         )}
         {isAdmin && activeProv && (
           <div>
-            <div className="px-3 py-2 border-b border-[#d4af37]/20 bg-black/40 flex items-center justify-between gap-2">
-              <span className="font-semibold text-white">{activeCell?.ticker} · {activeCell?.field}</span>
+            <div className="sticky top-0 z-10 px-3 py-1.5 border-b border-[#d4af37]/20 bg-black/40 flex items-center justify-between gap-2">
+              <span className="font-semibold text-white inline-flex items-center gap-1.5">
+                {activeCell?.ticker} · {activeCell?.field}
+                {activeCell?.tone && (
+                  <span
+                    title={rankMarkTitle(activeCell.tone, activeCell.z)}
+                    className={cn(
+                      "inline-block h-2 w-2 rounded-full",
+                      activeCell.tone === "good" ? "bg-emerald-400" : activeCell.tone === "bad" ? "bg-red-400" : "bg-yellow-300",
+                    )}
+                  />
+                )}
+              </span>
               <div className="flex items-center gap-1">
                 {activeProv.isAgentOverride && <span title="Database Agent override" className="text-[9px] px-1 rounded border border-fuchsia-400/50 text-fuchsia-300">agent</span>}
                 {activeProv.isOverride && !activeProv.isAgentOverride && <span title="Manual override active"><Pin className="h-3 w-3 text-amber-400" /></span>}
@@ -1154,32 +1417,39 @@ export function StockDBTab() {
               </div>
             )}
 
-            <div className="px-3 py-2 border-b border-[#d4af37]/20">
-              <div className="flex items-center justify-between">
-                <span className="text-amber-200/40">Winner</span>
-                <span className="font-mono font-medium tabular-nums text-white">
-                  {activeProv.winningValue != null
-                    ? activeProv.winningValue.toPrecision(5)
-                    : <span className="text-red-400/70">null</span>}
-                </span>
-              </div>
-              <div className="flex items-center justify-between mt-0.5">
-                <span className="text-amber-200/40">Source</span>
-                <span className="font-mono text-amber-200/70">{activeProv.winningSource ?? "—"}</span>
-              </div>
-              <div className="flex items-center justify-between mt-0.5">
-                <span className="text-amber-200/40">Age</span>
-                <span className="font-mono text-amber-200/70">{fmtDate(activeProv.fetchedAt)}</span>
-              </div>
+            {(DERIVED_INPUTS[activeProv.field]?.length || newerSourceNote(activeProv) || activeProv.divergent) ? (
+            <div className="px-3 py-1.5 border-b border-[#d4af37]/20">
+              {(DERIVED_INPUTS[activeProv.field] ?? []).map(part => {
+                const input = fieldByName(provData, part.field);
+                const src = input ? usedSource(input) : null;
+                return (
+                  <div key={part.field} className="flex items-center justify-between mt-0.5 text-[10px]">
+                    <span className="text-amber-200/50">{part.label}</span>
+                    <span className="font-mono text-amber-100/80">
+                      {input?.winningValue != null ? input.winningValue.toPrecision(4) : "—"}
+                      {" · "}{src?.source ?? input?.winningSource ?? "—"}
+                      {" · "}{fmtDate(src?.fetchedAt ?? input?.fetchedAt ?? null)}
+                    </span>
+                  </div>
+                );
+              })}
+              {newerSourceNote(activeProv) && (
+                <div className="mt-1.5 text-[10px] text-orange-300">{newerSourceNote(activeProv)}</div>
+              )}
+              {(DERIVED_INPUTS[activeProv.field] ?? []).map(part => {
+                const input = fieldByName(provData, part.field);
+                const note = input ? newerSourceNote(input) : null;
+                return note ? <div key={`${part.field}-note`} className="mt-1 text-[10px] text-orange-300">{part.label}: {note}</div> : null;
+              })}
               {activeProv.divergent && (
                 <div className="mt-1.5 text-[10px] text-orange-400 flex items-center gap-1">
                   <TriangleAlert className="h-2.5 w-2.5" /> Sources disagree on this value
                 </div>
               )}
             </div>
+            ) : null}
 
-            <div className="px-3 py-2 border-b border-[#d4af37]/20">
-              <div className="text-[10px] font-semibold text-[#d4af37]/80 uppercase tracking-wide mb-1">All sources</div>
+            <div className="px-3 py-1.5 border-b border-[#d4af37]/20">
               <table className="w-full text-[10px]">
                 <thead>
                   <tr className="text-amber-200/40 border-b border-[#d4af37]/10">
@@ -1233,7 +1503,7 @@ export function StockDBTab() {
               </table>
             </div>
 
-            {(activeProv.research?.length ?? 0) > 0 && (
+            {(activeProv.research?.some(r => r.value != null) ?? false) && (
               <div className="px-3 py-2 border-b border-[#d4af37]/20">
                 <div className="text-[10px] font-semibold text-violet-300/90 uppercase tracking-wide mb-1">Research / desk</div>
                 <table className="w-full text-[10px]">
@@ -1245,7 +1515,7 @@ export function StockDBTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {activeProv.research!.map(r => (
+                    {activeProv.research!.filter(r => r.value != null).map(r => (
                       <tr key={r.source} className={r.status === "available" ? "text-white/85" : "text-white/35"}>
                         <td className="py-px">{r.source}</td>
                         <td className="text-right font-mono py-px tabular-nums" title={r.note}>
