@@ -24,6 +24,7 @@ import {
   type ManualOverridesRow,
 } from "@workspace/db";
 import { pickFieldGold } from "../lib/gold-pick.js";
+import { isMaterialDivergence } from "../lib/field-divergence.js";
 import { isFactsetRulerField } from "../lib/factset-ruler-table.js";
 import {
   computeTrailingPeg,
@@ -206,42 +207,7 @@ const PERIOD_SENSITIVE_TFCOLS = new Set([
 ]);
 
 // ── Materiality: when is a winner-vs-fallback gap worth a human's attention? ──
-// "Needs Review" should surface values that could be WRONG, not normal cross-vendor
-// noise. Vendors legitimately differ by 10-25% on price ratios (different price
-// snapshot), growth rates (different base period) and $ amounts (quarter timing) —
-// that disagreement doesn't tell us either value is bad. What IS material: a sign
-// flip (profit vs loss, growing vs shrinking), a scale/unit error (≥3x), or a gap
-// beyond a field-class tolerance. Tolerances are deliberately generous for the
-// noisiest classes so the queue stays small and actionable.
-const DIVERGENCE_TOL: Record<string, number> = {
-  // Growth rates — computed over different base periods everywhere; very noisy.
-  epsGrowth: 0.50, revenueGrowthYoY: 0.50, revenueGrowthYoyPrior: 0.50, pegRatio: 0.40,
-  // Price-based ratios — differ by price-snapshot + book/earnings period timing.
-  peRatio: 0.25, forwardPe: 0.25, priceToBook: 0.25, priceToSales: 0.25,
-  evEbitda: 0.25, evRevenue: 0.25, currentRatio: 0.25, beta: 0.35, dividendYield: 0.25,
-  // Total debt — Yahoo vs FMP legitimately differ on operating-lease inclusion (ASC 842);
-  // a lease-heavy company can show a 25-35% gap that isn't an error.
-  totalDebt: 0.35,
-};
-const DEFAULT_DIVERGENCE_TOL = 0.20; // margins, returns, and absolute $ amounts
-
-// Absolute floor for fraction-valued fields (margins, returns, yields, growth) — a
-// gap this small is noise no matter how large it looks in relative terms (3% vs 4.5%
-// ROA is a 50% relative gap but immaterial). For large $ fields the gap dwarfs the
-// floor, so relative tolerance governs there. A gap must clear BOTH floors to flag.
-const DIVERGENCE_ABS_FLOOR = 0.03;
-
-function isMaterialDivergence(tf: string, a: number, b: number): boolean {
-  const absA = Math.abs(a), absB = Math.abs(b);
-  const maxAbs = Math.max(absA, absB), minAbs = Math.min(absA, absB);
-  if (maxAbs < 0.02) return false;                          // both ~zero — nothing to compare
-  if ((a > 0) !== (b > 0)) return true;                     // sign flip — always material
-  if (minAbs > 0 && maxAbs / minAbs >= 3) return true;      // ≥3x — scale/unit error
-  const absDiff = Math.abs(a - b);
-  if (absDiff <= DIVERGENCE_ABS_FLOOR) return false;        // negligible in absolute terms
-  const tol = DIVERGENCE_TOL[tf] ?? DEFAULT_DIVERGENCE_TOL;
-  return absDiff / maxAbs > tol;
-}
+// Tolerances live in field-divergence.ts (shared with A329 audit guards).
 
 /**
  * Priority names the definition. When a later pull agrees with that definition,

@@ -28,5 +28,25 @@
     "sources": [{ "source": "finnhub", "field": "peRatio", "value": 35 }],
     "divergent": false,
     "winningSource": "yahoo"
+  },
+  "vendorInTol": {
+    "ticker": "A",
+    "field": "peRatio",
+    "gold": 26.83,
+    "price": 100,
+    "fund": { "earningsPerShare": 3.72 },
+    "sources": [{ "source": "alpha_vantage", "field": "peRatio", "value": 26.34 }],
+    "divergent": false,
+    "winningSource": "yahoo"
+  },
+  "inputMissing": {
+    "ticker": "Z",
+    "field": "peRatio",
+    "gold": 15,
+    "price": 100,
+    "fund": {},
+    "sources": [],
+    "divergent": false,
+    "winningSource": "yahoo"
   }
 }

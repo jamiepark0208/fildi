@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A329 L2 — SEC companyfacts check on L0/L1 flags + 5% clean sample. Reuses A318-judge ok() band."""
+"""A329 L2 — SEC companyfacts on L0/L1 flags + 5% clean sample (separate error rates)."""
 from __future__ import annotations
 
 import json
@@ -98,20 +98,26 @@ def load_cells(run_id: str):
     sample_path = OUT / f"l2-sample-{run_id}.json"
     if flags_path.exists():
         for row in json.loads(flags_path.read_text())["flags"]:
-            cells.append({**row, "afterGold": row["gold"]})
+            cells.append({**row, "afterGold": row["gold"], "cohort": row.get("cohort", "flagged")})
     if sample_path.exists():
         for row in json.loads(sample_path.read_text())["sample"]:
-            cells.append({**row, "afterGold": row["gold"]})
-    # dedupe
+            cells.append({**row, "afterGold": row["gold"], "cohort": row.get("cohort", "clean")})
     seen = set()
     out = []
     for c in cells:
-        k = (c["ticker"], c["field"])
+        k = (c["ticker"], c["field"], c.get("cohort", "?"))
         if k in seen:
             continue
         seen.add(k)
         out.append(c)
     return out
+
+
+def cohort_summary(judged_rows, cohort: str):
+    rows_c = [r for r in judged_rows if r.get("cohort") == cohort and r["truth"] is not None]
+    ok_n = sum(1 for r in rows_c if r["ok"])
+    rate, lo, hi = wilson(ok_n, len(rows_c))
+    return {"judged": len(rows_c), "ok": ok_n, "rate": rate, "ci95": [lo, hi]}
 
 
 def main():
@@ -135,22 +141,20 @@ def main():
             {
                 "ticker": t,
                 "field": f,
+                "cohort": c.get("cohort", "flagged"),
                 "gold": gold,
                 "truth": truth,
                 "ok": verdict,
                 "note": note,
             }
         )
-    with_truth = [r for r in judged if r["truth"] is not None]
-    ok_n = sum(1 for r in with_truth if r["ok"])
-    rate, lo, hi = wilson(ok_n, len(with_truth))
+    flagged = cohort_summary(judged, "flagged")
+    clean = cohort_summary(judged, "clean")
     summary = {
         "runId": run_id,
         "cells": len(cells),
-        "judged": len(with_truth),
-        "ok": ok_n,
-        "rate": rate,
-        "ci95": [lo, hi],
+        "flagged": flagged,
+        "clean": clean,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"l2-results-{run_id}.json").write_text(json.dumps({"summary": summary, "rows": judged}, indent=1))

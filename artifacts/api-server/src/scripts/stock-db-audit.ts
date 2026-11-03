@@ -1,24 +1,28 @@
 /**
- * A329 — Stock DB L0+L1 audit (all fmp_fundamentals × FIELD_DEFS).
+ * A329 — Stock DB L0+L1 audit (fetch_fundamentals universe × FIELD_DEFS).
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --smoke
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --full
  * L2 SEC: artifacts/api-server/scripts/stock-db-audit-l2.py
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   auditFindings,
   db,
   fieldProvenance,
-  fmpFundamentals,
-  pricesHistorical,
   sourceFundamentals,
   tickerFundamentals,
+  tickerRegistry,
 } from "@workspace/db";
+import { etDateKey } from "../lib/market-hours.js";
 import {
-  ERROR_CLASS_META,
+  CAUSE_META,
+  rankTopFlags,
+  type SpecCause,
+} from "../lib/stock-db-audit-l3.js";
+import {
   SMOKE_TICKERS,
   auditCell,
   type AuditFinding,
@@ -39,7 +43,7 @@ if (!smoke && !full) {
   console.error("Usage: stock-db-audit.ts --smoke | --full");
   process.exit(1);
 }
-const runId = new Date().toISOString().slice(0, 10);
+const runId = etDateKey();
 
 type TickerPack = {
   ticker: string;
@@ -57,8 +61,24 @@ function parseNum(v: unknown): number | null {
 
 async function loadTickers(): Promise<string[]> {
   if (smoke && !full) return [...SMOKE_TICKERS];
-  const rows = await db.select({ ticker: fmpFundamentals.ticker }).from(fmpFundamentals);
-  return rows.map((r) => String(r.ticker).toUpperCase()).sort();
+  const res = await db
+    .select({ ticker: tickerFundamentals.ticker })
+    .from(tickerFundamentals)
+    .innerJoin(tickerRegistry, eq(tickerFundamentals.ticker, tickerRegistry.ticker))
+    .where(eq(tickerRegistry.fetchFundamentals, true));
+  return res.map((r) => String(r.ticker).toUpperCase()).sort();
+}
+
+async function loadModelListTickers(): Promise<Set<string>> {
+  const res = await db.execute<{ ticker: string }>(sql`
+    SELECT DISTINCT UPPER(ticker) AS ticker FROM model_recs
+    WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM model_recs)
+    UNION
+    SELECT DISTINCT UPPER(ticker) AS ticker FROM option_score_snapshots
+    WHERE scored_date = (SELECT MAX(scored_date) FROM option_score_snapshots)
+  `);
+  const rows = (Array.isArray(res) ? res : (res as { rows?: { ticker: string }[] }).rows) ?? [];
+  return new Set(rows.map((r) => String(r.ticker).toUpperCase()));
 }
 
 async function loadPrices(tickers: string[]): Promise<Map<string, number>> {
@@ -167,12 +187,14 @@ function summarize(findings: AuditFinding[]) {
     L0: { ok: 0, flag: 0, skip: 0 },
     L1: { ok: 0, flag: 0, skip: 0 },
   };
-  const byClass: Record<string, number> = {};
+  const byCause: Record<string, number> = {};
+  const skipReasons: Record<string, number> = {};
   for (const f of findings) {
     byLayer[f.layer][f.status] += 1;
-    if (f.class) byClass[f.class] = (byClass[f.class] ?? 0) + 1;
+    if (f.class) byCause[f.class] = (byCause[f.class] ?? 0) + 1;
+    if (f.skipReason) skipReasons[f.skipReason] = (skipReasons[f.skipReason] ?? 0) + 1;
   }
-  return { byLayer, byClass };
+  return { byLayer, byCause, skipReasons };
 }
 
 async function persist(findings: AuditFinding[]) {
@@ -210,10 +232,10 @@ function mulberry32(seed: number) {
 
 function writeCleanSample(findings: AuditFinding[], tickers: string[]) {
   mkdirSync(OUT_DIR, { recursive: true });
-  const okCells: { ticker: string; field: string; gold: number | null }[] = [];
+  const okCells: { ticker: string; field: string; gold: number | null; cohort: "clean" }[] = [];
   for (const f of findings) {
     if (f.layer !== "L0" || f.status !== "ok" || f.gold == null) continue;
-    okCells.push({ ticker: f.ticker, field: f.field, gold: f.gold });
+    okCells.push({ ticker: f.ticker, field: f.field, gold: f.gold, cohort: "clean" });
   }
   const rng = mulberry32(329);
   const n = Math.max(1, Math.ceil(okCells.length * 0.05));
@@ -226,64 +248,83 @@ function writeCleanSample(findings: AuditFinding[], tickers: string[]) {
   writeFileSync(join(OUT_DIR, `l2-sample-${runId}.json`), JSON.stringify({ runId, tickers, sample: picked }, null, 2));
 }
 
+type L2Summary = {
+  flagged: { judged: number; ok: number; rate: number; ci95: [number, number] };
+  clean: { judged: number; ok: number; rate: number; ci95: [number, number] };
+};
+
+function readL2Summary(): L2Summary | null {
+  const p = join(OUT_DIR, `l2-results-${runId}.json`);
+  if (!existsSync(p)) return null;
+  try {
+    const j = JSON.parse(readFileSync(p, "utf8")) as { summary: L2Summary };
+    return j.summary;
+  } catch {
+    return null;
+  }
+}
+
 function writeReport(
   tickers: string[],
   findings: AuditFinding[],
-  l2Summary: { judged: number; ok: number; ci: { lo: number; hi: number; rate: number } } | null,
+  modelList: Set<string>,
+  l2Summary: L2Summary | null,
 ) {
   mkdirSync(OUT_DIR, { recursive: true });
-  const { byLayer, byClass } = summarize(findings);
+  const { byLayer, byCause, skipReasons } = summarize(findings);
   const flags = findings.filter((f) => f.status === "flag");
-  const top = flags.slice(0, 20);
+  const top = rankTopFlags(flags, modelList, 20);
   const lines = [
     `# Stock DB audit ${runId} (${smoke && !full ? "smoke" : "full"})`,
     "",
-    `Tickers: ${tickers.length} · Fields: ${AUDIT_FIELD_LIST.length} · Cells: ${findings.length}`,
+    `Tickers: ${tickers.length} (fetch_fundamentals universe) · Fields: ${AUDIT_FIELD_LIST.length} · Cells: ${findings.length}`,
     "",
     "## L0/L1 status",
     `- L0 ok ${byLayer.L0.ok} flag ${byLayer.L0.flag} skip ${byLayer.L0.skip}`,
     `- L1 ok ${byLayer.L1.ok} flag ${byLayer.L1.flag} skip ${byLayer.L1.skip}`,
     "",
-    "## Classes",
-    ...Object.entries(byClass)
+    "## L0 skip reasons",
+    ...Object.entries(skipReasons)
       .sort((a, b) => b[1] - a[1])
-      .map(([c, n]) => `- ${c}: ${n} — guard ${ERROR_CLASS_META[c as keyof typeof ERROR_CLASS_META]?.guard ?? "?"}`),
+      .map(([r, n]) => `- ${r}: ${n}`),
+    "",
+    "## L3 causes (spec)",
+    ...Object.entries(byCause)
+      .sort((a, b) => b[1] - a[1])
+      .map(([c, n]) => {
+        const meta = CAUSE_META[c as SpecCause];
+        return `- ${c}: ${n} — guard ${meta?.guard ?? "?"}`;
+      }),
     "",
     l2Summary
-      ? `## L2 SEC sample\n- judged ${l2Summary.judged} ok ${l2Summary.ok} rate ${(l2Summary.ci.rate * 100).toFixed(1)}% CI95 [${(l2Summary.ci.lo * 100).toFixed(1)}%, ${(l2Summary.ci.hi * 100).toFixed(1)}%]`
+      ? [
+          "## L2 SEC (flagged vs clean 5% sample)",
+          `- flagged: judged ${l2Summary.flagged.judged} ok ${l2Summary.flagged.ok} rate ${(l2Summary.flagged.rate * 100).toFixed(1)}% CI95 [${(l2Summary.flagged.ci95[0] * 100).toFixed(1)}%, ${(l2Summary.flagged.ci95[1] * 100).toFixed(1)}%]`,
+          `- clean sample: judged ${l2Summary.clean.judged} ok ${l2Summary.clean.ok} rate ${(l2Summary.clean.rate * 100).toFixed(1)}% CI95 [${(l2Summary.clean.ci95[0] * 100).toFixed(1)}%, ${(l2Summary.clean.ci95[1] * 100).toFixed(1)}%]`,
+        ].join("\n")
       : "## L2 SEC sample\n- (run stock-db-audit-l2.py after this)",
     "",
-    "## Top 20 flags",
-    ...top.map((f) => `- ${f.ticker} ${f.field} ${f.layer} ${f.class}: ${f.evidence}`),
+    "## Top 20 by impact (gap × fund field × Model List)",
+    ...top.map((f) => `- ${f.ticker} ${f.field} ${f.layer} ${f.class} impact=${f.impact.toFixed(2)} gap=${(f.gap * 100).toFixed(1)}%: ${f.evidence}`),
     "",
   ];
   writeFileSync(join(OUT_DIR, "A329.md"), lines.join("\n") + "\n");
   writeFileSync(
     join(OUT_DIR, `flags-${runId}.json`),
-    JSON.stringify({ runId, flags: flags.map((f) => ({ ticker: f.ticker, field: f.field, gold: f.gold })) }, null, 2),
+    JSON.stringify(
+      {
+        runId,
+        flags: flags.map((f) => ({ ticker: f.ticker, field: f.field, gold: f.gold, cohort: "flagged" as const })),
+      },
+      null,
+      2,
+    ),
   );
 }
 
 async function main() {
-  await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS audit_findings (
-    id serial PRIMARY KEY,
-    run_id text NOT NULL,
-    ticker text NOT NULL,
-    field text NOT NULL,
-    layer text NOT NULL,
-    status text NOT NULL,
-    gold numeric,
-    truth numeric,
-    truth_source text,
-    class text,
-    root_cause text,
-    evidence text,
-    fix text,
-    finding_status text NOT NULL DEFAULT 'open',
-    created_at timestamptz NOT NULL DEFAULT now()
-  )`));
-
   const tickers = await loadTickers();
+  const modelList = await loadModelListTickers().catch(() => new Set<string>());
   console.log(`A329 audit ${smoke && !full ? "smoke" : "full"} tickers=${tickers.length} fields=${AUDIT_FIELD_LIST.length}`);
   const packs = await buildPacks(tickers);
   const findings: AuditFinding[] = [];
@@ -309,11 +350,11 @@ async function main() {
     }
   }
 
-  await persist(findings);
+  await persist(findings).catch((e) => console.warn("persist skipped", e));
   writeCleanSample(findings, tickers);
-  writeReport(tickers, findings, null);
-  const { byLayer, byClass } = summarize(findings);
-  console.log("L0", byLayer.L0, "L1", byLayer.L1, "classes", byClass);
+  writeReport(tickers, findings, modelList, readL2Summary());
+  const { byLayer, byCause, skipReasons } = summarize(findings);
+  console.log("L0", byLayer.L0, "L1", byLayer.L1, "causes", byCause, "skips", skipReasons);
   console.log(`Wrote ${OUT_DIR}/A329.md and flags-${runId}.json`);
 }
 
