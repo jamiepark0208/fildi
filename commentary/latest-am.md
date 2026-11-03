@@ -1,74 +1,74 @@
-# Morning Market Brief — Monday, November 2, 2026 (Pre-Market)
+# Morning Market Brief — Tuesday, November 3, 2026 (Pre-Market)
 
-**Banner:** S&P fut +0.5% (~7,654) · Dow fut +0.6% (~52,233) · Nasdaq fut +0.8% (~28,773) · 10Y 4.92% (−1 bp) · Brent ~$109 (−4%) · VIX ~19.3 (vs 19.42 Fri close)
+**Banner:** S&P fut −0.07% · Dow fut −0.69% · Nasdaq fut +0.34% · 10Y ~4.93% (+~3 bp) · Brent ~$105.8–106.5 (+~1–1.7%) · VIX 21.54 (+1.84%)
+
+*Futures snapshot ~7:36 AM ET; levels drifted during the morning, with Dow futures at times near −0.8% and S&P futures near flat.*
 
 ## What's moving
 
-- **Futures steadying after Friday's rout.** Friday closed hard: S&P 500 7,580.07 (−1.82%), Nasdaq 25,437 (−2.86%), Dow 51,770.31 (−1.09%), VIX 19.42 (+12.91%). Premarket futures point to a gap-up open, led by Nasdaq.
-- **Oil down sharply on diplomacy hopes.** Brent fell ~4% to ~$108–110 and WTI slipped back below $100 (~$99.60–100.60) as U.S.–Iran talks continued in Doha, with reports of a possible path to reopening the Strait of Hormuz. Tanker-attack risk keeps a premium in place — this is a de-escalation trade, not a resolved one.
-- **Tech/AI trying to stabilize after a brutal October.** The Nasdaq fell 5.3% in October, its worst month since March 2025, on AI-spending worries; the Nasdaq-100 shed over $2.5 trillion in market value in October. Megacaps and semis are firmer premarket (Nvidia +1%+, SOXX +~2%, memory ETF DRAM +~4%).
-- **Yields quiet near a seven-week low.** 10Y ~4.92–4.93%, 30Y ~5.30–5.31%, little changed in Asian/European trade. Markets price roughly a 73–75% chance of a Fed hike in December — a hawkish backdrop even as yields ease.
-- **Overnight: Asia rebounded, Europe flat.** Japan +~0.3–0.4% (Nikkei ~63,554), Shanghai +1.16% (~3,641), KOSPI +2.28%, Hang Seng +0.66%. Europe opened subdued: STOXX 600 ~flat (~646.4), FTSE −0.1 to −0.3%, DAX ~flat.
-- **Gold and bitcoin stabilizing.** Gold ~$3,905–3,915 (+0.4–0.9%), still below $4,000 after Friday's slide to a ~one-year low. Bitcoin ~$77,700–78,100, flat to slightly higher after last week's crypto selloff and hack headlines.
+- **Futures split, not risk-on.** S&P futures near flat and Nasdaq futures firmer, while Dow futures lag — the drag is single-name earnings (Apple, Shopify, Palantir), not a broad index bid.
+- **Election Day is the overhang.** U.S. midterms today: all 435 House seats and ~35 Senate seats. Markets are open normal hours; results land overnight. Prediction markets cited in morning coverage put Democrats at roughly a 75% chance of retaining Senate control — a headline, not a result.
+- **Oil bouncing after Monday's plunge.** Brent fell ~7.6% Monday on U.S.–Iran diplomacy hopes, then rebounded ~1–1.7% overnight as reports of a U.S. strike on Iran's Qeshm Island reintroduced escalation risk. WTI ~$97–98.
+- **Yields nudging higher.** 10Y ~4.92–4.94%, 30Y ~5.30%, 2Y ~4.60%. The move is small but it leans against equities, and it pairs with gold slipping ~1% to ~$3,929.
+- **Tech correction deepening in Asia, spilling into Europe.** Nasdaq-100 closed Monday more than 10% below its all-time closing high — in correction. Overnight: KOSPI −3.6%, Taiwan −3.6–3.8% on the chip rout; Tokyo closed for Culture Day. Europe lower in early trade: STOXX 600 −0.4–0.6%, FTSE −0.72%, DAX −0.78%, with ASML −3.4% and STMicroelectronics −3.9%.
+- **Shanghai faded despite support measures.** Shanghai Composite closed −0.82% at 3,608.10, reversing part of Monday's rebound, with selling concentrated in chips, computing hardware and robotics. Hong Kong's Hang Seng was the firmer exception, up ~0.2–0.6% in morning snapshots.
+- **Bitcoin steadying near $77,300** (+0.8% in the Morningstar update) after an early dip toward $76,600 on ETF outflows and Binance-hack fallout cited in morning notes.
 
 ## Why it matters
 
-- This is a bounce inside a downtrend, not a trend change: Friday's S&P close broke below its 100-day moving average and below the 7,677 shelf that had held for weeks; 7,650 in futures is the first reclaim level to watch.
-- The oil drop is the main relief valve today — lower crude eases near-term inflation worry and helped yields and equities — but Brent is still up 13.6% for October and near six-month highs, so energy-driven headline risk is not gone.
-- The week is stacked: midterms Tuesday, Treasury refunding Wednesday, jobs Friday, and Apple/Palantir tonight. Today's ISM print is a warm-up; position sizing should assume the real volatility arrives Tue–Fri.
-- December-hike pricing (~73–75%) sitting alongside a 4.92% 10Y means rate risk cuts both ways: a hot ISM prices-paid print or strong jobs data lifts yields and pressures growth multiples again.
+- Monday's tape was narrow in a bad way: ~350 S&P stocks advanced, yet the S&P still fell 0.51% and the Nasdaq 1.07% — mega-cap tech and semis did the damage while the Dow gained 0.41%.
+- The AI-spending question is now the market question: Apple and Palantir both beat and still fell, on margin guidance and valuation respectively. Good prints are no longer enough when guidance or multiples disappoint.
+- Oil is a two-way headline risk again: diplomacy pulled Brent down ~8% Monday; a single strike headline gave back a chunk of it overnight. Energy-driven inflation worry is live into Friday's jobs report.
+- VIX above 21 with election results overnight and AMD after the close means tonight's gap is a genuine event, not background noise — position for it before the close, not after.
 
 ## What to watch today (ET)
 
-- **9:45 AM — S&P Global final manufacturing PMI (Oct):** consensus 56.0, prior 56.0
-- **10:00 AM — ISM Manufacturing PMI (Oct):** consensus 54.5–54.7, prior 54.5 — the day's main event; prices-paid component is the focus (consensus 77.2, prior 77.9) after factory price inflation ran at its fastest since mid-2022
-- **10:00 AM — Construction spending (Sep, m/m):** consensus +0.4%, prior +0.9%
-- **11:30 AM — Treasury bill auctions:** 13-week ($95B) and 26-week ($82B)
-- **2:00 PM — Fed Senior Loan Officer Opinion Survey (Q3)**
-- **Fed speaker:** Austan Goolsbee (Chicago Fed) on today's calendar
-- **Treasury:** quarterly refunding financing estimates posted today; coupon announcement lands Wednesday
-- **After close — earnings:** Apple, Palantir, Vertex, Williams, Diamondback, ON Semiconductor, Roku
-- **Tomorrow (Tue Nov 3) — key:** U.S. midterm elections (all 435 House seats, 35 Senate seats; results overnight into Wed Asia); JOLTS job openings 10:00 AM (~7.1M expected, prior 7.08M); before open: Shopify, Pfizer; after close: AMD, Amgen, Arista, Booking
+- **All day — U.S. midterm elections:** voting today; results overnight into Wednesday Asia trade
+- **10:00 AM — JOLTS job openings (Sep):** consensus ~7.10–7.16M, prior 7.079M
+- **10:00 AM — Factory orders (Sep, m/m):** consensus +1.2%, prior +0.1%
+- **10:00 AM — Core durable goods orders, revised (Sep, m/m):** consensus +0.5%, prior +0.5%
+- **11:30 AM — Treasury auction:** 6-week bill reopening, $100B
+- **Before open — earnings:** Pfizer, Shopify, Marathon Petroleum, Yum! Brands, Energy Transfer
+- **After close — earnings:** AMD (call 5:00 PM ET), Amgen, Arista Networks, Booking Holdings, Super Micro Computer, Electronic Arts
+- **Tomorrow (Wed Nov 4) — key:** ADP employment 8:15 AM (consensus 65K, prior 90K); Treasury quarterly refunding announcement 8:30 AM; trade balance 8:30 AM; ISM Services PMI 10:00 AM (consensus 54.8, prior 54.9); before open: McDonald's, Uber; after close: Qualcomm, Arm
 
 ## Data
 
-- No U.S. prints released yet at brief time (pre-market, ~6:10 AM PT / 9:10 AM ET). Today's scheduled prints are listed above with consensus vs prior; actuals will be covered in the evening recap.
-- Already out overnight: China manufacturing PMI 52.0 (consensus 52.0, prior 52.1); Japan final manufacturing PMI 53.3 (in line with consensus/flash).
+- No U.S. prints released yet at brief time. Today's scheduled prints are listed above with consensus vs prior; actuals will be covered in the evening recap.
+- Already out (Monday): ISM Manufacturing (Oct) 55.5 vs 54.6 expected, prices paid cooled to 75.2 from 77.9 — a firm headline with a friendlier price component.
 
 ## Single names
 
-- **Apple (AAPL) — after close, EPS est ~$1.98–2.03:** so what — the largest index weight reporting tonight; iPhone demand, services, and holiday-quarter guidance set the tone into Tuesday's open. Stock flat to −0.4% premarket. Do not carry unhedged short premium through this print.
-- **Palantir (PLTR) — after close, +1.5% premarket:** so what — the week's most volatile reporter (median 12.4% move on report days, every report ≥5%). Size any PLTR premium as a gap-risk trade, not a theta trade.
-- **Intel (INTC) — −0.6% premarket after −28.6% Friday:** so what — Friday was its worst day since at least the 1980s on a weak Q4 guide; a second leg down would re-pressure the whole semi complex (SOXX fell 17% in October).
-- **Okta (OKTA) — +3.6% premarket:** so what — joining the S&P 500, replacing Kenvue; index-add flows, not fundamentals, drive today's move.
-- **Nvidia / semis (NVDA +1%+, SOXX +~2%, DRAM +~4%):** so what — the bounce leaders; if semis fail to hold the bounce, the Nasdaq reclaim fails with them.
-- **SpaceX (SPCX) — +~2% premarket; EchoStar +7%:** so what — report of SpaceX talks to buy Boost Mobile or use its network; satellite/telecom sympathy, not a broad-market signal.
-- **Marriott, Estée Lauder — before open:** so what — travel and beauty reads on consumer spending; Estée Lauder is also a sentiment check for the broader consumer name set.
-- **Alstom (Europe) — −27%:** so what — cut its annual margin forecast on German platform execution problems; a single-name European industrial warning, not a U.S. signal, but a reminder that guidance cuts are being punished hard this season.
+- **Apple (AAPL) — ~−4% premarket:** so what — fiscal Q4 beat, but holiday-quarter gross margin guided to 45–46% vs 46.9% expected, with rising memory-chip costs blamed. The largest index weight is a drag, not a leader, today.
+- **Shopify (SHOP) — ~−15–17% premarket:** so what — Q3 revenue $3.74B (+32% y/y) just missed ~$3.75–3.77B consensus; adjusted EPS $0.49 beat ~$0.47, but GMV $119.15B missed $120.08B and subscription revenue $836M missed ~$850M. A small miss at ~65x forward earnings got punished hard — the template for today's after-close names.
+- **Palantir (PLTR) — ~−7–8% premarket:** so what — Q3 beat, but Q4/FY guidance did not clear a very high bar. Valuation, not results, is the trade here.
+- **Pfizer (PFE) — roughly flat to −0.4% premarket:** so what — Q3 adjusted EPS $0.87 on revenue $16.58B, ahead of ~$0.73 / $15.87B expectations, and full-year outlook raised. A beat that the market is treating as priced in — no chase.
+- **AMD (AMD) — +2.8–4.3% premarket, reports after close:** so what — bouncing with semis ahead of its own print; guided Q3 revenue ~$13B (±$300M) and ~56% non-GAAP gross margin. Options price roughly a ±8–9% move. Do not carry unhedged short premium through it.
+- **Nvidia (NVDA) +~1.6%, Marvell (MRVL) +4.3%, Micron (MU) +2.8% premarket:** so what — semis trying to stabilize after Monday's rout (Marvell fell 13% Monday on its Lumentum deal). A bounce that fails at the open re-opens the correction trade.
+- **Backblaze (BLZE) +~34%, Lattice (LSCC) +10%, Fabrinet (FN) +10%, Aehr (AEHR) +14% premarket:** so what — earnings-driven small-cap pops; liquidity and gap risk cut both ways, size accordingly, not index signals.
 
 ## Implications (option-selling book)
 
-- **Today is a 0DTE / short-dated caution day, not a premium-harvest day:** ISM at 10:00 AM ET plus Apple/Palantir after the close bracket the session. Keep new short premium outside today's event windows or size for a gap.
-- **DTE posture: favor 7+ DTE over weeklies into Tue–Fri.** Midterms Tuesday, refunding Wednesday, BoE Thursday, jobs Friday — four separate gap events. Short-dated premium collected today gets tested repeatedly.
-- **Strike width: stay wide on index, wider on single names.** VIX ~19 with Friday's intraday spike to ~23.9 still fresh; a failed bounce re-tests Friday's lows fast. On AAPL/PLTR specifically, no short premium through tonight's prints unless defined-risk and sized for a double-digit gap.
-- **Premium richness vs tail risk: premium is available, tails are live.** Elevated VIX plus election/jobs event risk means headline premium overstates edge — collect it on diversified index spreads, not naked single-name exposure, and keep powder dry for post-jobs levels.
+- **Tonight is the event, not today at 10:00 AM.** JOLTS/factory orders at 10:00 AM ET are a tradable window, but AMD after the close plus overnight election results are the gap. Keep new short premium out of names reporting after the close.
+- **DTE posture: favor 7+ DTE into a stacked week.** Midterms tonight, refunding + ISM Services Wednesday, BoE Thursday, jobs Friday (payrolls ~50–65K expected after September's 29K). Short-dated premium collected today gets tested four times.
+- **Strike width: wide on index, wider on single names.** SPY 0DTE straddles priced roughly ±0.63% this morning; AMD's priced move is ~±8–9%. A single-name short put through an earnings print needs defined risk and gap-sized width.
+- **Premium richness vs tail risk: premium is real, tails are live.** VIX 21.54 with election headlines overnight means headline premium overstates edge on naked exposure. Collect on diversified index spreads; keep powder dry for post-jobs levels.
 
 ## Context (verified levels only)
 
-- **S&P 500:** Friday 7,580.07 (−1.82% 1-day); October: retreated for the month (Nasdaq −5.3% in October, worst since March 2025). 1-week / 1-month S&P closes beyond October direction not verified in today's sources — not stated.
-- **10Y:** ~4.92% this morning vs ~4.99% prior reference in one source (down ~6 bp); near its lowest in seven weeks; 30Y ~5.30%.
-- **Brent:** ~$108–110 this morning, down ~4% today, after +13.6% in October to a six-month high; WTI back below $100.
-- **VIX:** ~19.2–19.4 premarket vs 19.42 Friday close (+12.91% Friday); Friday intraday spike reached ~23.9 before fading.
+- **S&P 500:** Monday close 7,541.40 (−0.51% 1-day); Nasdaq Composite 25,164.32 (−1.07%); Dow 51,983.98 (+0.41%); Russell 2000 2,805.88 (−0.21%). 1-week / 1-month S&P closes not verified in today's sources — not stated.
+- **10Y:** ~4.92–4.94% this morning vs 4.91% Monday reference; 30Y ~5.30% vs 5.28% Monday reference.
+- **Brent:** ~$105.8–106.5 this morning, up ~1–1.7% today, after falling ~7.6% Monday.
+- **VIX:** 21.54 (+1.84%) in the morning snapshot vs 21.15 Monday close; Monday's session had pushed the VIX up ~11% intraday.
 
 ## Sources
 
-- Reuters via Investopedia/TipRanks: futures, Friday closes, midterms, earnings — https://www.investopedia.com/5-things-to-know-stock-market-november-2-2026-12206140 · https://www.tipranks.com/news/stock-market-today-nov-2-futures-rise-ahead-of-earnings-and-midterm-elections-oil-prices-fall
-- Morningstar/Dow Jones: Treasury yields — https://www.morningstar.com/news/dow-jones/20261102833/treasury-yields-little-changed-in-asian-trade-ahead-of-midterms-key-data-this-week · https://www.morningstar.com/news/dow-jones/202611022334/us-treasury-european-bond-yields-fall-as-oil-prices-drop-update
-- Saxo Morning Brew, eOption morning preview: overnight Asia/Europe, futures snapshot — https://www.home.saxo/en-ch/content/articles/morning-brew/morning-brew-november-2-2026-02112026 · https://www.eoption.com/morning-preview-november-02-2026/
-- Economic calendar: XTB, Nowflation, Weekend Spread — https://www.xtb.com/int/market-analysis/news-and-research/economic-calendar-global-series-of-industrial-pmi-indicators-and-tech-giants-results · https://nowflation.com/calendar · https://theweekendspread.substack.com/p/the-week-ahead-november-2-to-6
-- Earnings week: https://jorgai.com/blog/stock-market-week-ahead-november-2-6-2026-amd-palantir-qualcomm-uber-earnings-moves-election-day-jobs-report · https://thehairytimes.com/stock-market-this-week-nov-2-6/
+- Reuters/Morningstar via TipRanks, Sharecast, KWSN: futures, Monday closes, 10Y, oil — https://www.tipranks.com/news/stock-market-today-nov-3-futures-mixed-on-midterm-election-day-apple-and-palantir-shares-slide-after-earnings · https://www.sharecast.com/news/market-report-us-pre-open/wall-street-nyse-dow-jones-nasdaq-stocks-equities-midterms-apple--23995398.html · https://kwsn.com/2026/11/03/us-stock-futures-mixed-as-apple-slides-midterms-loom/
+- Morningstar/Dow Jones: yields, oil, gold, bitcoin update — https://www.morningstar.com/news/dow-jones/202611036147/dow-futures-fall-treasurys-yields-rise-heading-into-midterms-update
+- Swingfolio pre-market snapshot: futures at 7:36 AM ET, VIX — https://swingfolio.com/daily/us/2026-11-03/morning
+- Overnight Asia/Europe: Reuters via Fortune Post / 947thebeast, Shanghai close — https://www.thefortunepost.com/business-finance/global-markets-slide-ai-stocks-oil-rebound-us-midterms-november-3-2026/ · https://947thebeast.com/2026/11/02/asian-stocks-retreat-ahead-of-us-midterms-oil-steadies/ · https://www.ad-hoc-news.de/boerse/news/marktberichte/shanghai-composite-closes-0-82-prozent-lower-at-3-608-10/70450352
+- Economic calendar: XTB, Nowflation, BLS schedule, Weekend Spread — https://www.xtb.com/en/market-analysis/economic-calendar-us-midterms-jolts-and-factory-orders-take-center-stage-03-11-2026 · https://nowflation.com/calendar · https://www.bls.gov/schedule/2026/11_sched_list.htm · https://theweekendspread.substack.com/p/the-week-ahead-november-2-to-6
+- Earnings: TipRanks implied moves, Morningstar/Barron's on Shopify, Pfizer, Apple — https://www.tipranks.com/news/options-volatility-and-implied-earnings-moves-today-november-03-2026 · https://www.morningstar.com/news/marketwatch/2026110339/shopifys-stock-slides-after-earnings-this-is-whats-worrying-wall-street · https://www.barrons.com/articles/stock-movers-0b42bd79
 - Treasury auctions: https://yielddocket.com/treasury-auctions/calendar/
-- VIX: https://www.volalytics.com/Analytics/VIX/DashboardNew · https://swingfolio.com/daily/us/2026-11-02/morning
-- Commodities: https://www.samuelandcotrading.com/us-open-market-brief-2-november-2026-cheaper-oil-buys-a-breather/ · https://www.dailyforex.com/forex-news/2026/11/forex-today-2-november-2026/251286
 
-Systems: Mac online — fildi API unverified (no shell/HTTP probe command exposed on the paired Mac; best-effort probe not possible this run)
+Systems: Mac offline — unverified
