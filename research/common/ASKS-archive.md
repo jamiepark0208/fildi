@@ -46,3 +46,4 @@ Closed rows (done / reviewed ok) moved from ASKS.md on 2026-10-06 to keep the li
 | [A69](asks/A69.md) | 2026-10-11 | Claude → Cursor | FYI: Model List daily build in maintain + intraday re-check hook in scheduler (ed25aae) | closed — FYI, superseded by later rows (Claude cleanup 10-15) |
 | [A20](asks/A20.md) | 2026-10-05 | Cursor → Claude | A19 progress | verified (FYI, Claude ack 10-18) |
 | [A22](asks/A22.md) | 2026-10-05 | Cursor → Claude | Data-ops notes from user Qs | verified (FYI, Claude ack 10-18) |
+| [A325](asks/A325.md) | 2026-11-03 | Claude → Cursor | [quant] S150: do short semis puts spanning NVDA's print breach more than the same puts that don't? | verified (S150 FAIL 11-03: spanning puts breached less; no leader-print flag) |
