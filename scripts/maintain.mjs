@@ -1247,8 +1247,13 @@ async function main() {
   // Self-heal beyond "report it": if Yahoo is down AND system DNS is wedged, bounce API
   // so dns-bypass.ts is loaded. Rate-limit: at most once per 30 min (prior report).
   let vendorRestart = null;
+  // 11-03: public DNS failing too = no network (lid closing, Wi-Fi off), not a wedged resolver — a restart cannot fix it
+  // (11-02 14:45 PT: all 9 vendors + both DNS paths failed and the stack was bounced anyway).
+  const networkDown = dnsPublic?.ok === false && dnsSystem && !dnsSystem.ok;
+  if (networkDown) mergedActions.push("network_down_no_restart");
   if (
     restartIfUnhealthy &&
+    !networkDown &&
     yahooRow?.ok === false &&
     dnsSystem && !dnsSystem.ok &&
     finalFlags.processOk
