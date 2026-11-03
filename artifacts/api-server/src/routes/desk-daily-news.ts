@@ -379,7 +379,8 @@ async function maybeIngestDeskOnGet(): Promise<void> {
   const now = Date.now();
   if (now - lastDeskIngestAt < DESK_INGEST_MIN_MS) return;
   lastDeskIngestAt = now;
-  await ingestDeskCommentaries({ sinceMs: now - 6 * 60 * 60 * 1000 }).catch(() => null);
+  // Behind the response (rule 8c): awaiting the Gmail pull made one load per 15 min take up to 21 s.
+  void ingestDeskCommentaries({ sinceMs: now - 6 * 60 * 60 * 1000 }).catch(() => null);
 }
 
 function ptHourNow(): number {

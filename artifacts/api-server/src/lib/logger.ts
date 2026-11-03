@@ -14,7 +14,8 @@ export const logger = pino({
     : {
         transport: {
           target: "pino-pretty",
-          options: { colorize: true },
+          // Date in every line: api.log spans days of sleeps/restarts, and time-only stamps made perf-watch misdate hangs.
+          options: { colorize: true, translateTime: "SYS:yyyy-mm-dd HH:MM:ss.l" },
         },
       }),
 });

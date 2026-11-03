@@ -61,25 +61,28 @@ function parseSleepWindows() {
   } catch { return []; }
 }
 
-/** pino-pretty lines carry HH:MM:SS only — anchor the last line to the file's mtime and walk back across midnights. */
+/** Lines carry a local date since 11-03 (logger translateTime). Older time-only lines: anchor to the next dated line
+ *  (or the file's mtime) and walk back across midnights — that guess misdates gaps that cross two midnights. */
 function parseLog() {
   if (!existsSync(LOG)) return { reqs: [], restarts: [], circuits: [] };
   const raw = readFileSync(LOG, "utf8").replace(/\x1b\[[0-9;]*m/g, "");
-  const stamps = [...raw.matchAll(/^\[(\d\d):(\d\d):(\d\d)\.(\d{3})\] (\w+) \((\d+)\): (.*)$/gm)];
+  const stamps = [...raw.matchAll(/^\[(?:(\d{4}-\d\d-\d\d) )?(\d\d):(\d\d):(\d\d)\.(\d{3})\] (\w+) \((\d+)\): (.*)$/gm)];
   const anchor = statSync(LOG).mtime;
-  const day0 = new Date(anchor); day0.setHours(0, 0, 0, 0);
+  let day0 = new Date(anchor); day0.setHours(0, 0, 0, 0);
   let dayOffset = 0;
   const times = new Array(stamps.length);
   for (let i = stamps.length - 1, next = Infinity; i >= 0; i--) {
-    const [, h, mi, s, ms] = stamps[i];
+    const [, ymd, h, mi, s, ms] = stamps[i];
     const secs = (+h) * 3600 + (+mi) * 60 + (+s) + (+ms) / 1000;
-    if (secs > next + 3600) dayOffset -= 1;             // going back past midnight
+    if (ymd) {
+      day0 = new Date(`${ymd}T00:00:00`); dayOffset = 0;
+    } else if (secs > next + 3600) dayOffset -= 1;      // going back past midnight
     next = secs;
     times[i] = day0.getTime() + dayOffset * 86_400_000 + secs * 1000;
   }
   const reqs = [], restarts = [], circuits = [];
   for (let i = 0; i < stamps.length; i++) {
-    const msg = stamps[i][7];
+    const msg = stamps[i][8];
     const body = raw.slice(stamps[i].index, stamps[i + 1]?.index ?? raw.length);
     if (msg.startsWith("request completed")) {
       const url = /"url": "([^"]+)"/.exec(body)?.[1];
