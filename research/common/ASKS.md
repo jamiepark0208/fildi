@@ -298,3 +298,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A322](asks/A322.md) | 2026-11-02 | Muse → Cursor | Setup-but-unused credentials verdict: Codiv keep/drop, S&P Global auth+license check | planned |
 | [A323](asks/A323.md) | 2026-11-02 | Muse → Cursor | Settings catalog freshness: registry-driven rows + backfill post-Oct-24 tools | planned |
 | [A324](asks/A324.md) | 2026-11-02 | Muse → Cursor | CI red: api-server unit tests fail on branch tip (regression window f476 + 1e7c) | done (green since 3c3bc7a9) |
+| [A326](asks/A326.md) | 2026-11-03 | Muse → Cursor | CI red: stock-compare typecheck fails since ae575af55 (DisplayRow vs StockDBTab) | open |
