@@ -43,6 +43,15 @@ def ttm_per_share(facts, concepts):
     return None
 
 
+def fresh_ni(facts, concepts, rev_end):
+    """First concept whose TTM ends with revenue; a tag a filer stopped using (REGN, RKT) must not win."""
+    for c in concepts:
+        r = F.ttm_flow(facts, [c])
+        if r and (not rev_end or r["end"] >= rev_end):
+            return r
+    return F.ttm_flow(facts, ["NetIncomeLoss"])
+
+
 def price(conn, t):
     r = rows(conn, "SELECT close, date FROM prices_historical WHERE ticker=%s ORDER BY date DESC LIMIT 1", (t,))
     return (float(r[0]["close"]), str(r[0]["date"])) if r else (None, None)
@@ -68,9 +77,9 @@ def main():
         else:
             rev = F.ttm_flow(facts, REV)
             asof = (rev or {}).get("end") or date.today().isoformat()
-            ni = F.ttm_flow(facts, NI_COMMON) or F.ttm_flow(facts, ["NetIncomeLoss"])
+            ni = fresh_ni(facts, NI_COMMON, (rev or {}).get("end"))
             if f == "returnOnAssets":
-                ni_roa = F.ttm_flow(facts, NI_ATTRIBUTABLE) or F.ttm_flow(facts, ["NetIncomeLoss"])
+                ni_roa = fresh_ni(facts, NI_ATTRIBUTABLE + ["NetIncomeLoss"], (rev or {}).get("end"))
                 a = F.balance(facts, ASSETS, asof)
                 a0 = F.balance(facts, ASSETS, (date.fromisoformat(a["end"]) - timedelta(days=360)).isoformat()) if a else None
                 if ni_roa and a:

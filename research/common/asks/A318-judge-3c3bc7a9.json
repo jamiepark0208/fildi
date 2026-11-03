@@ -1,0 +1,302 @@
+[
+ {
+  "ticker": "APO",
+  "field": "currentRatio",
+  "before": 0.0404,
+  "after": 0.0563,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": "unclassified balance sheet (no AssetsCurrent/LiabilitiesCurrent)"
+ },
+ {
+  "ticker": "CE",
+  "field": "dividendYield",
+  "before": 0.0023999999,
+  "after": 0.0210621,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": ""
+ },
+ {
+  "ticker": "IVZ",
+  "field": "ffoProxy",
+  "before": 693900000.0,
+  "after": 74400000.0,
+  "truth": -169500000,
+  "before_ok": false,
+  "after_ok": false,
+  "note": "NI -309M (2026-06-30) + D&A 140M (2026-06-30)"
+ },
+ {
+  "ticker": "WING",
+  "field": "forwardPeg",
+  "before": 0.43947923110577836,
+  "after": 0.29621581756310367,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": "forward/estimate field: not filing-checkable"
+ },
+ {
+  "ticker": "CCJ",
+  "field": "grossMargin",
+  "before": 0.35112998,
+  "after": 0.26899999999999996,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": "no us-gaap companyfacts (foreign filer?)"
+ },
+ {
+  "ticker": "DD",
+  "field": "netMargin",
+  "before": 0.00787,
+  "after": 0.0120206067544362,
+  "truth": 0.007870635374928448,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "55M / rev 6988M (2026-06-30)"
+ },
+ {
+  "ticker": "PAAS",
+  "field": "priceToBook",
+  "before": 2.152817,
+  "after": 2.152817,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": "no us-gaap companyfacts (foreign filer?)"
+ },
+ {
+  "ticker": "NBIX",
+  "field": "returnOnAssets",
+  "before": 0.11704001,
+  "after": 0.152558682654153,
+  "truth": 0.1420181742830862,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "NI 702M (2026-09-30) / avg assets 4947M; end-assets ROA 0.1248"
+ },
+ {
+  "ticker": "GOOGL",
+  "field": "sharesOutstanding",
+  "before": 12116000000.0,
+  "after": 12088000000.0,
+  "truth": 12324000000,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "dei {'value': 12324000000, 'concept': 'WeightedAverageNumberOfDilutedSharesOutstanding', 'end': '2026-09-30', 'filed': '2026-10-29'}"
+ },
+ {
+  "ticker": "CRDO",
+  "field": "currentRatio",
+  "before": 7.399,
+  "after": 7.39935407362551,
+  "truth": 7.399354073625514,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "CA 1466M / CL 198M (2026-08-01)"
+ },
+ {
+  "ticker": "AMZN",
+  "field": "freeCashFlow",
+  "before": 132777000000.0,
+  "after": -46892000000.0,
+  "truth": -46892000000,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "ocf 168300M \u2212 capex 215192M (2026-09-30)"
+ },
+ {
+  "ticker": "IVZ",
+  "field": "netIncome",
+  "before": 538000000.0,
+  "after": -81500000.0,
+  "truth": -309200000,
+  "before_ok": false,
+  "after_ok": false,
+  "note": "FY2025 + 6m YTD \u2212 prior end 2026-06-30"
+ },
+ {
+  "ticker": "LUMN",
+  "field": "returnOnAssets",
+  "before": -0.0315,
+  "after": -0.0321214592678566,
+  "truth": -0.03212145926785658,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "NI -1024M (2026-06-30) / avg assets 31879M; end-assets ROA -0.0333"
+ },
+ {
+  "ticker": "CG",
+  "field": "totalRevenue",
+  "before": 4779800000.0,
+  "after": 3611300000.0,
+  "truth": 3611300000,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "FY2025 + 6m YTD \u2212 prior end 2026-06-30"
+ },
+ {
+  "ticker": "KGC",
+  "field": "dividendYield",
+  "before": 0.0069999998,
+  "after": 0.021718099999999997,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": "no us-gaap companyfacts (foreign filer?)"
+ },
+ {
+  "ticker": "JHX",
+  "field": "priceToBook",
+  "before": 2.338509,
+  "after": 2.46832559570682,
+  "truth": 2.4683255957068155,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "px 27.81 (2026-11-02) \u00d7 580.5M sh / eq 6541M (2026-06-30)"
+ },
+ {
+  "ticker": "REGN",
+  "field": "returnOnAssets",
+  "before": 0.06526,
+  "after": 0.113920727972701,
+  "truth": 0.11392072797270103,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "NI 4817M (2026-09-30) / avg assets 42287M; end-assets ROA 0.1085"
+ },
+ {
+  "ticker": "OWL",
+  "field": "totalRevenue",
+  "before": 567754000.0,
+  "after": 3068990000.0,
+  "truth": 3068990000,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "FY2025 + 9m YTD \u2212 prior end 2026-09-30"
+ },
+ {
+  "ticker": "RELY",
+  "field": "priceToBook",
+  "before": 4.536063,
+  "after": 4.75930694121124,
+  "truth": 4.759306941211237,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "px 25.335 (2026-11-02) \u00d7 211.7M sh / eq 1127M (2026-06-30)"
+ },
+ {
+  "ticker": "CRWV",
+  "field": "returnOnAssets",
+  "before": -0.00244,
+  "after": -0.0373240647304208,
+  "truth": -0.0373240647304208,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "NI -1928M (2026-06-30) / avg assets 51656M; end-assets ROA -0.0250"
+ },
+ {
+  "ticker": "WING",
+  "field": "forwardPe",
+  "before": 29.741556,
+  "after": 20.04627,
+  "truth": null,
+  "before_ok": null,
+  "after_ok": null,
+  "note": "forward/estimate field: not filing-checkable"
+ },
+ {
+  "ticker": "GOOGL",
+  "field": "freeCashFlow",
+  "before": 73266000000.0,
+  "after": 19747000000.0,
+  "truth": 19747000000,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "ocf 179551M \u2212 capex 159804M (2026-09-30)"
+ },
+ {
+  "ticker": "TTWO",
+  "field": "operatingMargin",
+  "before": 0.0051499996,
+  "after": -0.0241232333806924,
+  "truth": -0.02412323338069244,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "-161M / rev 6686M (2026-06-30)"
+ },
+ {
+  "ticker": "SG",
+  "field": "returnOnAssets",
+  "before": -0.09035,
+  "after": 0.0158271115839731,
+  "truth": 0.015827111583973066,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "NI 14M (2026-06-28) / avg assets 864M; end-assets ROA 0.0153"
+ },
+ {
+  "ticker": "INTC",
+  "field": "freeCashFlow",
+  "before": -4949000000.0,
+  "after": 3768000000.0,
+  "truth": 3768000000,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "ocf 17472M \u2212 capex 13704M (2026-09-26)"
+ },
+ {
+  "ticker": "TKO",
+  "field": "returnOnAssets",
+  "before": 0.04496,
+  "after": 0.0418512987470536,
+  "truth": 0.014526367832507731,
+  "before_ok": false,
+  "after_ok": true,
+  "note": "NI 230M (2026-06-30) / avg assets 15803M; end-assets ROA 0.0141"
+ },
+ {
+  "ticker": "ESTC",
+  "field": "operatingMargin",
+  "before": -0.00606,
+  "after": -0.026418356679444,
+  "truth": -0.026418356679443956,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "-48M / rev 1802M (2026-07-31)"
+ },
+ {
+  "ticker": "NOV",
+  "field": "returnOnAssets",
+  "before": 0.03446,
+  "after": 0.0132966935555359,
+  "truth": 0.01267618118961085,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "NI 143M (2026-09-30) / avg assets 11281M; end-assets ROA 0.0127"
+ },
+ {
+  "ticker": "HUT",
+  "field": "returnOnAssets",
+  "before": -0.09742,
+  "after": -0.0999647229618841,
+  "truth": -0.09996472296188413,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "NI -600M (2026-06-30) / avg assets 5998M; end-assets ROA -0.0601"
+ },
+ {
+  "ticker": "RKT",
+  "field": "returnOnAssets",
+  "before": 0.028099999,
+  "after": 0.0278032267276963,
+  "truth": 0.0278245645839724,
+  "before_ok": true,
+  "after_ok": true,
+  "note": "NI 1304M (2026-09-30) / avg assets 46865M; end-assets ROA 0.0217"
+ }
+]
