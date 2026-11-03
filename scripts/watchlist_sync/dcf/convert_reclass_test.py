@@ -1,6 +1,12 @@
 """A288: if-converted + Claude revise guards (no SEC)."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import financials as F  # noqa: E402
+
 
 def reclass(face: float, conv_px: float, spot: float) -> tuple[float, float]:
     """Returns (debt_delta, shares_added). debt_delta is negative when reclassed."""
@@ -71,6 +77,10 @@ def main() -> None:
         convert_sh=5e6, reclassed_face=100e6, debt_sec=900e6,
     )
     assert abs(csh - 5e6) < 1 and abs(extra - 6e6) < 1 and abs(debt - 900e6) < 1
+
+    # A288 11-03: BABA FY2026 20-F dei mis-scaled; basic/8 ADS matches fmp 2,321M
+    ads, ratio = F.adr_ads_shares(dei=1_858_037_427, basic=18_568_000_000, fmp_sh=2_321_000_000)
+    assert ratio == 8 and ads is not None and abs(ads - 2_321_000_000) / 2_321_000_000 < 0.001
 
     print("convert_reclass_test: ok")
 

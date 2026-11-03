@@ -34,6 +34,12 @@ FLOWS = {
     "sbc": ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
     "interest_expense": ["InterestExpense", "InterestExpenseNonoperating", "InterestExpenseDebt"],
     "ocf": ["NetCashProvidedByUsedInOperatingActivities"],
+    "net_income": [
+        "NetIncomeLossAvailableToCommonStockholdersBasic",
+        "NetIncomeLossAvailableToCommonStockholdersDiluted",
+        "NetIncomeLoss",
+        "ProfitLoss",
+    ],
 }
 BALANCES = {
     "cash": ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"],
@@ -193,7 +199,39 @@ def balance(facts: dict, concepts: list[str], asof: str) -> dict | None:
     return best
 
 
-def shares(facts: dict) -> dict | None:
+ADR_RATIOS = (1, 2, 3, 4, 5, 8, 10)  # ordinary shares per US-listed ADS (BABA 8:1, TSM 5:1, …)
+
+
+def _latest_basic_wa(facts: dict, near_end: str | None = None) -> dict | None:
+    vals = [u for u in _units(facts, "WeightedAverageNumberOfSharesOutstandingBasic", "shares") if u.get("start")]
+    if not vals:
+        return None
+    if near_end:
+        same = [u for u in vals if u["end"] == near_end]
+        if same:
+            return max(same, key=lambda x: (x["filed"], x["start"]))
+    return max(vals, key=lambda x: (x["end"], x["filed"], x["start"]))
+
+
+def adr_ads_shares(*, dei: float, basic: float, fmp_sh: float | None = None) -> tuple[float | None, int | None]:
+    """Map 20-F ordinary basic WA → US ADS count (price is per ADS). Returns (ads, adr_ratio)."""
+    if dei <= 0 or basic <= 0 or basic / dei < 5:
+        return None, None
+    best_r, best_ads, best_err = None, None, None
+    for ratio in ADR_RATIOS:
+        ads = basic / ratio
+        err = abs(ads - fmp_sh) / fmp_sh if fmp_sh else abs(ads - dei) / max(ads, 1.0)
+        if best_err is None or err < best_err:
+            best_r, best_ads, best_err = ratio, ads, err
+    if fmp_sh:
+        if best_err > 0.05 or abs(dei - fmp_sh) / fmp_sh <= 0.10:
+            return None, None
+    elif best_err > 0.15:
+        return None, None
+    return best_ads, best_r
+
+
+def shares(facts: dict, conn=None, ticker: str | None = None) -> dict | None:
     dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
     vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
     if not vals:
@@ -206,7 +244,28 @@ def shares(facts: dict) -> dict | None:
     u = max(vals, key=lambda x: (x["end"], x["filed"]))
     # dual-class issuers report one row per class on the same date: sum them
     tot = sum(x["val"] for x in vals if x["end"] == u["end"] and x["filed"] == u["filed"])
-    return {"value": tot, "concept": "dei:EntityCommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
+    raw = {"value": tot, "concept": "dei:EntityCommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
+    basic = _latest_basic_wa(facts, raw.get("end"))
+    fmp_sh = None
+    if conn and ticker:
+        r = rows(
+            conn,
+            "SELECT fmp_shares_outstanding::float8 sh FROM fmp_fundamentals WHERE ticker = %s AND fmp_shares_outstanding > 0",
+            (ticker.upper(),),
+        )
+        fmp_sh = float(r[0]["sh"]) if r else None
+    if basic:
+        ads, ratio = adr_ads_shares(dei=raw["value"], basic=float(basic["val"]), fmp_sh=fmp_sh)
+        if ads is not None and ratio is not None:
+            return {
+                **raw,
+                "value": ads,
+                "concept": f"WeightedAverageNumberOfSharesOutstandingBasic/{ratio} ADS",
+                "end": basic["end"],
+                "filed": basic["filed"],
+                "how": f"20-F dei mis-scaled vs ordinary basic; ÷{ratio} for US ADS (vendor {fmp_sh/1e6:.0f}M)" if fmp_sh else f"20-F basic÷{ratio} ADS",
+            }
+    return raw
 
 
 def dilution(facts: dict, asof: str) -> dict:
@@ -271,7 +330,7 @@ def ttm_base(conn, ticker: str, facts: dict | None = None) -> dict | None:
     out = {k: ttm_flow(facts, v) for k, v in FLOWS.items()}
     asof = (out.get("revenue") or {}).get("end") or date.today().isoformat()
     out.update({k: balance(facts, v, asof) for k, v in BALANCES.items()})
-    out["shares"] = shares(facts)
+    out["shares"] = shares(facts, conn, ticker)
     out["dilution"] = dilution(facts, asof)
     # A288: conversion price — prefer dimension-free; else per-tranche segments; vintage-match to face end.
     face_end = (out.get("convert_debt") or {}).get("end")
