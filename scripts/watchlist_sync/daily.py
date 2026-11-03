@@ -20,6 +20,7 @@ Run during market hours (LSEG IV and Robinhood quotes are only trustworthy in se
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import subprocess
@@ -169,6 +170,13 @@ def main() -> None:
     ap.add_argument("--no-lseg", action="store_true")
     ap.add_argument("--if-needed", action="store_true", help="scheduled run: skip unless a trading day with no plan built today (ET)")
     a = ap.parse_args()
+    # 11-03: one run at a time — a manual run and maintain's retry must never build/publish two plans at once
+    lock = open(HERE / "out" / "daily.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("skip: another daily.py run is in progress")
+        sys.exit(75)   # not 0: maintain must not count the day as done while the other run may still fail
     if a.if_needed:
         today = datetime.now(R.ET).date()
         if not R.is_trading_day(today):

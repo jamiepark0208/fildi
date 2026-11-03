@@ -388,7 +388,8 @@ function runModelListDaily() {
   const r = spawnSync(join(dir, ".venv/bin/python"), ["daily.py", "--if-needed"], {
     encoding: "utf8",
     cwd: dir,
-    timeout: 45 * 60 * 1000,
+    // 11-03: was 45 min — a full run takes ~76 min (11-02), so every attempt was killed mid-model and the list never published
+    timeout: 120 * 60 * 1000,
   });
   return {
     status: r.status,
