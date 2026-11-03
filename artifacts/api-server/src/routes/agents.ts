@@ -452,10 +452,12 @@ function subagents(live: LiveEv[], nowMs: number) {
 
 /** Working vs waiting-for-you minutes today (Pacific): gaps ≤ 5 min between actions count as working; a "waiting" event counts
  *  as waiting until the next prompt/action (capped at 60 min). */
+/** One formatter: toLocaleDateString per event built a new Intl formatter each time (~35 ms per /agents poll, 11-03). */
+const PT_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" });
 function timeSplit(mine: LiveEv[], nowMs: number) {
-  const today = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  const today = PT_DAY.format(new Date(nowMs));
   // main-session events only: background agents' actions don't end a "waiting for you" stretch
-  const evs = mine.filter((e) => !e.sub && new Date(e.t).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }) === today);
+  const evs = mine.filter((e) => !e.sub && PT_DAY.format(new Date(e.t)) === today);
   let working = 0, waiting = 0;
   for (let i = 0; i < evs.length; i++) {
     const a = Date.parse(evs[i].t), b = i + 1 < evs.length ? Date.parse(evs[i + 1].t) : nowMs, gap = (b - a) / 6e4;
@@ -639,17 +641,33 @@ function claudeLimits(): { at: string; fiveHour: { pct: number | null; resetsAt:
 }
 
 /** Muse weekly usage: Muse's heartbeat events carry usage_pct + usage_resets (from subscription-status). */
-function museUsage(): { at: string; pct: number | null; resetsAt: string | null } | null {
+/** Muse posts usage rarely (1 line in 65k): scan the whole log once, then only bytes appended since the last poll
+ *  (re-reading 13 MB per 15 s /agents poll cost ~25 ms, 11-03). */
+type MuseUsage = { at: string; pct: number | null; resetsAt: string | null };
+let museScan: { size: number; last: MuseUsage | null } = { size: 0, last: null };
+function museUsage(): MuseUsage | null {
   try {
-    const lines = readFileSync(join(homedir(), ".fildi/agent-events.jsonl"), "utf8").trim().split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
+    const path = join(homedir(), ".fildi/agent-events.jsonl");
+    const size = statSync(path).size;
+    if (size < museScan.size) museScan = { size: 0, last: null };   // rotated
+    if (size > museScan.size) {
+      const fd = openSync(path, "r");
       try {
-        const e = JSON.parse(lines[i]) as { agent?: string; t?: string; usage_pct?: number; usage_resets?: string };
-        if (e.agent === "muse" && typeof e.usage_pct === "number")
-          return { at: e.t ?? new Date().toISOString(), pct: e.usage_pct, resetsAt: e.usage_resets ?? null };
-      } catch { /* skip malformed line */ }
+        const buf = Buffer.alloc(size - museScan.size);
+        readSync(fd, buf, 0, buf.length, museScan.size);
+        const end = buf.lastIndexOf(0x0a) + 1;   // a half-written last line is read next time
+        for (const line of buf.subarray(0, end).toString("utf8").split("\n")) {
+          if (!line.includes('"usage_pct"')) continue;
+          try {
+            const e = JSON.parse(line) as { agent?: string; t?: string; usage_pct?: number; usage_resets?: string };
+            if (e.agent === "muse" && typeof e.usage_pct === "number")
+              museScan.last = { at: e.t ?? new Date().toISOString(), pct: e.usage_pct, resetsAt: e.usage_resets ?? null };
+          } catch { /* skip malformed line */ }
+        }
+        museScan.size += end;
+      } finally { closeSync(fd); }
     }
-    return null;
+    return museScan.last;
   } catch { return null; }
 }
 

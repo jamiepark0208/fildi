@@ -1952,7 +1952,7 @@ export function AgentsTab() {
       return r.json();
     },
     staleTime: 10_000,
-    refetchInterval: 15_000, // live events are a cheap file tail; commits/tokens are cached server-side
+    refetchInterval: 30_000, // only while /agents is open and visible (React Query pauses hidden tabs); ~0.24 s server cost per poll
   });
   const { data: learn } = useQuery({
     queryKey: ["agents-learn"],
