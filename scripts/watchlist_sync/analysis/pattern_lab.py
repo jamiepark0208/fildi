@@ -20,7 +20,8 @@ Method:
   3. Model: HistGradientBoosting on all features, fit 2016–2022, check 2023–24, refit ≤ 2024, holdout 2025 → once.
      AUC, top-decile lift, calibration, permutation importance; forward path of the top decile vs base and vs RSI < 30 alone.
 Run: cd scripts/watchlist_sync && .venv/bin/python analysis/pattern_lab.py [--tickers A,B] [--rebuild]
-Out: out/opt/pattern-lab-packet.md + out/opt/pattern_lab_*.csv
+     .venv/bin/python analysis/pattern_lab.py --s151 [--tickers A,B] [--rebuild] [--smoke-only]
+Out: out/opt/pattern-lab-packet.md + out/opt/pattern_lab_*.csv; --s151 → out/opt/S151.md
 """
 from __future__ import annotations
 
@@ -40,6 +41,13 @@ W = 10            # swing window each side (21-day period)
 TOL = 0.25        # within 0.25 ATR of the period extreme
 FIT_END, VAL_END = pd.Timestamp("2022-12-31"), pd.Timestamp("2024-12-31")
 HALF = pd.Timestamp("2020-12-31")
+# S151 (A328): forward-only turning points at 4 horizons; phase-2 fit window 2016–2021 only
+S151_K_ATR = 1.0
+S151_TOL = 0.25
+S151_HORIZONS = {"intra": 1, "week": 5, "month": 21, "quarter": 63}
+S151_FIT_END = pd.Timestamp("2021-12-31")
+S151_SMOKE_TICKERS = "AAPL,MSFT,NVDA,AMZN,GOOGL,META,JPM,XOM,UNH,WMT".split(",")
+S151_CACHE = Path.home() / ".fildi" / "cache" / "pattern_lab_s151_panel.pkl"
 
 
 def load(tickers: list[str] | None) -> pd.DataFrame:
@@ -178,7 +186,43 @@ def features(g: pd.DataFrame) -> pd.DataFrame:
     g["sup_dist"], g["res_dist"], g["sup_touches"], g["res_touches"] = sup, res, st, rt
     below, above, inside = vol_profile(g)
     g["hvn_below_dist"], g["hvn_above_dist"], g["in_hvn"] = below, above, inside
+    g["rsi2"] = rsi(g.c, 2)
+    g["z5_close"] = (g.c - g.c.rolling(5).mean()) / g.c.rolling(5).std().replace(0, np.nan)
+    g["ret_15"] = g.c / g.c.shift(15) - 1
+    g["ret_20"] = g.c / g.c.shift(20) - 1
+    g["ret_30"] = g.c / g.c.shift(30) - 1
+    g["dd_20"] = (g.c - g.h.rolling(20).max()) / g.c
+    g["prior_day_low"] = (g.c - g.l.shift(1)) / a
+    g["prior_day_high"] = (g.h.shift(1) - g.c) / a
     return g
+
+
+def s151_horizon_labels(g: pd.DataFrame) -> pd.DataFrame:
+    """Forward-only good low/high per horizon (A328 phase 1). Anchored on today's low/high + close rally/fall."""
+    a = g.atr
+    iv = (g.iv30_put.fillna(0) + g.iv30_call.fillna(0)) / 2 / 100.0
+    for name, h in S151_HORIZONS.items():
+        fl = g.l.shift(-1)[::-1].rolling(h, min_periods=h).min()[::-1]
+        fh = g.h.shift(-1)[::-1].rolling(h, min_periods=h).max()[::-1]
+        fc = g.c.shift(-h)
+        ok = fl.notna() & fh.notna() & fc.notna() & (a > 0)
+        g[f"good_low_{name}"] = ((fl >= g.l - S151_TOL * a) & (fh >= g.c + S151_K_ATR * a)).astype(float).where(ok)
+        g[f"good_high_{name}"] = ((fh <= g.h + S151_TOL * a) & (fl <= g.c - S151_K_ATR * a)).astype(float).where(ok)
+        g[f"mae_low_{name}"] = ((g.c - fl) / a).where(ok)
+        g[f"mfe_low_{name}"] = ((fh - g.c) / a).where(ok)
+        g[f"ret_h_{name}"] = (fc / g.c - 1).where(ok)
+        sig = iv * np.sqrt(h / 252.0)
+        floor = g.c * (1 - sig)
+        min_close = g.c.shift(-1)[::-1].rolling(h, min_periods=h).min()[::-1]
+        g[f"sell_put_ok_{name}"] = (min_close >= floor).astype(float).where(ok)
+        be_call = g.c * (1 + 0.5 * sig)
+        g[f"long_call_ok_{name}"] = (fc >= be_call).astype(float).where(ok)
+    return g
+
+
+def s151_features(g: pd.DataFrame) -> pd.DataFrame:
+    g = features(g)
+    return s151_horizon_labels(g)
 
 
 FEATS = ["rsi14", "rsi_chg5", "stoch14", "macd_hist_atr", "macd_hist_slope3", "roc5_atr", "roc20_atr", "bull_div", "bear_div",
@@ -187,6 +231,7 @@ FEATS = ["rsi14", "rsi_chg5", "stoch14", "macd_hist_atr", "macd_hist_slope3", "r
          "sup_dist", "res_dist", "sup_touches", "res_touches", "hvn_below_dist", "hvn_above_dist", "in_hvn",
          "spy_rsi14", "spy_dist_ma50"]
 BINARY = {"bull_div", "bear_div", "down_climax", "up_climax", "in_hvn"}
+FEATS_S151 = FEATS + ["rsi2", "z5_close", "ret_15", "ret_20", "ret_30", "dd_20", "prior_day_low", "prior_day_high"]
 
 
 def panel(tickers: list[str] | None, rebuild: bool) -> pd.DataFrame:
@@ -308,7 +353,177 @@ def confluence(p: pd.DataFrame) -> pd.DataFrame:
                                                           ret10=("ret10", "median")).reset_index()
 
 
+def s151_panel(tickers: list[str] | None, rebuild: bool) -> pd.DataFrame:
+    cache = S151_CACHE if not tickers else None
+    if cache and cache.exists() and not rebuild and not tickers:
+        return pd.read_pickle(cache)
+    raw = load(tickers)
+    parts = []
+    for t, g in raw.groupby("ticker"):
+        if t == "SPY" or len(g) < 300:
+            continue
+        parts.append(s151_features(g))
+    p = pd.concat(parts, ignore_index=True)
+    spy_raw = raw[raw.ticker == "SPY"]
+    if len(spy_raw):
+        spy_f = s151_features(spy_raw.sort_values("date"))
+        spy_cols = spy_f[["date", "rsi14", "dist_ma50", "ret_20"]].rename(
+            columns={"rsi14": "spy_rsi14", "dist_ma50": "spy_dist_ma50", "ret_20": "spy_ret_20"})
+        p = p.merge(spy_cols, on="date", how="left")
+        p["rel_ret_20"] = p.ret_20 - p.spy_ret_20
+    if cache and not tickers:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        p.to_pickle(cache)
+    return p
+
+
+def s151_phase1_summary(p: pd.DataFrame) -> pd.DataFrame:
+    """Base rates and path medians per horizon × label side (all dates with valid label)."""
+    rows = []
+    for name in S151_HORIZONS:
+        for side, col in (("low", f"good_low_{name}"), ("high", f"good_high_{name}")):
+            d = p[p[col].notna()]
+            if d.empty:
+                continue
+            base = d[col].mean()
+            rows.append({"horizon": name, "side": side, "n": len(d), "base_rate": base,
+                         "mae_med": d[f"mae_low_{name}"].median() if side == "low" else np.nan,
+                         "mfe_med": d[f"mfe_low_{name}"].median() if side == "low" else np.nan,
+                         "ret_h_med": d[f"ret_h_{name}"].median(),
+                         "sell_put_ok": d[f"sell_put_ok_{name}"].mean() if side == "low" else np.nan,
+                         "long_call_ok": d[f"long_call_ok_{name}"].mean() if side == "low" else np.nan})
+    return pd.DataFrame(rows)
+
+
+def _cohen_d(a: np.ndarray, b: np.ndarray) -> float:
+    a, b = a[np.isfinite(a)], b[np.isfinite(b)]
+    if len(a) < 30 or len(b) < 30:
+        return np.nan
+    va, vb = a.var(ddof=1), b.var(ddof=1)
+    pooled = np.sqrt(((len(a) - 1) * va + (len(b) - 1) * vb) / (len(a) + len(b) - 2))
+    return (a.mean() - b.mean()) / pooled if pooled > 0 else np.nan
+
+
+def s151_phase2_separation(p: pd.DataFrame) -> pd.DataFrame:
+    """Hypothesis generation on fit window 2016–2021: true turning days vs dd×ret-matched controls."""
+    fit = p[(p.date >= pd.Timestamp("2016-01-01")) & (p.date <= S151_FIT_END)].copy()
+    fit["dd_q"] = pd.qcut(fit.dd_20.rank(method="first"), 5, labels=False, duplicates="drop")
+    fit["ret_q"] = pd.qcut(fit.ret_20.rank(method="first"), 5, labels=False, duplicates="drop")
+    fit["match_cell"] = fit.dd_q.astype(str) + "_" + fit.ret_q.astype(str)
+    out = []
+    snap_feats = [f for f in FEATS_S151 if f not in ("dd_20", "ret_20", "ret_15", "ret_30")]
+    for name in S151_HORIZONS:
+        for side, col in (("low", f"good_low_{name}"), ("high", f"good_high_{name}")):
+            d = fit[fit[col].notna() & fit.match_cell.notna()].copy()
+            if len(d) < 500:
+                continue
+            pos = d[d[col] == 1]
+            neg_pool = d[d[col] == 0]
+            if len(pos) < 40:
+                continue
+            neg_idx = []
+            for cell in pos.match_cell.unique():
+                pool = neg_pool[neg_pool.match_cell == cell]
+                if pool.empty:
+                    continue
+                take = min(len(pool), max(3, len(pos[pos.match_cell == cell]) * 3))
+                neg_idx.extend(pool.sample(n=take, random_state=0).index.tolist())
+            neg = d.loc[neg_idx] if neg_idx else neg_pool.sample(n=min(len(neg_pool), len(pos) * 5), random_state=0)
+            for f in snap_feats:
+                if d[f].notna().sum() < 500:
+                    continue
+                pv, nv = pos[f].to_numpy(float), neg[f].to_numpy(float)
+                dval = _cohen_d(pv, nv)
+                if side == "low" and f in ("rsi14", "rsi2", "stoch14", "bb_pctb", "z5_close"):
+                    thr = np.nanquantile(pv, 0.25)
+                    direction = "low"
+                elif side == "high" and f in ("rsi14", "rsi2", "stoch14", "bb_pctb", "z5_close"):
+                    thr = np.nanquantile(pv, 0.75)
+                    direction = "high"
+                else:
+                    thr = np.nanmedian(pv)
+                    direction = "med_pos" if dval > 0 else "med_neg"
+                out.append({"horizon": name, "side": side, "feature": f, "cohen_d": dval,
+                              "pos_n": len(pos), "neg_n": len(neg), "pos_med": np.nanmedian(pv),
+                              "neg_med": np.nanmedian(nv), "pos_thr_hint": thr, "direction": direction})
+    df = pd.DataFrame(out)
+    if df.empty:
+        return df
+    df["abs_d"] = df.cohen_d.abs()
+    return df.sort_values(["horizon", "side", "abs_d"], ascending=[True, True, False])
+
+
+def s151_hand_check_row(p: pd.DataFrame, ticker: str = "AAPL", horizon: str = "week") -> dict:
+    """One explicit label row for manual verification in the packet."""
+    col = f"good_low_{horizon}"
+    g = p[p.ticker == ticker].sort_values("date").reset_index(drop=True)
+    pos = g[g[col] == 1]
+    if pos.empty:
+        return {"error": "no positive label"}
+    row = pos.iloc[len(pos) // 2]
+    gi = int(pos.index[len(pos) // 2])
+    h = S151_HORIZONS[horizon]
+    fwd = g.iloc[gi + 1: gi + 1 + h]
+    fl, fh = fwd.l.min(), fwd.h.max()
+    chk = bool(fl >= row.l - S151_TOL * row.atr and fh >= row.c + S151_K_ATR * row.atr)
+    return {"ticker": ticker, "date": str(row.date.date()), "horizon": horizon, "h_sessions": h,
+            "low_t": float(row.l), "close_t": float(row.c), "atr": float(row.atr),
+            "fwd_min_low": float(fl), "fwd_max_high": float(fh),
+            "tol_floor": float(row.l - S151_TOL * row.atr), "rally_bar": float(row.c + S151_K_ATR * row.atr),
+            "label": int(row[col]), "manual_ok": chk}
+
+
+def run_s151(tickers: list[str] | None, rebuild: bool) -> None:
+    p = s151_panel(tickers, rebuild)
+    tag = "smoke" if tickers else "full"
+    print(f"S151 panel {len(p):,} rows · {p.ticker.nunique()} names · {p.date.min().date()} → {p.date.max().date()}")
+    OUT.mkdir(parents=True, exist_ok=True)
+    p1 = s151_phase1_summary(p)
+    p1.to_csv(OUT / f"s151_phase1_{tag}.csv", index=False)
+    fit_p = p[p.date <= S151_FIT_END]
+    p2 = s151_phase2_separation(fit_p)
+    p2.to_csv(OUT / f"s151_phase2_{tag}.csv", index=False)
+    hand = s151_hand_check_row(p)
+    lines = [
+        "# S151 — turning points by horizon (A328)",
+        "",
+        f"Panel: **{p.ticker.nunique()}** names · **{len(p):,}** day-rows · {p.date.min().date()} → {p.date.max().date()}",
+        "Labels: forward-only good low/high (0.25 ATR hold, 1 ATR rally/fall); horizons: "
+        + ", ".join(f"{k}={v}d" for k, v in S151_HORIZONS.items()) + ".",
+        f"Phase 2 fit window: 2016-01-01 → {S151_FIT_END.date()} (hypothesis generation only).",
+        "",
+        "## Phase 1 — label base rates",
+        "",
+        p1.round(4).to_string(index=False),
+        "",
+        "## Hand-checked label (good low, week, mid-sample)",
+        "",
+        "```json",
+        __import__("json").dumps(hand, indent=2),
+        "```",
+        "",
+        "## Phase 2 — top feature separation (|Cohen d|, fit 2016–2021)",
+        "",
+    ]
+    if p2.empty:
+        lines.append("_No phase-2 rows (insufficient events)._")
+    else:
+        top = p2.groupby(["horizon", "side"]).head(8)
+        lines.append(top.round(3).to_string(index=False))
+    lines += ["", "## Notes", "- Survivorship: static LSEG universe; no vendor calls.", "- `intra`=1 session on daily bars (true rest-of-day needs bars_5m; phase 4).", "- Verdict: Claude (phases 3–4 not run)."]
+    (OUT / "S151.md").write_text("\n".join(lines) + "\n")
+    print((OUT / "S151.md").read_text())
+
+
 def main() -> None:
+    if "--s151" in sys.argv:
+        tick = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--tickers=")), None)
+        if "--smoke-only" in sys.argv and not tick:
+            tickers = S151_SMOKE_TICKERS
+        else:
+            tickers = tick.split(",") if tick else None
+        run_s151(tickers, "--rebuild" in sys.argv)
+        return
     tick = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--tickers=")), None)
     tickers = tick.split(",") if tick else None
     p = panel(tickers, "--rebuild" in sys.argv)
