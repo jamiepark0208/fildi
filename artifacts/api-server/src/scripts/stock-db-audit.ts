@@ -296,7 +296,7 @@ function writeReport(
         return `- ${c}: ${n} — guard ${meta?.guard ?? "?"}`;
       }),
     "",
-    l2Summary
+    l2Summary?.flagged && l2Summary?.clean   // an older L2 file has the blended shape only → treat as not run
       ? [
           "## L2 SEC (flagged vs clean 5% sample)",
           `- flagged: judged ${l2Summary.flagged.judged} ok ${l2Summary.flagged.ok} rate ${(l2Summary.flagged.rate * 100).toFixed(1)}% CI95 [${(l2Summary.flagged.ci95[0] * 100).toFixed(1)}%, ${(l2Summary.flagged.ci95[1] * 100).toFixed(1)}%]`,
