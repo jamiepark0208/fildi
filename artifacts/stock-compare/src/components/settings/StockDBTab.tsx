@@ -364,7 +364,14 @@ export function StockDBTab() {
       // Sort by total filled cells (coverage% × count) so large well-covered groups rank above tiny 100%-coverage groups
       groupList.sort((a, b) => (b.coverage * b.count) - (a.coverage * a.count) || b.count - a.count);
       const allEntries = groupList.flatMap(g => g.entries);
-      return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length };
+      const sectorFamCov: FamilyCovSummary = Object.fromEntries(
+        families.map(fam => {
+          const famCols = COLS.filter(c => c.family === fam);
+          const filled = allEntries.reduce((acc, e) => acc + famCols.filter(c => e.fundamentals?.[c.key] != null).length, 0);
+          return [fam, { filled, total: allEntries.length * famCols.length }];
+        })
+      );
+      return { sectorId, label: formatSector(sectorId), groups: groupList, coverage: calcCoverage(allEntries), count: allEntries.length, famCov: sectorFamCov };
     });
     sectorList.sort((a, b) => b.count - a.count);
 
@@ -372,9 +379,9 @@ export function StockDBTab() {
     let ri = 0;
 
     for (const sector of sectorList) {
-      rows.push({ kind: "sector", sectorId: sector.sectorId, label: sector.label, count: sector.count, coverage: sector.coverage });
+      rows.push({ kind: "sector", sectorId: sector.sectorId, label: sector.label, count: sector.count, coverage: sector.coverage, famCov: sector.famCov });
       for (const group of sector.groups) {
-        rows.push({ kind: "group", sectorId: sector.sectorId, groupId: group.groupId, groupName: group.groupName, count: group.entries.length, coverage: group.coverage, famCov: group.famCov });
+        rows.push({ kind: "group", sectorId: sector.sectorId, groupId: group.groupId, groupName: group.groupName, count: group.entries.length, coverage: group.coverage, entries: group.entries });
         for (const entry of group.entries) {
           rows.push({ kind: "row", sectorId: sector.sectorId, groupId: group.groupId, entry, ri: ri++ });
         }
@@ -391,8 +398,8 @@ export function StockDBTab() {
           return [fam, { filled, total: unc.length * famCols.length }];
         })
       );
-      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov });
-      rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov, famCov: uncFamCov });
+      rows.push({ kind: "sector", sectorId: "__unclassified", label: "Unclassified", count: unc.length, coverage: uncCov, famCov: uncFamCov });
+      rows.push({ kind: "group", sectorId: "__unclassified", groupId: "__unclassified", groupName: "No peer group", count: unc.length, coverage: uncCov, entries: unc });
       for (const entry of unc) {
         rows.push({ kind: "row", sectorId: "__unclassified", groupId: "__unclassified", entry, ri: ri++ });
       }
@@ -828,6 +835,25 @@ export function StockDBTab() {
                         }
                         <span className={cn("font-bold text-[12px] uppercase tracking-widest", pal.text)}>{item.label}</span>
                         <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold tabular-nums", pal.badge)}>{item.count} tickers</span>
+                        <div className="flex items-center gap-1">
+                          {families.map(fam => {
+                            const fc = item.famCov[fam];
+                            if (!fc || fc.total === 0) return null;
+                            const pct = Math.round((fc.filled / fc.total) * 100);
+                            return (
+                              <span
+                                key={fam}
+                                className={cn(
+                                  "text-[10px] px-1.5 py-px rounded font-semibold tabular-nums",
+                                  FAMILY_CHIP[fam] ?? "bg-zinc-600 text-white",
+                                )}
+                                title={`${fam} coverage across this sector, ${pct}%`}
+                              >
+                                {fam[0].toUpperCase()} {pct}%
+                              </span>
+                            );
+                          })}
+                        </div>
                         <div className="ml-auto flex items-center gap-2.5">
                           <div className="w-20 h-1.5 rounded-full bg-black/60 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />
@@ -863,26 +889,6 @@ export function StockDBTab() {
                         }
                         <span className="text-[11px] font-semibold text-white tracking-wide">{item.groupName}</span>
                         <span className="text-[10px] text-amber-100 tabular-nums">{item.count}</span>
-                        {/* V/G/Q/S/M — solid family chips (same type as group name) */}
-                        <div className="flex items-center gap-1 ml-1.5">
-                          {families.map(fam => {
-                            const fc = item.famCov[fam];
-                            if (!fc || fc.total === 0) return null;
-                            const pct = Math.round((fc.filled / fc.total) * 100);
-                            return (
-                              <span
-                                key={fam}
-                                className={cn(
-                                  "text-[10px] px-1.5 py-px rounded font-semibold tabular-nums",
-                                  FAMILY_CHIP[fam] ?? "bg-zinc-600 text-white",
-                                )}
-                                title={`${fam} coverage ${pct}%`}
-                              >
-                                {fam[0].toUpperCase()} {pct}%
-                              </span>
-                            );
-                          })}
-                        </div>
                         <div className="ml-auto flex items-center gap-2">
                           <div className="w-16 h-1 rounded-full bg-black/60 overflow-hidden">
                             <div className={cn("h-full rounded-full", coverageBarColor(item.coverage))} style={{ width: `${item.coverage}%` }} />

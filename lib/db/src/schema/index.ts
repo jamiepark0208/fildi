@@ -253,6 +253,9 @@ export const tickerFundamentals = pgTable('ticker_fundamentals', {
   // non-default source after analysis) — lets the grid outline those cells without a
   // per-cell provenance fetch, same pattern as discrepancyFlags.
   overrideFlags:              text('override_flags'),
+  // subset of override_flags where manual_overrides.note starts with `agent:` (Database Agent).
+  // Grid uses a purple/pink ring so agent picks are distinct from human blue overrides.
+  agentOverrideFlags:         text('agent_override_flags'),
   fmpCoveragePercent:         numeric('fmp_coverage_percent'),
 
   // Replaces Yahoo financialData + defaultKeyStatistics modules
@@ -740,6 +743,8 @@ export const tickerRegistry = pgTable('ticker_registry', {
   primaryPeerGroupId:  text('primary_peer_group_id').references(() => peerGroups.id),
   isActive:            boolean('is_active').notNull().default(true),
   fetchFundamentals:   boolean('fetch_fundamentals').notNull().default(false),
+  // Stock DB peer anchor. Display and sort only — does not change who is scored.
+  peerRep:             boolean('peer_rep').notNull().default(false),
   addedAt:             timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => ({
   sectorIdx:   index('idx_ticker_registry_sector').on(t.sector),
@@ -1952,3 +1957,28 @@ export const intradayCheckpointGrades = pgTable('intraday_checkpoint_grades', {
 
 export type IntradayCheckpointGrade = typeof intradayCheckpointGrades.$inferSelect
 export type InsertIntradayCheckpointGrade = typeof intradayCheckpointGrades.$inferInsert
+
+// ── audit_findings (A329 Stock DB value audit) ───────────────────────────────
+export const auditFindings = pgTable('audit_findings', {
+  id:             serial('id').primaryKey(),
+  runId:          text('run_id').notNull(),
+  ticker:         text('ticker').notNull(),
+  field:          text('field').notNull(),
+  layer:          text('layer').notNull(),
+  status:         text('status').notNull(),
+  gold:           numeric('gold'),
+  truth:          numeric('truth'),
+  truthSource:    text('truth_source'),
+  class:          text('class'),
+  rootCause:      text('root_cause'),
+  evidence:       text('evidence'),
+  fix:            text('fix'),
+  findingStatus:  text('finding_status').notNull().default('open'),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  runTickerFieldLayer: unique('audit_findings_run_ticker_field_layer').on(t.runId, t.ticker, t.field, t.layer),
+  runClassIdx: index('audit_findings_run_class_idx').on(t.runId, t.class),
+}))
+
+export type AuditFindingRow = typeof auditFindings.$inferSelect
+export type InsertAuditFinding = typeof auditFindings.$inferInsert

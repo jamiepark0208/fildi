@@ -1,0 +1,32 @@
+{
+  "peIdentity": {
+    "ticker": "FIX",
+    "field": "peRatio",
+    "gold": 20,
+    "price": 100,
+    "fund": { "earningsPerShare": 5 },
+    "sources": [],
+    "divergent": false,
+    "winningSource": "yahoo"
+  },
+  "unitScale": {
+    "ticker": "FIX",
+    "field": "netMargin",
+    "gold": 18.5,
+    "price": null,
+    "fund": {},
+    "sources": [],
+    "divergent": false,
+    "winningSource": "yahoo"
+  },
+  "vendorDisagree": {
+    "ticker": "FIX",
+    "field": "peRatio",
+    "gold": 20,
+    "price": 100,
+    "fund": { "earningsPerShare": 5 },
+    "sources": [{ "source": "finnhub", "field": "peRatio", "value": 35 }],
+    "divergent": false,
+    "winningSource": "yahoo"
+  }
+}
