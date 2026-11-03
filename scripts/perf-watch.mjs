@@ -49,7 +49,8 @@ function parseSleepWindows() {
     const wins = [];
     let start = null;
     for (const line of out.split("\n")) {
-      const m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d [+-]\d{4}) (Sleep|Wake|DarkWake)\s/.exec(line);
+      // \s{2,}: the type column is space-padded; a single space would match "Wake Requests" (a scheduled alarm, not a wake)
+      const m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d [+-]\d{4}) (Sleep|Wake|DarkWake)\s{2,}/.exec(line);
       if (!m) continue;
       const t = Date.parse(m[1].replace(" ", "T").replace(/ ([+-]\d\d)(\d\d)$/, "$1:$2"));
       if (m[2] === "Sleep") start = t;
