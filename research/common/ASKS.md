@@ -267,7 +267,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A293](asks/A293.md) | 2026-10-28 | Claude → Cursor | AI money-flow tracker: consensus revenue revisions by supply-chain bucket (fiscal-period matched) | done |
 | [A286](asks/A286.md) | 2026-10-27 | Claude → Cursor | [quant] DCF segment sum-of-the-parts from full XBRL (per-segment growth/margin) | done (Cursor 10-28: XBRL segment parse+table; SOTP NOPAT path still open) |
 | [A287](asks/A287.md) | 2026-10-27 | Claude → Cursor | [quant] S119: does the DCF "expensive" flag improve short-put breach/P&L beyond IV? | verified (Claude ran S119 subset: FAIL) |
-| [A288](asks/A288.md) | 2026-10-27 | Claude → Cursor | [quant] DCF bridge — in-the-money convertibles as shares, not debt | done (Cursor 10-28: revise 1–5; packet) |
+| [A288](asks/A288.md) | 2026-10-27 | Claude → Cursor | [quant] DCF bridge — in-the-money convertibles as shares, not debt | revise (Claude 11-03: ac1fba59 fixes 1–3 OK; BABA DCF base shares 1,858 M vs 2,321 M ADS → value ~25 % high) |
 | [A294](asks/A294.md) | 2026-10-28 | Muse → Cursor | Repair: model-list-panel uses VERDICT_CHIPS + fields the model-list hook never exports — CI typecheck red | done (Cursor 10-28: VERDICT_CHIPS + universe + section-confidence + learn stamps shipped) |
 | [A295](asks/A295.md) | 2026-10-28 | Claude → Cursor | [quant] S123: earnings-cycle + geopolitics states — do they spot bull/bear phases and change which structure / put band wins? | done (Cursor 10-28: T1 PASS; T2 FAIL monthly; T3 soft FAIL)|
 | [A296](asks/A296.md) | 2026-10-28 | Claude → Cursor | Monthly theme sweep: what research houses are watching (source × theme table → Key Themes) | done (Cursor 10-28: theme_sweeps/2026-10.md) |

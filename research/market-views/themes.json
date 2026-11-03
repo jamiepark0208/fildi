@@ -1,6 +1,6 @@
 {
   "_doc": "Key Themes registry (Macro › Key Themes; Jamie 10-28). One home for themes, signposts, scenarios and theme baskets. Claude maintains it in every market-thesis session (.agents/skills/fildi-market-thesis § Themes). Signpost kinds: chart (macro-charts cache series), fred (macro-data series field), revision (median LSEG 30-day EPS drift of a basket, %), flow (basket market-cap change minus whole-universe change, pp), cds (LSEG 5y CDS bp: level or change), gov (Treasury cash flows), manual (value typed here with as_of; stale after stale_days). bull_if / bear_if = [op, value]; neither → neutral. share_overrides = company-wide share count for dual-class names priced on one line (GOOGL = A+B+C, BRK.B in B-equivalents; approximate, re-check yearly). Thresholds are judgment calls labelled as such, not fitted — grading lives in theme_snapshots + LOG.md.",
-  "updated": "2026-10-29",
+  "updated": "2026-11-03",
   "share_overrides": {
     "GOOGL": 12100000000,
     "BRK.B": 2157000000
@@ -929,7 +929,7 @@
       "name": "1997 path",
       "path": "Fed stops after one hike, oil eases, earnings carry",
       "spx_12m": "+10 to +20 %",
-      "p": 0.4,
+      "p": 0.37,
       "up_if": [
         "capex_2027",
         "core_cpi",
@@ -941,7 +941,7 @@
       "name": "2018 path",
       "path": "Fed hikes again / 10y > 5.25 %, AI-credit wobble, recovers",
       "spx_12m": "−5 to +5 %, ≥ 10 % dip",
-      "p": 0.3,
+      "p": 0.31,
       "up_if": [
         "t10_level",
         "hy_oas",
@@ -954,7 +954,7 @@
       "name": "2000 / 2022 path",
       "path": "Financing breaks the capex cycle + inflation re-accelerates",
       "spx_12m": "−20 % or worse",
-      "p": 0.12,
+      "p": 0.17,
       "up_if": [
         "hy_oas",
         "capex_2027",
@@ -966,7 +966,7 @@
       "name": "Melt-up",
       "path": "Capex > $1 T, Fed cuts, oil < $80",
       "spx_12m": "> +20 %",
-      "p": 0.18,
+      "p": 0.15,
       "up_if": [
         "capex_2027",
         "wti",
@@ -975,7 +975,7 @@
       ]
     }
   ],
-  "scenario_source": "THESIS_2026-10-27.md § Scenarios (judgment-weighted from analogs, S122)",
+  "scenario_source": "THESIS_2026-11-03.md § Scenarios (judgment-weighted; S149 + S148 + S122)",
   "playbook": [
     {
       "id": "panic_pause",
