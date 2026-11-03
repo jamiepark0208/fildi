@@ -13,6 +13,8 @@ import {
   computeDebtToEquity,
   computePeFromPriceEps,
   resolvePegGrowth,
+  canDerivePriceRatiosFromUsdClose,
+  computePriceToSales,
 } from "../lib/derived-metrics.js";
 
 describe("owned PEG (ZTS-shaped)", () => {
@@ -64,6 +66,47 @@ describe("Finnhub dividendYield scale heuristic", () => {
   it("scales AAPL-like percent-points down", () => {
     const n = normalizeFinnhubDy(0.349933577422804);
     assert.ok(Math.abs(n - 0.00349933577422804) < 1e-12);
+  });
+});
+
+describe("price-ratio derive gate (USD close)", () => {
+  it("blocks non-USD financial currency", () => {
+    assert.equal(
+      canDerivePriceRatiosFromUsdClose({
+        financialCurrency: "CNY",
+        price: 100,
+        revenue: 1e9,
+        shares: 1e9,
+        vendorPriceToSales: 2.5,
+      }),
+      false,
+    );
+  });
+
+  it("allows USD filers", () => {
+    assert.equal(
+      canDerivePriceRatiosFromUsdClose({
+        financialCurrency: "USD",
+        price: 100,
+        revenue: 1e9,
+        shares: 1e9,
+        vendorPriceToSales: 0.5,
+      }),
+      true,
+    );
+  });
+
+  it("blocks when implied P/S disagrees with vendor (currency mix)", () => {
+    assert.equal(
+      canDerivePriceRatiosFromUsdClose({
+        financialCurrency: null,
+        price: 170,
+        revenue: 941_168_000_000,
+        shares: 2_320_000_000,
+        vendorPriceToSales: 2.8,
+      }),
+      false,
+    );
   });
 });
 

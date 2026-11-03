@@ -33,10 +33,13 @@ import {
   computePeFromPriceEps,
   computeForwardPeFromPriceEps,
   computePriceToBook,
+  computePriceToSales,
+  computeEvRatio,
   computeApproxRoic,
   computeOperatingMargin,
   computeReturnOnEquity,
   resolvePegGrowth,
+  canDerivePriceRatiosFromUsdClose,
 } from "../lib/derived-metrics.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -238,6 +241,35 @@ function isMaterialDivergence(tf: string, a: number, b: number): boolean {
   return absDiff / maxAbs > tol;
 }
 
+/**
+ * Priority names the definition. When a later pull agrees with that definition,
+ * the gold value and its age come from the later pull. A July EPS must not stay
+ * gold in November just because Yahoo is first and Finnhub is within tolerance.
+ * Disagreement stays on the priority source (growth basis, EDGAR period, FactSet).
+ */
+export function freshestAgreeing(
+  tf: string,
+  winner: { src: string; val: number },
+  free: { src: string; val: number }[],
+  pulled: Map<string, number>,
+): { src: string; val: number } {
+  const winnerT = pulled.get(winner.src);
+  if (winnerT == null) return winner;
+  let best = winner;
+  let bestT = winnerT;
+  for (const o of free) {
+    if (o.src === best.src) continue;
+    if (o.src === "factset" && !isFactsetRulerField(tf)) continue;
+    if (o.src === "edgar" && PERIOD_SENSITIVE_TFCOLS.has(tf)) continue;
+    const t = pulled.get(o.src);
+    if (t == null || t <= bestT) continue;
+    if (isMaterialDivergence(tf, winner.val, o.val)) continue;
+    best = o;
+    bestT = t;
+  }
+  return best;
+}
+
 // ── Resolution result type ────────────────────────────────────────────────────
 
 export type ResolveResult = {
@@ -274,6 +306,9 @@ function resolveFromIndex(
     if (seenSrc.has(src)) continue;
     const val = byField.get(sfField)?.get(src);
     if (val === undefined || !isFinite(val)) continue;
+    // EDGAR sometimes stores 0 shares. That is missing, not a count. A real
+    // count from an older pull (Yahoo) has to be allowed to win.
+    if ((tf === "sharesOutstanding" || tf === "sharesOutstandingPrior") && val <= 0) continue;
     if (skipYahooZeroDividend(tf, src, val, byField, priority)) continue;
     ordered.push({ src, val });
     const pull = pulledByField?.get(sfField)?.get(src);
@@ -387,6 +422,7 @@ function resolveFromIndex(
         };
       }
     }
+    winner = freshestAgreeing(tf, winner, freeOrdered, pulledForSrc);
     return { source: winner.src, value: winner.val, isOverride: false, divergent };
   }
 
@@ -534,11 +570,35 @@ export async function runMergeTrusted() {
   for (const ticker of allTickers) {
     const bySrc = index.get(ticker)?.get("forwardEps");
     if (!bySrc) continue;
+    // Newest positive pull, not Yahoo-first. A July Yahoo EPS must not beat a November Finnhub EPS.
+    let best: { v: number; t: number } | null = null;
     for (const src of fwdEpsPrefer) {
       const v = bySrc.get(src);
-      if (v != null && isFinite(v) && v > 0) {
-        forwardEpsByTicker.set(ticker, v);
-        break;
+      if (v == null || !isFinite(v) || v <= 0) continue;
+      const t = pulledIndex.get(ticker)?.get("forwardEps")?.get(src) ?? 0;
+      if (!best || t >= best.t) best = { v, t };
+    }
+    if (best) forwardEpsByTicker.set(ticker, best.v);
+  }
+
+  const financialCurrencyByTicker = new Map<string, string>();
+  if (allTickers.length > 0) {
+    const CHUNK = 400;
+    for (let i = 0; i < allTickers.length; i += CHUNK) {
+      const slice = allTickers.slice(i, i + CHUNK);
+      const curRows = await db.execute(sql`
+        SELECT DISTINCT ON (upper(key)) upper(key) AS ticker,
+          payload->'financialData'->>'financialCurrency' AS fc
+        FROM vendor_raw
+        WHERE source = 'yahoo'
+          AND payload->'financialData'->>'financialCurrency' IS NOT NULL
+          AND upper(key) IN (${sql.join(slice.map((t) => sql`${t}`), sql`, `)})
+        ORDER BY upper(key), fetched_on DESC
+      `);
+      for (const row of (curRows as any).rows ?? (curRows as any)) {
+        const t = String(row.ticker ?? "");
+        const fc = row.fc != null ? String(row.fc) : "";
+        if (t && fc) financialCurrencyByTicker.set(t, fc);
       }
     }
   }
@@ -635,14 +695,62 @@ export async function runMergeTrusted() {
       computeReturnOnEquity(update.netIncome, update.totalStockholdersEquity),
     );
     fillIfMissing("debtToEquity", computeDebtToEquity(update.totalDebt, update.totalStockholdersEquity));
-    fillIfMissing("peRatio", computePeFromPriceEps(price, update.earningsPerShare));
-    fillIfMissing(
+    // Price ratios always use the latest close and the gold level already picked.
+    // A vendor P/E from July is not comparable with one from November.
+    const vendorPsForGate =
+      update.priceToSales ??
+      byField.get("priceToSales")?.get("yahoo") ??
+      byField.get("psRatio")?.get("finnhub") ??
+      byField.get("priceToSales")?.get("fmp") ??
+      null;
+    const derivePriceRatios = canDerivePriceRatiosFromUsdClose({
+      financialCurrency: financialCurrencyByTicker.get(ticker),
+      price,
+      revenue: update.totalRevenue,
+      shares: update.sharesOutstanding,
+      vendorPriceToSales: vendorPsForGate,
+    });
+    const forceDerived = (field: string, value: number | null) => {
+      if (!derivePriceRatios) return;
+      if (overrideIndex.get(`${ticker}:${field}`)) return;
+      const prior = provenanceBatch.find((p) => p.field === field);
+      if (prior?.result.isOverride) return;
+      if (value == null || !isFinite(value)) return;
+      update[field] = value;
+      sourceUsage["derived"] = (sourceUsage["derived"] ?? 0) + 1;
+      const prev = provenanceBatch.find((p) => p.field === field);
+      const result = { source: "derived", value, isOverride: false, divergent: false };
+      if (prev) prev.result = result;
+      else provenanceBatch.push({ field, result });
+      const idx = changedFields.findIndex((c) => c.field === field);
+      const from = existing?.[field] != null ? Number(existing[field]) : null;
+      const { changed } = isChanged(from, value);
+      if (changed) {
+        if (idx >= 0) changedFields[idx] = { field, from, to: value };
+        else changedFields.push({ field, from, to: value });
+      } else if (idx >= 0) {
+        changedFields.splice(idx, 1);
+      }
+    };
+    forceDerived("peRatio", computePeFromPriceEps(price, update.earningsPerShare));
+    forceDerived(
       "priceToBook",
       computePriceToBook(price, update.totalStockholdersEquity, update.sharesOutstanding),
     );
-    // Forward P/E from consensus forward EPS when vendors omit the ratio.
+    forceDerived(
+      "priceToSales",
+      computePriceToSales(price, update.totalRevenue, update.sharesOutstanding),
+    );
     const forwardEps = forwardEpsByTicker.get(ticker) ?? null;
-    fillIfMissing("forwardPe", computeForwardPeFromPriceEps(price, forwardEps));
+    forceDerived("forwardPe", computeForwardPeFromPriceEps(price, forwardEps));
+    forceDerived(
+      "evEbitda",
+      computeEvRatio(price, update.sharesOutstanding, update.totalDebt, update.cashAndEquivalents, update.ebitda),
+    );
+    forceDerived(
+      "evRevenue",
+      computeEvRatio(price, update.sharesOutstanding, update.totalDebt, update.cashAndEquivalents, update.totalRevenue),
+    );
     // Gross profit only when the same source has both legs. Do not mix a Yahoo margin with an EDGAR revenue.
     if (update.grossProfit == null) {
       for (const src of ["yahoo", "finnhub", "fmp", "edgar"] as const) {

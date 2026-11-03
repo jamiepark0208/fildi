@@ -10,7 +10,7 @@ export interface FundamentalsRow {
   /** Fields overridden by Database Agent (`agent:` note) — purple cell ring. */
   agentOverrideFlags?: string | null;
   // VALUE
-  peRatio: string | null; pegRatio: string | null; forwardPe: string | null; forwardPeg: string | null;
+  peRatio: string | null; earningsPerShare: string | null; pegRatio: string | null; forwardPe: string | null; forwardEps: string | null; forwardPeg: string | null;
   priceToBook: string | null; priceToSales: string | null; evEbitda: string | null;
   evRevenue: string | null; dividendYield: string | null;
   // GROWTH
@@ -57,6 +57,10 @@ export interface StockDBEntry {
   ticker: string;
   companyName: string | null;
   isWatchlist: boolean;
+  /** Manually marked peer anchor. Not the watchlist flag, and not a score input. */
+  isPeerRep: boolean;
+  /** Latest close × shares outstanding. */
+  marketCap: number | null;
   peerGroupId: string | null;
   peerGroupName: string | null;
   fundamentals: FundamentalsRow | null;
@@ -120,8 +124,8 @@ export function formatSector(id: string): string {
 export type FamilyCovSummary = Record<string, { filled: number; total: number }>;
 
 export type DisplayRow =
-  | { kind: "sector"; sectorId: string; label: string; count: number; coverage: number }
-  | { kind: "group";  sectorId: string; groupId: string; groupName: string; count: number; coverage: number; famCov: FamilyCovSummary }
+  | { kind: "sector"; sectorId: string; label: string; count: number; coverage: number; famCov: FamilyCovSummary }
+  | { kind: "group";  sectorId: string; groupId: string; groupName: string; count: number; coverage: number; entries: StockDBEntry[] }
   | { kind: "row";    sectorId: string; groupId: string; entry: StockDBEntry; ri: number };
 
 // ── Pipeline health (enrichment run history) ─────────────────────────────────

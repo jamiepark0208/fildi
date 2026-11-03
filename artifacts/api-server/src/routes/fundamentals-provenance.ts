@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   db, sourceFundamentals, fieldProvenance, manualOverrides, tickerFundamentals,
   yahooFundamentals, edgarFundamentals, finnhubFundamentals, polygonFundamentals,
@@ -11,11 +11,14 @@ import { resolveField, writeProvenance, FIELD_DEFS } from "../scripts/merge-trus
 import { computeAndPersistFundamentalScores } from "../lib/fundamentals-db.js";
 import { getLatestRegime } from "./regime.js";
 import { logger } from "../lib/logger.js";
+import { WRDS_FIELD_MAP } from "../lib/database-agent-resolve.js";
 
 const router = Router();
 
 // All sources we track across all fields
 const ALL_SOURCES = ["yahoo", "finnhub", "fmp", "edgar", "polygon", "alpha_vantage", "factset", "derived"];
+// Research / desk sources shown in the cell popup (local caches — not bronze priority).
+const RESEARCH_SOURCES = ["wrds", "lseg", "schwab"] as const;
 
 // Derive excluded sources per field from FIELD_DEFS priority lists
 const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
@@ -124,7 +127,7 @@ const EXCLUDED_REASONS: Record<string, Record<string, string>> = {
 router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) => {
   const ticker = String(req.params.ticker).toUpperCase();
   try {
-    const [provRows, sfRows, overrideRows, yahooRow, edgarRow, finnhubRow, polygonRow, avRow, fmpRow] = await Promise.all([
+    const [provRows, sfRows, overrideRows, yahooRow, edgarRow, finnhubRow, polygonRow, avRow, fmpRow, wrdsPack, lsegPack] = await Promise.all([
       db.select().from(fieldProvenance).where(eq(fieldProvenance.ticker, ticker)),
       db.select().from(sourceFundamentals).where(eq(sourceFundamentals.ticker, ticker)),
       db.select().from(manualOverrides).where(eq(manualOverrides.ticker, ticker)),
@@ -134,7 +137,22 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
       db.select({ fetchedAt: polygonFundamentals.fetchedAt }).from(polygonFundamentals).where(eq(polygonFundamentals.ticker, ticker)),
       db.select({ fetchedAt: avFundamentals.fetchedAt }).from(avFundamentals).where(eq(avFundamentals.ticker, ticker)),
       db.select({ fetchedAt: fmpFundamentals.fetchedAt }).from(fmpFundamentals).where(eq(fmpFundamentals.ticker, ticker)),
+      db.execute(sql`
+        SELECT pe_exi, bm, ps, roe, roa, npm, gpm, de_ratio, curr_ratio, fetched_at
+        FROM wrds_research.finratio_snapshot WHERE ticker = ${ticker}
+      `).catch(() => ({ rows: [] as any[] })),
+      db.execute(sql`
+        SELECT field, lseg_value, checked_at
+        FROM lseg_research.gold_audit WHERE ticker = ${ticker}
+      `).catch(() => ({ rows: [] as any[] })),
     ]);
+
+    const wrdsRow = ((wrdsPack as any).rows ?? wrdsPack)?.[0] as Record<string, unknown> | undefined;
+    const lsegByField = new Map<string, { value: number; at: Date | null }>();
+    for (const row of ((lsegPack as any).rows ?? lsegPack) as any[]) {
+      const v = Number(row.lseg_value);
+      if (Number.isFinite(v)) lsegByField.set(String(row.field), { value: v, at: row.checked_at ?? null });
+    }
 
     // Last time each source's fetch job actually ran for this ticker, independent
     // of whether any given field came back — distinguishes "queried, source had
@@ -183,6 +201,7 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
           // makes it trustworthy again) can still surface its value here.
           const sfField = priority.find(([s]) => s === source)?.[1] ?? field;
           const sfEntry = sfByField.get(sfField)?.get(source);
+          const isWinner = !override && prov?.winningSource === source;
 
           let status: "used" | "available" | "excluded" | "no_data";
           let exclusionReason: string | undefined;
@@ -191,26 +210,80 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
             // Active override wins even if the source is normally excluded from priority —
             // an admin deliberately picked it, so it shouldn't read as "excl" in the table.
             status = "used";
+          } else if (isWinner) {
+            // Derived ratios have no source_fundamentals row and are not in the priority
+            // list. The winner check has to beat "excluded", or the popup hides them.
+            status = "used";
           } else if (!prioritySources.has(source)) {
             status = "excluded";
             exclusionReason = EXCLUDED_REASONS[source]?.[field] ?? "not in priority list for this field";
           } else if (!sfEntry) {
             status = "no_data";
-          } else if (prov?.winningSource === source && !override) {
-            status = "used";
           } else {
             status = "available";
           }
 
+          const winningNum = prov?.winningValue != null ? parseFloat(String(prov.winningValue)) : null;
           return {
             source,
-            value:        sfEntry?.value ?? null,
-            fetchedAt:    sfEntry?.fetchedAt ?? null,
+            value:        sfEntry?.value ?? (isWinner && winningNum != null && isFinite(winningNum) ? winningNum : null),
+            fetchedAt:    sfEntry?.fetchedAt ?? (isWinner ? prov?.fetchedAt ?? null : null),
             lastQueriedAt: lastQueried[source] ?? null,
             status,
             exclusionReason,
           };
         });
+
+        // Local research refs (WRDS / LSEG / Schwab) — desk gold, never bronze priority.
+        const research: Array<{
+          source: (typeof RESEARCH_SOURCES)[number];
+          value: number | null;
+          fetchedAt: string | null;
+          status: "available" | "no_data" | "n/a";
+          note?: string;
+        }> = [];
+        const wrdsMap = WRDS_FIELD_MAP[field];
+        if (wrdsMap && wrdsRow) {
+          const raw = wrdsRow[wrdsMap.col];
+          const num = raw != null ? Number(raw) : NaN;
+          const transformed = Number.isFinite(num)
+            ? (wrdsMap.transform ? wrdsMap.transform(num) : num)
+            : NaN;
+          research.push({
+            source: "wrds",
+            value: Number.isFinite(transformed) ? transformed : null,
+            fetchedAt: wrdsRow.fetched_at ? String(wrdsRow.fetched_at) : null,
+            status: Number.isFinite(transformed) ? "available" : "no_data",
+            note: wrdsMap.col === "bm" ? "WRDS bm→P/B=1/bm" : `finratio.${wrdsMap.col}`,
+          });
+        } else {
+          research.push({
+            source: "wrds",
+            value: null,
+            fetchedAt: wrdsRow?.fetched_at ? String(wrdsRow.fetched_at) : null,
+            status: wrdsMap ? "no_data" : "n/a",
+            note: wrdsMap ? undefined : "no WRDS mapping for this field",
+          });
+        }
+        const lseg = lsegByField.get(field);
+        research.push({
+          source: "lseg",
+          value: lseg?.value ?? null,
+          fetchedAt: lseg?.at ? String(lseg.at) : null,
+          status: lseg ? "available" : "no_data",
+          note: "lseg_research.gold_audit",
+        });
+        research.push({
+          source: "schwab",
+          value: null,
+          fetchedAt: null,
+          status: "n/a",
+          note: "quotes/chains only — not a fundamentals ratio source",
+        });
+
+        const agentNote = typeof override?.note === "string" && override.note.startsWith("agent:")
+          ? override.note
+          : null;
 
         return {
           field,
@@ -219,6 +292,8 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
           isOverride:    prov?.isOverride ?? false,
           divergent:     prov?.divergent ?? false,
           fetchedAt:     prov?.fetchedAt ?? null,
+          isAgentOverride: !!agentNote,
+          agentNote,
           override: override ? {
             source:    override.overrideSource,
             value:     override.overrideValue != null ? parseFloat(String(override.overrideValue)) : null,
@@ -226,8 +301,39 @@ router.get("/fundamentals/provenance/:ticker", requireAdmin, async (req, res) =>
             createdAt: override.createdAt,
           } : null,
           sources,
+          research,
         };
       });
+
+    const fwdMap = sfByField.get("forwardEps");
+    if (fwdMap && fwdMap.size > 0) {
+      const ranked = [...fwdMap.entries()].sort((a, b) => +new Date(b[1].fetchedAt) - +new Date(a[1].fetchedAt));
+      const [winSrc, win] = ranked[0]!;
+      fields.push({
+        field: "forwardEps",
+        winningSource: winSrc,
+        winningValue: win.value,
+        isOverride: false,
+        divergent: false,
+        fetchedAt: win.fetchedAt,
+        isAgentOverride: false,
+        agentNote: null,
+        override: null,
+        sources: ALL_SOURCES.map(source => {
+          const hit = fwdMap.get(source);
+          const used = source === winSrc;
+          return {
+            source,
+            value: hit?.value ?? null,
+            fetchedAt: hit?.fetchedAt ?? null,
+            lastQueriedAt: lastQueried[source] ?? null,
+            status: used ? "used" as const : hit ? "available" as const : "no_data" as const,
+            exclusionReason: undefined,
+          };
+        }),
+        research: [],
+      });
+    }
 
     const payload = { ticker, fields };
     return res.json(payload);
@@ -271,12 +377,17 @@ router.get("/fundamentals/divergent", requireAdmin, async (_req, res) => {
 // keeps the bulk grid view's blue-outline indicator in sync without a per-cell provenance
 // fetch. Mirrors discrepancy_flags, which does the same for divergent fields.
 async function syncOverrideFlags(ticker: string) {
-  const rows = await db.select({ field: manualOverrides.field })
+  const rows = await db.select({ field: manualOverrides.field, note: manualOverrides.note })
     .from(manualOverrides).where(eq(manualOverrides.ticker, ticker));
   const overrideFlags = rows.length > 0 ? rows.map(r => r.field).join(",") : null;
+  const agentRows = rows.filter(r => typeof r.note === "string" && r.note.startsWith("agent:"));
+  const agentOverrideFlags = agentRows.length > 0 ? agentRows.map(r => r.field).join(",") : null;
   await db.insert(tickerFundamentals)
-    .values({ ticker, overrideFlags } as any)
-    .onConflictDoUpdate({ target: tickerFundamentals.ticker, set: { overrideFlags } as any });
+    .values({ ticker, overrideFlags, agentOverrideFlags } as any)
+    .onConflictDoUpdate({
+      target: tickerFundamentals.ticker,
+      set: { overrideFlags, agentOverrideFlags } as any,
+    });
 }
 
 // ── PUT /fundamentals/override ────────────────────────────────────────────────

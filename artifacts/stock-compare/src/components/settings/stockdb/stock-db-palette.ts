@@ -50,22 +50,22 @@ export const FAMILY_CHIP: Record<string, string> = {
 
 // ── Sector color palettes ─────────────────────────────────────────────────────
 
-export interface SectorPalette { bg: string; border: string; text: string; badge: string; chevron: string }
+export interface SectorPalette { bg: string; border: string; text: string; badge: string; chevron: string; num: string }
 
 // Solid-ish bars + white text; bright badge fills (no /40 grey wash).
 export const SECTOR_PALETTE: Record<string, SectorPalette> = {
-  technology:    { bg: "bg-blue-900",    border: "border-l-sky-400",     text: "text-white", badge: "bg-sky-500 text-white",     chevron: "text-sky-300" },
-  financial:     { bg: "bg-emerald-900", border: "border-l-emerald-400", text: "text-white", badge: "bg-emerald-500 text-white", chevron: "text-emerald-300" },
-  healthcare:    { bg: "bg-violet-900",  border: "border-l-violet-400",  text: "text-white", badge: "bg-violet-500 text-white",  chevron: "text-violet-300" },
-  energy:        { bg: "bg-orange-900",  border: "border-l-orange-400",  text: "text-white", badge: "bg-orange-500 text-white",  chevron: "text-orange-300" },
-  consumer:      { bg: "bg-rose-900",    border: "border-l-rose-400",    text: "text-white", badge: "bg-rose-500 text-white",    chevron: "text-rose-300" },
-  industrial:    { bg: "bg-cyan-900",    border: "border-l-cyan-400",    text: "text-white", badge: "bg-cyan-500 text-white",    chevron: "text-cyan-300" },
-  real_estate:   { bg: "bg-yellow-900",  border: "border-l-[#d4af37]",   text: "text-white", badge: "bg-[#d4af37] text-black",  chevron: "text-[#d4af37]" },
-  utilities:     { bg: "bg-teal-900",    border: "border-l-teal-400",    text: "text-white", badge: "bg-teal-500 text-white",    chevron: "text-teal-300" },
-  materials:     { bg: "bg-lime-900",    border: "border-l-lime-400",    text: "text-white", badge: "bg-lime-500 text-black",    chevron: "text-lime-300" },
-  communication: { bg: "bg-indigo-900",  border: "border-l-indigo-400",  text: "text-white", badge: "bg-indigo-500 text-white",  chevron: "text-indigo-300" },
+  technology:    { bg: "bg-blue-900",    border: "border-l-sky-400",     text: "text-white", badge: "bg-sky-500 text-white",     chevron: "text-sky-300",    num: "text-blue-400" },
+  financial:     { bg: "bg-emerald-900", border: "border-l-emerald-400", text: "text-white", badge: "bg-emerald-500 text-white", chevron: "text-emerald-300", num: "text-emerald-400" },
+  healthcare:    { bg: "bg-violet-900",  border: "border-l-violet-400",  text: "text-white", badge: "bg-violet-500 text-white",  chevron: "text-violet-300",  num: "text-violet-400" },
+  energy:        { bg: "bg-orange-900",  border: "border-l-orange-400",  text: "text-white", badge: "bg-orange-500 text-white",  chevron: "text-orange-300",  num: "text-orange-400" },
+  consumer:      { bg: "bg-rose-900",    border: "border-l-rose-400",    text: "text-white", badge: "bg-rose-500 text-white",    chevron: "text-rose-300",    num: "text-rose-400" },
+  industrial:    { bg: "bg-cyan-900",    border: "border-l-cyan-400",    text: "text-white", badge: "bg-cyan-500 text-white",    chevron: "text-cyan-300",    num: "text-cyan-400" },
+  real_estate:   { bg: "bg-yellow-900",  border: "border-l-[#d4af37]",   text: "text-white", badge: "bg-[#d4af37] text-black",  chevron: "text-[#d4af37]",   num: "text-yellow-300" },
+  utilities:     { bg: "bg-teal-900",    border: "border-l-teal-400",    text: "text-white", badge: "bg-teal-500 text-white",    chevron: "text-teal-300",    num: "text-teal-400" },
+  materials:     { bg: "bg-lime-900",    border: "border-l-lime-400",    text: "text-white", badge: "bg-lime-500 text-black",    chevron: "text-lime-300",    num: "text-lime-400" },
+  communication: { bg: "bg-indigo-900",  border: "border-l-indigo-400",  text: "text-white", badge: "bg-indigo-500 text-white",  chevron: "text-indigo-300",  num: "text-indigo-400" },
 };
-export const DEFAULT_SECTOR_PALETTE: SectorPalette = { bg: "bg-zinc-800", border: "border-l-[#d4af37]", text: "text-white", badge: "bg-[#d4af37] text-black", chevron: "text-[#d4af37]" };
+export const DEFAULT_SECTOR_PALETTE: SectorPalette = { bg: "bg-zinc-800", border: "border-l-[#d4af37]", text: "text-white", badge: "bg-[#d4af37] text-black", chevron: "text-[#d4af37]", num: "text-zinc-200" };
 
 export function getSectorPalette(sectorId: string): SectorPalette {
   const k = Object.keys(SECTOR_PALETTE).find(key => sectorId.toLowerCase().includes(key));

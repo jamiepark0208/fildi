@@ -69,6 +69,76 @@ export function fmt(raw: string | null, type: FmtType): string {
   }
 }
 
+export type MetricTone = "good" | "mid" | "bad";
+
+/**
+ * Where this value sits in its sub-sector. good = best third, bad = worst third.
+ * `higherIsBetter` flips which end is the best third.
+ */
+export function metricTone(value: number, peers: number[], higherIsBetter: boolean): MetricTone | null {
+  const vals = peers.filter(v => isFinite(v));
+  if (vals.length < 4) return null;
+  const below = vals.filter(v => v < value).length;
+  const equal = vals.filter(v => v === value).length;
+  const pct = (below + equal * 0.5) / vals.length;
+  const goodSide = higherIsBetter ? pct : 1 - pct;
+  if (goodSide >= 0.67) return "good";
+  if (goodSide <= 0.33) return "bad";
+  return "mid";
+}
+
+/** Middle value. Ignores a few extreme names without dropping the rest. */
+export function numericMedian(vals: number[]): number | null {
+  if (vals.length === 0) return null;
+  const s = [...vals].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+}
+
+/** Same cut the median uses: blanks, structurally invalid values, near-zero-base growth. */
+export function usableColValues(entries: StockDBEntry[], col: ColDef): number[] {
+  const vals: number[] = [];
+  for (const e of entries) {
+    const raw = e.fundamentals?.[col.key];
+    if (raw == null) continue;
+    const s = String(raw);
+    if (isSuspect(col, s) || isNearZeroBase(col, s)) continue;
+    const v = parseFloat(s);
+    if (isFinite(v)) vals.push(v);
+  }
+  return vals;
+}
+
+export function groupMedian(entries: StockDBEntry[], col: ColDef): number | null {
+  return numericMedian(usableColValues(entries, col));
+}
+
+/**
+ * Mean after dropping the same statistical outliers the grid marks (|modified z| > 3).
+ * Groups under 5 names have no z-score, so the average is the plain mean of the usable values.
+ */
+export function trimmedMean(vals: number[], logTransform: boolean): number | null {
+  if (vals.length === 0) return null;
+  const keep = vals.length < 5 ? vals : vals.filter((_, i) => Math.abs(modifiedZ(vals, logTransform)[i]!) <= 3);
+  const used = keep.length > 0 ? keep : vals;
+  return used.reduce((a, b) => a + b, 0) / used.length;
+}
+
+export function groupTrimmedMean(entries: StockDBEntry[], col: ColDef, logTransform: boolean): number | null {
+  return trimmedMean(usableColValues(entries, col), logTransform);
+}
+
+/** Modified z, same floor-median and 0.6745 factor as computeGroupZScores. */
+function modifiedZ(vals: number[], logTransform: boolean): number[] {
+  const t = vals.map(v => (logTransform ? Math.log(Math.max(Math.abs(v), 1e-6)) : v));
+  const sorted = [...t].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)]!;
+  const absDevs = t.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+  const mad = absDevs[Math.floor(absDevs.length / 2)]!;
+  if (mad === 0) return vals.map(() => 0);
+  return t.map(v => 0.6745 * (v - median) / mad);
+}
+
 export function isSuspect(col: ColDef, raw: string | null): boolean {
   if (!col.suspect || raw == null) return false;
   const v = parseFloat(raw);

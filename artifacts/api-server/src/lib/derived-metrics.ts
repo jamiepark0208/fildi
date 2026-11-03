@@ -94,6 +94,61 @@ export function computeDebtToEquity(
   return isFinite(r) && r >= 0 && r < 1000 ? r : null;
 }
 
+/** Market cap / revenue. Revenue must be positive. */
+export function computePriceToSales(
+  price: number | null | undefined,
+  revenue: number | null | undefined,
+  shares: number | null | undefined,
+): number | null {
+  if (price == null || revenue == null || shares == null) return null;
+  if (!isFinite(price) || !isFinite(revenue) || !isFinite(shares)) return null;
+  if (price <= 0 || shares <= 0 || revenue <= 0) return null;
+  const ps = (price * shares) / revenue;
+  return isFinite(ps) ? ps : null;
+}
+
+/** (price × shares + debt − cash) / denominator. Debt and cash are required so a missing leg cannot invent an EV. */
+export function computeEvRatio(
+  price: number | null | undefined,
+  shares: number | null | undefined,
+  debt: number | null | undefined,
+  cash: number | null | undefined,
+  denominator: number | null | undefined,
+): number | null {
+  if (price == null || shares == null || debt == null || cash == null || denominator == null) return null;
+  if (![price, shares, debt, cash, denominator].every((n) => n != null && isFinite(n))) return null;
+  if (price <= 0 || shares <= 0 || denominator === 0) return null;
+  const ev = price * shares + debt - cash;
+  const ratio = ev / denominator;
+  return isFinite(ratio) ? ratio : null;
+}
+
+/** True when gold levels are in USD (or agree with vendor P/S); else keep vendor ratios. */
+export function canDerivePriceRatiosFromUsdClose(opts: {
+  financialCurrency: string | null | undefined;
+  price: number | null | undefined;
+  revenue: number | null | undefined;
+  shares: number | null | undefined;
+  vendorPriceToSales: number | null | undefined;
+}): boolean {
+  const fc = opts.financialCurrency?.trim().toUpperCase();
+  if (fc && fc !== "USD") return false;
+  if (fc === "USD") return true;
+  const derivedPs = computePriceToSales(opts.price, opts.revenue, opts.shares);
+  const vendorPs = opts.vendorPriceToSales;
+  if (derivedPs == null || vendorPs == null) return true;
+  const absA = Math.abs(derivedPs);
+  const absB = Math.abs(vendorPs);
+  const maxAbs = Math.max(absA, absB);
+  const minAbs = Math.min(absA, absB);
+  if (maxAbs < 0.02) return true;
+  if ((derivedPs > 0) !== (vendorPs > 0)) return false;
+  if (minAbs > 0 && maxAbs / minAbs >= 3) return false;
+  const absDiff = Math.abs(derivedPs - vendorPs);
+  if (absDiff / maxAbs > 0.25) return false;
+  return true;
+}
+
 export function computePriceToBook(
   price: number | null | undefined,
   equity: number | null | undefined,
