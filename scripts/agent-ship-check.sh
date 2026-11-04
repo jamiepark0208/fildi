@@ -44,6 +44,20 @@ if [ "$need_api" -eq 0 ] && [ "$need_ui" -eq 0 ]; then
   exit 0
 fi
 
+# 11-03: typecheck the commit being pushed, not the shared dirty tree — another agent's uncommitted TS (peerRep WIP,
+# untracked fund-score-explain.ts) blocked every push. Range mode + local TS changes → clean temp worktree at $head:
+# per-package node_modules copied as symlinks (relative @workspace links stay inside it), root store symlinked.
+TC="$ROOT"
+TSC="pnpm exec tsc"
+if [ -n "${1:-}" ] && [ -n "$(git status --porcelain -- artifacts lib | grep -E '\.(ts|tsx)$' | head -1)" ]; then
+  TC="$(mktemp -d)/wt"
+  git worktree add -q --detach "$TC" "$head"
+  trap 'git -C "$ROOT" worktree remove --force "$TC" >/dev/null 2>&1; git -C "$ROOT" worktree prune >/dev/null 2>&1' EXIT
+  ln -s "$ROOT/node_modules" "$TC/node_modules"
+  for d in artifacts/*/node_modules lib/*/node_modules; do [ -d "$TC/${d%/node_modules}" ] && cp -RP "$ROOT/$d" "$TC/$d"; done
+  TSC="$ROOT/node_modules/.bin/tsc"  # pnpm exec refuses a symlinked hoist dir
+  echo "agent-ship-check: dirty TS in shared tree → typecheck clean checkout of ${head:0:8}"
+fi
 fail=0
 # 11-03 (A332 65934a2e): new @ts-nocheck blinded tsc ("0 errors") while the router threw at import. Block added ones.
 nocheck="$( { git diff "$base"..."$head" -- 'artifacts/*/src/*.ts' 'artifacts/*/src/*.tsx' 2>/dev/null
@@ -57,8 +71,8 @@ if [ "$need_api" -eq 1 ]; then
   echo "agent-ship-check: typecheck api-server…"
   # Referenced lib/* projects resolve through emitted .d.ts — rebuild them first or new lib exports look missing.
   # api-zod too — temp worktrees often lack dist/; TS6305 otherwise flakes the push ship-check.
-  (cd artifacts/api-server && pnpm exec tsc -b ../../lib/option-scoring ../../lib/db ../../lib/api-zod >/dev/null 2>&1) || true
-  if ! (cd artifacts/api-server && pnpm exec tsc -p tsconfig.json --noEmit); then
+  (cd "$TC/artifacts/api-server" && $TSC -b ../../lib/option-scoring ../../lib/db ../../lib/api-zod >/dev/null 2>&1) || true
+  if ! (cd "$TC/artifacts/api-server" && $TSC -p tsconfig.json --noEmit); then
     echo "agent-ship-check: FAIL api-server typecheck — fix before push (A94)" >&2
     fail=1
   fi
@@ -66,8 +80,8 @@ fi
 if [ "$need_ui" -eq 1 ]; then
   echo "agent-ship-check: typecheck stock-compare…"
   # Temp worktrees often lack lib/*/dist — rebuild before UI tsc (same flake as api-server TS6305).
-  (cd artifacts/stock-compare && pnpm exec tsc -b ../../lib/option-scoring ../../lib/api-client-react ../../lib/api-zod >/dev/null 2>&1) || true
-  if ! (cd artifacts/stock-compare && pnpm exec tsc -p tsconfig.json --noEmit); then
+  (cd "$TC/artifacts/stock-compare" && $TSC -b ../../lib/option-scoring ../../lib/api-client-react ../../lib/api-zod >/dev/null 2>&1) || true
+  if ! (cd "$TC/artifacts/stock-compare" && $TSC -p tsconfig.json --noEmit); then
     echo "agent-ship-check: FAIL stock-compare typecheck — fix before push (A94)" >&2
     fail=1
   fi
