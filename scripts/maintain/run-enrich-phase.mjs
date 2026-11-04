@@ -37,6 +37,7 @@ import {
   isPtSunday,
   listenerPid,
   lsegDesktopUp,
+  maybePlanReviews,
   modelListDoneToday,
   notifyMac,
   procStartEpoch,

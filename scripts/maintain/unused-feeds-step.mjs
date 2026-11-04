@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { REPORT } from "./constants.mjs";
+import { LOG_DIR, REPORT } from "./constants.mjs";
 import { runApiTsx } from "./enrich-runners.mjs";
 import { readPriorReport, takeLock } from "./utils.mjs";
 import { unusedFeedsAction, unusedFeedsArgs } from "./schedule-helpers.mjs";

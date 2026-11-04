@@ -34,6 +34,18 @@ else
   )"
 fi
 
+# 11-04: A332 t1 split of maintain.mjs dropped two imports (maybePlanReviews, LOG_DIR) → nightly job crashed for a day.
+# .mjs has no typecheck, so lint changed scripts/**/*.mjs for undefined names.
+mjs="$(echo "$files" | grep -E '^scripts/.*\.mjs$' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)"
+if [ -n "$mjs" ]; then
+  # shellcheck disable=SC2086
+  if ! npx -y eslint@8.57.0 --no-eslintrc --env node,es2022 --parser-options=ecmaVersion:2022,sourceType:module \
+       --rule 'no-undef:error' $mjs 2>/dev/null; then
+    echo "agent-ship-check: FAIL undefined name in scripts/*.mjs (missing import?)" >&2
+    exit 1
+  fi
+fi
+
 need_api=0
 need_ui=0
 echo "$files" | grep -qE '^artifacts/api-server/src/.*\.(ts|tsx)$' && need_api=1 || true
