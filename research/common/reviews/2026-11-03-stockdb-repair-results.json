@@ -1,0 +1,92 @@
+{
+  "sources": [
+    {
+      "path": "artifacts/api-server/src/scripts/merge-trusted.ts",
+      "sha256": "20bacf8a38b014499aa8cf06fa59a45893e0c1e012485ace87f2f934f756c1a9"
+    },
+    {
+      "path": "artifacts/api-server/src/lib/derived-metrics.ts",
+      "sha256": "5fedf663cc1e22240c9952ff1dec12d958052d4c4d6f0a0fa4c4e2e7c27f17aa"
+    }
+  ],
+  "results": [
+    {
+      "stage": "force",
+      "currency": "CNY",
+      "override": false,
+      "expectedDerived": false,
+      "actual": {
+        "source": "derived",
+        "value": 7,
+        "isOverride": false,
+        "divergent": false
+      },
+      "pass": false
+    },
+    {
+      "stage": "repair",
+      "currency": "CNY",
+      "override": false,
+      "expectedDerived": false,
+      "actual": {
+        "source": "derived",
+        "value": 7,
+        "isOverride": false,
+        "divergent": false
+      },
+      "pass": false
+    },
+    {
+      "stage": "repair",
+      "currency": null,
+      "override": false,
+      "expectedDerived": false,
+      "actual": {
+        "source": "derived",
+        "value": 7,
+        "isOverride": false,
+        "divergent": false
+      },
+      "pass": false
+    },
+    {
+      "stage": "force",
+      "currency": "USD",
+      "override": false,
+      "expectedDerived": true,
+      "actual": {
+        "source": "derived",
+        "value": 7,
+        "isOverride": false,
+        "divergent": false
+      },
+      "pass": true
+    },
+    {
+      "stage": "repair",
+      "currency": "USD",
+      "override": false,
+      "expectedDerived": true,
+      "actual": {
+        "source": "derived",
+        "value": 7,
+        "isOverride": false,
+        "divergent": false
+      },
+      "pass": true
+    },
+    {
+      "stage": "repair",
+      "currency": "USD",
+      "override": true,
+      "expectedDerived": false,
+      "actual": {
+        "source": "derived",
+        "value": 7,
+        "isOverride": false,
+        "divergent": false
+      },
+      "pass": false
+    }
+  ]
+}

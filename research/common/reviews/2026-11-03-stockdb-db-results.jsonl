@@ -1,0 +1,3 @@
+gold_summary [{"names": 958, "pe": 939, "eps": 939, "ev_outside_band": 0, "negative_equity": 50}]
+currency_derived [{"fc": "CAD", "field": "peRatio", "n": 1, "records": [{"value": -69.4604485660819, "ticker": "GFL", "updated_at": "2026-11-03T17:16:35.575-08:00"}]}, {"fc": "CNY", "field": "peRatio", "n": 1, "records": [{"value": -18.3370975228517, "ticker": "LI", "updated_at": "2026-11-03T17:16:35.575-08:00"}]}, {"fc": "EUR", "field": "evEbitda", "n": 1, "records": [{"value": 36.304937102609976, "ticker": "ASML", "updated_at": "2026-11-03T15:35:15.863-08:00"}]}]
+negative_equity [{"de_leaks": 0, "roe_leaks": 0}]
