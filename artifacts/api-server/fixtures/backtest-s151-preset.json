@@ -1,0 +1,16 @@
+{
+  "preset": "put_climax_spy_oversold",
+  "start": "2023-01-01",
+  "end": "2024-12-31",
+  "expected": {
+    "n": 113,
+    "breachSig": 0.00885,
+    "breachBase": 0.111,
+    "fixtureTickers": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL"]
+  },
+  "inspect": {
+    "ticker": "AAPL",
+    "date": "2023-01-04",
+    "fwdMinLow": 124.76
+  }
+}
