@@ -62,3 +62,19 @@ export function nonUsdSkipReason(fund: Record<string, unknown>, field: string): 
   if (absFields.has(field)) return `non_usd:${cur}`;
   return null;
 }
+
+const STATEMENT_LEVEL_FIELDS = new Set([
+  "totalRevenue", "netIncome", "totalStockholdersEquity", "totalDebt",
+  "cashAndEquivalents", "ebitda", "freeCashFlow",
+]);
+
+/** L0: impossible statement-level gold (stand-in 0 or wrong sign) before cross-source. */
+export function statementLevelSignIssue(field: string, gold: number | null): string | null {
+  if (gold == null || !STATEMENT_LEVEL_FIELDS.has(field)) return null;
+  if (gold === 0) return "statement_gold_zero";
+  const nonNegative = new Set([
+    "totalRevenue", "totalDebt", "cashAndEquivalents", "ebitda", "totalStockholdersEquity",
+  ]);
+  if (nonNegative.has(field) && gold < 0) return `statement_negative_gold=${gold}`;
+  return null;
+}

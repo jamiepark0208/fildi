@@ -918,2403 +918,2403 @@
   ],
   "sample": [
     {
-      "ticker": "UBER",
-      "field": "netMargin",
-      "gold": 0.1734,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FLEX",
-      "field": "netMargin",
-      "gold": 0.0332,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BF.B",
-      "field": "debtToEquity",
-      "gold": 0.6495000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MDLZ",
-      "field": "debtToEquity",
-      "gold": 0.8379300000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ZS",
-      "field": "netMargin",
-      "gold": -0.018799999999999997,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GRMN",
-      "field": "netMargin",
-      "gold": 0.2447,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GNRC",
-      "field": "debtToEquity",
-      "gold": 0.49003,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ABNB",
-      "field": "netMargin",
-      "gold": 0.2045,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "IBM",
-      "field": "returnOnEquity",
-      "gold": 0.3294,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VIST",
-      "field": "debtToEquity",
-      "gold": 1.0650199999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PLD",
-      "field": "returnOnEquity",
-      "gold": 0.0788,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AKAM",
-      "field": "netMargin",
-      "gold": 0.0951,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ANET",
-      "field": "operatingMargin",
-      "gold": 0.4314,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CROX",
-      "field": "debtToEquity",
-      "gold": 1.21993,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AWK",
-      "field": "returnOnEquity",
-      "gold": 0.1015,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EXE",
-      "field": "debtToEquity",
-      "gold": 0.19207000000000002,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BR",
-      "field": "netMargin",
-      "gold": 0.15039999999999998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FCX",
-      "field": "operatingMargin",
-      "gold": 0.2676,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AM",
-      "field": "operatingMargin",
-      "gold": 0.5157,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DELL",
-      "field": "netMargin",
-      "gold": 0.0753,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MRSH",
-      "field": "netMargin",
-      "gold": 0.142,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NVDA",
-      "field": "operatingMargin",
-      "gold": 0.6517000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HEI",
-      "field": "netMargin",
-      "gold": 0.1638,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "URI",
-      "field": "debtToEquity",
-      "gold": 1.63662,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "OKTA",
-      "field": "returnOnEquity",
-      "gold": 0.0426,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SBUX",
-      "field": "operatingMargin",
-      "gold": 0.0776638505098035,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GLPI",
-      "field": "netMargin",
-      "gold": 0.5853,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FN",
-      "field": "debtToEquity",
-      "gold": 0.00164,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TJX",
-      "field": "netMargin",
-      "gold": 0.0973,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TEM",
-      "field": "returnOnEquity",
-      "gold": -0.547,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TTD",
-      "field": "operatingMargin",
-      "gold": 0.196083257695799,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "REGN",
-      "field": "netMargin",
-      "gold": 0.2786,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRH",
-      "field": "operatingMargin",
-      "gold": 0.137144177211941,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ATI",
-      "field": "netMargin",
-      "gold": 0.1009,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TXN",
-      "field": "operatingMargin",
-      "gold": 0.40759999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BAX",
-      "field": "returnOnEquity",
-      "gold": -0.166,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WDC",
-      "field": "netMargin",
-      "gold": 0.6920000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CPAY",
-      "field": "debtToEquity",
-      "gold": 2.75291,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FLUT",
-      "field": "debtToEquity",
-      "gold": 1.34484,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PODD",
-      "field": "debtToEquity",
-      "gold": 0.66685,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TRU",
-      "field": "debtToEquity",
-      "gold": 1.13212,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GS",
-      "field": "debtToEquity",
-      "gold": 6.712000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TDY",
-      "field": "debtToEquity",
-      "gold": 0.1821,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HWM",
-      "field": "netMargin",
-      "gold": 0.2052,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "QXO",
-      "field": "netMargin",
-      "gold": -0.051699999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SCI",
-      "field": "returnOnEquity",
-      "gold": 0.3398,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GRMN",
-      "field": "debtToEquity",
-      "gold": 0.02513,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PNC",
-      "field": "returnOnEquity",
-      "gold": 0.1261,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BSX",
-      "field": "debtToEquity",
-      "gold": 0.4225,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LRCX",
-      "field": "operatingMargin",
-      "gold": 0.36950000000000005,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BA",
-      "field": "operatingMargin",
-      "gold": 0.0489,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PNFP",
-      "field": "debtToEquity",
-      "gold": 1.5007705178304347,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SEIC",
-      "field": "netMargin",
-      "gold": 0.28059999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LH",
-      "field": "debtToEquity",
-      "gold": 0.7912399999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HII",
-      "field": "operatingMargin",
-      "gold": 0.0529,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "KLAC",
-      "field": "operatingMargin",
-      "gold": 0.4177,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WAB",
-      "field": "operatingMargin",
-      "gold": 0.1718,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NOC",
-      "field": "returnOnEquity",
-      "gold": 0.257,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TSCO",
-      "field": "returnOnEquity",
-      "gold": 0.3764,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BEN",
-      "field": "operatingMargin",
-      "gold": 0.0971139305670252,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "POWL",
-      "field": "debtToEquity",
-      "gold": 0.00334,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WY",
-      "field": "netMargin",
-      "gold": 0.0689,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ZS",
-      "field": "returnOnEquity",
-      "gold": -0.0276,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "KGC",
-      "field": "operatingMargin",
-      "gold": 0.5261,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "OGS",
-      "field": "debtToEquity",
-      "gold": 0.95903,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ET",
-      "field": "returnOnEquity",
-      "gold": 0.1524,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BHP",
-      "field": "operatingMargin",
-      "gold": 0.40619999999999995,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MNST",
-      "field": "returnOnEquity",
-      "gold": 0.24959999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TRMB",
-      "field": "operatingMargin",
-      "gold": 0.15134,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SN",
-      "field": "debtToEquity",
-      "gold": 0.3211,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DNA",
-      "field": "debtToEquity",
-      "gold": 0.96152,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DTE",
-      "field": "netMargin",
-      "gold": 0.0704,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MTCH",
-      "field": "operatingMargin",
-      "gold": 0.2815,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DXCM",
-      "field": "returnOnEquity",
-      "gold": 0.3619,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ISRG",
-      "field": "returnOnEquity",
-      "gold": 0.17,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PFGC",
-      "field": "returnOnEquity",
-      "gold": 0.0763,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FFIV",
-      "field": "operatingMargin",
-      "gold": 0.247,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LII",
-      "field": "operatingMargin",
-      "gold": 0.198,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PPG",
-      "field": "operatingMargin",
-      "gold": 0.14016,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LEU",
-      "field": "returnOnEquity",
-      "gold": 0.0706,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TRGP",
-      "field": "netMargin",
-      "gold": 0.1354,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SCI",
-      "field": "debtToEquity",
-      "gold": 3.44863,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RHHBY",
-      "field": "operatingMargin",
-      "gold": 0.3176,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CMI",
-      "field": "netMargin",
-      "gold": 0.07822,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRDO",
-      "field": "operatingMargin",
-      "gold": 0.31737820111939,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TGT",
-      "field": "netMargin",
-      "gold": 0.0408,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRCL",
-      "field": "netMargin",
-      "gold": 0.1553,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MDLZ",
-      "field": "operatingMargin",
-      "gold": 0.11220000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DELL",
-      "field": "operatingMargin",
-      "gold": 0.0943,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MSFT",
-      "field": "netMargin",
-      "gold": 0.4117,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MET",
-      "field": "debtToEquity",
-      "gold": 1.7993299999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRBG",
-      "field": "debtToEquity",
-      "gold": 1.27231,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SN",
-      "field": "netMargin",
-      "gold": 0.10060000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HUN",
-      "field": "netMargin",
-      "gold": -0.0305,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PEP",
-      "field": "returnOnEquity",
-      "gold": 0.5057,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TW",
-      "field": "returnOnEquity",
-      "gold": 0.14463,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ATI",
-      "field": "returnOnEquity",
-      "gold": 0.2659,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CTAS",
-      "field": "netMargin",
-      "gold": 0.1782,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "JAZZ",
-      "field": "debtToEquity",
-      "gold": 0.91828,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DRI",
-      "field": "netMargin",
-      "gold": 0.0885,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PAAS",
-      "field": "netMargin",
-      "gold": 0.31980000000000003,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VRSK",
-      "field": "debtToEquity",
-      "gold": 14.94207047249191,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "USB",
-      "field": "netMargin",
-      "gold": 0.30010998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PDD",
-      "field": "netMargin",
-      "gold": 0.2043,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CAVA",
-      "field": "operatingMargin",
-      "gold": 0.0762,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SOLV",
-      "field": "operatingMargin",
-      "gold": 0.249819494584838,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "UPST",
-      "field": "returnOnEquity",
-      "gold": 0.0859,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DOV",
-      "field": "returnOnEquity",
-      "gold": 0.1543,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PAYX",
-      "field": "operatingMargin",
-      "gold": 0.39189999999999997,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WMB",
-      "field": "returnOnEquity",
-      "gold": 0.2386,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ECL",
-      "field": "returnOnEquity",
-      "gold": 0.207,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "COHU",
-      "field": "debtToEquity",
-      "gold": 0.42764,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VICI",
-      "field": "netMargin",
-      "gold": 0.675,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BG",
-      "field": "netMargin",
-      "gold": 0.011000000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LAMR",
-      "field": "operatingMargin",
-      "gold": 0.3169,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EXR",
-      "field": "operatingMargin",
-      "gold": 0.40909999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VRT",
-      "field": "returnOnEquity",
-      "gold": 0.4211,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SSNC",
-      "field": "debtToEquity",
-      "gold": 1.13109,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AXTA",
-      "field": "operatingMargin",
-      "gold": 0.12662,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "Q",
-      "field": "returnOnEquity",
-      "gold": 0.0764,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RPM",
-      "field": "debtToEquity",
-      "gold": 0.89022,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CI",
-      "field": "netMargin",
-      "gold": 0.0227,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LIN",
-      "field": "debtToEquity",
-      "gold": 0.65642,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RBLX",
-      "field": "operatingMargin",
-      "gold": -0.197597612975284,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WSM",
-      "field": "returnOnEquity",
-      "gold": 0.5779,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NEM",
-      "field": "netMargin",
-      "gold": 0.34729999999999994,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BLK",
-      "field": "operatingMargin",
-      "gold": 0.3246,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HEI",
-      "field": "operatingMargin",
-      "gold": 0.2404,
-      "cohort": "clean"
-    },
-    {
       "ticker": "UAA",
-      "field": "netMargin",
-      "gold": -0.0999,
+      "field": "cashAndEquivalents",
+      "gold": 395980992,
       "cohort": "clean"
     },
     {
-      "ticker": "AFG",
-      "field": "netMargin",
-      "gold": 0.1164,
+      "ticker": "FTI",
+      "field": "ebitda",
+      "gold": 1983800064,
       "cohort": "clean"
     },
     {
-      "ticker": "CSGP",
-      "field": "returnOnEquity",
-      "gold": 0.009,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "C",
-      "field": "debtToEquity",
-      "gold": 3.3718009713082515,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FNV",
-      "field": "netMargin",
-      "gold": 0.6379,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ISRG",
-      "field": "operatingMargin",
-      "gold": 0.2837,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CLS",
-      "field": "returnOnEquity",
-      "gold": 0.5061,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BKR",
-      "field": "operatingMargin",
-      "gold": 0.13970000000000002,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TT",
-      "field": "operatingMargin",
-      "gold": 0.1794,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AXP",
-      "field": "netMargin",
-      "gold": 0.1481,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PYPL",
-      "field": "netMargin",
-      "gold": 0.1378,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TEAM",
-      "field": "netMargin",
-      "gold": -0.008199999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HWM",
-      "field": "debtToEquity",
-      "gold": 0.8779399999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "YUMC",
-      "field": "returnOnEquity",
-      "gold": 0.1784,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PNC",
-      "field": "netMargin",
-      "gold": 0.28832450000000004,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LLY",
-      "field": "netMargin",
-      "gold": 0.3353,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MLM",
-      "field": "netMargin",
-      "gold": 0.36729999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CBRE",
-      "field": "debtToEquity",
-      "gold": 1.12726,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SW",
-      "field": "operatingMargin",
-      "gold": 0.0471,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SGI",
-      "field": "operatingMargin",
-      "gold": 0.1243,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MLM",
-      "field": "operatingMargin",
-      "gold": 0.20629999999999998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MSI",
-      "field": "debtToEquity",
-      "gold": 3.5785,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RBC",
-      "field": "returnOnEquity",
-      "gold": 0.0966,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CLH",
-      "field": "operatingMargin",
-      "gold": 0.11720000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FITB",
-      "field": "netMargin",
-      "gold": 0.23038,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AFL",
-      "field": "operatingMargin",
-      "gold": 0.25722998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GMED",
-      "field": "debtToEquity",
-      "gold": 0.02347,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WFC",
-      "field": "operatingMargin",
-      "gold": 0.2534514,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BJ",
-      "field": "returnOnEquity",
-      "gold": 0.2735,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SNX",
-      "field": "operatingMargin",
-      "gold": 0.0271,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ALAB",
-      "field": "netMargin",
-      "gold": 0.3074,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "R",
-      "field": "debtToEquity",
-      "gold": 2.7474000000000003,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WRB",
-      "field": "debtToEquity",
-      "gold": 0.31527,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TRGP",
-      "field": "returnOnEquity",
-      "gold": 0.7217,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "UTHR",
-      "field": "netMargin",
-      "gold": 0.4156,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TT",
-      "field": "netMargin",
-      "gold": 0.1328,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "INSM",
-      "field": "debtToEquity",
-      "gold": 0.97654,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AAPL",
-      "field": "operatingMargin",
-      "gold": 0.31970799762591884,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TKO",
-      "field": "netMargin",
-      "gold": 0.054400000000000004,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DHR",
-      "field": "returnOnEquity",
-      "gold": 0.0818,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TROW",
-      "field": "operatingMargin",
-      "gold": 0.2992289604637174,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CPB",
-      "field": "debtToEquity",
-      "gold": 1.82035,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ICE",
-      "field": "returnOnEquity",
-      "gold": 0.1413,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SCHW",
-      "field": "debtToEquity",
-      "gold": 0.77821,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AIZ",
-      "field": "netMargin",
-      "gold": 0.079,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FOUR",
-      "field": "debtToEquity",
-      "gold": 2.6232100000000003,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ADBE",
-      "field": "debtToEquity",
-      "gold": 0.5719693710745934,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PCG",
-      "field": "debtToEquity",
-      "gold": 1.8787200000000002,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SNOW",
-      "field": "operatingMargin",
-      "gold": -0.227568230282482,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TTD",
-      "field": "returnOnEquity",
-      "gold": 0.15441,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SNDK",
-      "field": "netMargin",
-      "gold": 0.5646,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "L",
-      "field": "operatingMargin",
-      "gold": 0.1402,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BPOP",
-      "field": "returnOnEquity",
-      "gold": 0.1624,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RL",
-      "field": "netMargin",
-      "gold": 0.1176,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DHI",
-      "field": "operatingMargin",
-      "gold": 0.12279999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MPWR",
-      "field": "operatingMargin",
-      "gold": 0.2872,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRM",
-      "field": "netMargin",
-      "gold": 0.21989999999999998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "IT",
-      "field": "netMargin",
-      "gold": 0.12,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TWLO",
-      "field": "debtToEquity",
-      "gold": 0.11868000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FDX",
-      "field": "debtToEquity",
-      "gold": 1.35697,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AMP",
-      "field": "operatingMargin",
-      "gold": 0.3048,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PKG",
-      "field": "returnOnEquity",
-      "gold": 0.1487,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FIVE",
-      "field": "returnOnEquity",
-      "gold": 0.2773,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GFL",
-      "field": "debtToEquity",
-      "gold": 1.34488,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RTX",
-      "field": "netMargin",
-      "gold": 0.0875,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LDOS",
-      "field": "netMargin",
-      "gold": 0.078,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RS",
-      "field": "netMargin",
-      "gold": 0.0638,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HON",
-      "field": "returnOnEquity",
-      "gold": 0.4121,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CLX",
-      "field": "operatingMargin",
-      "gold": 0.1177,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NYT",
-      "field": "returnOnEquity",
-      "gold": 0.1947,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CHRW",
-      "field": "returnOnEquity",
-      "gold": 0.3601,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EBAY",
-      "field": "netMargin",
-      "gold": 0.185,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CE",
-      "field": "netMargin",
-      "gold": -0.1204,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NCLH",
-      "field": "operatingMargin",
-      "gold": 0.13570000000000002,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "R",
-      "field": "returnOnEquity",
-      "gold": 0.17679999999999998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "UPS",
-      "field": "netMargin",
-      "gold": 0.0508,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "IP",
-      "field": "debtToEquity",
-      "gold": 0.68509,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "A",
-      "field": "returnOnEquity",
-      "gold": 0.2047,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PHM",
-      "field": "debtToEquity",
-      "gold": 0.18434999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "URI",
-      "field": "netMargin",
-      "gold": 0.16329999999999997,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ED",
-      "field": "returnOnEquity",
-      "gold": 0.08962,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WMB",
-      "field": "debtToEquity",
-      "gold": 2.00371,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EFX",
-      "field": "operatingMargin",
-      "gold": 0.1883,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NNN",
-      "field": "debtToEquity",
-      "gold": 1.1211799999999998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "U",
-      "field": "returnOnEquity",
-      "gold": -0.1888,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WST",
-      "field": "netMargin",
-      "gold": 0.1698,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MRVL",
-      "field": "netMargin",
-      "gold": 0.2793,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PVH",
-      "field": "debtToEquity",
-      "gold": 0.86909,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SNX",
-      "field": "debtToEquity",
-      "gold": 0.6482399999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GRAB",
-      "field": "debtToEquity",
-      "gold": 0.28224,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AXON",
-      "field": "returnOnEquity",
-      "gold": 0.0591,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MDB",
-      "field": "returnOnEquity",
-      "gold": 0.02,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PFG",
-      "field": "debtToEquity",
-      "gold": 0.35307,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DPZ",
-      "field": "operatingMargin",
-      "gold": 0.1973,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HUBS",
-      "field": "operatingMargin",
-      "gold": 0.035699999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CNP",
-      "field": "returnOnEquity",
-      "gold": 0.09849999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "KHC",
-      "field": "debtToEquity",
-      "gold": 0.52591,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EQIX",
-      "field": "operatingMargin",
-      "gold": 0.22510000000000002,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CASY",
-      "field": "returnOnEquity",
-      "gold": 0.1968,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ED",
-      "field": "debtToEquity",
-      "gold": 1.10113,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CCEP",
-      "field": "operatingMargin",
-      "gold": 0.1270467,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CART",
-      "field": "operatingMargin",
-      "gold": 0.14730000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CAT",
-      "field": "operatingMargin",
-      "gold": 0.1752,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TECK",
-      "field": "netMargin",
-      "gold": 0.17854,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DLTR",
-      "field": "operatingMargin",
-      "gold": 0.1106,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "COTY",
-      "field": "returnOnEquity",
-      "gold": -0.1826,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PAYX",
-      "field": "returnOnEquity",
-      "gold": 0.4711,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SMCI",
-      "field": "netMargin",
-      "gold": 0.0571,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRL",
-      "field": "debtToEquity",
-      "gold": 1.05047,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "QUBT",
-      "field": "debtToEquity",
-      "gold": 0.014690000000000002,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MTD",
-      "field": "netMargin",
-      "gold": 0.2191,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CFG",
-      "field": "netMargin",
-      "gold": 0.245614,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SNAP",
-      "field": "returnOnEquity",
-      "gold": -0.1461,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TW",
-      "field": "debtToEquity",
-      "gold": 0.02036,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ARE",
-      "field": "netMargin",
-      "gold": -0.5301,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PR",
-      "field": "operatingMargin",
-      "gold": 0.358389115522947,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EQIX",
-      "field": "returnOnEquity",
-      "gold": 0.1149,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PH",
-      "field": "operatingMargin",
-      "gold": 0.2165,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CNC",
-      "field": "debtToEquity",
-      "gold": 0.7108199999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RPM",
-      "field": "netMargin",
-      "gold": 0.0866,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FIS",
-      "field": "netMargin",
-      "gold": 0.2763,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AZO",
-      "field": "netMargin",
-      "gold": 0.1265,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NYT",
-      "field": "operatingMargin",
-      "gold": 0.1582,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MAA",
-      "field": "returnOnEquity",
-      "gold": 0.0716,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BHP",
-      "field": "returnOnEquity",
-      "gold": 0.1941,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MCHP",
-      "field": "debtToEquity",
-      "gold": 0.8368800000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "KVUE",
-      "field": "operatingMargin",
-      "gold": 0.1707,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CLNE",
-      "field": "returnOnEquity",
-      "gold": -0.1668,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ACGL",
-      "field": "debtToEquity",
-      "gold": 0.17836,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AER",
-      "field": "netMargin",
-      "gold": 0.4315,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CB",
-      "field": "debtToEquity",
-      "gold": 0.32945,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SNAP",
-      "field": "debtToEquity",
-      "gold": 2.19281,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MSFT",
-      "field": "returnOnEquity",
-      "gold": 0.3321,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "APH",
-      "field": "operatingMargin",
-      "gold": 0.2703,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FNF",
-      "field": "operatingMargin",
-      "gold": 0.1291,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GKOS",
-      "field": "returnOnEquity",
-      "gold": -0.2707,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BRO",
-      "field": "netMargin",
-      "gold": 0.1775,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ORCL",
-      "field": "returnOnEquity",
-      "gold": 0.42579999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BG",
-      "field": "debtToEquity",
-      "gold": 1.04737,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MRSH",
-      "field": "operatingMargin",
-      "gold": 0.2139,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VICI",
-      "field": "debtToEquity",
-      "gold": 0.60277,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ENSG",
-      "field": "debtToEquity",
-      "gold": 0.92027,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NOC",
-      "field": "debtToEquity",
-      "gold": 0.95348,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "OPEN",
-      "field": "debtToEquity",
-      "gold": 2.1488,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WM",
-      "field": "returnOnEquity",
-      "gold": 0.2892,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EGP",
-      "field": "netMargin",
-      "gold": 0.4105,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PINS",
-      "field": "returnOnEquity",
-      "gold": 0.065,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "HPE",
-      "field": "debtToEquity",
-      "gold": 0.8403,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WSO",
-      "field": "operatingMargin",
-      "gold": 0.094,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VRTX",
-      "field": "operatingMargin",
-      "gold": 0.3795,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PEN",
-      "field": "operatingMargin",
-      "gold": 0.1245,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DOW",
-      "field": "debtToEquity",
-      "gold": 1.11913,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NNN",
-      "field": "netMargin",
-      "gold": 0.40353,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AXTA",
-      "field": "returnOnEquity",
-      "gold": 0.13424,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WTRG",
-      "field": "netMargin",
-      "gold": 0.21600000000000003,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MP",
-      "field": "debtToEquity",
-      "gold": 0.41402,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BBY",
-      "field": "returnOnEquity",
-      "gold": 0.4282,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ODFL",
-      "field": "returnOnEquity",
-      "gold": 0.2487,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PSX",
-      "field": "debtToEquity",
-      "gold": 0.91385,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NDSN",
-      "field": "returnOnEquity",
-      "gold": 0.1759,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "JPM",
-      "field": "returnOnEquity",
-      "gold": 0.18013,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MTB",
-      "field": "debtToEquity",
-      "gold": 0.6861911845631833,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "VST",
-      "field": "debtToEquity",
-      "gold": 3.7327999999999997,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BILL",
-      "field": "netMargin",
-      "gold": -0.0068000000000000005,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NEE",
-      "field": "debtToEquity",
-      "gold": 1.61676,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FE",
-      "field": "netMargin",
-      "gold": 0.0721,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AA",
-      "field": "returnOnEquity",
-      "gold": 0.214,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MLI",
-      "field": "netMargin",
-      "gold": 0.1727,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NWSA",
-      "field": "netMargin",
-      "gold": 0.0635,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FHN",
-      "field": "netMargin",
-      "gold": 0.2806424,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FIVE",
-      "field": "netMargin",
-      "gold": 0.1165,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GLPI",
-      "field": "operatingMargin",
-      "gold": 0.823,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ON",
-      "field": "netMargin",
-      "gold": 0.1017,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AON",
-      "field": "returnOnEquity",
-      "gold": 0.4263,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "GWRE",
-      "field": "returnOnEquity",
-      "gold": 0.1003,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WTR",
-      "field": "returnOnEquity",
-      "gold": 0.05785908278062079,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MAR",
-      "field": "operatingMargin",
-      "gold": 0.158,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LUV",
-      "field": "debtToEquity",
-      "gold": 0.97275,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TXN",
-      "field": "netMargin",
-      "gold": 0.3425,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "UAA",
-      "field": "debtToEquity",
-      "gold": 0.96356,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PAAS",
-      "field": "debtToEquity",
-      "gold": 0.11427,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "RTX",
-      "field": "debtToEquity",
-      "gold": 0.57229,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "O",
-      "field": "debtToEquity",
-      "gold": 0.74722,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CSX",
-      "field": "operatingMargin",
-      "gold": 0.364,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "UAL",
-      "field": "netMargin",
-      "gold": 0.0546,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "YELP",
-      "field": "debtToEquity",
-      "gold": 0.19131,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MTSI",
-      "field": "netMargin",
-      "gold": 0.207,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "UI",
-      "field": "debtToEquity",
-      "gold": 0.05551999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NOW",
-      "field": "netMargin",
-      "gold": 0.0936426673579159,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DUOL",
-      "field": "netMargin",
-      "gold": 0.35869999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CI",
-      "field": "debtToEquity",
-      "gold": 0.7280500000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ABT",
-      "field": "debtToEquity",
-      "gold": 0.6477299999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "OLLI",
-      "field": "operatingMargin",
-      "gold": 0.12300000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LHX",
-      "field": "returnOnEquity",
-      "gold": 0.0941,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PKG",
-      "field": "netMargin",
-      "gold": 0.07400000000000001,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "LLY",
-      "field": "operatingMargin",
-      "gold": 0.42219999999999996,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "OLLI",
-      "field": "netMargin",
-      "gold": 0.09789999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SWKS",
-      "field": "returnOnEquity",
-      "gold": 0.0504,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "KMB",
-      "field": "returnOnEquity",
-      "gold": 1.2257,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "AXTA",
-      "field": "netMargin",
-      "gold": 0.064569995,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "APG",
-      "field": "netMargin",
-      "gold": 0.040999999999999995,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FANG",
-      "field": "returnOnEquity",
-      "gold": 0.039,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "MTRN",
-      "field": "returnOnEquity",
-      "gold": 0.0941,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TMUS",
-      "field": "netMargin",
-      "gold": 0.11449999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "BR",
-      "field": "debtToEquity",
-      "gold": 1.23939,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ANET",
-      "field": "returnOnEquity",
-      "gold": 0.3078,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SWK",
-      "field": "debtToEquity",
-      "gold": 0.58172,
+      "ticker": "BIDU",
+      "field": "totalRevenue",
+      "gold": 129079000000,
       "cohort": "clean"
     },
     {
       "ticker": "MKL",
-      "field": "returnOnEquity",
-      "gold": 0.12389999999999998,
+      "field": "totalDebt",
+      "gold": 4367739904,
       "cohort": "clean"
     },
     {
-      "ticker": "BF.B",
-      "field": "operatingMargin",
-      "gold": 0.2536,
+      "ticker": "ZS",
+      "field": "totalRevenue",
+      "gold": 3352523000,
       "cohort": "clean"
     },
     {
-      "ticker": "F",
-      "field": "netMargin",
-      "gold": -0.0393,
+      "ticker": "HD",
+      "field": "totalStockholdersEquity",
+      "gold": 12813000000,
       "cohort": "clean"
     },
     {
-      "ticker": "MA",
-      "field": "operatingMargin",
-      "gold": 0.5832999999999999,
+      "ticker": "HALO",
+      "field": "cashAndEquivalents",
+      "gold": 231003008,
       "cohort": "clean"
     },
     {
-      "ticker": "VRTX",
-      "field": "returnOnEquity",
-      "gold": 0.23309999999999997,
+      "ticker": "ABNB",
+      "field": "totalStockholdersEquity",
+      "gold": 8199000000,
       "cohort": "clean"
     },
     {
-      "ticker": "FIS",
-      "field": "returnOnEquity",
-      "gold": 0.2256,
+      "ticker": "INCY",
+      "field": "ebitda",
+      "gold": 1942312960,
       "cohort": "clean"
     },
     {
-      "ticker": "LH",
-      "field": "returnOnEquity",
-      "gold": 0.1157,
+      "ticker": "VIST",
+      "field": "cashAndEquivalents",
+      "gold": 606814016,
       "cohort": "clean"
     },
     {
-      "ticker": "IRM",
-      "field": "operatingMargin",
-      "gold": 0.18760000000000002,
+      "ticker": "POWL",
+      "field": "netIncome",
+      "gold": 180747000,
       "cohort": "clean"
     },
     {
-      "ticker": "TROW",
-      "field": "debtToEquity",
-      "gold": 0.03702,
+      "ticker": "AKAM",
+      "field": "totalStockholdersEquity",
+      "gold": 4977371000,
       "cohort": "clean"
     },
     {
-      "ticker": "EGP",
-      "field": "debtToEquity",
-      "gold": 0.51862,
+      "ticker": "ANET",
+      "field": "netIncome",
+      "gold": 3511400000,
       "cohort": "clean"
     },
     {
-      "ticker": "AAL",
-      "field": "netMargin",
-      "gold": -0.0079,
+      "ticker": "CRSP",
+      "field": "netIncome",
+      "gold": -581599000,
       "cohort": "clean"
     },
     {
-      "ticker": "HIG",
-      "field": "debtToEquity",
-      "gold": 0.2316,
+      "ticker": "AXON",
+      "field": "ebitda",
+      "gold": 165106000,
       "cohort": "clean"
     },
     {
-      "ticker": "EW",
-      "field": "returnOnEquity",
-      "gold": 0.09175,
+      "ticker": "FDS",
+      "field": "ebitda",
+      "gold": 932542016,
       "cohort": "clean"
     },
     {
-      "ticker": "S",
-      "field": "netMargin",
-      "gold": -0.3095,
+      "ticker": "BR",
+      "field": "cashAndEquivalents",
+      "gold": 403800000,
       "cohort": "clean"
     },
     {
-      "ticker": "ELS",
-      "field": "returnOnEquity",
-      "gold": 0.2227,
+      "ticker": "FIVE",
+      "field": "ebitda",
+      "gold": 757476992,
       "cohort": "clean"
     },
     {
-      "ticker": "OVV",
-      "field": "debtToEquity",
-      "gold": 0.43734,
+      "ticker": "ALM",
+      "field": "totalDebt",
+      "gold": 813148032,
       "cohort": "clean"
     },
     {
-      "ticker": "PFE",
-      "field": "debtToEquity",
-      "gold": 0.74253,
+      "ticker": "DGX",
+      "field": "totalRevenue",
+      "gold": 11035000000,
       "cohort": "clean"
     },
     {
-      "ticker": "CTSH",
-      "field": "debtToEquity",
-      "gold": 0.14479,
+      "ticker": "MTCH",
+      "field": "totalStockholdersEquity",
+      "gold": -253504000,
       "cohort": "clean"
     },
     {
-      "ticker": "HEI",
-      "field": "returnOnEquity",
-      "gold": 0.183,
+      "ticker": "NXPI",
+      "field": "totalRevenue",
+      "gold": 12269000000,
       "cohort": "clean"
     },
     {
-      "ticker": "SPGI",
-      "field": "operatingMargin",
-      "gold": 0.4679,
+      "ticker": "HP",
+      "field": "totalRevenue",
+      "gold": 3746013000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "URI",
+      "field": "totalStockholdersEquity",
+      "gold": 8968000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OPEN",
+      "field": "cashAndEquivalents",
+      "gold": 896000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SBAC",
+      "field": "totalDebt",
+      "gold": 15209066496,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GRMN",
+      "field": "totalDebt",
+      "gold": 226856992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FUTU",
+      "field": "totalDebt",
+      "gold": 28319363072,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TENB",
+      "field": "cashAndEquivalents",
+      "gold": 298208992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TDY",
+      "field": "netIncome",
+      "gold": 894800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSCO",
+      "field": "netIncome",
+      "gold": 1096087000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RGLD",
+      "field": "cashAndEquivalents",
+      "gold": 182468000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRML",
+      "field": "ebitda",
+      "gold": -80071104,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ATI",
+      "field": "totalStockholdersEquity",
+      "gold": 1804500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TTD",
+      "field": "cashAndEquivalents",
+      "gold": 1485332992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BBIO",
+      "field": "ebitda",
+      "gold": -472752000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WCN",
+      "field": "totalRevenue",
+      "gold": 9466915000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CR",
+      "field": "cashAndEquivalents",
+      "gold": 350400000,
       "cohort": "clean"
     },
     {
       "ticker": "FTV",
-      "field": "netMargin",
-      "gold": 0.12380000000000001,
+      "field": "cashAndEquivalents",
+      "gold": 374200000,
       "cohort": "clean"
     },
     {
-      "ticker": "FTAI",
-      "field": "netMargin",
-      "gold": 0.1594,
+      "ticker": "PSX",
+      "field": "totalRevenue",
+      "gold": 132376000000,
       "cohort": "clean"
     },
     {
-      "ticker": "PGR",
-      "field": "returnOnEquity",
-      "gold": 0.354,
+      "ticker": "TPL",
+      "field": "totalRevenue",
+      "gold": 798190000,
       "cohort": "clean"
     },
     {
-      "ticker": "INGM",
-      "field": "returnOnEquity",
-      "gold": 0.1023,
+      "ticker": "HD",
+      "field": "ebitda",
+      "gold": 24945999872,
       "cohort": "clean"
     },
     {
-      "ticker": "U",
-      "field": "netMargin",
-      "gold": -0.2897,
+      "ticker": "T",
+      "field": "totalRevenue",
+      "gold": 125648000000,
       "cohort": "clean"
     },
     {
-      "ticker": "AEP",
-      "field": "debtToEquity",
-      "gold": 1.61839,
+      "ticker": "IEX",
+      "field": "totalDebt",
+      "gold": 1885500032,
       "cohort": "clean"
     },
     {
-      "ticker": "ROP",
-      "field": "debtToEquity",
-      "gold": 0.50696,
+      "ticker": "RDDT",
+      "field": "cashAndEquivalents",
+      "gold": 3033432064,
       "cohort": "clean"
     },
     {
-      "ticker": "CNH",
-      "field": "operatingMargin",
-      "gold": 0.0914489964256255,
+      "ticker": "SCI",
+      "field": "totalRevenue",
+      "gold": 4309234000,
       "cohort": "clean"
     },
     {
-      "ticker": "GH",
-      "field": "operatingMargin",
-      "gold": -0.40240000000000004,
+      "ticker": "HD",
+      "field": "netIncome",
+      "gold": 14156000000,
       "cohort": "clean"
     },
     {
-      "ticker": "ESTC",
-      "field": "debtToEquity",
-      "gold": 0.4594,
+      "ticker": "PR",
+      "field": "totalDebt",
+      "gold": 3150868992,
       "cohort": "clean"
     },
     {
-      "ticker": "GLW",
-      "field": "returnOnEquity",
-      "gold": 0.1593,
+      "ticker": "BSX",
+      "field": "cashAndEquivalents",
+      "gold": 1452999936,
       "cohort": "clean"
     },
     {
-      "ticker": "UMC",
-      "field": "operatingMargin",
-      "gold": 0.1977,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "SHW",
-      "field": "netMargin",
-      "gold": 0.1074,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FIG",
-      "field": "debtToEquity",
-      "gold": 0.04584,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CW",
-      "field": "debtToEquity",
-      "gold": 0.41481999999999997,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "WSM",
-      "field": "debtToEquity",
-      "gold": 0.71369,
+      "ticker": "MAR",
+      "field": "totalStockholdersEquity",
+      "gold": -3771000000,
       "cohort": "clean"
     },
     {
       "ticker": "BABA",
-      "field": "returnOnEquity",
-      "gold": 0.0701,
+      "field": "totalStockholdersEquity",
+      "gold": 1056923917000,
       "cohort": "clean"
     },
     {
-      "ticker": "RBC",
-      "field": "debtToEquity",
-      "gold": 0.25364000000000003,
+      "ticker": "PR",
+      "field": "freeCashFlow",
+      "gold": 458368128,
       "cohort": "clean"
     },
     {
-      "ticker": "WST",
-      "field": "operatingMargin",
-      "gold": 0.2045,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FITB",
-      "field": "debtToEquity",
-      "gold": 0.8349290812005156,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "EIX",
-      "field": "netMargin",
-      "gold": 0.203,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TTWO",
-      "field": "operatingMargin",
-      "gold": -0.0241232333806924,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "YELP",
-      "field": "netMargin",
-      "gold": 0.0859,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CDE",
-      "field": "netMargin",
-      "gold": 0.26817,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "DUK",
-      "field": "returnOnEquity",
-      "gold": 0.09879999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CRDO",
-      "field": "returnOnEquity",
-      "gold": 0.2716,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PODD",
-      "field": "netMargin",
-      "gold": 0.1229,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "QLYS",
-      "field": "operatingMargin",
-      "gold": 0.3408,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "APLD",
-      "field": "returnOnEquity",
-      "gold": -0.13623999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "TTWO",
-      "field": "netMargin",
-      "gold": -0.0479,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "NSC",
-      "field": "debtToEquity",
-      "gold": 1.05519,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "CVNA",
-      "field": "netMargin",
-      "gold": 0.0626,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "FCNCA",
-      "field": "returnOnEquity",
-      "gold": 0.10679999999999999,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "OWL",
-      "field": "returnOnEquity",
-      "gold": 0.0376,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "PEG",
-      "field": "netMargin",
-      "gold": 0.1604,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ARMK",
-      "field": "netMargin",
-      "gold": 0.019299999999999998,
-      "cohort": "clean"
-    },
-    {
-      "ticker": "ARW",
-      "field": "operatingMargin",
-      "gold": 0.0337,
+      "ticker": "SEDG",
+      "field": "totalRevenue",
+      "gold": 1184444000,
       "cohort": "clean"
     },
     {
       "ticker": "LULU",
-      "field": "netMargin",
-      "gold": 0.1278,
+      "field": "cashAndEquivalents",
+      "gold": 1389736960,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HPQ",
+      "field": "netIncome",
+      "gold": 2529000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "L",
+      "field": "totalRevenue",
+      "gold": 18176000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VZ",
+      "field": "netIncome",
+      "gold": 17174000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTLA",
+      "field": "totalStockholdersEquity",
+      "gold": 671394000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TPR",
+      "field": "ebitda",
+      "gold": 2023500032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BF.B",
+      "field": "ebitda",
+      "gold": 1184999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PTC",
+      "field": "netIncome",
+      "gold": 733997000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WWD",
+      "field": "totalRevenue",
+      "gold": 3567064000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ZS",
+      "field": "netIncome",
+      "gold": -63179000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KR",
+      "field": "freeCashFlow",
+      "gold": 2994500096,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ONON",
+      "field": "freeCashFlow",
+      "gold": 240075008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EXEL",
+      "field": "totalRevenue",
+      "gold": 2320126000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BIIB",
+      "field": "freeCashFlow",
+      "gold": 1930925056,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MS",
+      "field": "cashAndEquivalents",
+      "gold": 739076014080,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TMUS",
+      "field": "ebitda",
+      "gold": 34370998272,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SMTC",
+      "field": "totalStockholdersEquity",
+      "gold": 549718000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DOW",
+      "field": "totalRevenue",
+      "gold": 39968000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DUOL",
+      "field": "totalStockholdersEquity",
+      "gold": 1347006000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NCLH",
+      "field": "cashAndEquivalents",
+      "gold": 218100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EFX",
+      "field": "cashAndEquivalents",
+      "gold": 192900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBHT",
+      "field": "ebitda",
+      "gold": 1673964032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PLD",
+      "field": "totalDebt",
+      "gold": 37093756928,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FOUR",
+      "field": "ebitda",
+      "gold": 909000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LUNR",
+      "field": "totalDebt",
+      "gold": 481447008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PTC",
+      "field": "ebitda",
+      "gold": 1275965952,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LRCX",
+      "field": "ebitda",
+      "gold": 8641328128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TMO",
+      "field": "freeCashFlow",
+      "gold": 7596000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SCI",
+      "field": "ebitda",
+      "gold": 1324062976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RIVN",
+      "field": "netIncome",
+      "gold": -3646000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CNH",
+      "field": "cashAndEquivalents",
+      "gold": 1412999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRML",
+      "field": "totalRevenue",
+      "gold": 1888145,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TEL",
+      "field": "totalDebt",
+      "gold": 5817999872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRM",
+      "field": "totalRevenue",
+      "gold": 43938000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MKC",
+      "field": "ebitda",
+      "gold": 1504099968,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DHI",
+      "field": "totalRevenue",
+      "gold": 34250400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTZ",
+      "field": "cashAndEquivalents",
+      "gold": 315640992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MNDY",
+      "field": "totalStockholdersEquity",
+      "gold": 723453064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRM",
+      "field": "ebitda",
+      "gold": 12894999552,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SMR",
+      "field": "totalDebt",
+      "gold": 6692000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IEX",
+      "field": "totalRevenue",
+      "gold": 3457500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PHM",
+      "field": "ebitda",
+      "gold": 2608161024,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSM",
+      "field": "netIncome",
+      "gold": 1735678080000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ATO",
+      "field": "freeCashFlow",
+      "gold": -2220956928,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CVS",
+      "field": "totalRevenue",
+      "gold": 402067000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JKHY",
+      "field": "ebitda",
+      "gold": 702214016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DTE",
+      "field": "ebitda",
+      "gold": 3616999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PCG",
+      "field": "totalStockholdersEquity",
+      "gold": 32540000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRSK",
+      "field": "cashAndEquivalents",
+      "gold": 552200000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "URI",
+      "field": "cashAndEquivalents",
+      "gold": 153000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PG",
+      "field": "ebitda",
+      "gold": 23657000960,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAVA",
+      "field": "ebitda",
+      "gold": 160631008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SOFI",
+      "field": "totalDebt",
+      "gold": 3979408896,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UPS",
+      "field": "ebitda",
+      "gold": 12083999744,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DT",
+      "field": "cashAndEquivalents",
+      "gold": 1108864000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFE",
+      "field": "cashAndEquivalents",
+      "gold": 11704000512,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WING",
+      "field": "totalStockholdersEquity",
+      "gold": -736762000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EGP",
+      "field": "netIncome",
+      "gold": 257402000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CORZ",
+      "field": "totalDebt",
+      "gold": 4407342080,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VG",
+      "field": "ebitda",
+      "gold": 7345999872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BIIB",
+      "field": "netIncome",
+      "gold": 1292900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LLY",
+      "field": "cashAndEquivalents",
+      "gold": 8949999616,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FHN",
+      "field": "totalStockholdersEquity",
+      "gold": 8847000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRSN",
+      "field": "ebitda",
+      "gold": 1205200000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SSB",
+      "field": "totalRevenue",
+      "gold": 2617346000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZO",
+      "field": "netIncome",
+      "gold": 2498247000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "R",
+      "field": "totalStockholdersEquity",
+      "gold": 3052000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RS",
+      "field": "cashAndEquivalents",
+      "gold": 249700000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLF",
+      "field": "ebitda",
+      "gold": 515000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LYB",
+      "field": "totalStockholdersEquity",
+      "gold": 10082000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REGN",
+      "field": "ebitda",
+      "gold": 4702400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WPC",
+      "field": "freeCashFlow",
+      "gold": 1096111872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOC",
+      "field": "cashAndEquivalents",
+      "gold": 2307000064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BMRN",
+      "field": "ebitda",
+      "gold": 645318976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HPQ",
+      "field": "cashAndEquivalents",
+      "gold": 4168999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXT",
+      "field": "netIncome",
+      "gold": 921000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AFG",
+      "field": "totalDebt",
+      "gold": 2036000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CTAS",
+      "field": "cashAndEquivalents",
+      "gold": 364579008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CACI",
+      "field": "ebitda",
+      "gold": 1249235968,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GE",
+      "field": "ebitda",
+      "gold": 11482999808,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBHT",
+      "field": "freeCashFlow",
+      "gold": 903028352,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMPS",
+      "field": "totalRevenue",
+      "gold": 0,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BMNR",
+      "field": "totalStockholdersEquity",
+      "gold": 8692797000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRV",
+      "field": "freeCashFlow",
+      "gold": 15819750400,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZN",
+      "field": "freeCashFlow",
+      "gold": 4905375232,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QUBT",
+      "field": "ebitda",
+      "gold": -61116000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TAP",
+      "field": "netIncome",
+      "gold": -2139600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IFF",
+      "field": "ebitda",
+      "gold": 1911000064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YUMC",
+      "field": "totalDebt",
+      "gold": 2302000128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PR",
+      "field": "ebitda",
+      "gold": 4255120896,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LYFT",
+      "field": "totalStockholdersEquity",
+      "gold": 3273523000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MRK",
+      "field": "ebitda",
+      "gold": 29517000704,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CCJ",
+      "field": "totalDebt",
+      "gold": 1222128000,
       "cohort": "clean"
     },
     {
       "ticker": "SUI",
-      "field": "debtToEquity",
-      "gold": 0.72848,
+      "field": "netIncome",
+      "gold": 1430200000,
       "cohort": "clean"
     },
     {
-      "ticker": "KEY",
-      "field": "debtToEquity",
-      "gold": 0.8197340817427997,
+      "ticker": "SGI",
+      "field": "ebitda",
+      "gold": 1274200064,
       "cohort": "clean"
     },
     {
-      "ticker": "ARW",
-      "field": "returnOnEquity",
-      "gold": 0.1214,
+      "ticker": "MRK",
+      "field": "freeCashFlow",
+      "gold": 14049250304,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NBIS",
+      "field": "ebitda",
+      "gold": 258000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REGN",
+      "field": "totalStockholdersEquity",
+      "gold": 31256900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMCSA",
+      "field": "ebitda",
+      "gold": 34072999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FSLY",
+      "field": "totalStockholdersEquity",
+      "gold": 929578000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AFG",
+      "field": "ebitda",
+      "gold": 1415000064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HALO",
+      "field": "totalStockholdersEquity",
+      "gold": 48814000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WDC",
+      "field": "netIncome",
+      "gold": 9298000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BLK",
+      "field": "totalRevenue",
+      "gold": 24216000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNPS",
+      "field": "netIncome",
+      "gold": 1076559000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ALB",
+      "field": "cashAndEquivalents",
+      "gold": 1631687936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REG",
+      "field": "totalRevenue",
+      "gold": 1553524000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WPC",
+      "field": "cashAndEquivalents",
+      "gold": 167252000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TMUS",
+      "field": "totalStockholdersEquity",
+      "gold": 59203000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "USFD",
+      "field": "ebitda",
+      "gold": 1783000064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSCO",
+      "field": "totalStockholdersEquity",
+      "gold": 2581293000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IRM",
+      "field": "cashAndEquivalents",
+      "gold": 204792992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ABBV",
+      "field": "cashAndEquivalents",
+      "gold": 6568999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TGT",
+      "field": "totalStockholdersEquity",
+      "gold": 16165000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DLR",
+      "field": "totalRevenue",
+      "gold": 6112692000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TOST",
+      "field": "ebitda",
+      "gold": 477000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRCL",
+      "field": "totalDebt",
+      "gold": 15951000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "INTC",
+      "field": "totalRevenue",
+      "gold": 52853000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SE",
+      "field": "cashAndEquivalents",
+      "gold": 10540638208,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AIZ",
+      "field": "totalStockholdersEquity",
+      "gold": 5871600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GEN",
+      "field": "ebitda",
+      "gold": 2409999872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ADI",
+      "field": "netIncome",
+      "gold": 2267342000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PGR",
+      "field": "netIncome",
+      "gold": 11308000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNOW",
+      "field": "cashAndEquivalents",
+      "gold": 2344695040,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSEM",
+      "field": "netIncome",
+      "gold": 220470000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNDK",
+      "field": "totalStockholdersEquity",
+      "gold": 15736000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LIN",
+      "field": "freeCashFlow",
+      "gold": 4694499840,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BPOP",
+      "field": "totalStockholdersEquity",
+      "gold": 6249079000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ROK",
+      "field": "ebitda",
+      "gold": 2092000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DIS",
+      "field": "ebitda",
+      "gold": 19719999488,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTCH",
+      "field": "totalRevenue",
+      "gold": 3487197000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRSP",
+      "field": "totalStockholdersEquity",
+      "gold": 1921813000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBS",
+      "field": "totalDebt",
+      "gold": 25640454144,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TT",
+      "field": "netIncome",
+      "gold": 2918600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FNF",
+      "field": "ebitda",
+      "gold": 2408999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AMP",
+      "field": "netIncome",
+      "gold": 3563000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PPL",
+      "field": "totalDebt",
+      "gold": 20376000512,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTNT",
+      "field": "cashAndEquivalents",
+      "gold": 4799000064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GNRC",
+      "field": "totalDebt",
+      "gold": 1410317952,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RXRX",
+      "field": "totalStockholdersEquity",
+      "gold": 1130865000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LNT",
+      "field": "ebitda",
+      "gold": 1828999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RUN",
+      "field": "totalRevenue",
+      "gold": 2956997000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HUBS",
+      "field": "cashAndEquivalents",
+      "gold": 1337943040,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMS",
+      "field": "totalDebt",
+      "gold": 20206999552,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OLLI",
+      "field": "totalRevenue",
+      "gold": 2649198000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CIFR",
+      "field": "ebitda",
+      "gold": 96083000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EFX",
+      "field": "freeCashFlow",
+      "gold": 944600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CF",
+      "field": "cashAndEquivalents",
+      "gold": 2480000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NIO",
+      "field": "ebitda",
+      "gold": 3411818496,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REG",
+      "field": "netIncome",
+      "gold": 527460000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UNM",
+      "field": "netIncome",
+      "gold": 738500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ITW",
+      "field": "freeCashFlow",
+      "gold": 2432999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "A",
+      "field": "freeCashFlow",
+      "gold": 930625024,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "POET",
+      "field": "freeCashFlow",
+      "gold": -36494488,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UPST",
+      "field": "netIncome",
+      "gold": 53601000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EHC",
+      "field": "cashAndEquivalents",
+      "gold": 107700000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WING",
+      "field": "totalDebt",
+      "gold": 1275670016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EHC",
+      "field": "ebitda",
+      "gold": 1463500032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTNX",
+      "field": "cashAndEquivalents",
+      "gold": 2361463040,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXRH",
+      "field": "totalRevenue",
+      "gold": 5878075000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WRB",
+      "field": "netIncome",
+      "gold": 1779403000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTRN",
+      "field": "totalRevenue",
+      "gold": 1786550000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QUBT",
+      "field": "totalStockholdersEquity",
+      "gold": 1598265000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNY",
+      "field": "cashAndEquivalents",
+      "gold": 6350000128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HEI",
+      "field": "ebitda",
+      "gold": 1474066048,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZN",
+      "field": "netIncome",
+      "gold": 10225000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MKSI",
+      "field": "cashAndEquivalents",
+      "gold": 611000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PLTR",
+      "field": "cashAndEquivalents",
+      "gold": 9409098752,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DTE",
+      "field": "cashAndEquivalents",
+      "gold": 42000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ICLR",
+      "field": "netIncome",
+      "gold": 229339000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COO",
+      "field": "totalStockholdersEquity",
+      "gold": 8238900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KVUE",
+      "field": "ebitda",
+      "gold": 3480999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ETSY",
+      "field": "cashAndEquivalents",
+      "gold": 2310701056,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAT",
+      "field": "ebitda",
+      "gold": 16250999808,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EHC",
+      "field": "netIncome",
+      "gold": 566200000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CCJ",
+      "field": "ebitda",
+      "gold": 798452992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CART",
+      "field": "totalStockholdersEquity",
+      "gold": 2518000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAVA",
+      "field": "totalStockholdersEquity",
+      "gold": 779656000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TDG",
+      "field": "ebitda",
+      "gold": 5095000064,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DOV",
+      "field": "totalStockholdersEquity",
+      "gold": 7405206000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CPT",
+      "field": "netIncome",
+      "gold": 384462000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFG",
+      "field": "freeCashFlow",
+      "gold": 1056374976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SMMT",
+      "field": "cashAndEquivalents",
+      "gold": 690678016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRS",
+      "field": "netIncome",
+      "gold": 529800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RDW",
+      "field": "netIncome",
+      "gold": -226552000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NDAQ",
+      "field": "freeCashFlow",
+      "gold": 1691500032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CHKP",
+      "field": "netIncome",
+      "gold": 1056900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNA",
+      "field": "ebitda",
+      "gold": 1409100032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSN",
+      "field": "totalStockholdersEquity",
+      "gold": 18085000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARMK",
+      "field": "freeCashFlow",
+      "gold": 374142496,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "Q",
+      "field": "netIncome",
+      "gold": 692000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ETR",
+      "field": "totalRevenue",
+      "gold": 12946686000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNW",
+      "field": "totalRevenue",
+      "gold": 5339939000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COIN",
+      "field": "totalDebt",
+      "gold": 6668290048,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RRX",
+      "field": "totalRevenue",
+      "gold": 5934500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FRSX",
+      "field": "totalRevenue",
+      "gold": 398000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BAC",
+      "field": "freeCashFlow",
+      "gold": 12613000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OKTA",
+      "field": "freeCashFlow",
+      "gold": 1037625024,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MEDP",
+      "field": "totalStockholdersEquity",
+      "gold": 459071000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BILL",
+      "field": "ebitda",
+      "gold": 100104000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "META",
+      "field": "totalDebt",
+      "gold": 86769000448,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LII",
+      "field": "totalStockholdersEquity",
+      "gold": 1163100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMG",
+      "field": "ebitda",
+      "gold": 2275020032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ACHR",
+      "field": "totalStockholdersEquity",
+      "gold": 2202800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AER",
+      "field": "totalStockholdersEquity",
+      "gold": 19448580078,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CBRE",
+      "field": "totalRevenue",
+      "gold": 40550000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNA",
+      "field": "totalRevenue",
+      "gold": 5156100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTZ",
+      "field": "netIncome",
+      "gold": 399042000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APP",
+      "field": "freeCashFlow",
+      "gold": 3179956224,
       "cohort": "clean"
     },
     {
       "ticker": "GD",
-      "field": "returnOnEquity",
-      "gold": 0.1743,
+      "field": "netIncome",
+      "gold": 4210000000,
       "cohort": "clean"
     },
     {
-      "ticker": "AMT",
-      "field": "operatingMargin",
-      "gold": 0.4482,
+      "ticker": "GPN",
+      "field": "ebitda",
+      "gold": 4482187776,
       "cohort": "clean"
     },
     {
-      "ticker": "LPLA",
-      "field": "debtToEquity",
-      "gold": 1.3537100000000002,
+      "ticker": "BRO",
+      "field": "totalRevenue",
+      "gold": 5763000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAGS",
+      "field": "totalRevenue",
+      "gold": 20410512000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BILL",
+      "field": "cashAndEquivalents",
+      "gold": 1937508992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTD",
+      "field": "netIncome",
+      "gold": 869193000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VG",
+      "field": "netIncome",
+      "gold": 2530000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ES",
+      "field": "cashAndEquivalents",
+      "gold": 1819319040,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTLA",
+      "field": "ebitda",
+      "gold": -414400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAG",
+      "field": "ebitda",
+      "gold": 1394800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WELL",
+      "field": "ebitda",
+      "gold": 3340614912,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ELAN",
+      "field": "totalDebt",
+      "gold": 4232999936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "POET",
+      "field": "netIncome",
+      "gold": -62963213,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HUT",
+      "field": "cashAndEquivalents",
+      "gold": 233579008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WPC",
+      "field": "netIncome",
+      "gold": 466359000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRSN",
+      "field": "totalRevenue",
+      "gold": 1656600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PH",
+      "field": "ebitda",
+      "gold": 5664000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DRI",
+      "field": "freeCashFlow",
+      "gold": 790974976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTLA",
+      "field": "totalRevenue",
+      "gold": 67671000,
       "cohort": "clean"
     },
     {
       "ticker": "BA",
-      "field": "debtToEquity",
-      "gold": 7.38525,
+      "field": "netIncome",
+      "gold": 2235000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WST",
+      "field": "netIncome",
+      "gold": 493700000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSTR",
+      "field": "ebitda",
+      "gold": -36354969600,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BEN",
+      "field": "cashAndEquivalents",
+      "gold": 2670299904,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ON",
+      "field": "ebitda",
+      "gold": 2089900032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QLYS",
+      "field": "cashAndEquivalents",
+      "gold": 426294016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NNE",
+      "field": "totalRevenue",
+      "gold": 214042,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KO",
+      "field": "netIncome",
+      "gold": 13107000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NDAQ",
+      "field": "cashAndEquivalents",
+      "gold": 555000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRTX",
+      "field": "ebitda",
+      "gold": 5100499968,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BKR",
+      "field": "cashAndEquivalents",
+      "gold": 17024000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NNN",
+      "field": "totalStockholdersEquity",
+      "gold": 4408302000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FNV",
+      "field": "totalDebt",
+      "gold": 0,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAL",
+      "field": "cashAndEquivalents",
+      "gold": 7912000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MRNA",
+      "field": "totalStockholdersEquity",
+      "gold": 8650000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OHI",
+      "field": "totalDebt",
+      "gold": 4032576000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FRO",
+      "field": "totalDebt",
+      "gold": 2434842112,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTAI",
+      "field": "totalStockholdersEquity",
+      "gold": 334174000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GS",
+      "field": "totalStockholdersEquity",
+      "gold": 124972000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OXY",
+      "field": "ebitda",
+      "gold": 10826999808,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APD",
+      "field": "netIncome",
+      "gold": -394500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HIMS",
+      "field": "totalDebt",
+      "gold": 1546238976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WSO",
+      "field": "freeCashFlow",
+      "gold": 483663744,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MET",
+      "field": "netIncome",
+      "gold": 3379000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MCO",
+      "field": "totalStockholdersEquity",
+      "gold": 4054000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TT",
+      "field": "totalRevenue",
+      "gold": 21321900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXT",
+      "field": "totalRevenue",
+      "gold": 14799000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PDD",
+      "field": "totalRevenue",
+      "gold": 431845713000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RVTY",
+      "field": "totalRevenue",
+      "gold": 2856051000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OMC",
+      "field": "cashAndEquivalents",
+      "gold": 3796400128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CTSH",
+      "field": "ebitda",
+      "gold": 4036000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TYL",
+      "field": "totalRevenue",
+      "gold": 2332340000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YELP",
+      "field": "netIncome",
+      "gold": 145600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NEM",
+      "field": "totalRevenue",
+      "gold": 22669000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UDR",
+      "field": "freeCashFlow",
+      "gold": 779827776,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTRS",
+      "field": "cashAndEquivalents",
+      "gold": 2096199936,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ECHO",
+      "field": "cashAndEquivalents",
+      "gold": 496192992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLH",
+      "field": "totalStockholdersEquity",
+      "gold": 2745660000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ABT",
+      "field": "freeCashFlow",
+      "gold": 6341125120,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ORLY",
+      "field": "ebitda",
+      "gold": 4169743872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LVS",
+      "field": "totalStockholdersEquity",
+      "gold": 1590000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "POWL",
+      "field": "cashAndEquivalents",
+      "gold": 633561024,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MA",
+      "field": "totalRevenue",
+      "gold": 32791000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OTIS",
+      "field": "totalRevenue",
+      "gold": 14431000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SVM",
+      "field": "netIncome",
+      "gold": -9944000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LEN",
+      "field": "totalRevenue",
+      "gold": 34186934000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BA",
+      "field": "totalStockholdersEquity",
+      "gold": 5454000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APP",
+      "field": "cashAndEquivalents",
+      "gold": 3053306112,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIVE",
+      "field": "cashAndEquivalents",
+      "gold": 1113261952,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NEE",
+      "field": "ebitda",
+      "gold": 14593000448,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TJX",
+      "field": "cashAndEquivalents",
+      "gold": 5580000256,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BRK.B",
+      "field": "ebitda",
+      "gold": 130683002880,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APA",
+      "field": "cashAndEquivalents",
+      "gold": 444000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SVM",
+      "field": "totalDebt",
+      "gold": 118446000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MPLX",
+      "field": "totalRevenue",
+      "gold": 11474000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BIDU",
+      "field": "totalStockholdersEquity",
+      "gold": 266330000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIS",
+      "field": "totalRevenue",
+      "gold": 10677000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MEDP",
+      "field": "netIncome",
+      "gold": 451123000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRTX",
+      "field": "cashAndEquivalents",
+      "gold": 7852400128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FSLR",
+      "field": "totalStockholdersEquity",
+      "gold": 9537993000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LUV",
+      "field": "netIncome",
+      "gold": 441000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBL",
+      "field": "freeCashFlow",
+      "gold": 1282875008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TPL",
+      "field": "cashAndEquivalents",
+      "gold": 248612000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ELS",
+      "field": "ebitda",
+      "gold": 743934976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAL",
+      "field": "netIncome",
+      "gold": 111000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HST",
+      "field": "totalRevenue",
+      "gold": 6114000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FCNCA",
+      "field": "totalStockholdersEquity",
+      "gold": 22238000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "S",
+      "field": "totalRevenue",
+      "gold": 1001278000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ENTG",
+      "field": "totalRevenue",
+      "gold": 3196600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAYC",
+      "field": "netIncome",
+      "gold": 453400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PINS",
+      "field": "ebitda",
+      "gold": 296132000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CW",
+      "field": "ebitda",
+      "gold": 843086016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HRL",
+      "field": "cashAndEquivalents",
+      "gold": 574262976,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SPCX",
+      "field": "ebitda",
+      "gold": 11736000512,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GKOS",
+      "field": "cashAndEquivalents",
+      "gold": 286225984,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GGG",
+      "field": "totalRevenue",
+      "gold": 2236604000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PN",
+      "field": "ebitda",
+      "gold": -9693440,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IREN",
+      "field": "ebitda",
+      "gold": 38347000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXN",
+      "field": "totalStockholdersEquity",
+      "gold": 16273000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AEP",
+      "field": "totalRevenue",
+      "gold": 21876000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RPD",
+      "field": "freeCashFlow",
+      "gold": 133225752,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COIN",
+      "field": "ebitda",
+      "gold": 699548992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GPN",
+      "field": "cashAndEquivalents",
+      "gold": 5408962048,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EXEL",
+      "field": "cashAndEquivalents",
+      "gold": 839385024,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GWRE",
+      "field": "netIncome",
+      "gold": 139283000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UI",
+      "field": "netIncome",
+      "gold": 960303000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SITM",
+      "field": "ebitda",
+      "gold": 45841000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FRSX",
+      "field": "ebitda",
+      "gold": -11678000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DD",
+      "field": "totalRevenue",
+      "gold": 6849000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WPC",
+      "field": "totalRevenue",
+      "gold": 1716485000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BALL",
+      "field": "ebitda",
+      "gold": 2076000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REBN",
+      "field": "cashAndEquivalents",
+      "gold": 309878,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WRB",
+      "field": "totalDebt",
+      "gold": 3103180032,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTI",
+      "field": "totalStockholdersEquity",
+      "gold": 3363800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EMN",
+      "field": "totalRevenue",
+      "gold": 8752000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSLA",
+      "field": "netIncome",
+      "gold": 3220000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "XYZ",
+      "field": "ebitda",
+      "gold": 1547908992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CDW",
+      "field": "netIncome",
+      "gold": 1066600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EBAY",
+      "field": "ebitda",
+      "gold": 3096000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CROX",
+      "field": "ebitda",
+      "gold": 926537024,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PSA",
+      "field": "ebitda",
+      "gold": 3436555008,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBC",
+      "field": "totalDebt",
+      "gold": 878099968,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARE",
+      "field": "netIncome",
+      "gold": -1429570000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSM",
+      "field": "totalDebt",
+      "gold": 1064582700000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NVDA",
+      "field": "totalStockholdersEquity",
+      "gold": 157293000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "D",
+      "field": "totalDebt",
+      "gold": 53931999232,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FLUT",
+      "field": "totalRevenue",
+      "gold": 16383000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAYX",
+      "field": "ebitda",
+      "gold": 3078000128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PGR",
+      "field": "ebitda",
+      "gold": 15335999488,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ASML",
+      "field": "totalStockholdersEquity",
+      "gold": 30025458984,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ASML",
+      "field": "freeCashFlow",
+      "gold": 10374124544,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MCK",
+      "field": "cashAndEquivalents",
+      "gold": 5164000256,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "STX",
+      "field": "totalStockholdersEquity",
+      "gold": 2167000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KTOS",
+      "field": "totalRevenue",
+      "gold": 1346800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ASND",
+      "field": "ebitda",
+      "gold": 263454000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GLPI",
+      "field": "totalDebt",
+      "gold": 8379888128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AON",
+      "field": "totalRevenue",
+      "gold": 17181000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MARA",
+      "field": "freeCashFlow",
+      "gold": -1168091392,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BAC",
+      "field": "ebitda",
+      "gold": 40009000000,
       "cohort": "clean"
     }
   ]

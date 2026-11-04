@@ -8,6 +8,7 @@ import {
   shouldFlagVendorGap,
   missingL0Inputs,
   nonUsdSkipReason,
+  statementLevelSignIssue,
 } from "./stock-db-audit-guards.js";
 import {
   auditL0,
@@ -46,6 +47,12 @@ describe("stock-db-audit-guards", () => {
   it("non-USD absolute field skip reason", () => {
     assert.equal(nonUsdSkipReason({ reportedCurrency: "JPY" }, "totalRevenue"), "non_usd:JPY");
     assert.equal(nonUsdSkipReason({ reportedCurrency: "JPY" }, "peRatio"), null);
+  });
+
+  it("statement levels: zero or negative revenue/debt flagged", () => {
+    assert.equal(statementLevelSignIssue("totalRevenue", 0), "statement_gold_zero");
+    assert.equal(statementLevelSignIssue("totalDebt", -1), "statement_negative_gold=-1");
+    assert.equal(statementLevelSignIssue("netIncome", -1e6), null);
   });
 });
 

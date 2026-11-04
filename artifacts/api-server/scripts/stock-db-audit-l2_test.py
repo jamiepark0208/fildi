@@ -45,24 +45,31 @@ def audit_instant(facts: dict, concepts: list[str], asof: str, anchor: str) -> d
 
 def sec_debt_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, str]:
     lt = audit_instant(facts, DEBT_LT, asof, anchor)
+    if lt is None:
+        return None, "debt LT tag missing"
     cur = audit_instant(facts, DEBT_CUR, asof, anchor)
     st = audit_instant(facts, DEBT_ST, asof, anchor)
-    parts = [p for p in (lt, cur, st) if p is not None]
-    if not parts:
-        return None, "debt tags missing"
-    total = sum(p["value"] for p in parts)
+    total = lt["value"] + (cur["value"] if cur else 0.0) + (st["value"] if st else 0.0)
     return total, "debt ex-leases"
 
 
-def miss_cause(note: str) -> str:
-    n = (note or "").lower()
-    if "missing" in n or "no us-gaap" in n:
+def miss_cause(row: dict) -> str:
+    note = (row.get("note") or "").lower()
+    if row.get("truth") is None:
+        if "missing" in note or "no us-gaap" in note:
+            return "truth_missing"
+        if "stale" in note:
+            return "stale_period"
         return "truth_missing"
-    if "stale" in n:
-        return "stale_period"
-    if "not filing" in n:
-        return "not_checkable"
-    return "band_miss"
+    field = row["field"]
+    if field in ("ebitda", "freeCashFlow", "cashAndEquivalents", "debtToEquity", "netIncome"):
+        return "definition"
+    gold = float(row["gold"])
+    truth = float(row["truth"])
+    rel = abs(gold - truth) / max(abs(gold), abs(truth), 1.0)
+    if rel > 0.35:
+        return "gold_wrong"
+    return "truth_builder"
 
 
 def test_ok_margin_hand_check():
@@ -81,8 +88,30 @@ def test_period_fresh_15mo():
 
 
 def test_miss_cause():
-    assert miss_cause("debt tags missing") == "truth_missing"
-    assert miss_cause("stale NI period") == "stale_period"
+    assert miss_cause({"note": "debt LT tag missing", "truth": None}) == "truth_missing"
+    assert miss_cause({"note": "stale NI period", "truth": None}) == "stale_period"
+    assert miss_cause({
+        "note": "ok",
+        "truth": 100.0,
+        "gold": 200.0,
+        "field": "totalRevenue",
+    }) == "gold_wrong"
+
+
+def test_sec_debt_cur_only_no_truth():
+    anchor = "2024-12-31"
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "LongTermDebtCurrent": {
+                    "units": {"USD": [{"val": 5.0, "end": anchor}]},
+                },
+            }
+        }
+    }
+    total, note = sec_debt_total(facts, anchor, anchor)
+    assert total is None
+    assert "LT" in note
 
 
 def test_sec_debt_sums_lt_and_st():
@@ -108,5 +137,6 @@ if __name__ == "__main__":
     test_audit_instant_missing_not_zero()
     test_period_fresh_15mo()
     test_miss_cause()
+    test_sec_debt_cur_only_no_truth()
     test_sec_debt_sums_lt_and_st()
     print("ok")

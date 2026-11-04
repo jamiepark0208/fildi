@@ -21,6 +21,7 @@ import {
   nonUsdSkipReason,
   shouldFlagPickerDrift,
   shouldFlagVendorGap,
+  statementLevelSignIssue,
 } from "./stock-db-audit-guards.js";
 import {
   CAUSE_META,
@@ -42,6 +43,17 @@ export const SEGMENT_LEVERAGE_RETURNS_FIELDS = new Set([
   "grossMargin",
   "operatingMargin",
   "netMargin",
+]);
+
+/** A329 round 5 — statement $ levels (revenue, NI, equity, debt, cash, EBITDA, FCF). */
+export const SEGMENT_STATEMENT_LEVELS_FIELDS = new Set([
+  "totalRevenue",
+  "netIncome",
+  "totalStockholdersEquity",
+  "totalDebt",
+  "cashAndEquivalents",
+  "ebitda",
+  "freeCashFlow",
 ]);
 
 export type AuditLayer = "L0" | "L1";
@@ -188,6 +200,11 @@ export function auditL0(input: AuditInput): AuditFinding {
   }
 
   if (gold == null) return finalizeSkip(base, "gold_null");
+
+  const stmtSign = statementLevelSignIssue(field, gold);
+  if (stmtSign) {
+    return finalizeFlag(base, "input_missing", input, stmtSign);
+  }
 
   const bookEq = num(input.fund.totalStockholdersEquity);
   if (

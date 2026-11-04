@@ -29,7 +29,15 @@ EQ = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNon
 DEBT_LT = ["LongTermDebtNoncurrent", "LongTermDebt"]
 DEBT_CUR = ["LongTermDebtCurrent"]
 DEBT_ST = ["ShortTermBorrowings", "CommercialPaper"]
+CASH = [
+    "CashAndCashEquivalentsAtCarryingValue",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+]
+DA = ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"]
+OCF = ["NetCashProvidedByUsedInOperatingActivities"]
+CAPEX = ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"]
 MAX_PERIOD_DAYS = 15 * 30
+DEFINITION_FIELDS = {"ebitda", "freeCashFlow", "cashAndEquivalents", "debtToEquity", "netIncome"}
 
 
 def ok(v, t, field):
@@ -81,26 +89,55 @@ def audit_instant(facts: dict, concepts: list[str], asof: str, anchor: str) -> d
 
 
 def sec_debt_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, str]:
+    """LT debt tag required; add current portion + ST borrowings when present (leases excluded)."""
     lt = audit_instant(facts, DEBT_LT, asof, anchor)
+    if lt is None:
+        return None, "debt LT tag missing"
     cur = audit_instant(facts, DEBT_CUR, asof, anchor)
     st = audit_instant(facts, DEBT_ST, asof, anchor)
-    parts = [p for p in (lt, cur, st) if p is not None]
-    if not parts:
-        return None, "debt tags missing"
-    total = sum(p["value"] for p in parts)
-    ends = ",".join(sorted({p["end"] for p in parts}))
+    total = lt["value"] + (cur["value"] if cur else 0.0) + (st["value"] if st else 0.0)
+    ends = ",".join(sorted({p["end"] for p in (lt, cur, st) if p is not None}))
     return total, f"debt ex-leases ends={ends}"
 
 
-def miss_cause(note: str) -> str:
-    n = (note or "").lower()
-    if "missing" in n or "no us-gaap" in n:
+def filer_de_excluded(conn, ticker: str) -> bool:
+    r = rows(
+        conn,
+        "SELECT sector, industry_group FROM ticker_registry WHERE ticker=%s",
+        (ticker.upper(),),
+    )
+    if not r:
+        return False
+    sector = (r[0].get("sector") or "").lower()
+    industry = (r[0].get("industry_group") or "").lower()
+    if "real estate" in sector or "reit" in industry:
+        return True
+    if "insurance" in sector or "insurance" in industry:
+        return True
+    return False
+
+
+def miss_cause(row: dict) -> str:
+    note = (row.get("note") or "").lower()
+    if row.get("truth") is None:
+        if "missing" in note or "no us-gaap" in note:
+            return "truth_missing"
+        if "stale" in note:
+            return "stale_period"
+        if "not filing" in note or "excluded filer" in note:
+            return "definition"
         return "truth_missing"
-    if "stale" in n:
-        return "stale_period"
-    if "not filing" in n:
-        return "not_checkable"
-    return "band_miss"
+    gold = float(row["gold"])
+    truth = float(row["truth"])
+    field = row["field"]
+    if field in DEFINITION_FIELDS or "excluded filer" in note:
+        return "definition"
+    rel = abs(gold - truth) / max(abs(gold), abs(truth), 1.0)
+    if rel > 0.35:
+        return "gold_wrong"
+    if rel > 0.20:
+        return "truth_builder"
+    return "gold_wrong"
 
 
 def sec_truth(conn, facts, ticker, field):
@@ -145,6 +182,8 @@ def sec_truth(conn, facts, ticker, field):
             return ni["value"] / eq["value"], f"NI/ending equity {eq['end']}"
         return None, "missing ROE inputs or non-positive equity"
     if field == "debtToEquity":
+        if filer_de_excluded(conn, ticker):
+            return None, "D/E excluded filer type (REIT/insurer)"
         debt, dnote = sec_debt_total(facts, asof, anchor)
         eq = audit_instant(facts, EQ, asof, anchor)
         if debt is None or eq is None:
@@ -152,6 +191,37 @@ def sec_truth(conn, facts, ticker, field):
         if eq["value"] <= 0:
             return None, "non-positive equity"
         return debt / eq["value"], f"{dnote} / eq {eq['end']}"
+    if field == "totalDebt":
+        debt, dnote = sec_debt_total(facts, asof, anchor)
+        if debt is None:
+            return None, dnote
+        return debt, dnote
+    if field == "totalStockholdersEquity":
+        eq = audit_instant(facts, EQ, asof, anchor)
+        if not eq:
+            return None, "equity tag missing/stale"
+        return eq["value"], f"equity {eq['concept']} {eq['end']}"
+    if field == "cashAndEquivalents":
+        cash = audit_instant(facts, CASH, asof, anchor)
+        if not cash:
+            return None, "cash tag missing/stale"
+        return cash["value"], f"cash {cash['concept']} {cash['end']}"
+    if field == "netIncome":
+        if ni and ni.get("end") and period_fresh(ni["end"], anchor):
+            return ni["value"], f"NI TTM {ni['end']}"
+        return None, "stale NI period" if ni else "NI tag missing"
+    if field == "ebitda":
+        oi = F.ttm_flow(facts, ["OperatingIncomeLoss"])
+        da = F.ttm_flow(facts, DA)
+        if oi and da and period_fresh(oi["end"], anchor):
+            return oi["value"] + da["value"], f"OI+DA TTM {oi['end']}"
+        return None, "EBITDA components missing/stale"
+    if field == "freeCashFlow":
+        ocf = F.ttm_flow(facts, OCF)
+        cap = F.ttm_flow(facts, CAPEX)
+        if ocf and cap and period_fresh(ocf["end"], anchor):
+            return ocf["value"] - cap["value"], f"OCF-capex TTM {ocf['end']}"
+        return None, "FCF components missing/stale"
     if field == "totalRevenue" and rev:
         return rev["value"], rev["how"]
     return None, "not filing-checkable"
@@ -232,7 +302,7 @@ def main():
             "gold": r["gold"],
             "truth": r["truth"],
             "note": r["note"],
-            "cause": miss_cause(r["note"]),
+            "cause": miss_cause(r),
         }
         for r in judged
         if r.get("cohort") == "clean" and r["truth"] is not None and not r["ok"]
