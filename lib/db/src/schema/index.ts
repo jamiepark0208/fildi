@@ -1984,3 +1984,60 @@ export const auditFindings = pgTable('audit_findings', {
 
 export type AuditFindingRow = typeof auditFindings.$inferSelect
 export type InsertAuditFinding = typeof auditFindings.$inferInsert
+
+// ── indicator track record (tv-indicators spec phase 2 B, Jamie 11-04) ───────────────────────────────────────────
+// One row per event an indicator fired (per version/ticker/tf); a grade row per event; a scorecard row per
+// (indicator, version, kind, tf) with the fixed verdict rule. Nightly job: api-server lib/indicator-grading-job.ts.
+export const indicatorEvents = pgTable('indicator_events', {
+  id:          serial('id').primaryKey(),
+  indicatorId: text('indicator_id').notNull(),
+  version:     integer('version').notNull(),
+  ticker:      text('ticker').notNull(),
+  tf:          text('tf').notNull(),                 // 5m | 15m | 1h
+  time:        timestamp('time', { withTimezone: true }).notNull(), // start of the signal bar; entry = that bar's close
+  side:        text('side').notNull(),               // buy | sell | neutral
+  kind:        text('kind').notNull(),
+  price:       numeric('price').notNull(),
+  atr:         numeric('atr'),                       // ATR(14) on the same tf at the signal bar
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  eventUnique: unique('indicator_events_uniq').on(t.indicatorId, t.version, t.ticker, t.tf, t.time, t.kind, t.side),
+  lookupIdx:   index('indicator_events_lookup_idx').on(t.indicatorId, t.version, t.tf),
+}))
+
+export const indicatorGrades = pgTable('indicator_grades', {
+  eventId:     integer('event_id').primaryKey().references(() => indicatorEvents.id, { onDelete: 'cascade' }),
+  fwd30mPct:   numeric('fwd_30m_pct'),               // % move in the signal's direction (neutral = null), same session only
+  fwd60mPct:   numeric('fwd_60m_pct'),
+  fwdClosePct: numeric('fwd_close_pct'),
+  mfeAtr:      numeric('mfe_atr'),                   // best favourable excursion to the session close, in ATR
+  maeAtr:      numeric('mae_atr'),                   // worst adverse excursion (>= 0), in ATR
+  hit:         boolean('hit'),                       // +0.5 ATR before -0.5 ATR, same session; null when neutral/no bars
+  placeboHit:  boolean('placebo_hit'),               // same test from a random other bar, same ticker/tf/time-of-day/direction
+  gradedAt:    timestamp('graded_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const indicatorScorecard = pgTable('indicator_scorecard', {
+  indicatorId: text('indicator_id').notNull(),
+  version:     integer('version').notNull(),
+  kind:        text('kind').notNull(),               // event kind or ALL
+  tf:          text('tf').notNull(),                 // 5m | 15m | 1h | ALL
+  n:           integer('n').notNull(),
+  hitPct:      numeric('hit_pct'),
+  placeboHitPct: numeric('placebo_hit_pct'),
+  liftPts:     numeric('lift_pts'),
+  tStat:       numeric('t_stat'),
+  signBothHalves: boolean('sign_both_halves'),
+  mdePts:      numeric('mde_pts'),
+  verdict:     text('verdict').notNull(),            // likely useful | likely noise | too early
+  needMore:    integer('need_more'),                 // extra signals for MDE <= 3 pts (too early only)
+  days:        integer('days'),
+  gradedThrough: timestamp('graded_through', { withTimezone: true }),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  pk: primaryKey({ columns: [t.indicatorId, t.version, t.kind, t.tf] }),
+}))
+
+export type IndicatorEventRow = typeof indicatorEvents.$inferSelect
+export type IndicatorGradeRow = typeof indicatorGrades.$inferSelect
+export type IndicatorScorecardRow = typeof indicatorScorecard.$inferSelect
