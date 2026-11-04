@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { STOCK_COLORS } from "./stock-cards";
 import { IndicatorMenu } from "@/components/charts/indicator-menu";
 import { TvIndicatorLayer, type LayerItem } from "@/components/charts/tv-indicator-layer";
-import { TV_INDICATORS, type TvBar, type TvIndicatorId } from "@/lib/tv-indicators";
+import { TV_INDICATORS, type TvBar, type TvIndicatorId } from "@workspace/indicators";
 import {
   createChart, createSeriesMarkers, LineSeries, CandlestickSeries, HistogramSeries,
   ColorType, LineStyle, CrosshairMode,

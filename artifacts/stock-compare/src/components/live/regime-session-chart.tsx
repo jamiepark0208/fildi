@@ -30,8 +30,8 @@ import { TradingViewAdvancedChart } from "@/components/live/tradingview-advanced
 import { regimeOdds, type OHLC } from "@/lib/tv-intraday";
 import { IndicatorMenu } from "@/components/charts/indicator-menu";
 import { TvIndicatorLayer } from "@/components/charts/tv-indicator-layer";
-import { TV_INDICATORS, TV_INDICATOR_BY_ID, TF_MINUTES, resample, type TvIndicatorId, type TvTimeframe } from "@/lib/tv-indicators";
-import { etClock } from "@/lib/tv-indicators/resample";
+import { TV_INDICATORS, TV_INDICATOR_BY_ID, TF_MINUTES, resample, type TvIndicatorId, type TvTimeframe } from "@workspace/indicators";
+import { etClock } from "@workspace/indicators";
 
 /** Keep chart failures off the Live route ErrorBoundary. */
 class ChartIsolate extends Component<

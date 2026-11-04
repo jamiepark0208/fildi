@@ -9,9 +9,9 @@
  * of the two alertconditions. Skipped on purpose: heatmap boxes, TP/SL trade drawings and their milestone checkmarks.
  * `bar_index` is the index in the bars passed in (TradingView's counts from the first loaded bar).
  */
-import { atr } from "../tv-intraday.ts";
+import { atr } from "./ut-st.ts";
 import { highest, lowest, sma, type Series } from "./pine.ts";
-import type { TvBar } from "./types.ts";
+import type { IndicatorDef, TvBar } from "./types.ts";
 
 export type LshOptions = {
   shortBars: number; mediumBars: number; longBars: number; keepLevelsForBars: number;
@@ -293,3 +293,36 @@ export function lsh(bars: TvBar[], opt: Partial<LshOptions> = {}): LshResult {
   }
   return { levels: all, signals, upper, lower };
 }
+
+const lf = (x: number): string => (Math.abs(x) >= 100 ? x.toFixed(2) : x.toFixed(3));
+
+export const def: IndicatorDef<LshOptions> = {
+  id: "lsh",
+  label: "Liquidity Sweep",
+  version: 1,
+  source: { url: "https://www.tradingview.com/scripts/search/liquidity+sweep+hunter+algoalpha/", author: "AlgoAlpha", license: "MPL-2.0", pinePath: "research/sources/tradingview/liquidity-sweep-hunter-algoalpha.pine" },
+  defaults: LSH_DEFAULTS,
+  timeframes: ["5m", "15m", "1h"],
+  pane: "price",
+  title: "Nearest 3 liquidity highs (red) / lows (teal); arrows = sweep of 2+ levels then reclaim.",
+  marker: (e) => ({ text: "Sweep", color: e.side === "buy" ? "#00ffbb" : "#ff1100" }),
+  compute(bars, opts) {
+    const r = lsh(bars, opts);
+    const series: Record<string, number[]> = {};
+    r.upper.forEach((v, k) => { series[`u${k + 1}`] = v; });
+    r.lower.forEach((v, k) => { series[`l${k + 1}`] = v; });
+    return {
+      series,
+      events: r.signals.map((s) => ({
+        time: s.time, side: s.side === "bull" ? "buy" : "sell", kind: "Sweep", price: bars[s.i]!.close,
+        note: [`${s.side === "bull" ? "Bullish" : "Bearish"} sweep reversal: ${s.bands} levels cleared (avg strength ${(s.strength * 100).toFixed(0)}%), reclaimed ${lf(s.reclaim)}`],
+      })),
+      view: {
+        lines: [
+          ...r.upper.map((_, k) => ({ key: `u${k + 1}`, color: "rgba(239,68,68,0.8)", dashed: true })),
+          ...r.lower.map((_, k) => ({ key: `l${k + 1}`, color: "rgba(0,255,187,0.8)", dashed: true })),
+        ],
+      },
+    };
+  },
+};

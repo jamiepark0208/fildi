@@ -3,7 +3,7 @@
  * Drawing/label/colour inputs are dropped; the break logic, oscillator and divergence rules are ported line by line.
  */
 import { change, ema, pivothigh, pivotlow, stdev, type Series } from "./pine.ts";
-import type { TvBar } from "./types.ts";
+import type { IndicatorDef, IndEvent, MarkerStyle, TvBar } from "./types.ts";
 
 export type MsoOptions = { momLength: number; smoothLength: number; msPivotLeft: number; msPivotRight: number; divPivotLeft: number; divPivotRight: number };
 export const MSO_DEFAULTS: MsoOptions = { momLength: 14, smoothLength: 10, msPivotLeft: 5, msPivotRight: 5, divPivotLeft: 5, divPivotRight: 5 };
@@ -119,3 +119,46 @@ export function mso(bars: TvBar[], opt: Partial<MsoOptions> = {}): MsoResult {
   }
   return { osc, trendFilteredOsc: tfo, trendUp, breaks, divergences };
 }
+
+const BULL = "#35cfc5", BEAR = "#ff5454";
+const fmt = (x: number): string => (Math.abs(x) >= 100 ? x.toFixed(2) : x.toFixed(3));
+
+export const def: IndicatorDef<MsoOptions> = {
+  id: "mso",
+  label: "Market Structure Osc",
+  version: 1,
+  source: { url: "https://www.tradingview.com/scripts/search/market+structure+oscillator+bigbeluga/", author: "BigBeluga", license: "MPL-2.0 (see pine header)", pinePath: "research/sources/tradingview/market-structure-oscillator-bigbeluga.pine" },
+  defaults: MSO_DEFAULTS,
+  timeframes: ["5m", "15m", "1h"],
+  pane: "sub",
+  title: "BigBeluga: histogram by structure trend; squares = ChoCh/BoS, dots = divergence.",
+  marker(e: IndEvent): MarkerStyle {
+    const bull = e.side === "buy";
+    return e.kind === "Div"
+      ? { text: "Div", color: bull ? "#facc15" : "#fb923c", shape: "circle" }
+      : { text: e.kind, color: bull ? BULL : BEAR, shape: "square" };
+  },
+  compute(bars, opts) {
+    const r = mso(bars, opts);
+    const events: IndEvent[] = [];
+    for (const b of r.breaks) {
+      events.push({ time: b.time, side: b.dir === "bull" ? "buy" : "sell", kind: b.kind, price: bars[b.i]!.close, note: [`${b.kind} ${b.dir === "bull" ? "up" : "down"} #${b.count}: close broke swing ${b.dir === "bull" ? "high" : "low"} ${fmt(b.price)}`] });
+    }
+    for (const d of r.divergences) {
+      events.push({
+        time: d.time, side: d.dir === "bull" ? "buy" : "sell", kind: "Div", price: bars[d.i]!.close,
+        note: [`${d.dir === "bull" ? "Bullish" : "Bearish"} divergence: price ${d.dir === "bull" ? "low" : "high"} ${fmt(d.price)} vs ${fmt(d.prevPrice)}, osc ${d.osc.toFixed(1)} vs ${d.prevOsc.toFixed(1)}`],
+      });
+    }
+    events.sort((a, b) => a.time - b.time);
+    return {
+      series: { osc: r.osc, tfo: r.trendFilteredOsc },
+      events,
+      view: {
+        lines: [{ key: "osc", color: BULL, width: 2, colors: r.osc.map((v) => (v >= 50 ? BULL : BEAR)) }],
+        hist: { key: "tfo", base: 50, colors: r.trendFilteredOsc.map((v) => (v >= 50 ? "rgba(53,207,197,0.6)" : "rgba(255,84,84,0.6)")) },
+        hlines: [50],
+      },
+    };
+  },
+};

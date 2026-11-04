@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TV_INDICATORS, type IndResult, type TvBar } from "./index.ts";
+import { INDICATORS, TV_INDICATORS, type IndResult, type TvBar } from "./index.ts";
 import { ichimoku } from "./ichimoku.ts";
 import { lsh } from "./lsh.ts";
 import { mso } from "./mso.ts";
@@ -54,6 +54,32 @@ describe("no look-ahead", () => {
   }
 });
 
+describe("indicator defs (plug-in contract)", () => {
+  it("every def has source/version/timeframes and its events carry buy|sell|neutral, a kind, a finite entry price", () => {
+    for (const d of INDICATORS) {
+      assert.ok(d.version >= 1 && d.source.url && d.source.author && d.source.license, d.id);
+      assert.deepEqual(d.timeframes, ["5m", "15m", "1h"]);
+      const out = d.compute(bars1mo);
+      for (const e of out.events) assert.ok(["buy", "sell", "neutral"].includes(e.side) && e.kind && Number.isFinite(e.price) && Number.isFinite(e.time), `${d.id} event`);
+      for (const l of out.view.lines) assert.ok(out.series[l.key], `${d.id} view line ${l.key} has a series`);
+    }
+  });
+  it("events at bar i are unchanged when later bars are removed (no look-ahead)", () => {
+    const full = bars1mo.slice(0, 900);
+    for (const d of INDICATORS) {
+      const all = d.compute(full).events;
+      for (const k of [300, 500, 700]) {
+        const cutT = full[k - 1]!.time;
+        const part = d.compute(full.slice(0, k)).events;
+        assert.deepEqual(part, all.filter((e) => e.time <= cutT), `${d.id} events changed with cut ${k}`);
+      }
+    }
+  });
+  it("ut, st, ichimoku, squeeze, mso, lsh each yield events on the 1mo fixture except where rare (lsh may be sparse)", () => {
+    for (const id of ["ut", "st", "ichimoku", "squeeze", "mso"]) assert.ok(INDICATORS.find((d) => d.id === id)!.compute(bars1mo).events.length > 0, id);
+  });
+});
+
 describe("indicators on SPY 5m", () => {
   it("every output is finite after warm-up (1mo)", () => {
     for (const ind of TV_INDICATORS) finiteFrom(ind.compute(bars1mo), 120, ind.id);
@@ -102,6 +128,10 @@ describe("indicators on SPY 5m", () => {
     assert.ok(r.signals.every((s) => Number.isFinite(s.price) && s.i >= s.sweepBar));
     assert.ok(r.levels.some((l) => l.removedBy === "mitigated"));
   });
+  it("lsh audit lock (11-04): default gates give 1 signal on the 1mo fixture; no strength filter gives 3 (rare by design: 2+ distinct swept bands, then a reclaim within 2 bars)", () => {
+    assert.equal(lsh(bars1mo).signals.length, 1);
+    assert.equal(lsh(bars1mo, { filterSweepsByStrength: false }).signals.length, 3);
+  });
   it("lsh on the 5d fixture builds fast/mid levels", () => assert.ok(lsh(bars5d).levels.length > 0));
   it("ut/st produce events on the registry path", () => {
     const ut = TV_INDICATORS.find((x) => x.id === "ut")!.compute(bars1mo);
@@ -109,8 +139,10 @@ describe("indicators on SPY 5m", () => {
     const st = TV_INDICATORS.find((x) => x.id === "st")!.compute(bars1mo);
     assert.ok(st.lines[0]!.values.some(Number.isFinite));
   });
-  it("registry lists the 8 ids once each, title is one line", () => {
-    assert.deepEqual(TV_INDICATORS.map((x) => x.id).sort(), ["ichimoku", "lsh", "macd", "mso", "rsi", "squeeze", "st", "ut"]);
+  it("registry lists each id once (core 8 present), title is one line", () => {
+    const ids = TV_INDICATORS.map((x) => x.id);
+    assert.equal(new Set(ids).size, ids.length);
+    for (const id of ["ichimoku", "lsh", "macd", "mso", "rsi", "squeeze", "st", "ut"]) assert.ok(ids.includes(id as never), id);
     for (const x of TV_INDICATORS) assert.ok(x.title.length < 110 && !x.title.includes("\n"));
   });
 });

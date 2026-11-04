@@ -1,5 +1,5 @@
 import { highest, linreg, lowest, nz, sma, stdev, tr, type Series } from "./pine.ts";
-import type { TvBar } from "./types.ts";
+import type { IndicatorDef, IndEvent, TvBar } from "./types.ts";
 
 /** LazyBear "Squeeze Momentum Indicator" v1 defaults. */
 export type SqueezeOptions = { bbLength: number; bbMult: number; kcLength: number; kcMult: number; useTrueRange: boolean };
@@ -64,3 +64,36 @@ export function squeeze(bars: TvBar[], opt: Partial<SqueezeOptions> = {}): Squee
   }
   return { val, barColor, state, events };
 }
+
+const SQZ_BAR: Record<string, string> = { lime: "#00e600", green: "#007a00", red: "#ff2020", maroon: "#7a0000" };
+const SQZ_STATE: Record<string, string> = { on: "#e5e7eb", off: "#6b7280", none: "#2962ff" };
+
+export const def: IndicatorDef<SqueezeOptions> = {
+  id: "squeeze",
+  label: "Squeeze",
+  version: 1,
+  source: { url: "https://www.tradingview.com/script/nqQ1DT5a-Squeeze-Momentum-Indicator-LazyBear/", author: "LazyBear", license: "open source (TradingView)", pinePath: "research/sources/tradingview/squeeze-momentum-lazybear.pine" },
+  defaults: SQUEEZE_DEFAULTS,
+  timeframes: ["5m", "15m", "1h"],
+  pane: "sub",
+  title: "LazyBear momentum bars; cross: white squeeze on, gray off, blue none.",
+  chartKinds: [], // the state cross already shows squeeze on/off
+  compute(bars, opts) {
+    const r = squeeze(bars, opts);
+    // Release = squeeze turns off; direction = sign of the momentum bar that bar (the script's own colouring).
+    const events: IndEvent[] = r.events
+      .filter((e) => e.kind === "squeeze-off")
+      .map((e) => {
+        const v = r.val[e.i]!;
+        return { time: e.time, side: !Number.isFinite(v) ? "neutral" : v > 0 ? "buy" : "sell", kind: "Release", price: bars[e.i]!.close, note: [`squeeze released, momentum ${Number.isFinite(v) ? v.toFixed(3) : "n/a"}`] } satisfies IndEvent;
+      });
+    return {
+      series: { val: r.val, state: r.val.map((v) => (Number.isNaN(v) ? NaN : 0)) },
+      events,
+      view: {
+        lines: [{ key: "state", color: "#6b7280", dots: true, colors: r.state.map((s) => (s ? SQZ_STATE[s]! : null)) }],
+        hist: { key: "val", colors: r.barColor.map((c) => (c ? SQZ_BAR[c]! : "transparent")) },
+      },
+    };
+  },
+};

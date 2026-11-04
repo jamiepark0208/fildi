@@ -1,0 +1,12 @@
+{
+  "name": "@workspace/indicators",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --no-warnings --test 'src/**/*.test.ts'"
+  }
+}

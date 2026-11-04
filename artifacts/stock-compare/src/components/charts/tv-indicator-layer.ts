@@ -15,7 +15,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { IndLine, IndResult, TvIndicator } from "@/lib/tv-indicators";
+import type { IndLine, IndResult, TvIndicator } from "@workspace/indicators";
 
 export type LayerItem = { ind: TvIndicator; res: IndResult };
 export type LayerRenderOptions = {
