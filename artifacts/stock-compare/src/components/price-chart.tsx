@@ -33,6 +33,15 @@ function LegendItem({ swatch, label, explanation }: { swatch: React.ReactNode; l
 
 export type Period = "1D" | "1W" | "1M" | "3M" | "1Y";
 
+/** A331 Backtest Lab — extra markers on trade/signal dates (merged after zone markers). */
+export type ChartMarkerInput = {
+  date: string;
+  price?: number;
+  text?: string;
+  detail?: string;
+  color?: string;
+};
+
 interface PriceChartProps {
   tickers: string[];
   loadedStocks: StockMetrics[];
@@ -42,6 +51,7 @@ interface PriceChartProps {
   tickerForTechnicals?: string;
   /** Compact black/gold styling with no legend and short chart labels — used in the stock breakdown view. */
   compact?: boolean;
+  extraMarkers?: ChartMarkerInput[];
 }
 
 function assignYAxes(stocks: StockMetrics[]): Record<string, "left" | "right"> {
@@ -752,6 +762,7 @@ export function PriceChart({
   showTechnicalZones = false,
   tickerForTechnicals,
   compact = false,
+  extraMarkers,
 }: PriceChartProps) {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -1048,9 +1059,29 @@ export function PriceChart({
   const solidZoneLines = useMemo(() => zonePriceLines.filter(z => !z.dashed), [zonePriceLines]);
   const dashedZoneLines = useMemo(() => zonePriceLines.filter(z => z.dashed), [zonePriceLines]);
 
+  const tradeMarkers = useMemo((): LWMarker[] => {
+    if (!extraMarkers?.length || tickers.length !== 1) return [];
+    const bars = historyByTicker[tickers[0]!] ?? [];
+    const closeByDate = new Map(bars.map((b) => [b.date.slice(0, 10), b.close]));
+    const out: LWMarker[] = [];
+    for (const m of extraMarkers) {
+      const day = m.date.slice(0, 10);
+      const price = m.price ?? closeByDate.get(day);
+      if (price == null) continue;
+      out.push({
+        time: toUnixTime(day),
+        price,
+        color: m.color ?? "#d4af37",
+        text: m.text ?? "▲",
+        detail: m.detail,
+      });
+    }
+    return out;
+  }, [extraMarkers, tickers, historyByTicker]);
+
   const allMarkers = useMemo(
-    () => [...periodExtremaMarkers, ...zoneMarkers, ...ictMarkers].sort((a, b) => a.time - b.time),
-    [periodExtremaMarkers, zoneMarkers, ictMarkers],
+    () => [...periodExtremaMarkers, ...zoneMarkers, ...ictMarkers, ...tradeMarkers].sort((a, b) => a.time - b.time),
+    [periodExtremaMarkers, zoneMarkers, ictMarkers, tradeMarkers],
   );
 
   const emaSeries = useMemo(() => {

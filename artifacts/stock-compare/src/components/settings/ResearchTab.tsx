@@ -2,6 +2,7 @@
  * Settings › Research — studies INDEX + A102 weekly score-outlier review.
  * Data: GET /api/research/studies, GET /api/research/score-outliers.
  */
+import { Link } from "wouter";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -234,6 +235,15 @@ export function ResearchTab() {
   if (isLoading) return <p className="text-xs text-white">Loading…</p>;
   return (
     <div className={SUI.panel}>
+      <div className="flex items-center justify-between gap-2 rounded-md border border-[#d4af37]/25 bg-zinc-950 px-2.5 py-1.5">
+        <div>
+          <p className={SUI.title}>Backtest Lab</p>
+          <p className={SUI.sub}>Run S151 presets · answer + firing today</p>
+        </div>
+        <Link href="/backtest" className="text-[10px] font-semibold bg-[#d4af37] text-black px-2.5 py-1 rounded hover:bg-[#e0bd4a]">
+          Open
+        </Link>
+      </div>
       <Scoreboard />
       <ScoreOutliersPanel />
       <div className={SUI.headRow}>

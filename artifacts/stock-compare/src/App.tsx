@@ -28,6 +28,7 @@ const Feed = lazy(() => import("@/pages/feed"));
 const Sentiment = lazy(() => import("@/pages/sentiment"));
 const Live = lazy(() => import("@/pages/live"));
 const Agents = lazy(() => import("@/pages/agents"));
+const BacktestLab = lazy(() => import("@/pages/backtest-lab"));
 
 /** Old /macro bookmarks → Live › Macro (keeps ?tab=). */
 function MacroToLiveRedirect() {
@@ -143,6 +144,9 @@ function Router() {
       </Route>
       <Route path="/agents">
         <ProtectedRoute><Agents /></ProtectedRoute>
+      </Route>
+      <Route path="/backtest">
+        <ProtectedRoute><BacktestLab /></ProtectedRoute>
       </Route>
       <Route path="/settings">
         <ProtectedRoute><Settings /></ProtectedRoute>
