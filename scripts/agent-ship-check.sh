@@ -45,6 +45,14 @@ if [ "$need_api" -eq 0 ] && [ "$need_ui" -eq 0 ]; then
 fi
 
 fail=0
+# 11-03 (A332 65934a2e): new @ts-nocheck blinded tsc ("0 errors") while the router threw at import. Block added ones.
+nocheck="$( { git diff "$base"..."$head" -- 'artifacts/*/src/*.ts' 'artifacts/*/src/*.tsx' 2>/dev/null
+              [ -z "${1:-}" ] && git diff HEAD -- 'artifacts/*/src/*.ts' 'artifacts/*/src/*.tsx' 2>/dev/null; } \
+            | grep -E '^\+[^+].*@ts-nocheck|^\+//.*@ts-nocheck' | head -3 || true)"
+if [ -n "$nocheck" ]; then
+  echo "agent-ship-check: FAIL new @ts-nocheck added — fix the types instead" >&2
+  fail=1
+fi
 if [ "$need_api" -eq 1 ]; then
   echo "agent-ship-check: typecheck api-server…"
   # Referenced lib/* projects resolve through emitted .d.ts — rebuild them first or new lib exports look missing.
