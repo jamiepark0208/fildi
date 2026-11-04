@@ -32,11 +32,18 @@ describe("statement-gold-policy A329 r6", () => {
     assert.equal(update.totalRevenue, undefined);
   });
 
-  it("applyNonUsdAbsoluteGoldPolicy clears non-USD earningsPerShare", () => {
-    const update: Record<string, number> = { earningsPerShare: 12.5 };
-    const batch: { field: string; result: { source: string; value: number; isOverride: boolean; divergent: boolean } }[] =
-      [{ field: "earningsPerShare", result: { source: "yahoo", value: 12.5, isOverride: false, divergent: false } }];
-    const cleared = applyNonUsdAbsoluteGoldPolicy(update, batch, "CNY");
+  it("applyNonUsdAbsoluteGoldPolicy keeps yahoo EPS (USD per ADS) for non-USD filers", () => {
+    const update: Record<string, number> = { earningsPerShare: 22.76 };
+    const batch = [{ field: "earningsPerShare", result: { source: "yahoo", value: 22.76, isOverride: false, divergent: false } }];
+    const cleared = applyNonUsdAbsoluteGoldPolicy(update, batch, "JPY");
+    assert.deepEqual(cleared, []);
+    assert.equal(update.earningsPerShare, 22.76);
+  });
+
+  it("applyNonUsdAbsoluteGoldPolicy clears fallback-vendor EPS in reporting currency", () => {
+    const update: Record<string, number> = { earningsPerShare: 355.2 };
+    const batch = [{ field: "earningsPerShare", result: { source: "fmp", value: 355.2, isOverride: false, divergent: false } }];
+    const cleared = applyNonUsdAbsoluteGoldPolicy(update, batch, "JPY");
     assert.deepEqual(cleared, ["earningsPerShare"]);
     assert.equal(update.earningsPerShare, undefined);
   });

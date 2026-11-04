@@ -61,6 +61,8 @@ export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "..
 type SFPair = [source: string, sfField: string];
 type FieldDef = { tfCol: string; priority: SFPair[] };
 
+const SEC_OWNED_TFCOLS = new Set(["sharesOutstanding", "tangibleBookValuePerShare"]);
+
 export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
   // factset is last-resort referee (null fill / divergence settle) — never ahead of free sources.
@@ -76,8 +78,9 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "evRevenue",          priority: [["yahoo","evRevenue"],    ["fmp","evRevenue"]] },
   { tfCol: "priceToBook",        priority: [["sec","priceToBook"], ["yahoo","priceToBook"],  ["finnhub","priceToBook"], ["fmp","priceToBook"],  ["alpha_vantage","priceToBook"], ["factset","priceToBook"]] },
   { tfCol: "priceToSales",       priority: [["yahoo","priceToSales"], ["finnhub","psRatio"], ["fmp","priceToSales"]] },
-  // Banks/insurers: P/TBV uses TBVPS from Finnhub (free) / FMP when available
-  { tfCol: "tangibleBookValuePerShare", priority: [["finnhub","tangibleBookValuePerShare"], ["fmp","tangibleBookValuePerShare"], ["factset","tangibleBookValuePerShare"]] },
+  // 11-04 A329 seg3: sec = (common equity − preferred − goodwill − intangibles) / shares, one filing (sec_gold_fields.py).
+  // Vendor TBVPS definitions diverge (PG vendor +14.0 vs SEC −3.5; SLB 14.1 vs 2.6) → fallback only where SEC has none.
+  { tfCol: "tangibleBookValuePerShare", priority: [["sec","tangibleBookValuePerShare"], ["finnhub","tangibleBookValuePerShare"], ["fmp","tangibleBookValuePerShare"], ["factset","tangibleBookValuePerShare"]] },
   // A266 dropped fields — display / provenance. Not score weights.
   { tfCol: "pegTtm",             priority: [["finnhub","pegTtm"]] },
   { tfCol: "epsGrowth5Y",        priority: [["finnhub","epsGrowth5Y"]] },
@@ -135,7 +138,8 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["fmp","totalDebt"]] },
   { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["yahoo","annualTotalEquity"], ["factset","totalStockholdersEquity"], ["edgar","totalEquity"], ["polygon","totalStockholdersEquity"]] },
   // Shares stay a reported count. Market cap / price is circular (the cap is shares × price) and is not a source.
-  { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
+  // 11-04: sec = latest filing cover (≤ 120 d old, class-summed, no ADRs); yahoo lagged buybacks (BAC +4.5 %, TMUS +4.5 %).
+  { tfCol: "sharesOutstanding",       priority: [["sec","sharesOutstanding"], ["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["sec","currentRatio"],         ["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"], ["factset","currentRatio"]] },
 
@@ -326,6 +330,13 @@ function resolveFromIndex(
     }
   }
 
+  // 11-04 A329 seg3: these are defined by the filing (sec_gold_fields.py writes them only when fresh, same period).
+  // A stale vendor cluster must not outvote it (BAC shares: yahoo+edgar 7.21 B vs 10-29 cover 6.90 B).
+  const secOwned = SEC_OWNED_TFCOLS.has(tf) ? orderedBySrc.get("sec") : undefined;
+  if (secOwned != null && Number.isFinite(secOwned)) {
+    return { source: "sec", value: secOwned, isOverride: false, divergent: false };
+  }
+
   // Disputed cells: FactSet rules only forwardPe, gross margin, current ratio,
   // equity, and price/book. Else an agreeing free cluster wins. FactSet is not
   // stored as gold when nothing cheap is close. No cluster → keep the stored
@@ -486,6 +497,32 @@ export async function runMergeTrusted() {
   ]);
   const existingMap = new Map(existingRows.map(r => [r.ticker, r as Record<string, unknown>]));
   const priorWinMap = new Map(provRows.map((r) => [`${r.ticker}:${r.field}`, r.winningSource]));
+
+  // A329 seg3 before/after capture: opt-in, not on every scheduled merge.
+  if (process.env.A329_PRE_MERGE === "1") {
+    const seg3PreMerge: Record<
+      string,
+      { earningsPerShare: number | null; sharesOutstanding: number | null; peRatio: number | null }
+    > = {};
+    for (const [ticker, ex] of existingMap) {
+      seg3PreMerge[ticker] = {
+        earningsPerShare:
+          ex.earningsPerShare != null && ex.earningsPerShare !== ""
+            ? Number(ex.earningsPerShare)
+            : null,
+        sharesOutstanding:
+          ex.sharesOutstanding != null && ex.sharesOutstanding !== ""
+            ? Number(ex.sharesOutstanding)
+            : null,
+        peRatio: ex.peRatio != null && ex.peRatio !== "" ? Number(ex.peRatio) : null,
+      };
+    }
+    mkdirSync(join(dirname(fileURLToPath(import.meta.url)), "../../../out/audit"), { recursive: true });
+    writeFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../../out/audit/a329-seg3-pre-merge.json"),
+      JSON.stringify({ capturedAt: new Date().toISOString(), tickers: seg3PreMerge }, null, 2),
+    );
+  }
 
   // Treat a value as "changed" only past a small tolerance — avoids logging
   // noise from float round-tripping through numeric/string DB columns.

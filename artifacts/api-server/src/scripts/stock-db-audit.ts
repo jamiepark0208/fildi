@@ -37,6 +37,7 @@ import {
   type SourceVal,
 } from "../lib/stock-db-audit.js";
 import { FIELD_DEFS } from "./merge-trusted.js";
+import { parseYahooMostRecentQuarter } from "../lib/shares-gold-pick.js";
 
 const AUDIT_FIELD_LIST = FIELD_DEFS.map((d) => d.tfCol);
 
@@ -73,6 +74,7 @@ type TickerPack = {
   ticker: string;
   fund: FundRow;
   price: number | null;
+  goldPeriodEnd: string | null;
   prov: Map<string, { divergent: boolean; source: string | null; gold: number | null }>;
   sources: Map<string, SourceVal[]>;
 };
@@ -120,15 +122,41 @@ async function loadPrices(tickers: string[]): Promise<Map<string, number>> {
   return out;
 }
 
+async function loadMrqByTicker(tickers: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (tickers.length === 0) return out;
+  const CHUNK = 400;
+  for (let i = 0; i < tickers.length; i += CHUNK) {
+    const slice = tickers.slice(i, i + CHUNK);
+    const inList = sql.join(slice.map((t) => sql`${t}`), sql`, `);
+    const res = await db.execute(sql`
+      SELECT DISTINCT ON (upper(key)) upper(key) AS ticker,
+        payload->'financialData'->>'mostRecentQuarter' AS mrq
+      FROM vendor_raw
+      WHERE source = 'yahoo' AND payload ? 'financialData' AND upper(key) IN (${inList})
+      ORDER BY upper(key), fetched_on DESC
+    `);
+    const list =
+      (Array.isArray(res) ? res : (res as unknown as { rows?: { ticker: string; mrq: string }[] }).rows) ?? [];
+    for (const r of list) {
+      const mrq = parseYahooMostRecentQuarter(r.mrq != null ? String(r.mrq) : null);
+      if (mrq) out.set(String(r.ticker).toUpperCase(), mrq);
+    }
+  }
+  return out;
+}
+
 async function buildPacks(tickers: string[]): Promise<Map<string, TickerPack>> {
   const packs = new Map<string, TickerPack>();
   const prices = await loadPrices(tickers);
+  const mrqByTicker = await loadMrqByTicker(tickers);
 
   for (const t of tickers) {
     packs.set(t, {
       ticker: t,
       fund: {},
       price: prices.get(t) ?? null,
+      goldPeriodEnd: mrqByTicker.get(t) ?? null,
       prov: new Map(),
       sources: new Map(),
     });
@@ -260,16 +288,34 @@ function mulberry32(seed: number) {
   };
 }
 
-function writeCleanSample(findings: AuditFinding[], tickers: string[]) {
+function perShareGoldPeriodEnd(pack: TickerPack, field: string): string | null {
+  if (!SEGMENT_PER_SHARE_FIELDS.has(field)) return null;
+  return pack.goldPeriodEnd;
+}
+
+function writeCleanSample(findings: AuditFinding[], packs: Map<string, TickerPack>) {
   mkdirSync(OUT_DIR, { recursive: true });
-  const okCells: { ticker: string; field: string; gold: number | null; cohort: "clean" }[] = [];
+  const okCells: {
+    ticker: string;
+    field: string;
+    gold: number | null;
+    cohort: "clean";
+    goldPeriodEnd: string | null;
+  }[] = [];
   for (const f of findings) {
     if (f.gold == null) continue;
     const layerOk = segmentUsesL1Clean
       ? f.layer === "L1" && f.status === "ok"
       : f.layer === "L0" && f.status === "ok";
     if (!layerOk) continue;
-    okCells.push({ ticker: f.ticker, field: f.field, gold: f.gold, cohort: "clean" });
+    const pack = packs.get(f.ticker);
+    okCells.push({
+      ticker: f.ticker,
+      field: f.field,
+      gold: f.gold,
+      cohort: "clean",
+      goldPeriodEnd: pack ? perShareGoldPeriodEnd(pack, f.field) : null,
+    });
   }
   const rng = mulberry32(329);
   const n = Math.min(
@@ -282,7 +328,10 @@ function writeCleanSample(findings: AuditFinding[], tickers: string[]) {
     const i = Math.floor(rng() * pool.length);
     picked.push(pool.splice(i, 1)[0]!);
   }
-  writeFileSync(join(OUT_DIR, `l2-sample-${runId}.json`), JSON.stringify({ runId, tickers, sample: picked }, null, 2));
+  writeFileSync(
+    join(OUT_DIR, `l2-sample-${runId}.json`),
+    JSON.stringify({ runId, tickers: [...packs.keys()], sample: picked }, null, 2),
+  );
 }
 
 type L2Summary = {
@@ -310,6 +359,7 @@ function writeReport(
   findings: AuditFinding[],
   modelList: Set<string>,
   l2Summary: L2Summary | null,
+  packs: Map<string, TickerPack>,
 ) {
   mkdirSync(OUT_DIR, { recursive: true });
   const { byLayer, byCause, byCauseErrorRate, skipReasons } = summarize(findings);
@@ -368,7 +418,15 @@ function writeReport(
     JSON.stringify(
       {
         runId,
-        flags: flags.map((f) => ({ ticker: f.ticker, field: f.field, gold: f.gold, cohort: "flagged" as const })),
+        flags: flags.map((f) => ({
+          ticker: f.ticker,
+          field: f.field,
+          gold: f.gold,
+          cohort: "flagged" as const,
+          goldPeriodEnd: packs.get(f.ticker)
+            ? perShareGoldPeriodEnd(packs.get(f.ticker)!, f.field)
+            : null,
+        })),
       },
       null,
       2,
@@ -409,8 +467,8 @@ async function main() {
   }
 
   await persist(findings).catch((e) => console.warn("persist skipped", e));
-  writeCleanSample(findings, tickers);
-  writeReport(tickers, findings, modelList, readL2Summary());
+  writeCleanSample(findings, packs);
+  writeReport(tickers, findings, modelList, readL2Summary(), packs);
   const { byLayer, byCause, skipReasons } = summarize(findings);
   console.log("L0", byLayer.L0, "L1", byLayer.L1, "causes", byCause, "skips", skipReasons);
   console.log(`Wrote ${OUT_DIR}/A329.md and flags-${runId}.json`);

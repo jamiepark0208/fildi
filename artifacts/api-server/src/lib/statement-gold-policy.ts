@@ -18,7 +18,12 @@ const NON_USD_ABSOLUTE_FIELDS = [
   "totalStockholdersEquity",
 ] as const;
 
-const NON_USD_PER_SHARE_FIELDS = ["earningsPerShare"] as const;
+const NON_USD_PER_SHARE_FIELDS = ["earningsPerShare", "tangibleBookValuePerShare"] as const;   // TM finnhub TBVPS 2956 = JPY
+/**
+ * 11-04: Yahoo per-share values are already USD per US-listed share (price/trailingEps = trailingPE on all
+ * 22 non-USD filers checked: TM 22.76, JD 1.43, ASML 40.64). Only fallback vendors carry reporting-currency EPS.
+ */
+const PRICE_CONSISTENT_PER_SHARE_SOURCES = new Set(["yahoo"]);
 
 type ProvenanceEntry = {
   field: string;
@@ -56,8 +61,9 @@ export function applyNonUsdAbsoluteGoldPolicy(
   }
   for (const field of NON_USD_PER_SHARE_FIELDS) {
     if (update[field] == null) continue;
-    delete update[field];
     const pi = provenanceBatch.findIndex((p) => p.field === field);
+    if (pi >= 0 && PRICE_CONSISTENT_PER_SHARE_SOURCES.has(provenanceBatch[pi]!.result.source)) continue;
+    delete update[field];
     if (pi >= 0) provenanceBatch.splice(pi, 1);
     cleared.push(field);
   }

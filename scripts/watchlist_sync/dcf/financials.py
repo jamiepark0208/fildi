@@ -243,7 +243,8 @@ def detect_adr_ratio(
 ) -> int | None:
     """ADR ordinary→ADS ratio when 20-F dei is mis-scaled vs ordinary basic WA (same rule as shares())."""
     dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
-    vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
+    # 11-04: drop future-dated covers (AAL filed a cover dated 2027-07-17 → picked as "latest").
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", []) if u["end"] <= date.today().isoformat()]
     if not vals:
         return None
     u = max(vals, key=lambda x: (x["end"], x["filed"]))
@@ -265,7 +266,7 @@ def detect_adr_ratio(
 
 def shares(facts: dict, conn=None, ticker: str | None = None, adr_ratio: int | None = None) -> dict | None:
     dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
-    vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", []) if u["end"] <= date.today().isoformat()]  # 11-04 AAL 2027 cover
     if not vals:
         # cover-page count missing (PLTR, HOOD report it per class outside dei) → latest diluted weighted average
         dil = _units(facts, "WeightedAverageNumberOfDilutedSharesOutstanding", "shares")

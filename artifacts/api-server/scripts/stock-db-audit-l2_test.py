@@ -1,6 +1,16 @@
 """A329 L2 SEC truth builder — missing≠0, period freshness, debt definition."""
 
+import importlib.util
 from datetime import date
+from pathlib import Path
+
+_L2 = Path(__file__).resolve().parent / "stock-db-audit-l2.py"
+_spec = importlib.util.spec_from_file_location("stock_db_audit_l2", _L2)
+_l2 = importlib.util.module_from_spec(_spec)
+assert _spec.loader
+_spec.loader.exec_module(_l2)
+cover_shares_on_bs_end = _l2.cover_shares_on_bs_end
+sec_shares_current = _l2.sec_shares_current
 
 FRACTION = {"grossMargin", "netMargin", "operatingMargin", "returnOnAssets", "dividendYield"}
 MAX_PERIOD_DAYS = 15 * 30
@@ -90,7 +100,7 @@ def scale_looks_adr(gold: float, truth: float) -> bool:
 def miss_cause(row: dict) -> str:
     note = (row.get("note") or "").lower()
     if row.get("truth") is None:
-        if "skip_no_quarterly" in note:
+        if "skip_no_quarterly" in note or "skip_no_cover_shares" in note or "skip_stale_dei" in note:
             return "definition"
         if "missing" in note or "no us-gaap" in note:
             return "truth_missing"
@@ -104,6 +114,10 @@ def miss_cause(row: dict) -> str:
         return "wrong_period"
     if field in PER_SHARE_FIELDS and truth and abs(gold / truth - 8) / 8 < 0.12:
         return "adr_ratio"
+    if field == "sharesOutstandingPrior" and truth > 0:
+        r = gold / truth
+        if 1.03 <= r <= 1.10:
+            return "definition"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
         return "definition"
     if field in DEFINITION_ONLY_FIELDS:
@@ -225,7 +239,87 @@ def test_miss_cause_per_share_adr():
 
 def test_miss_cause_skip_no_quarterly():
     assert miss_cause({"note": "skip_no_quarterly", "truth": None, "field": "earningsPerShare"}) == "definition"
+    assert miss_cause({"note": "skip_no_cover_shares", "truth": None, "field": "sharesOutstanding"}) == "definition"
 
+
+def test_miss_cause_prior_shares_definition():
+    assert miss_cause({
+        "note": "prior dei",
+        "truth": 1e9,
+        "gold": 1.05e9,
+        "field": "sharesOutstandingPrior",
+    }) == "definition"
+
+
+def test_cover_shares_on_bs_end():
+    bs_end = "2024-12-31"
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CommonStockSharesOutstanding": {
+                    "units": {"shares": [{"val": 500.0, "end": bs_end}]},
+                }
+            },
+            "dei": {},
+        }
+    }
+    val, note = cover_shares_on_bs_end(facts, None, None, bs_end)
+    assert val == 500.0
+    assert "CommonStockSharesOutstanding" in note
+
+
+def test_sec_shares_no_diluted_fallback():
+    facts = {"facts": {"dei": {}, "us-gaap": {}}}
+    truth, note = _l2.sec_shares_current(facts, None, "PLTR")
+    assert truth is None
+    assert "skip_no_cover_shares" in note
+
+
+
+def _bs(**tags):
+    """us-gaap instant facts at one date: tag → (end, val)."""
+    g = {}
+    for k, (end, val) in tags.items():
+        unit = "shares" if k == "CommonStockSharesOutstanding" else "USD"
+        g[k] = {"units": {unit: [{"end": end, "val": val, "filed": "2026-10-30", "form": "10-Q"}]}}
+    return {"facts": {"us-gaap": g}}
+
+
+def test_tangible_book_subtracts_preferred_goodwill_intangibles():
+    import sec_gold_fields as SG
+    e = "2026-09-30"
+    f = _bs(Goodwill=(e, 50.0), IntangibleAssetsNetExcludingGoodwill=(e, 10.0), PreferredStockValue=(e, 20.0))
+    assert SG.tangible_book(f, 200.0, e, {"value": 10.0, "end": e}) == 12.0   # (200−20−50−10)/10
+
+
+def test_tangible_book_negative_is_kept():   # PG/AAL: negative TBV is real, P/TBV goes null downstream
+    import sec_gold_fields as SG
+    e = "2026-09-30"
+    f = _bs(Goodwill=(e, 41.0), IntangibleAssetsNetExcludingGoodwill=(e, 21.0))
+    assert SG.tangible_book(f, 55.0, e, {"value": 2.0, "end": e}) == -3.5
+
+
+def test_tangible_book_goodwill_other_date_is_none():   # missing leg ≠ 0
+    import sec_gold_fields as SG
+    f = _bs(Goodwill=("2026-06-30", 50.0))
+    assert SG.tangible_book(f, 200.0, "2026-09-30", {"value": 10.0, "end": "2026-09-30"}) is None
+
+
+def test_tangible_book_untagged_preferred_dividends_is_none():   # BAC: pays preferred, amount untagged
+    import sec_gold_fields as SG
+    e = "2026-09-30"
+    f = _bs(Goodwill=(e, 50.0))
+    f["facts"]["us-gaap"]["PreferredStockDividendsIncomeStatementImpact"] = {
+        "units": {"USD": [{"start": "2026-07-01", "end": e, "val": 5.0, "filed": "2026-10-30", "form": "10-Q"}]}}
+    assert SG.tangible_book(f, 200.0, e, {"value": 10.0, "end": e}) is None
+
+
+def test_shares_ignores_future_dated_cover():   # AAL cover dated 2027-07-17
+    import financials as F
+    f = {"facts": {"dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": [
+        {"end": "2027-07-17", "val": 1.0, "filed": "2026-07-23"},
+        {"end": "2026-10-16", "val": 2.0, "filed": "2026-10-23"}]}}}, "us-gaap": {}}}
+    assert F.shares(f)["end"] == "2026-10-16"
 
 if __name__ == "__main__":
     test_ok_margin_hand_check()
@@ -238,4 +332,12 @@ if __name__ == "__main__":
     test_ok_eps_and_shares_bands()
     test_miss_cause_per_share_adr()
     test_miss_cause_skip_no_quarterly()
+    test_miss_cause_prior_shares_definition()
+    test_cover_shares_on_bs_end()
+    test_sec_shares_no_diluted_fallback()
+    test_tangible_book_subtracts_preferred_goodwill_intangibles()
+    test_tangible_book_negative_is_kept()
+    test_tangible_book_goodwill_other_date_is_none()
+    test_tangible_book_untagged_preferred_dividends_is_none()
+    test_shares_ignores_future_dated_cover()
     print("ok")

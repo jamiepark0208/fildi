@@ -53,6 +53,9 @@ INTANG = [
     "IntangibleAssetsNetIncludingGoodwill",
     "FiniteLivedIntangibleAssetsNet",
 ]
+COMMON_STOCK_SHARES = ["CommonStockSharesOutstanding"]
+DEI_COVER = "EntityCommonStockSharesOutstanding"
+DEI_SHARES_FALLBACK_DAYS = 60
 PER_SHARE_FIELDS = frozenset({
     "earningsPerShare",
     "sharesOutstanding",
@@ -194,19 +197,80 @@ def has_quarterly_eps_facts(facts: dict) -> bool:
     return False
 
 
-def ttm_eps_diluted(facts: dict) -> dict | None:
+def ttm_eps_diluted(facts: dict, anchor_end: str | None = None) -> dict | None:
+    """Sum last four quarterly diluted EPS facts ending on/before anchor (not stale FY+YTD)."""
+    anchor = anchor_end or date.today().isoformat()
+    gaap = (facts or {}).get("facts", {}).get("us-gaap") or {}
     for c in EPS_DILUTED:
-        node = facts.get("facts", {}).get("us-gaap", {}).get(c)
+        node = gaap.get(c)
         if not node:
             continue
-        vals = F._units({"facts": {"us-gaap": {c: node}}}, c, "USD/shares")
-        if not vals:
+        quals = [
+            u
+            for u in node.get("units", {}).get("USD/shares", [])
+            if u.get("start")
+            and 80 <= F._days(u["start"], u["end"]) <= 100
+            and u["end"] <= anchor
+        ]
+        if len(quals) < 4:
             continue
-        fake = {"facts": {"us-gaap": {c: {"units": {"USD": vals}}}}}
-        r = F.ttm_flow(fake, [c])
-        if r:
-            return r
+        quals.sort(key=lambda u: u["end"], reverse=True)
+        picked = [quals[0]]
+        for u in quals[1:]:
+            if len(picked) >= 4:
+                break
+            if all(abs((date.fromisoformat(u["end"]) - date.fromisoformat(p["end"])).days) >= 80 for p in picked):
+                picked.append(u)
+        if len(picked) < 4:
+            continue
+        picked = picked[:4]
+        total = sum(float(u["val"]) for u in picked)
+        end = max(u["end"] for u in picked)
+        return {
+            "value": total,
+            "end": end,
+            "how": f"4Q diluted {c}",
+            "concept": c,
+        }
     return None
+
+
+def cover_shares_on_bs_end(
+    facts: dict,
+    conn,
+    ticker: str,
+    bs_end: str,
+) -> tuple[float | None, str]:
+    """Balance-sheet-date shares: us-gaap CommonStockSharesOutstanding, else dei within 60d."""
+    gaap = (facts or {}).get("facts", {}).get("us-gaap") or {}
+    for c in COMMON_STOCK_SHARES:
+        node = gaap.get(c)
+        if not node:
+            continue
+        for unit in node.get("units", {}).get("shares", []):
+            if unit.get("start"):
+                continue
+            if unit["end"] == bs_end:
+                return float(unit["val"]), f"us-gaap {c} {bs_end}"
+    dei = (facts.get("facts", {}).get("dei", {}) or {}).get(DEI_COVER)
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
+    near = [
+        u
+        for u in vals
+        if abs(days_apart(u["end"], bs_end)) <= DEI_SHARES_FALLBACK_DAYS
+    ]
+    if not near:
+        return None, f"no cover shares on {bs_end}"
+    end = max(u["end"] for u in near)
+    same = [u for u in near if u["end"] == end]
+    u0 = max(same, key=lambda x: x["filed"])
+    tot = sum(x["val"] for x in same if x["filed"] == u0["filed"])
+    basic = F._latest_basic_wa(facts, end)
+    adr = F.detect_adr_ratio(facts, conn, ticker, end) if conn and ticker else None
+    if basic and adr and adr > 1:
+        ads = F.filing_shares_to_ads(float(basic["val"]), adr)
+        return ads, f"dei {end} ADS ÷{adr} (±{DEI_SHARES_FALLBACK_DAYS}d)"
+    return tot, f"dei sum classes {end} (±{DEI_SHARES_FALLBACK_DAYS}d from {bs_end})"
 
 
 def dei_end_near(facts: dict, anchor_end: str, days_back: int, window: int = PRIOR_SHARES_WINDOW) -> str | None:
@@ -235,15 +299,23 @@ def dei_shares_on_end(facts: dict, conn, ticker: str, end: str) -> tuple[float |
 
 
 def sec_shares_current(facts: dict, conn, ticker: str) -> tuple[float | None, str]:
-    sh = F.shares(facts, conn, ticker)
-    if not sh:
-        return None, "shares tag missing"
-    note = f"dei {sh['concept']} {sh['end']}"
-    if sh.get("how"):
-        note += f" {sh['how']}"
-    if days_apart(sh["end"], date.today().isoformat()) > STALE_SHARES_DAYS:
+    dei = (facts.get("facts", {}).get("dei", {}) or {}).get(DEI_COVER)
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", []) if u["end"] <= date.today().isoformat()]
+    if not vals:
+        return None, "skip_no_cover_shares"
+    u = max(vals, key=lambda x: (x["end"], x["filed"]))
+    if days_apart(u["end"], date.today().isoformat()) > MAX_PERIOD_DAYS:
+        return None, "skip_stale_dei"
+    tot = sum(x["val"] for x in vals if x["end"] == u["end"] and x["filed"] == u["filed"])
+    note = f"dei {DEI_COVER} {u['end']}"
+    basic = F._latest_basic_wa(facts, u["end"])
+    adr = F.detect_adr_ratio(facts, conn, ticker, u["end"]) if conn and ticker else None
+    if basic and adr and adr > 1:
+        tot = F.filing_shares_to_ads(float(basic["val"]), adr)
+        note += f" ADS ÷{adr}"
+    if days_apart(u["end"], date.today().isoformat()) > STALE_SHARES_DAYS:
         note += " stale_shares"
-    return sh["value"], note
+    return tot, note
 
 
 def ratio_near_known_adr(gold: float, truth: float) -> bool:
@@ -275,7 +347,7 @@ def scale_looks_adr(gold: float, truth: float) -> bool:
 def miss_cause(row: dict, facts: dict | None = None, conn=None) -> str:
     note = (row.get("note") or "").lower()
     if row.get("truth") is None:
-        if "skip_no_quarterly" in note:
+        if "skip_no_quarterly" in note or "skip_no_cover_shares" in note or "skip_stale_dei" in note or "skip_tbv_leg_missing" in note:
             return "definition"
         if "missing" in note or "no us-gaap" in note:
             return "truth_missing"
@@ -315,6 +387,11 @@ def miss_cause(row: dict, facts: dict | None = None, conn=None) -> str:
             r = gold / truth
             if 1.85 <= r <= 2.15 or 0.46 <= r <= 0.54:
                 return "share_class_partial"
+        if field == "sharesOutstandingPrior" and truth > 0:
+            r = gold / truth
+            # Yahoo/FMP prior ≈ diluted weighted average ~1y ago; SEC dei is cover count.
+            if 1.03 <= r <= 1.10:
+                return "definition"
         if field == "earningsPerShare" and "basic" in note and "diluted" not in note:
             return "basic_vs_diluted"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
@@ -336,7 +413,7 @@ def miss_cause(row: dict, facts: dict | None = None, conn=None) -> str:
     return "gold_wrong"
 
 
-def sec_truth(conn, facts, ticker, field):
+def sec_truth(conn, facts, ticker, field, gold_period_end: str | None = None):
     if not facts or not facts.get("facts", {}).get("us-gaap"):
         return None, "no us-gaap companyfacts"
     today = date.today().isoformat()
@@ -423,7 +500,8 @@ def sec_truth(conn, facts, ticker, field):
     if field == "earningsPerShare":
         if not has_quarterly_eps_facts(facts):
             return None, "skip_no_quarterly"
-        eps = ttm_eps_diluted(facts)
+        eps_anchor = gold_period_end or anchor
+        eps = ttm_eps_diluted(facts, eps_anchor)
         if not eps:
             return None, "EPS diluted TTM missing"
         how = eps.get("how") or "TTM"
@@ -439,20 +517,23 @@ def sec_truth(conn, facts, ticker, field):
             return None, "prior dei missing"
         return dei_shares_on_end(facts, conn, ticker, prior_end)
     if field == "tangibleBookValuePerShare":
+        # One definition with the producer (sec_gold_fields.tangible_book): common equity − preferred − goodwill
+        # − intangibles ex-goodwill, every leg at the equity date; a missing leg is a skip, never 0.
+        import sec_gold_fields as SG
         eq = audit_instant(facts, EQ, asof, anchor)
         if not eq:
             return None, "equity tag missing/stale"
         bs_end = eq["end"]
-        gw = audit_instant(facts, GOODWILL, bs_end, anchor)
-        intang = audit_instant(facts, INTANG, bs_end, anchor)
-        sh_val, _sh_note = dei_shares_on_end(facts, conn, ticker, bs_end)
-        if sh_val is None:
-            return None, f"dei shares missing on eq end {bs_end}"
-        tangible = eq["value"] - (gw["value"] if gw else 0.0) - (intang["value"] if intang else 0.0)
-        if sh_val <= 0:
-            return None, "non-positive shares"
-        tbvps = tangible / sh_val
-        return tbvps, f"TBVPS eq {bs_end} gw={gw['value'] if gw else 0} int={intang['value'] if intang else 0} sh={bs_end}"
+        parent = SG._parent_equity(facts, bs_end)
+        cover = F.shares(facts)
+        if not cover or not str(cover.get("concept", "")).startswith("dei:"):
+            cover = SG._latest_bs_shares(facts)
+        if parent is None or not cover:
+            return None, "skip_tbv_leg_missing"
+        tbvps = SG.tangible_book(facts, parent, bs_end, cover)
+        if tbvps is None:
+            return None, "skip_tbv_leg_missing"
+        return tbvps, f"TBVPS {bs_end} (sec_gold_fields.tangible_book)"
     return None, "not filing-checkable"
 
 
@@ -487,8 +568,49 @@ def load_cells(run_id: str):
     return out
 
 
-def cohort_summary(judged_rows, cohort: str):
-    rows_c = [r for r in judged_rows if r.get("cohort") == cohort and r["truth"] is not None]
+def yahoo_mrq(conn, ticker: str) -> str | None:
+    r = rows(
+        conn,
+        """
+        SELECT payload->'financialData'->>'mostRecentQuarter' AS mrq
+        FROM vendor_raw
+        WHERE source = 'yahoo' AND key = %s AND payload ? 'financialData'
+        ORDER BY fetched_on DESC
+        LIMIT 1
+        """,
+        (ticker.upper(),),
+    )
+    if not r or not r[0].get("mrq"):
+        return None
+    raw = str(r[0]["mrq"]).strip()
+    try:
+        n = float(raw)
+        if n > 1e8:
+            from datetime import datetime
+
+            return datetime.utcfromtimestamp(n if n < 1e12 else n / 1000).date().isoformat()
+    except ValueError:
+        pass
+    if re.match(r"^\d{4}-\d{2}-\d{2}", raw):
+        return raw[:10]
+    return None
+
+
+def row_counts_for_rate(row: dict, facts: dict | None, conn) -> bool:
+    if row.get("truth") is None:
+        return False
+    cause = miss_cause(row, facts, conn)
+    return cause != "definition"
+
+
+def cohort_summary(judged_rows, cohort: str, conn, cache: dict):
+    rows_c = [
+        r
+        for r in judged_rows
+        if r.get("cohort") == cohort
+        and r["truth"] is not None
+        and row_counts_for_rate(r, cache.get(r["ticker"]), conn)
+    ]
     ok_n = sum(1 for r in rows_c if r["ok"])
     rate, lo, hi = wilson(ok_n, len(rows_c))
     return {"judged": len(rows_c), "ok": ok_n, "rate": rate, "ci95": [lo, hi]}
@@ -509,7 +631,8 @@ def main():
             except Exception as e:  # noqa: BLE001
                 cache[t] = None
                 print("fetch fail", t, e, file=sys.stderr)
-        truth, note = sec_truth(conn, cache[t], t, f)
+        gold_pe = c.get("goldPeriodEnd") or yahoo_mrq(conn, t)
+        truth, note = sec_truth(conn, cache[t], t, f, gold_pe)
         verdict = ok(gold, truth, f) if gold is not None else None
         judged.append(
             {
@@ -520,11 +643,26 @@ def main():
                 "truth": truth,
                 "ok": verdict,
                 "note": note,
-                "goldPeriodEnd": c.get("goldPeriodEnd"),
+                "goldPeriodEnd": gold_pe or c.get("goldPeriodEnd"),
             }
         )
-    flagged = cohort_summary(judged, "flagged")
-    clean = cohort_summary(judged, "clean")
+    flagged = cohort_summary(judged, "flagged", conn, cache)
+    clean = cohort_summary(judged, "clean", conn, cache)
+    by_field: dict[str, dict] = {}
+    for r in judged:
+        if r.get("cohort") != "clean":
+            continue
+        fld = r["field"]
+        if fld not in by_field:
+            by_field[fld] = {"judged": 0, "ok": 0}
+        if not row_counts_for_rate(r, cache.get(r["ticker"]), conn):
+            continue
+        by_field[fld]["judged"] += 1
+        if r.get("ok"):
+            by_field[fld]["ok"] += 1
+    for fld, stats in by_field.items():
+        n = stats["judged"]
+        stats["rate"] = stats["ok"] / n if n else 0.0
     clean_misses = [
         {
             "ticker": r["ticker"],
@@ -547,6 +685,7 @@ def main():
         "clean": clean,
         "cleanMisses": clean_misses,
         "cleanMissesByCause": by_cause,
+        "cleanByField": by_field,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"l2-results-{run_id}.json").write_text(json.dumps({"summary": summary, "rows": judged}, indent=1))

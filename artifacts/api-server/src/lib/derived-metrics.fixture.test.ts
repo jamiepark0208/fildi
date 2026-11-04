@@ -153,4 +153,5 @@ describe("ratio fill-ins", () => {
     assert.equal(computeReturnOnEquity(20, -100), null);
     assert.equal(computeDebtToEquity(50, -100), null);
   });
+
 });

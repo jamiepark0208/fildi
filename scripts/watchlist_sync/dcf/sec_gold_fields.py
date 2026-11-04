@@ -18,6 +18,111 @@ ROA_NI_CONCEPTS = (
 )
 
 
+SHARES_MAX_AGE_D = 120   # older cover = stale (buybacks); vendor current count wins instead
+SEC_OWNED_FIELDS = ("sharesOutstanding", "tangibleBookValuePerShare")   # deleted when not produced this run
+INTANG_EX_GW = ["IntangibleAssetsNetExcludingGoodwill"]
+INTANG_PARTS = ["FiniteLivedIntangibleAssetsNet", "IndefiniteLivedIntangibleAssetsExcludingGoodwill"]
+
+
+def _at(facts: dict, concept: str, end: str) -> tuple[bool, float | None]:
+    """(tag ever reported, value at exactly `end`). Never tagged → (False, None) = legitimately 0."""
+    vals = [u for u in F._units(facts, concept) if not u.get("start")]
+    if not vals:
+        return False, None
+    hit = [u for u in vals if u["end"] == end]
+    if hit:
+        return True, float(max(hit, key=lambda x: x["filed"])["val"])
+    if max(u["end"] for u in vals) < end and F._days(max(u["end"] for u in vals), end) > 370:
+        return False, None   # tag retired over a year before (goodwill written off) → 0
+    return True, None
+
+
+def _recent(facts: dict, concept: str, end: str) -> tuple[bool, float | None]:
+    """Like _at, but intangibles (slow-moving, often tagged only in the 10-K: JPM, META) may come from the
+    latest balance ≤ end within 370 d. Goodwill and equity stay exact-date."""
+    tg, v = _at(facts, concept, end)
+    if v is not None or not tg:
+        return tg, v
+    vals = [u for u in F._units(facts, concept) if not u.get("start") and u["end"] <= end and F._days(u["end"], end) <= 370]
+    if not vals:
+        return True, None
+    return True, float(max(vals, key=lambda x: (x["end"], x["filed"]))["val"])
+
+
+PREF_TAGS = ["PreferredStockValue", "PreferredStockValueOutstanding", "PreferredStockLiquidationPreferenceValue"]
+PREF_DIV_TAGS = ["PreferredStockDividendsIncomeStatementImpact", "DividendsPreferredStock", "PreferredStockDividendsAndOtherAdjustments"]
+
+
+def _preferred(facts: dict, end: str) -> float | None:
+    """Preferred equity at `end`; 0 when the filer has none; None when it pays preferred dividends but the
+    amount isn't tagged (BAC custom tag) — missing ≠ 0, or TBVPS would be overstated."""
+    for c in PREF_TAGS:
+        _, v = _recent(facts, c, end)
+        if v is not None:
+            return v
+    for c in PREF_DIV_TAGS:
+        if any(u.get("start") and u["end"] <= end and F._days(u["end"], end) <= 370 and u["val"]
+               for u in F._units(facts, c)):
+            return None
+    return 0.0
+
+
+def tangible_book(facts: dict, equity: float, eq_end: str, cover: dict) -> float | None:
+    """(equity − goodwill − intangibles ex-goodwill) / shares, every leg at eq_end. Missing leg → None, never 0."""
+    tagged, gw = _at(facts, "Goodwill", eq_end)
+    if tagged and gw is None:
+        return None
+    tagged_i, intang = _recent(facts, INTANG_EX_GW[0], eq_end)
+    if not tagged_i:
+        intang = 0.0
+        for c in INTANG_PARTS:
+            tg, v = _recent(facts, c, eq_end)
+            if tg and v is None:
+                return None
+            intang += v or 0.0
+    elif intang is None:
+        return None
+    _, sh = _at_shares(facts, eq_end)
+    if sh is None and abs(F._days(cover["end"], eq_end)) <= 60:
+        sh = float(cover["value"])
+    if not sh or sh <= 0:
+        return None
+    pref = _preferred(facts, eq_end)   # per COMMON share: banks carry preferred in equity
+    if pref is None:
+        return None
+    return (equity - (pref or 0.0) - (gw or 0.0) - (intang or 0.0)) / sh
+
+
+def _parent_equity(facts: dict, end: str) -> float | None:
+    """Equity to common at `end`: StockholdersEquity, else incl.-NCI minus MinorityInterest (PG)."""
+    tg, v = _at(facts, EQ[0], end)
+    if v is not None:
+        return v
+    _, tot = _at(facts, EQ[1], end)
+    if tot is None:
+        return None
+    tg_m, nci = _at(facts, "MinorityInterest", end)
+    if tg_m and nci is None:
+        return None
+    return tot - (nci or 0.0)
+
+
+def _latest_bs_shares(facts: dict) -> dict | None:
+    today = date.today().isoformat()
+    vals = [u for u in F._units(facts, "CommonStockSharesOutstanding", "shares") if u["end"] <= today]
+    if not vals:
+        return None
+    u = max(vals, key=lambda x: (x["end"], x["filed"]))
+    return {"value": float(u["val"]), "concept": "CommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
+
+
+def _at_shares(facts: dict, end: str) -> tuple[bool, float | None]:
+    vals = [u for u in F._units(facts, "CommonStockSharesOutstanding", "shares") if u["end"] == end]
+    if not vals:
+        return False, None
+    return True, float(max(vals, key=lambda x: x["filed"])["val"])
+
+
 def _roa_ni_numerator(facts: dict, rev: dict | None) -> dict | None:
     """Basic NI to common, else NetIncomeLoss; never Diluted. TTM end must be ≥ revenue TTM end."""
     if not rev:
@@ -130,6 +235,28 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
     if px and eq and sh and eq.get("value"):
         add("priceToBook", px * sh["value"] / eq["value"], eq)
 
+    # A329 seg3 (11-04): shares + TBVPS from one filing, written with their statement date (fetched_at = period_end).
+    # Cover shares only (dei, class-summed); never the weighted-average fallback (VG 0.20×, TEAM 0.61×).
+    # ADRs skipped: SEC counts ordinary shares, price is per ADS. Non-USD filers drop out via USD units.
+    cover = F.shares(facts)
+    cover_ok = bool(cover) and str(cover.get("concept", "")).startswith("dei:")
+    if not cover_ok:   # per-class filers (GOOGL, PLTR) skip dei; balance-sheet total is the class sum
+        cover = _latest_bs_shares(facts)
+        cover_ok = cover is not None
+    adr = F.detect_adr_ratio(facts, conn, t, cover["end"] if cover else None) if cover_ok else None
+    if adr and adr > 1:
+        cover_ok = False
+    if cover_ok and F._days(cover["end"], date.today().isoformat()) <= SHARES_MAX_AGE_D:
+        add("sharesOutstanding", cover["value"], cover)
+
+    eq_end = (eq or {}).get("end")
+    fresh_eq = bool(eq_end) and F._days(eq_end, date.today().isoformat()) <= 200
+    parent_eq = _parent_equity(facts, eq_end) if fresh_eq else None
+    if parent_eq is not None and cover_ok:
+        tbv = tangible_book(facts, parent_eq, eq_end, cover)
+        if tbv is not None:
+            add("tangibleBookValuePerShare", tbv, eq)
+
     return out
 
 
@@ -182,6 +309,9 @@ def main() -> None:
                 if rows_out:
                     print(t, len(rows_out), rows_out[0]["filed"])
                 continue
+            produced = {r["field"] for r in rows_out}
+            gone = [f for f in SEC_OWNED_FIELDS if f not in produced]
+            conn.execute("DELETE FROM source_fundamentals WHERE ticker = %s AND source = 'sec' AND field = ANY(%s)", (t.upper(), gone))
             n = upsert_rows(conn, t, rows_out)
             total += n
             conn.commit()
