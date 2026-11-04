@@ -9,6 +9,9 @@ import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
+  createSeriesMarkers,
+  type ISeriesMarkersPluginApi,
   ColorType,
   CrosshairMode,
   type AutoscaleInfo,
@@ -26,6 +29,7 @@ import {
 } from "@/components/live/regime-banner";
 import { EntryCell, type EntrySignal } from "@/components/live/hotlist-table";
 import { formatVolume } from "@/components/live/live-format";
+import { superTrend, utBot, type OHLC } from "@/lib/tv-intraday";
 
 /** Keep chart failures off the Live route ErrorBoundary. */
 class ChartIsolate extends Component<
@@ -113,7 +117,7 @@ export function sessionOpenMs(nowMs = Date.now()): number {
 }
 
 const RISK_HEX = { calm: "#38bdf8", normal: "#d4d4d8", elevated: "#f59e0b", stormy: "#ef4444" } as const;
-const RISK_SHORT = { calm: "Calm", normal: "Norm", elevated: "Elev", stormy: "Storm" } as const;
+const RISK_SHORT = { calm: "Low risk", normal: "Avg risk", elevated: "Risk up", stormy: "High risk" } as const;
 
 function markerColor(c: RegimeCheckpoint): string {
   if (c.status === "resolved" && c.risk) return RISK_HEX[c.risk.level];
@@ -332,6 +336,46 @@ function RegimeSessionChartInner({
     return { seriesData: out, volumeData: vols, orHigh: orH, orLow: orL };
   }, [bars, openSec, closeSec]);
 
+  /** UT Bot buy/sell + SuperTrend on all fetched 5m bars (prior session warms ATR); only completed session bars shown. */
+  const tvOverlay = useMemo(() => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const bySec = new Map<number, OHLC>();
+    for (const b of bars ?? []) {
+      const c = Number(b.close);
+      const tMs = new Date(b.date).getTime();
+      if (!Number.isFinite(c) || !Number.isFinite(tMs)) continue;
+      const t = snapToSessionGrid(Math.floor(tMs / 1000), openSec);
+      if (t + BAR_SEC > nowSec) continue; // bar still forming — its flip can undo
+      const o = Number.isFinite(Number(b.open)) && b.open != null ? Number(b.open) : c;
+      const h = Math.max(Number.isFinite(Number(b.high)) && b.high != null ? Number(b.high) : c, o, c);
+      const l = Math.min(Number.isFinite(Number(b.low)) && b.low != null ? Number(b.low) : c, o, c);
+      const prev = bySec.get(t);
+      bySec.set(t, prev ? { ...prev, high: Math.max(prev.high, h), low: Math.min(prev.low, l), close: c } : { time: t, open: o, high: h, low: l, close: c });
+    }
+    const ser = [...bySec.values()].sort((a, b) => a.time - b.time);
+    const inSession = (t: number) => t >= openSec && t <= closeSec;
+    const ut = utBot(ser);
+    const st = superTrend(ser);
+    const stLine = ser
+      .map((b, i) => ({ b, i }))
+      .filter(({ b, i }) => inSession(b.time) && Number.isFinite(st.line[i]))
+      .map(({ b, i }) => ({ time: b.time as UTCTimestamp, value: st.line[i], color: st.dir[i] > 0 ? "#22c55e" : "#ef4444" }));
+    const marks = ut.signals
+      .filter((s) => inSession(s.time))
+      .map((s) => ({
+        time: s.time as UTCTimestamp,
+        position: s.side === "buy" ? ("belowBar" as const) : ("aboveBar" as const),
+        shape: s.side === "buy" ? ("arrowUp" as const) : ("arrowDown" as const),
+        color: s.side === "buy" ? "#22c55e" : "#ef4444",
+        text: s.side === "buy" ? "Buy" : "Sell",
+        size: 1,
+      }));
+    const lastUt = [...ut.signals].reverse()[0] ?? null;
+    const lastDir = st.dir.length ? st.dir[st.dir.length - 1] : 0;
+    return { stLine, marks, lastUt, lastDir };
+  }, [bars, openSec, closeSec]);
+  const [showTv, setShowTv] = useState(true);
+
   const candleCount = useMemo(
     () => seriesData.filter((d) => "close" in d).length,
     [seriesData],
@@ -405,6 +449,8 @@ function RegimeSessionChartInner({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const stRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const utMarksRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   /** Candle OHLC only — OR lines / volume must not stretch the left price scale. */
   const candlesRef = useRef<Array<{ high: number; low: number }>>([]);
   const vertMarksRef = useRef(vertMarks);
@@ -584,9 +630,20 @@ function RegimeSessionChartInner({
       scaleMargins: { top: 0.08, bottom: 0.28 },
     });
 
+    const st = chart.addSeries(LineSeries, {
+      priceScaleId: "left",
+      lineWidth: 2,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+      autoscaleInfoProvider: () => null, // SuperTrend must not stretch the candle domain
+    });
+
     chartRef.current = chart;
     seriesRef.current = series;
     volumeRef.current = volume;
+    stRef.current = st;
+    utMarksRef.current = createSeriesMarkers(series, []);
 
     const onRange = () => drawOverlay();
     const onCrosshair = (param: MouseEventParams<Time>) => {
@@ -613,8 +670,19 @@ function RegimeSessionChartInner({
       chartRef.current = null;
       seriesRef.current = null;
       volumeRef.current = null;
+      stRef.current = null;
+      utMarksRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      stRef.current?.setData(showTv ? (tvOverlay.stLine as any) : []);
+      utMarksRef.current?.setMarkers(showTv ? tvOverlay.marks : []);
+    } catch {
+      /* overlay only — never break the candles */
+    }
+  }, [tvOverlay, showTv, seriesData]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -738,6 +806,22 @@ function RegimeSessionChartInner({
               {symbol}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => setShowTv((v) => !v)}
+            className={cn(
+              "px-2 py-0.5 text-[10px] font-mono font-semibold rounded border",
+              showTv ? "border-[#d4af37]/60 bg-[#d4af37]/15 text-amber-50" : "border-[#d4af37]/25 text-amber-50/50",
+            )}
+            title="UT Bot buy/sell arrows (ATR 10 × 1) + SuperTrend line (ATR 10 × 3), TradingView default settings on these 5-min bars. Completed bars only. Display, not a tested edge: intraday UT turns did not improve put-sale timing (S108) and no intraday direction rule beat the base rate (S124)."
+          >
+            UT/ST
+            {showTv && tvOverlay.lastUt && (
+              <span className={tvOverlay.lastUt.side === "buy" ? "text-green-400" : "text-red-400"}>
+                {" "}· last {tvOverlay.lastUt.side === "buy" ? "Buy" : "Sell"} {formatPtHmm(tvOverlay.lastUt.time * 1000)}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 

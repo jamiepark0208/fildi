@@ -82,7 +82,7 @@ export const CHECKPOINT_TIME_PT: Record<number, string> = {
 
 const RISK_DOT: Record<RiskLevel, string> = { calm: "bg-sky-400", normal: "bg-zinc-300", elevated: "bg-amber-500", stormy: "bg-red-500" };
 const RISK_TEXT: Record<RiskLevel, string> = { calm: "text-sky-400", normal: "text-zinc-200", elevated: "text-amber-400", stormy: "text-red-500" };
-const RISK_SHORT: Record<RiskLevel, string> = { calm: "Calm", normal: "Norm", elevated: "Elev", stormy: "Storm" };
+const RISK_SHORT: Record<RiskLevel, string> = { calm: "Low risk", normal: "Avg risk", elevated: "Risk up", stormy: "High risk" };
 
 function regimeDotColor(c: RegimeCheckpoint): string {
   if (c.status === "resolved" && c.risk) return RISK_DOT[c.risk.level];
@@ -233,14 +233,17 @@ export function RegimeBanner({
       <div className="px-3 py-1.5 border-b border-[#d4af37]/25 bg-black flex items-center justify-between gap-2">
         <span
           className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wide"
-          title="Rest-of-day risk (S126, 479 SPY/QQQ sessions). % = historical odds of a further drop ≥ half a normal day's range before the close: calm 10%, normal 15%, elevated 20%, stormy 33%. Bull/bear direction has no tested edge (49.5%) — shown in the cell detail only."
+          title="Odds SPY/QQQ fall a further half of a normal day's range before today's close (S126, 479 sessions). Each level carries its historical rate: Low risk 10%, Avg risk 15%, Risk up 20%, High risk 33% — so the % only changes when the level changes. Higher = expect more downside swing, size puts smaller / strikes further out. Bull/bear direction has no tested edge (49.5%)."
         >
-          Intraday Regime
+          Drop risk to close
         </span>
         {latest && (
           <span className="flex items-center gap-2 text-[11px] font-mono">
             <span className={cn("font-semibold", regimeTextColor(latest))}>
               Now: {cellLabel(latest)}
+              {latest.risk && (
+                <span className="font-normal text-amber-50/70"> ({Math.round(latest.risk.pDropHalfAtr * 100)}% odds of another −{latest.risk.halfAtrPct.toFixed(2)}% by close)</span>
+              )}
             </span>
             <span className="text-white">as of {CHECKPOINT_TIME_PT[latest.minAfterOpen] ?? latest.label}</span>
             {live && (

@@ -49,7 +49,7 @@ export function TopOptionsTable({
     <div className="space-y-1.5">
       {softCaution && (
         <p className="text-[10px] text-amber-300/80 border border-amber-500/25 rounded px-1.5 py-0.5 bg-amber-500/5">
-          Rest-of-day risk {regimeRisk!.level}: {Math.round(regimeRisk!.pDropHalfAtr * 100)}% odds SPY/QQQ fall a further ≥ {regimeRisk!.halfAtrPct.toFixed(2)}% before the close (S126) — size and strike with that in mind.
+          Drop risk {({ calm: "low", normal: "average", elevated: "up", stormy: "high" } as const)[regimeRisk!.level]}: {Math.round(regimeRisk!.pDropHalfAtr * 100)}% odds SPY/QQQ fall a further ≥ {regimeRisk!.halfAtrPct.toFixed(2)}% before the close (S126) — size and strike with that in mind.
         </p>
       )}
       {rows.length === 0 ? (
