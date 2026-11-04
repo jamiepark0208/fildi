@@ -28,3 +28,27 @@ Jamie: add BigBeluga Market Structure Oscillator, Ichimoku, Squeeze Momentum, Li
 - No-look-ahead test passes for every indicator.
 - Commit only your files with `git add <paths>`; message trailer `Agent: claude`; then `scripts/agent-git-sync.sh`. Never stash/reset/checkout others' files.
 - Final report ≤ 20 lines: files, test counts, any Pine construct you could not port exactly (name the line) and what you did instead.
+
+---
+# Phase 2 — add-an-indicator design + track record (Jamie 11-04: "we will keep adding indicators; track each one's success/fail; tell me which are good/bad; table in Settings")
+Start only after phase 1's commit passes Claude review.
+
+## A. One home, plug-in shape (adding an indicator = 1 file + 1 registry line + 1 .pine)
+- Move `artifacts/stock-compare/src/lib/tv-indicators/` (+ utBot/superTrend from `tv-intraday.ts`) into workspace package `lib/indicators` (`@workspace/indicators`, same setup as `lib/option-scoring`). UI and api-server import it; no copies.
+- Contract per indicator file: `export const def: IndicatorDef = { id, label, version, source: {url, author, license, pinePath}, defaults, timeframes: ["5m","15m","1h"], pane, compute(bars, opts) → { series: Record<string, number[]>, events: Event[] } }`, `Event = { time, side: "buy"|"sell"|"neutral", kind: string, price, note?: string[] }`. Charts render `series` by `pane` and `events` as markers — no per-indicator chart code.
+- `lib/indicators/ADDING.md` (≤ 25 lines): fetch Pine via pine-facade (`/pine-facade/get/PUB%3B<id>/last`, id from `pubscripts-suggest-json?search=`), save to `research/sources/tradingview/`, port line by line on `pine.ts` primitives, add no-look-ahead + fixture tests, register. Bump `version` whenever logic or defaults change (grades are per version).
+
+## B. Track record (nightly, server side)
+- Table `indicator_events` (indicator_id, version, ticker, tf, time, side, kind, price, atr) and `indicator_grades` (event id → fwd 30m/60m/close return in the signal's direction, MFE/MAE in ATR, hit = +0.5 ATR before −0.5 ATR, same session only).
+- Universe: SPY, QQQ, IWM + the Live hotlist names; tf 5m/15m/1h; history = Yahoo 5m (60 d) now, Polygon 1-min backfill later (Cursor A-row) for power.
+- Scorecard `indicator_scorecard` per (indicator, version, kind, tf): n, hit %, placebo hit % (random bars, same ticker × time-of-day), lift pts, day-clustered t, sign in both halves, min detectable effect.
+- Verdict (fixed rule, no judgment): **likely useful** = lift ≥ 3 pts, |t| ≥ 2, same sign both halves · **likely noise** = |lift| < 1.5 with MDE ≤ 3 (enough data to say no) · **too early** = otherwise (show "needs ~N more signals"). Wording = odds, never certainty.
+- Job: api-server worker or `scripts/watchlist_sync` stage after close; deadline + cap per vendor (AGENTS.md 8c).
+
+## C. Settings › Indicators tab
+- Table: indicator · source (link, author) · version · timeframes · signals (n) · hit vs placebo · lift · verdict chip · best tf · last graded · default on/off toggle (feeds both charts' default menu).
+- Row hover/expand: per kind (Buy / Sell / BoS / CHoCH / sweep) and per tf rows. One-line tooltips only.
+- Data via `GET /api/indicators/scorecard` (catalog row in `.agents/context/api-endpoints.md`).
+
+## Acceptance
+tsc 0 both apps; tests pass; scorecard populated for ≥ 1 night on SPY/QQQ; Settings tab renders; adding a dummy indicator touches only its file + registry line (prove in the report); ship check ok.
