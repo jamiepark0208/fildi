@@ -27,16 +27,20 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | RSI/MFI scanner tiers (not Model List) | .claude/skills/signal-filters.md |
 | Model List / fit / watchlist_sync scoring | .claude/skills/model-list.md |
 | Fildi app UI tables/chrome (GRID_*) | .claude/skills/ui-components.md |
+| UI chrome trim (Scorecard presets/blurbs/FAB) | .claude/skills/ui-chrome.md · `.cursor/skills/ui-chrome/SKILL.md` |
 | DB schema and queries | .claude/skills/db-patterns.md |
 | Trader strategy (mental model) | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
 | TradingView indicators (UT Bot, SuperTrend, SMC, Fear & Greed): built, tested, use cases | .agents/context/indicators.md |
 | Feature planning | .claude/skills/feature-planner.md |
 | Implementation planning | .claude/skills/writing-plans.md |
+| Before dispatching any plan Claude wrote (verify → enhance → optimize → UI) | .claude/skills/plan-passes.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session (user-triggered only) | .claude/skills/session-wrap.md |
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
 | Market-data fetch scaffolding (data-agent) | .claude/skills/data-agent.md |
+| Stock DB Needs Review / cheapest gold overrides | .claude/skills/database-agent.md · `.cursor/skills/database-agent/SKILL.md` |
+| Data pipeline audit / enrichment health | .claude/skills/data-ops-auditor.md |
 | Dev tool reference (codegraph/markitdown/madge) | .claude/skills/startup.md |
 | OpenJev miss→teach→eval | .claude/skills/openjev-train.md |
 | Grep patterns for hot files (macro, schema, merge-trusted, nightly-enrichment, cache-registry) | .claude/skills/hot-files.md |
@@ -45,10 +49,10 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | Indicator / pattern study (lows/highs, S/R, liquidity, momentum, volume, skew) | .agents/skills/fildi-pattern-research/SKILL.md |
 | Data source choice (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |
 | Is a score / rec working? | .agents/skills/fildi-grade-quality/SKILL.md |
+| Market / sector thesis, earnings-season read, "is my view right?" | .agents/skills/fildi-market-thesis/SKILL.md |
 | Reviewing a study | research/studies/REVIEW.md |
 | "Why is X (not) on the Model List" / rebuild | `scripts/watchlist_sync/funnel.py [--ticker T]` · `rebuild.sh` |
 | Agent workflow changes | `.agents/context/workflow-learning.md` + `scripts/workflow_audit.py` |
-| Market / sector thesis, earnings-season read, "is my view right?" | .agents/skills/fildi-market-thesis/SKILL.md |
 
 Subagents: verifier (tsc + tests) · data-agent (fetch/cache) · ui-agent (React). Catalog: `.agents/AGENTS.md`.
 
