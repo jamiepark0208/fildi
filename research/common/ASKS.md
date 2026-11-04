@@ -144,4 +144,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A331](asks/A331.md) | 2026-11-03 | Jamie → Claude → Cursor | Backtest Lab: interactive backtest page (inputs, signal builder, candles + markers, inspector, results vs baseline) | done (Cursor P1 backend 11-04) |
 | [A291](asks/A291.md) | 2026-10-28 | Claude → Cursor | [quant] S120: is bad earnings news punished more than good news is rewarded lately? (extends S018) | verified (Claude ran S120: asymmetry always ~3×, not worse in 2026) |
 | [A292](asks/A292.md) | 2026-10-28 | Claude → Cursor | [quant] S121: does the DCF expensive flag hurt puts only when rates rise? (S119 follow-up) | verified (Claude ran S121 stock-level: hint only) |
-| [A332](asks/A332.md) | 2026-11-03 | Claude → Cursor | Agent token diet: split 4 most-grepped oversized files + prune grep-polluting dirs | open |
+| [A332](asks/A332.md) | 2026-11-03 | Claude → Cursor | Agent token diet: split 4 most-grepped oversized files + prune grep-polluting dirs | accepted (Claude-filed; target 1 dispatched 11-03) |
