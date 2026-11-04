@@ -29,7 +29,7 @@ import {
 } from "@/components/live/regime-banner";
 import { EntryCell, type EntrySignal } from "@/components/live/hotlist-table";
 import { formatVolume } from "@/components/live/live-format";
-import { superTrend, utBot, type OHLC } from "@/lib/tv-intraday";
+import { regimeOdds, superTrend, utBot, type OHLC } from "@/lib/tv-intraday";
 
 /** Keep chart failures off the Live route ErrorBoundary. */
 class ChartIsolate extends Component<
@@ -188,6 +188,16 @@ function snapToSessionGrid(tSec: number, openSec: number): number {
   return openSec + Math.max(0, Math.min(SESSION_MIN * 60, rel));
 }
 
+/** ~22 sessions of 5m bars — history for the regime odds (Yahoo serves 5m up to 60 days). */
+async function fetch1M5m(ticker: string): Promise<HistBar[]> {
+  const r = await fetch(
+    `/api/stocks/history?ticker=${encodeURIComponent(ticker)}&period=1M&interval=5m`,
+    { credentials: "include" },
+  );
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 async function fetch1D(ticker: string): Promise<HistBar[]> {
   const r = await fetch(
     `/api/stocks/history?ticker=${encodeURIComponent(ticker)}&period=1D`,
@@ -248,6 +258,12 @@ function RegimeSessionChartInner({
     queryKey: ["history-1d", symbol],
     queryFn: () => fetch1D(symbol),
     staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const { data: histBars } = useQuery({
+    queryKey: ["history-1m-5m", symbol],
+    queryFn: () => fetch1M5m(symbol),
+    staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
   });
 
@@ -339,23 +355,33 @@ function RegimeSessionChartInner({
   /** UT Bot buy/sell + SuperTrend on all fetched 5m bars (prior session warms ATR); only completed session bars shown. */
   const tvOverlay = useMemo(() => {
     const nowSec = Math.floor(Date.now() / 1000);
-    const bySec = new Map<number, OHLC>();
-    for (const b of bars ?? []) {
-      const c = Number(b.close);
-      const tMs = new Date(b.date).getTime();
-      if (!Number.isFinite(c) || !Number.isFinite(tMs)) continue;
-      const t = snapToSessionGrid(Math.floor(tMs / 1000), openSec);
-      if (t + BAR_SEC > nowSec) continue; // bar still forming — its flip can undo
-      const o = Number.isFinite(Number(b.open)) && b.open != null ? Number(b.open) : c;
-      const h = Math.max(Number.isFinite(Number(b.high)) && b.high != null ? Number(b.high) : c, o, c);
-      const l = Math.min(Number.isFinite(Number(b.low)) && b.low != null ? Number(b.low) : c, o, c);
-      const prev = bySec.get(t);
-      bySec.set(t, prev ? { ...prev, high: Math.max(prev.high, h), low: Math.min(prev.low, l), close: c } : { time: t, open: o, high: h, low: l, close: c });
-    }
+    const bySec = new Map<number, OHLC & { volume: number }>();
+    // 1M history first, then the fresher 1D feed replaces any overlapping 5m bucket (never adds to it).
+    const fromFeed = (rows: HistBar[] | undefined, replace: boolean) => {
+      const seen = new Set<number>();
+      for (const b of rows ?? []) {
+        const c = Number(b.close);
+        const tMs = new Date(b.date).getTime();
+        if (!Number.isFinite(c) || !Number.isFinite(tMs)) continue;
+        const t = snapToSessionGrid(Math.floor(tMs / 1000), openSec);
+        if (t + BAR_SEC > nowSec) continue; // bar still forming — its flip can undo
+        const num = (x: number | null | undefined) => (x != null && Number.isFinite(Number(x)) ? Number(x) : c);
+        const o = num(b.open), h = Math.max(num(b.high), o, c), l = Math.min(num(b.low), o, c);
+        const vol = Number.isFinite(Number(b.volume)) ? Number(b.volume) : 0;
+        const prev = replace && !seen.has(t) ? undefined : bySec.get(t);
+        seen.add(t);
+        bySec.set(t, prev
+          ? { ...prev, high: Math.max(prev.high, h), low: Math.min(prev.low, l), close: c, volume: prev.volume + vol }
+          : { time: t, open: o, high: h, low: l, close: c, volume: vol });
+      }
+    };
+    fromFeed(histBars, false);
+    fromFeed(bars, true);
     const ser = [...bySec.values()].sort((a, b) => a.time - b.time);
     const inSession = (t: number) => t >= openSec && t <= closeSec;
     const ut = utBot(ser);
     const st = superTrend(ser);
+    const odds = regimeOdds(ser, ser.map((b) => b.volume));
     const stLine = ser
       .map((b, i) => ({ b, i }))
       .filter(({ b, i }) => inSession(b.time) && Number.isFinite(st.line[i]))
@@ -370,10 +396,9 @@ function RegimeSessionChartInner({
         text: s.side === "buy" ? "Buy" : "Sell",
         size: 1,
       }));
-    const lastUt = [...ut.signals].reverse()[0] ?? null;
-    const lastDir = st.dir.length ? st.dir[st.dir.length - 1] : 0;
-    return { stLine, marks, lastUt, lastDir };
-  }, [bars, openSec, closeSec]);
+    const sessions = new Set(ser.map((b) => Math.floor((b.time - openSec) / 86400))).size;
+    return { stLine, marks, now: odds.now, notes: odds.notes, sessions };
+  }, [bars, histBars, openSec, closeSec]);
   const [showTv, setShowTv] = useState(true);
 
   const candleCount = useMemo(
@@ -443,6 +468,7 @@ function RegimeSessionChartInner({
     volume: number;
   } | null>(null);
   const [tickerDraft, setTickerDraft] = useState("");
+  const [hoverSec, setHoverSec] = useState<number | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -650,8 +676,10 @@ function RegimeSessionChartInner({
       const t = param.time;
       if (t == null || typeof t !== "number") {
         setHoverBar(null);
+        setHoverSec(null);
         return;
       }
+      setHoverSec(t);
       const bar = barBySecRef.current.get(t);
       setHoverBar(bar ?? null);
     };
@@ -816,14 +844,37 @@ function RegimeSessionChartInner({
             title="UT Bot buy/sell arrows (ATR 10 × 1) + SuperTrend line (ATR 10 × 3), TradingView default settings on these 5-min bars. Completed bars only. Display, not a tested edge: intraday UT turns did not improve put-sale timing (S108) and no intraday direction rule beat the base rate (S124)."
           >
             UT/ST
-            {showTv && tvOverlay.lastUt && (
-              <span className={tvOverlay.lastUt.side === "buy" ? "text-green-400" : "text-red-400"}>
-                {" "}· last {tvOverlay.lastUt.side === "buy" ? "Buy" : "Sell"} {formatPtHmm(tvOverlay.lastUt.time * 1000)}
-              </span>
-            )}
           </button>
         </div>
       </div>
+      {showTv && tvOverlay.now && (() => {
+        const n = tvOverlay.now;
+        const pSide = n.side > 0 ? n.pUp : 1 - n.pUp;
+        const base = n.side > 0 ? n.basePUp : 1 - n.basePUp;
+        const edge = Math.round((pSide - base) * 100);
+        const endMs = n.medianMoreBars != null ? Date.now() + n.medianMoreBars * BAR_SEC * 1000 : null;
+        return (
+          <div
+            className="px-3 py-0.5 border-b border-[#d4af37]/15 bg-black/60 flex flex-wrap items-center gap-x-3 text-[10px] font-mono"
+            title={`From ${symbol}'s last ${tvOverlay.sessions} sessions of 5-min bars, only bars before now. Odds = share of past bars in the same state (UT side, SuperTrend side, run age) that closed ${n.side > 0 ? "higher" : "lower"} 30 min later, shrunk toward the all-bar rate so small samples can't overstate. Lasts = past ${n.side > 0 ? "buy" : "sell"} runs that had already run ${n.age} bars.`}
+          >
+            <span className={n.side > 0 ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+              {n.side > 0 ? "Bull" : "Bear"} {Math.round(pSide * 100)}% next 30m
+            </span>
+            <span className={cn(edge >= 3 ? "text-amber-50" : "text-amber-50/50")}>
+              {edge >= 0 ? "+" : ""}{edge} pts vs {Math.round(base * 100)}% any bar · n {n.n}
+            </span>
+            <span className="text-amber-50/80">
+              UT {n.side > 0 ? "buy" : "sell"} run {n.age} bars (since {formatPtHmm(n.sinceTime * 1000)}) · SuperTrend {n.stAgrees ? "agrees" : "against"}
+            </span>
+            {Number.isFinite(n.pLast30) && n.runsN >= 10 && (
+              <span className="text-amber-50/80">
+                lasts 30m more {Math.round(n.pLast30 * 100)}%{endMs != null ? ` · typical end ~${formatPtHmm(endMs)}` : ""} (n {n.runsN})
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="relative h-[248px]">
         {isLoading && (
@@ -842,6 +893,19 @@ function RegimeSessionChartInner({
           </p>
         )}
         <div ref={containerRef} className="absolute inset-0" />
+        {showTv && hoverSec != null && tvOverlay.notes.get(hoverSec) && (() => {
+          const note = tvOverlay.notes.get(hoverSec)!;
+          return (
+            <div className="absolute left-14 top-1 z-20 max-w-[300px] rounded border border-[#d4af37]/40 bg-black/90 px-2 py-1 text-[10px] font-mono leading-snug pointer-events-none">
+              <div className={note.side === "buy" ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                UT {note.side === "buy" ? "Buy" : "Sell"} {formatPtHmm(note.time * 1000)}
+              </div>
+              {note.lines.map((l) => (
+                <div key={l} className="text-amber-50/90">{l}</div>
+              ))}
+            </div>
+          );
+        })()}
         <canvas
           ref={overlayRef}
           className="absolute inset-0 pointer-events-none"
