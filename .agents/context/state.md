@@ -45,5 +45,5 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
 
-Last reviewed SHA: 040ad203 (11-03 late: 8510e156..040ad203 — all quant commits already carry Claude reviews in row files; codex b2a99fe1/394d158f = review docs only)
+Last reviewed SHA: 2982fae0 (11-04: 040ad203..2982fae0 — quant commits A332 t2/t4, A276 already reviewed; rest muse docs/briefs)
 
