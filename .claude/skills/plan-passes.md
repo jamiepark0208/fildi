@@ -22,6 +22,10 @@ Why: Claude's own specs went to Cursor unreviewed. A328 had no baseline for long
 - Stand-in 0 / missing ≠ zero; stale period.
 - Runtime (rule 8c): deadlines, caps, cache, poll > TTL, measured before/after.
 - Grading: how live results flow back (A327 shadow), and what kills it (stop rule).
+- Data coverage claimed vs real: state each source's actual date range + names before promising a feature (A331: real quotes only 2026-10-08→).
+- Serving cost: a page/API never loads a study cache per request; precompute aggregates (A331: 7.1 GB baseline pickle).
+- Same trade counted twice: identical trades under two labels inflate "distinct" results (S151: month = quarter rows).
+- Truth period ≤ 15 months and missing ≠ 0 in any reference/"truth" source (A329 SEC).
 Add each new bug class a review catches here (one line, cite the row).
 
 ## 3 Optimize
@@ -38,6 +42,10 @@ Add each new bug class a review catches here (one line, cite the row).
 - Defaults are the answer to the common question: preset loaded, sensible dates. One click to run.
 - Every number has its "vs what" and n. Tooltips hold method/caveats (memory ui-tooltips-concise).
 - Screenshot check (Playwright) in acceptance: can the answer be read in 5 seconds?
+
+## Learn (every plan)
+- Write the plan with this checklist open, so the passes should find little. Each pass finding and each later escape (a bug the build or review found that the passes missed) gets a line in `.agents/context/plan-passes-log.md`: date · row · found-by (pass / review / build) · class.
+- Monthly: escapes per plan should fall. A class that escapes twice → add or sharpen a checklist line. A line that never fires in 2 months → cut it (keeps the skill short).
 
 ## Then
 Quant rows → Grok red-team (own review never advances own plan). Non-quant → dispatch.
