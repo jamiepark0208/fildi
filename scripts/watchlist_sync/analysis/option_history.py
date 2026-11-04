@@ -313,6 +313,16 @@ def run_ivrank(conn, tickers: list[str]) -> None:
                 continue
             c = nearest(chain(conn, t, exp, s), "put", s)
             leg(conn, "ivrank", f"{t}|{exp}", "atm30_put", c, exp)
+            # Re-centre (11-03): the leg above is locked at one strike; after a > 10 % move every live leg falls outside
+            # option_derive.iv30's ±10 % band and optlab.iv30 froze (10-30). Add a leg near today's spot when none is ≤ 5 %.
+            now = spot(conn, t, TODAY)
+            if now and exp >= TODAY + timedelta(days=15):
+                ks = [r[0] for r in conn.execute("""SELECT c.strike FROM optlab.legs l JOIN optlab.contracts c USING (occ)
+                                                     WHERE l.study = 'ivrank' AND l.key = %s""", (f"{t}|{exp}",)).fetchall()]
+                if not any(abs(k / now - 1) <= 0.05 for k in ks):
+                    c = nearest(chain(conn, t, exp, now), "put", now)
+                    if c:
+                        leg(conn, "ivrank", f"{t}|{exp}", f"atm_put_k{c['strike']:g}", c, exp)
         progress(conn, f"ivrank {i + 1}/{len(tickers)} ({t})")
 
 
