@@ -1,0 +1,198 @@
+// This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International  
+// https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © BigBeluga
+
+//@version=6
+indicator("Market Structure Oscillator [BigBeluga]", overlay = false, max_lines_count = 500, max_labels_count = 500)
+
+// ＩＮＰＵＴＳ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+
+groupColors     = "Color Customization"
+groupParams     = "Indicator Parameters"
+groupMS         = "Market Structure Settings & Styles"
+groupDiv        = "Divergence Settings & Styles"
+groupToggles    = "Visibility Toggles"
+
+
+// Visibility Toggles
+inputShowMSLines     = input.bool(true, title = "Show Market Structure Lines", group = groupToggles, tooltip = "Toggle market structure breakout lines on the price chart.")
+inputShowMSLabels    = input.bool(true, title = "Show MS Count Labels", group = groupToggles, tooltip = "Toggle numerical swing count labels on the price chart.")
+inputShowChochBos    = input.bool(true, title = "Show CHoCH / BoS Labels", group = groupToggles, tooltip = "Toggle CHoCH and BoS text labels on breakout lines.")
+inputShowOscLabels   = input.bool(true, title = "Show Oscillator Count Labels", group = groupToggles, tooltip = "Toggle numerical count labels at 0 / 100 levels on the oscillator.")
+inputShowBG          = input.bool(true, title = "Show MS Count Background Highlights", group = groupToggles, tooltip = "Toggle background color highlighting on Market Structure Breaks changes.")
+inputShowHist        = input.bool(true, title = "Show Momentum Histogram", group = groupToggles, tooltip = "Toggle oscillator histogram columns.")
+inputShowOscLine     = input.bool(true, title = "Show Smoothed Momentum Line", group = groupToggles, tooltip = "Toggle the continuous momentum oscillator line.")
+inputShowDivLines    = input.bool(true, title = "Show Divergence Lines", group = groupToggles, tooltip = "Toggle divergence lines drawn on the oscillator pane.")
+inputShowDivLabels   = input.bool(true, title = "Show Divergence Chart Markers", group = groupToggles, tooltip = "Toggle divergence dot/text labels on the main chart.")
+inputShowTrendShape  = input.bool(true, title = "Show Trend Bound Circles", group = groupToggles, tooltip = "Toggle upper/lower bound trend circles on the oscillator pane.")
+
+// Colors
+inputColorBull       = input.color(#35cfc5, title = "Bullish Color", group = groupColors, tooltip = "Base color for bullish market structure, histogram, line, and bullish elements.")
+inputColorBear       = input.color(#ff5454, title = "Bearish Color", group = groupColors, tooltip = "Base color for bearish market structure, histogram, line, and bearish elements.")
+inputDivColorBull    = input.color(color.yellow, title = "Bullish Divergence Color", group = groupColors, tooltip = "Color for bullish divergence lines and labels.")
+inputDivColorBear    = input.color(color.orange, title = "Bearish Divergence Color", group = groupColors, tooltip = "Color for bearish divergence lines and labels.")
+
+// Parameters
+inputMomLength       = input.int(14, title = "Custom Momentum Length", minval = 1, group = groupParams, tooltip = "Lookback period for rate of change and volatility calculation.")
+inputSmoothLength    = input.int(10, title = "Smoothing Length", minval = 1, group = groupParams, tooltip = "Smoothing period for the exponential moving average of momentum.")
+
+// Market Structure
+inputMsPivotLeft     = input.int(5, title = "Market Structure Pivot Left", minval = 1, group = groupMS, tooltip = "Left lookback period for market structure pivot high/low detection.")
+inputMsPivotRight    = input.int(5, title = "Market Structure Pivot Right", minval = 1, group = groupMS, tooltip = "Right lookback period for market structure pivot high/low confirmation.")
+inputMsLineStyle     = input.string("Solid", title = "MS Line Style", options = ["Solid", "Dashed", "Dotted"], group = groupMS, tooltip = "Style of breakout lines on chart overlay.")
+inputMsLineWidth     = input.int(1, title = "MS Line Width", minval = 1, maxval = 4, group = groupMS, tooltip = "Thickness of breakout lines on chart overlay.")
+
+// Divergence
+inputDivPivotRight   = input.int(5, title = "Divergence Pivot Right", minval = 1, group = groupDiv, tooltip = "Right lookback period for pivot point confirmation.")
+inputDivPivotLeft    = input.int(5, title = "Divergence Pivot Left", minval = 1, group = groupDiv, tooltip = "Left lookback period for pivot point detection.")
+inputDivLineStyle    = input.string("Dashed", title = "Divergence Line Style", options = ["Solid", "Dashed", "Dotted"], group = groupDiv, tooltip = "Line style for detected divergences on the oscillator.")
+inputDivLineWidth    = input.int(1, title = "Divergence Line Width", minval = 1, maxval = 4, group = groupDiv, tooltip = "Line thickness for detected divergences on the oscillator.")
+
+resolveLineStyle(styleString) =>
+    switch styleString
+        "Solid"  => line.style_solid
+        "Dashed" => line.style_dashed
+        "Dotted" => line.style_dotted
+        => line.style_solid
+
+msLineStyleResolved  = resolveLineStyle(inputMsLineStyle)
+divLineStyleResolved = resolveLineStyle(inputDivLineStyle)
+
+// }
+// ＣＡＬＣＵＬＡＴＩＯＮＳ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+
+var isTrendUp = false 
+var bullBreakCount = 0
+var bearBreakCount = 0
+
+type swingPoint 
+    float price 
+    int barIndex 
+
+var latestHighSwing = swingPoint.new()
+var latestLowSwing = swingPoint.new()
+
+pivotHigh = ta.pivothigh(inputMsPivotLeft, inputMsPivotRight)
+pivotLow = ta.pivotlow(inputMsPivotLeft, inputMsPivotRight)
+
+if not na(pivotHigh)
+    latestHighSwing := swingPoint.new(pivotHigh, bar_index - inputMsPivotRight)
+
+if not na(pivotLow)
+    latestLowSwing := swingPoint.new(pivotLow, bar_index - inputMsPivotRight)
+
+backgroundColor = color(na)
+
+if ta.crossover(close, latestHighSwing.price) and not na(latestHighSwing.price)
+    isTrendUp := true 
+    bullBreakCount += 1
+    bearBreakCount := 0
+    backgroundColor := color.new(inputColorBull, 95)
+
+    if inputShowMSLines
+        line.new(latestHighSwing.barIndex, latestHighSwing.price, bar_index, latestHighSwing.price, force_overlay = true, color = inputColorBull, style = msLineStyleResolved, width = inputMsLineWidth)
+
+    if inputShowMSLabels
+        label.new(bar_index, high, str.tostring(bullBreakCount), style = label.style_label_down, color = color(na), textcolor = chart.fg_color, force_overlay = true)
+
+    if inputShowChochBos
+        label.new(int(math.avg(bar_index, latestHighSwing.barIndex)), latestHighSwing.price, bullBreakCount <= 1 ? "ChoCh" : "BoS", style = label.style_label_down, color = color(na), textcolor = color.new(chart.fg_color, 50), force_overlay = true, text_font_family = font.family_monospace)
+
+    latestHighSwing.price := na
+
+    if inputShowOscLabels
+        label.new(bar_index, 100, str.tostring(bullBreakCount), style = label.style_label_down, color = color(na), textcolor = chart.fg_color, force_overlay = false)
+
+if ta.crossunder(close, latestLowSwing.price) and not na(latestLowSwing.price)
+    isTrendUp := false 
+    bearBreakCount += 1
+    bullBreakCount := 0
+    backgroundColor := color.new(inputColorBear, 95)
+
+    if inputShowMSLines
+        line.new(latestLowSwing.barIndex, latestLowSwing.price, bar_index, latestLowSwing.price, force_overlay = true, color = inputColorBear, style = msLineStyleResolved, width = inputMsLineWidth)
+
+    if inputShowMSLabels
+        label.new(bar_index, low, str.tostring(bearBreakCount), style = label.style_label_up, color = color(na), textcolor = chart.fg_color, force_overlay = true)
+
+    if inputShowChochBos
+        label.new(int(math.avg(bar_index, latestLowSwing.barIndex)), latestLowSwing.price, bearBreakCount <= 1 ? "ChoCh" : "BoS", style = label.style_label_up, color = color(na), textcolor = color.new(chart.fg_color, 50), force_overlay = true, text_font_family = font.family_monospace)
+
+    latestLowSwing.price := na
+
+    if inputShowOscLabels
+        label.new(bar_index, 0, str.tostring(bearBreakCount), style = label.style_label_up, color = color(na), textcolor = chart.fg_color, force_overlay = false)
+
+rateOfChange = ta.change(close, inputMomLength)
+priceVolatility = ta.stdev(ta.change(close), inputMomLength)
+rawMomentum = priceVolatility != 0 ? (rateOfChange / priceVolatility) : 0
+
+sigmoidMomentum = 100 / (1 + math.exp(-rawMomentum))
+smoothedOscillator = ta.ema(sigmoidMomentum, inputSmoothLength)
+
+float momentumOffset = math.abs(smoothedOscillator - 50)
+float trendFilteredOsc = na
+
+if isTrendUp
+    trendFilteredOsc := 50 + momentumOffset
+else
+    trendFilteredOsc := 50 - momentumOffset
+
+histogramColor = trendFilteredOsc >= 50 ? color.from_gradient(trendFilteredOsc, 50, 100, color.new(inputColorBull, 70), inputColorBull) : color.from_gradient(trendFilteredOsc, 0, 50, inputColorBear, color.new(inputColorBear, 70))
+lineColor = trendFilteredOsc >= 50 ? color.from_gradient(trendFilteredOsc, 50, 100, color.new(inputColorBull, 90), inputColorBull) : color.from_gradient(trendFilteredOsc, 0, 50, inputColorBear, color.new(inputColorBear, 90))
+
+oscPivotHigh = ta.pivothigh(smoothedOscillator, inputDivPivotLeft, inputDivPivotRight)
+oscPivotLow = ta.pivotlow(smoothedOscillator, inputDivPivotLeft, inputDivPivotRight)
+
+var float prevOscPivotHigh = na
+var int prevOscPivotHighIndex = na
+var float prevPivotHighPrice = na
+
+var float prevOscPivotLow = na
+var int prevOscPivotLowIndex = na
+var float prevPivotLowPrice = na
+
+if not na(oscPivotHigh)
+    currentOscPivotHigh = oscPivotHigh
+    currentOscPivotHighIndex = bar_index - inputDivPivotRight
+    currentPivotHighPrice = high[inputDivPivotRight]
+
+    if not na(prevOscPivotHigh) and currentPivotHighPrice > prevPivotHighPrice and currentOscPivotHigh < prevOscPivotHigh and barstate.isconfirmed
+        if inputShowDivLines
+            line.new(prevOscPivotHighIndex, prevOscPivotHigh, currentOscPivotHighIndex, currentOscPivotHigh, force_overlay = false, color = inputDivColorBear, style = divLineStyleResolved, width = inputDivLineWidth)
+        if inputShowDivLabels
+            label.new(bar_index, high, "Div\n●", style = label.style_label_down, color = color(na), textcolor = inputDivColorBear, force_overlay = true)
+
+    prevOscPivotHigh := currentOscPivotHigh
+    prevOscPivotHighIndex := currentOscPivotHighIndex
+    prevPivotHighPrice := currentPivotHighPrice
+
+if not na(oscPivotLow)
+    currentOscPivotLow = oscPivotLow
+    currentOscPivotLowIndex = bar_index - inputDivPivotRight
+    currentPivotLowPrice = low[inputDivPivotRight]
+
+    if not na(prevOscPivotLow) and currentPivotLowPrice < prevPivotLowPrice and currentOscPivotLow > prevOscPivotLow and barstate.isconfirmed
+        if inputShowDivLines
+            line.new(prevOscPivotLowIndex, prevOscPivotLow, currentOscPivotLowIndex, currentOscPivotLow, force_overlay = false, color = inputDivColorBull, style = divLineStyleResolved, width = inputDivLineWidth)
+        if inputShowDivLabels
+            label.new(bar_index, low, "●\nDiv", style = label.style_label_up, color = color(na), textcolor = inputDivColorBull, force_overlay = true)
+
+    prevOscPivotLow := currentOscPivotLow
+    prevOscPivotLowIndex := currentOscPivotLowIndex
+    prevPivotLowPrice := currentPivotLowPrice
+
+// }
+// ＰＬＯＴ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+
+bgcolor(inputShowBG ? backgroundColor : color(na))
+
+hline(50, "Center Line", color = chart.fg_color, linestyle = hline.style_dashed)
+
+plot(inputShowHist ? trendFilteredOsc : na, title = "Custom Momentum Histogram", style = plot.style_columns, histbase = 50, color = histogramColor)
+plot(inputShowOscLine ? smoothedOscillator : na, title = "Smoothed Momentum Line", color = lineColor, linewidth = 2)
+
+plotshape(inputShowTrendShape and isTrendUp ? 100 : na, title = "Market Structure Trend Up", style = shape.circle, location = location.absolute, color = histogramColor)
+plotshape(inputShowTrendShape and not isTrendUp ? 0 : na, title = "Market Structure Trend Dn", style = shape.circle, location = location.absolute, color = histogramColor)
+
+// }
