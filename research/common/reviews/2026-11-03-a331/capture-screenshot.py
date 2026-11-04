@@ -18,25 +18,26 @@ def repo_root() -> Path:
 
 REPO = repo_root()
 OUT = REPO / "research/common/reviews/2026-11-03-a331"
+FIXTURE = OUT / "backtest-run-fixture.json"
 STATE = Path.home() / ".fildi/playwright-state.json"
 
 
+def load_runner_fixture() -> tuple[dict, list]:
+    if not FIXTURE.is_file():
+        raise SystemExit(
+            f"missing {FIXTURE.relative_to(REPO)} — run: "
+            'cd scripts/watchlist_sync && .venv/bin/python analysis/backtest_lab.py run '
+            '\'--json\' \'{"preset":"put_climax_spy_oversold","start":"2023-01-01","end":"2024-12-31"}\' '
+            f"> {FIXTURE.relative_to(REPO)}"
+        )
+    raw = json.loads(FIXTURE.read_text())
+    summary = raw["summary"]
+    trades = raw.get("trades") or []
+    return summary, trades
+
+
 def stub_routes(page, base: str) -> None:
-    summary = {
-        "preset": "put_climax_spy_oversold",
-        "vsAnyDay": {
-            "breachSig": 0.009,
-            "breachBase": 0.111,
-            "excessMean": 0.006,
-            "n": 113,
-            "nMonths": 33,
-            "meanBase": 0.001,
-        },
-        "verdict": "PASS",
-        "pnlUnit": "per_$collateral",
-        "firingToday": ["AAPL", "MSFT", "NVDA"],
-        "pricing": {"badge": "model-priced", "note": "Historical runs use Black-Scholes at IV (V1)."},
-    }
+    summary, trades = load_runner_fixture()
     run_id = "00000000-0000-4000-8000-000000000001"
 
     page.route(
@@ -54,7 +55,7 @@ def stub_routes(page, base: str) -> None:
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
-            body=json.dumps({"runId": run_id, "paramHash": "stub", "cached": True}),
+            body=json.dumps({"runId": run_id, "paramHash": "fixture", "cached": True}),
         ),
     )
     page.route(
@@ -67,7 +68,9 @@ def stub_routes(page, base: str) -> None:
     )
     page.route(
         "**/api/backtest/runs/*/trades",
-        lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps({"trades": []})),
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"trades": trades})
+        ),
     )
     page.route(
         "**/api/backtest/catalog",

@@ -61,9 +61,16 @@ type InspectPayload = {
 
 type TabId = "overview" | "trades" | "lift" | "inspector";
 
-function fmtPct(x: number | undefined, digits = 1): string {
+/** Breach rates are fractions (0.0088 → 0.9 %). */
+function fmtBreachRate(x: number | undefined, digits = 1): string {
   if (x == null || Number.isNaN(x)) return "—";
   return `${(100 * x).toFixed(digits)} %`;
+}
+
+/** Trade / excess P&L from runner is already in percent points (0.6026 → 0.60 %). */
+function fmtTradePct(x: number | undefined, digits = 2): string {
+  if (x == null || Number.isNaN(x)) return "—";
+  return `${x.toFixed(digits)} %`;
 }
 
 function pnlUnitLabel(unit: string | undefined): string {
@@ -78,8 +85,8 @@ function buildAnswerLine(summary: BacktestSummary, holdoutLocked: boolean): stri
   const hold = holdoutLocked ? "holdout locked" : "holdout ✓";
   const unit = pnlUnitLabel(summary.pnlUnit);
   return (
-    `vs any day: breach ${fmtPct(vs.breachSig)} vs ${fmtPct(vs.breachBase)} · ` +
-    `+${fmtPct(vs.excessMean, 2)} ${unit} · n ${vs.n ?? "—"} / ${vs.nMonths ?? "—"} signal mo · ${verdict} · ${hold}`
+    `vs any day: breach ${fmtBreachRate(vs.breachSig)} vs ${fmtBreachRate(vs.breachBase)} · ` +
+    `+${vs.excessMean == null || Number.isNaN(vs.excessMean) ? "—" : vs.excessMean.toFixed(2)} ${unit} · n ${vs.n ?? "—"} / ${vs.nMonths ?? "—"} signal mo · ${verdict} · ${hold}`
   );
 }
 
@@ -167,7 +174,7 @@ function MonthHeatmap({ trades }: { trades: BacktestTrade[] }) {
               {ym.slice(2)}
             </div>
           </TooltipTrigger>
-          <TooltipContent className="text-[10px]">{ym}: {(100 * v).toFixed(2)} % sum</TooltipContent>
+          <TooltipContent className="text-[10px]">{ym}: {v.toFixed(2)} % sum</TooltipContent>
         </Tooltip>
       ))}
     </div>
@@ -228,7 +235,7 @@ export function BacktestLabPanel() {
       date: t.date,
       price: t.S,
       text: "▲",
-      detail: `Signal ${t.date} · P&L ${((t.pnl ?? 0) * 100).toFixed(2)} %`,
+      detail: `Signal ${t.date} · P&L ${fmtTradePct(t.pnl)}`,
       color: "#22c55e",
     }));
   }, [trades, chartTicker, selectedTrade]);
@@ -359,7 +366,7 @@ export function BacktestLabPanel() {
                   >
                     <td className={GRID_TD}>{t.date}</td>
                     <td className={GRID_TD}>{t.ticker}</td>
-                    <td className={cn(GRID_TD, "text-right")}>{((t.pnl ?? 0) * 100).toFixed(2)} %</td>
+                    <td className={cn(GRID_TD, "text-right")}>{fmtTradePct(t.pnl)}</td>
                   </tr>
                 ))}
               </tbody>
