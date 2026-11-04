@@ -34,7 +34,7 @@ const GROUPS: GroupDef[] = [
   { id: "technology.semiconductors_design",            name: "Semiconductors — Design",              scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["NVDA","AMD","INTC","AVGO","QCOM","ARM","MRVL","MU","ON","TXN","ADI","NXPI","SWKS","MCHP","MPWR","GFS","WOLF"] },
   { id: "technology.semiconductors_equipment_eda",     name: "Semiconductors — Equipment & EDA",     scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["ASML","AMAT","LRCX","KLAC","CDNS","SNPS","MKSI","AEIS","ENTG","ONTO","ACLS","CAMT","FORM","COHU"] },
   { id: "technology.semiconductor_foundry_specialty",  name: "Semiconductor Foundry & Specialty",    scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: true,  tickers: ["TSM","AAOI","KOPN","LITE","UMC","CEVA","SITM"] },
-  { id: "technology.it_hardware_networking",           name: "IT Hardware & Networking",             scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["DELL","SMCI","CSCO","ANET","HPE","HPQ","NTAP","PSTG","JNPR","ZBRA"] },
+  { id: "technology.it_hardware_networking",           name: "IT Hardware & Networking",             scoringMode: "standard",                metricExclusions: [],                                                       lowConfidence: false, tickers: ["DELL","SMCI","CSCO","ANET","HPE","HPQ","NTAP","PSTG","JNPR","ZBRA","CRWV","NBIS"] },
   { id: "technology.chinese_tech",                     name: "Chinese Tech",                         scoringMode: "chinese",                 metricExclusions: ["roe"],                                                  lowConfidence: false, tickers: ["BABA","PDD","JD","BIDU","NIO","XPEV","LI","NTES","BILI","TME","ZTO","FUTU","VNET","TCOM"] },
   { id: "fintech.digital_finance_payments",            name: "Digital Finance & Payments",           scoringMode: "financial_mixed",         metricExclusions: ["pb_ratio"],                                             lowConfidence: false, tickers: ["PYPL","SQ","SOFI","COIN","AFRM","HOOD","UPST","TOST","BILL","FIS","FISV","GPN","FOUR","RELY","ADYEN","NU","PAGS"] },
   // A160: large_banks + regional_banks → one Banks group (NIM lenders; distance 0.12)
@@ -161,6 +161,7 @@ async function main() {
     "industrials.waste_management_services": "industrials.industrial_conglomerates_machinery",
     "financials.large_banks": "financials.banks",
     "financials.regional_banks": "financials.banks",
+    "technology.gpu_cloud": "technology.it_hardware_networking",
   };
   for (const [from, to] of Object.entries(RETIRED)) {
     const reg = await db.update(tickerRegistry).set({ primaryPeerGroupId: to })

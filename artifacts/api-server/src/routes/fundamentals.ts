@@ -163,13 +163,18 @@ router.get("/fundamentals/stock-db", requireAuth, async (_req, res) => {
   try {
     const watchlistSet = new Set((await getUnionWatchlistTickers()).map((t: string) => t.toUpperCase()));
 
-    const [fundRows, regRows, groupRows, techRows, signalResult] = await Promise.all([
+    const [fundRows, regRows, groupRows, techRows, signalResult, priceResult, fwdResult] = await Promise.all([
       db
         .select({ fund: tickerFundamentals, fetchFundamentals: tickerRegistry.fetchFundamentals })
         .from(tickerFundamentals)
         .innerJoin(tickerRegistry, eq(tickerFundamentals.ticker, tickerRegistry.ticker))
         .where(eq(tickerRegistry.fetchFundamentals, true)),
-      db.select({ ticker: tickerRegistry.ticker, name: tickerRegistry.name, primaryPeerGroupId: tickerRegistry.primaryPeerGroupId }).from(tickerRegistry),
+      db.select({
+        ticker: tickerRegistry.ticker,
+        name: tickerRegistry.name,
+        primaryPeerGroupId: tickerRegistry.primaryPeerGroupId,
+        peerRep: tickerRegistry.peerRep,
+      }).from(tickerRegistry),
       db.select({ id: peerGroups.id, name: peerGroups.name }).from(peerGroups),
       db.select().from(tickerTechnicals),
       db.execute<{ ticker: string; signal: string }>(sql`
@@ -177,23 +182,46 @@ router.get("/fundamentals/stock-db", requireAuth, async (_req, res) => {
         FROM indicator_cache
         ORDER BY ticker, scored_date DESC
       `),
+      db.execute<{ ticker: string; close: number }>(sql`
+        SELECT DISTINCT ON (ticker) ticker, close::float8 AS close
+        FROM prices_historical
+        ORDER BY ticker, date DESC
+      `),
+      db.execute<{ ticker: string; forward_eps: number }>(sql`
+        SELECT DISTINCT ON (ticker) ticker, value::float8 AS forward_eps
+        FROM source_fundamentals
+        WHERE field = 'forwardEps'
+          AND source IN ('yahoo','finnhub','fmp','alpha_vantage')
+          AND value::float8 <> 0
+        ORDER BY ticker, fetched_at DESC
+      `),
     ]);
 
     const regByTicker    = new Map(regRows.map(r => [r.ticker.toUpperCase(), r]));
     const groupNameById  = new Map(groupRows.map(g => [g.id, g.name]));
     const techByTicker   = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
     const signalByTicker = new Map(signalResult.rows.map(r => [r.ticker.toUpperCase(), r.signal]));
+    const priceByTicker  = new Map(priceResult.rows.map(r => [r.ticker.toUpperCase(), Number(r.close)]));
+    const fwdEpsByTicker = new Map(fwdResult.rows.map(r => [r.ticker.toUpperCase(), Number(r.forward_eps)]));
 
     const result = fundRows.map(({ fund: row }) => {
       const reg     = regByTicker.get(row.ticker.toUpperCase());
       const groupId = reg?.primaryPeerGroupId ?? null;
+      const px = priceByTicker.get(row.ticker.toUpperCase());
+      const fwdEps = fwdEpsByTicker.get(row.ticker.toUpperCase());
+      const shares = row.sharesOutstanding != null ? Number(row.sharesOutstanding) : NaN;
+      const marketCap = px != null && Number.isFinite(px) && px > 0 && Number.isFinite(shares) && shares > 0
+        ? px * shares
+        : null;
       return {
         ticker:        row.ticker,
         companyName:   reg?.name ?? null,
         isWatchlist:   watchlistSet.has(row.ticker.toUpperCase()),
+        isPeerRep:     reg?.peerRep === true,
+        marketCap,
         peerGroupId:   groupId,
         peerGroupName: groupId ? (groupNameById.get(groupId) ?? null) : null,
-        fundamentals:  row,
+        fundamentals:  { ...row, forwardEps: fwdEps != null && Number.isFinite(fwdEps) ? String(fwdEps) : null },
         technicals:    techByTicker.get(row.ticker.toUpperCase()) ?? null,
         signal:        signalByTicker.get(row.ticker.toUpperCase()) ?? null,
       };
@@ -201,6 +229,25 @@ router.get("/fundamentals/stock-db", requireAuth, async (_req, res) => {
 
     result.sort((a, b) => a.ticker.localeCompare(b.ticker));
     return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message ?? err) });
+  }
+});
+
+// PUT /fundamentals/peer-rep — mark a ticker as a peer anchor. Does not change scores.
+router.put("/fundamentals/peer-rep", requireAdmin, async (req, res) => {
+  const ticker = String(req.body?.ticker ?? "").toUpperCase();
+  const peerRep = req.body?.peerRep === true;
+  if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) {
+    return res.status(400).json({ error: "ticker required" });
+  }
+  try {
+    const updated = await db.update(tickerRegistry)
+      .set({ peerRep })
+      .where(eq(tickerRegistry.ticker, ticker))
+      .returning({ ticker: tickerRegistry.ticker, peerRep: tickerRegistry.peerRep });
+    if (updated.length === 0) return res.status(404).json({ error: "ticker not in registry" });
+    return res.json(updated[0]);
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
