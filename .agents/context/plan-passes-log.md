@@ -11,3 +11,4 @@
 2026-11-03 · A331 · pass · UI answer-first + firing-today missing
 2026-11-03 · A329 · review (r6) · truth builder again: parts from different dates, fiduciary cash, older period vs newer gold
 2026-11-04 · A329 seg3 · pass · ADR ratio / share-class sum / negative TBV / basic-vs-diluted added before build
+2026-11-04 · A332 t1 · escape (nightly crash) · file split dropped imports in .mjs (no typecheck) → ship-check now lints scripts/*.mjs no-undef
