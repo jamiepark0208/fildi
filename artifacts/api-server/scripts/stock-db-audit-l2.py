@@ -26,6 +26,10 @@ NI_COMMON = [
 REV = ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenuesNetOfInterestExpense", "SalesRevenueNet"]
 ASSETS = ["Assets"]
 EQ = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"]
+DEBT_LT = ["LongTermDebtNoncurrent", "LongTermDebt"]
+DEBT_CUR = ["LongTermDebtCurrent"]
+DEBT_ST = ["ShortTermBorrowings", "CommercialPaper"]
+MAX_PERIOD_DAYS = 15 * 30
 
 
 def ok(v, t, field):
@@ -48,17 +52,73 @@ def price(conn, t):
     return (float(r[0]["close"]), str(r[0]["date"])) if r else (None, None)
 
 
+def days_apart(a: str, b: str) -> int:
+    return abs((date.fromisoformat(a) - date.fromisoformat(b)).days)
+
+
+def period_fresh(end: str, anchor: str) -> bool:
+    return days_apart(end, anchor) <= MAX_PERIOD_DAYS
+
+
+def audit_instant(facts: dict, concepts: list[str], asof: str, anchor: str) -> dict | None:
+    """Instant tag on/before asof; missing or stale vs anchor → None (never stand-in 0)."""
+    gaap = (facts or {}).get("facts", {}).get("us-gaap") or {}
+    best = None
+    for c in concepts:
+        node = gaap.get(c)
+        if not node:
+            continue
+        for unit in node.get("units", {}).get("USD", []):
+            if unit.get("start"):
+                continue
+            if unit["end"] > asof:
+                continue
+            if best is None or unit["end"] > best["end"]:
+                best = {"value": float(unit["val"]), "concept": c, "end": unit["end"]}
+    if not best or not period_fresh(best["end"], anchor):
+        return None
+    return best
+
+
+def sec_debt_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, str]:
+    lt = audit_instant(facts, DEBT_LT, asof, anchor)
+    cur = audit_instant(facts, DEBT_CUR, asof, anchor)
+    st = audit_instant(facts, DEBT_ST, asof, anchor)
+    parts = [p for p in (lt, cur, st) if p is not None]
+    if not parts:
+        return None, "debt tags missing"
+    total = sum(p["value"] for p in parts)
+    ends = ",".join(sorted({p["end"] for p in parts}))
+    return total, f"debt ex-leases ends={ends}"
+
+
+def miss_cause(note: str) -> str:
+    n = (note or "").lower()
+    if "missing" in n or "no us-gaap" in n:
+        return "truth_missing"
+    if "stale" in n:
+        return "stale_period"
+    if "not filing" in n:
+        return "not_checkable"
+    return "band_miss"
+
+
 def sec_truth(conn, facts, ticker, field):
     if not facts or not facts.get("facts", {}).get("us-gaap"):
         return None, "no us-gaap companyfacts"
+    today = date.today().isoformat()
     rev = F.ttm_flow(facts, REV)
-    asof = (rev or {}).get("end") or date.today().isoformat()
+    if rev and not period_fresh(rev["end"], today):
+        rev = None
+    anchor = (rev or {}).get("end") or today
+    asof = anchor
     ni = fresh_ni(facts, NI_COMMON, (rev or {}).get("end"))
     if field == "returnOnAssets":
         ni_roa = fresh_ni(facts, NI_COMMON[:2] + ["NetIncomeLoss"], (rev or {}).get("end"))
-        a = F.balance(facts, ASSETS, asof)
-        a0 = F.balance(facts, ASSETS, (date.fromisoformat(a["end"]) - timedelta(days=360)).isoformat()) if a else None
-        if ni_roa and a:
+        a = audit_instant(facts, ASSETS, asof, anchor)
+        a0_end = (date.fromisoformat(a["end"]) - timedelta(days=360)).isoformat() if a else asof
+        a0 = audit_instant(facts, ASSETS, a0_end, anchor) if a else None
+        if ni_roa and a and ni_roa.get("end") and period_fresh(ni_roa["end"], anchor):
             avg = (a["value"] + a0["value"]) / 2 if a0 and a0["value"] else a["value"]
             return ni_roa["value"] / avg, f"NI/assets avg {avg/1e6:.0f}M"
     if field in ("grossMargin", "netMargin", "operatingMargin"):
@@ -70,23 +130,28 @@ def sec_truth(conn, facts, ticker, field):
         if field == "grossMargin" and not num:
             cogs = F.ttm_flow(facts, ["CostOfGoodsAndServicesSold", "CostOfRevenue"])
             num = {"value": rev["value"] - cogs["value"], "end": cogs["end"]} if cogs and rev else None
-        if num and rev:
+        if num and rev and period_fresh(rev["end"], anchor):
             return num["value"] / rev["value"], f"margin TTM {rev['end']}"
     if field == "priceToBook":
-        eq, sh = F.balance(facts, EQ, asof), F.shares(facts)
+        eq, sh = audit_instant(facts, EQ, asof, anchor), F.shares(facts)
         p, _ = price(conn, ticker)
         if eq and sh and p and eq["value"]:
             return p * sh["value"] / eq["value"], "px×sh/eq"
     if field == "returnOnEquity":
-        ni = fresh_ni(facts, NI_COMMON, (rev or {}).get("end"))
-        eq = F.balance(facts, EQ, asof)
-        if ni and eq and eq["value"]:
-            return ni["value"] / eq["value"], f"NI/equity {eq['end']}"
+        eq = audit_instant(facts, EQ, asof, anchor)
+        if ni and eq and eq["value"] and eq["value"] > 0:
+            if ni.get("end") and not period_fresh(ni["end"], anchor):
+                return None, "stale NI period"
+            return ni["value"] / eq["value"], f"NI/ending equity {eq['end']}"
+        return None, "missing ROE inputs or non-positive equity"
     if field == "debtToEquity":
-        debt = F.balance(facts, ["LongTermDebt", "LongTermDebtNoncurrent", "DebtCurrent"], asof)
-        eq = F.balance(facts, EQ, asof)
-        if debt and eq and eq["value"]:
-            return debt["value"] / eq["value"], f"debt/equity {eq['end']}"
+        debt, dnote = sec_debt_total(facts, asof, anchor)
+        eq = audit_instant(facts, EQ, asof, anchor)
+        if debt is None or eq is None:
+            return None, dnote if debt is None else "equity tag missing/stale"
+        if eq["value"] <= 0:
+            return None, "non-positive equity"
+        return debt / eq["value"], f"{dnote} / eq {eq['end']}"
     if field == "totalRevenue" and rev:
         return rev["value"], rev["how"]
     return None, "not filing-checkable"
@@ -167,16 +232,21 @@ def main():
             "gold": r["gold"],
             "truth": r["truth"],
             "note": r["note"],
+            "cause": miss_cause(r["note"]),
         }
         for r in judged
         if r.get("cohort") == "clean" and r["truth"] is not None and not r["ok"]
     ]
+    by_cause: dict[str, int] = {}
+    for m in clean_misses:
+        by_cause[m["cause"]] = by_cause.get(m["cause"], 0) + 1
     summary = {
         "runId": run_id,
         "cells": len(cells),
         "flagged": flagged,
         "clean": clean,
         "cleanMisses": clean_misses,
+        "cleanMissesByCause": by_cause,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"l2-results-{run_id}.json").write_text(json.dumps({"summary": summary, "rows": judged}, indent=1))

@@ -1,8 +1,7 @@
 /**
- * A329 segment 1 — negative book equity: do not score vendor D/E or ROE; fund score uses worst leverage.
+ * A329 segment 1 — negative book equity: clear gold D/E + ROE; fund score skips those metrics
+ * (net debt/EBITDA + interest coverage still score leverage).
  */
-export const NEGATIVE_EQUITY_WORST_DE = 999;
-
 export function hasNegativeEquity(equity: number | null | undefined): boolean {
   return equity != null && Number.isFinite(equity) && equity < 0;
 }
@@ -18,16 +17,24 @@ type ProvenanceEntry = {
 export function applyNegativeEquityGoldPolicy(
   update: Record<string, unknown>,
   provenanceBatch: ProvenanceEntry[],
-): void {
-  const eq = update.totalStockholdersEquity;
-  if (!hasNegativeEquity(typeof eq === "number" ? eq : Number(eq))) {
-    return;
+  existing?: Record<string, unknown> | null,
+): string[] {
+  const eqRaw = update.totalStockholdersEquity ?? existing?.totalStockholdersEquity;
+  const eq = typeof eqRaw === "number" ? eqRaw : eqRaw != null ? Number(eqRaw) : null;
+  if (!hasNegativeEquity(eq)) {
+    if (existing?.negativeEquity === true || update.negativeEquity === true) {
+      update.negativeEquity = false;
+    }
+    return [];
   }
   update.negativeEquity = true;
+  const cleared: string[] = [];
   for (const field of LEVERAGE_RETURN_FIELDS) {
-    if (update[field] == null) continue;
+    const hadGold = update[field] != null || existing?.[field] != null;
     update[field] = null;
     const pi = provenanceBatch.findIndex((p) => p.field === field);
     if (pi >= 0) provenanceBatch.splice(pi, 1);
+    if (hadGold) cleared.push(field);
   }
+  return cleared;
 }

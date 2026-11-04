@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { rawMetricValue } from "./fund-score-raw.js";
 import { applyNegativeEquityGoldPolicy, hasNegativeEquity } from "./negative-equity-policy.js";
 
 describe("negative-equity-policy", () => {
@@ -17,10 +18,21 @@ describe("negative-equity-policy", () => {
     };
     const prov: { field: string; result: { source: string; value: number | null; isOverride: boolean; divergent: boolean } }[] =
       [];
-    applyNegativeEquityGoldPolicy(update, prov);
+    const cleared = applyNegativeEquityGoldPolicy(update, prov);
     assert.equal(update.negativeEquity, true);
     assert.equal(update.debtToEquity, null);
     assert.equal(update.returnOnEquity, null);
-    assert.equal(prov.length, 0);
+    assert.deepEqual(cleared.sort(), ["debtToEquity", "returnOnEquity"]);
+  });
+
+  it("fund score skips D/E and ROE when equity negative (not worst bucket)", () => {
+    const row = {
+      totalStockholdersEquity: -200,
+      debtToEquity: -5,
+      returnOnEquity: 0.2,
+    } as Parameters<typeof rawMetricValue>[1];
+    assert.equal(rawMetricValue("de", row, { negativeEquityLeverage: "sanitized" }), null);
+    assert.equal(rawMetricValue("roe", row, { negativeEquityLeverage: "sanitized" }), null);
+    assert.equal(rawMetricValue("de", row, { negativeEquityLeverage: "legacy" }), -5);
   });
 });

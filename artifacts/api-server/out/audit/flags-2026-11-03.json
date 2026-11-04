@@ -44,24 +44,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "AAL",
-      "field": "returnOnEquity",
-      "gold": -0.02978266702441642,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "AAL",
-      "field": "debtToEquity",
-      "gold": -9.651193989804131,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "AAL",
-      "field": "debtToEquity",
-      "gold": -9.651193989804131,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "AAOI",
       "field": "debtToEquity",
       "gold": 17.994,
@@ -123,32 +105,8 @@
     },
     {
       "ticker": "ABBV",
-      "field": "returnOnEquity",
-      "gold": 0.9559000000000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ABBV",
-      "field": "returnOnEquity",
-      "gold": 0.9559000000000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ABBV",
       "field": "returnOnAssets",
       "gold": 0.105100006,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ABBV",
-      "field": "debtToEquity",
-      "gold": -21.1217125382263,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ABBV",
-      "field": "debtToEquity",
-      "gold": -21.1217125382263,
       "cohort": "flagged"
     },
     {
@@ -1383,20 +1341,8 @@
     },
     {
       "ticker": "ARRY",
-      "field": "returnOnEquity",
-      "gold": -0.2796,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ARRY",
       "field": "returnOnAssets",
       "gold": -0.0961649362816519,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ARRY",
-      "field": "debtToEquity",
-      "gold": 2.54273,
       "cohort": "flagged"
     },
     {
@@ -1670,24 +1616,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "AZO",
-      "field": "returnOnEquity",
-      "gold": 0.998312467282325,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "AZO",
-      "field": "debtToEquity",
-      "gold": 5.140827652679153,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "AZO",
-      "field": "debtToEquity",
-      "gold": 5.140827652679153,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "BA",
       "field": "grossMargin",
       "gold": 0.0945,
@@ -1881,26 +1809,8 @@
     },
     {
       "ticker": "BBIO",
-      "field": "returnOnEquity",
-      "gold": -0.34742045710506514,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BBIO",
       "field": "returnOnAssets",
       "gold": -0.25997,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BBIO",
-      "field": "debtToEquity",
-      "gold": -0.8861988100000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BBIO",
-      "field": "debtToEquity",
-      "gold": -0.8861988100000001,
       "cohort": "flagged"
     },
     {
@@ -2141,24 +2051,6 @@
       "ticker": "BKNG",
       "field": "netMargin",
       "gold": 0.2553,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BKNG",
-      "field": "returnOnEquity",
-      "gold": 1.3962999999999999,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BKNG",
-      "field": "debtToEquity",
-      "gold": 3.7511653381140193,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BKNG",
-      "field": "debtToEquity",
-      "gold": 3.7511653381140193,
       "cohort": "flagged"
     },
     {
@@ -2427,26 +2319,8 @@
     },
     {
       "ticker": "BOX",
-      "field": "returnOnEquity",
-      "gold": 0.7352,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BOX",
       "field": "returnOnAssets",
       "gold": 0.0874,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BOX",
-      "field": "debtToEquity",
-      "gold": 20.48842,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "BOX",
-      "field": "debtToEquity",
-      "gold": 20.48842,
       "cohort": "flagged"
     },
     {
@@ -2729,18 +2603,6 @@
       "ticker": "CAG",
       "field": "debtToEquity",
       "gold": 1.17577,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CAH",
-      "field": "returnOnEquity",
-      "gold": 0.3716999999999999,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CAH",
-      "field": "debtToEquity",
-      "gold": 3.467915410336455,
       "cohort": "flagged"
     },
     {
@@ -3573,32 +3435,8 @@
     },
     {
       "ticker": "CMPS",
-      "field": "returnOnEquity",
-      "gold": -0.68484,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CMPS",
-      "field": "returnOnEquity",
-      "gold": -0.68484,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CMPS",
       "field": "returnOnAssets",
       "gold": -0.29084,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CMPS",
-      "field": "debtToEquity",
-      "gold": 0.6462300000000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CMPS",
-      "field": "debtToEquity",
-      "gold": 0.6462300000000001,
       "cohort": "flagged"
     },
     {
@@ -3776,30 +3614,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "COKE",
-      "field": "returnOnEquity",
-      "gold": 0.97331,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "COKE",
-      "field": "returnOnEquity",
-      "gold": 0.97331,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "COKE",
-      "field": "debtToEquity",
-      "gold": 0,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "COKE",
-      "field": "debtToEquity",
-      "gold": 0,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "COMP",
       "field": "grossMargin",
       "gold": 0.2279,
@@ -3903,26 +3717,8 @@
     },
     {
       "ticker": "CORZ",
-      "field": "returnOnEquity",
-      "gold": -0.9405723,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CORZ",
       "field": "returnOnAssets",
       "gold": -0.024330001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CORZ",
-      "field": "debtToEquity",
-      "gold": -3.15161377,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "CORZ",
-      "field": "debtToEquity",
-      "gold": -3.15161377,
       "cohort": "flagged"
     },
     {
@@ -4640,24 +4436,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "DELL",
-      "field": "returnOnEquity",
-      "gold": 1.307,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DELL",
-      "field": "debtToEquity",
-      "gold": 12.06983521,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DELL",
-      "field": "debtToEquity",
-      "gold": 12.06983521,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "DG",
       "field": "debtToEquity",
       "gold": 1.78649,
@@ -4875,32 +4653,8 @@
     },
     {
       "ticker": "DOCN",
-      "field": "returnOnEquity",
-      "gold": 0.62273,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DOCN",
-      "field": "returnOnEquity",
-      "gold": 0.62273,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DOCN",
       "field": "returnOnAssets",
       "gold": 0.038629998,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DOCN",
-      "field": "debtToEquity",
-      "gold": 2.12506,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DOCN",
-      "field": "debtToEquity",
-      "gold": 2.12506,
       "cohort": "flagged"
     },
     {
@@ -4949,24 +4703,6 @@
       "ticker": "DPZ",
       "field": "grossMargin",
       "gold": 0.4004,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DPZ",
-      "field": "returnOnEquity",
-      "gold": 0.3185231,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DPZ",
-      "field": "debtToEquity",
-      "gold": -1.24886261,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DPZ",
-      "field": "debtToEquity",
-      "gold": -1.24886261,
       "cohort": "flagged"
     },
     {
@@ -5027,30 +4763,6 @@
       "ticker": "DUOL",
       "field": "debtToEquity",
       "gold": 0.0611,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DVA",
-      "field": "returnOnEquity",
-      "gold": 0.88475,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DVA",
-      "field": "returnOnEquity",
-      "gold": 0.88475,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DVA",
-      "field": "debtToEquity",
-      "gold": 12.419860000000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "DVA",
-      "field": "debtToEquity",
-      "gold": 12.419860000000002,
       "cohort": "flagged"
     },
     {
@@ -5426,30 +5138,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "EQH",
-      "field": "returnOnEquity",
-      "gold": -0.25131,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "EQH",
-      "field": "returnOnEquity",
-      "gold": -0.25131,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "EQH",
-      "field": "debtToEquity",
-      "gold": 5.861000000000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "EQH",
-      "field": "debtToEquity",
-      "gold": 5.861000000000001,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "EQIX",
       "field": "grossMargin",
       "gold": 0.5158,
@@ -5603,30 +5291,6 @@
       "ticker": "ETSY",
       "field": "netMargin",
       "gold": 0.0732,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ETSY",
-      "field": "returnOnEquity",
-      "gold": 0.6788,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ETSY",
-      "field": "returnOnEquity",
-      "gold": 0.6788,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ETSY",
-      "field": "debtToEquity",
-      "gold": -2.8009598440936347,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ETSY",
-      "field": "debtToEquity",
-      "gold": -2.8009598440936347,
       "cohort": "flagged"
     },
     {
@@ -5933,24 +5597,6 @@
       "ticker": "FHN",
       "field": "returnOnEquity",
       "gold": 0.07916,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "FICO",
-      "field": "returnOnEquity",
-      "gold": 1.4571,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "FICO",
-      "field": "debtToEquity",
-      "gold": -1.3603878800000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "FICO",
-      "field": "debtToEquity",
-      "gold": -1.3603878800000002,
       "cohort": "flagged"
     },
     {
@@ -6549,26 +6195,8 @@
     },
     {
       "ticker": "GH",
-      "field": "returnOnEquity",
-      "gold": -4.191819307803075,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "GH",
       "field": "returnOnAssets",
       "gold": -0.2548,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "GH",
-      "field": "debtToEquity",
-      "gold": 17.088553596423214,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "GH",
-      "field": "debtToEquity",
-      "gold": 17.088553596423214,
       "cohort": "flagged"
     },
     {
@@ -6879,26 +6507,8 @@
     },
     {
       "ticker": "GOSS",
-      "field": "returnOnEquity",
-      "gold": -1.1877,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "GOSS",
       "field": "returnOnAssets",
       "gold": -0.62391,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "GOSS",
-      "field": "debtToEquity",
-      "gold": -5.3227844200000005,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "GOSS",
-      "field": "debtToEquity",
-      "gold": -5.3227844200000005,
       "cohort": "flagged"
     },
     {
@@ -7208,24 +6818,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "HCA",
-      "field": "returnOnEquity",
-      "gold": 1.1256014600962336,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HCA",
-      "field": "debtToEquity",
-      "gold": 8.553509548365687,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HCA",
-      "field": "debtToEquity",
-      "gold": 8.553509548365687,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "HD",
       "field": "returnOnEquity",
       "gold": 1.0268,
@@ -7358,24 +6950,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "HLT",
-      "field": "returnOnEquity",
-      "gold": 1.7101,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HLT",
-      "field": "debtToEquity",
-      "gold": -1.99852936,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HLT",
-      "field": "debtToEquity",
-      "gold": -1.99852936,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "HMC",
       "field": "operatingMargin",
       "gold": 0.08756,
@@ -7487,24 +7061,6 @@
       "ticker": "HPE",
       "field": "returnOnEquity",
       "gold": 0.11020000000000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HPQ",
-      "field": "returnOnEquity",
-      "gold": 0.1685,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HPQ",
-      "field": "debtToEquity",
-      "gold": 120.776875,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "HPQ",
-      "field": "debtToEquity",
-      "gold": 120.776875,
       "cohort": "flagged"
     },
     {
@@ -8147,24 +7703,6 @@
       "ticker": "IRM",
       "field": "netMargin",
       "gold": 0.0554,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "IRM",
-      "field": "returnOnEquity",
-      "gold": 0.8519,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "IRM",
-      "field": "debtToEquity",
-      "gold": 20.333311220001487,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "IRM",
-      "field": "debtToEquity",
-      "gold": 20.333311220001487,
       "cohort": "flagged"
     },
     {
@@ -9080,24 +8618,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "LOW",
-      "field": "returnOnEquity",
-      "gold": 0.6709690430573763,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "LOW",
-      "field": "debtToEquity",
-      "gold": 4.2382778662902085,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "LOW",
-      "field": "debtToEquity",
-      "gold": 4.2382778662902085,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "LPLA",
       "field": "grossMargin",
       "gold": 0.2989,
@@ -9219,29 +8739,11 @@
     },
     {
       "ticker": "LUMN",
-      "field": "returnOnEquity",
-      "gold": -0.802,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "LUMN",
       "field": "returnOnAssets",
       "gold": -0.0321214592678566,
       "cohort": "flagged"
     },
     {
-      "ticker": "LUMN",
-      "field": "debtToEquity",
-      "gold": -11.63363037,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "LUMN",
-      "field": "debtToEquity",
-      "gold": -11.63363037,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "LUNR",
       "field": "operatingMargin",
       "gold": -0.2751,
@@ -9263,24 +8765,12 @@
       "ticker": "LUNR",
       "field": "netMargin",
       "gold": -0.2664,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "LUNR",
-      "field": "returnOnEquity",
-      "gold": -0.30769,
       "cohort": "flagged"
     },
     {
       "ticker": "LUNR",
       "field": "returnOnAssets",
       "gold": -0.1021,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "LUNR",
-      "field": "debtToEquity",
-      "gold": 0.52818,
       "cohort": "flagged"
     },
     {
@@ -9482,24 +8972,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "MAR",
-      "field": "returnOnEquity",
-      "gold": 0.6897374701670644,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MAR",
-      "field": "debtToEquity",
-      "gold": -3.34075562,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MAR",
-      "field": "debtToEquity",
-      "gold": -3.34075562,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "MARA",
       "field": "grossMargin",
       "gold": -0.6175999999999999,
@@ -9560,42 +9032,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "MAS",
-      "field": "returnOnEquity",
-      "gold": 4.378378378378378,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MAS",
-      "field": "debtToEquity",
-      "gold": 18.881080735135136,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MAS",
-      "field": "debtToEquity",
-      "gold": 18.881080735135136,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MCD",
-      "field": "returnOnEquity",
-      "gold": 0.9513000000000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MCD",
-      "field": "debtToEquity",
-      "gold": 30.487996247906196,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MCD",
-      "field": "debtToEquity",
-      "gold": 30.487996247906196,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "MCHP",
       "field": "operatingMargin",
       "gold": 0.155164672119946,
@@ -9623,24 +9059,6 @@
       "ticker": "MCHP",
       "field": "returnOnEquity",
       "gold": 0.0719,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MCK",
-      "field": "returnOnEquity",
-      "gold": 0.3943,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MCK",
-      "field": "debtToEquity",
-      "gold": 5.430939108655617,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MCK",
-      "field": "debtToEquity",
-      "gold": 5.430939108655617,
       "cohort": "flagged"
     },
     {
@@ -9939,26 +9357,8 @@
     },
     {
       "ticker": "MO",
-      "field": "returnOnEquity",
-      "gold": 1.4965000000000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MO",
       "field": "returnOnAssets",
       "gold": 0.23620000000000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MO",
-      "field": "debtToEquity",
-      "gold": 7.017989555682467,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MO",
-      "field": "debtToEquity",
-      "gold": 7.017989555682467,
       "cohort": "flagged"
     },
     {
@@ -10232,24 +9632,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "MSCI",
-      "field": "returnOnEquity",
-      "gold": 1.0867,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MSCI",
-      "field": "debtToEquity",
-      "gold": 2.4652859599026575,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MSCI",
-      "field": "debtToEquity",
-      "gold": 2.4652859599026575,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "MSFT",
       "field": "operatingMargin",
       "gold": 0.4704,
@@ -10325,36 +9707,6 @@
       "ticker": "MTCH",
       "field": "netMargin",
       "gold": 0.20170000000000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MTCH",
-      "field": "returnOnEquity",
-      "gold": 0.1773,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MTCH",
-      "field": "debtToEquity",
-      "gold": -18.874729,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MTCH",
-      "field": "debtToEquity",
-      "gold": -18.874729,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MTD",
-      "field": "debtToEquity",
-      "gold": 166.68447,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "MTD",
-      "field": "debtToEquity",
-      "gold": 166.68447,
       "cohort": "flagged"
     },
     {
@@ -11636,45 +10988,9 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "ORLY",
-      "field": "returnOnEquity",
-      "gold": 3.325083316739853,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ORLY",
-      "field": "debtToEquity",
-      "gold": 12.559649378006476,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "ORLY",
-      "field": "debtToEquity",
-      "gold": 12.559649378006476,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "OTIS",
       "field": "grossMargin",
       "gold": 0.3017,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "OTIS",
-      "field": "returnOnEquity",
-      "gold": 0.1491993,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "OTIS",
-      "field": "debtToEquity",
-      "gold": -1.5718005400000001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "OTIS",
-      "field": "debtToEquity",
-      "gold": -1.5718005400000001,
       "cohort": "flagged"
     },
     {
@@ -12296,24 +11612,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "PM",
-      "field": "returnOnEquity",
-      "gold": 1.135481288773264,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "PM",
-      "field": "debtToEquity",
-      "gold": 4.916850039623775,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "PM",
-      "field": "debtToEquity",
-      "gold": 4.916850039623775,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "PN",
       "field": "operatingMargin",
       "gold": -0.023399999999999997,
@@ -12899,18 +12197,6 @@
       "ticker": "RBRK",
       "field": "netMargin",
       "gold": -0.165,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "RBRK",
-      "field": "returnOnEquity",
-      "gold": -0.6713885926992351,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "RBRK",
-      "field": "debtToEquity",
-      "gold": 2.212606095133978,
       "cohort": "flagged"
     },
     {
@@ -14018,24 +13304,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "SBAC",
-      "field": "returnOnEquity",
-      "gold": -0.0171,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SBAC",
-      "field": "debtToEquity",
-      "gold": 3.1336163505283485,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SBAC",
-      "field": "debtToEquity",
-      "gold": 3.1336163505283485,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "SBUX",
       "field": "grossMargin",
       "gold": 0.776377669328061,
@@ -14045,30 +13313,6 @@
       "ticker": "SBUX",
       "field": "operatingMargin",
       "gold": 0.0776638505098035,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SBUX",
-      "field": "returnOnEquity",
-      "gold": 1.1568,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SBUX",
-      "field": "returnOnEquity",
-      "gold": 1.1568,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SBUX",
-      "field": "debtToEquity",
-      "gold": -3.2867499938245683,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SBUX",
-      "field": "debtToEquity",
-      "gold": -3.2867499938245683,
       "cohort": "flagged"
     },
     {
@@ -14123,24 +13367,6 @@
       "ticker": "SECZ",
       "field": "netMargin",
       "gold": -0.55618744,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SECZ",
-      "field": "returnOnEquity",
-      "gold": 0.0101,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SECZ",
-      "field": "debtToEquity",
-      "gold": 0.00165173,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SECZ",
-      "field": "debtToEquity",
-      "gold": 0.00165173,
       "cohort": "flagged"
     },
     {
@@ -15405,26 +14631,8 @@
     },
     {
       "ticker": "TDG",
-      "field": "returnOnEquity",
-      "gold": 0.3711,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "TDG",
       "field": "returnOnAssets",
       "gold": 0.0861002143405993,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "TDG",
-      "field": "debtToEquity",
-      "gold": -3.5134491000000003,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "TDG",
-      "field": "debtToEquity",
-      "gold": -3.5134491000000003,
       "cohort": "flagged"
     },
     {
@@ -16383,26 +15591,8 @@
     },
     {
       "ticker": "USAR",
-      "field": "returnOnEquity",
-      "gold": -0.23561001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "USAR",
-      "field": "returnOnEquity",
-      "gold": -0.23561001,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "USAR",
       "field": "returnOnAssets",
       "gold": -0.04445,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "USAR",
-      "field": "debtToEquity",
-      "gold": 0.00125,
       "cohort": "flagged"
     },
     {
@@ -16712,18 +15902,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "VRSN",
-      "field": "returnOnEquity",
-      "gold": 1.1355,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "VRSN",
-      "field": "debtToEquity",
-      "gold": 0.83177052455668,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "VRTX",
       "field": "grossMargin",
       "gold": 0.86,
@@ -16815,26 +15993,8 @@
     },
     {
       "ticker": "W",
-      "field": "returnOnEquity",
-      "gold": -0.11250898634076203,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "W",
       "field": "returnOnAssets",
       "gold": 0.05335,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "W",
-      "field": "debtToEquity",
-      "gold": -1.10345856,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "W",
-      "field": "debtToEquity",
-      "gold": -1.10345856,
       "cohort": "flagged"
     },
     {
@@ -17051,24 +16211,6 @@
       "ticker": "WING",
       "field": "netMargin",
       "gold": 0.16149999999999998,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "WING",
-      "field": "returnOnEquity",
-      "gold": 0.1808205,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "WING",
-      "field": "debtToEquity",
-      "gold": -1.5233194,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "WING",
-      "field": "debtToEquity",
-      "gold": -1.5233194,
       "cohort": "flagged"
     },
     {
@@ -17342,24 +16484,6 @@
       "cohort": "flagged"
     },
     {
-      "ticker": "WYNN",
-      "field": "returnOnEquity",
-      "gold": 1.1881796930582376,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "WYNN",
-      "field": "debtToEquity",
-      "gold": -17.49903687,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "WYNN",
-      "field": "debtToEquity",
-      "gold": -17.49903687,
-      "cohort": "flagged"
-    },
-    {
       "ticker": "XOM",
       "field": "returnOnEquity",
       "gold": 0.1564,
@@ -17459,24 +16583,6 @@
       "ticker": "YUM",
       "field": "netMargin",
       "gold": 0.25420000000000004,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "YUM",
-      "field": "returnOnEquity",
-      "gold": 1.1764,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "YUM",
-      "field": "debtToEquity",
-      "gold": -1.8440538000000002,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "YUM",
-      "field": "debtToEquity",
-      "gold": -1.8440538000000002,
       "cohort": "flagged"
     },
     {

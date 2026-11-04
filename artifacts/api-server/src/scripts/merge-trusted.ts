@@ -910,7 +910,22 @@ export async function runMergeTrusted() {
         : null;
     applyDerived("ffoProxy", ffoProxy);
 
-    applyNegativeEquityGoldPolicy(update as Record<string, unknown>, provenanceBatch);
+    const negEquityClears = applyNegativeEquityGoldPolicy(
+      update as Record<string, unknown>,
+      provenanceBatch,
+      existing as Record<string, unknown> | undefined,
+    );
+    for (const field of negEquityClears) {
+      clearProvenanceFields.push(field);
+      if (existing?.[field] != null) {
+        changedFields.push({
+          field,
+          from: Number(existing[field]),
+          to: null as unknown as number,
+        });
+      }
+      fieldNullCount[field] = (fieldNullCount[field] ?? 0) + 1;
+    }
 
     if (Object.keys(update).length === 0 && clearProvenanceFields.length === 0) continue;
     // 10-27: no vendor value at all and no gold data yet → don't create/stamp an empty "fetched" row (289 universe adds were

@@ -16,7 +16,7 @@ import {
 } from "./fund-score-guards.js";
 import type { FundRowInput, MetricKey } from "./fund-score-types.js";
 import { approxWacc } from "./fund-score-tilt.js";
-import { hasNegativeEquity, NEGATIVE_EQUITY_WORST_DE } from "./negative-equity-policy.js";
+import { hasNegativeEquity } from "./negative-equity-policy.js";
 
 export function rawMetricValue(
   key: MetricKey,
@@ -138,9 +138,11 @@ export function rawMetricValue(
     case "cr":
       return r.currentRatio;
     case "de":
-      if (hasNegativeEquity(r.totalStockholdersEquity)) {
-        if (extras?.negativeEquityLeverage === "legacy") return r.debtToEquity;
-        return NEGATIVE_EQUITY_WORST_DE;
+      if (
+        hasNegativeEquity(r.totalStockholdersEquity)
+        && extras?.negativeEquityLeverage !== "legacy"
+      ) {
+        return null;
       }
       return r.debtToEquity;
     case "netDebtEbitda":
