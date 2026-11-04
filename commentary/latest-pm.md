@@ -1,67 +1,73 @@
-# Evening Market Recap — Monday, November 2, 2026 (Post-Close)
+# Evening Market Recap — Tuesday, November 3, 2026 (Post-Close)
 
-**Banner:** S&P 7,541.40 (−0.51%) · Dow 51,983.98 (+0.41%) · Nasdaq 25,164.36 (−1.07%) · 10Y 4.894% (−3.5 bp) · Brent $104.77 (−7.63%) · VIX 21.15 (+8.9%)
+**Banner:** S&P 7,568.92 (+0.36%) · Dow 51,786.72 (−0.38%) · Nasdaq 25,372.01 (+0.83%) · 10Y 4.95% (+~5 bp) · Brent $104.44 (−0.31%) · VIX 20.83 (−1.51%)
 
 ## What moved today
 
-- **The morning bounce failed.** Futures pointed to a gap-up open, but the S&P gave it all back and closed at its lowest since July 31, its third straight loss — while the Dow alone rose, on rotation out of tech into everything else.
-- **Oil had its sharpest drop in three months.** Brent settled −7.63% at $104.77 and WTI −7.36% at $96.46 as U.S.–Iran talks in Doha raised hopes of a diplomatic path to reopening the Strait of Hormuz. Energy stocks fell with crude (−3.96% for the sector); the relief is a de-escalation trade, not a resolution.
-- **AI-spending skepticism kept pressure on tech.** The Nasdaq-100 fell 1.39%, SOX dropped over 3%, and Microsoft cost the S&P 12.8 points (−2.83%), Apple 10.7, Nvidia 7.3. Anthropic's updated IPO filing — ~$895B in future spending commitments — kept the AI-capex debate front and center.
-- **Marvell's $115B Lumentum deal got punished.** MRVL fell 12.72% to $171.41 and LITE dropped 18.59% on the all-stock deal announcement; Oracle fell 8.85% after launching a $10B bond offering for AI infrastructure. The market is charging a premium for AI spending plans now, not rewarding them.
-- **Bonds and gold caught the safety bid.** The 10Y slipped to 4.894%, its lowest since September 10, and gold rebounded 1.81% to $3,969.60 off a one-year low. Bitcoin faded 1.8% to ~$76,800.
+- **Chips broke the losing streak; little else did.** Semiconductors rose 2.50%, Nvidia gained 2.29% to $206.69 and Broadcom 3.07%, snapping a three-session slide for tech. The S&P snapped its own three-day losing streak — but this was a bounce inside Monday's correction, not a repair: QQQ closed at $685.28, still below its 20- and 50-day averages.
+- **Hot data pushed yields up, and the Dow paid for it.** September JOLTS printed 7.523M against ~7.10–7.15M expected, and factory orders rose 1.8% against ~1.2–1.3% expected. The 10Y closed at 4.95% and the 2Y at 4.612%, and rate-sensitive blue chips dragged the Dow to the day's only index loss.
+- **Apple was the Dow's drag, again on margins.** Apple fell 1.90% to $331.90 on memory-cost pressure on its holiday-quarter margin guide, easing from a steeper premarket slide but still the weight on the Dow. Shopify cratered ~8.7% on its revenue and GMV miss; Palantir stayed weak after its own beat-and-fall.
+- **Oil swung on geopolitics, twice in one session.** Brent rose early on reports of a U.S. strike on Iran's Qeshm Island, then fell back to $104.44 after President Trump said the U.S. would stop ~$4B a year in military aid to Israel by year-end, trading as low as $101.75 intraday. WTI settled at $96.82 (+0.37%). One headline still moves this market more than a week of supply data.
+- **Election Day itself was background, not driver.** Voting ran all day with results landing overnight; the tape's drivers were data, yields, and chips, not polls. The overnight gap is still the event — it just hasn't printed yet.
 
 ## Breadth and leadership
 
-- Split tape, not a rout: consumer discretionary led, energy lagged, and most of the market finished higher even as the headline indexes fell — tech and energy were the two sectors to fall sharply. Amazon added 6.0 S&P points (+2.20%) against the tech drag.
-- Rates and vol: 10Y −3.5 bp to 4.894%, 30Y −4.1 bp to 5.268%, 2Y slightly higher at 4.581%; VIX jumped 8.9% to 21.15 as hedging demand picked up. DXY eased 0.22% to 101.76.
-- Overnight: Asia mixed — KOSPI +2.24% rebounded on chip dip-buying, Shanghai +1.08%, Hang Seng +0.42%, Nikkei −0.33%. Europe closed higher across the board — STOXX 600 +0.42%, DAX +0.63%, CAC +0.98%, FTSE +0.29% — even as European energy shares fell 2.26% with crude.
+- Narrow tape under a green headline: breadth was negative and the equal-weight S&P lagged the cap-weighted index by ~70 bp, even as the S&P rose. Tech (+1.31%) led; materials (−1.93%) and staples (−1.76%) lagged hardest as Monday's defensive bid unwound.
+- Rates and vol: 10Y +~5 bp to 4.95%, 30Y ~5.32% (+~5 bp), 2Y 4.612%. VIX eased 1.51% to 20.83 — still above 20 — while the Nasdaq vol index (VXN) held at 30.68, a VXN–VIX spread of 10.17, the widest in 60 days. Nasdaq vol is rich against S&P vol.
+- Overnight: Asia split on chips — KOSPI −3.59% to 5,648.79 and Taiwan's Taiex −3.59%, Shanghai −0.82%, while Hong Kong's Hang Seng rose ~0.6% and India's Nifty rose 1.58%. Australia's central bank hiked 25 bp to 4.85%, an 18-year high and its fifth rise this year, on a split 6–3 vote — yet the ASX 200 still closed +0.34%. Tokyo was closed for Culture Day. Europe was lower in early trade (STOXX 600 −0.4–0.6%, DAX −0.78%), with ASML −3.4% and STMicroelectronics −3.9% on the chip rout.
+- Gold slipped 0.90% to $3,933.90 on higher yields; bitcoin firmed to ~$77,200–77,800 (+~0.7%).
 
 ## Data, Fed, and single names
 
-- **ISM Manufacturing (Oct): 55.5 vs 54.5 consensus, prior 54.5** — a beat, and the fastest expansion in three months; new orders 55.5, production 59.0. **Prices paid: 75.2 vs ~77.2–77.5 consensus, prior 77.9** — cooler but still high enough to keep "higher for longer" alive, with September PCE at 3.6% y/y in the background.
-- **S&P Global final manufacturing PMI: 54.9 vs 56.0 flash** — softer than the first read, a split verdict with ISM that produced no noticeable market reaction.
-- **After close — Apple beat, shares flat:** EPS $2.10 vs $1.98 consensus, revenue $114.4–114.5B vs $112.95B, iPhone revenue a record $57.58B; a one-time tariff refund added ~5% to earnings. Stock fell ~1.5–1.8% in regular trading, broadly flat after hours.
-- **After close — Palantir beat, shares sold the news:** EPS $0.44 vs $0.41, revenue $2.31–2.38B (+96% y/y) vs $2.17B expected; U.S. commercial revenue ($984M) topped government ($953M) for the first time, and Q4 guidance was raised to $2.649–2.653B. Shares fell ~3% in regular trading and ~3% after hours — beat, but not enough at the multiple.
-- **Other movers:** Roku and Lattice also beat after the close. Construction spending (Sep) and the Fed's Senior Loan Officer Survey did not produce a market-moving headline in today's coverage; no market-moving Fed speaker headline verified today.
+- **JOLTS job openings (Sep): 7.523M vs ~7.10–7.15M consensus, prior revised up to 7.190M (from 7.079M)** — the highest headline since May. Quits rose to 3.36M, the highest since March 2025, with the quits rate up to 2.1% from 1.9%; layoffs fell to 1.64M, the lowest in about a year and a half. A resilient-labor print, not a cooling one.
+- **Factory orders (Sep): +1.8% vs ~+1.2–1.3% expected**, the largest gain in five months, led by a 28.3% jump in civilian aircraft orders.
+- **Fed watch:** markets priced roughly a 78% chance of a 25 bp hike at the December 8–9 FOMC meeting after the hot data. Fed speakers due later in the week: Hammack, Barkin and Logan on Thursday, Musalem on Friday morning.
+- **After close — AMD beat and guided up:** revenue $13.38B (+44.6% y/y) vs ~$13.09–13.10B expected, non-GAAP EPS $2.09 vs $1.95, data-center revenue nearly doubled to ~$8.5B, and Q4 revenue guided to ~$17B vs ~$16.23B expected. Shares rose 3.65–3.78% in the regular session to ~$483.90–484.50, then jumped ~7.1–7.3% after hours. Arista and Super Micro also jumped after the bell on AI demand.
+- **Other movers:** DuPont +8.6–8.7% and Eaton +7.0% on morning beats; Fabrinet +15.5%, Lattice +11%, Neurocrine +13.4%, Fiserv +12.5% on earnings. Other pre-open reporters (Pfizer's beat, Yum, Marathon, Energy Transfer) drew no index-level move and are folded here.
 
 ## What changed vs the morning thesis
 
-- **Right:** the morning brief called this "a bounce inside a downtrend, not a trend change" — and the bounce failed exactly that way. The S&P never reclaimed the 7,650 futures level and closed further below its 100-day average.
-- **Right:** oil was flagged as the day's main relief valve — it delivered more than expected, −7.6% instead of the morning's ~−4%, and that relief is what kept the Dow green and yields down.
-- **Right:** the caution on carrying short premium through Apple/Palantir held — both beat, neither rallied, and Palantir sold off. Premium collected through those prints would have been tested, not gifted.
-- **Wrong / shifted:** the morning leaned on semis leading the bounce (SOXX +~2% premarket); instead semis led the decline, with the Marvell–Lumentum deal and Oracle's bond offering turning the AI-spending debate against the group intraday.
-- **Unchanged:** the week is still stacked — midterms, refunding, BoE, jobs — and today's tape did nothing to reduce that event risk.
+- **Right:** the morning's split-tape call played out — Nasdaq firmer, Dow lagging on Apple, S&P near flat turning modestly positive. The oil two-way headline risk also played out in both directions in a single session.
+- **Right:** the morning flagged Asia's chip rout spilling into Europe, and it did — Seoul and Taipei each fell 3.59% before the U.S. open.
+- **Shifted:** the morning's "semis trying to stabilize" became semis leading outright (+2.50%), and AMD's premarket bounce became a genuine beat with a big guide — the chip bounce had earnings behind it, not just dip-buying.
+- **Shifted:** the morning framed JOLTS as a tradable 10:00 AM window; the beat was hotter than consensus and moved yields enough to split the indexes, with the Dow as the casualty.
+- **Unchanged:** the night is still the event. VIX eased but stayed above 20, and midterm results plus AMD's after-hours gap land before Wednesday's open — the morning's warning to position before the close, not after, stands.
+
+## Desk flagged
+
+- **Breadth is worse than the headline.** Stocks ended off their best levels with negative breadth, and the equal-weight S&P lagged the cap-weighted index by ~70 bp — an index-level gain built on a narrow set of names, which is exactly when short single-name premium gets hurt by a rotation.
+- **The index is near records; most stocks are not.** The S&P sits within ~3% of its record highs even as roughly 60% of its constituents sit in bear-market territory. Cap-weighted strength is masking broad weakness.
+- **Systematic de-risking is a live theme.** StreetAccount flags de-risking by multiple investor types, including systematic strategies, as a focus alongside the AI bounce — a crowded-exit risk that argues against assuming today's bounce holds without a second day's confirmation. Some Street forecasts, including JPM's, expect S&P gains in all election scenarios, framing the vote as a potential clearing event rather than a directional bet.
 
 ## Book impact
 
-- **Short premium caught a vol lift, not a crash.** VIX up ~9% to 21.15 helps existing short premium on paper, but the tape's direction — tech lower, breadth mostly higher — means single-name tech shorts carried the real risk today, while diversified index spreads were steadier.
-- **Event windows ahead, not behind.** Today's ISM print is done, but midterms Tuesday, Treasury refunding Wednesday, BoE Thursday, and jobs Friday are four separate gap events still in front of any short-dated position. Keep new premium outside those windows or size for a gap.
-- **DTE posture into tomorrow: favor 7+ DTE, stay wide.** With the S&P at its lowest close since July 31 and the Nasdaq down three straight days, a failed-bounce re-test of Friday's lows is the fast move. No fresh naked single-name premium into Tuesday's AMD/Amgen/Arista/Booking prints.
-- **Oil's drop cuts one tail, not the trade.** Lower crude eases headline inflation worry and helped yields, but Brent is still up sharply for October and the Hormuz premium can return on one headline — energy-adjacent premium is not suddenly safe.
+- **AMD's after-hours gap is Wednesday's first test.** Short puts carried through AMD's print got relief from the ~7% after-hours jump; short calls face that same gap at the open. Either way, no new AMD premium should be written until the gap is priced in the morning.
+- **Nasdaq vol stayed rich while S&P vol eased.** The VXN–VIX spread at its widest in 60 days means single-name and Nasdaq premium is still priced for trouble even as index vol cooled — index spreads are the cleaner premium here, not concentrated tech shorts.
+- **Hot data re-priced the rate path, not just today.** A 78% priced chance of a December hike plus a heavy Treasury refunding announcement Wednesday keeps upward pressure on yields — rate-sensitive names that lagged today (staples, utilities, REITs, homebuilders) stay fragile for short premium.
+- **Tonight's gap is two gaps, not one.** Midterm results and AMD's print both land before the open, so any short-dated position wakes up to a tape that has already moved. Premium collected today gets tested before it gets a chance to decay.
 
-## Risk/events for tomorrow (Tue Nov 3, ET)
+## Risk/events for tomorrow (Wed Nov 4, ET)
 
-- **U.S. midterm elections** — all 435 House seats, 35 Senate seats; results overnight into Wednesday Asia. Expect headlines, not a clean read, before Wednesday's open.
-- **10:00 AM — JOLTS job openings (Sep):** ~7.1M expected, prior 7.08M.
-- **Before open — earnings:** Shopify, Pfizer, Eaton, Marathon Petroleum, Keurig Dr Pepper.
-- **After close — earnings:** AMD (EPS est $1.94), Amgen ($5.78), Arista ($1.08), Booking ($4.50).
-- **Later in the week:** Treasury quarterly refunding coupon announcement Wednesday; Bank of England decision Thursday; October jobs report Friday.
-- **Overnight note:** Japan closed Tuesday for Culture Day; focus shifts to Seoul and Hong Kong in Asia.
+- **Overnight — U.S. midterm results roll in** (first polls closed 6:00 PM ET); Tokyo cash equities reopen after Culture Day.
+- **8:15 AM — ADP employment (Oct):** consensus 65K, prior 90K.
+- **8:30 AM — Treasury quarterly refunding announcement** (Q4 borrowing set at $618B, Q1 2027 planned at $800B) **and trade balance (Sep).**
+- **10:00 AM — ISM Services PMI (Oct):** consensus 54.8, prior 54.9.
+- **10:30 AM — EIA crude inventories.**
+- **Before open — earnings:** McDonald's, Uber, Novo Nordisk. **After close — earnings:** Qualcomm (EPS est ~$2.16), Arm.
+- **Later in the week:** Bank of England decision Thursday, plus Fed speakers Hammack, Barkin, Logan; October jobs report Friday (payrolls expected ~62K after September's 29K), plus Fed's Musalem Friday morning.
 
 ## Context (verified levels only)
 
-- **S&P 500:** 1-day 7,541.40 (−0.51%); 1-week 7,676.77 (Mon Oct 26) → −1.76%; 1-month 7,722.72 (Fri Oct 2) → −2.35%. Now 3.55% below the Oct 6 record close of 7,818.93.
-- **10Y:** 1-day 4.894% (−3.5 bp); down ~38 bp over the past month; 30Y 5.268% (−4.1 bp).
-- **Brent:** 1-day $104.77 (−7.63%); still up 13.6% for October to a six-month high before today's drop — the de-escalation move retraces, but does not erase, the month's run.
+- **S&P 500:** 7,568.92 today, ~3.2% below the October 6 record close of 7,818.93 — today's bounce recovered only part of Monday's drop and none of the correction's depth.
+- **10Y:** 4.95% today vs 4.894% Monday — the hot-data move more than retraced Monday's safety-bid dip.
+- **Brent:** $104.44 today vs $104.77 Monday — essentially flat on the week after Monday's −7.6% plunge; the de-escalation move held, but the overnight round-trip shows how fast it can reverse.
 
 ## Sources
 
-- Index closes, session table: https://portfolio-terminal.com/markets/stock-market-close
-- Close wrap, yields, oil, gold, VIX: https://www.eoption.com/market-review-november-02-2026/ · https://dataforgestudio.xyz/2026/11/after-market-brief-monday-november-02-2026/ · https://www.pulsafi.com/market-today
-- ISM: https://www.reuters.com/world/us/us-manufacturing-picks-up-october-input-prices-stay-high-2026-11-02/ · https://www.fxstreet.com/news/us-ism-manufacturing-pmi-improces-to-555-in-october-vs-546-expected-202611021510
-- Apple/Palantir earnings: https://www.zacks.com/stock/news/3021215/big-quarterly-beats-after-the-close-aapl-pltr-lscc-roku · https://schwabnetwork.com/articles/closing-bell-tech-stocks-weak-apple-and-palantir-earnings-beat
-- Marvell/Lumentum, Oracle, SOX: https://wncy.com/2026/11/02/marvell-to-buy-lumentum-in-115-billion-deal-in-ai-data-center-bet/ · https://www.tradingkey.com/analysis/stocks/us-stocks/262264978-us-stock-close-nasdaq-falls-dow-rises-marvell-oracle-tradingkey
-- Asia/Europe closes: https://edgeconsultancykw.com/europe-market-wrap-02-november-2026/ · https://edgeconsultancykw.com/us-market-wrap-02-november-2026/
-- Morning thesis: 2026-11-02-am.md (this repo's commentary archive)
+- Index closes, yields, oil, gold, bitcoin, VIX/VXN: https://theweekendspread.substack.com/p/the-close-tuesday-november-3-2026 · https://stockmarketwatch.com/digest/2026-11-03 · https://www.pulsafi.com/market-today · https://cappnotes.substack.com/p/closing-look-tuesday-november-3-2026
+- JOLTS, factory orders, AMD earnings, single names: https://medium.com/@marketsondeck/marketsondeck-after-market-tape-tuesday-november-3-2026-855ab32f4804 · https://thewallstreetrepublic.substack.com/p/amd-jumps-365-on-a-blowout-quarter
+- Asia/Europe, RBA: https://edgeconsultancykw.com/asia-market-wrap-03-november-2026/ · https://www.sharecast.com/news/market-report-asia/asian-stock-markets-kospi-hang-seng-shanghai-composite-sk-hynix-samsung-electronics-tsmc-reserve-bank-of-australia--23994670.html
+- Desk flagged (Gmail label tradedash-brief, Nov 3): StreetAccount U.S. Market Recap, 4:09 PM ET — breadth/equal-weight lag, 60% of constituents in bear territory, systematic de-risking, JPM election-scenario view.
+- Morning thesis: 2026-11-03-am.md (this repo's commentary archive)
 
-Systems: Mac offline — unverified
+Systems: Mac online — fildi API/scheduler unverified via available device commands
