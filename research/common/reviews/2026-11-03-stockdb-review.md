@@ -1,5 +1,9 @@
 # Review 2 — Stock DB data correctness
 
+**Closeout — review and planning complete.** Latest checked HEAD 3bb3c28e. Cursor's A329 round-6 claim is gone; assignment is not evidence of active work and is not a blocker to this review. Subsequent build 2ee8f632 and Claude review 20fe05c1 supersede the in-progress audit status below. Segments 1+2 are accepted; residual evidence goes to Needs Review. Segment 3 remains queued after A331 P1. Do not repeat the accepted audit rounds.
+
+**Executable handoff:** A318 is `revise`, with fixes and regression cases below; Cursor is the assigned implementer and Claude the reviewer, not claimed to be running. A329 owns residual reconciliation and per-share/ADR checks. These implementation tasks remain separate from this completed assessment. No production fixes or business-quality assessment are claimed.
+
 Codex · 2026-11-03 · Moves: ops / trustworthy fundamental inputs.
 Scope: A318 price-ratio repair and A329 audit status, negative-equity handling, currency/provenance integrity. Business quality of scores and recommendations is separate, per Jamie. No rescoring, vendor calls or production writes.
 Snapshot: HEAD 4e97ebbe plus the shared working tree. Cursor holds A329 round 6 and is changing derived-metrics / merge-trusted; this review changes only evidence and task documentation. Source hashes are in the fixture receipt.
@@ -37,7 +41,7 @@ The same `let evGold` block does not check overrideIndex or provenance.isOverrid
 
 The read-only scan finds three populated price-ratio fields with derived provenance and a latest Yahoo financial currency other than USD: GFL P/E (CAD), LI P/E (CNY), ASML EV/EBITDA (EUR). Receipt retains values and provenance timestamps. Currency at the company level does not prove the currency of each chosen vendor field, and old derived provenance may persist. Resolve each from stored input provenance before labelling its value wrong; this review made no vendor requests.
 
-Existing A318 EPS/P/E follow-up still matters: choose a consistent TTM EPS and carry its period/source into P/E. A329 round 6 already owns GAAP vs adjusted EBITDA, cash definition, period mismatches and the twelve reported gold errors. Reuse that work, do not restart it. Later per-share/ADR audit remains an A329 stage, not independently cleared here.
+Existing A318 EPS/P/E follow-up still matters: choose a consistent TTM EPS and carry its period/source into P/E. A329 round 6 handled GAAP vs adjusted EBITDA, cash definition and period mismatches; Claude subsequently accepted segments 1+2. Residual disagreements go to Needs Review, not another blanket audit round. The later per-share/ADR stage must align every truth component to the same period end and a filing at least as recent as gold before declaring gold wrong.
 
 ## Handoff / cheapest verification
 
