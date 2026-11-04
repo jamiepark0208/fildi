@@ -26,6 +26,7 @@ Why: Claude's own specs went to Cursor unreviewed. A328 had no baseline for long
 - Serving cost: a page/API never loads a study cache per request; precompute aggregates (A331: 7.1 GB baseline pickle).
 - Same trade counted twice: identical trades under two labels inflate "distinct" results (S151: month = quarter rows).
 - Truth period ≤ 15 months and missing ≠ 0 in any reference/"truth" source (A329 SEC).
+- Truth builder escaped twice (A329 r1–r6): every part from the same period end, truth period ≥ the checked value's period, and a hand-check of 10 misses before blaming the data.
 Add each new bug class a review catches here (one line, cite the row).
 
 ## 3 Optimize

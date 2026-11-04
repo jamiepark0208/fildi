@@ -9,3 +9,4 @@
 2026-11-03 · A331 · pass · serving cost (7.1 GB cache per request)
 2026-11-03 · A331 · pass · P&L units, survivorship, multiple-testing scope, inspector look-ahead
 2026-11-03 · A331 · pass · UI answer-first + firing-today missing
+2026-11-03 · A329 · review (r6) · truth builder again: parts from different dates, fiduciary cash, older period vs newer gold
