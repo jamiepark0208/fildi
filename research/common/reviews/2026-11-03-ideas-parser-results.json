@@ -1,0 +1,61 @@
+{
+  "source": "artifacts/api-server/src/routes/agents.ts",
+  "sha256": "34c6586674b50b119319b6a1b7e3fdc181d1a42686894a7b65583bac20135ab2",
+  "current": [
+    {
+      "id": "A236",
+      "phase": "filed",
+      "assignee": "claude",
+      "reviewVisible": true,
+      "reviewCharacters": 1600
+    },
+    {
+      "id": "A251",
+      "phase": "filed",
+      "assignee": "claude",
+      "reviewVisible": true,
+      "reviewCharacters": 1600
+    },
+    {
+      "id": "A318",
+      "phase": "filed",
+      "assignee": "cursor",
+      "reviewVisible": true,
+      "reviewCharacters": 1600
+    },
+    {
+      "id": "A277",
+      "phase": "reviewed",
+      "assignee": "cursor",
+      "reviewVisible": true,
+      "reviewCharacters": 1600
+    },
+    {
+      "id": "A329",
+      "phase": "reviewed",
+      "assignee": "cursor",
+      "reviewVisible": true,
+      "reviewCharacters": 1600
+    },
+    {
+      "id": "A205",
+      "phase": "building",
+      "assignee": "codex",
+      "reviewVisible": true,
+      "reviewCharacters": 1600
+    }
+  ],
+  "reviseFixture": {
+    "owner": "cursor",
+    "queue": {
+      "muse": 0,
+      "claude": 0,
+      "cursor": 0,
+      "jamie": 0,
+      "grok": 0,
+      "codex": 0
+    },
+    "expectedOwnerQueue": 1,
+    "pass": false
+  }
+}

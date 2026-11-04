@@ -1,0 +1,53 @@
+{
+  "sources": [
+    {
+      "path": "artifacts/api-server/src/lib/scheduler/state-guards.ts",
+      "sha256": "f662608fd10b8675a120ed2c96b89f8aee948980968721177e2d5ef92d776e4c"
+    },
+    {
+      "path": "artifacts/api-server/src/lib/scheduler/jobs-loop.ts",
+      "sha256": "a689464dd449a77d5e617483191c870b632da9e283f23c5b32d0e870b9c93177"
+    }
+  ],
+  "results": [
+    {
+      "mode": "fail",
+      "reported": [
+        "events",
+        "earnings",
+        "analysts"
+      ],
+      "rejected": false,
+      "stamps": 0,
+      "failedAttempts": 1,
+      "errors": 1,
+      "pass": false
+    },
+    {
+      "mode": "busy",
+      "reported": [
+        "events",
+        "earnings",
+        "analysts"
+      ],
+      "rejected": false,
+      "stamps": 0,
+      "failedAttempts": 0,
+      "errors": 0,
+      "pass": false
+    },
+    {
+      "mode": "ok",
+      "reported": [
+        "events",
+        "earnings",
+        "analysts"
+      ],
+      "rejected": false,
+      "stamps": 1,
+      "failedAttempts": 0,
+      "errors": 0,
+      "pass": true
+    }
+  ]
+}

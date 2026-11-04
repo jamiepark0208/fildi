@@ -1,0 +1,10 @@
+{
+  "source": "artifacts/api-server/src/routes/live.ts",
+  "sha256": "d72268b7f354dcb88e33642d55b4f4658273d67a062958347b8e968a036353d8",
+  "response": true,
+  "nextErrors": [],
+  "unhandled": [
+    "fixture DB unavailable"
+  ],
+  "pass": false
+}
