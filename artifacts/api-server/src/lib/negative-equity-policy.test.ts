@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { rawMetricValue } from "./fund-score-raw.js";
-import { applyNegativeEquityGoldPolicy, hasNegativeEquity } from "./negative-equity-policy.js";
+import { applyNegativeEquityGoldPolicy, applyNegativeTbvGoldPolicy, hasNegativeEquity } from "./negative-equity-policy.js";
 
 describe("negative-equity-policy", () => {
   it("detects negative book equity", () => {
@@ -34,5 +34,18 @@ describe("negative-equity-policy", () => {
     assert.equal(rawMetricValue("de", row, { negativeEquityLeverage: "sanitized" }), null);
     assert.equal(rawMetricValue("roe", row, { negativeEquityLeverage: "sanitized" }), null);
     assert.equal(rawMetricValue("de", row, { negativeEquityLeverage: "legacy" }), -5);
+  });
+
+  it("clears priceToTbv when tangible book per share is non-positive", () => {
+    const update: Record<string, unknown> = {
+      tangibleBookValuePerShare: -2.5,
+      priceToTbv: 4.2,
+    };
+    const prov: { field: string; result: { source: string; value: number | null; isOverride: boolean; divergent: boolean } }[] =
+      [{ field: "priceToTbv", result: { source: "finnhub", value: 4.2, isOverride: false, divergent: false } }];
+    const cleared = applyNegativeTbvGoldPolicy(update, prov);
+    assert.equal(update.priceToTbv, null);
+    assert.deepEqual(cleared, ["priceToTbv"]);
+    assert.equal(prov.length, 0);
   });
 });

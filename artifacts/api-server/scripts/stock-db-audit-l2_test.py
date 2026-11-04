@@ -17,12 +17,20 @@ CASH_ST = [
 ]
 FLOW_PERIOD_FIELDS = {"netIncome", "freeCashFlow", "totalRevenue", "ebitda"}
 DEFINITION_ONLY_FIELDS = {"debtToEquity"}
+PER_SHARE_FIELDS = {"earningsPerShare", "sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare"}
 
 
 def ok(v, t, field):
     if v is None or t is None:
         return None
-    band = max(abs(t) * 0.20, 0.03 if field in FRACTION else 0)
+    if field == "earningsPerShare":
+        band = max(abs(t) * 0.05, 0.01)
+    elif field in ("sharesOutstanding", "sharesOutstandingPrior"):
+        band = max(abs(t) * 0.03, 1e6)
+    elif field == "tangibleBookValuePerShare":
+        band = max(abs(t) * 0.05, 0.01)
+    else:
+        band = max(abs(t) * 0.20, 0.03 if field in FRACTION else 0)
     return abs(v - t) <= band
 
 
@@ -82,6 +90,8 @@ def scale_looks_adr(gold: float, truth: float) -> bool:
 def miss_cause(row: dict) -> str:
     note = (row.get("note") or "").lower()
     if row.get("truth") is None:
+        if "skip_no_quarterly" in note:
+            return "definition"
         if "missing" in note or "no us-gaap" in note:
             return "truth_missing"
         if "stale" in note:
@@ -92,6 +102,8 @@ def miss_cause(row: dict) -> str:
     field = row["field"]
     if field in FLOW_PERIOD_FIELDS and note.strip() == "fy":
         return "wrong_period"
+    if field in PER_SHARE_FIELDS and truth and abs(gold / truth - 8) / 8 < 0.12:
+        return "adr_ratio"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
         return "definition"
     if field in DEFINITION_ONLY_FIELDS:
@@ -194,6 +206,27 @@ def test_sec_debt_sums_lt_and_st():
     assert total == 125.0
 
 
+def test_ok_eps_and_shares_bands():
+    assert ok(5.0, 5.2, "earningsPerShare") is True
+    assert ok(5.0, 5.5, "earningsPerShare") is False
+    assert ok(1e9, 1.02e9, "sharesOutstanding") is True
+    assert ok(1e9, 1.1e9, "sharesOutstanding") is False
+
+
+def test_miss_cause_per_share_adr():
+    assert miss_cause({
+        "note": "dei",
+        "truth": 1.0,
+        "gold": 8.0,
+        "field": "earningsPerShare",
+        "ticker": "BABA",
+    }) == "adr_ratio"
+
+
+def test_miss_cause_skip_no_quarterly():
+    assert miss_cause({"note": "skip_no_quarterly", "truth": None, "field": "earningsPerShare"}) == "definition"
+
+
 if __name__ == "__main__":
     test_ok_margin_hand_check()
     test_audit_instant_missing_not_zero()
@@ -202,4 +235,7 @@ if __name__ == "__main__":
     test_sec_debt_cur_only_no_truth()
     test_sec_debt_sums_lt_and_st()
     test_sec_cash_includes_st()
+    test_ok_eps_and_shares_bands()
+    test_miss_cause_per_share_adr()
+    test_miss_cause_skip_no_quarterly()
     print("ok")

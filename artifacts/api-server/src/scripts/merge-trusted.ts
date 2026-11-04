@@ -32,6 +32,7 @@ import {
   computeNetMargin,
   computeDebtToEquity,
   computePeFromPriceEps,
+  computePriceToTbv,
   computeForwardPeFromPriceEps,
   computePriceToBook,
   computePriceToSales,
@@ -44,7 +45,7 @@ import {
   isEvEbitdaGoldCandidate,
   skipDerivedEvRatios,
 } from "../lib/derived-metrics.js";
-import { applyNegativeEquityGoldPolicy } from "../lib/negative-equity-policy.js";
+import { applyNegativeEquityGoldPolicy, applyNegativeTbvGoldPolicy } from "../lib/negative-equity-policy.js";
 import { applyStatementGoldPolicies } from "../lib/statement-gold-policy.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -757,6 +758,10 @@ export async function runMergeTrusted() {
       "priceToSales",
       computePriceToSales(price, update.totalRevenue, update.sharesOutstanding),
     );
+    forceDerived(
+      "priceToTbv",
+      computePriceToTbv(price, update.tangibleBookValuePerShare),
+    );
     const forwardEps = forwardEpsByTicker.get(ticker) ?? null;
     forceDerived("forwardPe", computeForwardPeFromPriceEps(price, forwardEps));
     forceDerived(
@@ -922,6 +927,23 @@ export async function runMergeTrusted() {
       existing as Record<string, unknown> | undefined,
     );
     for (const field of negEquityClears) {
+      clearProvenanceFields.push(field);
+      if (existing?.[field] != null) {
+        changedFields.push({
+          field,
+          from: Number(existing[field]),
+          to: null as unknown as number,
+        });
+      }
+      fieldNullCount[field] = (fieldNullCount[field] ?? 0) + 1;
+    }
+
+    const negTbvClears = applyNegativeTbvGoldPolicy(
+      update as Record<string, unknown>,
+      provenanceBatch,
+      existing as Record<string, unknown> | undefined,
+    );
+    for (const field of negTbvClears) {
       clearProvenanceFields.push(field);
       if (existing?.[field] != null) {
         changedFields.push({

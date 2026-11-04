@@ -1,0 +1,3321 @@
+{
+  "runId": "2026-11-04",
+  "tickers": [
+    "A",
+    "AA",
+    "AAL",
+    "AAOI",
+    "AAPL",
+    "ABBV",
+    "ABNB",
+    "ABT",
+    "ACGL",
+    "ACHR",
+    "ACLS",
+    "ACN",
+    "ADBE",
+    "ADI",
+    "ADM",
+    "ADP",
+    "ADSK",
+    "ADYEN",
+    "AEE",
+    "AEIS",
+    "AEM",
+    "AEP",
+    "AER",
+    "AES",
+    "AFG",
+    "AFL",
+    "AFRM",
+    "AGI",
+    "AGNC",
+    "AHR",
+    "AIG",
+    "AIT",
+    "AIZ",
+    "AJG",
+    "AKAM",
+    "ALAB",
+    "ALB",
+    "ALGN",
+    "ALL",
+    "ALLE",
+    "ALLY",
+    "ALM",
+    "ALNY",
+    "ALOY",
+    "AM",
+    "AMAT",
+    "AMCR",
+    "AMD",
+    "AME",
+    "AMG",
+    "AMGN",
+    "AMH",
+    "AMKR",
+    "AMP",
+    "AMRZ",
+    "AMT",
+    "AMZN",
+    "ANET",
+    "AON",
+    "APA",
+    "APD",
+    "APG",
+    "APH",
+    "APLD",
+    "APO",
+    "APP",
+    "AR",
+    "ARE",
+    "ARES",
+    "ARM",
+    "ARMK",
+    "ARRY",
+    "ARW",
+    "AS",
+    "ASML",
+    "ASND",
+    "ASTS",
+    "ATI",
+    "ATO",
+    "AU",
+    "AVGO",
+    "AVTR",
+    "AVY",
+    "AWK",
+    "AXON",
+    "AXP",
+    "AXTA",
+    "AZN",
+    "AZO",
+    "BA",
+    "BABA",
+    "BAC",
+    "BALL",
+    "BAM",
+    "BAP",
+    "BAX",
+    "BB",
+    "BBIO",
+    "BBY",
+    "BDX",
+    "BE",
+    "BEAM",
+    "BEN",
+    "BF.B",
+    "BG",
+    "BHP",
+    "BIDU",
+    "BIIB",
+    "BILI",
+    "BILL",
+    "BJ",
+    "BKNG",
+    "BKR",
+    "BLK",
+    "BMBL",
+    "BMNR",
+    "BMRN",
+    "BMY",
+    "BN",
+    "BNGO",
+    "BNTX",
+    "BNY",
+    "BOX",
+    "BP",
+    "BPOP",
+    "BR",
+    "BRK.B",
+    "BRO",
+    "BSX",
+    "BSY",
+    "BTSG",
+    "BULL",
+    "BURL",
+    "BWA",
+    "BWXT",
+    "BX",
+    "C",
+    "CABA",
+    "CACI",
+    "CAG",
+    "CAH",
+    "CAMT",
+    "CARR",
+    "CART",
+    "CASY",
+    "CAT",
+    "CAVA",
+    "CB",
+    "CBOE",
+    "CBRE",
+    "CCEP",
+    "CCI",
+    "CCJ",
+    "CCK",
+    "CCL",
+    "CDE",
+    "CDNS",
+    "CDW",
+    "CE",
+    "CEG",
+    "CELH",
+    "CEVA",
+    "CF",
+    "CFG",
+    "CG",
+    "CHD",
+    "CHKP",
+    "CHRW",
+    "CHTR",
+    "CHYM",
+    "CI",
+    "CIEN",
+    "CIFR",
+    "CINF",
+    "CL",
+    "CLF",
+    "CLH",
+    "CLNE",
+    "CLS",
+    "CLSK",
+    "CLX",
+    "CMCSA",
+    "CME",
+    "CMG",
+    "CMI",
+    "CMPS",
+    "CMS",
+    "CNA",
+    "CNC",
+    "CNH",
+    "CNP",
+    "COF",
+    "COHR",
+    "COHU",
+    "COIN",
+    "COKE",
+    "COMP",
+    "COO",
+    "COP",
+    "COR",
+    "CORZ",
+    "COST",
+    "COTY",
+    "CPAY",
+    "CPB",
+    "CPNG",
+    "CPRT",
+    "CPT",
+    "CR",
+    "CRBG",
+    "CRCL",
+    "CRDO",
+    "CRH",
+    "CRL",
+    "CRM",
+    "CRML",
+    "CROX",
+    "CRS",
+    "CRSP",
+    "CRWD",
+    "CRWV",
+    "CSCO",
+    "CSGP",
+    "CSL",
+    "CSX",
+    "CTAS",
+    "CTSH",
+    "CVNA",
+    "CVS",
+    "CVX",
+    "CW",
+    "D",
+    "DAL",
+    "DASH",
+    "DD",
+    "DDD",
+    "DDOG",
+    "DE",
+    "DECK",
+    "DELL",
+    "DG",
+    "DGX",
+    "DHI",
+    "DHR",
+    "DINO",
+    "DIS",
+    "DKNG",
+    "DKS",
+    "DLR",
+    "DLTR",
+    "DNA",
+    "DOC",
+    "DOCN",
+    "DOCU",
+    "DOV",
+    "DOW",
+    "DPZ",
+    "DRI",
+    "DT",
+    "DTE",
+    "DTM",
+    "DUK",
+    "DUOL",
+    "DVA",
+    "DVN",
+    "DXCM",
+    "EBAY",
+    "ECHO",
+    "ECL",
+    "ED",
+    "EDIT",
+    "EFX",
+    "EG",
+    "EGP",
+    "EHC",
+    "EIX",
+    "EL",
+    "ELAN",
+    "ELS",
+    "ELV",
+    "EME",
+    "EMN",
+    "EMR",
+    "ENPH",
+    "ENSG",
+    "ENTG",
+    "EOG",
+    "EPD",
+    "EQH",
+    "EQIX",
+    "EQT",
+    "ERIE",
+    "ES",
+    "ESS",
+    "ESTC",
+    "ET",
+    "ETN",
+    "ETR",
+    "ETSY",
+    "EVR",
+    "EVRG",
+    "EW",
+    "EWBC",
+    "EXC",
+    "EXE",
+    "EXEL",
+    "EXPD",
+    "EXPE",
+    "EXR",
+    "F",
+    "FANG",
+    "FAST",
+    "FCNCA",
+    "FCX",
+    "FDS",
+    "FDX",
+    "FE",
+    "FERG",
+    "FFIV",
+    "FHN",
+    "FICO",
+    "FIG",
+    "FIS",
+    "FISV",
+    "FITB",
+    "FIVE",
+    "FIX",
+    "FLEX",
+    "FLUT",
+    "FN",
+    "FNF",
+    "FNV",
+    "FORM",
+    "FOUR",
+    "FOXA",
+    "FRO",
+    "FROG",
+    "FRSX",
+    "FSLR",
+    "FSLY",
+    "FTAI",
+    "FTI",
+    "FTNT",
+    "FTV",
+    "FUTU",
+    "GD",
+    "GDDY",
+    "GE",
+    "GEHC",
+    "GEN",
+    "GEV",
+    "GFL",
+    "GFS",
+    "GGG",
+    "GH",
+    "GILD",
+    "GIS",
+    "GKOS",
+    "GL",
+    "GLPI",
+    "GLW",
+    "GLXY",
+    "GM",
+    "GME",
+    "GMED",
+    "GNRC",
+    "GOLD",
+    "GOOGL",
+    "GOSS",
+    "GPC",
+    "GPN",
+    "GRAB",
+    "GRMN",
+    "GS",
+    "GSK",
+    "GWRE",
+    "GWW",
+    "H",
+    "HAL",
+    "HALO",
+    "HAS",
+    "HBAN",
+    "HCA",
+    "HD",
+    "HEI",
+    "HIG",
+    "HII",
+    "HIMS",
+    "HL",
+    "HLT",
+    "HMC",
+    "HON",
+    "HOOD",
+    "HP",
+    "HPE",
+    "HPQ",
+    "HRL",
+    "HST",
+    "HSY",
+    "HUBB",
+    "HUBS",
+    "HUM",
+    "HUN",
+    "HUT",
+    "HWM",
+    "HYLN",
+    "IBKR",
+    "IBM",
+    "ICE",
+    "ICLR",
+    "IDXX",
+    "IEX",
+    "IFF",
+    "ILMN",
+    "INCY",
+    "INGM",
+    "INSM",
+    "INTC",
+    "INTU",
+    "INVH",
+    "IOND",
+    "IONQ",
+    "IONS",
+    "IP",
+    "IQV",
+    "IR",
+    "IREN",
+    "IRM",
+    "ISRG",
+    "IT",
+    "ITT",
+    "ITW",
+    "IVZ",
+    "J",
+    "JAZZ",
+    "JBHT",
+    "JBL",
+    "JBS",
+    "JCI",
+    "JD",
+    "JEF",
+    "JHX",
+    "JKHY",
+    "JLL",
+    "JNJ",
+    "JOBY",
+    "JPM",
+    "KDP",
+    "KEY",
+    "KEYS",
+    "KGC",
+    "KHC",
+    "KIM",
+    "KKR",
+    "KLAC",
+    "KMB",
+    "KMI",
+    "KO",
+    "KOPN",
+    "KR",
+    "KTOS",
+    "KVUE",
+    "L",
+    "LAMR",
+    "LCID",
+    "LDI",
+    "LDOS",
+    "LECO",
+    "LEN",
+    "LEU",
+    "LH",
+    "LHX",
+    "LI",
+    "LII",
+    "LIN",
+    "LITE",
+    "LLY",
+    "LMT",
+    "LNG",
+    "LNT",
+    "LOW",
+    "LPLA",
+    "LQDA",
+    "LRCX",
+    "LSCC",
+    "LULU",
+    "LUMN",
+    "LUNR",
+    "LUV",
+    "LVS",
+    "LYB",
+    "LYFT",
+    "LYV",
+    "MA",
+    "MAA",
+    "MANH",
+    "MAR",
+    "MARA",
+    "MAS",
+    "MCD",
+    "MCHP",
+    "MCK",
+    "MCO",
+    "MDB",
+    "MDGL",
+    "MDLZ",
+    "MDT",
+    "MEDP",
+    "MELI",
+    "MET",
+    "META",
+    "MGM",
+    "MKC",
+    "MKL",
+    "MKSI",
+    "MLI",
+    "MLM",
+    "MMM",
+    "MNDY",
+    "MNST",
+    "MO",
+    "MOH",
+    "MP",
+    "MPC",
+    "MPLX",
+    "MPWR",
+    "MRK",
+    "MRNA",
+    "MRSH",
+    "MRVL",
+    "MS",
+    "MSCI",
+    "MSFT",
+    "MSI",
+    "MSTR",
+    "MTB",
+    "MTCH",
+    "MTD",
+    "MTRN",
+    "MTSI",
+    "MTZ",
+    "MU",
+    "NBIS",
+    "NBIX",
+    "NCLH",
+    "NDAQ",
+    "NDSN",
+    "NEE",
+    "NEM",
+    "NET",
+    "NFLX",
+    "NI",
+    "NIO",
+    "NJR",
+    "NKE",
+    "NLY",
+    "NNE",
+    "NNN",
+    "NOC",
+    "NOV",
+    "NOW",
+    "NRG",
+    "NSC",
+    "NTAP",
+    "NTDOY",
+    "NTES",
+    "NTLA",
+    "NTNX",
+    "NTRA",
+    "NTRS",
+    "NTSK",
+    "NU",
+    "NUE",
+    "NVDA",
+    "NVMI",
+    "NVO",
+    "NVR",
+    "NVT",
+    "NVTS",
+    "NWSA",
+    "NXPI",
+    "NXT",
+    "NYT",
+    "O",
+    "ODFL",
+    "OGE",
+    "OGS",
+    "OHI",
+    "OKE",
+    "OKLO",
+    "OKTA",
+    "OLLI",
+    "OLN",
+    "OMC",
+    "ON",
+    "ONDS",
+    "ONON",
+    "ONTO",
+    "OPEN",
+    "ORCL",
+    "ORLY",
+    "OTIS",
+    "OVV",
+    "OWL",
+    "OXY",
+    "P",
+    "PAA",
+    "PAAS",
+    "PAG",
+    "PAGS",
+    "PANW",
+    "PATH",
+    "PAYC",
+    "PAYX",
+    "PBR",
+    "PCAR",
+    "PCG",
+    "PDD",
+    "PEG",
+    "PEN",
+    "PEP",
+    "PFE",
+    "PFG",
+    "PFGC",
+    "PFLT",
+    "PG",
+    "PGR",
+    "PH",
+    "PHM",
+    "PINS",
+    "PKG",
+    "PLD",
+    "PLTR",
+    "PLUG",
+    "PM",
+    "PN",
+    "PNC",
+    "PNFP",
+    "PNW",
+    "PODD",
+    "POET",
+    "POWL",
+    "PPG",
+    "PPL",
+    "PR",
+    "PRU",
+    "PSA",
+    "PSX",
+    "PTC",
+    "PVH",
+    "PWR",
+    "PYPL",
+    "Q",
+    "QBTS",
+    "QCOM",
+    "QGEN",
+    "QLYS",
+    "QSI",
+    "QSR",
+    "QUBT",
+    "QXO",
+    "R",
+    "RBC",
+    "RBLX",
+    "RBRK",
+    "RCL",
+    "RDDT",
+    "RDW",
+    "REBN",
+    "REG",
+    "REGN",
+    "RELY",
+    "RF",
+    "RGA",
+    "RGEN",
+    "RGLD",
+    "RGTI",
+    "RHHBY",
+    "RIG",
+    "RIO",
+    "RIOT",
+    "RIVN",
+    "RJF",
+    "RKLB",
+    "RKT",
+    "RL",
+    "RMD",
+    "RNR",
+    "ROIV",
+    "ROK",
+    "ROKU",
+    "ROL",
+    "ROP",
+    "ROST",
+    "RPD",
+    "RPM",
+    "RPRX",
+    "RRC",
+    "RRX",
+    "RS",
+    "RSG",
+    "RTX",
+    "RUM",
+    "RUN",
+    "RVMD",
+    "RVTY",
+    "RXRX",
+    "RYAN",
+    "S",
+    "SAIA",
+    "SAIL",
+    "SAM",
+    "SAP",
+    "SBAC",
+    "SBUX",
+    "SCCO",
+    "SCHW",
+    "SCI",
+    "SE",
+    "SECZ",
+    "SEDG",
+    "SEIC",
+    "SG",
+    "SGI",
+    "SHAK",
+    "SHLS",
+    "SHOP",
+    "SHW",
+    "SITM",
+    "SJM",
+    "SKHY",
+    "SLB",
+    "SMCI",
+    "SMMT",
+    "SMR",
+    "SMTC",
+    "SN",
+    "SNA",
+    "SNAP",
+    "SNDK",
+    "SNOW",
+    "SNPS",
+    "SNX",
+    "SNY",
+    "SO",
+    "SOFI",
+    "SOLV",
+    "SOUN",
+    "SPCE",
+    "SPCX",
+    "SPG",
+    "SPGI",
+    "SPOT",
+    "SR",
+    "SRE",
+    "SSB",
+    "SSNC",
+    "STE",
+    "STLA",
+    "STLD",
+    "STRL",
+    "STT",
+    "STX",
+    "STZ",
+    "SUI",
+    "SUNB",
+    "SUPX",
+    "SVM",
+    "SW",
+    "SWK",
+    "SWKS",
+    "SWX",
+    "SYF",
+    "SYK",
+    "SYM",
+    "SYY",
+    "T",
+    "TAP",
+    "TCOM",
+    "TDG",
+    "TDY",
+    "TEAM",
+    "TECH",
+    "TECK",
+    "TEL",
+    "TEM",
+    "TENB",
+    "TER",
+    "TFC",
+    "TGT",
+    "THC",
+    "TIGO",
+    "TJX",
+    "TKO",
+    "TLN",
+    "TM",
+    "TME",
+    "TMO",
+    "TMUS",
+    "TOL",
+    "TOST",
+    "TPG",
+    "TPL",
+    "TPR",
+    "TRGP",
+    "TRMB",
+    "TROW",
+    "TRU",
+    "TRV",
+    "TSCO",
+    "TSEM",
+    "TSLA",
+    "TSM",
+    "TSN",
+    "TT",
+    "TTD",
+    "TTWO",
+    "TW",
+    "TWLO",
+    "TXN",
+    "TXRH",
+    "TXT",
+    "TYL",
+    "U",
+    "UAA",
+    "UAL",
+    "UBER",
+    "UDR",
+    "UHS",
+    "UI",
+    "ULTA",
+    "UMBF",
+    "UMC",
+    "UNH",
+    "UNM",
+    "UNP",
+    "UPS",
+    "UPST",
+    "URI",
+    "USAR",
+    "USB",
+    "USFD",
+    "UTHR",
+    "V",
+    "VALE",
+    "VEEV",
+    "VFC",
+    "VG",
+    "VICI",
+    "VIK",
+    "VIST",
+    "VLO",
+    "VLTO",
+    "VMC",
+    "VMRK",
+    "VNET",
+    "VNOM",
+    "VRSK",
+    "VRSN",
+    "VRT",
+    "VRTX",
+    "VST",
+    "VTR",
+    "VTRS",
+    "VZ",
+    "W",
+    "WAB",
+    "WAL",
+    "WAT",
+    "WCC",
+    "WCN",
+    "WDAY",
+    "WDC",
+    "WEC",
+    "WELL",
+    "WFC",
+    "WING",
+    "WM",
+    "WMB",
+    "WMG",
+    "WMT",
+    "WOLF",
+    "WPC",
+    "WPM",
+    "WRB",
+    "WSM",
+    "WSO",
+    "WST",
+    "WTFC",
+    "WTR",
+    "WTRG",
+    "WTS",
+    "WTW",
+    "WULF",
+    "WWD",
+    "WY",
+    "WYNN",
+    "XEL",
+    "XOM",
+    "XPEV",
+    "XPO",
+    "XYL",
+    "XYZ",
+    "YELP",
+    "YUM",
+    "YUMC",
+    "ZBH",
+    "ZBRA",
+    "ZG",
+    "ZION",
+    "ZM",
+    "ZS",
+    "ZTO",
+    "ZTS"
+  ],
+  "sample": [
+    {
+      "ticker": "TXRH",
+      "field": "sharesOutstandingPrior",
+      "gold": 66752000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FSLR",
+      "field": "sharesOutstandingPrior",
+      "gold": 107015000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BIIB",
+      "field": "sharesOutstanding",
+      "gold": 146800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MET",
+      "field": "earningsPerShare",
+      "gold": 5.5057,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ZM",
+      "field": "earningsPerShare",
+      "gold": 10.7959,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HD",
+      "field": "sharesOutstanding",
+      "gold": 996000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HAL",
+      "field": "sharesOutstandingPrior",
+      "gold": 882000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ABBV",
+      "field": "sharesOutstandingPrior",
+      "gold": 1765256986,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "INSM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.9933,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VG",
+      "field": "sharesOutstanding",
+      "gold": 531488393,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PM",
+      "field": "sharesOutstandingPrior",
+      "gold": 1554000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AKAM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 30.1485,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ANET",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.8748,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRS",
+      "field": "sharesOutstanding",
+      "gold": 49606583,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 48.6647,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FCX",
+      "field": "earningsPerShare",
+      "gold": 2.0404999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BRK.B",
+      "field": "sharesOutstandingPrior",
+      "gold": 2156578922,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FISV",
+      "field": "earningsPerShare",
+      "gold": 5.2133,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ALLY",
+      "field": "earningsPerShare",
+      "gold": 4.6454,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DGX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 50.3091,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSFT",
+      "field": "sharesOutstandingPrior",
+      "gold": 7431000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NVMI",
+      "field": "earningsPerShare",
+      "gold": 7.9222,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HPE",
+      "field": "sharesOutstandingPrior",
+      "gold": 1309000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UNP",
+      "field": "sharesOutstanding",
+      "gold": 593245884,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OLLI",
+      "field": "sharesOutstandingPrior",
+      "gold": 61339000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RYAN",
+      "field": "sharesOutstanding",
+      "gold": 122077702,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GPN",
+      "field": "sharesOutstandingPrior",
+      "gold": 254291000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTI",
+      "field": "sharesOutstandingPrior",
+      "gold": 429100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TEAM",
+      "field": "sharesOutstanding",
+      "gold": 159005198,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SYY",
+      "field": "sharesOutstanding",
+      "gold": 491913960,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRMB",
+      "field": "sharesOutstanding",
+      "gold": 236000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "REG",
+      "field": "sharesOutstandingPrior",
+      "gold": 182817000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRL",
+      "field": "sharesOutstandingPrior",
+      "gold": 51380000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ATI",
+      "field": "earningsPerShare",
+      "gold": 3.4205,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSLA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 21.5956,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BBIO",
+      "field": "earningsPerShare",
+      "gold": -3.5685,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WAT",
+      "field": "sharesOutstandingPrior",
+      "gold": 59333000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CPNG",
+      "field": "earningsPerShare",
+      "gold": -0.4259,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTAI",
+      "field": "sharesOutstanding",
+      "gold": 102573283,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "POWL",
+      "field": "earningsPerShare",
+      "gold": 4.385800000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TMUS",
+      "field": "sharesOutstanding",
+      "gold": 1106930661,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HEI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.3377,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SWKS",
+      "field": "sharesOutstandingPrior",
+      "gold": 160100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IFF",
+      "field": "sharesOutstandingPrior",
+      "gold": 256000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "R",
+      "field": "sharesOutstandingPrior",
+      "gold": 42080039,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SAM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 79.371,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HD",
+      "field": "earningsPerShare",
+      "gold": 14.282599999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNFP",
+      "field": "earningsPerShare",
+      "gold": 7.802300000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BTSG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.8576,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.4418,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BAC",
+      "field": "sharesOutstanding",
+      "gold": 7212464345,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNW",
+      "field": "sharesOutstandingPrior",
+      "gold": 113846000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SBAC",
+      "field": "earningsPerShare",
+      "gold": 9.2866,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LOW",
+      "field": "earningsPerShare",
+      "gold": 11.8624,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HST",
+      "field": "sharesOutstanding",
+      "gold": 687800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KVUE",
+      "field": "sharesOutstandingPrior",
+      "gold": 1915000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VTR",
+      "field": "sharesOutstanding",
+      "gold": 512946359,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOW",
+      "field": "sharesOutstanding",
+      "gold": 1047278000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TOL",
+      "field": "sharesOutstanding",
+      "gold": 94800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 80.6324,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PPL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.3784,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WWD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 35.698,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ZS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.5236,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KOPN",
+      "field": "sharesOutstanding",
+      "gold": 176903857,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OKLO",
+      "field": "earningsPerShare",
+      "gold": -0.9317,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EXC",
+      "field": "earningsPerShare",
+      "gold": 2.7298999999999998,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BILL",
+      "field": "earningsPerShare",
+      "gold": -0.13,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MRK",
+      "field": "sharesOutstandingPrior",
+      "gold": 2527637335,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TLN",
+      "field": "sharesOutstandingPrior",
+      "gold": 54254000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SHW",
+      "field": "sharesOutstanding",
+      "gold": 247700000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DOV",
+      "field": "sharesOutstandingPrior",
+      "gold": 137735000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DUK",
+      "field": "earningsPerShare",
+      "gold": 6.7418000000000005,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTSI",
+      "field": "sharesOutstanding",
+      "gold": 74478000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ED",
+      "field": "earningsPerShare",
+      "gold": 6.07,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBL",
+      "field": "earningsPerShare",
+      "gold": 9.7711,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFLT",
+      "field": "sharesOutstandingPrior",
+      "gold": 65599286,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FNF",
+      "field": "sharesOutstandingPrior",
+      "gold": 271000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LQDA",
+      "field": "earningsPerShare",
+      "gold": 1.3858000000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PPL",
+      "field": "sharesOutstanding",
+      "gold": 751041000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LNT",
+      "field": "sharesOutstandingPrior",
+      "gold": 256500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TKO",
+      "field": "sharesOutstanding",
+      "gold": 73111098,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SAM",
+      "field": "sharesOutstandingPrior",
+      "gold": 11774000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RGLD",
+      "field": "sharesOutstandingPrior",
+      "gold": 65662185,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CNC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 31.3631,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRH",
+      "field": "earningsPerShare",
+      "gold": 5.7057,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TDG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.8436,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 30.114,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MET",
+      "field": "sharesOutstanding",
+      "gold": 655333773,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DGX",
+      "field": "sharesOutstandingPrior",
+      "gold": 111000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTCH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -10.96463,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MKSI",
+      "field": "earningsPerShare",
+      "gold": 6.29,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRDO",
+      "field": "earningsPerShare",
+      "gold": 2.8021,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SHOP",
+      "field": "sharesOutstandingPrior",
+      "gold": 1294580139,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IFF",
+      "field": "sharesOutstanding",
+      "gold": 255700000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFG",
+      "field": "sharesOutstanding",
+      "gold": 217380912,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRV",
+      "field": "earningsPerShare",
+      "gold": 38.4317,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ATO",
+      "field": "earningsPerShare",
+      "gold": 8.4182,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CTSH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 28.3883,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JNJ",
+      "field": "tangibleBookValuePerShare",
+      "gold": 12.9326,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DTE",
+      "field": "sharesOutstandingPrior",
+      "gold": 207000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAGS",
+      "field": "sharesOutstanding",
+      "gold": 159059831,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VMC",
+      "field": "sharesOutstandingPrior",
+      "gold": 132300000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UNP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.86142,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEN",
+      "field": "sharesOutstandingPrior",
+      "gold": 38633744,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CBOE",
+      "field": "earningsPerShare",
+      "gold": 12.8898,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNA",
+      "field": "sharesOutstanding",
+      "gold": 51727124,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UNH",
+      "field": "sharesOutstanding",
+      "gold": 906000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DRI",
+      "field": "earningsPerShare",
+      "gold": 10.24,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PBR",
+      "field": "sharesOutstandingPrior",
+      "gold": 6444366381,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WELL",
+      "field": "earningsPerShare",
+      "gold": 2.2714,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EGP",
+      "field": "sharesOutstanding",
+      "gold": 53348800,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COO",
+      "field": "earningsPerShare",
+      "gold": 2.9301000000000004,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VEEV",
+      "field": "tangibleBookValuePerShare",
+      "gold": 43.8669,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BILL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 36.5886,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LII",
+      "field": "tangibleBookValuePerShare",
+      "gold": 25.5805,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FERG",
+      "field": "earningsPerShare",
+      "gold": 12.4637,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VNOM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.21289,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SOUN",
+      "field": "sharesOutstandingPrior",
+      "gold": 338462574,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZO",
+      "field": "sharesOutstanding",
+      "gold": 16173000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QGEN",
+      "field": "earningsPerShare",
+      "gold": 1.9437,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ROST",
+      "field": "sharesOutstanding",
+      "gold": 322333000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLH",
+      "field": "sharesOutstanding",
+      "gold": 52870599,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LULU",
+      "field": "sharesOutstanding",
+      "gold": 111380000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RCL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 35.6737,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WOLF",
+      "field": "sharesOutstandingPrior",
+      "gold": 141320000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NI",
+      "field": "earningsPerShare",
+      "gold": 1.95,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.1832,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HRL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.3685,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TWLO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 50.3865,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AES",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.8405,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CSGP",
+      "field": "sharesOutstandingPrior",
+      "gold": 406300000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAH",
+      "field": "sharesOutstanding",
+      "gold": 231559345,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FUTU",
+      "field": "sharesOutstanding",
+      "gold": 95750481,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBL",
+      "field": "sharesOutstanding",
+      "gold": 104475785,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 73.7292,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BMRN",
+      "field": "earningsPerShare",
+      "gold": 0.3617,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRGP",
+      "field": "sharesOutstandingPrior",
+      "gold": 217763821,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZN",
+      "field": "sharesOutstanding",
+      "gold": 1550885842,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QCOM",
+      "field": "sharesOutstandingPrior",
+      "gold": 1116000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SWX",
+      "field": "sharesOutstanding",
+      "gold": 72224593,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "INCY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 25.4477,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YUM",
+      "field": "earningsPerShare",
+      "gold": 7.944500000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PNW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 53.5176,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LUMN",
+      "field": "sharesOutstanding",
+      "gold": 1031445404,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MP",
+      "field": "earningsPerShare",
+      "gold": -0.3443,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CCL",
+      "field": "sharesOutstandingPrior",
+      "gold": 1274000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "STLA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.8258,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SCHW",
+      "field": "sharesOutstanding",
+      "gold": 1729335714,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MP",
+      "field": "sharesOutstandingPrior",
+      "gold": 166840611,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTRN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 40.386,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBRK",
+      "field": "sharesOutstandingPrior",
+      "gold": 154294000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMCSA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.7905,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FROG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.0855,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AFG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 55.5128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HAL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.67517,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WDAY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 27.4108,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BMBL",
+      "field": "earningsPerShare",
+      "gold": -4.2284,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SMMT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.6,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ALAB",
+      "field": "sharesOutstanding",
+      "gold": 170186000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBLX",
+      "field": "sharesOutstandingPrior",
+      "gold": 647482000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WMT",
+      "field": "sharesOutstandingPrior",
+      "gold": 8041000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TKO",
+      "field": "sharesOutstandingPrior",
+      "gold": 81340472,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "URI",
+      "field": "sharesOutstanding",
+      "gold": 63095970,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRGP",
+      "field": "earningsPerShare",
+      "gold": 10.52,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IRM",
+      "field": "sharesOutstandingPrior",
+      "gold": 293365000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAPL",
+      "field": "sharesOutstandingPrior",
+      "gold": 15343783000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TECK",
+      "field": "sharesOutstanding",
+      "gold": 483000468,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DKS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 53.707,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TME",
+      "field": "sharesOutstandingPrior",
+      "gold": 1542115014,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CPT",
+      "field": "earningsPerShare",
+      "gold": 3.0379000000000005,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "INTU",
+      "field": "tangibleBookValuePerShare",
+      "gold": 53.4682,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SAIL",
+      "field": "earningsPerShare",
+      "gold": -0.3498,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AIT",
+      "field": "earningsPerShare",
+      "gold": 10.9564,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GDDY",
+      "field": "sharesOutstanding",
+      "gold": 134737000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ADI",
+      "field": "sharesOutstanding",
+      "gold": 489654097,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEN",
+      "field": "earningsPerShare",
+      "gold": 4.0714,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SLB",
+      "field": "sharesOutstandingPrior",
+      "gold": 1421000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TROW",
+      "field": "sharesOutstandingPrior",
+      "gold": 222800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SLB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.1246,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LHX",
+      "field": "earningsPerShare",
+      "gold": 9.9789,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BRK.B",
+      "field": "tangibleBookValuePerShare",
+      "gold": 473026.334,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RJF",
+      "field": "sharesOutstandingPrior",
+      "gold": 207100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DINO",
+      "field": "sharesOutstanding",
+      "gold": 177783849,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSCI",
+      "field": "sharesOutstandingPrior",
+      "gold": 78710000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 44.8267,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBS",
+      "field": "earningsPerShare",
+      "gold": 1.0017,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSEM",
+      "field": "earningsPerShare",
+      "gold": 2.5352,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FLEX",
+      "field": "earningsPerShare",
+      "gold": 2.588,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AMP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 59.0486,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PN",
+      "field": "sharesOutstanding",
+      "gold": 8598775,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FSLR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 88.4075,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GME",
+      "field": "sharesOutstanding",
+      "gold": 448300000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RSG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 36.7305,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LLY",
+      "field": "sharesOutstanding",
+      "gold": 891741406,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RRC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 12.03925,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HUM",
+      "field": "earningsPerShare",
+      "gold": 10.559400000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMI",
+      "field": "earningsPerShare",
+      "gold": 19.57,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ODFL",
+      "field": "earningsPerShare",
+      "gold": 5.1962,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CINF",
+      "field": "sharesOutstandingPrior",
+      "gold": 156450512,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EFX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 26.397,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CFG",
+      "field": "sharesOutstanding",
+      "gold": 429242174,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NEE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 24.4623,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBLX",
+      "field": "sharesOutstanding",
+      "gold": 708359000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UMBF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 94.8741,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IVZ",
+      "field": "sharesOutstandingPrior",
+      "gold": 457000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "A",
+      "field": "earningsPerShare",
+      "gold": 5.0738,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PLTR",
+      "field": "sharesOutstanding",
+      "gold": 2391192000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UNM",
+      "field": "sharesOutstanding",
+      "gold": 158306798,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EGP",
+      "field": "earningsPerShare",
+      "gold": 5.895999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WELL",
+      "field": "sharesOutstandingPrior",
+      "gold": 602975000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EHC",
+      "field": "sharesOutstandingPrior",
+      "gold": 99900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOW",
+      "field": "sharesOutstandingPrior",
+      "gold": 1030000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 21.6119,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WRB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 25.4929,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSTR",
+      "field": "sharesOutstanding",
+      "gold": 377641410,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QBTS",
+      "field": "sharesOutstandingPrior",
+      "gold": 192129049,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SMR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.4076,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HD",
+      "field": "sharesOutstandingPrior",
+      "gold": 990000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AXTA",
+      "field": "earningsPerShare",
+      "gold": 1.56,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "META",
+      "field": "tangibleBookValuePerShare",
+      "gold": 84.4075,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.0447,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DT",
+      "field": "sharesOutstandingPrior",
+      "gold": 298384000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IDXX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.7618,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COKE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.9283,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KR",
+      "field": "earningsPerShare",
+      "gold": 1.8653,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ETN",
+      "field": "sharesOutstandingPrior",
+      "gold": 397600000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CB",
+      "field": "sharesOutstandingPrior",
+      "gold": 408500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EHC",
+      "field": "sharesOutstanding",
+      "gold": 98653384,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CDE",
+      "field": "sharesOutstandingPrior",
+      "gold": 391709000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CAT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 45.2989,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CBOE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 36.255,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SYK",
+      "field": "sharesOutstandingPrior",
+      "gold": 381000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DOCU",
+      "field": "sharesOutstandingPrior",
+      "gold": 204329000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CPB",
+      "field": "sharesOutstandingPrior",
+      "gold": 298000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PCG",
+      "field": "sharesOutstanding",
+      "gold": 2197942874,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SHLS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.3829,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CROX",
+      "field": "sharesOutstanding",
+      "gold": 50200000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 62.6769,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTZ",
+      "field": "sharesOutstanding",
+      "gold": 80304948,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CHRW",
+      "field": "sharesOutstandingPrior",
+      "gold": 119805000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SJM",
+      "field": "earningsPerShare",
+      "gold": 2.1479999999999997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSCO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.7992,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARMK",
+      "field": "sharesOutstandingPrior",
+      "gold": 263045000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PSX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 70.0879,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ETN",
+      "field": "earningsPerShare",
+      "gold": 9.831900000000001,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PKG",
+      "field": "sharesOutstanding",
+      "gold": 89098299,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COHR",
+      "field": "sharesOutstandingPrior",
+      "gold": 154800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ROP",
+      "field": "sharesOutstandingPrior",
+      "gold": 107100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FOXA",
+      "field": "sharesOutstanding",
+      "gold": 201424858,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BAC",
+      "field": "earningsPerShare",
+      "gold": 4.19,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ODFL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.7598,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDB",
+      "field": "sharesOutstanding",
+      "gold": 80431927,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BJ",
+      "field": "earningsPerShare",
+      "gold": 4.577,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDT",
+      "field": "earningsPerShare",
+      "gold": 4.0646,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LH",
+      "field": "sharesOutstandingPrior",
+      "gold": 83900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CMG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 84.91997,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ACHR",
+      "field": "sharesOutstanding",
+      "gold": 744046194,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AEP",
+      "field": "sharesOutstandingPrior",
+      "gold": 530092672,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CCI",
+      "field": "sharesOutstanding",
+      "gold": 435000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SJM",
+      "field": "sharesOutstandingPrior",
+      "gold": 106400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTCH",
+      "field": "sharesOutstandingPrior",
+      "gold": 260299000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APP",
+      "field": "earningsPerShare",
+      "gold": 13.01,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FTNT",
+      "field": "sharesOutstanding",
+      "gold": 743000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GOSS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.1279,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BSY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.2954,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OTIS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -16.40791,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BJ",
+      "field": "sharesOutstanding",
+      "gold": 129638000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MSI",
+      "field": "sharesOutstandingPrior",
+      "gold": 166800000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VEEV",
+      "field": "sharesOutstandingPrior",
+      "gold": 161879000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ES",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.9924,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NRG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.3739,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ORLY",
+      "field": "sharesOutstanding",
+      "gold": 841909238,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WEC",
+      "field": "sharesOutstanding",
+      "gold": 325461519,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EL",
+      "field": "earningsPerShare",
+      "gold": 0.4976999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PLTR",
+      "field": "sharesOutstandingPrior",
+      "gold": 2246883476,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HWM",
+      "field": "earningsPerShare",
+      "gold": 4.6345,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WPC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 31.4672,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VNOM",
+      "field": "sharesOutstanding",
+      "gold": 194405049,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEP",
+      "field": "earningsPerShare",
+      "gold": 7.9544999999999995,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DRI",
+      "field": "sharesOutstandingPrior",
+      "gold": 117500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NOV",
+      "field": "earningsPerShare",
+      "gold": 0.2599,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BA",
+      "field": "sharesOutstandingPrior",
+      "gold": 643627451,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WST",
+      "field": "tangibleBookValuePerShare",
+      "gold": 44.0042,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MS",
+      "field": "sharesOutstanding",
+      "gold": 1582834137,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BEN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 15.1872,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OHI",
+      "field": "sharesOutstandingPrior",
+      "gold": 258118000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PYPL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 21.7913,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NFLX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.0296,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KMI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 13.2292,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MTSI",
+      "field": "sharesOutstandingPrior",
+      "gold": 71959000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRSN",
+      "field": "sharesOutstanding",
+      "gold": 91900000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BLK",
+      "field": "tangibleBookValuePerShare",
+      "gold": 180.0489,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 15.6728,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FLUT",
+      "field": "sharesOutstanding",
+      "gold": 173539102,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.1795,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MP",
+      "field": "sharesOutstanding",
+      "gold": 177357647,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NXPI",
+      "field": "earningsPerShare",
+      "gold": 12.718100000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FORM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 13.1246,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FRSX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.32782,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GRAB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.6041,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ONTO",
+      "field": "sharesOutstanding",
+      "gold": 49074247,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 66.1823,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HII",
+      "field": "earningsPerShare",
+      "gold": 16.7831,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WSO",
+      "field": "sharesOutstandingPrior",
+      "gold": 40352263,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDLZ",
+      "field": "sharesOutstanding",
+      "gold": 1283649766,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MAS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.1623,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TSEM",
+      "field": "sharesOutstandingPrior",
+      "gold": 111153000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TWLO",
+      "field": "sharesOutstandingPrior",
+      "gold": 165925128,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PANW",
+      "field": "sharesOutstanding",
+      "gold": 815000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RS",
+      "field": "sharesOutstandingPrior",
+      "gold": 55746000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OGS",
+      "field": "sharesOutstanding",
+      "gold": 62692392,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CSX",
+      "field": "sharesOutstandingPrior",
+      "gold": 1900189590,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TXN",
+      "field": "sharesOutstanding",
+      "gold": 913247686,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "YELP",
+      "field": "sharesOutstanding",
+      "gold": 59954000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NBIX",
+      "field": "sharesOutstanding",
+      "gold": 100100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UAA",
+      "field": "sharesOutstanding",
+      "gold": 188839506,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTAP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.7806,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EBAY",
+      "field": "sharesOutstandingPrior",
+      "gold": 496000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CLH",
+      "field": "earningsPerShare",
+      "gold": 8.2492,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ABT",
+      "field": "sharesOutstandingPrior",
+      "gold": 1731697991,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OMC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 22.1808,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LRCX",
+      "field": "sharesOutstandingPrior",
+      "gold": 1286101000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PLUG",
+      "field": "earningsPerShare",
+      "gold": -1.2492,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LUNR",
+      "field": "earningsPerShare",
+      "gold": -0.9317,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OMC",
+      "field": "sharesOutstandingPrior",
+      "gold": 196366048,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "STT",
+      "field": "sharesOutstanding",
+      "gold": 279077907,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LDI",
+      "field": "sharesOutstandingPrior",
+      "gold": 185641675,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AZO",
+      "field": "earningsPerShare",
+      "gold": 152.78750000000002,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "APO",
+      "field": "earningsPerShare",
+      "gold": 3.0261,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.5798,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NBIS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.079,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TENB",
+      "field": "earningsPerShare",
+      "gold": 0.0577,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BSX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.6075,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AON",
+      "field": "sharesOutstandingPrior",
+      "gold": 211400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "STRL",
+      "field": "earningsPerShare",
+      "gold": 13.8809,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.3383,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BIDU",
+      "field": "sharesOutstandingPrior",
+      "gold": 348750000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FICO",
+      "field": "sharesOutstanding",
+      "gold": 21597635,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MDB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 36.2498,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "VRSK",
+      "field": "sharesOutstandingPrior",
+      "gold": 142154655,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FOXA",
+      "field": "earningsPerShare",
+      "gold": 3.8384,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "LQDA",
+      "field": "sharesOutstandingPrior",
+      "gold": 78707503,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "JBS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.2016,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TMO",
+      "field": "sharesOutstandingPrior",
+      "gold": 382000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ELS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.8646,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AAL",
+      "field": "sharesOutstandingPrior",
+      "gold": 656996000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HSY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.9222,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FANG",
+      "field": "earningsPerShare",
+      "gold": 5.2034,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RUM",
+      "field": "earningsPerShare",
+      "gold": -0.5826,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ENSG",
+      "field": "sharesOutstanding",
+      "gold": 58085000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "OXY",
+      "field": "sharesOutstanding",
+      "gold": 986026416,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PFGC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 21.4907,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CVS",
+      "field": "sharesOutstandingPrior",
+      "gold": 1259000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "HRL",
+      "field": "earningsPerShare",
+      "gold": 0.622,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SNPS",
+      "field": "sharesOutstanding",
+      "gold": 185994000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.2308,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GEV",
+      "field": "sharesOutstanding",
+      "gold": 269529464,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PHM",
+      "field": "sharesOutstanding",
+      "gold": 192724978,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "IRM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.1463,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TTWO",
+      "field": "sharesOutstanding",
+      "gold": 185400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "AEM",
+      "field": "earningsPerShare",
+      "gold": 12.2601,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ROK",
+      "field": "tangibleBookValuePerShare",
+      "gold": 24.8221,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "COHR",
+      "field": "earningsPerShare",
+      "gold": 4.1127,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GOLD",
+      "field": "sharesOutstanding",
+      "gold": 29121293,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EXC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 33.085,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GS",
+      "field": "sharesOutstandingPrior",
+      "gold": 328100000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "UBER",
+      "field": "sharesOutstanding",
+      "gold": 2067905000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SEIC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 15.0962,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FOXA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.8729,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "DAL",
+      "field": "sharesOutstandingPrior",
+      "gold": 641000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WOLF",
+      "field": "sharesOutstanding",
+      "gold": 52162000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BALL",
+      "field": "earningsPerShare",
+      "gold": 3.5157000000000003,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "RBLX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.5312,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "WPM",
+      "field": "sharesOutstandingPrior",
+      "gold": 453460000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FRSX",
+      "field": "sharesOutstanding",
+      "gold": 4126507,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EME",
+      "field": "sharesOutstanding",
+      "gold": 44520367,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRU",
+      "field": "sharesOutstanding",
+      "gold": 192400000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "XYZ",
+      "field": "sharesOutstandingPrior",
+      "gold": 616993000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CELH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.0315,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "EBAY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 10.6985,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CRM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 56.3262,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "POET",
+      "field": "earningsPerShare",
+      "gold": -0.6014999999999999,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "QSI",
+      "field": "sharesOutstanding",
+      "gold": 198946412,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ARE",
+      "field": "sharesOutstanding",
+      "gold": 174160645,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "TRU",
+      "field": "earningsPerShare",
+      "gold": 3.7904,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "NTLA",
+      "field": "earningsPerShare",
+      "gold": -3.3565,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "CVX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 80.70107,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "FIVE",
+      "field": "sharesOutstanding",
+      "gold": 55228735,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PAA",
+      "field": "sharesOutstanding",
+      "gold": 705566460,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "PEP",
+      "field": "sharesOutstanding",
+      "gold": 1366000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ASML",
+      "field": "sharesOutstanding",
+      "gold": 385417742,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ASND",
+      "field": "sharesOutstandingPrior",
+      "gold": 57891570,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MAR",
+      "field": "earningsPerShare",
+      "gold": 9.6482,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "SSB",
+      "field": "earningsPerShare",
+      "gold": 9.3978,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "KO",
+      "field": "sharesOutstandingPrior",
+      "gold": 4309000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ASTS",
+      "field": "sharesOutstanding",
+      "gold": 299789305,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "GIS",
+      "field": "sharesOutstanding",
+      "gold": 534629472,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "ANET",
+      "field": "sharesOutstanding",
+      "gold": 1256500000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "MA",
+      "field": "sharesOutstandingPrior",
+      "gold": 925000000,
+      "cohort": "clean"
+    },
+    {
+      "ticker": "BALL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.7273,
+      "cohort": "clean"
+    }
+  ]
+}

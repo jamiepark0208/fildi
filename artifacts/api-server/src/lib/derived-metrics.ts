@@ -74,6 +74,17 @@ export function computePeFromPriceEps(
   return isFinite(pe) ? pe : null;
 }
 
+/** Price / tangible book per share; null when TBV ≤ 0 (A329 seg3). */
+export function computePriceToTbv(
+  price: number | null | undefined,
+  tbvps: number | null | undefined,
+): number | null {
+  if (price == null || tbvps == null || !isFinite(price) || !isFinite(tbvps)) return null;
+  if (price <= 0 || tbvps <= 0) return null;
+  const r = price / tbvps;
+  return isFinite(r) ? r : null;
+}
+
 export function computeNetMargin(
   netIncome: number | null | undefined,
   totalRevenue: number | null | undefined,

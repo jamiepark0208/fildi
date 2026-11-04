@@ -1,0 +1,7200 @@
+{
+ "summary": {
+  "runId": "2026-11-04",
+  "cells": 631,
+  "flagged": {
+   "judged": 181,
+   "ok": 93,
+   "rate": 0.5138121546961326,
+   "ci95": [
+    0.44147013187083545,
+    0.585580055965669
+   ]
+  },
+  "clean": {
+   "judged": 280,
+   "ok": 173,
+   "rate": 0.6178571428571429,
+   "ci95": [
+    0.5597100516354292,
+    0.6728140040350575
+   ]
+  },
+  "cleanMisses": [
+   {
+    "ticker": "MET",
+    "field": "earningsPerShare",
+    "gold": 5.5057,
+    "truth": 5.220000000000001,
+    "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "HAL",
+    "field": "sharesOutstandingPrior",
+    "gold": 882000000.0,
+    "truth": 841626610,
+    "note": "prior dei sum classes 2025-10-17",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "VG",
+    "field": "sharesOutstanding",
+    "gold": 531488393.0,
+    "truth": 2639000000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "FCX",
+    "field": "earningsPerShare",
+    "gold": 2.0404999999999998,
+    "truth": 3.4199999999999995,
+    "note": "EPS diluted FY2021 + 6m YTD \u2212 prior 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "FISV",
+    "field": "earningsPerShare",
+    "gold": 5.2133,
+    "truth": -7.390000000000001,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "ALLY",
+    "field": "earningsPerShare",
+    "gold": 4.6454,
+    "truth": 4.37,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "RYAN",
+    "field": "sharesOutstanding",
+    "gold": 122077702.0,
+    "truth": 109903867,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2021-09-01 stale_shares",
+    "cause": "stale_shares"
+   },
+   {
+    "ticker": "GPN",
+    "field": "sharesOutstandingPrior",
+    "gold": 254291000.0,
+    "truth": 242607106,
+    "note": "prior dei sum classes 2025-07-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "FTI",
+    "field": "sharesOutstandingPrior",
+    "gold": 429100000.0,
+    "truth": 404520086,
+    "note": "prior dei sum classes 2025-10-21",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TEAM",
+    "field": "sharesOutstanding",
+    "gold": 159005198.0,
+    "truth": 260163000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CRL",
+    "field": "sharesOutstandingPrior",
+    "gold": 51380000.0,
+    "truth": 49215471,
+    "note": "prior dei sum classes 2025-10-25",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "ATI",
+    "field": "earningsPerShare",
+    "gold": 3.4205,
+    "truth": 4.0,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-27",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "BBIO",
+    "field": "earningsPerShare",
+    "gold": -3.5685,
+    "truth": -3.0300000000000002,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CPNG",
+    "field": "earningsPerShare",
+    "gold": -0.4259,
+    "truth": -0.76,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "POWL",
+    "field": "earningsPerShare",
+    "gold": 4.385800000000001,
+    "truth": 15.129999999999999,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TMUS",
+    "field": "sharesOutstanding",
+    "gold": 1106930661.0,
+    "truth": 1059272571,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "SWKS",
+    "field": "sharesOutstandingPrior",
+    "gold": 160100000.0,
+    "truth": 148427568,
+    "note": "prior dei sum classes 2025-07-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "R",
+    "field": "sharesOutstandingPrior",
+    "gold": 42080039.0,
+    "truth": 40376534,
+    "note": "prior dei sum classes 2025-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "BAC",
+    "field": "sharesOutstanding",
+    "gold": 7212464345.0,
+    "truth": 6900209006,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-29",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PNW",
+    "field": "sharesOutstandingPrior",
+    "gold": 113846000.0,
+    "truth": 119690399,
+    "note": "prior dei sum classes 2025-10-28",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "VTR",
+    "field": "sharesOutstanding",
+    "gold": 512946359.0,
+    "truth": 528820000,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-27",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "KOPN",
+    "field": "sharesOutstanding",
+    "gold": 176903857.0,
+    "truth": 185872614,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-11",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "EXC",
+    "field": "earningsPerShare",
+    "gold": 2.7298999999999998,
+    "truth": 1.7400000000000002,
+    "note": "EPS diluted FY2021 + 3m YTD \u2212 prior 2026-03-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "BILL",
+    "field": "earningsPerShare",
+    "gold": -0.13,
+    "truth": -0.11,
+    "note": "EPS diluted FY 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TLN",
+    "field": "sharesOutstandingPrior",
+    "gold": 54254000.0,
+    "truth": 45687828,
+    "note": "prior dei sum classes 2025-11-05",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PFLT",
+    "field": "sharesOutstandingPrior",
+    "gold": 65599286.0,
+    "truth": 99217896,
+    "note": "prior dei sum classes 2025-08-11",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "TKO",
+    "field": "sharesOutstanding",
+    "gold": 73111098.0,
+    "truth": 193323374,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CRH",
+    "field": "earningsPerShare",
+    "gold": 5.7057,
+    "truth": 5.3100000000000005,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MET",
+    "field": "sharesOutstanding",
+    "gold": 655333773.0,
+    "truth": 635476927,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CBOE",
+    "field": "earningsPerShare",
+    "gold": 12.8898,
+    "truth": 14.05,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PBR",
+    "field": "sharesOutstandingPrior",
+    "gold": 6444366381.0,
+    "truth": 7442231382,
+    "note": "prior dei sum classes 2024-12-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "FERG",
+    "field": "earningsPerShare",
+    "gold": 12.4637,
+    "truth": 9.939999999999998,
+    "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "LULU",
+    "field": "sharesOutstanding",
+    "gold": 111380000.0,
+    "truth": 105594064,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-28",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "WOLF",
+    "field": "sharesOutstandingPrior",
+    "gold": 141320000.0,
+    "truth": 156471999,
+    "note": "prior dei sum classes 2025-08-20",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CSGP",
+    "field": "sharesOutstandingPrior",
+    "gold": 406300000.0,
+    "truth": 423822791,
+    "note": "prior dei sum classes 2025-10-27",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "FUTU",
+    "field": "sharesOutstanding",
+    "gold": 95750481.0,
+    "truth": 1130846701,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2025-12-31 stale_shares",
+    "cause": "stale_shares"
+   },
+   {
+    "ticker": "CMI",
+    "field": "tangibleBookValuePerShare",
+    "gold": 73.7292,
+    "truth": 61.43196538407178,
+    "note": "TBVPS eq 2026-06-30 gw=2222000000.0 int=2168000000.0 sh=2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "BMRN",
+    "field": "earningsPerShare",
+    "gold": 0.3617,
+    "truth": -0.10000000000000009,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "QCOM",
+    "field": "sharesOutstandingPrior",
+    "gold": 1116000000.0,
+    "truth": 1079000000,
+    "note": "prior dei sum classes 2025-07-28",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CCL",
+    "field": "sharesOutstandingPrior",
+    "gold": 1274000000.0,
+    "truth": 1167541049,
+    "note": "prior dei sum classes 2025-09-22",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MP",
+    "field": "sharesOutstandingPrior",
+    "gold": 166840611.0,
+    "truth": 177098314,
+    "note": "prior dei sum classes 2025-08-01",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MTRN",
+    "field": "tangibleBookValuePerShare",
+    "gold": 40.386,
+    "truth": 29.509269225738556,
+    "note": "TBVPS eq 2026-07-03 gw=280186000.0 int=99893000.0 sh=2026-07-03",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "AAPL",
+    "field": "sharesOutstandingPrior",
+    "gold": 15343783000.0,
+    "truth": 14776353000,
+    "note": "prior dei sum classes 2025-10-17",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "GDDY",
+    "field": "sharesOutstanding",
+    "gold": 134737000.0,
+    "truth": 121274701,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "SLB",
+    "field": "sharesOutstandingPrior",
+    "gold": 1421000000.0,
+    "truth": 1493923635,
+    "note": "prior dei sum classes 2025-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "SLB",
+    "field": "tangibleBookValuePerShare",
+    "gold": 14.1246,
+    "truth": 2.6158011776962904,
+    "note": "TBVPS eq 2026-09-30 gw=17263000000.0 int=4927000000.0 sh=2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "LHX",
+    "field": "earningsPerShare",
+    "gold": 9.9789,
+    "truth": 10.74,
+    "note": "EPS diluted FY2026 + 9m YTD \u2212 prior 2026-10-02",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "RJF",
+    "field": "sharesOutstandingPrior",
+    "gold": 207100000.0,
+    "truth": 199383976,
+    "note": "prior dei sum classes 2025-08-04",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "DINO",
+    "field": "sharesOutstanding",
+    "gold": 177783849.0,
+    "truth": 171371164,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MSCI",
+    "field": "sharesOutstandingPrior",
+    "gold": 78710000.0,
+    "truth": 75139539,
+    "note": "prior dei sum classes 2025-10-21",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TSEM",
+    "field": "earningsPerShare",
+    "gold": 2.5352,
+    "truth": 1.94,
+    "note": "EPS diluted FY 2025-12-31",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "FLEX",
+    "field": "earningsPerShare",
+    "gold": 2.588,
+    "truth": 2.7699999999999996,
+    "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-09-25",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PN",
+    "field": "sharesOutstanding",
+    "gold": 8598775.0,
+    "truth": 26156164,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2025-09-30 stale_shares",
+    "cause": "stale_shares"
+   },
+   {
+    "ticker": "GME",
+    "field": "sharesOutstanding",
+    "gold": 448300000.0,
+    "truth": 504500990,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-03",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "LLY",
+    "field": "sharesOutstanding",
+    "gold": 891741406.0,
+    "truth": 940745031,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "HUM",
+    "field": "earningsPerShare",
+    "gold": 10.559400000000002,
+    "truth": 9.370000000000001,
+    "note": "EPS diluted FY2025 + 3m YTD \u2212 prior 2026-03-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "NEE",
+    "field": "tangibleBookValuePerShare",
+    "gold": 24.4623,
+    "truth": 23.22976885182107,
+    "note": "TBVPS eq 2026-03-31 gw=5150000000.0 int=1630000000.0 sh=2026-03-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PLTR",
+    "field": "sharesOutstanding",
+    "gold": 2391192000.0,
+    "truth": 2571225000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "WELL",
+    "field": "sharesOutstandingPrior",
+    "gold": 602975000.0,
+    "truth": 686328043,
+    "note": "prior dei sum classes 2025-10-24",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "NOW",
+    "field": "sharesOutstandingPrior",
+    "gold": 1030000000.0,
+    "truth": 208000000,
+    "note": "prior dei sum classes 2025-09-30",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "MSTR",
+    "field": "sharesOutstanding",
+    "gold": 377641410.0,
+    "truth": 362441000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "QBTS",
+    "field": "sharesOutstandingPrior",
+    "gold": 192129049.0,
+    "truth": 338605149,
+    "note": "prior dei sum classes 2025-08-05",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PG",
+    "field": "tangibleBookValuePerShare",
+    "gold": 14.0447,
+    "truth": -3.11461407500624,
+    "note": "TBVPS eq 2026-09-30 gw=41197000000.0 int=21359000000.0 sh=2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CB",
+    "field": "sharesOutstandingPrior",
+    "gold": 408500000.0,
+    "truth": 393550859,
+    "note": "prior dei sum classes 2025-10-21",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CDE",
+    "field": "sharesOutstandingPrior",
+    "gold": 391709000.0,
+    "truth": 642715694,
+    "note": "prior dei sum classes 2025-08-04",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CAT",
+    "field": "tangibleBookValuePerShare",
+    "gold": 45.2989,
+    "truth": 33.147275166138805,
+    "note": "TBVPS eq 2026-09-30 gw=5905000000.0 int=409000000.0 sh=2026-09-30",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "PCG",
+    "field": "sharesOutstanding",
+    "gold": 2197942874.0,
+    "truth": 2680110496,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-15",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CROX",
+    "field": "sharesOutstanding",
+    "gold": 50200000.0,
+    "truth": 45725039,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PSX",
+    "field": "tangibleBookValuePerShare",
+    "gold": 70.0879,
+    "truth": 81.85660690310584,
+    "note": "TBVPS eq 2026-09-30 gw=1433000000.0 int=968000000.0 sh=2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "FOXA",
+    "field": "sharesOutstanding",
+    "gold": 201424858.0,
+    "truth": 1,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2019-03-18 stale_shares",
+    "cause": "stale_shares"
+   },
+   {
+    "ticker": "ACHR",
+    "field": "sharesOutstanding",
+    "gold": 744046194.0,
+    "truth": 770023800,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-05",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MTCH",
+    "field": "sharesOutstandingPrior",
+    "gold": 260299000.0,
+    "truth": 236070189,
+    "note": "prior dei sum classes 2025-10-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "ORLY",
+    "field": "sharesOutstanding",
+    "gold": 841909238.0,
+    "truth": 808960792,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "EL",
+    "field": "earningsPerShare",
+    "gold": 0.4976999999999999,
+    "truth": 1.0100000000000002,
+    "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-09-30",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "HWM",
+    "field": "earningsPerShare",
+    "gold": 4.6345,
+    "truth": 5.1,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "VNOM",
+    "field": "sharesOutstanding",
+    "gold": 194405049.0,
+    "truth": 187553000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "NOV",
+    "field": "earningsPerShare",
+    "gold": 0.2599,
+    "truth": 0.41000000000000003,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "BA",
+    "field": "sharesOutstandingPrior",
+    "gold": 643627451.0,
+    "truth": 760095468,
+    "note": "prior dei sum classes 2025-10-22",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "OHI",
+    "field": "sharesOutstandingPrior",
+    "gold": 258118000.0,
+    "truth": 295529000,
+    "note": "prior dei sum classes 2025-10-28",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "NFLX",
+    "field": "tangibleBookValuePerShare",
+    "gold": 0.0296,
+    "truth": -1.2953730720968544,
+    "note": "TBVPS eq 2026-09-30 gw=0 int=34605477000.0 sh=2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MTSI",
+    "field": "sharesOutstandingPrior",
+    "gold": 71959000.0,
+    "truth": 74471281,
+    "note": "prior dei sum classes 2025-08-04",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "FRSX",
+    "field": "tangibleBookValuePerShare",
+    "gold": 0.32782,
+    "truth": 0.04432058635204251,
+    "note": "TBVPS eq 2025-12-31 gw=0 int=0 sh=2025-12-31",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "APD",
+    "field": "tangibleBookValuePerShare",
+    "gold": 66.1823,
+    "truth": 56.797583569978705,
+    "note": "TBVPS eq 2026-06-30 gw=957400000.0 int=278400000.0 sh=2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "HII",
+    "field": "earningsPerShare",
+    "gold": 16.7831,
+    "truth": 18.57,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "MAS",
+    "field": "tangibleBookValuePerShare",
+    "gold": 2.1623,
+    "truth": -6.458503881713866,
+    "note": "TBVPS eq 2026-09-30 gw=612000000.0 int=185000000.0 sh=2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TWLO",
+    "field": "sharesOutstandingPrior",
+    "gold": 165925128.0,
+    "truth": 151612818,
+    "note": "prior dei sum classes 2025-10-17",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "RS",
+    "field": "sharesOutstandingPrior",
+    "gold": 55746000.0,
+    "truth": 52286963,
+    "note": "prior dei sum classes 2025-10-24",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "YELP",
+    "field": "sharesOutstanding",
+    "gold": 59954000.0,
+    "truth": 54263621,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "UAA",
+    "field": "sharesOutstanding",
+    "gold": 188839506.0,
+    "truth": 431937000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "EBAY",
+    "field": "sharesOutstandingPrior",
+    "gold": 496000000.0,
+    "truth": 452000000,
+    "note": "prior dei sum classes 2025-10-24",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CLH",
+    "field": "earningsPerShare",
+    "gold": 8.2492,
+    "truth": 9.97,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PLUG",
+    "field": "earningsPerShare",
+    "gold": -1.2492,
+    "truth": -1.32,
+    "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "APO",
+    "field": "earningsPerShare",
+    "gold": 3.0261,
+    "truth": 2.8100000000000005,
+    "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TENB",
+    "field": "earningsPerShare",
+    "gold": 0.0577,
+    "truth": 0.13,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "STRL",
+    "field": "earningsPerShare",
+    "gold": 13.8809,
+    "truth": 17.830000000000002,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "FOXA",
+    "field": "earningsPerShare",
+    "gold": 3.8384,
+    "truth": 4.72,
+    "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "LQDA",
+    "field": "sharesOutstandingPrior",
+    "gold": 78707503.0,
+    "truth": 86091454,
+    "note": "prior dei sum classes 2025-08-04",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "PHM",
+    "field": "sharesOutstanding",
+    "gold": 192724978.0,
+    "truth": 184086754,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-15",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "AEM",
+    "field": "earningsPerShare",
+    "gold": 12.2601,
+    "truth": -2.35,
+    "note": "EPS diluted FY 2013-12-31",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "ROK",
+    "field": "tangibleBookValuePerShare",
+    "gold": 24.8221,
+    "truth": -9.27521188996436,
+    "note": "TBVPS eq 2026-06-30 gw=3814000000.0 int=710000000.0 sh=2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "EXC",
+    "field": "tangibleBookValuePerShare",
+    "gold": 33.085,
+    "truth": 22.170464706876814,
+    "note": "TBVPS eq 2026-03-31 gw=6630000000.0 int=0 sh=2026-03-31",
+    "cause": "truth_builder"
+   },
+   {
+    "ticker": "GS",
+    "field": "sharesOutstandingPrior",
+    "gold": 328100000.0,
+    "truth": 299928511,
+    "note": "prior dei sum classes 2025-10-17",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "BALL",
+    "field": "earningsPerShare",
+    "gold": 3.5157000000000003,
+    "truth": 1.9899999999999998,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "adr_ratio"
+   },
+   {
+    "ticker": "FRSX",
+    "field": "sharesOutstanding",
+    "gold": 4126507.0,
+    "truth": 140634421,
+    "note": "dei dei:EntityCommonStockSharesOutstanding 2025-12-31 stale_shares",
+    "cause": "stale_shares"
+   },
+   {
+    "ticker": "QSI",
+    "field": "sharesOutstanding",
+    "gold": 198946412.0,
+    "truth": 217141000,
+    "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "TRU",
+    "field": "earningsPerShare",
+    "gold": 3.7904,
+    "truth": 4.11,
+    "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+    "cause": "gold_wrong"
+   },
+   {
+    "ticker": "CVX",
+    "field": "tangibleBookValuePerShare",
+    "gold": 80.70107,
+    "truth": 93.7937515534503,
+    "note": "TBVPS eq 2026-06-30 gw=4568000000.0 int=0 sh=2026-06-30",
+    "cause": "gold_wrong"
+   }
+  ],
+  "cleanMissesByCause": {
+   "gold_wrong": 86,
+   "adr_ratio": 7,
+   "stale_shares": 5,
+   "truth_builder": 9
+  }
+ },
+ "rows": [
+  {
+   "ticker": "AA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 5.7505999999999995,
+   "truth": 5.75,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AAL",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.7268999999999999,
+   "truth": -0.73,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ABBV",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.5593999999999997,
+   "truth": 5.8100000000000005,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ABT",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.6962,
+   "truth": 3.5700000000000003,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 3m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ADI",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 8.4269,
+   "truth": 8.42,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AGNC",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.05,
+   "truth": 0.020000000000000018,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ALB",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.27,
+   "truth": 0.27000000000000035,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ALM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.18,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ALOY",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 69666671.0,
+   "truth": 68987642,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-12",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AMD",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.8971999999999998,
+   "truth": 4.609999999999999,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AMG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 25859933.0,
+   "truth": 25859933,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AMZN",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 12.3716,
+   "truth": 12.370000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AON",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 269800000.0,
+   "truth": 212157176,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APG",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.61,
+   "truth": -0.5599999999999998,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APH",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 2465966914.0,
+   "truth": 2469261188,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APH",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.0,
+   "truth": 3.9699999999999998,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APLD",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.91,
+   "truth": -1.66,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-08-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ARES",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 223957742.0,
+   "truth": 103332418,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2019-04-29 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ARES",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.17,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ARRY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.5671999999999999,
+   "truth": -0.96,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ARW",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 50905423.0,
+   "truth": 50905423,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ASML",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 40.64,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AVGO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.8333,
+   "truth": 7.84,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-08-02",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BA",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 792449940.0,
+   "truth": 792449940,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 9.69,
+   "truth": 9.69,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BABA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.8044,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BAP",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 26.55,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BDX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.3141,
+   "truth": 3.3100000000000005,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BE",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 294527346.0,
+   "truth": 295656689,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-19",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BE",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.604,
+   "truth": 1.65,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BHP",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.9322,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BIDU",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 274750119.0,
+   "truth": 34917835,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2010-12-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BIDU",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.7449000000000003,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BIIB",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 5.6469000000000005,
+   "truth": 2.3099999999999987,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BILI",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 332230191.0,
+   "truth": 323161680,
+   "ok": true,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2019-12-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BILI",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.3696,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BMNR",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 603226394.0,
+   "truth": 603226394,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-09",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BMNR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -4.5,
+   "truth": -4.500000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-05-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BNGO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -3.7628000000000004,
+   "truth": -3.01,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BOX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.9026,
+   "truth": 0.68,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BP",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.5717,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BRK.B",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 39.76,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BTSG",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.13,
+   "truth": 1.8599999999999999,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "C",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 11.0502,
+   "truth": 6.99,
+   "ok": false,
+   "note": "EPS diluted FY 2025-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CABA",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 169545445.0,
+   "truth": 169545445,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-07",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CAVA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.55,
+   "truth": 0.56,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-07-12",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CCI",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.8946,
+   "truth": 1.9700000000000002,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CCJ",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.59,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CDE",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1027934998.0,
+   "truth": 1027934998,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CELH",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.23,
+   "truth": 0.24,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CHYM",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 347019852.0,
+   "truth": 396943274,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CHYM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.88,
+   "truth": 5.37,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CINF",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 153510324.0,
+   "truth": 153510324,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CLF",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.8491,
+   "truth": -0.8199999999999998,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CMPS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 138476822.0,
+   "truth": 141710353,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "COMP",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 563479423.0,
+   "truth": 757522197,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "COP",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.5747,
+   "truth": 7.56,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CPB",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.3303,
+   "truth": 1.31,
+   "ok": true,
+   "note": "EPS diluted FY 2026-08-02",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 10.976500000000001,
+   "truth": 10.919999999999998,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRML",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.87,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRWD",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1023934842.0,
+   "truth": 1023934842,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CVNA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.08,
+   "truth": 8.45,
+   "ok": false,
+   "note": "EPS diluted FY 2025-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CVX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 10.4285,
+   "truth": 10.39,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DASH",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.41,
+   "truth": 2.4099999999999997,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DD",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 135042975.0,
+   "truth": 132532338,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DD",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.72,
+   "truth": 5.9399999999999995,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DDOG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 334904614.0,
+   "truth": 368271000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DELL",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 652000000.0,
+   "truth": 654000000,
+   "ok": true,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DIS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 4.8475,
+   "truth": 4.849999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-06-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DKS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 74955923.0,
+   "truth": 90269000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DLR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.2363,
+   "truth": 3.77,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 3m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DLTR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 8.189,
+   "truth": 8.14,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DOCN",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 117579550.0,
+   "truth": 117996815,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DOW",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.2635,
+   "truth": -1.2900000000000003,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DUOL",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 40237065.0,
+   "truth": 49840000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EDIT",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 153580035.0,
+   "truth": 153580035,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 38342734.0,
+   "truth": 37042996,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EMN",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 114329658.0,
+   "truth": 114380456,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EMN",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 5.62,
+   "truth": 5.420000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EOG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 271632000.0,
+   "truth": 524529176,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EOG",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 12.852300000000001,
+   "truth": 12.850000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ETSY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.4432999999999998,
+   "truth": 8.28,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EXE",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 239228849.0,
+   "truth": 230957348,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FCX",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 945000000.0,
+   "truth": 1436017523,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FHN",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 473777158.0,
+   "truth": 473777158,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FITB",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 906892564.0,
+   "truth": 903645765,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FIVE",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 11.145700000000001,
+   "truth": 11.15,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FOUR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.63,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FRSX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -6.81,
+   "truth": -0.12,
+   "ok": false,
+   "note": "EPS diluted FY 2025-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FSLR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 16.2206,
+   "truth": 17.29,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GFL",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.46,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GIS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.6604000000000003,
+   "truth": -1.6400000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-08-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GLXY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.77,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 4.453600000000002,
+   "truth": 4.570000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GOOGL",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 12088000000.0,
+   "truth": 12324000000,
+   "ok": true,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GOOGL",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 19.9118,
+   "truth": 19.15,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GOSS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 6116391.0,
+   "truth": 488846722,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-08",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GOSS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -52.8,
+   "truth": -0.6599999999999999,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GPN",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.13,
+   "truth": -3.03,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GRAB",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.11,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 72.3599,
+   "truth": 69.55,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GSK",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.87,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HAL",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.3883,
+   "truth": -0.41000000000000014,
+   "ok": false,
+   "note": "EPS diluted FY2019 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HBAN",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 2015387251.0,
+   "truth": 2015387251,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HL",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 531666371.0,
+   "truth": 671777326,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HL",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.4952,
+   "truth": 0.5700000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HMC",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.72,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HON",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 635300000.0,
+   "truth": 317358518,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HOOD",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 793425151.0,
+   "truth": 913000000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HPE",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.9631999999999998,
+   "truth": 1.94,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HSY",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 146312143.0,
+   "truth": 223805223,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2014-02-07 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HSY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.32,
+   "truth": null,
+   "ok": null,
+   "note": "EPS diluted TTM missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HUT",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -5.42,
+   "truth": -4.66,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IBKR",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 453077771.0,
+   "truth": 44790386.0,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfSharesOutstandingBasic/10 ADS 2026-06-30 20-F dei mis-scaled vs ordinary basic; \u00f710 for US ADS",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "INTC",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -2.1202,
+   "truth": -2.35,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IONQ",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -3.43,
+   "truth": -3.87,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IP",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -5.17,
+   "truth": -6.800000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IVZ",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.18479999999999963,
+   "truth": -0.6900000000000002,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JCI",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 605741470.0,
+   "truth": 610115603,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-03-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JCI",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.54,
+   "truth": 5.540000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JD",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.43,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JNJ",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 6.5886,
+   "truth": 6.58,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "L",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 204427720.0,
+   "truth": 202225230,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LEU",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 19733908.0,
+   "truth": 13673933,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2022-03-01 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LI",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.65,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LUV",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.0284,
+   "truth": 2.05,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LYB",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.83,
+   "truth": 3.9699999999999998,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LYFT",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 378540249.0,
+   "truth": 378540249,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LYV",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.11,
+   "truth": -1.11,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MCHP",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.68,
+   "truth": 0.6799999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MDLZ",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.7263,
+   "truth": 3.1799999999999997,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MLI",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 217974381.0,
+   "truth": 217974381,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MLM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 15.28,
+   "truth": 40.73,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MNST",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1959051764.0,
+   "truth": 979525882,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MNST",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.08,
+   "truth": 2.7299999999999995,
+   "ok": false,
+   "note": "EPS diluted FY2010 + 6m YTD \u2212 prior 2011-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MOH",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.9738000000000002,
+   "truth": -0.6799999999999997,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MPC",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 280824763.0,
+   "truth": 272282280,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MRK",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.2521,
+   "truth": 1.2500000000000004,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MSFT",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 19.1495,
+   "truth": 19.15,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MU",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 74.2111,
+   "truth": 74.33,
+   "ok": true,
+   "note": "EPS diluted FY 2026-09-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NBIS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.39560000000000006,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NFLX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.4608,
+   "truth": 3.46,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NIO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.9408,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NNE",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 53698146.0,
+   "truth": 53698146,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-10",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NTDOY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.66,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NTES",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.2,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NTSK",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.52,
+   "truth": -2.1500000000000004,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NUE",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 12.54,
+   "truth": 12.53,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-07-04",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NVDA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.9108,
+   "truth": 7.91,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NVO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 4.09,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NVTS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 262555476.0,
+   "truth": 183457686,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2024-08-02 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NWSA",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 359167429.0,
+   "truth": 558400000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NXT",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 151729520.0,
+   "truth": 150575535,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OMC",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.99,
+   "truth": 0.9900000000000002,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ONDS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 380763481.0,
+   "truth": 570552341,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-11",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ONDS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.3117,
+   "truth": -0.03,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ONON",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.1837,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OWL",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 6875000.0,
+   "truth": 689641686,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OXY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.1937999999999995,
+   "truth": 6.47,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "P",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 220979000.0,
+   "truth": 333227251,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PAA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.16,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PAGS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.527500000000001,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PANW",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.5125,
+   "truth": 0.4,
+   "ok": false,
+   "note": "EPS diluted FY 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PBR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 10.348299999999998,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PDD",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 8.89,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PINS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 500526454.0,
+   "truth": 588708000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PLTR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.1735,
+   "truth": 1.42,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PLUG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1397195278.0,
+   "truth": 1397195278,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-06",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PN",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -5.53,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PNC",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 397242557.0,
+   "truth": 396778009,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-14",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PNFP",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 151112640.0,
+   "truth": 151121528,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "POWL",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 36431649.0,
+   "truth": 36432564,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PSX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 17.5091,
+   "truth": 31.180000000000003,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QSR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.7736,
+   "truth": 4.290000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QXO",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1037490709.0,
+   "truth": 1037490709,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-07",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QXO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.89,
+   "truth": -0.9199999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RDW",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 249992609.0,
+   "truth": 249992609,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RHHBY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 15.3263,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RKT",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.15030000000000002,
+   "truth": 0.55,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ROIV",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.53,
+   "truth": -0.47000000000000003,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RPRX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.88,
+   "truth": 1.53,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 21.447,
+   "truth": 21.449999999999996,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RTX",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1381700.0,
+   "truth": 1349440548,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RVMD",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -8.87,
+   "truth": -8.870000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SECZ",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.38,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SHAK",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 40350732.0,
+   "truth": 41873000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-07-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SKHY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 15.68,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SMR",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 410389522.0,
+   "truth": 342241824,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SMTC",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.56,
+   "truth": -0.41000000000000003,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-04-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SNPS",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 5.6530000000000005,
+   "truth": 5.719999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SNY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.2604,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SOUN",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 411576753.0,
+   "truth": 17461000,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2022-03-09 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SOUN",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.62,
+   "truth": -0.62,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SPCE",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 151595903.0,
+   "truth": 151595903,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SPCX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.23,
+   "truth": null,
+   "ok": null,
+   "note": "EPS diluted TTM missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SPG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 323551515.0,
+   "truth": 0,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2010-03-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SR",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 9.277899999999999,
+   "truth": 5.6499999999999995,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "STLA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -8.73,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SUI",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -6.114299999999999,
+   "truth": -6.11,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SUPX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -2.9,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SWKS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 235165549.0,
+   "truth": 150472782,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SWX",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 4.0,
+   "truth": 7.550000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SYM",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 129873381.0,
+   "truth": 131666538,
+   "ok": true,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "T",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 1.8742,
+   "truth": 1.8600000000000003,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TCOM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 34.4892,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TECK",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 3.68,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TKO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.86,
+   "truth": 2.8499999999999996,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 22.76,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TME",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.8512,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TOST",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 514000000.0,
+   "truth": 595000000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRMB",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.48,
+   "truth": -0.4800000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TSLA",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.9095000000000001,
+   "truth": 0.91,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TSM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 98.25160000000001,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UMC",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 6.6403,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UNH",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 17.5216,
+   "truth": 17.52,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "USAR",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 375076567.0,
+   "truth": 132638561,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2025-10-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VALE",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 2.4327,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VMRK",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 773779120.0,
+   "truth": 374944409,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VNET",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -0.40479999999999994,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VNOM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 0.02,
+   "truth": -0.09999999999999998,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VTRS",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 1148590864.0,
+   "truth": 1148590864,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WAT",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 98185855.0,
+   "truth": 98248111,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-07",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WDAY",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 36000000.0,
+   "truth": 220000000,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2018-11-30 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WDAY",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 4.9275,
+   "truth": 4.91,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WMG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 147729456.0,
+   "truth": 1069,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2020-01-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WMT",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 3418000000.0,
+   "truth": 7933746241,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WOLF",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -11.39,
+   "truth": -11.39,
+   "ok": true,
+   "note": "EPS diluted FY (no prior YTD) 2025-06-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WTRG",
+   "field": "sharesOutstanding",
+   "cohort": "flagged",
+   "gold": 283632983.0,
+   "truth": 283778605,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "XOM",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 7.77,
+   "truth": null,
+   "ok": null,
+   "note": "EPS diluted TTM missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "XPEV",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": -1.6317,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ZTO",
+   "field": "earningsPerShare",
+   "cohort": "flagged",
+   "gold": 12.7774,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TXRH",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 66752000.0,
+   "truth": 66450612,
+   "ok": true,
+   "note": "prior dei sum classes 2025-07-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FSLR",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 107015000.0,
+   "truth": 107308141,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BIIB",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 146800000.0,
+   "truth": 147820223,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MET",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.5057,
+   "truth": 5.220000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ZM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 10.7959,
+   "truth": 10.769999999999998,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HD",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 996000000.0,
+   "truth": 997689626,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-18",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HAL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 882000000.0,
+   "truth": 841626610,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ABBV",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1765256986.0,
+   "truth": 1767384632,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "INSM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 2.9933,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VG",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 531488393.0,
+   "truth": 2639000000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1554000000.0,
+   "truth": 1556638749,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AKAM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 30.1485,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ANET",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 7.8748,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 49606583.0,
+   "truth": 49540733,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AXP",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 48.6647,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FCX",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.0404999999999998,
+   "truth": 3.4199999999999995,
+   "ok": false,
+   "note": "EPS diluted FY2021 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BRK.B",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 2156578922.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FISV",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.2133,
+   "truth": -7.390000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ALLY",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.6454,
+   "truth": 4.37,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DGX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 50.3091,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MSFT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 7431000000.0,
+   "truth": 7432377655,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NVMI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 7.9222,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HPE",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1309000000.0,
+   "truth": 1319450062,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UNP",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 593245884.0,
+   "truth": 594250416,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OLLI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 61339000.0,
+   "truth": 61310152,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RYAN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 122077702.0,
+   "truth": 109903867,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2021-09-01 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GPN",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 254291000.0,
+   "truth": 242607106,
+   "ok": false,
+   "note": "prior dei sum classes 2025-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FTI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 429100000.0,
+   "truth": 404520086,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-21",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TEAM",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 159005198.0,
+   "truth": 260163000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SYY",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 491913960.0,
+   "truth": 492270756,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRMB",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 236000000.0,
+   "truth": 233179848,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-07",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "REG",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 182817000.0,
+   "truth": 181529289,
+   "ok": true,
+   "note": "prior dei sum classes 2025-04-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 51380000.0,
+   "truth": 49215471,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-25",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ATI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 3.4205,
+   "truth": 4.0,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TSLA",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 21.5956,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BBIO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -3.5685,
+   "truth": -3.0300000000000002,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WAT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 59333000.0,
+   "truth": 59524130,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CPNG",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.4259,
+   "truth": -0.76,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FTAI",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 102573283.0,
+   "truth": 102261586,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "POWL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.385800000000001,
+   "truth": 15.129999999999999,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TMUS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1106930661.0,
+   "truth": 1059272571,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HEI",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 20.3377,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SWKS",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 160100000.0,
+   "truth": 148427568,
+   "ok": false,
+   "note": "prior dei sum classes 2025-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IFF",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 256000000.0,
+   "truth": 256096379,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "R",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 42080039.0,
+   "truth": 40376534,
+   "ok": false,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SAM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 79.371,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HD",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 14.282599999999999,
+   "truth": 14.290000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-08-02",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PNFP",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 7.802300000000001,
+   "truth": 7.47,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BTSG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 6.8576,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MA",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 2.4418,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BAC",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 7212464345.0,
+   "truth": 6900209006,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PNW",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 113846000.0,
+   "truth": 119690399,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SBAC",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 9.2866,
+   "truth": 9.27,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LOW",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 11.8624,
+   "truth": 11.829999999999998,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HST",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 687800000.0,
+   "truth": 685124399,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "KVUE",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1915000000.0,
+   "truth": 1915802170,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VTR",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 512946359.0,
+   "truth": 528820000,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NOW",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1047278000.0,
+   "truth": 1038000000,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TOL",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 94800000.0,
+   "truth": 92147000,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 80.6324,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PPL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 19.3784,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WWD",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 35.698,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ZS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 14.5236,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "KOPN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 176903857.0,
+   "truth": 185872614,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-11",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OKLO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.9317,
+   "truth": -0.94,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EXC",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.7298999999999998,
+   "truth": 1.7400000000000002,
+   "ok": false,
+   "note": "EPS diluted FY2021 + 3m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BILL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.13,
+   "truth": -0.11,
+   "ok": false,
+   "note": "EPS diluted FY 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MRK",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 2527637335.0,
+   "truth": 2497783211,
+   "ok": true,
+   "note": "prior dei sum classes 2025-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TLN",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 54254000.0,
+   "truth": 45687828,
+   "ok": false,
+   "note": "prior dei sum classes 2025-11-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SHW",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 247700000.0,
+   "truth": 241588072,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DOV",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 137735000.0,
+   "truth": 137153223,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DUK",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 6.7418000000000005,
+   "truth": 6.52,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 3m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MTSI",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 74478000.0,
+   "truth": 76370931,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ED",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 6.07,
+   "truth": 5.93,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 3m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JBL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 9.7711,
+   "truth": 9.75,
+   "ok": true,
+   "note": "EPS diluted FY 2026-08-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PFLT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 65599286.0,
+   "truth": 99217896,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-11",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FNF",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 271000000.0,
+   "truth": 271722556,
+   "ok": true,
+   "note": "prior dei sum classes 2025-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LQDA",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 1.3858000000000001,
+   "truth": 1.4,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PPL",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 751041000.0,
+   "truth": 752350362,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-04-30 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LNT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 256500000.0,
+   "truth": 256876299,
+   "ok": true,
+   "note": "prior dei sum classes 2025-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TKO",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 73111098.0,
+   "truth": 193323374,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SAM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 11774000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RGLD",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 65662185.0,
+   "truth": 65831053,
+   "ok": true,
+   "note": "prior dei sum classes 2025-07-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CNC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 31.3631,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRH",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.7057,
+   "truth": 5.3100000000000005,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TDG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 1.8436,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRH",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 30.114,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MET",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 655333773.0,
+   "truth": 635476927,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DGX",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 111000000.0,
+   "truth": 111242362,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-15",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MTCH",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": -10.96463,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MKSI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 6.29,
+   "truth": 6.280000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRDO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.8021,
+   "truth": 2.84,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SHOP",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1294580139.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IFF",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 255700000.0,
+   "truth": 250391293,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PFG",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 217380912.0,
+   "truth": 212376467,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRV",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 38.4317,
+   "truth": 38.03,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ATO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 8.4182,
+   "truth": 8.389999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CTSH",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 28.3883,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JNJ",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 12.9326,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DTE",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 207000000.0,
+   "truth": 207515682,
+   "ok": true,
+   "note": "prior dei sum classes 2025-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PAGS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 159059831.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VMC",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 132300000.0,
+   "truth": 132130905,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-21",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UNP",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 19.86142,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PEN",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 38633744.0,
+   "truth": 39162177,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CBOE",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 12.8898,
+   "truth": 14.05,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SNA",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 51727124.0,
+   "truth": 51581233,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UNH",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 906000000.0,
+   "truth": 896022611,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DRI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 10.24,
+   "truth": 10.230000000000002,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-08-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PBR",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 6444366381.0,
+   "truth": 7442231382,
+   "ok": false,
+   "note": "prior dei sum classes 2024-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WELL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.2714,
+   "truth": 2.29,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EGP",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 53348800.0,
+   "truth": 53774645,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "COO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.9301000000000004,
+   "truth": 2.91,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VEEV",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 43.8669,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BILL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 36.5886,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LII",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 25.5805,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FERG",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 12.4637,
+   "truth": 9.939999999999998,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VNOM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 4.21289,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SOUN",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 338462574.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AZO",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 16173000.0,
+   "truth": 16094341,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-19",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QGEN",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 1.9437,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ROST",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 322333000.0,
+   "truth": 319453110,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-14",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CLH",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 52870599.0,
+   "truth": 52729841,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LULU",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 111380000.0,
+   "truth": 105594064,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RCL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 35.6737,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WOLF",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 141320000.0,
+   "truth": 156471999,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 1.95,
+   "truth": 1.9500000000000002,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BN",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 4.1832,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HRL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 11.3685,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TWLO",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 50.3865,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AES",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 2.8405,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CSGP",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 406300000.0,
+   "truth": 423822791,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CAH",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 231559345.0,
+   "truth": 232575728,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FUTU",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 95750481.0,
+   "truth": 1130846701,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2025-12-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JBL",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 104475785.0,
+   "truth": 102974470,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CMI",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 73.7292,
+   "truth": 61.43196538407178,
+   "ok": false,
+   "note": "TBVPS eq 2026-06-30 gw=2222000000.0 int=2168000000.0 sh=2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BMRN",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 0.3617,
+   "truth": -0.10000000000000009,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRGP",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 217763821.0,
+   "truth": 215191852,
+   "ok": true,
+   "note": "prior dei sum classes 2025-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AZN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1550885842.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QCOM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1116000000.0,
+   "truth": 1079000000,
+   "ok": false,
+   "note": "prior dei sum classes 2025-07-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SWX",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 72224593.0,
+   "truth": 72445853,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "INCY",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 25.4477,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "YUM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 7.944500000000001,
+   "truth": 7.9399999999999995,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PNW",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 53.5176,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LUMN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1031445404.0,
+   "truth": 1031445404,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MP",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.3443,
+   "truth": -0.33,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CCL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1274000000.0,
+   "truth": 1167541049,
+   "ok": false,
+   "note": "prior dei sum classes 2025-09-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "STLA",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 7.8258,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SCHW",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1729335714.0,
+   "truth": 1729335714,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MP",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 166840611.0,
+   "truth": 177098314,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MTRN",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 40.386,
+   "truth": 29.509269225738556,
+   "ok": false,
+   "note": "TBVPS eq 2026-07-03 gw=280186000.0 int=99893000.0 sh=2026-07-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RBRK",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 154294000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CMCSA",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.7905,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FROG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 7.0855,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AFG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 55.5128,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HAL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 5.67517,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WDAY",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 27.4108,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BMBL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -4.2284,
+   "truth": -4.140000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SMMT",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.6,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ALAB",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 170186000.0,
+   "truth": 174782075,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RBLX",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 647482000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WMT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 8041000000.0,
+   "truth": 7972851122,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TKO",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 81340472.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "URI",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 63095970.0,
+   "truth": 61916588,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-19",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRGP",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 10.52,
+   "truth": 10.46,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IRM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 293365000.0,
+   "truth": 295348225,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AAPL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 15343783000.0,
+   "truth": 14776353000,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TECK",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 483000468.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DKS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 53.707,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TME",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1542115014.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CPT",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 3.0379000000000005,
+   "truth": 3.03,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "INTU",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 53.4682,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SAIL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.3498,
+   "truth": -0.34,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AIT",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 10.9564,
+   "truth": 11.29,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GDDY",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 134737000.0,
+   "truth": 121274701,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ADI",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 489654097.0,
+   "truth": 484565465,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PEN",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.0714,
+   "truth": 3.9699999999999993,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SLB",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1421000000.0,
+   "truth": 1493923635,
+   "ok": false,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TROW",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 222800000.0,
+   "truth": 218237000,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SLB",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 14.1246,
+   "truth": 2.6158011776962904,
+   "ok": false,
+   "note": "TBVPS eq 2026-09-30 gw=17263000000.0 int=4927000000.0 sh=2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LHX",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 9.9789,
+   "truth": 10.74,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 9m YTD \u2212 prior 2026-10-02",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BRK.B",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 473026.334,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RJF",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 207100000.0,
+   "truth": 199383976,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-04",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DINO",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 177783849.0,
+   "truth": 171371164,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MSCI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 78710000.0,
+   "truth": 75139539,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-21",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 44.8267,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JBS",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 1.0017,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TSEM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.5352,
+   "truth": 1.94,
+   "ok": false,
+   "note": "EPS diluted FY 2025-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FLEX",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.588,
+   "truth": 2.7699999999999996,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-09-25",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AMP",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 59.0486,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 8598775.0,
+   "truth": 26156164,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2025-09-30 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FSLR",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 88.4075,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GME",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 448300000.0,
+   "truth": 504500990,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RSG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 36.7305,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LLY",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 891741406.0,
+   "truth": 940745031,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RRC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 12.03925,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HUM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 10.559400000000002,
+   "truth": 9.370000000000001,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 3m YTD \u2212 prior 2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CMI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 19.57,
+   "truth": 19.559999999999995,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ODFL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.1962,
+   "truth": 5.2,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CINF",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 156450512.0,
+   "truth": 156018513,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EFX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 26.397,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CFG",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 429242174.0,
+   "truth": 419195029,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NEE",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 24.4623,
+   "truth": 23.22976885182107,
+   "ok": false,
+   "note": "TBVPS eq 2026-03-31 gw=5150000000.0 int=1630000000.0 sh=2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RBLX",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 708359000.0,
+   "truth": 714815000,
+   "ok": true,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UMBF",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 94.8741,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IVZ",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 457000000.0,
+   "truth": 445092900,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "A",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.0738,
+   "truth": 5.070000000000001,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PLTR",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 2391192000.0,
+   "truth": 2571225000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UNM",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 158306798.0,
+   "truth": 158306798,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EGP",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.895999999999999,
+   "truth": 5.9,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WELL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 602975000.0,
+   "truth": 686328043,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EHC",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 99900000.0,
+   "truth": 100615977,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-21",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NOW",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1030000000.0,
+   "truth": 208000000,
+   "ok": false,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TW",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 21.6119,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WRB",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 25.4929,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MSTR",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 377641410.0,
+   "truth": 362441000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QBTS",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 192129049.0,
+   "truth": 338605149,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SMR",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 3.4076,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HD",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 990000000.0,
+   "truth": 995386647,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-19",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AXTA",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 1.56,
+   "truth": 1.56,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "META",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 84.4075,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 14.0447,
+   "truth": -3.11461407500624,
+   "ok": false,
+   "note": "TBVPS eq 2026-09-30 gw=41197000000.0 int=21359000000.0 sh=2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 298384000.0,
+   "truth": 301488271,
+   "ok": true,
+   "note": "prior dei sum classes 2025-11-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IDXX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 18.7618,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "COKE",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 7.9283,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "KR",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 1.8653,
+   "truth": 1.8499999999999996,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-08-15",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ETN",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 397600000.0,
+   "truth": 388400000,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CB",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 408500000.0,
+   "truth": 393550859,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-21",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EHC",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 98653384.0,
+   "truth": 98123613,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CDE",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 391709000.0,
+   "truth": 642715694,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-04",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CAT",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 45.2989,
+   "truth": 33.147275166138805,
+   "ok": false,
+   "note": "TBVPS eq 2026-09-30 gw=5905000000.0 int=409000000.0 sh=2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CBOE",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 36.255,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SYK",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 381000000.0,
+   "truth": 382423648,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DOCU",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 204329000.0,
+   "truth": 201104117,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CPB",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 298000000.0,
+   "truth": 297992525,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-10",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PCG",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 2197942874.0,
+   "truth": 2680110496,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-15",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SHLS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 3.3829,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CROX",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 50200000.0,
+   "truth": 45725039,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RBC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 62.6769,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MTZ",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 80304948.0,
+   "truth": 80300833,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CHRW",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 119805000.0,
+   "truth": 118137178,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SJM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 2.1479999999999997,
+   "truth": 2.1399999999999997,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TSCO",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 4.7992,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ARMK",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 263045000.0,
+   "truth": 262850908,
+   "ok": true,
+   "note": "prior dei sum classes 2025-07-25",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PSX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 70.0879,
+   "truth": 81.85660690310584,
+   "ok": false,
+   "note": "TBVPS eq 2026-09-30 gw=1433000000.0 int=968000000.0 sh=2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ETN",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 9.831900000000001,
+   "truth": 10.009999999999998,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PKG",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 89098299.0,
+   "truth": 89098299,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "COHR",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 154800000.0,
+   "truth": 155805474,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-11",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ROP",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 107100000.0,
+   "truth": 107637430,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FOXA",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 201424858.0,
+   "truth": 1,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2019-03-18 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BAC",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.19,
+   "truth": 4.2,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ODFL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 4.7598,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MDB",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 80431927.0,
+   "truth": 80556341,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BJ",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.577,
+   "truth": 4.57,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 6m YTD \u2212 prior 2026-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MDT",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.0646,
+   "truth": 4.0600000000000005,
+   "ok": true,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LH",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 83900000.0,
+   "truth": 82900000,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CMG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 84.91997,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ACHR",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 744046194.0,
+   "truth": 770023800,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AEP",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 530092672.0,
+   "truth": 534195026,
+   "ok": true,
+   "note": "prior dei sum classes 2025-05-06",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CCI",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 435000000.0,
+   "truth": 425455439,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SJM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 106400000.0,
+   "truth": 106685160,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MTCH",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 260299000.0,
+   "truth": 236070189,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APP",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 13.01,
+   "truth": 13.010000000000002,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FTNT",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 743000000.0,
+   "truth": 734709741,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GOSS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.1279,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BSY",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 3.2954,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OTIS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": -16.40791,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BJ",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 129638000.0,
+   "truth": 126314692,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-20",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MSI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 166800000.0,
+   "truth": 166603894,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VEEV",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 161879000.0,
+   "truth": 163908013,
+   "ok": true,
+   "note": "prior dei sum classes 2025-08-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ES",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 17.9924,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NRG",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 7.3739,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ORLY",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 841909238.0,
+   "truth": 808960792,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-03",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WEC",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 325461519.0,
+   "truth": 328992329,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 0.4976999999999999,
+   "truth": 1.0100000000000002,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PLTR",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 2246883476.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HWM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.6345,
+   "truth": 5.1,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WPC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 31.4672,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VNOM",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 194405049.0,
+   "truth": 187553000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PEP",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 7.9544999999999995,
+   "truth": 7.949999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 8m YTD \u2212 prior 2026-09-05",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DRI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 117500000.0,
+   "truth": 116313762,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-15",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NOV",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 0.2599,
+   "truth": 0.41000000000000003,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BA",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 643627451.0,
+   "truth": 760095468,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WST",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 44.0042,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1582834137.0,
+   "truth": 1570566292,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BEN",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 15.1872,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OHI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 258118000.0,
+   "truth": 295529000,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PYPL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 21.7913,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NFLX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.0296,
+   "truth": -1.2953730720968544,
+   "ok": false,
+   "note": "TBVPS eq 2026-09-30 gw=0 int=34605477000.0 sh=2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "KMI",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 13.2292,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MTSI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 71959000.0,
+   "truth": 74471281,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-04",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VRSN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 91900000.0,
+   "truth": 89700000,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BLK",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 180.0489,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NI",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 15.6728,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FLUT",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 173539102.0,
+   "truth": 173871245,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AAL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 3.1795,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MP",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 177357647.0,
+   "truth": 178101588,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NXPI",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 12.718100000000002,
+   "truth": 12.71,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FORM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 13.1246,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FRSX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.32782,
+   "truth": 0.04432058635204251,
+   "ok": false,
+   "note": "TBVPS eq 2025-12-31 gw=0 int=0 sh=2025-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GRAB",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 1.6041,
+   "truth": null,
+   "ok": null,
+   "note": "equity tag missing/stale",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ONTO",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 49074247.0,
+   "truth": 49074247,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APD",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 66.1823,
+   "truth": 56.797583569978705,
+   "ok": false,
+   "note": "TBVPS eq 2026-06-30 gw=957400000.0 int=278400000.0 sh=2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HII",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 16.7831,
+   "truth": 18.57,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WSO",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 40352263.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MDLZ",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1283649766.0,
+   "truth": 1265838379,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MAS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 2.1623,
+   "truth": -6.458503881713866,
+   "ok": false,
+   "note": "TBVPS eq 2026-09-30 gw=612000000.0 int=185000000.0 sh=2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TSEM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 111153000.0,
+   "truth": 111550761,
+   "ok": true,
+   "note": "prior dei sum classes 2024-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TWLO",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 165925128.0,
+   "truth": 151612818,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PANW",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 815000000.0,
+   "truth": 818000000,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RS",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 55746000.0,
+   "truth": 52286963,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OGS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 62692392.0,
+   "truth": 62857151,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CSX",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1900189590.0,
+   "truth": 1862136956,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TXN",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 913247686.0,
+   "truth": 913770316,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-14",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "YELP",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 59954000.0,
+   "truth": 54263621,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NBIX",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 100100000.0,
+   "truth": 101218643,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UAA",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 188839506.0,
+   "truth": 431937000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NTAP",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 6.7806,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EBAY",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 496000000.0,
+   "truth": 452000000,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CLH",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 8.2492,
+   "truth": 9.97,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ABT",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1731697991.0,
+   "truth": 1739836465,
+   "ok": true,
+   "note": "prior dei sum classes 2025-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OMC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 22.1808,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LRCX",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1286101000.0,
+   "truth": 1256030000,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PLUG",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -1.2492,
+   "truth": -1.32,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LUNR",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.9317,
+   "truth": -0.94,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OMC",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 196366048.0,
+   "truth": 192983572,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "STT",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 279077907.0,
+   "truth": 272078043,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LDI",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 185641675.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AZO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 152.78750000000002,
+   "truth": 152.55,
+   "ok": true,
+   "note": "EPS diluted FY 2026-08-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "APO",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 3.0261,
+   "truth": 2.8100000000000005,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FIS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 19.5798,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NBIS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 18.079,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2025-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TENB",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 0.0577,
+   "truth": 0.13,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BSX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 11.6075,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AON",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 211400000.0,
+   "truth": 214935265,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "STRL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 13.8809,
+   "truth": 17.830000000000002,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MO",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 1.3383,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BIDU",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 348750000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FICO",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 21597635.0,
+   "truth": 21597635,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MDB",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 36.2498,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "VRSK",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 142154655.0,
+   "truth": 139884077,
+   "ok": true,
+   "note": "prior dei sum classes 2025-05-02",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FOXA",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 3.8384,
+   "truth": 4.72,
+   "ok": false,
+   "note": "EPS diluted FY2026 + 3m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "LQDA",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 78707503.0,
+   "truth": 86091454,
+   "ok": false,
+   "note": "prior dei sum classes 2025-08-04",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "JBS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 6.2016,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TMO",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 382000000.0,
+   "truth": 375708059,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ELS",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 8.8646,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AAL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 656996000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HSY",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 8.9222,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FANG",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 5.2034,
+   "truth": 5.249999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RUM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.5826,
+   "truth": -0.59,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ENSG",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 58085000.0,
+   "truth": 58340666,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "OXY",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 986026416.0,
+   "truth": 999637371,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PFGC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 21.4907,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CVS",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 1259000000.0,
+   "truth": 1269432485,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-22",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "HRL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 0.622,
+   "truth": 0.6199999999999999,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-07-26",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SNPS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 185994000.0,
+   "truth": 191636646,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-24",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GH",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 1.2308,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GEV",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 269529464.0,
+   "truth": 264677066,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PHM",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 192724978.0,
+   "truth": 184086754,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-15",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "IRM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.1463,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TTWO",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 185400000.0,
+   "truth": 186980443,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-27",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "AEM",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 12.2601,
+   "truth": -2.35,
+   "ok": false,
+   "note": "EPS diluted FY 2013-12-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ROK",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 24.8221,
+   "truth": -9.27521188996436,
+   "ok": false,
+   "note": "TBVPS eq 2026-06-30 gw=3814000000.0 int=710000000.0 sh=2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "COHR",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 4.1127,
+   "truth": 4.12,
+   "ok": true,
+   "note": "EPS diluted FY 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GOLD",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 29121293.0,
+   "truth": 29154756,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-28",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EXC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 33.085,
+   "truth": 22.170464706876814,
+   "ok": false,
+   "note": "TBVPS eq 2026-03-31 gw=6630000000.0 int=0 sh=2026-03-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GS",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 328100000.0,
+   "truth": 299928511,
+   "ok": false,
+   "note": "prior dei sum classes 2025-10-17",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "UBER",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 2067905000.0,
+   "truth": 2042560121,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SEIC",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 15.0962,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FOXA",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 20.8729,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "DAL",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 641000000.0,
+   "truth": 652962768,
+   "ok": true,
+   "note": "prior dei sum classes 2025-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WOLF",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 52162000.0,
+   "truth": 52995396,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-08-13",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BALL",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 3.5157000000000003,
+   "truth": 1.9899999999999998,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "RBLX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 0.5312,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "WPM",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 453460000.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FRSX",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 4126507.0,
+   "truth": 140634421,
+   "ok": false,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2025-12-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EME",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 44520367.0,
+   "truth": 43782004,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-23",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRU",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 192400000.0,
+   "truth": 190700000,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "XYZ",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 616993000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CELH",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 6.0315,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "EBAY",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 10.6985,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CRM",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 56.3262,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "POET",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -0.6014999999999999,
+   "truth": null,
+   "ok": null,
+   "note": "skip_no_quarterly",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "QSI",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 198946412.0,
+   "truth": 217141000,
+   "ok": false,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ARE",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 174160645.0,
+   "truth": 174160645,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-15",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "TRU",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 3.7904,
+   "truth": 4.11,
+   "ok": false,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "NTLA",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": -3.3565,
+   "truth": -3.34,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 6m YTD \u2212 prior 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "CVX",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 80.70107,
+   "truth": 93.7937515534503,
+   "ok": false,
+   "note": "TBVPS eq 2026-06-30 gw=4568000000.0 int=0 sh=2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "FIVE",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 55228735.0,
+   "truth": 55054035,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-02",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PAA",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 705566460.0,
+   "truth": 705566460,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-07-31",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "PEP",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1366000000.0,
+   "truth": 1362741092,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-01",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ASML",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 385417742.0,
+   "truth": 385417665,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2025-12-31 stale_shares",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ASND",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 57891570.0,
+   "truth": null,
+   "ok": null,
+   "note": "no us-gaap companyfacts",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MAR",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 9.6482,
+   "truth": 10.029999999999998,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "SSB",
+   "field": "earningsPerShare",
+   "cohort": "clean",
+   "gold": 9.3978,
+   "truth": 9.39,
+   "ok": true,
+   "note": "EPS diluted FY2025 + 9m YTD \u2212 prior 2026-09-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "KO",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 4309000000.0,
+   "truth": 4301608845,
+   "ok": true,
+   "note": "prior dei sum classes 2025-10-21",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ASTS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 299789305.0,
+   "truth": 294898761,
+   "ok": true,
+   "note": "dei WeightedAverageNumberOfDilutedSharesOutstanding 2026-06-30",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "GIS",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 534629472.0,
+   "truth": 534687144,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-09-16",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "ANET",
+   "field": "sharesOutstanding",
+   "cohort": "clean",
+   "gold": 1256500000.0,
+   "truth": 1263402335,
+   "ok": true,
+   "note": "dei dei:EntityCommonStockSharesOutstanding 2026-10-29",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "MA",
+   "field": "sharesOutstandingPrior",
+   "cohort": "clean",
+   "gold": 925000000.0,
+   "truth": null,
+   "ok": null,
+   "note": "prior dei missing",
+   "goldPeriodEnd": null
+  },
+  {
+   "ticker": "BALL",
+   "field": "tangibleBookValuePerShare",
+   "cohort": "clean",
+   "gold": 16.7273,
+   "truth": null,
+   "ok": null,
+   "note": "dei shares missing on eq end 2026-09-30",
+   "goldPeriodEnd": null
+  }
+ ]
+}

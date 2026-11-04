@@ -7,6 +7,7 @@ export function hasNegativeEquity(equity: number | null | undefined): boolean {
 }
 
 const LEVERAGE_RETURN_FIELDS = ["debtToEquity", "returnOnEquity"] as const;
+const NEGATIVE_TBV_RATIO_FIELDS = ["priceToTbv"] as const;
 
 type ProvenanceEntry = {
   field: string;
@@ -30,6 +31,31 @@ export function applyNegativeEquityGoldPolicy(
   update.negativeEquity = true;
   const cleared: string[] = [];
   for (const field of LEVERAGE_RETURN_FIELDS) {
+    const hadGold = update[field] != null || existing?.[field] != null;
+    update[field] = null;
+    const pi = provenanceBatch.findIndex((p) => p.field === field);
+    if (pi >= 0) provenanceBatch.splice(pi, 1);
+    if (hadGold) cleared.push(field);
+  }
+  return cleared;
+}
+
+export function hasNonPositiveTangibleBook(tbvps: number | null | undefined): boolean {
+  return tbvps != null && Number.isFinite(tbvps) && tbvps <= 0;
+}
+
+/** TBV ≤ 0 is valid; price/TBV ratio must not be stored (A329 seg3). */
+export function applyNegativeTbvGoldPolicy(
+  update: Record<string, unknown>,
+  provenanceBatch: ProvenanceEntry[],
+  existing?: Record<string, unknown> | null,
+): string[] {
+  const tbvRaw = update.tangibleBookValuePerShare ?? existing?.tangibleBookValuePerShare;
+  const tbv =
+    typeof tbvRaw === "number" ? tbvRaw : tbvRaw != null && tbvRaw !== "" ? Number(tbvRaw) : null;
+  if (!hasNonPositiveTangibleBook(tbv)) return [];
+  const cleared: string[] = [];
+  for (const field of NEGATIVE_TBV_RATIO_FIELDS) {
     const hadGold = update[field] != null || existing?.[field] != null;
     update[field] = null;
     const pi = provenanceBatch.findIndex((p) => p.field === field);

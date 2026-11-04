@@ -18,6 +18,8 @@ const NON_USD_ABSOLUTE_FIELDS = [
   "totalStockholdersEquity",
 ] as const;
 
+const NON_USD_PER_SHARE_FIELDS = ["earningsPerShare"] as const;
+
 type ProvenanceEntry = {
   field: string;
   result: { source: string; value: number | null; isOverride: boolean; divergent: boolean };
@@ -46,6 +48,13 @@ export function applyNonUsdAbsoluteGoldPolicy(
   if (!fc || fc === "USD") return [];
   const cleared: string[] = [];
   for (const field of NON_USD_ABSOLUTE_FIELDS) {
+    if (update[field] == null) continue;
+    delete update[field];
+    const pi = provenanceBatch.findIndex((p) => p.field === field);
+    if (pi >= 0) provenanceBatch.splice(pi, 1);
+    cleared.push(field);
+  }
+  for (const field of NON_USD_PER_SHARE_FIELDS) {
     if (update[field] == null) continue;
     delete update[field];
     const pi = provenanceBatch.findIndex((p) => p.field === field);

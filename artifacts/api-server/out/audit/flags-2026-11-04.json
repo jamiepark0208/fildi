@@ -1,0 +1,1391 @@
+{
+  "runId": "2026-11-04",
+  "flags": [
+    {
+      "ticker": "AA",
+      "field": "earningsPerShare",
+      "gold": 5.7505999999999995,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AAL",
+      "field": "earningsPerShare",
+      "gold": -0.7268999999999999,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ABBV",
+      "field": "earningsPerShare",
+      "gold": 3.5593999999999997,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ABT",
+      "field": "earningsPerShare",
+      "gold": 2.6962,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ADI",
+      "field": "earningsPerShare",
+      "gold": 8.4269,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AGNC",
+      "field": "earningsPerShare",
+      "gold": 0.05,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALB",
+      "field": "earningsPerShare",
+      "gold": 0.27,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALM",
+      "field": "earningsPerShare",
+      "gold": 0.18,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALOY",
+      "field": "sharesOutstanding",
+      "gold": 69666671,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AMD",
+      "field": "earningsPerShare",
+      "gold": 3.8971999999999998,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AMG",
+      "field": "sharesOutstanding",
+      "gold": 25859933,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AMZN",
+      "field": "earningsPerShare",
+      "gold": 12.3716,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AON",
+      "field": "sharesOutstanding",
+      "gold": 269800000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APG",
+      "field": "earningsPerShare",
+      "gold": -0.61,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APH",
+      "field": "sharesOutstanding",
+      "gold": 2465966914,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APH",
+      "field": "earningsPerShare",
+      "gold": 2,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APLD",
+      "field": "earningsPerShare",
+      "gold": -0.91,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARES",
+      "field": "sharesOutstanding",
+      "gold": 223957742,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARES",
+      "field": "earningsPerShare",
+      "gold": 2.17,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARRY",
+      "field": "earningsPerShare",
+      "gold": -0.5671999999999999,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARW",
+      "field": "sharesOutstanding",
+      "gold": 50905423,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ASML",
+      "field": "earningsPerShare",
+      "gold": 40.64,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AVGO",
+      "field": "earningsPerShare",
+      "gold": 7.8333,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BA",
+      "field": "sharesOutstanding",
+      "gold": 792449940,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BA",
+      "field": "earningsPerShare",
+      "gold": 9.69,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BABA",
+      "field": "earningsPerShare",
+      "gold": 3.8044,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BAP",
+      "field": "earningsPerShare",
+      "gold": 26.55,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BDX",
+      "field": "earningsPerShare",
+      "gold": 3.3141,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BE",
+      "field": "sharesOutstanding",
+      "gold": 294527346,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BE",
+      "field": "earningsPerShare",
+      "gold": 1.604,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BHP",
+      "field": "earningsPerShare",
+      "gold": 1.9322,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BIDU",
+      "field": "sharesOutstanding",
+      "gold": 274750119,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BIDU",
+      "field": "earningsPerShare",
+      "gold": -1.7449000000000003,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BIIB",
+      "field": "earningsPerShare",
+      "gold": 5.6469000000000005,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BILI",
+      "field": "sharesOutstanding",
+      "gold": 332230191,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BILI",
+      "field": "earningsPerShare",
+      "gold": 3.3696,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BMNR",
+      "field": "sharesOutstanding",
+      "gold": 603226394,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BMNR",
+      "field": "earningsPerShare",
+      "gold": -4.5,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BNGO",
+      "field": "earningsPerShare",
+      "gold": -3.7628000000000004,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BOX",
+      "field": "earningsPerShare",
+      "gold": 0.9026,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BP",
+      "field": "earningsPerShare",
+      "gold": 0.5717,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BRK.B",
+      "field": "earningsPerShare",
+      "gold": 39.76,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BTSG",
+      "field": "earningsPerShare",
+      "gold": 1.13,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "C",
+      "field": "earningsPerShare",
+      "gold": 11.0502,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CABA",
+      "field": "sharesOutstanding",
+      "gold": 169545445,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CAVA",
+      "field": "earningsPerShare",
+      "gold": 0.55,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CCI",
+      "field": "earningsPerShare",
+      "gold": 1.8946,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CCJ",
+      "field": "earningsPerShare",
+      "gold": 0.59,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CDE",
+      "field": "sharesOutstanding",
+      "gold": 1027934998,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CELH",
+      "field": "earningsPerShare",
+      "gold": 0.23,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CHYM",
+      "field": "sharesOutstanding",
+      "gold": 347019852,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CHYM",
+      "field": "earningsPerShare",
+      "gold": 0.88,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CINF",
+      "field": "sharesOutstanding",
+      "gold": 153510324,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLF",
+      "field": "earningsPerShare",
+      "gold": -0.8491,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CMPS",
+      "field": "sharesOutstanding",
+      "gold": 138476822,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COMP",
+      "field": "sharesOutstanding",
+      "gold": 563479423,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COP",
+      "field": "earningsPerShare",
+      "gold": 7.5747,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CPB",
+      "field": "earningsPerShare",
+      "gold": 1.3303,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CRM",
+      "field": "earningsPerShare",
+      "gold": 10.976500000000001,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CRML",
+      "field": "earningsPerShare",
+      "gold": -1.87,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CRWD",
+      "field": "sharesOutstanding",
+      "gold": 1023934842,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CVNA",
+      "field": "earningsPerShare",
+      "gold": 2.08,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CVX",
+      "field": "earningsPerShare",
+      "gold": 10.4285,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DASH",
+      "field": "earningsPerShare",
+      "gold": 2.41,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DD",
+      "field": "sharesOutstanding",
+      "gold": 135042975,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DD",
+      "field": "earningsPerShare",
+      "gold": 3.72,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DDOG",
+      "field": "sharesOutstanding",
+      "gold": 334904614,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DELL",
+      "field": "sharesOutstanding",
+      "gold": 652000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DIS",
+      "field": "earningsPerShare",
+      "gold": 4.8475,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DKS",
+      "field": "sharesOutstanding",
+      "gold": 74955923,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DLR",
+      "field": "earningsPerShare",
+      "gold": 2.2363,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DLTR",
+      "field": "earningsPerShare",
+      "gold": 8.189,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DOCN",
+      "field": "sharesOutstanding",
+      "gold": 117579550,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DOW",
+      "field": "earningsPerShare",
+      "gold": -1.2635,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DUOL",
+      "field": "sharesOutstanding",
+      "gold": 40237065,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EDIT",
+      "field": "sharesOutstanding",
+      "gold": 153580035,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EG",
+      "field": "sharesOutstanding",
+      "gold": 38342734,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EMN",
+      "field": "sharesOutstanding",
+      "gold": 114329658,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EMN",
+      "field": "earningsPerShare",
+      "gold": 5.62,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EOG",
+      "field": "sharesOutstanding",
+      "gold": 271632000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EOG",
+      "field": "earningsPerShare",
+      "gold": 12.852300000000001,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ETSY",
+      "field": "earningsPerShare",
+      "gold": 1.4432999999999998,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EXE",
+      "field": "sharesOutstanding",
+      "gold": 239228849,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FCX",
+      "field": "sharesOutstanding",
+      "gold": 945000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FHN",
+      "field": "sharesOutstanding",
+      "gold": 473777158,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FITB",
+      "field": "sharesOutstanding",
+      "gold": 906892564,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FIVE",
+      "field": "earningsPerShare",
+      "gold": 11.145700000000001,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FOUR",
+      "field": "earningsPerShare",
+      "gold": 0.63,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FRSX",
+      "field": "earningsPerShare",
+      "gold": -6.81,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FSLR",
+      "field": "earningsPerShare",
+      "gold": 16.2206,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GFL",
+      "field": "earningsPerShare",
+      "gold": -0.46,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GIS",
+      "field": "earningsPerShare",
+      "gold": -1.6604000000000003,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GLXY",
+      "field": "earningsPerShare",
+      "gold": -0.77,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GM",
+      "field": "earningsPerShare",
+      "gold": 4.453600000000002,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GOOGL",
+      "field": "sharesOutstanding",
+      "gold": 12088000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GOOGL",
+      "field": "earningsPerShare",
+      "gold": 19.9118,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GOSS",
+      "field": "sharesOutstanding",
+      "gold": 6116391,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GOSS",
+      "field": "earningsPerShare",
+      "gold": -52.8,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GPN",
+      "field": "earningsPerShare",
+      "gold": 2.13,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GRAB",
+      "field": "earningsPerShare",
+      "gold": 0.11,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GS",
+      "field": "earningsPerShare",
+      "gold": 72.3599,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GSK",
+      "field": "earningsPerShare",
+      "gold": 2.87,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HAL",
+      "field": "earningsPerShare",
+      "gold": 2.3883,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HBAN",
+      "field": "sharesOutstanding",
+      "gold": 2015387251,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HL",
+      "field": "sharesOutstanding",
+      "gold": 531666371,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HL",
+      "field": "earningsPerShare",
+      "gold": 0.4952,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HMC",
+      "field": "earningsPerShare",
+      "gold": -0.72,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HON",
+      "field": "sharesOutstanding",
+      "gold": 635300000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HOOD",
+      "field": "sharesOutstanding",
+      "gold": 793425151,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HPE",
+      "field": "earningsPerShare",
+      "gold": 1.9631999999999998,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HSY",
+      "field": "sharesOutstanding",
+      "gold": 146312143,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HSY",
+      "field": "earningsPerShare",
+      "gold": 7.32,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HUT",
+      "field": "earningsPerShare",
+      "gold": -5.42,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IBKR",
+      "field": "sharesOutstanding",
+      "gold": 453077771,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "INTC",
+      "field": "earningsPerShare",
+      "gold": -2.1202,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IONQ",
+      "field": "earningsPerShare",
+      "gold": -3.43,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IP",
+      "field": "earningsPerShare",
+      "gold": -5.17,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IVZ",
+      "field": "earningsPerShare",
+      "gold": -0.18479999999999963,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JCI",
+      "field": "sharesOutstanding",
+      "gold": 605741470,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JCI",
+      "field": "earningsPerShare",
+      "gold": 3.54,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JD",
+      "field": "earningsPerShare",
+      "gold": 1.43,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JNJ",
+      "field": "earningsPerShare",
+      "gold": 6.5886,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "L",
+      "field": "sharesOutstanding",
+      "gold": 204427720,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LEU",
+      "field": "sharesOutstanding",
+      "gold": 19733908,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LI",
+      "field": "earningsPerShare",
+      "gold": -0.65,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LUV",
+      "field": "earningsPerShare",
+      "gold": 2.0284,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LYB",
+      "field": "earningsPerShare",
+      "gold": -0.83,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LYFT",
+      "field": "sharesOutstanding",
+      "gold": 378540249,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LYV",
+      "field": "earningsPerShare",
+      "gold": -1.11,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MCHP",
+      "field": "earningsPerShare",
+      "gold": 0.68,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MDLZ",
+      "field": "earningsPerShare",
+      "gold": 2.7263,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MLI",
+      "field": "sharesOutstanding",
+      "gold": 217974381,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MLM",
+      "field": "earningsPerShare",
+      "gold": 15.28,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MNST",
+      "field": "sharesOutstanding",
+      "gold": 1959051764,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MNST",
+      "field": "earningsPerShare",
+      "gold": 1.08,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MOH",
+      "field": "earningsPerShare",
+      "gold": -0.9738000000000002,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MPC",
+      "field": "sharesOutstanding",
+      "gold": 280824763,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MRK",
+      "field": "earningsPerShare",
+      "gold": 1.2521,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MSFT",
+      "field": "earningsPerShare",
+      "gold": 19.1495,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MU",
+      "field": "earningsPerShare",
+      "gold": 74.2111,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NBIS",
+      "field": "earningsPerShare",
+      "gold": -0.39560000000000006,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NFLX",
+      "field": "earningsPerShare",
+      "gold": 3.4608,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NIO",
+      "field": "earningsPerShare",
+      "gold": -1.9408,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NNE",
+      "field": "sharesOutstanding",
+      "gold": 53698146,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NTDOY",
+      "field": "earningsPerShare",
+      "gold": 0.66,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NTES",
+      "field": "earningsPerShare",
+      "gold": 7.2,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NTSK",
+      "field": "earningsPerShare",
+      "gold": -1.52,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NUE",
+      "field": "earningsPerShare",
+      "gold": 12.54,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NVDA",
+      "field": "earningsPerShare",
+      "gold": 7.9108,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NVO",
+      "field": "earningsPerShare",
+      "gold": 4.09,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NVTS",
+      "field": "sharesOutstanding",
+      "gold": 262555476,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NWSA",
+      "field": "sharesOutstanding",
+      "gold": 359167429,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NXT",
+      "field": "sharesOutstanding",
+      "gold": 151729520,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OMC",
+      "field": "earningsPerShare",
+      "gold": 0.99,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ONDS",
+      "field": "sharesOutstanding",
+      "gold": 380763481,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ONDS",
+      "field": "earningsPerShare",
+      "gold": 0.3117,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ONON",
+      "field": "earningsPerShare",
+      "gold": 1.1837,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OWL",
+      "field": "sharesOutstanding",
+      "gold": 6875000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OXY",
+      "field": "earningsPerShare",
+      "gold": 7.1937999999999995,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "P",
+      "field": "sharesOutstanding",
+      "gold": 220979000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PAA",
+      "field": "earningsPerShare",
+      "gold": 1.16,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PAGS",
+      "field": "earningsPerShare",
+      "gold": 7.527500000000001,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PANW",
+      "field": "earningsPerShare",
+      "gold": 0.5125,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PBR",
+      "field": "earningsPerShare",
+      "gold": 10.348299999999998,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PDD",
+      "field": "earningsPerShare",
+      "gold": 8.89,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PINS",
+      "field": "sharesOutstanding",
+      "gold": 500526454,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PLTR",
+      "field": "earningsPerShare",
+      "gold": 1.1735,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PLUG",
+      "field": "sharesOutstanding",
+      "gold": 1397195278,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PN",
+      "field": "earningsPerShare",
+      "gold": -5.53,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PNC",
+      "field": "sharesOutstanding",
+      "gold": 397242557,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PNFP",
+      "field": "sharesOutstanding",
+      "gold": 151112640,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "POWL",
+      "field": "sharesOutstanding",
+      "gold": 36431649,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PSX",
+      "field": "earningsPerShare",
+      "gold": 17.5091,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QSR",
+      "field": "earningsPerShare",
+      "gold": 2.7736,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QXO",
+      "field": "sharesOutstanding",
+      "gold": 1037490709,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QXO",
+      "field": "earningsPerShare",
+      "gold": -0.89,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RDW",
+      "field": "sharesOutstanding",
+      "gold": 249992609,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RHHBY",
+      "field": "earningsPerShare",
+      "gold": 15.3263,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RKT",
+      "field": "earningsPerShare",
+      "gold": 0.15030000000000002,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ROIV",
+      "field": "earningsPerShare",
+      "gold": -0.53,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RPRX",
+      "field": "earningsPerShare",
+      "gold": 1.88,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RS",
+      "field": "earningsPerShare",
+      "gold": 21.447,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RTX",
+      "field": "sharesOutstanding",
+      "gold": 1381700,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RVMD",
+      "field": "earningsPerShare",
+      "gold": -8.87,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SECZ",
+      "field": "earningsPerShare",
+      "gold": -0.38,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SHAK",
+      "field": "sharesOutstanding",
+      "gold": 40350732,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SKHY",
+      "field": "earningsPerShare",
+      "gold": 15.68,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SMR",
+      "field": "sharesOutstanding",
+      "gold": 410389522,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SMTC",
+      "field": "earningsPerShare",
+      "gold": 1.56,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SNPS",
+      "field": "earningsPerShare",
+      "gold": 5.6530000000000005,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SNY",
+      "field": "earningsPerShare",
+      "gold": 3.2604,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SOUN",
+      "field": "sharesOutstanding",
+      "gold": 411576753,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SOUN",
+      "field": "earningsPerShare",
+      "gold": -0.62,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SPCE",
+      "field": "sharesOutstanding",
+      "gold": 151595903,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SPCX",
+      "field": "earningsPerShare",
+      "gold": 0.23,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SPG",
+      "field": "sharesOutstanding",
+      "gold": 323551515,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SR",
+      "field": "earningsPerShare",
+      "gold": 9.277899999999999,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "STLA",
+      "field": "earningsPerShare",
+      "gold": -8.73,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SUI",
+      "field": "earningsPerShare",
+      "gold": -6.114299999999999,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SUPX",
+      "field": "earningsPerShare",
+      "gold": -2.9,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SWKS",
+      "field": "sharesOutstanding",
+      "gold": 235165549,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SWX",
+      "field": "earningsPerShare",
+      "gold": 4,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SYM",
+      "field": "sharesOutstanding",
+      "gold": 129873381,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "T",
+      "field": "earningsPerShare",
+      "gold": 1.8742,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TCOM",
+      "field": "earningsPerShare",
+      "gold": 34.4892,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TECK",
+      "field": "earningsPerShare",
+      "gold": 3.68,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TKO",
+      "field": "earningsPerShare",
+      "gold": 2.86,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TM",
+      "field": "earningsPerShare",
+      "gold": 22.76,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TME",
+      "field": "earningsPerShare",
+      "gold": 2.8512,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TOST",
+      "field": "sharesOutstanding",
+      "gold": 514000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TRMB",
+      "field": "earningsPerShare",
+      "gold": -0.48,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TSLA",
+      "field": "earningsPerShare",
+      "gold": 0.9095000000000001,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TSM",
+      "field": "earningsPerShare",
+      "gold": 98.25160000000001,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "UMC",
+      "field": "earningsPerShare",
+      "gold": 6.6403,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "UNH",
+      "field": "earningsPerShare",
+      "gold": 17.5216,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "USAR",
+      "field": "sharesOutstanding",
+      "gold": 375076567,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VALE",
+      "field": "earningsPerShare",
+      "gold": 2.4327,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VMRK",
+      "field": "sharesOutstanding",
+      "gold": 773779120,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VNET",
+      "field": "earningsPerShare",
+      "gold": -0.40479999999999994,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VNOM",
+      "field": "earningsPerShare",
+      "gold": 0.02,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VTRS",
+      "field": "sharesOutstanding",
+      "gold": 1148590864,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WAT",
+      "field": "sharesOutstanding",
+      "gold": 98185855,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WDAY",
+      "field": "sharesOutstanding",
+      "gold": 36000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WDAY",
+      "field": "earningsPerShare",
+      "gold": 4.9275,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WMG",
+      "field": "sharesOutstanding",
+      "gold": 147729456,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WMT",
+      "field": "sharesOutstanding",
+      "gold": 3418000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WOLF",
+      "field": "earningsPerShare",
+      "gold": -11.39,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WTRG",
+      "field": "sharesOutstanding",
+      "gold": 283632983,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "XOM",
+      "field": "earningsPerShare",
+      "gold": 7.77,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "XPEV",
+      "field": "earningsPerShare",
+      "gold": -1.6317,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ZTO",
+      "field": "earningsPerShare",
+      "gold": 12.7774,
+      "cohort": "flagged"
+    }
+  ]
+}

@@ -56,6 +56,14 @@ export const SEGMENT_STATEMENT_LEVELS_FIELDS = new Set([
   "freeCashFlow",
 ]);
 
+/** A329 segment 3 — per-share metrics + share counts (SEC truth vs yahoo/FMP gold). */
+export const SEGMENT_PER_SHARE_FIELDS = new Set([
+  "earningsPerShare",
+  "sharesOutstanding",
+  "sharesOutstandingPrior",
+  "tangibleBookValuePerShare",
+]);
+
 export type AuditLayer = "L0" | "L1";
 export type RowStatus = "ok" | "flag" | "skip";
 

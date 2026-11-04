@@ -42,6 +42,25 @@ CASH_ST = [
 DA = ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"]
 OCF = ["NetCashProvidedByUsedInOperatingActivities"]
 CAPEX = ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"]
+EPS_DILUTED = [
+    "EarningsPerShareDiluted",
+    "EarningsPerShareBasicAndDiluted",
+    "EarningsPerShareBasic",
+]
+GOODWILL = ["Goodwill"]
+INTANG = [
+    "IntangibleAssetsNetExcludingGoodwill",
+    "IntangibleAssetsNetIncludingGoodwill",
+    "FiniteLivedIntangibleAssetsNet",
+]
+PER_SHARE_FIELDS = frozenset({
+    "earningsPerShare",
+    "sharesOutstanding",
+    "sharesOutstandingPrior",
+    "tangibleBookValuePerShare",
+})
+STALE_SHARES_DAYS = 183
+PRIOR_SHARES_WINDOW = 45
 MAX_PERIOD_DAYS = 15 * 30
 # Aligned definitions (FIELD_DEFS + gold + truth) — period/ADR mismatches are not "definition".
 DEFINITION_ONLY_FIELDS = {"debtToEquity"}
@@ -52,7 +71,14 @@ INSTANT_PERIOD_FIELDS = {"totalStockholdersEquity", "totalDebt", "cashAndEquival
 def ok(v, t, field):
     if v is None or t is None:
         return None
-    band = max(abs(t) * 0.20, 0.03 if field in FRACTION else 0)
+    if field == "earningsPerShare":
+        band = max(abs(t) * 0.05, 0.01)
+    elif field in ("sharesOutstanding", "sharesOutstandingPrior"):
+        band = max(abs(t) * 0.03, 1e6)
+    elif field == "tangibleBookValuePerShare":
+        band = max(abs(t) * 0.05, 0.01)
+    else:
+        band = max(abs(t) * 0.20, 0.03 if field in FRACTION else 0)
     return abs(v - t) <= band
 
 
@@ -137,6 +163,101 @@ def sec_cash_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, s
     return total, f"cash+ST {ends}"
 
 
+def financial_currency(conn, ticker: str) -> str | None:
+    r = rows(
+        conn,
+        """
+        SELECT payload->'financialData'->>'financialCurrency' AS fc
+        FROM vendor_raw
+        WHERE source = 'yahoo' AND key = %s
+          AND payload->'financialData'->>'financialCurrency' IS NOT NULL
+        ORDER BY fetched_on DESC
+        LIMIT 1
+        """,
+        (ticker.upper(),),
+    )
+    if not r:
+        return None
+    fc = (r[0].get("fc") or "").strip().upper()
+    return fc or None
+
+
+def has_quarterly_eps_facts(facts: dict) -> bool:
+    gaap = (facts or {}).get("facts", {}).get("us-gaap") or {}
+    for c in EPS_DILUTED:
+        node = gaap.get(c)
+        if not node:
+            continue
+        for unit in node.get("units", {}).get("USD/shares", []):
+            if unit.get("start") and F._days(unit["start"], unit["end"]) < 100:
+                return True
+    return False
+
+
+def ttm_eps_diluted(facts: dict) -> dict | None:
+    for c in EPS_DILUTED:
+        node = facts.get("facts", {}).get("us-gaap", {}).get(c)
+        if not node:
+            continue
+        vals = F._units({"facts": {"us-gaap": {c: node}}}, c, "USD/shares")
+        if not vals:
+            continue
+        fake = {"facts": {"us-gaap": {c: {"units": {"USD": vals}}}}}
+        r = F.ttm_flow(fake, [c])
+        if r:
+            return r
+    return None
+
+
+def dei_end_near(facts: dict, anchor_end: str, days_back: int, window: int = PRIOR_SHARES_WINDOW) -> str | None:
+    dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
+    if not vals:
+        return None
+    target = date.fromisoformat(anchor_end) - timedelta(days=days_back)
+    ends = {u["end"] for u in vals if abs((date.fromisoformat(u["end"]) - target).days) <= window}
+    return max(ends) if ends else None
+
+
+def dei_shares_on_end(facts: dict, conn, ticker: str, end: str) -> tuple[float | None, str]:
+    dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
+    vals = [u for u in (dei or {}).get("units", {}).get("shares", []) if u["end"] == end]
+    if not vals:
+        return None, f"no dei on {end}"
+    u = max(vals, key=lambda x: x["filed"])
+    tot = sum(x["val"] for x in vals if x["filed"] == u["filed"])
+    basic = F._latest_basic_wa(facts, end)
+    adr = F.detect_adr_ratio(facts, conn, ticker, end) if conn and ticker else None
+    if basic and adr and adr > 1:
+        ads = F.filing_shares_to_ads(float(basic["val"]), adr)
+        return ads, f"prior dei {end} ADS ÷{adr}"
+    return tot, f"prior dei sum classes {end}"
+
+
+def sec_shares_current(facts: dict, conn, ticker: str) -> tuple[float | None, str]:
+    sh = F.shares(facts, conn, ticker)
+    if not sh:
+        return None, "shares tag missing"
+    note = f"dei {sh['concept']} {sh['end']}"
+    if sh.get("how"):
+        note += f" {sh['how']}"
+    if days_apart(sh["end"], date.today().isoformat()) > STALE_SHARES_DAYS:
+        note += " stale_shares"
+    return sh["value"], note
+
+
+def ratio_near_known_adr(gold: float, truth: float) -> bool:
+    if truth == 0:
+        return False
+    ratio = abs(gold) / max(abs(truth), 1e-9)
+    for r in F.ADR_RATIOS:
+        if r <= 1:
+            continue
+        if abs(ratio - r) / r < 0.12 or abs(ratio - 1 / r) / max(1 / r, 1e-9) < 0.12:
+            return True
+    return False
+
+
 def parse_truth_period_end(note: str | None) -> str | None:
     if not note:
         return None
@@ -151,9 +272,11 @@ def scale_looks_adr(gold: float, truth: float) -> bool:
     return ratio >= 3.5 or ratio <= 0.29
 
 
-def miss_cause(row: dict, facts: dict | None = None) -> str:
+def miss_cause(row: dict, facts: dict | None = None, conn=None) -> str:
     note = (row.get("note") or "").lower()
     if row.get("truth") is None:
+        if "skip_no_quarterly" in note:
+            return "definition"
         if "missing" in note or "no us-gaap" in note:
             return "truth_missing"
         if "stale" in note:
@@ -171,6 +294,29 @@ def miss_cause(row: dict, facts: dict | None = None) -> str:
         return "wrong_period"
     if field in FLOW_PERIOD_FIELDS and note.strip() == "fy":
         return "wrong_period"
+    if field in PER_SHARE_FIELDS:
+        if "stale_shares" in note and field in ("sharesOutstanding", "sharesOutstandingPrior"):
+            return "stale_shares"
+        if field in ("earningsPerShare", "sharesOutstanding", "sharesOutstandingPrior") and (
+            ratio_near_known_adr(gold, truth)
+            or (
+                scale_looks_adr(gold, truth)
+                and facts
+                and ticker
+                and (F.detect_adr_ratio(facts, conn, ticker, truth_end) or 0) > 1
+            )
+        ):
+            return "adr_ratio"
+        if field == "earningsPerShare" and conn and ticker:
+            fc = financial_currency(conn, ticker)
+            if fc and fc != "USD":
+                return "currency"
+        if field == "sharesOutstanding" and truth:
+            r = gold / truth
+            if 1.85 <= r <= 2.15 or 0.46 <= r <= 0.54:
+                return "share_class_partial"
+        if field == "earningsPerShare" and "basic" in note and "diluted" not in note:
+            return "basic_vs_diluted"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
         if facts and ticker:
             try:
@@ -274,6 +420,39 @@ def sec_truth(conn, facts, ticker, field):
         return None, "FCF components missing/stale"
     if field == "totalRevenue" and rev:
         return rev["value"], rev["how"]
+    if field == "earningsPerShare":
+        if not has_quarterly_eps_facts(facts):
+            return None, "skip_no_quarterly"
+        eps = ttm_eps_diluted(facts)
+        if not eps:
+            return None, "EPS diluted TTM missing"
+        how = eps.get("how") or "TTM"
+        return eps["value"], f"EPS diluted {how} {eps['end']}"
+    if field == "sharesOutstanding":
+        return sec_shares_current(facts, conn, ticker)
+    if field == "sharesOutstandingPrior":
+        sh = F.shares(facts, conn, ticker)
+        if not sh:
+            return None, "shares tag missing"
+        prior_end = dei_end_near(facts, sh["end"], 365)
+        if not prior_end:
+            return None, "prior dei missing"
+        return dei_shares_on_end(facts, conn, ticker, prior_end)
+    if field == "tangibleBookValuePerShare":
+        eq = audit_instant(facts, EQ, asof, anchor)
+        if not eq:
+            return None, "equity tag missing/stale"
+        bs_end = eq["end"]
+        gw = audit_instant(facts, GOODWILL, bs_end, anchor)
+        intang = audit_instant(facts, INTANG, bs_end, anchor)
+        sh_val, _sh_note = dei_shares_on_end(facts, conn, ticker, bs_end)
+        if sh_val is None:
+            return None, f"dei shares missing on eq end {bs_end}"
+        tangible = eq["value"] - (gw["value"] if gw else 0.0) - (intang["value"] if intang else 0.0)
+        if sh_val <= 0:
+            return None, "non-positive shares"
+        tbvps = tangible / sh_val
+        return tbvps, f"TBVPS eq {bs_end} gw={gw['value'] if gw else 0} int={intang['value'] if intang else 0} sh={bs_end}"
     return None, "not filing-checkable"
 
 
@@ -353,7 +532,7 @@ def main():
             "gold": r["gold"],
             "truth": r["truth"],
             "note": r["note"],
-            "cause": miss_cause({**r, "ticker": r["ticker"]}, cache.get(r["ticker"])),
+            "cause": miss_cause({**r, "ticker": r["ticker"]}, cache.get(r["ticker"]), conn),
         }
         for r in judged
         if r.get("cohort") == "clean" and r["truth"] is not None and not r["ok"]

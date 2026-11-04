@@ -4,6 +4,7 @@
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --full
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --full --segment leverage_returns
  *   pnpm exec tsx src/scripts/stock-db-audit.ts --full --segment statement_levels
+ *   pnpm exec tsx src/scripts/stock-db-audit.ts --full --segment per_share
  * L2 SEC: artifacts/api-server/scripts/stock-db-audit-l2.py
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -29,6 +30,7 @@ import {
   SMOKE_TICKERS,
   auditCell,
   SEGMENT_LEVERAGE_RETURNS_FIELDS,
+  SEGMENT_PER_SHARE_FIELDS,
   SEGMENT_STATEMENT_LEVELS_FIELDS,
   type AuditFinding,
   type FundRow,
@@ -48,8 +50,11 @@ const segmentArg = process.argv.find((a) => a.startsWith("--segment="))?.split("
   ?? (process.argv.includes("--segment") ? process.argv[process.argv.indexOf("--segment") + 1] : null);
 const segmentLeverage = segmentArg === "leverage_returns";
 const segmentStatement = segmentArg === "statement_levels";
+const segmentPerShare = segmentArg === "per_share";
 if (!smoke && !full) {
-  console.error("Usage: stock-db-audit.ts --smoke | --full [--segment leverage_returns|statement_levels]");
+  console.error(
+    "Usage: stock-db-audit.ts --smoke | --full [--segment leverage_returns|statement_levels|per_share]",
+  );
   process.exit(1);
 }
 const runId = etDateKey();
@@ -58,8 +63,11 @@ const AUDIT_FIELDS = segmentLeverage
   ? AUDIT_FIELD_LIST.filter((f) => SEGMENT_LEVERAGE_RETURNS_FIELDS.has(f))
   : segmentStatement
     ? AUDIT_FIELD_LIST.filter((f) => SEGMENT_STATEMENT_LEVELS_FIELDS.has(f))
-    : AUDIT_FIELD_LIST;
-const CLEAN_SAMPLE_MIN = segmentLeverage || segmentStatement ? 400 : 1;
+    : segmentPerShare
+      ? AUDIT_FIELD_LIST.filter((f) => SEGMENT_PER_SHARE_FIELDS.has(f))
+      : AUDIT_FIELD_LIST;
+const CLEAN_SAMPLE_MIN = segmentLeverage || segmentStatement || segmentPerShare ? 400 : 1;
+const segmentUsesL1Clean = segmentStatement || segmentPerShare;
 
 type TickerPack = {
   ticker: string;
@@ -257,7 +265,7 @@ function writeCleanSample(findings: AuditFinding[], tickers: string[]) {
   const okCells: { ticker: string; field: string; gold: number | null; cohort: "clean" }[] = [];
   for (const f of findings) {
     if (f.gold == null) continue;
-    const layerOk = segmentStatement
+    const layerOk = segmentUsesL1Clean
       ? f.layer === "L1" && f.status === "ok"
       : f.layer === "L0" && f.status === "ok";
     if (!layerOk) continue;
@@ -311,7 +319,9 @@ function writeReport(
     ? " · segment leverage_returns"
     : segmentStatement
       ? " · segment statement_levels"
-      : "";
+      : segmentPerShare
+        ? " · segment per_share"
+        : "";
   const lines = [
     `# Stock DB audit ${runId} (${smoke && !full ? "smoke" : "full"}${segmentLabel})`,
     "",
@@ -369,7 +379,11 @@ function writeReport(
 async function main() {
   const tickers = await loadTickers();
   const modelList = await loadModelListTickers().catch(() => new Set<string>());
-  console.log(`A329 audit ${smoke && !full ? "smoke" : "full"}${segmentLeverage ? " segment1" : segmentStatement ? " segment2" : ""} tickers=${tickers.length} fields=${AUDIT_FIELDS.length}`);
+  console.log(
+    `A329 audit ${smoke && !full ? "smoke" : "full"}${
+      segmentLeverage ? " segment1" : segmentStatement ? " segment2" : segmentPerShare ? " segment3" : ""
+    } tickers=${tickers.length} fields=${AUDIT_FIELDS.length}`,
+  );
   const packs = await buildPacks(tickers);
   const findings: AuditFinding[] = [];
 
