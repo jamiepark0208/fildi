@@ -120,6 +120,16 @@ try {
     `${firstLine} — run: node .claude/scripts/check-api-endpoints.js --write`);
 }
 
+// 6e. Dead paths in agent docs (11-03 audit: 13 real dead/wrong pointers → grep waste / invented paths).
+// Ratchet at 10 (8 left are shorthand, build output or uncommitted files).
+{
+  let out = '';
+  try { out = execSync(`python3 ${path.join(ROOT, 'scripts/doc_paths_check.py')}`, { stdio: 'pipe' }).toString(); }
+  catch (e) { out = e.stdout?.toString() ?? ''; }
+  const n = Number((out.match(/dead paths: (\d+)/) || [])[1] ?? -1);
+  check('Agent-doc dead paths ≤ 10', n >= 0 && n <= 10, `${n} — run: python3 scripts/doc_paths_check.py`);
+}
+
 // Report
 const pass = checks.filter(c => c.pass).length;
 const fail = checks.filter(c => !c.pass).length;

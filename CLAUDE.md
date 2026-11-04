@@ -19,7 +19,6 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | Need | Skill |
 |---|---|
 | Build + restart (Mac) | .claude/skills/local-mac-dev.md |
-| Build + restart (Replit only) | .claude/skills/build-and-run.md |
 | Data fetch strategy / tiers / TTL decisions | .claude/skills/data-architecture.md |
 | Any Yahoo Finance / TTLCache work | .claude/skills/caching-patterns.md |
 | New API route or middleware | .claude/skills/api-design-patterns.md |
@@ -27,26 +26,26 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | RSI/MFI scanner tiers (not Model List) | .claude/skills/signal-filters.md |
 | Model List / fit / watchlist_sync scoring | .claude/skills/model-list.md |
 | Fildi app UI tables/chrome (GRID_*) | .claude/skills/ui-components.md |
-| UI chrome trim (Scorecard presets/blurbs/FAB) | .claude/skills/ui-chrome.md · `.cursor/skills/ui-chrome/SKILL.md` |
+| UI chrome trim (Scorecard presets/blurbs/FAB) | .claude/skills/ui-chrome.md |
 | DB schema and queries | .claude/skills/db-patterns.md |
 | Trader strategy (mental model) | .claude/skills/trader-context.md |
 | Technical scorecard | .claude/skills/technical-scorecard.md |
-| TradingView indicators (UT Bot, SuperTrend, SMC, Fear & Greed): built, tested, use cases | .agents/context/indicators.md |
+| TradingView indicators (built, tested, use cases) | .agents/context/indicators.md |
 | Feature planning | .claude/skills/feature-planner.md |
 | Implementation planning | .claude/skills/writing-plans.md |
-| Before dispatching any plan Claude wrote (verify → enhance → optimize → UI) | .claude/skills/plan-passes.md |
+| Before dispatching a plan Claude wrote | .claude/skills/plan-passes.md |
 | Debugging any bug/failure | .claude/skills/systematic-debugging.md |
 | End of session (user-triggered only) | .claude/skills/session-wrap.md |
 | Reading images, PDFs, large JSON, assets | .claude/skills/file-reading-strategy.md |
 | Market-data fetch scaffolding (data-agent) | .claude/skills/data-agent.md |
-| Stock DB Needs Review / cheapest gold overrides | .claude/skills/database-agent.md · `.cursor/skills/database-agent/SKILL.md` |
+| Stock DB Needs Review / cheapest gold overrides | .claude/skills/database-agent.md |
 | Data pipeline audit / enrichment health | .claude/skills/data-ops-auditor.md |
 | Dev tool reference (codegraph/markitdown/madge) | .claude/skills/startup.md |
 | OpenJev miss→teach→eval | .claude/skills/openjev-train.md |
-| Grep patterns for hot files (macro, schema, merge-trusted, nightly-enrichment, cache-registry) | .claude/skills/hot-files.md |
+| Grep patterns for hot files | .claude/skills/hot-files.md |
 | Backtest / "does X help trades?" | research/studies/PLAYBOOK.md |
 | Study judgment (comparators, verdict wording, review packet) | .agents/skills/fildi-quant-research/SKILL.md |
-| Indicator / pattern study (lows/highs, S/R, liquidity, momentum, volume, skew) | .agents/skills/fildi-pattern-research/SKILL.md |
+| Indicator / pattern study | .agents/skills/fildi-pattern-research/SKILL.md |
 | Data source choice (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |
 | Is a score / rec working? | .agents/skills/fildi-grade-quality/SKILL.md |
 | Market / sector thesis, earnings-season read, "is my view right?" | .agents/skills/fildi-market-thesis/SKILL.md |
@@ -68,10 +67,10 @@ Subagents: verifier (tsc + tests) · data-agent (fetch/cache) · ui-agent (React
 - Write decisions and next steps into state.md when they happen, lessons into memory. Not chat.
 - Batch independent calls. Edit with Edit, not whole-file rewrites.
 - ASKS.md is a one-line index: open `asks/A##.md` only for rows you act on; closed rows → ASKS-archive.md.
-- **Subagents (Jamie 10-16, 7 forks burned the plan):** never `fork`. Default inline. A big build (> ~30 min inline) → ONE fresh agent at a time, `model: sonnet` for mechanical work, short prompt (spec path + acceptance), never parallel.
-- **Heavy work → Cursor (Jamie 10-21, A238/A239):** backtests, studies, data fetches, commit-review evidence go to Cursor via ASKS with a pass/fail bar + ≤ 20-line packet format. Claude writes specs/bars, verdicts from packets, spot-checks one number. Cursor's tokens lapse 12-11. Dispatch: `scripts/agent-dispatch.sh <cursor|grok> <model> <prompt-file> [--ask]` (Stage beams + `FILDI_PARENT`; wraps `~/.local/bin/cursor-agent -p --trust --model <m>`). Grok = `grok` + `--model grok-4.7-high` (list: `--list-models`). Studies/packets may run 2–3 in parallel; code edits one at a time.
-- **Dispatched jobs are watched, not waited on (Jamie 10-24, a stuck run went unseen ~1 h):** `agent-dispatch.sh` streams to /tmp/fildi-logs/dispatch/*.jsonl and kills a run that is silent + idle 20 min, loops on reconnects, or passes 120 min (event `dispatch-stalled`, exit 124). Run the dispatch itself as the one background task: its exit (0, or 124 on stall) is the alert. No extra Monitor/waiter (11-03: two tail -f monitors + a waiter for one job; end events carry no ask id unless `--ask`, so ask-id greps never fire); `scripts/dispatch-status.sh` = one-line view. One dispatch per background task (never `&` inside a runner script). Never run two jobs on the same rate-limited vendor (Polygon 5/min, LSEG, WRDS): fetch/store first, then studies read tables.
-- **No background waits on external deps (Jamie 10-21):** dependency down (LSEG Workspace proxy via `.portInUse` / :9000/:9001, Schwab auth, a login) → probe once, write `blocked: <dep> → run <cmd>` in state.md, tell Jamie in one line, move on. Background only for jobs that finish on their own (build/test/fetch), ≤ 30 min.
+- **Subagents:** never `fork`; default inline. Big build (> ~30 min) → ONE fresh agent, `model: sonnet`, short prompt (spec path + acceptance), never parallel.
+- **Heavy work → Cursor:** backtests, studies, fetches, review evidence go via ASKS with a pass/fail bar + ≤ 20-line packet; Claude writes specs, judges packets, spot-checks one number. Dispatch: `scripts/agent-dispatch.sh <cursor|grok> <model> <prompt-file> [--ask]` (`--ask` = read-only run). Cursor API models (GPT/Claude/Gemini) out of quota until 11-11 → `composer-2.5`/`auto`; Grok = `grok-4.7-high`. Prompt names exact paths/functions (Cursor runs averaged 40 search calls re-finding them). Studies 2–3 in parallel; code edits one at a time.
+- **Watch dispatches without monitors:** run the dispatch itself as the one background task; its exit is the alert (it self-kills when silent 20 min, looping, or > 120 min → exit 124). No extra Monitor/waiter. `scripts/dispatch-status.sh` = one-line view. Never two jobs on one rate-limited vendor (Polygon, LSEG, WRDS).
+- **External dep down** (LSEG proxy :9000/:9001, Schwab auth, a login) → probe once, write `blocked: <dep> → run <cmd>` in state.md, tell Jamie in one line, move on. No poll loops.
 
 ## Compact instructions
 Keep verbatim: every user message, decisions/approvals (and what was NOT approved), exact paths, symbol names, param versions (e.g. fund-1.1.1), unresolved errors, test baselines, uncommitted files and their owners. Drop: tool output already acted on, file contents, superseded plans.
@@ -79,4 +78,4 @@ Keep verbatim: every user message, decisions/approvals (and what was NOT approve
 ## Key facts
 - All caches use `lib/ttl-cache.ts` (TTL table + registry: caching-patterns skill). Field priority: `scripts/merge-trusted.ts` FIELD_DEFS. API catalog: `.agents/context/api-endpoints.md`.
 - Universe = `fmp_fundamentals` table. Never hardcode a ticker count.
-- Hooks live in `.claude/settings.local.json` only (just the Read guard). `.claude/hooks/hooks.json` is not read.
+- Hooks live in `.claude/settings.local.json` only: Read guard (codegraph-precheck), shield snap/check on Bash+Write, agent-event on every tool + prompt. `.claude/hooks/` json files are not read.

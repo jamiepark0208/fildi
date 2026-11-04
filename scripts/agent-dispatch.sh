@@ -119,6 +119,8 @@ set +e
 FULL="$(mktemp -t agent-dispatch-prompt)"
 {
   echo "Read .agents/context/calibration-log.md first (lessons from past reviews)."
+  # 11-03 audit: Cursor runs averaged 23 reads + 17 greps re-finding files the ask already names (~2.6M input tokens/run)
+  echo "Token budget: start from the paths/functions the task and its asks/A###.md name. Locate anything else with codegraph (MCP) or one narrow rg; read line ranges, not whole files over 300 lines; no repo-wide exploration."
   BUSY=$(node "$(dirname "$0")/busy-files.mjs" --one-line 2>/dev/null || true)
   [[ -n "$BUSY" ]] && echo "Busy files (another agent edited in the last 30 min — do not edit): $BUSY"
   echo

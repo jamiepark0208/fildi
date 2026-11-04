@@ -63,7 +63,6 @@ If stuck for >15 min or hitting an architectural decision: stop, write current s
 | Agentic floors | `.agents/context/agentic-floors.md` |
 | Stock DB / cadence / earnings ops | `.agents/context/stock-db-best-realistic.md`, `fundamentals-refresh-cadence.md`, `event-driven-refresh.md` |
 | Sector scoring plan | `.agents/context/plans/fundamental-sector-scoring.md` |
-| Project architecture | `.agents/context/project.md` |
 | Workflow + build rules | `.agents/context/workflow.md` |
 | Current phase (Claude) | `.agents/context/state.md` — Claude writes; Cursor read-only |
 | Current phase (Cursor) | `.cursor/context/cursor-state.md` — Cursor writes |
@@ -76,7 +75,7 @@ If stuck for >15 min or hitting an architectural decision: stop, write current s
 ## Guardrails (all agents)
 
 - Never delete or overwrite `artifacts/macro-data.json` or `artifacts/macro-charts.json` — these are live data caches
-- Never modify `lib/db/schema.ts` without running a Drizzle migration
+- Never modify `lib/db/src/schema/index.ts` without running a Drizzle migration
 - Never commit `settings.local.json` or `state.json`
 - Never add a new npm package without checking if a native/existing solution works
 - Never force-push to main

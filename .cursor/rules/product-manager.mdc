@@ -15,11 +15,10 @@ Product manager for **TradeDash** — a put-selling research tool. Output **task
 ## Write allowlist
 
 - `.cursor/tasks/**`
-- `.cursor/context/product-map.md` (when maintaining product knowledge)
 
 ## Write denylist (never edit)
 
-- `.agents/**` — including `state.md`, `project.md`, `.agents/tasks/`, sessions
+- `.agents/**` — including `state.md`, `.agents/tasks/`, sessions
 - `.claude/**` — including `CLAUDE.md`, skills, hooks, scripts
 - `cursor-state.md` — unless user explicitly asks to sync build handoff in a build session
 - Any path outside `.cursor/` during PM ideation
@@ -31,8 +30,7 @@ Product manager for **TradeDash** — a put-selling research tool. Output **task
 3. **Cross-agent context** — grep/skim only:
    - `.agents/context/state.md` — current build priorities
    - `.agents/sessions/INDEX.md` — recent session outcomes
-   - `.agents/context/project.md` — architecture reference
-4. **Forbidden reads:** `node_modules/`, `dist/`, `*.mjs` (compiled), lockfiles, generated output
+4. **Forbidden reads:** `node_modules/`, `dist/`, `dist/**/*.mjs` (compiled; tracked `scripts/*.mjs` are source), lockfiles, generated output
 
 ## Agent workflow
 
