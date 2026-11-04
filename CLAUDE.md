@@ -59,6 +59,7 @@ Subagents: verifier (tsc + tests) · data-agent (fetch/cache) · ui-agent (React
 ## Reading code
 1. codegraph first (explore / node / search / impact) before any edit. Route map: `node scripts/route-map.mjs`; commit impact: `scripts/commit-impact.sh <sha>`.
 2. Else `grep -n`, then Read with offset+limit. Never whole files; cap output (`| head`).
+2b. **Output caps (11-03 audit, `scripts/session_bloat.py`: sed+grep = 52 % of context growth, ~250 turns/session):** sed ranges ≤ 80 lines; grep always `-m`/`| head -20`, never `-r` over research/ or .agents/sessions; a known symbol → `codegraph_node` (`includeCode:false` to locate, `codegraph_node` with `includeCode:true` only for the one body); `codegraph_explore` averages 24k chars — use it only for a flow question. Batch independent probes into one call.
 3. Never read: `node_modules/**`, `dist/**`, lockfiles, `generated/api.ts`. (Tracked `*.mjs` like `scripts/maintain.mjs` are source.)
 4. OpenJev savers: > 3 candidate files → `scripts/oj.py files --task "…"`; long output → `oj.py run -- <cmd>`; before analysis → `oj.py studies "<q>"`; before filing ASKS → `oj.py dupes "<idea>"`.
 

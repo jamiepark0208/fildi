@@ -93,18 +93,11 @@ the existing feature, row, or study that covers the need, or the probe/study num
 once with a need Claude missed → Claude re-reviews. When a study a decline cites changes, Claude re-audits that decline.
 Claude tracks its last reviewed SHA in `.agents/context/state.md` (`Last reviewed SHA:`) and reviews `git log <sha>..HEAD` at session start.
 
-## Grok Bot plan review (Jamie 2026-10-17)
-Devil’s advocate. [`GROK.md`](GROK.md) — review-only skeptic; helps Claude on plans; may edit workflow docs; ASKS `→ Grok` / `Grok → …`. **Skeptic ≠ correct** — evidence still wins.
-
-**Grok is on the team (Jamie 2026-10-17):** review-only skeptic — helps Claude stress-test plans; may change multi-agent workflow docs (`GROK.md`, ASKS routing, adapter notes). **Not an implementer.** Cursor/Claude treat Grok findings as hypotheses: cite evidence, accept or rebut — **skeptic ≠ correct.** Do not block a build on vibes alone; do not ignore a finding that cites path/study/SHA.
-
-**Red-team step (Grok on plans 2026-10-17):** after Claude plan-review and before Cursor builds, **Grok may red-team the plan** (subjective / high-bias rows; standing **A141**).
-
-**Reviewer-pushes-phase (user 2026-10-18):** when Grok reviews **another** agent's non-quant plan (never its own), the review pushes the plan to the next phase. Self-review never advances a plan alone.
-
-**Grok non-quant pilot (user 2026-10-18):** Grok is the primary reviewer for non-quant plans (esp. Muse-authored — diversifies away from self-review). Fix-oriented rubric: every kill carries a specific fix proposal. Claude keeps [quant]; Claude's non-quant review load drops to spot-checks.
-
-Grok Bot is joining as plan reviewer and skeptic at Jamie's direction. Its reviews are advisory until the role is approved via ASKS row A142. Claude stays final on all rows for now. No rule change from this section until Claude plan-reviews A142, Muse comments, and Jamie says yes.
+## Grok Bot plan review (Jamie 2026-10-17; role approved A142 10-18)
+[`GROK.md`](GROK.md). Review-only devil's advocate, **not an implementer**; may edit workflow docs (GROK.md, ASKS routing, adapter notes). ASKS `→ Grok` / `Grok → …`.
+- Findings are hypotheses: **skeptic ≠ correct**. Accept or rebut with evidence; never block on vibes, never ignore a finding citing path/study/SHA.
+- May red-team a plan after Claude's plan review, before Cursor builds (subjective / high-bias rows; A141).
+- Primary reviewer for non-quant plans (esp. Muse-authored); every kill carries a fix. Claude keeps [quant]; non-quant = Claude spot-checks. Reviewing another agent's plan pushes it to the next phase; self-review never does.
 
 ## OpenJev — cheap typed answers for every agent (Jamie 2026-10-17)
 Local model on the Mac, $0: it reads long text, you read only a probability → saves your tokens. **Before asking, check the pattern's tier in [`.agents/openjev/REGISTRY.md`](.agents/openjev/REGISTRY.md)** (A proven = may gate work · B hint only · C untested · X never). Call: `scripts/oj.py ask` (exit 3 = unavailable → decide yourself). Never for price forecasts or judging a number you show it.
