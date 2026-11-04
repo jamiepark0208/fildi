@@ -9,9 +9,6 @@ import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
-  LineSeries,
-  createSeriesMarkers,
-  type ISeriesMarkersPluginApi,
   ColorType,
   CrosshairMode,
   type AutoscaleInfo,
@@ -30,7 +27,11 @@ import {
 import { EntryCell, type EntrySignal } from "@/components/live/hotlist-table";
 import { formatVolume } from "@/components/live/live-format";
 import { TradingViewAdvancedChart } from "@/components/live/tradingview-advanced-chart";
-import { regimeOdds, superTrend, utBot, type OHLC } from "@/lib/tv-intraday";
+import { regimeOdds, type OHLC } from "@/lib/tv-intraday";
+import { IndicatorMenu } from "@/components/charts/indicator-menu";
+import { TvIndicatorLayer } from "@/components/charts/tv-indicator-layer";
+import { TV_INDICATORS, TV_INDICATOR_BY_ID, TF_MINUTES, resample, type TvIndicatorId, type TvTimeframe } from "@/lib/tv-indicators";
+import { etClock } from "@/lib/tv-indicators/resample";
 
 /** Keep chart failures off the Live route ErrorBoundary. */
 class ChartIsolate extends Component<
@@ -353,7 +354,7 @@ function RegimeSessionChartInner({
     return { seriesData: out, volumeData: vols, orHigh: orH, orLow: orL };
   }, [bars, openSec, closeSec]);
 
-  /** UT Bot buy/sell + SuperTrend on all fetched 5m bars (prior session warms ATR); only completed session bars shown. */
+  /** Completed 5m bars (all fetched sessions warm the indicators) + the UT regime odds; the Indicators menu draws from `ser`. */
   const tvOverlay = useMemo(() => {
     const nowSec = Math.floor(Date.now() / 1000);
     const bySec = new Map<number, OHLC & { volume: number }>();
@@ -379,28 +380,54 @@ function RegimeSessionChartInner({
     fromFeed(histBars, false);
     fromFeed(bars, true);
     const ser = [...bySec.values()].sort((a, b) => a.time - b.time);
-    const inSession = (t: number) => t >= openSec && t <= closeSec;
-    const ut = utBot(ser);
-    const st = superTrend(ser);
     const odds = regimeOdds(ser, ser.map((b) => b.volume));
-    const stLine = ser
-      .map((b, i) => ({ b, i }))
-      .filter(({ b, i }) => inSession(b.time) && Number.isFinite(st.line[i]))
-      .map(({ b, i }) => ({ time: b.time as UTCTimestamp, value: st.line[i], color: st.dir[i] > 0 ? "#22c55e" : "#ef4444" }));
-    const marks = ut.signals
-      .filter((s) => inSession(s.time))
-      .map((s) => ({
-        time: s.time as UTCTimestamp,
-        position: s.side === "buy" ? ("belowBar" as const) : ("aboveBar" as const),
-        shape: s.side === "buy" ? ("arrowUp" as const) : ("arrowDown" as const),
-        color: s.side === "buy" ? "#22c55e" : "#ef4444",
-        text: s.side === "buy" ? "Buy" : "Sell",
-        size: 1,
-      }));
     const sessions = new Set(ser.map((b) => Math.floor((b.time - openSec) / 86400))).size;
-    return { stLine, marks, now: odds.now, notes: odds.notes, sessions };
+    return { ser, now: odds.now, notes: odds.notes, sessions };
   }, [bars, histBars, openSec, closeSec]);
-  const [showTv, setShowTv] = useState(true);
+
+  /** Indicators menu: selection + compute timeframe are remembered per chart (localStorage, never required). */
+  const [enabled, setEnabled] = useState<Set<TvIndicatorId>>(() => {
+    const ids = new Set(TV_INDICATORS.map((x) => x.id));
+    try {
+      const raw = localStorage.getItem("live.chartIndicators");
+      if (raw) return new Set((JSON.parse(raw) as string[]).filter((x): x is TvIndicatorId => ids.has(x as TvIndicatorId)));
+    } catch { /* ignore */ }
+    return new Set<TvIndicatorId>(["ut", "st"]);
+  });
+  const [tf, setTf] = useState<TvTimeframe>(() => {
+    try {
+      const v = localStorage.getItem("live.chartIndicatorTf");
+      if (v === "5m" || v === "15m" || v === "1h") return v;
+    } catch { /* ignore */ }
+    return "5m";
+  });
+  const toggleIndicator = (id: string) => setEnabled((prev) => {
+    const next = new Set(prev);
+    if (next.has(id as TvIndicatorId)) next.delete(id as TvIndicatorId);
+    else next.add(id as TvIndicatorId);
+    try { localStorage.setItem("live.chartIndicators", JSON.stringify([...next])); } catch { /* ignore */ }
+    return next;
+  });
+  const pickTf = (v: TvTimeframe) => {
+    setTf(v);
+    try { localStorage.setItem("live.chartIndicatorTf", v); } catch { /* ignore */ }
+  };
+  const showTv = enabled.has("ut");
+  /** Only enabled indicators compute; resampled buckets still forming are dropped (a flip could undo). */
+  const tvInd = useMemo(() => {
+    if (!enabled.size) return null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    let src: Array<OHLC & { volume?: number }> = tvOverlay.ser;
+    let times = src.map((b) => b.time);
+    if (tf !== "5m") {
+      const rs = resample(src, TF_MINUTES[tf]!).filter((b) => b.end <= nowSec || etClock(b.lastTime)[1] + 5 >= 16 * 60);
+      src = rs;
+      times = rs.map((b) => b.lastTime);
+    }
+    const items = TV_INDICATORS.filter((x) => enabled.has(x.id)).map((ind) => ({ ind, res: ind.compute(src) }));
+    return { items, times };
+  }, [enabled, tf, tvOverlay.ser]);
+  const subPaneCount = TV_INDICATORS.filter((x) => enabled.has(x.id) && x.pane === "sub").length;
   const [tvView, setTvView] = useState<boolean>(() => {
     try { return localStorage.getItem("live.chartView") === "tv"; } catch { return false; }
   });
@@ -483,8 +510,7 @@ function RegimeSessionChartInner({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const stRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const utMarksRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const layerRef = useRef<TvIndicatorLayer | null>(null);
   /** Candle OHLC only — OR lines / volume must not stretch the left price scale. */
   const candlesRef = useRef<Array<{ high: number; low: number }>>([]);
   const vertMarksRef = useRef(vertMarks);
@@ -664,20 +690,10 @@ function RegimeSessionChartInner({
       scaleMargins: { top: 0.08, bottom: 0.28 },
     });
 
-    const st = chart.addSeries(LineSeries, {
-      priceScaleId: "left",
-      lineWidth: 2,
-      lastValueVisible: false,
-      priceLineVisible: false,
-      crosshairMarkerVisible: false,
-      autoscaleInfoProvider: () => null, // SuperTrend must not stretch the candle domain
-    });
-
     chartRef.current = chart;
     seriesRef.current = series;
     volumeRef.current = volume;
-    stRef.current = st;
-    utMarksRef.current = createSeriesMarkers(series, []);
+    layerRef.current = new TvIndicatorLayer(chart, series, "left");
 
     const onRange = () => drawOverlay();
     const onCrosshair = (param: MouseEventParams<Time>) => {
@@ -702,23 +718,25 @@ function RegimeSessionChartInner({
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
       chart.timeScale().unsubscribeVisibleTimeRangeChange(onRange);
       chart.unsubscribeCrosshairMove(onCrosshair);
+      layerRef.current?.destroy();
+      layerRef.current = null;
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
       volumeRef.current = null;
-      stRef.current = null;
-      utMarksRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     try {
-      stRef.current?.setData(showTv ? (tvOverlay.stLine as any) : []);
-      utMarksRef.current?.setMarkers(showTv ? tvOverlay.marks : []);
+      layerRef.current?.render(tvInd?.items ?? [], tvInd?.times ?? [], {
+        keep: (t) => t >= openSec && t <= closeSec,
+        stepSec: TF_MINUTES[tf]! * 60,
+      });
     } catch {
       /* overlay only — never break the candles */
     }
-  }, [tvOverlay, showTv, seriesData]);
+  }, [tvInd, tf, openSec, closeSec, seriesData]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -842,17 +860,31 @@ function RegimeSessionChartInner({
               {symbol}
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => setShowTv((v) => !v)}
-            className={cn(
-              "px-2 py-0.5 text-[10px] font-mono font-semibold rounded border",
-              showTv ? "border-[#d4af37]/60 bg-[#d4af37]/15 text-amber-50" : "border-[#d4af37]/25 text-amber-50/50",
-            )}
-            title="UT Bot buy/sell arrows (ATR 10 × 1) + SuperTrend line (ATR 10 × 3), TradingView default settings on these 5-min bars. Completed bars only. Display, not a tested edge: intraday UT turns did not improve put-sale timing (S108) and no intraday direction rule beat the base rate (S124)."
-          >
-            UT/ST
-          </button>
+          <IndicatorMenu
+            compact
+            items={TV_INDICATORS.map((x) => ({ id: x.id, label: x.label, title: x.title }))}
+            active={enabled}
+            onToggle={toggleIndicator}
+            header={
+              <div className="flex items-center gap-1 px-1 pb-1.5" title="Indicators compute on bars resampled from the 5m feed, anchored at the 09:30 ET open. Completed bars only.">
+                <span className="text-[9px] uppercase tracking-wide text-amber-100/70 mr-1">Compute on</span>
+                {(["5m", "15m", "1h"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => pickTf(v)}
+                    className={cn(
+                      "px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded border",
+                      tf === v ? "border-[#d4af37]/60 bg-[#d4af37]/15 text-amber-50" : "border-zinc-700 text-amber-50/60 hover:text-amber-50",
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            }
+            footer={<p className="px-1 pt-1.5 text-[9px] leading-snug text-amber-100/60">TradingView default inputs. Display only: intraday UT turns did not improve put-sale timing (S108); no intraday direction rule beat the base rate (S124).</p>}
+          />
           <button
             type="button"
             onClick={toggleTvView}
@@ -896,7 +928,7 @@ function RegimeSessionChartInner({
         );
       })()}
 
-      <div className={cn("relative h-[248px]", tvView && "hidden")}>
+      <div className={cn("relative", tvView && "hidden")} style={{ height: 248 + subPaneCount * 88 }}>
         {isLoading && (
           <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-amber-100 font-mono bg-zinc-950/80">
             Loading {symbol}…
@@ -913,15 +945,25 @@ function RegimeSessionChartInner({
           </p>
         )}
         <div ref={containerRef} className="absolute inset-0" />
-        {showTv && hoverSec != null && tvOverlay.notes.get(hoverSec) && (() => {
-          const note = tvOverlay.notes.get(hoverSec)!;
+        {!tvView && hoverSec != null && (() => {
+          // UT odds notes are keyed to 5m signals; other events show their own facts.
+          const note = showTv && tf === "5m" ? tvOverlay.notes.get(hoverSec) : undefined;
+          const facts = (layerRef.current?.noteAt(hoverSec) ?? []).filter((f) => !(note && f.startsWith(`${TV_INDICATOR_BY_ID.ut.label}:`)));
+          if (!note && !facts.length) return null;
           return (
             <div className="absolute left-14 top-1 z-20 max-w-[300px] rounded border border-[#d4af37]/40 bg-black/90 px-2 py-1 text-[10px] font-mono leading-snug pointer-events-none">
-              <div className={note.side === "buy" ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
-                UT {note.side === "buy" ? "Buy" : "Sell"} {formatPtHmm(note.time * 1000)}
-              </div>
-              {note.lines.map((l) => (
-                <div key={l} className="text-amber-50/90">{l}</div>
+              {note && (
+                <>
+                  <div className={note.side === "buy" ? "text-green-400 font-semibold" : "text-red-400 font-semibold"}>
+                    UT {note.side === "buy" ? "Buy" : "Sell"} {formatPtHmm(note.time * 1000)}
+                  </div>
+                  {note.lines.map((l) => (
+                    <div key={l} className="text-amber-50/90">{l}</div>
+                  ))}
+                </>
+              )}
+              {facts.map((f) => (
+                <div key={f} className="text-amber-50/90">{f}</div>
               ))}
             </div>
           );

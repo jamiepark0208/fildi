@@ -1,8 +1,13 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getGetStockHistoryQueryOptions, getGetStockHistoryQueryKey, StockMetrics } from "@workspace/api-client-react";
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { StockMetrics } from "@workspace/api-client-react";
+import { Loader2, AlertCircle, RefreshCw, Settings } from "lucide-react";
+import { sessionOpenMs } from "@/components/live/regime-session-chart";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { STOCK_COLORS } from "./stock-cards";
+import { IndicatorMenu } from "@/components/charts/indicator-menu";
+import { TvIndicatorLayer, type LayerItem } from "@/components/charts/tv-indicator-layer";
+import { TV_INDICATORS, type TvBar, type TvIndicatorId } from "@/lib/tv-indicators";
 import {
   createChart, createSeriesMarkers, LineSeries, CandlestickSeries, HistogramSeries,
   ColorType, LineStyle, CrosshairMode,
@@ -77,12 +82,27 @@ type LWVolume = { time: UTCTimestamp; value: number; color: string };
 
 const PERIODS: Period[] = ["1D", "1W", "1M", "3M", "1Y"];
 
+const BAR_CHOICES: Record<Period, string[]> = {
+  "1D": ["1m", "5m", "15m"],
+  "1W": ["15m", "30m", "1h"],
+  "1M": ["1h", "1d"],
+  "3M": ["1d"],
+  "1Y": ["1d"],
+};
+
+function defaultBar(period: Period): string {
+  if (period === "1D") return "5m";
+  if (period === "1W" || period === "1M") return "1h";
+  return "1d";
+}
+
 function toUnixTime(dateStr: string): UTCTimestamp {
   return Math.floor(new Date(dateStr).getTime() / 1000) as UTCTimestamp;
 }
 
 /** US equity session clock — never browser-local (UTC/PT machines misread as “future ET”). */
 const ET = "America/New_York";
+const PT = "America/Los_Angeles";
 
 function formatEtTime(d: Date, withDate: boolean): string {
   const time = d.toLocaleTimeString("en-US", {
@@ -161,7 +181,9 @@ function computeMACD(closes: number[]): {
   return { macd, signal, hist };
 }
 
-type IndicatorId = "em" | "ema" | "rsi" | "macd" | "session" | "ict";
+/** RSI / MACD keep this chart's own sub-pane code; the rest come from the shared TradingView ports. */
+type TvExtraId = Exclude<TvIndicatorId, "rsi" | "macd">;
+type IndicatorId = "em" | "ema" | "rsi" | "macd" | "session" | "ict" | TvExtraId;
 
 const INDICATOR_META: { id: IndicatorId; label: string; title: string; on: string }[] = [
   { id: "em", label: "EM", title: "IV expected move: ±1σ corridor around each close (1-week sky, 30-day violet). Width from today’s ATM put IV — not a moving average.", on: "border-sky-400/70 bg-zinc-900 text-white" },
@@ -170,6 +192,8 @@ const INDICATOR_META: { id: IndicatorId; label: string; title: string; on: strin
   { id: "macd", label: "MACD", title: "MACD(12,26,9) line / signal / histogram sub-pane.", on: "border-emerald-400/70 bg-zinc-900 text-white" },
   { id: "session", label: "Session", title: "Today’s VWAP + volume-profile POC / VAH / VAL (5m).", on: "border-pink-400/70 bg-zinc-900 text-white" },
   { id: "ict", label: "ICT", title: "Fair-value gaps, liquidity sweeps, BOS, supply/demand (display only).", on: "border-cyan-400/70 bg-zinc-900 text-white" },
+  ...TV_INDICATORS.filter((x) => x.id !== "rsi" && x.id !== "macd")
+    .map((x) => ({ id: x.id as IndicatorId, label: x.label, title: x.title, on: "border-[#d4af37]/70 bg-zinc-900 text-white" })),
 ];
 
 /** Marker abbreviations → hover copy */
@@ -247,13 +271,22 @@ interface LightweightPriceChartProps {
   vwap?: LWPoint[] | null;
   rsi?: LWPoint[] | null;
   macd?: { macd: LWPoint[]; signal: LWPoint[]; hist: LWVolume[] } | null;
+  /** Shared TradingView indicator results (UT/SuperTrend/Ichimoku/LSH/Squeeze/MSO), aligned to the candle times. */
+  tvInd?: { items: LayerItem[]; times: number[]; stepSec: number } | null;
   onHover?: (h: ChartHover | null) => void;
 }
 
 function formatTickTime(time: Time, period: Period): string {
   const d = new Date((time as number) * 1000);
   if (period === "1D") {
-    return d.toLocaleTimeString("en-US", { timeZone: ET, hour: "numeric", minute: "2-digit" });
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: PT, hour: "numeric", minute: "2-digit", hour12: true,
+    }).formatToParts(d);
+    const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+    if (minute !== "00" && minute !== "30") return "";
+    const hour = parts.find((p) => p.type === "hour")?.value ?? "";
+    const dayPeriod = parts.find((p) => p.type === "dayPeriod")?.value ?? "";
+    return `${hour}:${minute} ${dayPeriod}`.trim();
   }
   if (period === "1Y") {
     return d.toLocaleDateString("en-US", { timeZone: ET, month: "numeric", year: "2-digit" });
@@ -263,13 +296,16 @@ function formatTickTime(time: Time, period: Period): string {
 
 function formatHoverTime(time: Time, period: Period): string {
   const d = new Date((time as number) * 1000);
-  if (period === "1D") return formatEtTime(d, false);
+  if (period === "1D") {
+    const time = d.toLocaleTimeString("en-US", { timeZone: PT, hour: "numeric", minute: "2-digit" });
+    return `${time} PT`;
+  }
   if (period === "1W" || period === "1M") return formatEtTime(d, true);
   return d.toLocaleDateString("en-US", { timeZone: ET, month: "numeric", day: "numeric" });
 }
 
 /** Imperative lightweight-charts canvas — created once and updated in place, rather than re-mounted on every render. */
-function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines, overlays, candles, volumes, vwap, rsi, macd, onHover }: LightweightPriceChartProps) {
+function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, markers, priceLines, overlays, candles, volumes, vwap, rsi, macd, tvInd, onHover }: LightweightPriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
@@ -286,6 +322,9 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
     paneIndex: number | null;
   }>({ line: null, signal: null, hist: null, paneIndex: null });
   const rsiPaneIndexRef = useRef<number | null>(null);
+  const tvLayerRef = useRef<{ layer: TvIndicatorLayer; candle: ISeriesApi<"Candlestick"> } | null>(null);
+  /** Skip pane rebuild when RSI/MACD data is the same array with a new identity. */
+  const paneSigRef = useRef("");
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLineHandlesRef = useRef<IPriceLine[]>([]);
   const candlesRef = useRef<LWCandle[] | null>(null);
@@ -309,8 +348,8 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "rgba(232,213,163,0.95)",
-        fontSize: 9,
+        textColor: "rgba(255,255,255,0.95)",
+        fontSize: 12,
         fontFamily: "ui-monospace, monospace",
       },
       grid: {
@@ -319,7 +358,7 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { visible: false, borderVisible: false },
-      leftPriceScale: { visible: true, borderVisible: false },
+      leftPriceScale: { visible: true, borderVisible: false, minimumWidth: 32 },
       timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
       // Explicit — nested overflow parents + Lenis otherwise steal wheel/drag.
       handleScroll: {
@@ -397,6 +436,10 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
           break;
         }
       }
+      if (!h.mark) {
+        const facts = tvLayerRef.current?.layer.noteAt(tSec);
+        if (facts?.length) h.mark = facts.join(" · ");
+      }
       if (h.c == null && h.o == null && h.ema50 == null && !h.mark) {
         emit?.(null);
         return;
@@ -417,7 +460,9 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       emaSeriesRef.current = { ema50: null, ema200: null };
       rsiRef.current = null;
       rsiPaneIndexRef.current = null;
+      paneSigRef.current = "";
       macdRefs.current = { line: null, signal: null, hist: null, paneIndex: null };
+      tvLayerRef.current = null;
       markersApiRef.current = null;
       priceLineHandlesRef.current = [];
     };
@@ -554,7 +599,19 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
       }
 
       if (viewChanged || savedRange == null) {
-        try { ts.fitContent(); } catch { /* empty scale mid-swap */ }
+        try {
+          if (period === "1D") {
+            const open = Math.floor(sessionOpenMs() / 1000);
+            const last = (candlesRef.current ?? []).reduce((m, c) => Math.max(m, c.time as number), 0);
+            if (last >= open - 3600) {
+              ts.setVisibleRange({ from: open as UTCTimestamp, to: (open + 390 * 60) as UTCTimestamp });
+            } else {
+              ts.fitContent();
+            }
+          } else {
+            ts.fitContent();
+          }
+        } catch { try { ts.fitContent(); } catch { /* empty scale mid-swap */ } }
         // Re-enable Y auto-scale after period change (user drag locks the scale otherwise).
         chart.priceScale("left").applyOptions({ autoScale: true });
       } else {
@@ -659,87 +716,121 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
     const chart = chartRef.current;
     if (!chart) return;
 
-    const clearRsi = () => {
+    const rsiSig = rsi?.length
+      ? `${rsi.length}|${rsi[0]!.time}|${rsi[rsi.length - 1]!.time}|${rsi[rsi.length - 1]!.value}`
+      : "";
+    const macdSig = macd?.macd.length
+      ? `${macd.macd.length}|${macd.macd[macd.macd.length - 1]!.time}|${macd.hist.length}`
+      : "";
+    const paneSig = `${rsiSig}#${macdSig}`;
+    const panesLive = (!rsiSig || rsiRef.current != null) && (!macdSig || macdRefs.current.line != null);
+    if (paneSig === paneSigRef.current && panesLive) return;
+    paneSigRef.current = paneSig;
+
+    const clearOsc = () => {
+      // Pane indexes shift when the shared TradingView sub-panes come and go — read the live one.
+      let liveIdx: number | null = null;
+      try { liveIdx = (rsiRef.current ?? macdRefs.current.line)?.getPane().paneIndex() ?? null; } catch { /* gone */ }
       if (rsiRef.current) {
         chart.removeSeries(rsiRef.current);
         rsiRef.current = null;
       }
-      if (rsiPaneIndexRef.current != null) {
-        try { chart.removePane(rsiPaneIndexRef.current); } catch { /* gone */ }
-        rsiPaneIndexRef.current = null;
-      }
-    };
-    const clearMacd = () => {
       const m = macdRefs.current;
       if (m.line) { chart.removeSeries(m.line); m.line = null; }
       if (m.signal) { chart.removeSeries(m.signal); m.signal = null; }
       if (m.hist) { chart.removeSeries(m.hist); m.hist = null; }
-      if (m.paneIndex != null) {
-        try { chart.removePane(m.paneIndex); } catch { /* gone */ }
-        m.paneIndex = null;
+      const idx = liveIdx;
+      if (idx != null) {
+        try { chart.removePane(idx); } catch { /* gone */ }
       }
+      rsiPaneIndexRef.current = null;
+      m.paneIndex = null;
     };
 
-    // Tear down then rebuild in order (RSI pane, then MACD pane).
-    clearMacd();
-    clearRsi();
+    // One shared sub-pane so RSI and MACD don't each steal a candle row.
+    clearOsc();
 
-    if (rsi && rsi.length > 0) {
-      const pane = chart.addPane(true);
-      rsiPaneIndexRef.current = pane.paneIndex();
-      pane.setHeight(72);
-      rsiRef.current = chart.addSeries(LineSeries, {
-        color: "#a78bfa",
-        lineWidth: 1,
-        lastValueVisible: true,
-        priceLineVisible: false,
-        priceFormat: { type: "price", precision: 1, minMove: 0.1 },
-      }, rsiPaneIndexRef.current);
-      try {
-        chart.priceScale("right", rsiPaneIndexRef.current).applyOptions({
-          scaleMargins: { top: 0.1, bottom: 0.1 },
-          borderVisible: false,
-        });
-      } catch { /* scale id varies by pane */ }
-      rsiRef.current.setData(rsi);
-    }
-
-    if (macd && macd.macd.length > 0) {
+    const wantRsi = !!(rsi && rsi.length > 0);
+    const wantMacd = !!(macd && macd.macd.length > 0);
+    if (wantRsi || wantMacd) {
       const pane = chart.addPane(true);
       const idx = pane.paneIndex();
-      pane.setHeight(80);
+      pane.setHeight(76);
+      rsiPaneIndexRef.current = idx;
       macdRefs.current.paneIndex = idx;
-      macdRefs.current.hist = chart.addSeries(HistogramSeries, {
-        priceScaleId: "macd",
-        lastValueVisible: false,
-        priceLineVisible: false,
-        priceFormat: { type: "price", precision: 3, minMove: 0.001 },
-      }, idx);
-      macdRefs.current.line = chart.addSeries(LineSeries, {
-        color: "#38bdf8",
-        lineWidth: 1,
-        lastValueVisible: false,
-        priceLineVisible: false,
-        priceScaleId: "macd",
-      }, idx);
-      macdRefs.current.signal = chart.addSeries(LineSeries, {
-        color: "#fbbf24",
-        lineWidth: 1,
-        lastValueVisible: false,
-        priceLineVisible: false,
-        priceScaleId: "macd",
-      }, idx);
-      try {
-        chart.priceScale("macd", idx).applyOptions({
-          scaleMargins: { top: 0.1, bottom: 0.05 },
-          borderVisible: false,
-        });
-      } catch { /* ok */ }
-      macdRefs.current.hist!.setData(macd.hist);
-      macdRefs.current.line!.setData(macd.macd);
-      macdRefs.current.signal!.setData(macd.signal);
+      if (wantRsi) {
+        rsiRef.current = chart.addSeries(LineSeries, {
+          color: "#a78bfa",
+          lineWidth: 1,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          priceScaleId: "rsi",
+          priceFormat: { type: "price", precision: 0, minMove: 1 },
+        }, idx);
+        rsiRef.current.setData(rsi!);
+        try {
+          chart.priceScale("rsi", idx).applyOptions({
+            visible: false,
+            scaleMargins: { top: 0.12, bottom: 0.12 },
+            borderVisible: false,
+          });
+        } catch { /* ok */ }
+      }
+      if (wantMacd) {
+        macdRefs.current.hist = chart.addSeries(HistogramSeries, {
+          priceScaleId: "macd",
+          lastValueVisible: false,
+          priceLineVisible: false,
+          priceFormat: { type: "price", precision: 3, minMove: 0.001 },
+        }, idx);
+        macdRefs.current.line = chart.addSeries(LineSeries, {
+          color: "#38bdf8",
+          lineWidth: 1,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          priceScaleId: "macd",
+        }, idx);
+        macdRefs.current.signal = chart.addSeries(LineSeries, {
+          color: "#fbbf24",
+          lineWidth: 1,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          priceScaleId: "macd",
+        }, idx);
+        try {
+          chart.priceScale("macd", idx).applyOptions({
+            visible: false,
+            scaleMargins: { top: 0.12, bottom: 0.12 },
+            borderVisible: false,
+          });
+        } catch { /* ok */ }
+        macdRefs.current.hist!.setData(macd!.hist);
+        macdRefs.current.line!.setData(macd!.macd);
+        macdRefs.current.signal!.setData(macd!.signal);
+      }
     }
   }, [rsi, macd]);
+
+  // Shared TradingView indicators: overlays + markers on the candle series, sub-panes of their own.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candle = candleRef.current;
+    if (!chart) return;
+    try {
+      if (tvLayerRef.current && tvLayerRef.current.candle !== candle) {
+        tvLayerRef.current.layer.destroy();
+        tvLayerRef.current = null;
+      }
+      if (!candle || !tvInd?.items.length) {
+        tvLayerRef.current?.layer.render([], [], { stepSec: 300 });
+        return;
+      }
+      tvLayerRef.current ??= { layer: new TvIndicatorLayer(chart, candle, "left"), candle };
+      tvLayerRef.current.layer.render(tvInd.items, tvInd.times, { stepSec: tvInd.stepSec });
+    } catch {
+      /* overlay only — never break the candles */
+    }
+  }, [tvInd, candles]);
 
   return (
     <div
@@ -767,7 +858,18 @@ export function PriceChart({
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [barInterval, setBarInterval] = useState<string | null>(null);
+  useEffect(() => { setBarInterval(null); }, [selectedPeriod]);
+  const barChoices = BAR_CHOICES[selectedPeriod];
+  const activeBar = barInterval ?? defaultBar(selectedPeriod);
   const [hover, setHover] = useState<ChartHover | null>(null);
+  const hoverKey = useRef("");
+  const onChartHover = useCallback((h: ChartHover | null) => {
+    const key = h ? `${h.timeLabel}|${h.c ?? ""}|${h.rsi ?? ""}|${h.o ?? ""}|${h.ema50 ?? ""}|${h.mark ?? ""}` : "";
+    if (key === hoverKey.current) return;
+    hoverKey.current = key;
+    setHover(h);
+  }, []);
   /** Clickable indicator tags — EM/EMA on by default for technical chart. */
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorId>>(
     () => new Set<IndicatorId>(["em", "ema"]),
@@ -790,7 +892,14 @@ export function PriceChart({
 
   const queries = useQueries({
     queries: tickers.map((ticker) => ({
-      ...getGetStockHistoryQueryOptions({ ticker, period: selectedPeriod }),
+      queryKey: ["stock-history", ticker, selectedPeriod, barInterval ?? "auto"],
+      queryFn: async () => {
+        const q = new URLSearchParams({ ticker, period: selectedPeriod });
+        if (barInterval) q.set("interval", barInterval);
+        const r = await fetch(`/api/stocks/history?${q}`, { credentials: "include" });
+        if (!r.ok) throw new Error("history failed");
+        return r.json() as Promise<Array<{ date: string; close: number; open: number | null; high: number | null; low: number | null; volume: number | null }>>;
+      },
       staleTime: showTechnicalZones ? Infinity : 5 * 60 * 1000,
       refetchOnWindowFocus: !showTechnicalZones,
     })),
@@ -1135,6 +1244,21 @@ export function PriceChart({
     return { macd: macdPts, signal: signalPts, hist: histPts };
   }, [showTechnicalZones, showMacd, tickers, historyByTicker]);
 
+  /** Shared TradingView ports run on the chart's own bars (only the enabled ones compute). */
+  const tvInd = useMemo(() => {
+    if (!showTechnicalZones || tickers.length !== 1) return null;
+    const ids = TV_INDICATORS.filter((x) => x.id !== "rsi" && x.id !== "macd" && activeIndicators.has(x.id as IndicatorId));
+    if (!ids.length) return null;
+    const bars: TvBar[] = (historyByTicker[tickers[0]!] ?? []).filter((b) => notFutureBar(b.date)).map((b) => {
+      const o = b.open ?? b.close;
+      return { time: toUnixTime(b.date), open: o, high: b.high ?? Math.max(o, b.close), low: b.low ?? Math.min(o, b.close), close: b.close, volume: b.volume ?? 0 };
+    });
+    if (bars.length < 2) return null;
+    const times = bars.map((b) => b.time);
+    const diffs = times.slice(1).map((t, i) => t - times[i]!).sort((a, b) => a - b);
+    return { items: ids.map((ind) => ({ ind, res: ind.compute(bars) })), times, stepSec: diffs[Math.floor(diffs.length / 2)] || 300 };
+  }, [showTechnicalZones, tickers, historyByTicker, activeIndicators]);
+
   const chartSeries = useMemo((): LWSeriesSpec[] => tickers.map((ticker, i) => ({
     ticker,
     color: compact ? "#d4af37" : STOCK_COLORS[i % STOCK_COLORS.length],
@@ -1195,7 +1319,7 @@ export function PriceChart({
       await queryClient.invalidateQueries({ queryKey: ["technicals", techTicker] });
       for (const ticker of tickers) {
         await queryClient.invalidateQueries({
-          queryKey: getGetStockHistoryQueryKey({ ticker, period: selectedPeriod }),
+          queryKey: ["stock-history", ticker, selectedPeriod],
         });
       }
       await queryClient.refetchQueries({ queryKey: ["technicals", techTicker] });
@@ -1225,7 +1349,7 @@ export function PriceChart({
         compact ? "gap-1.5 mb-1" : "gap-4 mb-6",
       )}>
         <div className="flex items-center gap-3 min-w-0">
-          <h2 className={compact ? "text-[11px] font-bold tracking-tight text-white shrink-0" : "text-lg font-bold tracking-tight"}>
+          <h2 className={compact ? "text-[11px] font-semibold tracking-wide text-[#d4af37] shrink-0" : "text-lg font-bold tracking-tight"}>
             Price History
           </h2>
           {isError && (
@@ -1237,26 +1361,12 @@ export function PriceChart({
         </div>
         <div className={cn("flex items-center min-w-0", compact ? "gap-1.5 flex-nowrap overflow-x-auto" : "gap-2")}>
           {showTechnicalZones && techTicker && tickers.length === 1 && (
-            <div className={cn("flex items-center gap-1", compact ? "flex-nowrap shrink-0" : "flex-wrap")}>
-              {INDICATOR_META.map((ind) => {
-                const on = activeIndicators.has(ind.id);
-                const busy = ind.id === "session" && sessionFlowQuery.isFetching;
-                return (
-                  <button
-                    key={ind.id}
-                    type="button"
-                    onClick={() => toggleIndicator(ind.id)}
-                    className={cn(
-                      "text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors shrink-0",
-                      on ? ind.on : "border-zinc-600 bg-zinc-950 text-zinc-300 hover:text-white hover:border-zinc-400",
-                    )}
-                    title={ind.title}
-                  >
-                    {ind.label}{busy ? "…" : ""}
-                  </button>
-                );
-              })}
-            </div>
+            <IndicatorMenu
+              compact={compact}
+              items={INDICATOR_META.map((ind) => ({ id: ind.id, label: ind.label, title: ind.title, busy: ind.id === "session" && sessionFlowQuery.isFetching }))}
+              active={activeIndicators}
+              onToggle={(id) => toggleIndicator(id as IndicatorId)}
+            />
           )}
           {isAdmin && showTechnicalZones && techTicker && (
             <button
@@ -1264,16 +1374,53 @@ export function PriceChart({
               onClick={handleRefresh}
               disabled={refreshing}
               title="Refresh support/resistance levels"
+              aria-label="Refresh support/resistance levels"
               className={cn(
-                "flex items-center gap-1 rounded-md border font-medium disabled:opacity-50 shrink-0",
+                "inline-flex items-center justify-center rounded-md border font-medium disabled:opacity-50 shrink-0",
                 compact
-                  ? "px-1.5 py-0.5 text-[10px] border-zinc-600 bg-zinc-950 text-zinc-200 hover:text-white hover:border-zinc-400"
-                  : "px-2 py-1.5 text-xs border-border/50 text-amber-100 hover:text-foreground hover:bg-secondary/60",
+                  ? "h-5 w-5 border-zinc-600 bg-zinc-950 text-zinc-200 hover:text-white hover:border-zinc-400"
+                  : "h-7 w-7 border-border/50 text-amber-100 hover:text-foreground hover:bg-secondary/60",
               )}
             >
               <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-              Levels
             </button>
+          )}
+          {barChoices.length > 1 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  title={`Candle size ${activeBar}`}
+                  className={cn(
+                    "inline-flex items-center gap-0.5 rounded border border-zinc-600 bg-zinc-950 text-zinc-200 hover:text-white shrink-0",
+                    compact ? "px-1 py-0.5 text-[10px]" : "px-1.5 py-1 text-xs",
+                  )}
+                >
+                  <Settings className="w-3 h-3" />
+                  {activeBar}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-36 p-1.5 bg-zinc-950 border-[#d4af37]/30 text-white">
+                <p className="px-1 pb-1 text-[9px] uppercase tracking-wide text-amber-100/70">Candle size</p>
+                <div className="flex flex-wrap gap-1">
+                  {barChoices.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setBarInterval(id === defaultBar(selectedPeriod) ? null : id)}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded border text-[10px] font-mono",
+                        activeBar === id
+                          ? "border-[#d4af37] text-[#d4af37]"
+                          : "border-zinc-600 text-white hover:border-zinc-400",
+                      )}
+                    >
+                      {id}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           <div className={cn("flex items-center rounded-lg shrink-0", compact ? "bg-black border border-[#d4af37]/20 p-0.5" : "bg-secondary/60 p-1 border border-border/50")}>
             {PERIODS.map(p => (
@@ -1297,8 +1444,20 @@ export function PriceChart({
 
       {/* Compact: fixed one-line key — live values overlay the chart so hover never grows this strip. */}
       {compact && (
-        <div className="shrink-0 h-5 mb-1 flex items-center gap-x-2.5 overflow-x-auto whitespace-nowrap text-[10px] font-semibold tracking-wide [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="inline-flex items-center gap-1 text-[#d4af37]/90" title="Bar OHLC on hover">
+        <div className="shrink-0 h-5 mb-1 flex items-center gap-x-1.5 overflow-x-auto whitespace-nowrap border-b border-[#d4af37]/25 bg-black px-1 text-[10px] font-mono font-semibold [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {hover?.o != null && hover.h != null && hover.l != null && hover.c != null ? (
+            <>
+              <span className={hover.chgPct != null && hover.chgPct >= 0 ? "text-green-400" : "text-red-400"}>O {hover.o.toFixed(2)}</span>
+              <span className="text-sky-300">H {hover.h.toFixed(2)}</span>
+              <span className="text-amber-200">L {hover.l.toFixed(2)}</span>
+              <span className={hover.chgPct != null && hover.chgPct >= 0 ? "text-green-400" : "text-red-400"}>C {hover.c.toFixed(2)}</span>
+              {hover.vol != null && <span className="text-[#d4af37]">V {hover.vol}</span>}
+              {showRsi && hover.rsi != null && <span className="text-violet-300">RSI {hover.rsi.toFixed(0)}</span>}
+              {hover.mark != null && <span className="text-rose-300">{hover.mark}</span>}
+            </>
+          ) : null}
+          {!(hover?.o != null && hover.h != null && hover.l != null && hover.c != null) && (<>
+          <span className="inline-flex items-center gap-1 text-[#d4af37]">
             Price
           </span>
           {showEm && ivBand?.weekFrac != null && (
@@ -1332,6 +1491,7 @@ export function PriceChart({
             <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
             L·SL·SH
           </span>
+          </>)}
         </div>
       )}
 
@@ -1454,46 +1614,6 @@ export function PriceChart({
           ? "flex-1"
           : (showRsi || showMacd ? "h-[420px]" : "h-[320px]"),
       )}>
-        {/* Hover readout floats over the canvas — never changes header/legend height. */}
-        {compact && hover && (hover.o != null || hover.c != null || hover.ema50 != null || hover.mark) && (
-          <div className="pointer-events-none absolute top-1 left-1 z-20 max-w-[calc(100%-4.5rem)] rounded border border-[#d4af37]/25 bg-zinc-950/90 px-1.5 py-0.5 text-[10px] font-mono tabular-nums shadow-md leading-snug">
-            <span className="text-[#d4af37] font-semibold">{hover.timeLabel ?? "—"}</span>
-            {hover.o != null && hover.h != null && hover.l != null && hover.c != null && (
-              <span className="ml-1.5 text-white">
-                {hover.o.toFixed(2)}
-                <span className="text-amber-100/35 mx-0.5">/</span>
-                {hover.h.toFixed(2)}
-                <span className="text-amber-100/35 mx-0.5">/</span>
-                {hover.l.toFixed(2)}
-                <span className="text-amber-100/35 mx-0.5">/</span>
-                <span className={hover.chgPct != null && hover.chgPct >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                  {hover.c.toFixed(2)}
-                </span>
-                {hover.chgPct != null && (
-                  <span className={cn("ml-1", hover.chgPct >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                    {hover.chgPct >= 0 ? "+" : ""}{hover.chgPct.toFixed(1)}%
-                  </span>
-                )}
-                {hover.vol != null && <span className="ml-1 text-amber-100/80">V {hover.vol}</span>}
-              </span>
-            )}
-            {showEm && hover.c != null && ivBand?.weekFrac != null && (
-              <span className="ml-1.5 text-sky-300">1w±{(hover.c * ivBand.weekFrac).toFixed(2)}</span>
-            )}
-            {showEma && hover.ema50 != null && (
-              <span className="ml-1.5 text-[#fde047]">50 {hover.ema50.toFixed(2)}</span>
-            )}
-            {showEma && hover.ema200 != null && (
-              <span className="ml-1 text-[#fb923c]">200 {hover.ema200.toFixed(2)}</span>
-            )}
-            {showRsi && hover.rsi != null && (
-              <span className="ml-1.5 text-violet-300">RSI {hover.rsi.toFixed(0)}</span>
-            )}
-            {hover.mark != null && (
-              <span className="ml-1.5 text-rose-300">{hover.mark}</span>
-            )}
-          </div>
-        )}
         {isLoading && !hasAnyData ? (
           <div className="absolute inset-0 flex items-center justify-center bg-card/50 backdrop-blur-sm z-10 rounded-lg border border-border/50">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -1516,7 +1636,8 @@ export function PriceChart({
             vwap={ohlcv.vwap}
             rsi={rsiSeries}
             macd={macdSeries}
-            onHover={setHover}
+            tvInd={tvInd}
+            onHover={onChartHover}
           />
         )}
       </div>
