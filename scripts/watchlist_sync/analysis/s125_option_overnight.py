@@ -146,12 +146,17 @@ def load_pairs(conn) -> list[dict]:
     cols = ["t", "occ", "strike", "expiry", "date", "oo", "oc", "vol", "so", "sc", "iv", "dte", "sig"]
     for r in rows:
         by[r[1]].append(dict(zip(cols, r)))
+    # Consecutive TRADING days only (Claude 11-03): the per-day σ/volume filter drops days, so ≤ 5 calendar days let
+    # 06-18 → 06-23 pair across the whole 06-22 session (LRCX) and count it as "overnight".
+    tds = sorted({r[0] for r in conn.execute(
+        "SELECT DISTINCT date FROM lseg_research.daily_history WHERE ticker = 'SPY' AND date >= '2024-10-01'").fetchall()})
+    nxt = {d: tds[i + 1] for i, d in enumerate(tds[:-1])}
     out = []
     for occ, xs in by.items():
         xs.sort(key=lambda x: x["date"])
         for i in range(1, len(xs)):
             a, b = xs[i - 1], xs[i]
-            if (b["date"] - a["date"]).days > 5:  # skip long gaps / weekends+holiday ok ≤5
+            if nxt.get(a["date"]) != b["date"]:  # next trading day only
                 continue
             # overnight: prior close → today open; intraday: today open → close
             # short put Δ-hedged seller pnl (per $ of option prior close)
@@ -160,13 +165,10 @@ def load_pairs(conn) -> list[dict]:
             # long-put DH: (oo-ac)/ac - dlt*(so - a.sc)/a.sc ; seller = negative of that
             if a["oc"] <= 0 or a["sc"] <= 0:
                 continue
-            r_opt_on = (b["oo"] - a["oc"]) / a["oc"]
-            r_stk_on = (b["so"] - a["sc"]) / a["sc"]
-            seller_on = -(r_opt_on - dlt * r_stk_on)
-
-            r_opt_in = (b["oc"] - b["oo"]) / b["oo"]
-            r_stk_in = (b["sc"] - b["so"]) / b["so"]
-            seller_in = -(r_opt_in - dlt * r_stk_in)
+            # Hedge in $ (Claude 11-03): Δ × stock $ move, then ÷ option price. Δ × stock % return under-hedged ~S/P times
+            # (LRCX 270P: 0.9 % hedge vs ~100 %) → the first run measured gap direction, not the overnight premium.
+            seller_on = -((b["oo"] - a["oc"]) - dlt * (b["so"] - a["sc"])) / a["oc"]
+            seller_in = -((b["oc"] - b["oo"]) - dlt * (b["sc"] - b["so"])) / b["oo"]
 
             # premium retention proxies (seller keeps more when price falls less): enter at close vs open
             # next-day mid change from entry

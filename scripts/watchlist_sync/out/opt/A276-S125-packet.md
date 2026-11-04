@@ -1,11 +1,10 @@
 # A276 packet — S125 (A188 #1 Muravyev overnight)
-- script: `analysis/s125_option_overnight.py --backfill 65`
-- n_pairs=1291 stock-days=734 names=23
-- seller overnight -3.033% · intraday +0.137% · diff -3.170% · cluster-t -0.82
-- 2024 diff +nan% (t +nan) · 2025→ -3.170% (t -0.82)
-- zero-vol dropped: 0.0% of 28,776 · bid+23% haircut N/A on daily bars
+- script: `analysis/s125_option_overnight.py --backfill 0`
+- n_pairs=1821 stock-days=987 names=34
+- seller overnight +3.686% · intraday +3.457% · diff +0.230% · cluster-t +0.16
+- 2024 diff +3.326% (t +0.19) · 2025→ +0.211% (t +0.15)
+- zero-vol dropped: 0.0% of 30,007 · bid+23% haircut N/A on daily bars
 - bar: overnight−intraday>0, cluster-t≥2, same sign 2024 and 2025→
-- hand-check: LRCX 2026-06-23 on -27.905% in -4.807% diff -23.098%
-- surprises: no 2024 o coverage (75 OCCs with o, mostly 2025–26); wrong-sign overnight
+- hand-check: LRCX 2026-06-24 on +26.940% in -20.054% diff +46.994%
 - out: `out/opt/S125.md`
 - cursor_verdict_hint (Claude owns wording): FAIL
