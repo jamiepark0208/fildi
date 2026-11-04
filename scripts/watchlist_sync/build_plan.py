@@ -25,6 +25,7 @@ from build_plan_parts.checks import option_checks, trim_checks
 from build_plan_parts.context import (
     PANIC_MAX_PER_GROUP,
     PANIC_STRATEGY,
+    _settle_offset,  # put_recs.py uses BP._settle_offset
     carry_forward_puts,
     engine_pool_puts,
     load_context,
