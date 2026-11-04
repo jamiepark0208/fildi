@@ -951,12 +951,21 @@ export async function runMergeTrusted() {
         : null;
     applyDerived("ffoProxy", ffoProxy);
 
-    applyStatementGoldPolicies({
+    const { clearedNonUsd } = applyStatementGoldPolicies({
       update,
       provenanceBatch,
       existing: existing as Record<string, unknown> | undefined,
       financialCurrency,
     });
+    // A329: dropping the field from `update` left the old local-currency gold in the DB (TM TBVPS 2956 JPY) — write null.
+    for (const field of clearedNonUsd) {
+      (update as Record<string, number | null>)[field] = null;
+      clearProvenanceFields.push(field);
+      if (existing?.[field] != null) {
+        changedFields.push({ field, from: Number(existing[field]), to: null as unknown as number });
+      }
+      fieldNullCount[field] = (fieldNullCount[field] ?? 0) + 1;
+    }
 
     const negEquityClears = applyNegativeEquityGoldPolicy(
       update as Record<string, unknown>,
