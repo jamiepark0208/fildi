@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -33,11 +34,19 @@ CASH = [
     "CashAndCashEquivalentsAtCarryingValue",
     "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
 ]
+CASH_ST = [
+    "ShortTermInvestments",
+    "MarketableSecuritiesCurrent",
+    "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+]
 DA = ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"]
 OCF = ["NetCashProvidedByUsedInOperatingActivities"]
 CAPEX = ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"]
 MAX_PERIOD_DAYS = 15 * 30
-DEFINITION_FIELDS = {"ebitda", "freeCashFlow", "cashAndEquivalents", "debtToEquity", "netIncome"}
+# Aligned definitions (FIELD_DEFS + gold + truth) — period/ADR mismatches are not "definition".
+DEFINITION_ONLY_FIELDS = {"debtToEquity"}
+FLOW_PERIOD_FIELDS = {"netIncome", "freeCashFlow", "totalRevenue", "ebitda"}
+INSTANT_PERIOD_FIELDS = {"totalStockholdersEquity", "totalDebt", "cashAndEquivalents"}
 
 
 def ok(v, t, field):
@@ -117,7 +126,32 @@ def filer_de_excluded(conn, ticker: str) -> bool:
     return False
 
 
-def miss_cause(row: dict) -> str:
+def sec_cash_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, str]:
+    """Cash + ST investments (net-debt basis; matches FIELD_DEFS cashAndEquivalents)."""
+    cash = audit_instant(facts, CASH, asof, anchor)
+    if not cash:
+        return None, "cash tag missing/stale"
+    st = audit_instant(facts, CASH_ST, asof, anchor)
+    total = cash["value"] + (st["value"] if st else 0.0)
+    ends = cash["end"] if not st else f"{cash['end']}+{st['end']}"
+    return total, f"cash+ST {ends}"
+
+
+def parse_truth_period_end(note: str | None) -> str | None:
+    if not note:
+        return None
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", note)
+    return m.group(1) if m else None
+
+
+def scale_looks_adr(gold: float, truth: float) -> bool:
+    if truth == 0:
+        return False
+    ratio = abs(gold) / max(abs(truth), 1.0)
+    return ratio >= 3.5 or ratio <= 0.29
+
+
+def miss_cause(row: dict, facts: dict | None = None) -> str:
     note = (row.get("note") or "").lower()
     if row.get("truth") is None:
         if "missing" in note or "no us-gaap" in note:
@@ -130,7 +164,23 @@ def miss_cause(row: dict) -> str:
     gold = float(row["gold"])
     truth = float(row["truth"])
     field = row["field"]
-    if field in DEFINITION_FIELDS or "excluded filer" in note:
+    ticker = row.get("ticker", "")
+    truth_end = parse_truth_period_end(row.get("note"))
+    gold_end = row.get("goldPeriodEnd")
+    if truth_end and gold_end and days_apart(truth_end, gold_end) > MAX_PERIOD_DAYS:
+        return "wrong_period"
+    if field in FLOW_PERIOD_FIELDS and note.strip() == "fy":
+        return "wrong_period"
+    if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
+        if facts and ticker:
+            try:
+                adr = F.detect_adr_ratio(facts, None, ticker, truth_end)
+            except Exception:  # noqa: BLE001
+                adr = None
+            if adr and adr > 1:
+                return "definition"
+        return "definition"
+    if field in DEFINITION_ONLY_FIELDS or "excluded filer" in note:
         return "definition"
     rel = abs(gold - truth) / max(abs(gold), abs(truth), 1.0)
     if rel > 0.35:
@@ -202,10 +252,10 @@ def sec_truth(conn, facts, ticker, field):
             return None, "equity tag missing/stale"
         return eq["value"], f"equity {eq['concept']} {eq['end']}"
     if field == "cashAndEquivalents":
-        cash = audit_instant(facts, CASH, asof, anchor)
-        if not cash:
-            return None, "cash tag missing/stale"
-        return cash["value"], f"cash {cash['concept']} {cash['end']}"
+        total, cnote = sec_cash_total(facts, asof, anchor)
+        if total is None:
+            return None, cnote
+        return total, cnote
     if field == "netIncome":
         if ni and ni.get("end") and period_fresh(ni["end"], anchor):
             return ni["value"], f"NI TTM {ni['end']}"
@@ -291,6 +341,7 @@ def main():
                 "truth": truth,
                 "ok": verdict,
                 "note": note,
+                "goldPeriodEnd": c.get("goldPeriodEnd"),
             }
         )
     flagged = cohort_summary(judged, "flagged")
@@ -302,7 +353,7 @@ def main():
             "gold": r["gold"],
             "truth": r["truth"],
             "note": r["note"],
-            "cause": miss_cause(r),
+            "cause": miss_cause({**r, "ticker": r["ticker"]}, cache.get(r["ticker"])),
         }
         for r in judged
         if r.get("cohort") == "clean" and r["truth"] is not None and not r["ok"]

@@ -64,7 +64,13 @@
     {
       "ticker": "AAOI",
       "field": "ebitda",
-      "gold": -32106000,
+      "gold": -15511000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AAOI",
+      "field": "ebitda",
+      "gold": -15511000,
       "cohort": "flagged"
     },
     {
@@ -94,7 +100,7 @@
     {
       "ticker": "ABBV",
       "field": "ebitda",
-      "gold": 30762999808,
+      "gold": 10252000000,
       "cohort": "flagged"
     },
     {
@@ -136,7 +142,13 @@
     {
       "ticker": "ACHR",
       "field": "ebitda",
-      "gold": -905800000,
+      "gold": -709300000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ACHR",
+      "field": "ebitda",
+      "gold": -709300000,
       "cohort": "flagged"
     },
     {
@@ -159,6 +171,12 @@
     },
     {
       "ticker": "ACLS",
+      "field": "ebitda",
+      "gold": 161226000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ACLS",
       "field": "freeCashFlow",
       "gold": 65552000,
       "cohort": "flagged"
@@ -167,6 +185,18 @@
       "ticker": "ACN",
       "field": "totalDebt",
       "gold": 13396989952,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ACN",
+      "field": "ebitda",
+      "gold": 11121441000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ADI",
+      "field": "ebitda",
+      "gold": 3436629000,
       "cohort": "flagged"
     },
     {
@@ -219,6 +249,12 @@
     },
     {
       "ticker": "AEIS",
+      "field": "ebitda",
+      "gold": 244300000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AEIS",
       "field": "freeCashFlow",
       "gold": 69900000,
       "cohort": "flagged"
@@ -261,6 +297,12 @@
     },
     {
       "ticker": "AES",
+      "field": "ebitda",
+      "gold": 2939000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AES",
       "field": "freeCashFlow",
       "gold": -3089125120,
       "cohort": "flagged"
@@ -269,6 +311,12 @@
       "ticker": "AFL",
       "field": "totalDebt",
       "gold": 16176000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AFL",
+      "field": "ebitda",
+      "gold": 4789000000,
       "cohort": "flagged"
     },
     {
@@ -291,6 +339,12 @@
     },
     {
       "ticker": "AFRM",
+      "field": "ebitda",
+      "gold": 1250076000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AFRM",
       "field": "freeCashFlow",
       "gold": 478676736,
       "cohort": "flagged"
@@ -299,6 +353,12 @@
       "ticker": "AGNC",
       "field": "totalRevenue",
       "gold": 1797000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AHR",
+      "field": "ebitda",
+      "gold": 321981000,
       "cohort": "flagged"
     },
     {
@@ -321,6 +381,12 @@
     },
     {
       "ticker": "AIZ",
+      "field": "ebitda",
+      "gold": 1353500000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AIZ",
       "field": "freeCashFlow",
       "gold": 1655600000,
       "cohort": "flagged"
@@ -329,6 +395,12 @@
       "ticker": "AJG",
       "field": "totalDebt",
       "gold": 14106000384,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AJG",
+      "field": "ebitda",
+      "gold": 2716000000,
       "cohort": "flagged"
     },
     {
@@ -357,6 +429,12 @@
     },
     {
       "ticker": "ALAB",
+      "field": "ebitda",
+      "gold": 180252000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALAB",
       "field": "freeCashFlow",
       "gold": 276676000,
       "cohort": "flagged"
@@ -371,6 +449,12 @@
       "ticker": "ALB",
       "field": "netIncome",
       "gold": 57427000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALB",
+      "field": "ebitda",
+      "gold": 314256000,
       "cohort": "flagged"
     },
     {
@@ -392,9 +476,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "ALLE",
+      "field": "totalStockholdersEquity",
+      "gold": 2067600000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "ALLY",
       "field": "totalDebt",
       "gold": 25030000640,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALM",
+      "field": "totalStockholdersEquity",
+      "gold": 463957916,
       "cohort": "flagged"
     },
     {
@@ -412,13 +508,25 @@
     {
       "ticker": "ALNY",
       "field": "ebitda",
-      "gold": 1054537984,
+      "gold": 630579000,
       "cohort": "flagged"
     },
     {
       "ticker": "ALNY",
       "field": "freeCashFlow",
       "gold": 271544256,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALOY",
+      "field": "totalStockholdersEquity",
+      "gold": -5228000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALOY",
+      "field": "totalStockholdersEquity",
+      "gold": -5228000,
       "cohort": "flagged"
     },
     {
@@ -436,7 +544,13 @@
     {
       "ticker": "ALOY",
       "field": "ebitda",
-      "gold": -192359008,
+      "gold": -4022927,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ALOY",
+      "field": "ebitda",
+      "gold": -4022927,
       "cohort": "flagged"
     },
     {
@@ -490,7 +604,7 @@
     {
       "ticker": "AMD",
       "field": "ebitda",
-      "gold": 9562000384,
+      "gold": 4792000000,
       "cohort": "flagged"
     },
     {
@@ -515,6 +629,12 @@
       "ticker": "AMG",
       "field": "netIncome",
       "gold": 716600000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AMG",
+      "field": "ebitda",
+      "gold": 1465000000,
       "cohort": "flagged"
     },
     {
@@ -562,7 +682,7 @@
     {
       "ticker": "AMP",
       "field": "ebitda",
-      "gold": 6256658203,
+      "gold": 4981000000,
       "cohort": "flagged"
     },
     {
@@ -581,6 +701,12 @@
       "ticker": "AMT",
       "field": "netIncome",
       "gold": 2529500000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AMT",
+      "field": "ebitda",
+      "gold": 5503600000,
       "cohort": "flagged"
     },
     {
@@ -633,8 +759,20 @@
     },
     {
       "ticker": "APD",
+      "field": "ebitda",
+      "gold": 1337500000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APD",
       "field": "freeCashFlow",
       "gold": -1497500032,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APG",
+      "field": "ebitda",
+      "gold": 639000000,
       "cohort": "flagged"
     },
     {
@@ -647,6 +785,12 @@
       "ticker": "APH",
       "field": "totalRevenue",
       "gold": 23094700000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APH",
+      "field": "ebitda",
+      "gold": 6890900000,
       "cohort": "flagged"
     },
     {
@@ -670,7 +814,13 @@
     {
       "ticker": "APLD",
       "field": "ebitda",
-      "gold": -124127000,
+      "gold": -84627000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "APLD",
+      "field": "ebitda",
+      "gold": -84627000,
       "cohort": "flagged"
     },
     {
@@ -717,8 +867,20 @@
     },
     {
       "ticker": "AR",
+      "field": "ebitda",
+      "gold": 1723791000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AR",
       "field": "freeCashFlow",
       "gold": 391220736,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARE",
+      "field": "ebitda",
+      "gold": 360450000,
       "cohort": "flagged"
     },
     {
@@ -731,6 +893,12 @@
       "ticker": "ARES",
       "field": "netIncome",
       "gold": 527362000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARES",
+      "field": "ebitda",
+      "gold": 2099553000,
       "cohort": "flagged"
     },
     {
@@ -771,8 +939,20 @@
     },
     {
       "ticker": "ARRY",
+      "field": "totalStockholdersEquity",
+      "gold": -206340000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARRY",
       "field": "netIncome",
       "gold": -147911000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARRY",
+      "field": "ebitda",
+      "gold": 24313000,
       "cohort": "flagged"
     },
     {
@@ -789,8 +969,26 @@
     },
     {
       "ticker": "ARW",
+      "field": "ebitda",
+      "gold": 1070782000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ARW",
       "field": "freeCashFlow",
       "gold": 732857856,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ASML",
+      "field": "totalStockholdersEquity",
+      "gold": 30025458984,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ASND",
+      "field": "totalStockholdersEquity",
+      "gold": 1879501831,
       "cohort": "flagged"
     },
     {
@@ -802,7 +1000,7 @@
     {
       "ticker": "ASTS",
       "field": "totalStockholdersEquity",
-      "gold": 5000004,
+      "gold": 1841475000,
       "cohort": "flagged"
     },
     {
@@ -849,6 +1047,12 @@
     },
     {
       "ticker": "ATI",
+      "field": "ebitda",
+      "gold": 801100000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ATI",
       "field": "freeCashFlow",
       "gold": 421100000,
       "cohort": "flagged"
@@ -868,13 +1072,25 @@
     {
       "ticker": "AVGO",
       "field": "totalStockholdersEquity",
-      "gold": 24941000000,
+      "gold": 81292000000,
       "cohort": "flagged"
     },
     {
       "ticker": "AVGO",
       "field": "netIncome",
       "gold": 23126000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AVGO",
+      "field": "ebitda",
+      "gold": 26513000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AVTR",
+      "field": "ebitda",
+      "gold": 138700000,
       "cohort": "flagged"
     },
     {
@@ -934,13 +1150,25 @@
     {
       "ticker": "AZO",
       "field": "totalStockholdersEquity",
-      "gold": -2502470000,
+      "gold": -3414313000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "AZO",
+      "field": "totalStockholdersEquity",
+      "gold": -3414313000,
       "cohort": "flagged"
     },
     {
       "ticker": "BA",
       "field": "totalDebt",
       "gold": 48462000128,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BA",
+      "field": "ebitda",
+      "gold": 7359000000,
       "cohort": "flagged"
     },
     {
@@ -1001,6 +1229,18 @@
       "ticker": "BAM",
       "field": "totalStockholdersEquity",
       "gold": 3247000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BAP",
+      "field": "totalStockholdersEquity",
+      "gold": 12086731445,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BAX",
+      "field": "ebitda",
+      "gold": 766000000,
       "cohort": "flagged"
     },
     {
@@ -1077,6 +1317,12 @@
     },
     {
       "ticker": "BE",
+      "field": "ebitda",
+      "gold": 20050000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BE",
       "field": "freeCashFlow",
       "gold": 531637504,
       "cohort": "flagged"
@@ -1113,6 +1359,12 @@
     },
     {
       "ticker": "BEN",
+      "field": "ebitda",
+      "gold": 1007000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BEN",
       "field": "freeCashFlow",
       "gold": 231600000,
       "cohort": "flagged"
@@ -1127,6 +1379,12 @@
       "ticker": "BG",
       "field": "totalRevenue",
       "gold": 70329000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BG",
+      "field": "ebitda",
+      "gold": 2465000000,
       "cohort": "flagged"
     },
     {
@@ -1148,6 +1406,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "BIIB",
+      "field": "ebitda",
+      "gold": 2603900000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "BILI",
       "field": "totalRevenue",
       "gold": 30347766000,
@@ -1163,6 +1427,12 @@
       "ticker": "BILI",
       "field": "freeCashFlow",
       "gold": 5319809000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BILL",
+      "field": "ebitda",
+      "gold": 65204000,
       "cohort": "flagged"
     },
     {
@@ -1203,6 +1473,12 @@
     },
     {
       "ticker": "BLK",
+      "field": "ebitda",
+      "gold": 8530000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BLK",
       "field": "freeCashFlow",
       "gold": 7578124800,
       "cohort": "flagged"
@@ -1220,6 +1496,18 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "BMBL",
+      "field": "ebitda",
+      "gold": -792672000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BMBL",
+      "field": "ebitda",
+      "gold": -792672000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "BMNR",
       "field": "totalRevenue",
       "gold": 6095000,
@@ -1228,7 +1516,7 @@
     {
       "ticker": "BMNR",
       "field": "ebitda",
-      "gold": -294062016,
+      "gold": 441878000,
       "cohort": "flagged"
     },
     {
@@ -1282,7 +1570,13 @@
     {
       "ticker": "BNGO",
       "field": "ebitda",
-      "gold": -22873000,
+      "gold": -16503000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BNGO",
+      "field": "ebitda",
+      "gold": -16503000,
       "cohort": "flagged"
     },
     {
@@ -1317,6 +1611,12 @@
     },
     {
       "ticker": "BOX",
+      "field": "totalStockholdersEquity",
+      "gold": -299278000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BOX",
       "field": "totalRevenue",
       "gold": 1177253000,
       "cohort": "flagged"
@@ -1324,7 +1624,7 @@
     {
       "ticker": "BOX",
       "field": "ebitda",
-      "gold": -78840000,
+      "gold": 142335000,
       "cohort": "flagged"
     },
     {
@@ -1358,6 +1658,18 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "BRO",
+      "field": "totalStockholdersEquity",
+      "gold": 12547000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BRO",
+      "field": "ebitda",
+      "gold": 1732000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "BSX",
       "field": "totalDebt",
       "gold": 11029000192,
@@ -1373,6 +1685,12 @@
       "ticker": "BSY",
       "field": "freeCashFlow",
       "gold": 397979616,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BTSG",
+      "field": "ebitda",
+      "gold": 459529000,
       "cohort": "flagged"
     },
     {
@@ -1397,6 +1715,12 @@
       "ticker": "BURL",
       "field": "freeCashFlow",
       "gold": 412538000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "BWA",
+      "field": "ebitda",
+      "gold": 1342000000,
       "cohort": "flagged"
     },
     {
@@ -1472,6 +1796,18 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CACI",
+      "field": "totalStockholdersEquity",
+      "gold": 4462697000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CACI",
+      "field": "ebitda",
+      "gold": 997415000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CAG",
       "field": "totalDebt",
       "gold": 7475100160,
@@ -1479,8 +1815,26 @@
     },
     {
       "ticker": "CAG",
+      "field": "totalStockholdersEquity",
+      "gold": 8932700000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CAG",
       "field": "netIncome",
       "gold": -1916200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CAG",
+      "field": "ebitda",
+      "gold": -1038300000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CAG",
+      "field": "ebitda",
+      "gold": -1038300000,
       "cohort": "flagged"
     },
     {
@@ -1564,7 +1918,19 @@
     {
       "ticker": "CCI",
       "field": "totalStockholdersEquity",
-      "gold": 7089221000,
+      "gold": -1635000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CCI",
+      "field": "totalStockholdersEquity",
+      "gold": -1635000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CCJ",
+      "field": "totalStockholdersEquity",
+      "gold": 5256022949,
       "cohort": "flagged"
     },
     {
@@ -1599,6 +1965,12 @@
     },
     {
       "ticker": "CDE",
+      "field": "ebitda",
+      "gold": 962255000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CDE",
       "field": "freeCashFlow",
       "gold": 1156220000,
       "cohort": "flagged"
@@ -1629,6 +2001,12 @@
     },
     {
       "ticker": "CE",
+      "field": "ebitda",
+      "gold": 241000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CE",
       "field": "freeCashFlow",
       "gold": 708000000,
       "cohort": "flagged"
@@ -1647,6 +2025,12 @@
     },
     {
       "ticker": "CEG",
+      "field": "ebitda",
+      "gold": 4989000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CEG",
       "field": "freeCashFlow",
       "gold": 309000000,
       "cohort": "flagged"
@@ -1659,8 +2043,20 @@
     },
     {
       "ticker": "CELH",
+      "field": "totalStockholdersEquity",
+      "gold": 2941442000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CELH",
       "field": "netIncome",
       "gold": 107999000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CELH",
+      "field": "ebitda",
+      "gold": 203461000,
       "cohort": "flagged"
     },
     {
@@ -1684,7 +2080,13 @@
     {
       "ticker": "CEVA",
       "field": "ebitda",
-      "gold": -5677000,
+      "gold": -7910000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CEVA",
+      "field": "ebitda",
+      "gold": -7910000,
       "cohort": "flagged"
     },
     {
@@ -1772,6 +2174,18 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CHYM",
+      "field": "ebitda",
+      "gold": -1009979000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CHYM",
+      "field": "ebitda",
+      "gold": -1009979000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CI",
       "field": "totalDebt",
       "gold": 30900000768,
@@ -1797,6 +2211,12 @@
     },
     {
       "ticker": "CIEN",
+      "field": "ebitda",
+      "gold": 352184000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CIEN",
       "field": "freeCashFlow",
       "gold": 814362000,
       "cohort": "flagged"
@@ -1817,6 +2237,18 @@
       "ticker": "CIFR",
       "field": "netIncome",
       "gold": -1084445000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CIFR",
+      "field": "ebitda",
+      "gold": -590025000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CIFR",
+      "field": "ebitda",
+      "gold": -590025000,
       "cohort": "flagged"
     },
     {
@@ -1850,6 +2282,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CL",
+      "field": "ebitda",
+      "gold": 3956000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CLF",
       "field": "totalDebt",
       "gold": 7722999808,
@@ -1859,6 +2297,18 @@
       "ticker": "CLF",
       "field": "netIncome",
       "gold": -473000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLF",
+      "field": "ebitda",
+      "gold": -175000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLF",
+      "field": "ebitda",
+      "gold": -175000000,
       "cohort": "flagged"
     },
     {
@@ -1887,6 +2337,18 @@
     },
     {
       "ticker": "CLNE",
+      "field": "ebitda",
+      "gold": -74163000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLNE",
+      "field": "ebitda",
+      "gold": -74163000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLNE",
       "field": "freeCashFlow",
       "gold": 22857000,
       "cohort": "flagged"
@@ -1901,6 +2363,12 @@
       "ticker": "CLS",
       "field": "netIncome",
       "gold": 1245800000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLS",
+      "field": "ebitda",
+      "gold": 1211500000,
       "cohort": "flagged"
     },
     {
@@ -1924,7 +2392,7 @@
     {
       "ticker": "CLSK",
       "field": "ebitda",
-      "gold": -845747968,
+      "gold": 763245000,
       "cohort": "flagged"
     },
     {
@@ -1937,6 +2405,12 @@
       "ticker": "CLX",
       "field": "totalDebt",
       "gold": 5598000128,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CLX",
+      "field": "totalStockholdersEquity",
+      "gold": 90000000,
       "cohort": "flagged"
     },
     {
@@ -1955,6 +2429,12 @@
       "ticker": "CMCSA",
       "field": "totalDebt",
       "gold": 90381000704,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CMCSA",
+      "field": "ebitda",
+      "gold": 46385000000,
       "cohort": "flagged"
     },
     {
@@ -2026,13 +2506,25 @@
     {
       "ticker": "CMPS",
       "field": "ebitda",
-      "gold": -185563008,
+      "gold": -285602000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CMPS",
+      "field": "ebitda",
+      "gold": -285602000,
       "cohort": "flagged"
     },
     {
       "ticker": "CMPS",
       "field": "freeCashFlow",
       "gold": -176799000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CMS",
+      "field": "ebitda",
+      "gold": 3352000000,
       "cohort": "flagged"
     },
     {
@@ -2049,6 +2541,18 @@
     },
     {
       "ticker": "CNC",
+      "field": "ebitda",
+      "gold": -4775000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CNC",
+      "field": "ebitda",
+      "gold": -4775000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CNC",
       "field": "freeCashFlow",
       "gold": 9639624704,
       "cohort": "flagged"
@@ -2057,6 +2561,12 @@
       "ticker": "CNH",
       "field": "netIncome",
       "gold": 311000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CNH",
+      "field": "ebitda",
+      "gold": 2369000000,
       "cohort": "flagged"
     },
     {
@@ -2103,6 +2613,18 @@
     },
     {
       "ticker": "COHU",
+      "field": "ebitda",
+      "gold": -9668000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COHU",
+      "field": "ebitda",
+      "gold": -9668000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COHU",
       "field": "freeCashFlow",
       "gold": 66293124,
       "cohort": "flagged"
@@ -2117,6 +2639,12 @@
       "ticker": "COIN",
       "field": "netIncome",
       "gold": -701621000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COIN",
+      "field": "ebitda",
+      "gold": 1795906000,
       "cohort": "flagged"
     },
     {
@@ -2151,6 +2679,12 @@
     },
     {
       "ticker": "COMP",
+      "field": "ebitda",
+      "gold": 54800000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COMP",
       "field": "freeCashFlow",
       "gold": 128300000,
       "cohort": "flagged"
@@ -2181,6 +2715,12 @@
     },
     {
       "ticker": "COR",
+      "field": "ebitda",
+      "gold": 3729164000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "COR",
       "field": "freeCashFlow",
       "gold": 4060102000,
       "cohort": "flagged"
@@ -2200,7 +2740,13 @@
     {
       "ticker": "CORZ",
       "field": "ebitda",
-      "gold": -78245000,
+      "gold": -155637000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CORZ",
+      "field": "ebitda",
+      "gold": -155637000,
       "cohort": "flagged"
     },
     {
@@ -2234,6 +2780,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "COTY",
+      "field": "ebitda",
+      "gold": 56200000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CPAY",
       "field": "freeCashFlow",
       "gold": 1946175872,
@@ -2260,7 +2812,7 @@
     {
       "ticker": "CPNG",
       "field": "ebitda",
-      "gold": -46000000,
+      "gold": 1200000000,
       "cohort": "flagged"
     },
     {
@@ -2273,6 +2825,12 @@
       "ticker": "CPRT",
       "field": "totalDebt",
       "gold": 88367000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CPRT",
+      "field": "totalStockholdersEquity",
+      "gold": 9097295000,
       "cohort": "flagged"
     },
     {
@@ -2294,6 +2852,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CR",
+      "field": "ebitda",
+      "gold": 494300000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CRBG",
       "field": "totalDebt",
       "gold": 14469999616,
@@ -2303,6 +2867,18 @@
       "ticker": "CRCL",
       "field": "netIncome",
       "gold": 451275000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CRCL",
+      "field": "ebitda",
+      "gold": -25040000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CRCL",
+      "field": "ebitda",
+      "gold": -25040000,
       "cohort": "flagged"
     },
     {
@@ -2330,6 +2906,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CRL",
+      "field": "ebitda",
+      "gold": 410838000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CRM",
       "field": "totalDebt",
       "gold": 42547998720,
@@ -2342,6 +2924,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CRM",
+      "field": "ebitda",
+      "gold": 10117000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CRML",
       "field": "ebitda",
       "gold": -80071104,
@@ -2351,6 +2939,12 @@
       "ticker": "CROX",
       "field": "totalDebt",
       "gold": 1689202048,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CROX",
+      "field": "ebitda",
+      "gold": 240547000,
       "cohort": "flagged"
     },
     {
@@ -2403,6 +2997,12 @@
     },
     {
       "ticker": "CRWV",
+      "field": "ebitda",
+      "gold": 2468000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CRWV",
       "field": "freeCashFlow",
       "gold": -13655000000,
       "cohort": "flagged"
@@ -2421,6 +3021,12 @@
     },
     {
       "ticker": "CSCO",
+      "field": "ebitda",
+      "gold": 13393000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CSCO",
       "field": "freeCashFlow",
       "gold": 12767000000,
       "cohort": "flagged"
@@ -2429,6 +3035,12 @@
       "ticker": "CSGP",
       "field": "netIncome",
       "gold": 179000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "CSGP",
+      "field": "ebitda",
+      "gold": 191000000,
       "cohort": "flagged"
     },
     {
@@ -2486,6 +3098,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "CVS",
+      "field": "ebitda",
+      "gold": 9861000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "CVX",
       "field": "totalDebt",
       "gold": 45427998720,
@@ -2523,6 +3141,12 @@
     },
     {
       "ticker": "DD",
+      "field": "ebitda",
+      "gold": 1160000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DD",
       "field": "freeCashFlow",
       "gold": 383000000,
       "cohort": "flagged"
@@ -2542,7 +3166,7 @@
     {
       "ticker": "DDD",
       "field": "ebitda",
-      "gold": -37150000,
+      "gold": 76265000,
       "cohort": "flagged"
     },
     {
@@ -2552,9 +3176,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "DDOG",
+      "field": "ebitda",
+      "gold": 187280000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "DE",
       "field": "totalDebt",
       "gold": 48473001984,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DE",
+      "field": "ebitda",
+      "gold": 11656000000,
       "cohort": "flagged"
     },
     {
@@ -2589,6 +3225,12 @@
     },
     {
       "ticker": "DELL",
+      "field": "ebitda",
+      "gold": 11852000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DELL",
       "field": "freeCashFlow",
       "gold": 6033375232,
       "cohort": "flagged"
@@ -2618,6 +3260,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "DHR",
+      "field": "ebitda",
+      "gold": 5248000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "DINO",
       "field": "totalRevenue",
       "gold": 34834000000,
@@ -2627,6 +3275,12 @@
       "ticker": "DINO",
       "field": "netIncome",
       "gold": 3501000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DINO",
+      "field": "ebitda",
+      "gold": 1858000000,
       "cohort": "flagged"
     },
     {
@@ -2651,6 +3305,12 @@
       "ticker": "DKNG",
       "field": "netIncome",
       "gold": -166902000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DKNG",
+      "field": "ebitda",
+      "gold": 3383000,
       "cohort": "flagged"
     },
     {
@@ -2747,6 +3407,12 @@
       "ticker": "DOW",
       "field": "totalDebt",
       "gold": 19435999232,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "DOW",
+      "field": "ebitda",
+      "gold": 1188000000,
       "cohort": "flagged"
     },
     {
@@ -2871,6 +3537,18 @@
     },
     {
       "ticker": "ECHO",
+      "field": "ebitda",
+      "gold": -15786052000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ECHO",
+      "field": "ebitda",
+      "gold": -15786052000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ECHO",
       "field": "freeCashFlow",
       "gold": -532754000,
       "cohort": "flagged"
@@ -2908,7 +3586,13 @@
     {
       "ticker": "EDIT",
       "field": "ebitda",
-      "gold": -81035000,
+      "gold": -148612000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EDIT",
+      "field": "ebitda",
+      "gold": -148612000,
       "cohort": "flagged"
     },
     {
@@ -2949,14 +3633,32 @@
     },
     {
       "ticker": "EL",
+      "field": "totalStockholdersEquity",
+      "gold": 3806000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EL",
       "field": "netIncome",
       "gold": 182000000,
       "cohort": "flagged"
     },
     {
       "ticker": "EL",
+      "field": "ebitda",
+      "gold": 1647000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EL",
       "field": "freeCashFlow",
       "gold": 1812125056,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ELAN",
+      "field": "ebitda",
+      "gold": 676000000,
       "cohort": "flagged"
     },
     {
@@ -3003,6 +3705,12 @@
     },
     {
       "ticker": "EMR",
+      "field": "ebitda",
+      "gold": 4839000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EMR",
       "field": "freeCashFlow",
       "gold": 3706249984,
       "cohort": "flagged"
@@ -3017,6 +3725,12 @@
       "ticker": "ENPH",
       "field": "netIncome",
       "gold": 90773000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ENPH",
+      "field": "ebitda",
+      "gold": 289980000,
       "cohort": "flagged"
     },
     {
@@ -3040,7 +3754,13 @@
     {
       "ticker": "ENTG",
       "field": "totalStockholdersEquity",
-      "gold": 608238000,
+      "gold": 3953400000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ENTG",
+      "field": "ebitda",
+      "gold": 659700000,
       "cohort": "flagged"
     },
     {
@@ -3071,6 +3791,18 @@
       "ticker": "EQH",
       "field": "totalStockholdersEquity",
       "gold": -74000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EQH",
+      "field": "ebitda",
+      "gold": -294000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EQH",
+      "field": "ebitda",
+      "gold": -294000000,
       "cohort": "flagged"
     },
     {
@@ -3118,7 +3850,7 @@
     {
       "ticker": "ESTC",
       "field": "ebitda",
-      "gold": -22268000,
+      "gold": 25841000,
       "cohort": "flagged"
     },
     {
@@ -3172,7 +3904,7 @@
     {
       "ticker": "ETSY",
       "field": "ebitda",
-      "gold": 507851008,
+      "gold": 367019000,
       "cohort": "flagged"
     },
     {
@@ -3185,6 +3917,12 @@
       "ticker": "EW",
       "field": "totalDebt",
       "gold": 704400000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "EW",
+      "field": "ebitda",
+      "gold": 1449900000,
       "cohort": "flagged"
     },
     {
@@ -3272,9 +4010,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "F",
+      "field": "ebitda",
+      "gold": 5477000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "FANG",
       "field": "totalDebt",
       "gold": 12613999616,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FANG",
+      "field": "ebitda",
+      "gold": 7177000000,
       "cohort": "flagged"
     },
     {
@@ -3326,6 +4076,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "FE",
+      "field": "ebitda",
+      "gold": 4255000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "FERG",
       "field": "totalDebt",
       "gold": 6887000064,
@@ -3365,6 +4121,12 @@
       "ticker": "FICO",
       "field": "netIncome",
       "gold": 815017000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FICO",
+      "field": "ebitda",
+      "gold": 951194000,
       "cohort": "flagged"
     },
     {
@@ -3424,7 +4186,7 @@
     {
       "ticker": "FISV",
       "field": "ebitda",
-      "gold": 8136675293,
+      "gold": 6464000000,
       "cohort": "flagged"
     },
     {
@@ -3467,6 +4229,12 @@
       "ticker": "FIX",
       "field": "netIncome",
       "gold": 1631830000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FIX",
+      "field": "ebitda",
+      "gold": 1362834000,
       "cohort": "flagged"
     },
     {
@@ -3543,6 +4311,12 @@
     },
     {
       "ticker": "FORM",
+      "field": "ebitda",
+      "gold": 107501000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FORM",
       "field": "freeCashFlow",
       "gold": 114850000,
       "cohort": "flagged"
@@ -3557,6 +4331,12 @@
       "ticker": "FOUR",
       "field": "freeCashFlow",
       "gold": 573000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FOXA",
+      "field": "ebitda",
+      "gold": 3089000000,
       "cohort": "flagged"
     },
     {
@@ -3580,7 +4360,13 @@
     {
       "ticker": "FROG",
       "field": "ebitda",
-      "gold": -40562000,
+      "gold": -65425000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FROG",
+      "field": "ebitda",
+      "gold": -65425000,
       "cohort": "flagged"
     },
     {
@@ -3599,6 +4385,12 @@
       "ticker": "FSLR",
       "field": "totalDebt",
       "gold": 194010000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FSLR",
+      "field": "ebitda",
+      "gold": 1716943000,
       "cohort": "flagged"
     },
     {
@@ -3669,6 +4461,12 @@
     },
     {
       "ticker": "FUTU",
+      "field": "totalStockholdersEquity",
+      "gold": 6184442871,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "FUTU",
       "field": "totalRevenue",
       "gold": 2935374000,
       "cohort": "flagged"
@@ -3716,6 +4514,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "GE",
+      "field": "ebitda",
+      "gold": 15479000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "GEV",
       "field": "totalDebt",
       "gold": 3748000000,
@@ -3725,6 +4529,12 @@
       "ticker": "GEV",
       "field": "netIncome",
       "gold": 4884000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GEV",
+      "field": "ebitda",
+      "gold": 2004000000,
       "cohort": "flagged"
     },
     {
@@ -3764,9 +4574,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "GILD",
+      "field": "ebitda",
+      "gold": 11190000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "GIS",
       "field": "totalDebt",
       "gold": 13940400128,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GIS",
+      "field": "ebitda",
+      "gold": 1530300000,
       "cohort": "flagged"
     },
     {
@@ -3784,7 +4606,13 @@
     {
       "ticker": "GKOS",
       "field": "ebitda",
-      "gold": -37025000,
+      "gold": -150314000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GKOS",
+      "field": "ebitda",
+      "gold": -150314000,
       "cohort": "flagged"
     },
     {
@@ -3813,6 +4641,18 @@
     },
     {
       "ticker": "GLXY",
+      "field": "ebitda",
+      "gold": -177364000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GLXY",
+      "field": "ebitda",
+      "gold": -177364000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GLXY",
       "field": "freeCashFlow",
       "gold": -1890029000,
       "cohort": "flagged"
@@ -3821,6 +4661,12 @@
       "ticker": "GM",
       "field": "totalDebt",
       "gold": 128771997696,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GME",
+      "field": "ebitda",
+      "gold": 305300000,
       "cohort": "flagged"
     },
     {
@@ -3839,6 +4685,12 @@
       "ticker": "GNRC",
       "field": "netIncome",
       "gold": 258195000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GNRC",
+      "field": "ebitda",
+      "gold": 464592000,
       "cohort": "flagged"
     },
     {
@@ -3933,6 +4785,12 @@
     },
     {
       "ticker": "GPC",
+      "field": "ebitda",
+      "gold": 753697000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GPC",
       "field": "freeCashFlow",
       "gold": 915274112,
       "cohort": "flagged"
@@ -3941,6 +4799,12 @@
       "ticker": "GPN",
       "field": "totalRevenue",
       "gold": 7705878000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "GPN",
+      "field": "ebitda",
+      "gold": 3138970000,
       "cohort": "flagged"
     },
     {
@@ -3968,6 +4832,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "GSK",
+      "field": "totalStockholdersEquity",
+      "gold": 22721619141,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "GWRE",
       "field": "totalDebt",
       "gold": 714987008,
@@ -3986,6 +4856,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "HAL",
+      "field": "ebitda",
+      "gold": 3259000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "HALO",
       "field": "netIncome",
       "gold": 413596000,
@@ -3993,8 +4869,26 @@
     },
     {
       "ticker": "HALO",
+      "field": "ebitda",
+      "gold": 496390000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HALO",
       "field": "freeCashFlow",
       "gold": 806224000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HAS",
+      "field": "totalStockholdersEquity",
+      "gold": 538500000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HAS",
+      "field": "ebitda",
+      "gold": 196900000,
       "cohort": "flagged"
     },
     {
@@ -4054,7 +4948,7 @@
     {
       "ticker": "HIMS",
       "field": "ebitda",
-      "gold": -10177000,
+      "gold": 160115000,
       "cohort": "flagged"
     },
     {
@@ -4067,6 +4961,12 @@
       "ticker": "HL",
       "field": "totalRevenue",
       "gold": 1423019000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HL",
+      "field": "ebitda",
+      "gold": 686330000,
       "cohort": "flagged"
     },
     {
@@ -4091,6 +4991,12 @@
       "ticker": "HLT",
       "field": "freeCashFlow",
       "gold": 1393874944,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HMC",
+      "field": "totalStockholdersEquity",
+      "gold": 77462898438,
       "cohort": "flagged"
     },
     {
@@ -4119,8 +5025,20 @@
     },
     {
       "ticker": "HP",
+      "field": "ebitda",
+      "gold": 658780000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HP",
       "field": "freeCashFlow",
       "gold": 493073888,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HPE",
+      "field": "ebitda",
+      "gold": 4381000000,
       "cohort": "flagged"
     },
     {
@@ -4142,9 +5060,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "HRL",
+      "field": "ebitda",
+      "gold": 1005388000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "HST",
       "field": "totalDebt",
       "gold": 5645000192,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HSY",
+      "field": "ebitda",
+      "gold": 1942715000,
       "cohort": "flagged"
     },
     {
@@ -4191,6 +5121,12 @@
     },
     {
       "ticker": "HUN",
+      "field": "ebitda",
+      "gold": 174000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HUN",
       "field": "freeCashFlow",
       "gold": 154875008,
       "cohort": "flagged"
@@ -4216,7 +5152,13 @@
     {
       "ticker": "HUT",
       "field": "ebitda",
-      "gold": -789272000,
+      "gold": -167860000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "HUT",
+      "field": "ebitda",
+      "gold": -167860000,
       "cohort": "flagged"
     },
     {
@@ -4298,9 +5240,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "IEX",
+      "field": "ebitda",
+      "gold": 772800000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "IFF",
       "field": "netIncome",
       "gold": -361000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IFF",
+      "field": "ebitda",
+      "gold": 779000000,
       "cohort": "flagged"
     },
     {
@@ -4348,7 +5302,13 @@
     {
       "ticker": "INSM",
       "field": "ebitda",
-      "gold": -794955008,
+      "gold": -1183721000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "INSM",
+      "field": "ebitda",
+      "gold": -1183721000,
       "cohort": "flagged"
     },
     {
@@ -4367,6 +5327,12 @@
       "ticker": "INTC",
       "field": "netIncome",
       "gold": -267000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "INTC",
+      "field": "ebitda",
+      "gold": 13405000000,
       "cohort": "flagged"
     },
     {
@@ -4408,7 +5374,13 @@
     {
       "ticker": "IONQ",
       "field": "ebitda",
-      "gold": -793051008,
+      "gold": -551711000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IONQ",
+      "field": "ebitda",
+      "gold": -551711000,
       "cohort": "flagged"
     },
     {
@@ -4432,13 +5404,31 @@
     {
       "ticker": "IONS",
       "field": "ebitda",
-      "gold": -579484992,
+      "gold": -285311000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IONS",
+      "field": "ebitda",
+      "gold": -285311000,
       "cohort": "flagged"
     },
     {
       "ticker": "IONS",
       "field": "freeCashFlow",
       "gold": -560839000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IP",
+      "field": "ebitda",
+      "gold": -70000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IP",
+      "field": "ebitda",
+      "gold": -70000000,
       "cohort": "flagged"
     },
     {
@@ -4479,6 +5469,18 @@
     },
     {
       "ticker": "IREN",
+      "field": "ebitda",
+      "gold": -231703000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IREN",
+      "field": "ebitda",
+      "gold": -231703000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IREN",
       "field": "freeCashFlow",
       "gold": -897588000,
       "cohort": "flagged"
@@ -4514,6 +5516,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "ISRG",
+      "field": "ebitda",
+      "gold": 3545500000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "IT",
       "field": "netIncome",
       "gold": 954413000,
@@ -4539,6 +5547,18 @@
     },
     {
       "ticker": "IVZ",
+      "field": "ebitda",
+      "gold": -141000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IVZ",
+      "field": "ebitda",
+      "gold": -141000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "IVZ",
       "field": "freeCashFlow",
       "gold": 1920700000,
       "cohort": "flagged"
@@ -4550,9 +5570,27 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "J",
+      "field": "ebitda",
+      "gold": 771324000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "JAZZ",
       "field": "netIncome",
       "gold": 205952000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JAZZ",
+      "field": "ebitda",
+      "gold": -391208000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JAZZ",
+      "field": "ebitda",
+      "gold": -391208000,
       "cohort": "flagged"
     },
     {
@@ -4574,9 +5612,27 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "JBL",
+      "field": "ebitda",
+      "gold": 1720000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JCI",
+      "field": "ebitda",
+      "gold": 3061000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "JCI",
       "field": "freeCashFlow",
       "gold": 1920000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JD",
+      "field": "totalStockholdersEquity",
+      "gold": 39452023438,
       "cohort": "flagged"
     },
     {
@@ -4600,7 +5656,7 @@
     {
       "ticker": "JEF",
       "field": "ebitda",
-      "gold": 1243647949,
+      "gold": 4543196000,
       "cohort": "flagged"
     },
     {
@@ -4613,6 +5669,12 @@
       "ticker": "JHX",
       "field": "netIncome",
       "gold": 145700000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "JHX",
+      "field": "ebitda",
+      "gold": 931300000,
       "cohort": "flagged"
     },
     {
@@ -4737,6 +5799,12 @@
     },
     {
       "ticker": "KEYS",
+      "field": "ebitda",
+      "gold": 1309000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "KEYS",
       "field": "freeCashFlow",
       "gold": 1469000000,
       "cohort": "flagged"
@@ -4745,6 +5813,18 @@
       "ticker": "KHC",
       "field": "totalDebt",
       "gold": 19000999936,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "KHC",
+      "field": "ebitda",
+      "gold": -3530000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "KHC",
+      "field": "ebitda",
+      "gold": -3530000000,
       "cohort": "flagged"
     },
     {
@@ -4780,7 +5860,7 @@
     {
       "ticker": "KKR",
       "field": "ebitda",
-      "gold": 6732888672,
+      "gold": 10189675000,
       "cohort": "flagged"
     },
     {
@@ -4868,6 +5948,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "KR",
+      "field": "ebitda",
+      "gold": 5171000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "KTOS",
       "field": "totalDebt",
       "gold": 193600000,
@@ -4900,7 +5986,13 @@
     {
       "ticker": "LCID",
       "field": "ebitda",
-      "gold": -3588486912,
+      "gold": -2154083000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LCID",
+      "field": "ebitda",
+      "gold": -2154083000,
       "cohort": "flagged"
     },
     {
@@ -4918,7 +6010,7 @@
     {
       "ticker": "LDI",
       "field": "totalStockholdersEquity",
-      "gold": 298313324,
+      "gold": 234514000,
       "cohort": "flagged"
     },
     {
@@ -4947,6 +6039,12 @@
     },
     {
       "ticker": "LEN",
+      "field": "ebitda",
+      "gold": 2794073000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LEN",
       "field": "freeCashFlow",
       "gold": 1227246208,
       "cohort": "flagged"
@@ -4955,6 +6053,12 @@
       "ticker": "LEU",
       "field": "netIncome",
       "gold": 48500000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LEU",
+      "field": "ebitda",
+      "gold": 109800000,
       "cohort": "flagged"
     },
     {
@@ -4991,6 +6095,12 @@
       "ticker": "LHX",
       "field": "freeCashFlow",
       "gold": 3641000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LI",
+      "field": "totalStockholdersEquity",
+      "gold": 10139989258,
       "cohort": "flagged"
     },
     {
@@ -5055,6 +6165,18 @@
     },
     {
       "ticker": "LITE",
+      "field": "ebitda",
+      "gold": -7022200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LITE",
+      "field": "ebitda",
+      "gold": -7022200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LITE",
       "field": "freeCashFlow",
       "gold": 224700000,
       "cohort": "flagged"
@@ -5078,6 +6200,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "LLY",
+      "field": "ebitda",
+      "gold": 31693000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "LMT",
       "field": "totalDebt",
       "gold": 20537999360,
@@ -5087,6 +6215,12 @@
       "ticker": "LMT",
       "field": "freeCashFlow",
       "gold": 5562625024,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LNG",
+      "field": "ebitda",
+      "gold": 10559000000,
       "cohort": "flagged"
     },
     {
@@ -5116,7 +6250,7 @@
     {
       "ticker": "LPLA",
       "field": "ebitda",
-      "gold": 3253100830,
+      "gold": 1946313000,
       "cohort": "flagged"
     },
     {
@@ -5135,6 +6269,18 @@
       "ticker": "LQDA",
       "field": "netIncome",
       "gold": 138606000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LQDA",
+      "field": "ebitda",
+      "gold": -43224000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LQDA",
+      "field": "ebitda",
+      "gold": -43224000,
       "cohort": "flagged"
     },
     {
@@ -5181,6 +6327,12 @@
     },
     {
       "ticker": "LSCC",
+      "field": "ebitda",
+      "gold": 35176000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LSCC",
       "field": "freeCashFlow",
       "gold": 199007000,
       "cohort": "flagged"
@@ -5201,6 +6353,12 @@
       "ticker": "LUMN",
       "field": "netIncome",
       "gold": -1739000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LUMN",
+      "field": "ebitda",
+      "gold": 1317000000,
       "cohort": "flagged"
     },
     {
@@ -5265,8 +6423,20 @@
     },
     {
       "ticker": "LYB",
+      "field": "ebitda",
+      "gold": 1162000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LYB",
       "field": "freeCashFlow",
       "gold": 1228000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "LYFT",
+      "field": "ebitda",
+      "gold": 102735000,
       "cohort": "flagged"
     },
     {
@@ -5326,7 +6496,13 @@
     {
       "ticker": "MARA",
       "field": "ebitda",
-      "gold": -1878727936,
+      "gold": -547119000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MARA",
+      "field": "ebitda",
+      "gold": -547119000,
       "cohort": "flagged"
     },
     {
@@ -5345,6 +6521,12 @@
       "ticker": "MCHP",
       "field": "netIncome",
       "gold": 230000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MCHP",
+      "field": "ebitda",
+      "gold": 1178200000,
       "cohort": "flagged"
     },
     {
@@ -5381,6 +6563,18 @@
       "ticker": "MDB",
       "field": "netIncome",
       "gold": 58897000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MDB",
+      "field": "ebitda",
+      "gold": -30169000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MDB",
+      "field": "ebitda",
+      "gold": -30169000,
       "cohort": "flagged"
     },
     {
@@ -5463,6 +6657,12 @@
     },
     {
       "ticker": "MGM",
+      "field": "ebitda",
+      "gold": 1717615000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MGM",
       "field": "freeCashFlow",
       "gold": 878991104,
       "cohort": "flagged"
@@ -5534,9 +6734,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "MO",
+      "field": "ebitda",
+      "gold": 10832000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "MOH",
       "field": "totalDebt",
       "gold": 3947000064,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MOH",
+      "field": "ebitda",
+      "gold": 976000000,
       "cohort": "flagged"
     },
     {
@@ -5555,6 +6767,12 @@
       "ticker": "MP",
       "field": "netIncome",
       "gold": -60618000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MP",
+      "field": "ebitda",
+      "gold": 2974000,
       "cohort": "flagged"
     },
     {
@@ -5579,6 +6797,12 @@
       "ticker": "MPC",
       "field": "netIncome",
       "gold": 4047000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MPC",
+      "field": "ebitda",
+      "gold": 11678000000,
       "cohort": "flagged"
     },
     {
@@ -5627,6 +6851,12 @@
       "ticker": "MPWR",
       "field": "netIncome",
       "gold": 621483000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MPWR",
+      "field": "ebitda",
+      "gold": 781149000,
       "cohort": "flagged"
     },
     {
@@ -5698,7 +6928,7 @@
     {
       "ticker": "MSFT",
       "field": "totalStockholdersEquity",
-      "gold": 442387000000,
+      "gold": 343479000000,
       "cohort": "flagged"
     },
     {
@@ -5722,7 +6952,13 @@
     {
       "ticker": "MSTR",
       "field": "ebitda",
-      "gold": -36354969600,
+      "gold": -5435469000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MSTR",
+      "field": "ebitda",
+      "gold": -5435469000,
       "cohort": "flagged"
     },
     {
@@ -5775,6 +7011,12 @@
     },
     {
       "ticker": "MTSI",
+      "field": "ebitda",
+      "gold": 39786000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MTSI",
       "field": "freeCashFlow",
       "gold": 204078000,
       "cohort": "flagged"
@@ -5799,6 +7041,12 @@
     },
     {
       "ticker": "MU",
+      "field": "totalStockholdersEquity",
+      "gold": 138378000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MU",
       "field": "totalRevenue",
       "gold": 37378000000,
       "cohort": "flagged"
@@ -5807,6 +7055,12 @@
       "ticker": "MU",
       "field": "netIncome",
       "gold": 8539000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "MU",
+      "field": "ebitda",
+      "gold": 19634000000,
       "cohort": "flagged"
     },
     {
@@ -5831,6 +7085,12 @@
       "ticker": "NBIX",
       "field": "netIncome",
       "gold": 702500000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NBIX",
+      "field": "ebitda",
+      "gold": 662500000,
       "cohort": "flagged"
     },
     {
@@ -5876,6 +7136,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "NDAQ",
+      "field": "ebitda",
+      "gold": 2644000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "NEE",
       "field": "totalRevenue",
       "gold": 25800000000,
@@ -5902,7 +7168,7 @@
     {
       "ticker": "NET",
       "field": "ebitda",
-      "gold": -3610000,
+      "gold": 105802000,
       "cohort": "flagged"
     },
     {
@@ -6080,6 +7346,18 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "NTDOY",
+      "field": "totalStockholdersEquity",
+      "gold": 19123132812,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NTES",
+      "field": "totalStockholdersEquity",
+      "gold": 27949732422,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "NTES",
       "field": "totalRevenue",
       "gold": 16105276000,
@@ -6147,12 +7425,6 @@
     },
     {
       "ticker": "NU",
-      "field": "totalStockholdersEquity",
-      "gold": 15597913086,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "NU",
       "field": "totalRevenue",
       "gold": 10626855000,
       "cohort": "flagged"
@@ -6167,6 +7439,12 @@
       "ticker": "NUE",
       "field": "totalDebt",
       "gold": 7098999808,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NUE",
+      "field": "ebitda",
+      "gold": 3964000000,
       "cohort": "flagged"
     },
     {
@@ -6206,6 +7484,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "NVO",
+      "field": "totalStockholdersEquity",
+      "gold": 35011835938,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "NVR",
       "field": "totalDebt",
       "gold": 1067683008,
@@ -6215,6 +7499,12 @@
       "ticker": "NVT",
       "field": "totalRevenue",
       "gold": 5294900000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "NVT",
+      "field": "ebitda",
+      "gold": 685700000,
       "cohort": "flagged"
     },
     {
@@ -6364,7 +7654,13 @@
     {
       "ticker": "OKLO",
       "field": "ebitda",
-      "gold": -216798000,
+      "gold": -138772000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OKLO",
+      "field": "ebitda",
+      "gold": -138772000,
       "cohort": "flagged"
     },
     {
@@ -6411,6 +7707,12 @@
     },
     {
       "ticker": "OMC",
+      "field": "ebitda",
+      "gold": 818200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OMC",
       "field": "freeCashFlow",
       "gold": 2863300000,
       "cohort": "flagged"
@@ -6425,6 +7727,12 @@
       "ticker": "ON",
       "field": "netIncome",
       "gold": 689100000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ON",
+      "field": "ebitda",
+      "gold": 888200000,
       "cohort": "flagged"
     },
     {
@@ -6448,7 +7756,13 @@
     {
       "ticker": "ONDS",
       "field": "ebitda",
-      "gold": -180564992,
+      "gold": -125371000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ONDS",
+      "field": "ebitda",
+      "gold": -125371000,
       "cohort": "flagged"
     },
     {
@@ -6461,6 +7775,12 @@
       "ticker": "ONTO",
       "field": "totalDebt",
       "gold": 1471730944,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ONTO",
+      "field": "ebitda",
+      "gold": 172381000,
       "cohort": "flagged"
     },
     {
@@ -6484,7 +7804,13 @@
     {
       "ticker": "OPEN",
       "field": "ebitda",
-      "gold": -474000000,
+      "gold": -1138000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OPEN",
+      "field": "ebitda",
+      "gold": -1138000000,
       "cohort": "flagged"
     },
     {
@@ -6531,6 +7857,12 @@
     },
     {
       "ticker": "OVV",
+      "field": "ebitda",
+      "gold": 3325000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OVV",
       "field": "freeCashFlow",
       "gold": 2266000000,
       "cohort": "flagged"
@@ -6551,6 +7883,12 @@
       "ticker": "OWL",
       "field": "netIncome",
       "gold": 94561000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "OWL",
+      "field": "ebitda",
+      "gold": 535112000,
       "cohort": "flagged"
     },
     {
@@ -6640,13 +7978,19 @@
     {
       "ticker": "PANW",
       "field": "totalStockholdersEquity",
-      "gold": 27492000000,
+      "gold": 7824400000,
       "cohort": "flagged"
     },
     {
       "ticker": "PANW",
       "field": "netIncome",
       "gold": 1133900000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PANW",
+      "field": "ebitda",
+      "gold": 2452600000,
       "cohort": "flagged"
     },
     {
@@ -6659,6 +8003,12 @@
       "ticker": "PATH",
       "field": "netIncome",
       "gold": 282330000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PATH",
+      "field": "ebitda",
+      "gold": 73729000,
       "cohort": "flagged"
     },
     {
@@ -6710,6 +8060,18 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "PDD",
+      "field": "totalStockholdersEquity",
+      "gold": 77096789062,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PEG",
+      "field": "totalStockholdersEquity",
+      "gold": 16982000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "PEG",
       "field": "freeCashFlow",
       "gold": 107750000,
@@ -6722,9 +8084,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "PEP",
+      "field": "ebitda",
+      "gold": 14816000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "PFE",
       "field": "totalDebt",
       "gold": 63480000512,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PFE",
+      "field": "ebitda",
+      "gold": 16783000000,
       "cohort": "flagged"
     },
     {
@@ -6832,7 +8206,7 @@
     {
       "ticker": "PLTR",
       "field": "ebitda",
-      "gold": 2662629888,
+      "gold": 1440160000,
       "cohort": "flagged"
     },
     {
@@ -6850,7 +8224,13 @@
     {
       "ticker": "PLUG",
       "field": "ebitda",
-      "gold": -512104992,
+      "gold": -1590575000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PLUG",
+      "field": "ebitda",
+      "gold": -1590575000,
       "cohort": "flagged"
     },
     {
@@ -6880,7 +8260,7 @@
     {
       "ticker": "PN",
       "field": "totalStockholdersEquity",
-      "gold": 2793435,
+      "gold": 19884925,
       "cohort": "flagged"
     },
     {
@@ -6929,6 +8309,12 @@
       "ticker": "PODD",
       "field": "netIncome",
       "gold": 375300000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PODD",
+      "field": "ebitda",
+      "gold": 489300000,
       "cohort": "flagged"
     },
     {
@@ -6992,15 +8378,33 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "PSX",
+      "field": "ebitda",
+      "gold": 9757000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "PVH",
       "field": "totalDebt",
       "gold": 4164699904,
       "cohort": "flagged"
     },
     {
+      "ticker": "PVH",
+      "field": "ebitda",
+      "gold": 517800000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "PWR",
       "field": "totalDebt",
       "gold": 6603134976,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "PWR",
+      "field": "ebitda",
+      "gold": 2062488000,
       "cohort": "flagged"
     },
     {
@@ -7018,7 +8422,19 @@
     {
       "ticker": "QBTS",
       "field": "ebitda",
-      "gold": -161195008,
+      "gold": -349486000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QBTS",
+      "field": "ebitda",
+      "gold": -349486000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QCOM",
+      "field": "totalStockholdersEquity",
+      "gold": 21206000000,
       "cohort": "flagged"
     },
     {
@@ -7078,7 +8494,13 @@
     {
       "ticker": "QUBT",
       "field": "ebitda",
-      "gold": -61116000,
+      "gold": -14206000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QUBT",
+      "field": "ebitda",
+      "gold": -14206000,
       "cohort": "flagged"
     },
     {
@@ -7097,6 +8519,18 @@
       "ticker": "QXO",
       "field": "totalRevenue",
       "gold": 6842200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QXO",
+      "field": "ebitda",
+      "gold": -55200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "QXO",
+      "field": "ebitda",
+      "gold": -55200000,
       "cohort": "flagged"
     },
     {
@@ -7179,6 +8613,12 @@
     },
     {
       "ticker": "RDDT",
+      "field": "ebitda",
+      "gold": 457932000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RDDT",
       "field": "freeCashFlow",
       "gold": 1198116000,
       "cohort": "flagged"
@@ -7198,7 +8638,13 @@
     {
       "ticker": "RDW",
       "field": "ebitda",
-      "gold": -121260000,
+      "gold": -179223000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RDW",
+      "field": "ebitda",
+      "gold": -179223000,
       "cohort": "flagged"
     },
     {
@@ -7216,7 +8662,7 @@
     {
       "ticker": "REBN",
       "field": "totalStockholdersEquity",
-      "gold": 2602742,
+      "gold": 4511716,
       "cohort": "flagged"
     },
     {
@@ -7228,7 +8674,13 @@
     {
       "ticker": "REBN",
       "field": "ebitda",
-      "gold": -1622709,
+      "gold": -7225106,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "REBN",
+      "field": "ebitda",
+      "gold": -7225106,
       "cohort": "flagged"
     },
     {
@@ -7253,6 +8705,12 @@
       "ticker": "RELY",
       "field": "netIncome",
       "gold": 67933000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RELY",
+      "field": "ebitda",
+      "gold": 104274000,
       "cohort": "flagged"
     },
     {
@@ -7292,6 +8750,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "RGLD",
+      "field": "ebitda",
+      "gold": 779970000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "RGTI",
       "field": "totalDebt",
       "gold": 7701000,
@@ -7306,7 +8770,13 @@
     {
       "ticker": "RGTI",
       "field": "ebitda",
-      "gold": -87229000,
+      "gold": -208110000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RGTI",
+      "field": "ebitda",
+      "gold": -208110000,
       "cohort": "flagged"
     },
     {
@@ -7323,8 +8793,26 @@
     },
     {
       "ticker": "RIG",
+      "field": "ebitda",
+      "gold": -1734000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RIG",
+      "field": "ebitda",
+      "gold": -1734000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RIG",
       "field": "freeCashFlow",
       "gold": 893875008,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RIOT",
+      "field": "totalStockholdersEquity",
+      "gold": 2040156006,
       "cohort": "flagged"
     },
     {
@@ -7336,7 +8824,13 @@
     {
       "ticker": "RIOT",
       "field": "ebitda",
-      "gold": -898936000,
+      "gold": -296387000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RIOT",
+      "field": "ebitda",
+      "gold": -296387000,
       "cohort": "flagged"
     },
     {
@@ -7348,7 +8842,7 @@
     {
       "ticker": "RIVN",
       "field": "totalStockholdersEquity",
-      "gold": 9141000000,
+      "gold": 4566000000,
       "cohort": "flagged"
     },
     {
@@ -7472,9 +8966,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "ROK",
+      "field": "ebitda",
+      "gold": 1398000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "ROKU",
       "field": "totalDebt",
       "gold": 474118016,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ROKU",
+      "field": "ebitda",
+      "gold": 141404000,
       "cohort": "flagged"
     },
     {
@@ -7508,6 +9014,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "RPD",
+      "field": "ebitda",
+      "gold": 86053000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "RPM",
       "field": "totalDebt",
       "gold": 2949378048,
@@ -7517,6 +9029,12 @@
       "ticker": "RRC",
       "field": "freeCashFlow",
       "gold": 454483360,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RRX",
+      "field": "ebitda",
+      "gold": 856200000,
       "cohort": "flagged"
     },
     {
@@ -7587,6 +9105,18 @@
     },
     {
       "ticker": "RUN",
+      "field": "ebitda",
+      "gold": -141242000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RUN",
+      "field": "ebitda",
+      "gold": -141242000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RUN",
       "field": "freeCashFlow",
       "gold": -1971139840,
       "cohort": "flagged"
@@ -7606,7 +9136,13 @@
     {
       "ticker": "RVMD",
       "field": "ebitda",
-      "gold": -1618188032,
+      "gold": -1099670000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RVMD",
+      "field": "ebitda",
+      "gold": -1099670000,
       "cohort": "flagged"
     },
     {
@@ -7643,6 +9179,12 @@
       "ticker": "RXRX",
       "field": "freeCashFlow",
       "gold": -312480000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "RYAN",
+      "field": "ebitda",
+      "gold": 528657000,
       "cohort": "flagged"
     },
     {
@@ -7702,7 +9244,13 @@
     {
       "ticker": "SAIL",
       "field": "ebitda",
-      "gold": -9470000,
+      "gold": -90590000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SAIL",
+      "field": "ebitda",
+      "gold": -90590000,
       "cohort": "flagged"
     },
     {
@@ -7785,12 +9333,6 @@
     },
     {
       "ticker": "SE",
-      "field": "totalStockholdersEquity",
-      "gold": 14914230469,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "SE",
       "field": "totalRevenue",
       "gold": 22938469000,
       "cohort": "flagged"
@@ -7810,7 +9352,7 @@
     {
       "ticker": "SECZ",
       "field": "totalStockholdersEquity",
-      "gold": -116168503,
+      "gold": -141270628,
       "cohort": "flagged"
     },
     {
@@ -7834,7 +9376,13 @@
     {
       "ticker": "SEDG",
       "field": "ebitda",
-      "gold": -121104000,
+      "gold": -348898000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SEDG",
+      "field": "ebitda",
+      "gold": -348898000,
       "cohort": "flagged"
     },
     {
@@ -7875,6 +9423,12 @@
     },
     {
       "ticker": "SGI",
+      "field": "totalStockholdersEquity",
+      "gold": 3108000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SGI",
       "field": "netIncome",
       "gold": 533300000,
       "cohort": "flagged"
@@ -7899,6 +9453,12 @@
     },
     {
       "ticker": "SHLS",
+      "field": "ebitda",
+      "gold": 72329000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SHLS",
       "field": "freeCashFlow",
       "gold": -42993376,
       "cohort": "flagged"
@@ -7913,6 +9473,12 @@
       "ticker": "SHOP",
       "field": "netIncome",
       "gold": 1231000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SHOP",
+      "field": "ebitda",
+      "gold": 1916000000,
       "cohort": "flagged"
     },
     {
@@ -7953,14 +9519,38 @@
     },
     {
       "ticker": "SITM",
+      "field": "ebitda",
+      "gold": -20222000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SITM",
+      "field": "ebitda",
+      "gold": -20222000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SITM",
       "field": "freeCashFlow",
       "gold": 84488000,
       "cohort": "flagged"
     },
     {
       "ticker": "SJM",
+      "field": "ebitda",
+      "gold": 665200000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SJM",
       "field": "freeCashFlow",
       "gold": 1464337536,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SKHY",
+      "field": "totalStockholdersEquity",
+      "gold": 262758187500,
       "cohort": "flagged"
     },
     {
@@ -8020,13 +9610,25 @@
     {
       "ticker": "SMR",
       "field": "ebitda",
-      "gold": -224090000,
+      "gold": -688567000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SMR",
+      "field": "ebitda",
+      "gold": -688567000,
       "cohort": "flagged"
     },
     {
       "ticker": "SMR",
       "field": "freeCashFlow",
       "gold": -204594000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SMTC",
+      "field": "ebitda",
+      "gold": 23065000,
       "cohort": "flagged"
     },
     {
@@ -8115,6 +9717,12 @@
     },
     {
       "ticker": "SNPS",
+      "field": "ebitda",
+      "gold": 2500301000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SNPS",
       "field": "freeCashFlow",
       "gold": 2747706000,
       "cohort": "flagged"
@@ -8123,6 +9731,12 @@
       "ticker": "SNX",
       "field": "totalDebt",
       "gold": 6029777920,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SNX",
+      "field": "ebitda",
+      "gold": 1828081000,
       "cohort": "flagged"
     },
     {
@@ -8152,13 +9766,19 @@
     {
       "ticker": "SOFI",
       "field": "ebitda",
-      "gold": 1623020264,
+      "gold": 233487389,
       "cohort": "flagged"
     },
     {
       "ticker": "SOFI",
       "field": "freeCashFlow",
       "gold": -8792989000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SOLV",
+      "field": "ebitda",
+      "gold": 2549000000,
       "cohort": "flagged"
     },
     {
@@ -8182,7 +9802,13 @@
     {
       "ticker": "SOUN",
       "field": "ebitda",
-      "gold": -154590000,
+      "gold": -7604000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SOUN",
+      "field": "ebitda",
+      "gold": -7604000,
       "cohort": "flagged"
     },
     {
@@ -8222,9 +9848,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "SPG",
+      "field": "ebitda",
+      "gold": 7801166000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "SPGI",
       "field": "totalDebt",
       "gold": 13900000256,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SPOT",
+      "field": "totalStockholdersEquity",
+      "gold": 11270169922,
       "cohort": "flagged"
     },
     {
@@ -8271,6 +9909,12 @@
     },
     {
       "ticker": "STLD",
+      "field": "ebitda",
+      "gold": 2114404000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "STLD",
       "field": "freeCashFlow",
       "gold": 1094833000,
       "cohort": "flagged"
@@ -8285,6 +9929,12 @@
       "ticker": "STRL",
       "field": "netIncome",
       "gold": 554325000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "STRL",
+      "field": "ebitda",
+      "gold": 505377000,
       "cohort": "flagged"
     },
     {
@@ -8318,9 +9968,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "SUI",
+      "field": "ebitda",
+      "gold": 680300000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "SUNB",
       "field": "totalDebt",
       "gold": 11422999552,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SUNB",
+      "field": "ebitda",
+      "gold": 4497000000,
       "cohort": "flagged"
     },
     {
@@ -8351,6 +10013,12 @@
       "ticker": "SW",
       "field": "netIncome",
       "gold": 497000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SWK",
+      "field": "ebitda",
+      "gold": 1299800000,
       "cohort": "flagged"
     },
     {
@@ -8410,13 +10078,25 @@
     {
       "ticker": "SYK",
       "field": "totalStockholdersEquity",
-      "gold": 11730000000,
+      "gold": 22420000000,
       "cohort": "flagged"
     },
     {
       "ticker": "SYM",
       "field": "netIncome",
       "gold": 8209000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SYM",
+      "field": "ebitda",
+      "gold": -52529000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "SYM",
+      "field": "ebitda",
+      "gold": -52529000,
       "cohort": "flagged"
     },
     {
@@ -8441,6 +10121,18 @@
       "ticker": "TAP",
       "field": "totalDebt",
       "gold": 7913699840,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TAP",
+      "field": "ebitda",
+      "gold": -1558800000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TAP",
+      "field": "ebitda",
+      "gold": -1558800000,
       "cohort": "flagged"
     },
     {
@@ -8475,6 +10167,12 @@
     },
     {
       "ticker": "TEAM",
+      "field": "ebitda",
+      "gold": 212168000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TEAM",
       "field": "freeCashFlow",
       "gold": 1655499904,
       "cohort": "flagged"
@@ -8495,6 +10193,12 @@
       "ticker": "TECK",
       "field": "netIncome",
       "gold": 2154149170,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TEL",
+      "field": "totalStockholdersEquity",
+      "gold": 12585000000,
       "cohort": "flagged"
     },
     {
@@ -8541,6 +10245,12 @@
     },
     {
       "ticker": "TER",
+      "field": "ebitda",
+      "gold": 788087000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TER",
       "field": "freeCashFlow",
       "gold": 1024864000,
       "cohort": "flagged"
@@ -8576,6 +10286,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "TKO",
+      "field": "ebitda",
+      "gold": 1294338000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "TLN",
       "field": "totalRevenue",
       "gold": 4883000000,
@@ -8583,8 +10299,20 @@
     },
     {
       "ticker": "TLN",
+      "field": "ebitda",
+      "gold": 415000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TLN",
       "field": "freeCashFlow",
       "gold": 396000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TM",
+      "field": "totalStockholdersEquity",
+      "gold": 249537796875,
       "cohort": "flagged"
     },
     {
@@ -8619,6 +10347,12 @@
     },
     {
       "ticker": "TOST",
+      "field": "ebitda",
+      "gold": 368000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TOST",
       "field": "freeCashFlow",
       "gold": 474249984,
       "cohort": "flagged"
@@ -8632,7 +10366,7 @@
     {
       "ticker": "TPG",
       "field": "totalStockholdersEquity",
-      "gold": 1599441528,
+      "gold": 1185217000,
       "cohort": "flagged"
     },
     {
@@ -8708,6 +10442,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "TRV",
+      "field": "ebitda",
+      "gold": 8901000000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "TSCO",
       "field": "totalDebt",
       "gold": 6720134144,
@@ -8757,6 +10497,12 @@
     },
     {
       "ticker": "TTWO",
+      "field": "ebitda",
+      "gold": 162000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TTWO",
       "field": "freeCashFlow",
       "gold": 337500000,
       "cohort": "flagged"
@@ -8765,6 +10511,12 @@
       "ticker": "TWLO",
       "field": "netIncome",
       "gold": 1272651000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "TWLO",
+      "field": "ebitda",
+      "gold": 370125000,
       "cohort": "flagged"
     },
     {
@@ -8805,6 +10557,12 @@
     },
     {
       "ticker": "U",
+      "field": "ebitda",
+      "gold": 89753000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "U",
       "field": "freeCashFlow",
       "gold": 599621120,
       "cohort": "flagged"
@@ -8825,6 +10583,12 @@
       "ticker": "UAA",
       "field": "netIncome",
       "gold": -495643000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "UAA",
+      "field": "ebitda",
+      "gold": 74230000,
       "cohort": "flagged"
     },
     {
@@ -8912,6 +10676,12 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "UPST",
+      "field": "ebitda",
+      "gold": 67466000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "URI",
       "field": "freeCashFlow",
       "gold": 2115000064,
@@ -8926,13 +10696,7 @@
     {
       "ticker": "USAR",
       "field": "totalStockholdersEquity",
-      "gold": -17031223,
-      "cohort": "flagged"
-    },
-    {
-      "ticker": "USAR",
-      "field": "totalStockholdersEquity",
-      "gold": -17031223,
+      "gold": 492633000,
       "cohort": "flagged"
     },
     {
@@ -8944,7 +10708,13 @@
     {
       "ticker": "USAR",
       "field": "ebitda",
-      "gold": -107552000,
+      "gold": -297782000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "USAR",
+      "field": "ebitda",
+      "gold": -297782000,
       "cohort": "flagged"
     },
     {
@@ -8974,7 +10744,7 @@
     {
       "ticker": "V",
       "field": "totalStockholdersEquity",
-      "gold": 26437000000,
+      "gold": 37909000000,
       "cohort": "flagged"
     },
     {
@@ -8993,6 +10763,12 @@
       "ticker": "VEEV",
       "field": "freeCashFlow",
       "gold": 1663807000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VG",
+      "field": "ebitda",
+      "gold": 5758000000,
       "cohort": "flagged"
     },
     {
@@ -9016,7 +10792,7 @@
     {
       "ticker": "VIST",
       "field": "totalStockholdersEquity",
-      "gold": 3696082275,
+      "gold": 2511594000,
       "cohort": "flagged"
     },
     {
@@ -9035,6 +10811,12 @@
       "ticker": "VLO",
       "field": "totalDebt",
       "gold": 11349000192,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VLO",
+      "field": "ebitda",
+      "gold": 3624000000,
       "cohort": "flagged"
     },
     {
@@ -9117,6 +10899,12 @@
     },
     {
       "ticker": "VRT",
+      "field": "ebitda",
+      "gold": 2136600000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VRT",
       "field": "freeCashFlow",
       "gold": 2696537600,
       "cohort": "flagged"
@@ -9129,6 +10917,12 @@
     },
     {
       "ticker": "VST",
+      "field": "ebitda",
+      "gold": 4091000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VST",
       "field": "freeCashFlow",
       "gold": 37125000,
       "cohort": "flagged"
@@ -9136,7 +10930,19 @@
     {
       "ticker": "VTRS",
       "field": "totalStockholdersEquity",
-      "gold": 0,
+      "gold": 14711300000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VTRS",
+      "field": "ebitda",
+      "gold": -395400000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "VTRS",
+      "field": "ebitda",
+      "gold": -395400000,
       "cohort": "flagged"
     },
     {
@@ -9161,6 +10967,12 @@
       "ticker": "W",
       "field": "totalStockholdersEquity",
       "gold": -2782000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "W",
+      "field": "ebitda",
+      "gold": 120000000,
       "cohort": "flagged"
     },
     {
@@ -9194,9 +11006,21 @@
       "cohort": "flagged"
     },
     {
+      "ticker": "WAT",
+      "field": "ebitda",
+      "gold": 912570000,
+      "cohort": "flagged"
+    },
+    {
       "ticker": "WDC",
       "field": "totalDebt",
       "gold": 922000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WDC",
+      "field": "ebitda",
+      "gold": 10445000000,
       "cohort": "flagged"
     },
     {
@@ -9233,6 +11057,12 @@
       "ticker": "WELL",
       "field": "netIncome",
       "gold": 936845000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WELL",
+      "field": "ebitda",
+      "gold": 2256798000,
       "cohort": "flagged"
     },
     {
@@ -9285,6 +11115,12 @@
     },
     {
       "ticker": "WMG",
+      "field": "ebitda",
+      "gold": 1028000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WMG",
       "field": "freeCashFlow",
       "gold": 382249984,
       "cohort": "flagged"
@@ -9304,7 +11140,13 @@
     {
       "ticker": "WOLF",
       "field": "ebitda",
-      "gold": -323500000,
+      "gold": -1077100000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WOLF",
+      "field": "ebitda",
+      "gold": -1077100000,
       "cohort": "flagged"
     },
     {
@@ -9376,7 +11218,13 @@
     {
       "ticker": "WULF",
       "field": "ebitda",
-      "gold": -270900000,
+      "gold": -488365000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WULF",
+      "field": "ebitda",
+      "gold": -488365000,
       "cohort": "flagged"
     },
     {
@@ -9395,6 +11243,12 @@
       "ticker": "WWD",
       "field": "freeCashFlow",
       "gold": 376527000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "WY",
+      "field": "ebitda",
+      "gold": 1042000000,
       "cohort": "flagged"
     },
     {
@@ -9477,6 +11331,12 @@
     },
     {
       "ticker": "XYZ",
+      "field": "ebitda",
+      "gold": 3415181000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "XYZ",
       "field": "freeCashFlow",
       "gold": -27105876,
       "cohort": "flagged"
@@ -9519,6 +11379,12 @@
     },
     {
       "ticker": "ZBRA",
+      "field": "ebitda",
+      "gold": 853000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ZBRA",
       "field": "freeCashFlow",
       "gold": 576750016,
       "cohort": "flagged"
@@ -9533,6 +11399,12 @@
       "ticker": "ZG",
       "field": "netIncome",
       "gold": 23000000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ZG",
+      "field": "ebitda",
+      "gold": 307000000,
       "cohort": "flagged"
     },
     {
@@ -9551,6 +11423,12 @@
       "ticker": "ZS",
       "field": "totalDebt",
       "gold": 1867984000,
+      "cohort": "flagged"
+    },
+    {
+      "ticker": "ZS",
+      "field": "ebitda",
+      "gold": 135033000,
       "cohort": "flagged"
     },
     {

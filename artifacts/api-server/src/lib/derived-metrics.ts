@@ -257,3 +257,21 @@ export function computeReturnOnEquity(
   const r = netIncome / equity;
   return isFinite(r) && Math.abs(r) <= 5 ? r : null;
 }
+
+/** GAAP EBITDA TTM = operating income + D&A (SEC audit truth + EV/EBITDA numerator). */
+export function computeGaapEbitdaTtm(
+  ebit: number | null | undefined,
+  depreciationAmortization: number | null | undefined,
+): number | null {
+  if (ebit == null || depreciationAmortization == null) return null;
+  if (!isFinite(ebit) || !isFinite(depreciationAmortization)) return null;
+  const v = ebit + depreciationAmortization;
+  return isFinite(v) ? v : null;
+}
+
+/** Vendor "EBITDA" often includes adjustments; >25% above GAAP OI+DA is not gold. */
+export function vendorEbitdaIsAdjustedOutlier(vendorEbitda: number, gaapEbitda: number): boolean {
+  if (!isFinite(vendorEbitda) || !isFinite(gaapEbitda)) return false;
+  const base = Math.max(Math.abs(gaapEbitda), 1);
+  return Math.abs(vendorEbitda - gaapEbitda) / base > 0.25;
+}

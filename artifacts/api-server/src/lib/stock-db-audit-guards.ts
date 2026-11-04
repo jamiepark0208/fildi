@@ -3,6 +3,7 @@
  * Each function is a regression-tested gate the audit uses before flagging.
  */
 import { isMaterialDivergence } from "./field-divergence.js";
+import { vendorEbitdaIsAdjustedOutlier } from "./derived-metrics.js";
 
 /** L1: only surface vendor gaps that would open Needs Review (merge-trusted band). */
 export function shouldFlagVendorGap(field: string, gold: number, srcVal: number): boolean {
@@ -77,4 +78,9 @@ export function statementLevelSignIssue(field: string, gold: number | null): str
   ]);
   if (nonNegative.has(field) && gold < 0) return `statement_negative_gold=${gold}`;
   return null;
+}
+
+/** L1 guard: vendor EBITDA label vs GAAP OI+DA (A329 segment 2). */
+export function vendorEbitdaAdjustedVsGaap(vendorEbitda: number, gaapEbitda: number): boolean {
+  return vendorEbitdaIsAdjustedOutlier(vendorEbitda, gaapEbitda);
 }

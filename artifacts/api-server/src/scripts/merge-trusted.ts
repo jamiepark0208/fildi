@@ -45,6 +45,7 @@ import {
   skipDerivedEvRatios,
 } from "../lib/derived-metrics.js";
 import { applyNegativeEquityGoldPolicy } from "../lib/negative-equity-policy.js";
+import { applyStatementGoldPolicies } from "../lib/statement-gold-policy.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -122,19 +123,16 @@ export const FIELD_DEFS: FieldDef[] = [
   // ── Balance sheet ─────────────────────────────────────────────────────────
   // EDGAR is last resort everywhere — it's annual 10-K data (lags), so it only wins a
   // field when every timelier source is null. It stays in the chain for completeness.
-  // Concept = "cash & short-term investments" (the UI's "Cash & ST Inv" label, and what
-  // cashRunway needs — a company can liquidate ST investments to fund operations). Only
-  // Yahoo's totalCash reports that; FMP/EDGAR report cash-ONLY (cashAndCashEquivalents),
-  // which understates it, so they're excluded here rather than mixed in. Costs 6 tickers
-  // their cash value (319/335 have Yahoo totalCash) — better than a wrong, mixed concept.
-  // FactSet "Cash & ST Inv" matches Yahoo's concept — allowed as last-resort only.
+  // Concept = cash & short-term investments (net-debt / runway). SEC truth = CashAndCashEquivalents +
+  // ShortTermInvestments / MarketableSecuritiesCurrent (see stock-db-audit-l2.py). Yahoo totalCash
+  // and FactSet "Cash & ST Inv" match; FMP/EDGAR cash-only are excluded from the vote chain.
   { tfCol: "cashAndEquivalents",      priority: [["yahoo","totalCash"], ["factset","totalCash"]] },
   // Concept = total debt (short + long term). Yahoo→FMP both report this; Polygon and
   // EDGAR are dropped — they produce unreliable values for this field (Polygon includes
   // bank deposits, e.g. GS=$1.68T; EDGAR often captures only long-term debt, e.g. MSFT=$43B).
   // The residual Yahoo-vs-FMP gap is genuine operating-lease inclusion — see DIVERGENCE_TOL.
   { tfCol: "totalDebt",               priority: [["yahoo","totalDebt"],            ["fmp","totalDebt"]] },
-  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["edgar","totalEquity"], ["factset","totalStockholdersEquity"], ["polygon","totalStockholdersEquity"]] },
+  { tfCol: "totalStockholdersEquity", priority: [["fmp","totalStockholdersEquity"], ["yahoo","annualTotalEquity"], ["factset","totalStockholdersEquity"], ["edgar","totalEquity"], ["polygon","totalStockholdersEquity"]] },
   // Shares stay a reported count. Market cap / price is circular (the cap is shares × price) and is not a source.
   { tfCol: "sharesOutstanding",       priority: [["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
   { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
@@ -143,6 +141,7 @@ export const FIELD_DEFS: FieldDef[] = [
   // ── Income statement (absolute $) ─────────────────────────────────────────
   { tfCol: "totalRevenue",       priority: [["sec","totalRevenue"], ["yahoo","annualTotalRevenue"], ["yahoo","totalRevenue"],    ["fmp","totalRevenue"],   ["alpha_vantage","totalRevenue"],  ["edgar","totalRevenue"], ["factset","totalRevenue"], ["polygon","totalRevenue"]] },
   { tfCol: "netIncome",          priority: [["sec","netIncome"],         ["yahoo","annualNetIncome"],    ["fmp","netIncome"],         ["edgar","netIncome"], ["factset","netIncome"], ["polygon","netIncome"]] },
+  // Gold = GAAP operating income + D&A TTM (same as SEC audit truth); vendor adjusted EBITDA is not voted into gold.
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"], ["factset","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
   { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["fmp","grossProfit"], ["edgar","grossProfit"]] },
@@ -909,6 +908,13 @@ export async function runMergeTrusted() {
         ? niForFfo + daForFfo
         : null;
     applyDerived("ffoProxy", ffoProxy);
+
+    applyStatementGoldPolicies({
+      update,
+      provenanceBatch,
+      existing: existing as Record<string, unknown> | undefined,
+      financialCurrency,
+    });
 
     const negEquityClears = applyNegativeEquityGoldPolicy(
       update as Record<string, unknown>,

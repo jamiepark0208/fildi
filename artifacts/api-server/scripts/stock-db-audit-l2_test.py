@@ -7,6 +7,16 @@ MAX_PERIOD_DAYS = 15 * 30
 DEBT_LT = ["LongTermDebtNoncurrent", "LongTermDebt"]
 DEBT_CUR = ["LongTermDebtCurrent"]
 DEBT_ST = ["ShortTermBorrowings", "CommercialPaper"]
+CASH = [
+    "CashAndCashEquivalentsAtCarryingValue",
+    "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+]
+CASH_ST = [
+    "ShortTermInvestments",
+    "MarketableSecuritiesCurrent",
+]
+FLOW_PERIOD_FIELDS = {"netIncome", "freeCashFlow", "totalRevenue", "ebitda"}
+DEFINITION_ONLY_FIELDS = {"debtToEquity"}
 
 
 def ok(v, t, field):
@@ -53,6 +63,22 @@ def sec_debt_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, s
     return total, "debt ex-leases"
 
 
+def sec_cash_total(facts: dict, asof: str, anchor: str) -> tuple[float | None, str]:
+    cash = audit_instant(facts, CASH, asof, anchor)
+    if not cash:
+        return None, "cash tag missing/stale"
+    st = audit_instant(facts, CASH_ST, asof, anchor)
+    total = cash["value"] + (st["value"] if st else 0.0)
+    return total, "cash+ST"
+
+
+def scale_looks_adr(gold: float, truth: float) -> bool:
+    if truth == 0:
+        return False
+    ratio = abs(gold) / max(abs(truth), 1.0)
+    return ratio >= 3.5 or ratio <= 0.29
+
+
 def miss_cause(row: dict) -> str:
     note = (row.get("note") or "").lower()
     if row.get("truth") is None:
@@ -61,15 +87,21 @@ def miss_cause(row: dict) -> str:
         if "stale" in note:
             return "stale_period"
         return "truth_missing"
-    field = row["field"]
-    if field in ("ebitda", "freeCashFlow", "cashAndEquivalents", "debtToEquity", "netIncome"):
-        return "definition"
     gold = float(row["gold"])
     truth = float(row["truth"])
+    field = row["field"]
+    if field in FLOW_PERIOD_FIELDS and note.strip() == "fy":
+        return "wrong_period"
+    if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
+        return "definition"
+    if field in DEFINITION_ONLY_FIELDS:
+        return "definition"
     rel = abs(gold - truth) / max(abs(gold), abs(truth), 1.0)
     if rel > 0.35:
         return "gold_wrong"
-    return "truth_builder"
+    if rel > 0.20:
+        return "truth_builder"
+    return "gold_wrong"
 
 
 def test_ok_margin_hand_check():
@@ -96,6 +128,36 @@ def test_miss_cause():
         "gold": 200.0,
         "field": "totalRevenue",
     }) == "gold_wrong"
+    assert miss_cause({
+        "note": "FY",
+        "truth": 100.0,
+        "gold": 500.0,
+        "field": "totalRevenue",
+    }) == "wrong_period"
+    assert miss_cause({
+        "note": "cash+ST 2025-06-30",
+        "truth": 100.0,
+        "gold": 500.0,
+        "field": "cashAndEquivalents",
+    }) == "gold_wrong"
+
+
+def test_sec_cash_includes_st():
+    anchor = "2024-12-31"
+    facts = {
+        "facts": {
+            "us-gaap": {
+                "CashAndCashEquivalentsAtCarryingValue": {
+                    "units": {"USD": [{"val": 100.0, "end": anchor}]},
+                },
+                "ShortTermInvestments": {
+                    "units": {"USD": [{"val": 40.0, "end": anchor}]},
+                },
+            }
+        }
+    }
+    total, _note = sec_cash_total(facts, anchor, anchor)
+    assert total == 140.0
 
 
 def test_sec_debt_cur_only_no_truth():
@@ -139,4 +201,5 @@ if __name__ == "__main__":
     test_miss_cause()
     test_sec_debt_cur_only_no_truth()
     test_sec_debt_sums_lt_and_st()
+    test_sec_cash_includes_st()
     print("ok")
