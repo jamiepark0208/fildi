@@ -29,6 +29,7 @@ import {
 } from "@/components/live/regime-banner";
 import { EntryCell, type EntrySignal } from "@/components/live/hotlist-table";
 import { formatVolume } from "@/components/live/live-format";
+import { TradingViewAdvancedChart } from "@/components/live/tradingview-advanced-chart";
 import { regimeOdds, superTrend, utBot, type OHLC } from "@/lib/tv-intraday";
 
 /** Keep chart failures off the Live route ErrorBoundary. */
@@ -400,6 +401,13 @@ function RegimeSessionChartInner({
     return { stLine, marks, now: odds.now, notes: odds.notes, sessions };
   }, [bars, histBars, openSec, closeSec]);
   const [showTv, setShowTv] = useState(true);
+  const [tvView, setTvView] = useState<boolean>(() => {
+    try { return localStorage.getItem("live.chartView") === "tv"; } catch { return false; }
+  });
+  const toggleTvView = () => setTvView((v) => {
+    try { localStorage.setItem("live.chartView", v ? "fildi" : "tv"); } catch { /* ignore */ }
+    return !v;
+  });
 
   const candleCount = useMemo(
     () => seriesData.filter((d) => "close" in d).length,
@@ -845,9 +853,21 @@ function RegimeSessionChartInner({
           >
             UT/ST
           </button>
+          <button
+            type="button"
+            onClick={toggleTvView}
+            className={cn(
+              "px-2 py-0.5 text-[10px] font-mono font-semibold rounded border",
+              tvView ? "border-sky-400/70 bg-sky-400/15 text-sky-100" : "border-[#d4af37]/25 text-amber-50/70",
+            )}
+            title="TradingView's own chart: its built-in indicators exactly as on tradingview.com (Supertrend, MACD, RSI preloaded; add Ichimoku etc. from its Indicators menu). Community scripts can't load in the embed."
+          >
+            TradingView
+          </button>
         </div>
       </div>
-      {showTv && tvOverlay.now && (() => {
+      {tvView && <TradingViewAdvancedChart symbol={symbol} />}
+      {!tvView && showTv && tvOverlay.now && (() => {
         const n = tvOverlay.now;
         const pSide = n.side > 0 ? n.pUp : 1 - n.pUp;
         const base = n.side > 0 ? n.basePUp : 1 - n.basePUp;
@@ -876,7 +896,7 @@ function RegimeSessionChartInner({
         );
       })()}
 
-      <div className="relative h-[248px]">
+      <div className={cn("relative h-[248px]", tvView && "hidden")}>
         {isLoading && (
           <p className="absolute inset-0 z-10 flex items-center px-3 text-[11px] text-amber-100 font-mono bg-zinc-950/80">
             Loading {symbol}…
