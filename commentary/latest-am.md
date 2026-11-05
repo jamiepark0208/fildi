@@ -1,81 +1,71 @@
-# Morning Market Brief — Wednesday, November 4, 2026 (Pre-Market)
+# Morning Market Brief — Thursday, November 5, 2026 (Pre-Market)
 
-**Banner:** S&P fut +~1% · Dow fut +~1.6% · Nasdaq fut +~0.3–1.0% · 10Y 4.92% (−~3 bp) · Brent ~$103 · VIX 20.83 (Tuesday close, −1.51%)
-
-*Futures drifted all morning: Nasdaq-100 futures fell as much as 2.4% overnight and S&P futures 1.4%, then recovered as the Democratic sweep was confirmed. Snapshot ranges above reflect 8:30–9:10 AM ET reports; the Dow was the firmest leg throughout.*
+**Banner:** S&P fut +0.01% · Dow fut +0.48% · Nasdaq fut −0.63% · 10Y ~4.87% · Brent ~$96.80 (+2.3%) · VIX ~16.8
 
 ## What's moving
 
-- **A whipsaw, not a straight rally.** Overnight futures plunged on early midterm returns, then rebounded into the open. Tuesday's cash close was split: S&P 500 +0.36% to 7,568.92, Nasdaq +0.83% to 25,372.01, Dow −0.38% to 51,786.72.
-- **Democrats took both chambers.** The sweep drives the tape: banks and tariff-exposed names led Europe, while U.S. data-center and Musk-linked names took the other side of it.
-- **Yields eased after Tuesday's rise.** 10Y ~4.92%, down ~2–3.5 bp from Tuesday's ~4.95–4.96% close; 2Y ~4.60–4.61%, 30Y ~5.30–5.31%. The Treasury's quarterly refunding announcement is due at 8:30 AM ET, with coupon sizes expected unchanged.
-- **Oil down, then steadying.** Brent ~$102–104 and WTI ~$95–96, down ~1–2% in early snapshots and near flat in later ones, on U.S.–Iran diplomacy hopes and a reported API crude draw of 5.27M barrels vs ~+0.88M expected.
-- **Gold and silver jumped, bitcoin firmed.** Gold ~$4,020–4,053 (+~2–2.9%), silver +~4%, bitcoin ~$77,700–78,600 (+~1.5%), as the dollar slipped to ~101.5.
-- **Asia mixed, Europe higher.** Nikkei −1.42% to 62,188.63 after an intraday plunge to 60,030.10 (−4.8%); Shanghai +2.16% to 3,686.17, Hang Seng +1.67% to 23,919.50, KOSPI +0.62%. STOXX 600 +0.5–1.1% in morning trade, FTSE +~0.2%, DAX +0.55%, CAC +0.4%.
-- **Event stack is still ahead.** ISM Services at 10:00 AM ET, EIA inventories at 10:30 AM ET, Qualcomm and Arm after the close, Bank of England Thursday, and October payrolls Friday.
+- **Rotation, day two — Dow and S&P hold, Nasdaq lags.** After Wednesday's post-midterm rally (Dow +3.03%, S&P +1.58%, Nasdaq +1.44%), futures are mixed: Dow e-minis +258 pts (+0.48%), S&P e-minis flat (+0.01%), Nasdaq 100 e-minis −181 pts (−0.63%). Russell 2000 futures +0.4%.
+- **The chip purge continues.** Qualcomm's weak smartphone-chip guide has semis selling off again — SOXX −2% premarket, Nvidia/Intel/AMD/Broadcom all lower. Hyperscalers hold up (Amazon, Meta, Alphabet +~1% each); the AI trade is splitting, not breaking.
+- **Oil bounces modestly off the plunge.** Brent ~$96.80 (+~2.3%) after settling $94.62 (−8.7%) Wednesday, its lowest since August 31, on hopes the Democratic sweep pushes toward Iran de-escalation. WTI was $88.12 (−8.3%) Wednesday.
+- **Yields grind lower, gold higher.** 10Y ~4.85–4.89% (Wednesday close 4.89%, −6 bp; lowest since September 10), 30Y ~5.28%. Gold ~$4,140 (+~1.7%); bitcoin ~$79,700 (+~1.7% after closing Wednesday at $79,497). VIX ~16.8 after collapsing ~20% Wednesday.
+- **Asia split, Europe firmer.** Nikkei −1.79% to 61,077.90 and Kospi −5.28% on the AI-chain selloff; Hang Seng +3.67% and Shanghai +0.10% as money rotates into Chinese internet names. STOXX 600 +0.4–0.7%, FTSE +0.6–1.0% ahead of the Bank of England decision.
 
 ## Why it matters
 
-- The policy risk in the AI trade has shifted, not cleared: from tariffs and spending to data-center permitting and regulation, so AI beta stays two-sided even on an up day.
-- Yields down, gold up, equities up together is repricing, not risk-off — the bond move is helping equities here, but it also means a hot ISM prices reading at 10:00 AM ET can reverse both legs at once.
-- The 1-day VIX jumped to 22.78 (implying ~1.44% for Wednesday) while the VIX itself eased to 20.83 — today is priced as a gap day, not a drift day.
-- ADP and ISM today are a preview, not the verdict: Friday's payrolls (consensus ~50–65K, unemployment 4.2%) still set the rate path, so today's prints should not be traded as final.
+- **This is a rotation, not risk-off.** Breadth is holding while semis purge — index-level premium is the safer side of the book today, single-name chip premium is not.
+- **The vol crush already happened.** VIX went 20.8 → 16.6 in a day; new premium is priced off the lower number, so the same pay now needs wider strikes or smaller size.
+- **Oil's bounce is not a floor.** The plunge has a supply fundamental behind it (widening global surplus), so one green morning doesn't make energy short puts safe again.
 
 ## What to watch today (ET)
 
-- **8:30 AM — Treasury quarterly refunding announcement:** coupon sizes expected unchanged; watch any 20-/30-year guidance for 2027
-- **9:45 AM — S&P Global Services PMI, October final:** consensus 57.9, prior 57.9
-- **10:00 AM — ISM Services PMI, October:** consensus 54.8, prior 54.9; prices index consensus 75, prior 74; employment 50 vs 50.1; new orders 59.5 vs 59.8
-- **10:30 AM — EIA crude oil inventories:** API showed a 5.27M-barrel draw vs ~+0.88M expected
-- **No Fed speakers scheduled; no non-bill Treasury auctions today**
-- **Before open — reported:** CVS Health, McDonald's, Uber, Novo Nordisk, Datadog (see Data / Single names)
-- **After close — earnings:** Qualcomm (±8.9% priced move), Arm (±11.1%), AppLovin, MercadoLibre, DoorDash, McKesson, Expedia
-- **Tomorrow (Thu Nov 5) — key:** Bank of England decision 7:00 AM (25 bp hike to 4.00% forecast); initial jobless claims 8:30 AM; before open: ConocoPhillips, Duke Energy, Southern Co., Cigna, Sony; after close: Airbnb, Cloudflare, Atlassian, Lumentum, Monster Beverage
-- **Friday (Nov 6) — key:** October payrolls 8:30 AM, consensus ~50–65K, prior 29K; unemployment 4.2%; average hourly earnings +0.3% m/m expected
+- **7:00 AM — Bank of England decision:** 25 bp hike to 4.00% expected, first hike since August 2023; vote split and Monetary Policy Report matter as much as the hike.
+- **8:30 AM — Initial jobless claims** (cons ~196–197K vs 194K prior), **Q3 nonfarm productivity and unit labor costs.** Challenger job cuts already out: 43,994 in October, −71.3% y/y.
+- **Fed speakers:** Hammack 8:50 AM, Barkin 9:10 AM, Logan 7:00 PM. Fed balance sheet later in the day.
+- **10:30 AM — EIA natural gas inventories.**
+- **Earnings before open:** ConocoPhillips (reported — see Data), Cigna, Zoetis, Duke, Southern, Cummins. **After close:** Airbnb (EPS est $2.91), Cloudflare (EPS est $0.35), Trade Desk, DraftKings, Monster Beverage, Axon, Lumentum, EOG, Simon Property.
+- **Tomorrow 8:30 AM — October payrolls:** cons ~62K (FactSet) vs 29K prior, unemployment 4.2%; Michigan sentiment prelim cons 48 vs 46.3 prior. Fed's Musalem speaks Friday morning.
 
 ## Data
 
-- **ADP employment, October (8:15 AM ET):** consensus 67–69K, prior 90K — actual not verified in sources at brief cut, not stated
-- **Trade balance, September (8:30 AM ET):** consensus deficit ~$107–108B, prior −$105.6B — actual not verified in sources at brief cut, not stated
-- **CVS Health Q3:** adjusted EPS $2.09 vs $1.65 consensus; revenue $108.4B vs $104.7B consensus (+5.4% y/y); full-year adjusted EPS guidance raised to at least $8.20
-- **McDonald's Q3:** adjusted EPS $3.57 vs $3.38 consensus; revenue $7.16B vs $7.28B consensus; U.S. comparable sales −0.2%, global comps +1.5%
-- **Uber Q3:** adjusted EPS $0.88 vs $0.86 consensus; gross bookings $59.8B (+20% y/y); revenue $14.8B vs $14.66B consensus; adjusted EBITDA $3.0B (+31% y/y)
-- **Tuesday already out:** S&P 500 +0.36%, Nasdaq +0.83%, Dow −0.38% (see What's moving); 10Y closed ~4.95%, up ~6 bp on the day
+- **Challenger job cuts (Oct, out):** 43,994, −71.3% y/y.
+- **ConocoPhillips Q3 (reported):** EPS $3.34, adj EPS $3.27 vs ~$3.00 est — beat; quarterly dividend raised 11% to $0.93.
+- **Qualcomm fiscal Q4 (reported Wed after close):** EPS $2.17 vs $2.16 est, revenue $10.32B vs $10.12B est — narrow beat, weak smartphone-chip guide; stock −10–12% premarket.
+- **AppLovin Q3 (reported Wed after close):** EPS $4.30 vs $4.03 est, revenue $2.19B vs $2.08B est, guidance above consensus, $3.2B buyback — beat and raise.
+- **McDonald's Q3 (reported):** EPS $3.57 vs $3.38 est — beat; revenue $7.16B vs $7.28B est — miss.
+- **Uber Q3 (reported):** EPS $0.88 vs $0.86 est, revenue $14.77B vs $14.66B est — small beat.
+- **Novo Nordisk (reported):** EPS $0.87 vs $0.73 est, revenue $11.94B vs $11.07B est — beat.
 
 ## Single names
 
-- **AMD (AMD) — roughly flat at 9:07 AM ET (Finnhub premarket −0.06%), after +6–7% in earlier overnight snapshots:** Q3 beat with data-center revenue +97% y/y and a stronger 2027 outlook, but the overnight pop faded into the open. Let the open confirm the move before selling new premium on it.
-- **Tesla (TSLA) — −5.5% premarket (Finnhub 9:07 AM ET; −3.5 to −5.7% across snapshots):** the Democratic sweep, including Texas, is being read as policy risk for Musk-linked names, with SpaceX down ~4–5% alongside. This is policy beta, not an earnings trade — keep any single-name exposure wide or skip it.
-- **Arista Networks (ANET) — +3.9% premarket (Finnhub 9:08 AM ET):** strong Q4 guidance after Tuesday's report. Use strength to collect premium at wider strikes rather than chasing the gap.
-- **Neoclouds — CoreWeave, IREN, Nebius mixed to down (CoreWeave −9.3% in one premarket snapshot, −0.8 to −2.6% in others):** the data-center permitting story hits these first and hardest. Avoid new short premium here until that risk clears.
-- **CVS Health (CVS) — beat, then −2.2% to $89.58 after results in one post-print snapshot:** a big EPS and revenue beat with raised guidance that still fell is a reminder that a good print is not a floor. Do not buy that dip with short puts today.
-- **McDonald's (MCD) — rising premarket after an EPS beat / revenue miss:** U.S. comps −0.2% with global comps +1.5% — a steady, low-beta print. The priced move is only ±3.5–3.9%, so premium is thin and size should stay small.
-- **Uber (UBER) — +0.6% premarket to $67.01:** bookings +20% and adjusted EPS +35% y/y, a solid print that moved far less than the ±7.3% priced move. Sellers who waited out the print avoided the gap; there is no edge in chasing it now.
-- **Qualcomm (QCOM) / Arm (ARM) — after close, priced ±8.9% / ±11.1%:** no new short premium through tonight's prints; the gap is the trade, and it is already priced.
-- **Flat / folded:** Nvidia, Microsoft, Amazon and the hyperscalers firmer (+~1–2.5% in desk and premarket snapshots) — index-level strength, not single-name signals; no separate bullet warranted.
+- **Qualcomm (QCOM) −10–12% premarket (~$152):** beat narrowly but guided light on smartphone chips and Apple-related revenue — no new short premium until the open reprices it.
+- **AppLovin (APP) +16–19% premarket:** blowout beat/raise plus buyback — a gap up, not a setup; don't chase premium either way into the move.
+- **Dutch Bros (BROS) −14% premarket:** cut full-year adjusted EBITDA forecast on traffic slowdown and margin pressure — a guide-cut gap, stay out.
+- **Semis broadly lower premarket (NVDA −1.3%, SOXX −2%):** the chip purge is day two, not one print — chip premium stays off until the repricing settles.
+- Flat/small moves: AMZN +1.6%, META +1%, GOOGL +1.2%, AAPL +0.7%, MSFT flat, TSLA −2%; Toyota +16.7% on raised FY forecast; SoftBank −6.8% after China blocked its ABB robotics deal; COP steady after beat and dividend hike.
 
 ## Desk flagged
 
-- **FactSet Morning Watchlist, 7:26 AM ET snapshot:** Super Micro Computer (SMCI) was the top premarket gainer at +4.84%, a stronger read than the flat post-earnings reports elsewhere this morning — watch whether that holds at the open before treating SMCI as stabilized.
-- **FactSet StreetAccount Politics summary, 8:27 AM ET:** Democratic gubernatorial wins run on data-center limit pledges are being read as a growing backlash to AI buildout expansion — a permitting-risk angle beyond the broad House/Senate result, and the one most likely to keep neocloud volatility elevated after today.
+- **Earnings-gap cluster beyond the headline names (FactSet StreetAccount overnight summary):** Snap down big on weak ads/DAU, Expedia guiding Q4 down, Paycom hit on soft recurring-growth guidance, Fair Isaac down on no FY27 guidance, Zillow hit on mortgage headwinds — fresh short premium into these gaps is catching falling knives; let the open reprice first.
+- **Index earnings risk is mostly behind us:** ~70% of the S&P 500 has reported, blended earnings growth holding just under 31%.
 
-## Implications (option-selling book)
+## Implications
 
-- **The 10:00 AM ET window is double-loaded:** ISM Services plus its prices index lands with refunding headlines still fresh — do not add new short premium before that print, reassess after it.
-- **Size index spreads for the priced day, not the calm close:** a 1-day VIX near 22.8 implies ~1.44% for today, so today's index width needs to cover that, not yesterday's 0.36% S&P move.
-- **Two more gaps sit between now and Friday:** Qualcomm/Arm tonight and payrolls Friday morning — keep new premium diversified and index-based, not concentrated in tonight's reporters.
-- **Premium is not collapsing on the rally:** VIX ~20.8 with gold up and yields down means sellers are still being paid for event risk — collect it on index strength, not on single-name pops that can reverse on one headline.
+- **Payrolls tomorrow 8:30 AM is the week's real event** — keep new premium index-level and wide; no fresh short-dated single-name premium into tonight's after-close reporters (Airbnb, Cloudflare).
+- **Premium compressed ~20% in a day (VIX 20.8 → 16.6)** — same pay now needs wider strikes or smaller size; don't write at yesterday's widths.
+- **Semis are the tail risk, not the index** — avoid short puts in Qualcomm/Arm/semis until the guide-cut repricing settles; the Dow/S&P holding up doesn't make chip premium safe.
 
-Systems: Mac online — fildi API/scheduler/prices unverified via available device commands
+## Context
+
+- **S&P 500:** 7,688.62 Wednesday vs October 6 record close 7,818.93 — ~1.7% below the record after the best day since August.
+- **10Y:** ~4.87% vs 4.95% Tuesday, down ~42 bp over the past month — the yield tailwind is real, but it reverses fast if Friday's payrolls run hot.
+- **Brent:** ~$96.80 this morning vs $94.62 Wednesday and $103.60 Tuesday — back below $100 for the first time since early October.
+
+Systems: Mac online, fildi API/scheduler unverified — no probe route on device
 
 ## Sources
 
-- Reuters via TipRanks / TradingView News: futures rebound, overnight lows, premarket movers — https://www.tipranks.com/news/futures-rise-after-democrats-big-win-in-u-s-midterm-elections · https://www.tradingview.com/news/seekingalpha:0d2ce753c094b:0-stock-index-futures-turn-green-as-investors-digest-blue-tsunami/
-- Morningstar / Dow Jones via TradingView: yields falling after Democratic sweep, 10Y 4.914%, 2Y 4.603% — https://www.morningstar.com/news/dow-jones/202611047608/treasury-yields-decline-after-democrat-triumph-eurozone-bond-yields-trade-mixed-2nd-update
-- WSJ via TradingView: STOXX 600, FTSE, DAX, CAC, Nikkei close 62,188.63, Shanghai 3,686.17 — https://www.wsj.com/finance/stocks/nikkei-flat-supported-by-financial-airline-stocks-87443383
-- Commodities: Morgan Downey / DataForge / WSJ Asia: Brent ~$102–104, WTI ~$95–96, gold ~$4,020–4,053, bitcoin ~$77,700–78,600 — https://commoditynews.morgandowney.com/news · https://dataforgestudio.xyz/2026/11/morning-market-brief-wednesday-november-04-2026/
-- Economic calendar: Helious / ActionForex / DB via ZeroHedge: ADP 67–69K vs 90K, trade −$108B vs −$105.6B, ISM 54.8 vs 54.9 — https://helious.io/calendar/2026-w45 · https://www.actionforex.com/economic-calendar/659311-eco-data-11-4-26/
-- Earnings: TickerRoast / EarningsWatcher / TipRanks implied moves; CVS, McDonald's, Uber results — https://tickerroast.com/morning-brief-november-4-2026-midterms-senate-amd-arista/ · https://www.tipranks.com/news/options-volatility-and-implied-earnings-moves-today-november-04-2026 · https://thewesterlysun.marketminute.com/article/stockstory-2026-11-4-cvs-healths-nysecvs-q3-2026-strong-sales · https://invezz.com/news/2026/11/04/mcdonalds-earnings-hide-a-key-story-about-consumer-spending/ · https://www.tipranks.com/news/company-announcements/uber-technologies-reports-strong-third-quarter-2026-results
-- VIX / 1-day VIX, refunding, EIA: TheStreet Pro / Confluence / DIY Investor — https://pro.thestreet.com/market-commentary/tuesdays-tech-bounce-holds-as-elections-take-the-stage · https://confluencetradingtools.substack.com/p/ctt-ai-analyst-pre-market-briefing-d49
-- Desk: FactSet StreetAccount Politics summary 8:27 AM ET and Morning Watchlist 7:26 AM ET, via Gmail label tradedash-brief / Mac Drive TradeDash Briefs folder, 2026-11-04
-- Finnhub premarket snapshots 9:07–9:08 AM ET: AMD, TSLA, ANET
+- Futures, yields, oil, gold, bitcoin, VIX: https://www.reuters.com/business/sp-500-futures-steady-after-midterm-rally-nasdaq-lags-chip-weakness-2026-11-05/ · https://www.investopedia.com/5-things-investors-need-to-know-about-thursday-s-markets-12237605 · https://www.pulsafi.com/market-today · https://www.tradingview.com/news/seekingalpha:e6ae70019094b:0-dow-futures-outperform-day-after-wall-street-s-post-midterm-rally/
+- Asia/Europe, BoE: https://bankofvol.substack.com/p/rotation-holds-semis-sell-the-prints · https://newzbuzz.today/global-stock-markets-today-november-5-2026/ · https://my-passive-income.eu/markets-before-the-open-november-5-2026/
+- Single names, earnings, calendar, Fed speakers: https://www.zerohedge.com/markets/futures-split-blue-wave-chip-purge-enters-day-two-oil-rebounds-boe-hikes · https://terminal.hyperstocks.io/earnings-calendar/today · https://www.conocophillips.com/news-media/story/conocophillips-announces-third-quarter-2026-results-and-increases-quarterly-ordinary-dividend-by-11/
+- Desk flagged (Gmail label tradedash-brief, Nov 5): FactSet StreetAccount Summary — U.S. Overnight, 6:59 AM ET — earnings-gap cluster (SNAP, EXPE, PAYC, FICO, ZG), blended S&P earnings growth just under 31% with ~70% reported, NFP cons ~62K.
+- Prior brief: 2026-11-04-pm.md (this repo's commentary archive)
