@@ -150,3 +150,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A335](asks/A335.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S153 reverse-engineer biggest intraday swings → which indicator caught them | done |
 | [A336](asks/A336.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S154 signal-state playbook: all structures × both sides × before/after × many holds, walk-forward | done |
 | [A337](asks/A337.md) | 2026-11-04 | Muse → Cursor | Journal section: babble → structured tasks, agent context + comments, self-recursive learning evolution | planned |
+| [A338](asks/A338.md) | 2026-11-04 | Muse → Cursor | Settings › Indicators defaults don't match the charts (Live chart ignores them) | planned |
