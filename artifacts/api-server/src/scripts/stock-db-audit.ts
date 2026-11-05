@@ -289,7 +289,7 @@ function mulberry32(seed: number) {
 }
 
 function perShareGoldPeriodEnd(pack: TickerPack, field: string): string | null {
-  if (!SEGMENT_PER_SHARE_FIELDS.has(field)) return null;
+  if (field !== "earningsPerShare") return null;
   return pack.goldPeriodEnd;
 }
 
