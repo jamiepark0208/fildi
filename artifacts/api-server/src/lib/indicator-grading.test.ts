@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ResampledBar } from "@workspace/indicators";
-import { buildScorecard, gradeAt, statsFor, verdictFor, type ScoreInput } from "./indicator-grading.js";
+import { barCtx, buildScorecard, exitFor, gradeAt, randomIndex, roundTrip, statsFor, verdictFor, type ScoreInput } from "./indicator-grading.js";
 
 // 2026-11-02 (Mon, EST) 09:30 ET = 14:30 UTC
 const T0 = Date.UTC(2026, 10, 2, 14, 30) / 1000;
@@ -32,31 +32,57 @@ describe("gradeAt", () => {
   });
 });
 
+describe("round trip", () => {
+  // two sessions: Nov 2 (k 0..5) and Nov 3 (k 288..293 = +1 day)
+  const day2 = (k: number, c: number) => mk(288 + k, c, c, c, c);
+  const bars = [100, 101, 102, 101, 103, 104].map((c, k) => mk(k, c, c, c, c)).concat([50, 50, 50, 50, 50, 50].map((c, k) => day2(k, c)));
+  const ctx = barCtx(bars);
+  const rix = randomIndex(bars, ctx);
+  it("exits at the next opposite signal in the session, else the session close", () => {
+    const sig = [{ i: 0, side: "buy" as const }, { i: 1, side: "buy" as const }, { i: 3, side: "sell" as const }, { i: 7, side: "sell" as const }];
+    assert.deepEqual(exitFor(0, "buy", sig, ctx), { j: 3, exit: "flip" });
+    assert.deepEqual(exitFor(3, "sell", sig, ctx), { j: 5, exit: "close" }); // next buy is tomorrow -> flat at close
+    const rt = roundTrip(bars, 0, "buy", exitFor(0, "buy", sig, ctx), rix, "k")!;
+    assert.ok(Math.abs(rt.rtPct - 1) < 1e-9 && rt.rtBars === 3);
+    const s = roundTrip(bars, 3, "sell", exitFor(3, "sell", sig, ctx), rix, "k")!;
+    assert.ok(Math.abs(s.rtPct - (-(104 / 101 - 1) * 100)) < 1e-9);
+  });
+  it("random comparator = same side + hold length, never crossing a session, seeded", () => {
+    const a = roundTrip(bars, 0, "buy", { j: 5, exit: "close" }, rix, "k")!; // L = 5: only bar 0 of each session qualifies
+    // starts: day1 k0 (+4 %) or day2 k0 (0 %); mean must lie between and repeat exactly for the same seed
+    assert.ok(a.rtRandomPct! >= 0 && a.rtRandomPct! <= 4 + 1e-9);
+    assert.equal(roundTrip(bars, 0, "buy", { j: 5, exit: "close" }, rix, "k")!.rtRandomPct, a.rtRandomPct);
+  });
+});
+
 let seed = 12345;
 const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-const rows = (n: number, hitRate: number, placeboRate: number, days: number): ScoreInput[] =>
-  Array.from({ length: n }, (_, k) => ({ indicatorId: "x", version: 1, kind: "Buy", tf: "5m", day: `d${Math.floor((k * days) / n)}`, time: k, hit: rnd() < hitRate, placeboHit: rnd() < placeboRate }));
+// per-trade round trip ~ N(edge, 0.5 %) vs random ~ N(0, 0.5 %)
+const g = () => Math.sqrt(-2 * Math.log(rnd() || 1e-12)) * Math.cos(2 * Math.PI * rnd());
+const rows = (n: number, edgePct: number, days: number): ScoreInput[] =>
+  Array.from({ length: n }, (_, k) => ({ indicatorId: "x", version: 1, kind: "Buy", tf: "5m", day: `d${Math.floor((k * days) / n)}`, time: k,
+    rtPct: edgePct + 0.5 * g(), rtRandomPct: 0.5 * g() / 7, rtRandomWin: 0.5, hit: null, placeboHit: null }));
 
-describe("verdict rule (fixed)", () => {
+describe("verdict rule (fixed, round-trip lift in % per trade)", () => {
   it("thresholds", () => {
-    assert.equal(verdictFor(3, 2, true, 5), "likely useful");
-    assert.equal(verdictFor(3, 2, false, 5), "too early");
-    assert.equal(verdictFor(2.9, 5, true, 5), "too early");
-    assert.equal(verdictFor(1.4, 0.5, true, 3), "likely noise");
-    assert.equal(verdictFor(1.4, 0.5, true, 3.1), "too early");
-    assert.equal(verdictFor(-8, -4, true, 2), "too early");
+    assert.equal(verdictFor(0.1, 2, true, 0.2), "likely useful");
+    assert.equal(verdictFor(0.1, 2, false, 0.2), "too early");
+    assert.equal(verdictFor(0.09, 5, true, 0.2), "too early");
+    assert.equal(verdictFor(-0.1, -2, true, 0.2), "likely worse than random");
+    assert.equal(verdictFor(-0.1, -2, false, 0.2), "too early");
+    assert.equal(verdictFor(0.04, 0.5, true, 0.1), "likely noise");
+    assert.equal(verdictFor(0.04, 0.5, true, 0.11), "too early");
   });
-  it("strong lift over many days is useful; no lift over many days is noise; few signals is too early with a need-more count", () => {
-    const strong = statsFor(rows(4000, 0.6, 0.4, 40))!;
-    assert.equal(strong.verdict, "likely useful");
-    const flat = statsFor(rows(40000, 0.5, 0.5, 60))!;
-    assert.equal(flat.verdict, "likely noise");
-    const few = statsFor(rows(8, 0.9, 0.3, 4))!;
+  it("edge over many days is useful, negative edge is worse than random, none is noise, few is too early", () => {
+    assert.equal(statsFor(rows(4000, 0.2, 40))!.verdict, "likely useful");
+    assert.equal(statsFor(rows(4000, -0.2, 40))!.verdict, "likely worse than random");
+    assert.equal(statsFor(rows(40000, 0, 60))!.verdict, "likely noise");
+    const few = statsFor(rows(8, 1, 4))!;
     assert.equal(few.verdict, "too early");
     assert.ok(few.needMore! > 0);
   });
   it("buildScorecard pools kind x tf with ALL rows", () => {
-    const sc = buildScorecard([...rows(20, 0.5, 0.5, 5), ...rows(20, 0.5, 0.5, 5).map((r) => ({ ...r, kind: "Sell", tf: "15m" }))]);
+    const sc = buildScorecard([...rows(20, 0, 5), ...rows(20, 0, 5).map((r) => ({ ...r, kind: "Sell", tf: "15m" }))]);
     const keys = sc.map((r) => `${r.kind}/${r.tf}`).sort();
     assert.deepEqual(keys, ["ALL/15m", "ALL/5m", "ALL/ALL", "Buy/5m", "Buy/ALL", "Sell/15m", "Sell/ALL"]);
     assert.equal(sc.find((r) => r.kind === "ALL" && r.tf === "ALL")!.n, 40);

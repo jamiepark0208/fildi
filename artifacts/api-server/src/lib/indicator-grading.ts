@@ -5,18 +5,23 @@
 //   fwd  = % move in the signal's direction to +30m / +60m / the session close (exact bar ends; null if not on a bar edge)
 //   MFE/MAE = best / worst excursion to the session close, in ATR
 // Placebo = the same test from a random other bar of the same ticker, tf, time of day and direction (seeded, so
-// re-grading is stable). Lift = hit% - placebo hit%; t is day-clustered; verdict is the fixed rule below, no judgment.
+// re-grading is stable). Kept as context only.
+//
+// VERDICT BASIS = ROUND TRIP (Jamie 11-04: "+-0.5 ATR next bars is not the trade"). Buy at the signal-bar close, exit
+// at the close of the indicator's next opposite signal (same tf, same session), else at the session close. Comparator
+// = 50 seeded random entries anywhere in the series, same side, same hold length, not crossing a session. Lift = avg
+// round trip - avg random (% per trade); t is day-clustered; verdict is the fixed rule below, no judgment.
 import { etClock, type ResampledBar } from "@workspace/indicators";
 
 export const HIT_ATR = 0.5;
-export const MIN_USEFUL_LIFT = 3;
-export const NOISE_LIFT = 1.5;
+export const MIN_USEFUL_LIFT_PCT = 0.10; // round-trip lift, % per trade (~ a 5m spread + slippage on liquid names)
+export const NOISE_LIFT_PCT = 0.05;
 // Data floor (added to the spec rule so 8 lucky signals on 4 days cannot read "useful"): below it the answer is always "too early".
 export const MIN_N = 20;
 export const MIN_DAYS = 5;
 export const POWER_Z = 2.8; // 80% power at 5% two-sided
 
-export type Verdict = "likely useful" | "likely noise" | "too early";
+export type Verdict = "likely useful" | "likely worse than random" | "likely noise" | "too early";
 
 export type EventGrade = {
   fwd30mPct: number | null;
@@ -100,27 +105,70 @@ export function placeboHit(bars: ResampledBar[], atrS: number[], i: number, side
   return gradeAt(bars, j, side, atrS[j]!, ctx).hit;
 }
 
+export type RoundTrip = { rtPct: number; rtBars: number; rtExit: "flip" | "close"; rtRandomPct: number | null; rtRandomWin: number | null };
+export const RANDOM_DRAWS = 50;
+
+/** Exit bar for an entry at i: first opposite-side signal bar after i in the same session, else the session close. */
+export function exitFor(i: number, side: "buy" | "sell", signals: { i: number; side: "buy" | "sell" }[], ctx: BarCtx): { j: number; exit: "flip" | "close" } {
+  const end = ctx.sessEnd[i]!;
+  let best = Infinity;
+  for (const s of signals) if (s.side !== side && s.i > i && s.i <= end && s.i < best) best = s.i;
+  return Number.isFinite(best) ? { j: best, exit: "flip" } : { j: end, exit: "close" };
+}
+
+/** Bars sorted by how many bars remain in their session (desc), so "every start with >= L bars left" is a prefix. */
+export type RandomIndex = { order: number[]; rem: number[] };
+export function randomIndex(bars: ResampledBar[], ctx: BarCtx): RandomIndex {
+  const rem = bars.map((_, j) => ctx.sessEnd[j]! - j);
+  const order = rem.map((_, j) => j).filter((j) => bars[j]!.lastTime + 300 >= bars[j]!.end).sort((a, b) => rem[b]! - rem[a]!);
+  return { order, rem };
+}
+
+export function roundTrip(bars: ResampledBar[], i: number, side: "buy" | "sell", exit: { j: number; exit: "flip" | "close" }, rix: RandomIndex, seedKey: string): RoundTrip | null {
+  const L = exit.j - i;
+  if (L <= 0) return null;
+  const d = side === "buy" ? 1 : -1;
+  const rtPct = (d * (bars[exit.j]!.close / bars[i]!.close - 1)) * 100;
+  let lo = 0, hi = rix.order.length; // count of starts with rem >= L
+  while (lo < hi) { const m = (lo + hi) >> 1; if (rix.rem[rix.order[m]!]! >= L) lo = m + 1; else hi = m; }
+  if (lo < 2) return { rtPct, rtBars: L, rtExit: exit.exit, rtRandomPct: null, rtRandomWin: null };
+  const rnd = mulberry32(hashStr(seedKey));
+  let sum = 0, wins = 0;
+  for (let k = 0; k < RANDOM_DRAWS; k++) {
+    const a = rix.order[Math.floor(rnd() * lo)]!;
+    const r = d * (bars[a + L]!.close / bars[a]!.close - 1) * 100;
+    sum += r; if (r > 0) wins++;
+  }
+  return { rtPct, rtBars: L, rtExit: exit.exit, rtRandomPct: sum / RANDOM_DRAWS, rtRandomWin: wins / RANDOM_DRAWS };
+}
+
 // ── Scorecard ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type ScoreInput = { indicatorId: string; version: number; kind: string; tf: string; day: string; time: number; hit: boolean; placeboHit: boolean };
+export type ScoreInput = {
+  indicatorId: string; version: number; kind: string; tf: string; day: string; time: number;
+  rtPct: number; rtRandomPct: number; rtRandomWin: number | null; hit: boolean | null; placeboHit: boolean | null;
+};
 export type ScoreRow = {
   indicatorId: string; version: number; kind: string; tf: string; n: number; days: number;
-  hitPct: number; placeboHitPct: number; liftPts: number; tStat: number; signBothHalves: boolean; mdePts: number;
-  verdict: Verdict; needMore: number | null; gradedThrough: number;
+  winPct: number; randomWinPct: number | null; avgRtPct: number; randomRtPct: number; liftPct: number; mdePct: number;
+  tStat: number; signBothHalves: boolean; verdict: Verdict; needMore: number | null; gradedThrough: number;
+  hitPct: number | null; placeboHitPct: number | null; liftPts: number | null; // old +-0.5 ATR hit test, context only
 };
 
-/** The fixed rule (spec): useful = lift >= 3, |t| >= 2, same sign both halves; noise = |lift| < 1.5 with MDE <= 3; else too early. */
-export function verdictFor(liftPts: number, t: number, signBoth: boolean, mdePts: number, n = Infinity, days = Infinity): Verdict {
+/** The fixed rule on round-trip lift (% per trade vs random): useful = lift >= 0.10, |t| >= 2, same sign both halves;
+ *  worse than random (fade candidate) = the mirror; noise = |lift| < 0.05 with MDE <= 0.10; else too early. */
+export function verdictFor(liftPct: number, t: number, signBoth: boolean, mdePct: number, n = Infinity, days = Infinity): Verdict {
   if (n < MIN_N || days < MIN_DAYS) return "too early";
-  if (liftPts >= MIN_USEFUL_LIFT && Math.abs(t) >= 2 && signBoth) return "likely useful";
-  if (Math.abs(liftPts) < NOISE_LIFT && mdePts <= MIN_USEFUL_LIFT) return "likely noise";
+  if (liftPct >= MIN_USEFUL_LIFT_PCT && t >= 2 && signBoth) return "likely useful";
+  if (liftPct <= -MIN_USEFUL_LIFT_PCT && t <= -2 && signBoth) return "likely worse than random";
+  if (Math.abs(liftPct) < NOISE_LIFT_PCT && mdePct <= MIN_USEFUL_LIFT_PCT) return "likely noise";
   return "too early";
 }
 
 export function statsFor(rows: ScoreInput[]): Omit<ScoreRow, "indicatorId" | "version" | "kind" | "tf"> | null {
   const n = rows.length;
   if (!n) return null;
-  const x = rows.map((r) => (r.hit ? 1 : 0) - (r.placeboHit ? 1 : 0));
+  const x = rows.map((r) => r.rtPct - r.rtRandomPct);
   const mean = x.reduce((a, b) => a + b, 0) / n;
   const byDay = new Map<string, { s: number; k: number }>();
   rows.forEach((r, k) => { const g = byDay.get(r.day) ?? { s: 0, k: 0 }; g.s += x[k]!; g.k += 1; byDay.set(r.day, g); });
@@ -137,20 +185,26 @@ export function statsFor(rows: ScoreInput[]): Omit<ScoreRow, "indicatorId" | "ve
   const m = (idx: number[]) => (idx.length ? idx.reduce((a, k) => a + x[k]!, 0) / idx.length : 0);
   const m1 = m(order.slice(0, half)), m2 = m(order.slice(half));
   const signBoth = (m1 > 0 && m2 > 0) || (m1 < 0 && m2 < 0);
-  const liftPts = mean * 100;
-  const mdePts = Number.isFinite(se) ? POWER_Z * se * 100 : Infinity;
-  const verdict = verdictFor(liftPts, t, signBoth, mdePts, n, D);
+  const mdePct = Number.isFinite(se) ? POWER_Z * se : Infinity;
+  const verdict = verdictFor(mean, t, signBoth, mdePct, n, D);
   let needMore: number | null = null;
   if (verdict === "too early") {
-    const target = mdePts > MIN_USEFUL_LIFT ? MIN_USEFUL_LIFT : NOISE_LIFT;
-    needMore = Number.isFinite(mdePts) ? Math.max(0, Math.ceil(n * ((mdePts / target) ** 2 - 1)), MIN_N - n) : Math.max(0, MIN_N - n);
+    const target = mdePct > MIN_USEFUL_LIFT_PCT ? MIN_USEFUL_LIFT_PCT : NOISE_LIFT_PCT;
+    needMore = Number.isFinite(mdePct) ? Math.max(0, Math.ceil(n * ((mdePct / target) ** 2 - 1)), MIN_N - n) : Math.max(0, MIN_N - n);
   }
+  const avg = (v: number[]) => v.reduce((a, b) => a + b, 0) / v.length;
+  const rw = rows.filter((r) => r.rtRandomWin != null).map((r) => r.rtRandomWin!);
+  const hr = rows.filter((r) => r.hit != null && r.placeboHit != null);
+  const hitPct = hr.length ? (hr.filter((r) => r.hit).length / hr.length) * 100 : null;
+  const placeboHitPct = hr.length ? (hr.filter((r) => r.placeboHit).length / hr.length) * 100 : null;
   return {
     n, days: D,
-    hitPct: (rows.filter((r) => r.hit).length / n) * 100,
-    placeboHitPct: (rows.filter((r) => r.placeboHit).length / n) * 100,
-    liftPts, tStat: t, signBothHalves: signBoth, mdePts, verdict, needMore,
+    winPct: (rows.filter((r) => r.rtPct > 0).length / n) * 100,
+    randomWinPct: rw.length ? avg(rw) * 100 : null,
+    avgRtPct: avg(rows.map((r) => r.rtPct)), randomRtPct: avg(rows.map((r) => r.rtRandomPct)),
+    liftPct: mean, mdePct, tStat: t, signBothHalves: signBoth, verdict, needMore,
     gradedThrough: Math.max(...rows.map((r) => r.time)),
+    hitPct, placeboHitPct, liftPts: hitPct != null && placeboHitPct != null ? hitPct - placeboHitPct : null,
   };
 }
 

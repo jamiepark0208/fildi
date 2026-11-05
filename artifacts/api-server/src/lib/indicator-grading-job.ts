@@ -1,8 +1,8 @@
 // Nightly indicator track record (tv-indicators spec phase 2 B, Jamie 11-04).
 //
 // After the close: for SPY/QQQ/IWM + the Live hotlist, pull Yahoo 5m (~60 d, RTH), resample to 5m/15m/1h, run every
-// registered indicator, store its events, grade each from its signal-bar close (same session only) against a seeded
-// placebo, then rebuild the scorecard with the fixed verdict rule (indicator-grading.ts). Idempotent: events are unique
+// registered indicator, store its events, grade each as a round trip (signal close -> next opposite signal close, else
+// session close) against 50 seeded random same-side/same-length entries (+ the old ATR hit test as context), then rebuild the scorecard with the fixed verdict rule (indicator-grading.ts). Idempotent: events are unique
 // per (indicator, version, ticker, tf, time, kind, side), grades and the scorecard are upserted.
 //
 // Runtime safety (AGENTS.md 8c): one Yahoo chart call per ticker with a 30 s deadline, <= 2 in flight, <= MAX_TICKERS
@@ -11,7 +11,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, indicatorEvents, indicatorGrades, indicatorScorecard } from "@workspace/db";
 import { atr, etClock, INDICATORS, resample, TF_MINUTES, type TvBar, type TvTimeframe } from "@workspace/indicators";
 import { fetchIntradayHistory } from "./intraday-history.js";
-import { barCtx, buildScorecard, gradeAt, placeboHit, type ScoreInput } from "./indicator-grading.js";
+import { barCtx, buildScorecard, exitFor, gradeAt, placeboHit, randomIndex, roundTrip, type ScoreInput } from "./indicator-grading.js";
 import { withDeadline } from "./yahoo-client.js";
 import { logger } from "./logger.js";
 
@@ -64,10 +64,13 @@ async function processTicker(ticker: string, today: string, sessionOpen: boolean
     const bars = resample(b5, TF_MINUTES[tf]!);
     const atrS = atr(bars, 14);
     const ctx = barCtx(bars);
+    const rix = randomIndex(bars, ctx);
     const idx = new Map(bars.map((b, i) => [b.time, i]));
     for (const def of INDICATORS) {
       if (!def.timeframes.includes(tf)) continue;
       const out = def.compute(bars);
+      const signals: { i: number; side: "buy" | "sell" }[] = [];
+      for (const e of out.events) { const i = idx.get(e.time); if (i != null && e.side !== "neutral") signals.push({ i, side: e.side }); }
       const rows: (typeof indicatorEvents.$inferInsert)[] = [];
       const meta: { i: number; side: "buy" | "sell"; key: string }[] = [];
       for (const e of out.events) {
@@ -93,7 +96,10 @@ async function processTicker(ticker: string, today: string, sessionOpen: boolean
           if (id == null) return;
           const g = gradeAt(bars, m.i, m.side, atrS[m.i]!, ctx);
           if (g.hit == null) return;
+          const rt = roundTrip(bars, m.i, m.side, exitFor(m.i, m.side, signals, ctx), rix, `rt|${m.key}`);
           gradeRows.push({
+            rtPct: num(rt?.rtPct ?? null), rtBars: rt?.rtBars ?? null, rtExit: rt?.rtExit ?? null,
+            rtRandomPct: num(rt?.rtRandomPct ?? null), rtRandomWin: num(rt?.rtRandomWin ?? null),
             eventId: id, fwd30mPct: num(g.fwd30mPct), fwd60mPct: num(g.fwd60mPct), fwdClosePct: num(g.fwdClosePct),
             mfeAtr: num(g.mfeAtr), maeAtr: num(g.maeAtr), hit: g.hit, placeboHit: placeboHit(bars, atrS, m.i, m.side, m.key, ctx), gradedAt: new Date(),
           });
@@ -101,7 +107,8 @@ async function processTicker(ticker: string, today: string, sessionOpen: boolean
         if (gradeRows.length) {
           await db.insert(indicatorGrades).values(gradeRows).onConflictDoUpdate({
             target: indicatorGrades.eventId,
-            set: { fwd30mPct: sql`excluded.fwd_30m_pct`, fwd60mPct: sql`excluded.fwd_60m_pct`, fwdClosePct: sql`excluded.fwd_close_pct`, mfeAtr: sql`excluded.mfe_atr`, maeAtr: sql`excluded.mae_atr`, hit: sql`excluded.hit`, placeboHit: sql`excluded.placebo_hit`, gradedAt: sql`excluded.graded_at` },
+            set: { fwd30mPct: sql`excluded.fwd_30m_pct`, fwd60mPct: sql`excluded.fwd_60m_pct`, fwdClosePct: sql`excluded.fwd_close_pct`, mfeAtr: sql`excluded.mfe_atr`, maeAtr: sql`excluded.mae_atr`, hit: sql`excluded.hit`, placeboHit: sql`excluded.placebo_hit`,
+              rtPct: sql`excluded.rt_pct`, rtBars: sql`excluded.rt_bars`, rtExit: sql`excluded.rt_exit`, rtRandomPct: sql`excluded.rt_random_pct`, rtRandomWin: sql`excluded.rt_random_win`, gradedAt: sql`excluded.graded_at` },
           });
         }
         events += slice.length;
@@ -117,19 +124,27 @@ export async function rebuildScorecard(): Promise<number> {
   const res = await db.select({
     indicatorId: indicatorEvents.indicatorId, version: indicatorEvents.version, kind: indicatorEvents.kind, tf: indicatorEvents.tf,
     time: indicatorEvents.time, hit: indicatorGrades.hit, placeboHit: indicatorGrades.placeboHit,
+    rtPct: indicatorGrades.rtPct, rtRandomPct: indicatorGrades.rtRandomPct, rtRandomWin: indicatorGrades.rtRandomWin,
   }).from(indicatorGrades).innerJoin(indicatorEvents, eq(indicatorEvents.id, indicatorGrades.eventId));
   const inputs: ScoreInput[] = [];
   for (const r of res) {
-    if (r.hit == null || r.placeboHit == null) continue;
+    if (r.rtPct == null || r.rtRandomPct == null) continue;
     const t = Math.floor(r.time.getTime() / 1000);
-    inputs.push({ indicatorId: r.indicatorId, version: r.version, kind: r.kind, tf: r.tf, day: etClock(t)[0], time: t, hit: r.hit, placeboHit: r.placeboHit });
+    inputs.push({
+      indicatorId: r.indicatorId, version: r.version, kind: r.kind, tf: r.tf, day: etClock(t)[0], time: t,
+      rtPct: Number(r.rtPct), rtRandomPct: Number(r.rtRandomPct), rtRandomWin: r.rtRandomWin == null ? null : Number(r.rtRandomWin),
+      hit: r.hit, placeboHit: r.placeboHit,
+    });
   }
   const rows = buildScorecard(inputs);
   if (!rows.length) return 0;
   const now = new Date();
   const vals = rows.map((r) => ({
-    indicatorId: r.indicatorId, version: r.version, kind: r.kind, tf: r.tf, n: r.n, hitPct: String(r.hitPct), placeboHitPct: String(r.placeboHitPct),
-    liftPts: String(r.liftPts), tStat: String(r.tStat), signBothHalves: r.signBothHalves, mdePts: Number.isFinite(r.mdePts) ? String(r.mdePts) : null,
+    indicatorId: r.indicatorId, version: r.version, kind: r.kind, tf: r.tf, n: r.n,
+    winPct: String(r.winPct), randomWinPct: num(r.randomWinPct), avgRtPct: String(r.avgRtPct), randomRtPct: String(r.randomRtPct),
+    liftPct: String(r.liftPct), mdePct: Number.isFinite(r.mdePct) ? String(r.mdePct) : null,
+    hitPct: num(r.hitPct), placeboHitPct: num(r.placeboHitPct), liftPts: num(r.liftPts), mdePts: null,
+    tStat: String(r.tStat), signBothHalves: r.signBothHalves,
     verdict: r.verdict, needMore: r.needMore, days: r.days, gradedThrough: new Date(r.gradedThrough * 1000), updatedAt: now,
   }));
   await db.transaction(async (tx) => {

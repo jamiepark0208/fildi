@@ -2014,6 +2014,12 @@ export const indicatorGrades = pgTable('indicator_grades', {
   maeAtr:      numeric('mae_atr'),                   // worst adverse excursion (>= 0), in ATR
   hit:         boolean('hit'),                       // +0.5 ATR before -0.5 ATR, same session; null when neutral/no bars
   placeboHit:  boolean('placebo_hit'),               // same test from a random other bar, same ticker/tf/time-of-day/direction
+  // Round trip (the verdict basis, Jamie 11-04): signal close -> next opposite signal close (same indicator/tf/session) else session close.
+  rtPct:       numeric('rt_pct'),                    // % return in the signal's direction
+  rtBars:      integer('rt_bars'),
+  rtExit:      text('rt_exit'),                      // flip | close
+  rtRandomPct: numeric('rt_random_pct'),             // mean of 50 seeded random entries, same side + same hold length, same session
+  rtRandomWin: numeric('rt_random_win'),             // share of those random entries that made money (0..1)
   gradedAt:    timestamp('graded_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -2029,7 +2035,13 @@ export const indicatorScorecard = pgTable('indicator_scorecard', {
   tStat:       numeric('t_stat'),
   signBothHalves: boolean('sign_both_halves'),
   mdePts:      numeric('mde_pts'),
-  verdict:     text('verdict').notNull(),            // likely useful | likely noise | too early
+  winPct:      numeric('win_pct'),                   // round-trip win % (verdict basis from 0036)
+  randomWinPct: numeric('random_win_pct'),
+  avgRtPct:    numeric('avg_rt_pct'),
+  randomRtPct: numeric('random_rt_pct'),
+  liftPct:     numeric('lift_pct'),                  // avg round trip - random, % per trade; t / halves / verdict use this
+  mdePct:      numeric('mde_pct'),
+  verdict:     text('verdict').notNull(),            // likely useful | likely worse than random | likely noise | too early
   needMore:    integer('need_more'),                 // extra signals for MDE <= 3 pts (too early only)
   days:        integer('days'),
   gradedThrough: timestamp('graded_through', { withTimezone: true }),

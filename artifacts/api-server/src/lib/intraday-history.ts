@@ -146,7 +146,8 @@ export function etDateOf(ms: number): string {
  * so bars outside 9:30–16:00 ET are dropped before grouping.
  */
 export async function fetchIntradayHistory(ticker: string, days: number): Promise<Map<string, Bar[]>> {
-  const period1 = new Date(Date.now() - days * 86_400_000);
+  // Yahoo serves 5m only inside the last 60 days and rejects a request that starts exactly 60 d back -> clamp to 59.
+  const period1 = new Date(Date.now() - Math.min(days, 59) * 86_400_000);
   const result = await yahooFinance.chart(ticker, { period1, interval: "5m" }, { validateResult: false }) as unknown as {
     quotes?: Array<{ date: string | Date; open: number | null; high: number | null; low: number | null; close: number | null; volume: number | null }>;
   };
