@@ -6,6 +6,7 @@ import { sessionOpenMs } from "@/components/live/regime-session-chart";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { STOCK_COLORS } from "./stock-cards";
 import { IndicatorMenu } from "@/components/charts/indicator-menu";
+import { getDefaultIndicators } from "@/lib/indicator-defaults";
 import { TvIndicatorLayer, type LayerItem } from "@/components/charts/tv-indicator-layer";
 import { TV_INDICATORS, type TvBar, type TvIndicatorId } from "@workspace/indicators";
 import {
@@ -872,7 +873,7 @@ export function PriceChart({
   }, []);
   /** Clickable indicator tags — EM/EMA on by default for technical chart. */
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorId>>(
-    () => new Set<IndicatorId>(["em", "ema"]),
+    () => new Set<IndicatorId>(getDefaultIndicators().filter((id) => INDICATOR_META.some((m) => m.id === id)) as IndicatorId[]),
   );
   const toggleIndicator = useCallback((id: IndicatorId) => {
     setActiveIndicators((prev) => {

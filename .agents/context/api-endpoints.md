@@ -60,6 +60,7 @@
 ## Indicators (V1 signal source)
 | Method | Path | Purpose |
 |---|---|---|
+| GET | /api/indicators/scorecard | Graded track record per TV indicator (scorecard rows + registry meta; 10 min cache) |
 | GET | /api/indicators/:ticker | RSI, MFI, MACD, ATR for one ticker |
 | GET | /api/indicators/batch | Batch indicators (?tickers=A,B,C) |
 

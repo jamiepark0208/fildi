@@ -1,8 +1,29 @@
 import { Router } from "express";
+import { db, indicatorScorecard } from "@workspace/db";
+import { INDICATORS } from "@workspace/indicators";
+import { TTLCache } from "../lib/ttl-cache.js";
+import { shapeScorecard, type IndMeta, type ScorecardIndicator } from "../lib/indicator-scorecard-api.js";
 import { getIndicators, getIndicatorsBatch } from "../lib/indicators.js";
 import { getUserWatchlistTickers, isTickerOnUserWatchlist } from "../lib/watchlist-tickers.js";
 
 const router = Router();
+
+const scorecardCache = new TTLCache<ScorecardIndicator[]>(10 * 60 * 1000, "indicator-scorecard", 2);
+
+// GET /api/indicators/scorecard — graded track record per indicator (DB read only; must precede /:ticker)
+router.get("/indicators/scorecard", async (_req, res, next) => {
+  try {
+    const data = await scorecardCache.getOrCompute("all", async () => {
+      const rows = await db.select().from(indicatorScorecard);
+      const metas: IndMeta[] = INDICATORS.map((d) => ({
+        id: d.id, label: d.label, version: d.version, title: d.title,
+        source: { url: d.source.url, author: d.source.author }, timeframes: d.timeframes,
+      }));
+      return shapeScorecard(rows, metas);
+    });
+    res.json({ indicators: data });
+  } catch (err) { next(err); }
+});
 
 // GET /api/indicators/:ticker
 // ?refresh=true  forces recompute for this ticker only, overwrites indicator_cache

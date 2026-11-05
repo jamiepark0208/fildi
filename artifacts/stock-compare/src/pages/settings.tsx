@@ -10,6 +10,7 @@ import { StockDBTab } from "@/components/settings/StockDBTab";
 import { ApiMonitorTab } from "@/components/settings/ApiMonitorTab";
 import { ScheduledTasksTab } from "@/components/settings/ScheduledTasksTab";
 import { ResearchTab } from "@/components/settings/ResearchTab";
+import { IndicatorsTab } from "@/components/settings/IndicatorsTab";
 import { ScorecardGuideContent } from "@/pages/scorecard-explanation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -692,7 +693,7 @@ function InboxTab() {
 
 // ─── Settings Page ────────────────────────────────────────────────────────────
 
-type Tab = "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "inbox" | "scheduled-tasks";
+type Tab = "users" | "cache" | "stockdb" | "api-monitor" | "scorecard-guide" | "inbox" | "scheduled-tasks" | "indicators";
 
 const LEGACY_TAB: Record<string, Tab> = {
   "data-sources": "api-monitor",
@@ -710,6 +711,7 @@ export default function Settings() {
   const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
     { id: "scorecard-guide", label: "Scorecard Guide" },
     { id: "stockdb",         label: "Stock DB" },
+    { id: "indicators",      label: "Indicators" },
     { id: "api-monitor",     label: "API",             adminOnly: true },
     { id: "users",           label: "Users",           adminOnly: true },
     { id: "cache",           label: "Cache",           adminOnly: true },
@@ -780,6 +782,7 @@ export default function Settings() {
           {tab === "cache" && isAdmin && <CacheMonitorTab />}
           {tab === "scheduled-tasks" && isAdmin && <ScheduledTasksTab />}
           {tab === "stockdb" && <StockDBTab />}
+          {tab === "indicators" && <IndicatorsTab />}
           {tab === "api-monitor" && isAdmin && <ApiMonitorTab />}
           {tab === "inbox" && isAdmin && <InboxTab />}
         </div>
