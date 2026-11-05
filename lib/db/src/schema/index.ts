@@ -2020,6 +2020,16 @@ export const indicatorGrades = pgTable('indicator_grades', {
   rtExit:      text('rt_exit'),                      // flip | close
   rtRandomPct: numeric('rt_random_pct'),             // mean of 50 seeded random entries, same side + same hold length, same session
   rtRandomWin: numeric('rt_random_win'),             // share of those random entries that made money (0..1)
+  // Structure outcomes over the same hold (signal vs the same random draws): one up/down probability, many trades.
+  absPct:      numeric('abs_pct'),                   // |move| % -> straddle / strangle
+  randomAbsPct: numeric('random_abs_pct'),
+  noBreach:    boolean('no_breach'),                 // never > 1 ATR against -> credit spread / short premium on the far side
+  randomNoBreach: numeric('random_no_breach'),       // 0..1
+  target:      boolean('target'),                    // reached +1 ATR in favour -> long option / debit spread to a target
+  randomTarget: numeric('random_target'),            // 0..1
+  bracket:     boolean('bracket'),                   // +1 ATR before -1 ATR (same bar = loss) -> option / debit spread with a stop
+  randomBracket: numeric('random_bracket'),          // 0..1
+  volMatched:  boolean('vol_matched'),               // random draws matched on pre-entry |3-bar move| / ATR (+-0.25)
   gradedAt:    timestamp('graded_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -2041,6 +2051,11 @@ export const indicatorScorecard = pgTable('indicator_scorecard', {
   randomRtPct: numeric('random_rt_pct'),
   liftPct:     numeric('lift_pct'),                  // avg round trip - random, % per trade; t / halves / verdict use this
   mdePct:      numeric('mde_pct'),
+  pWin:        numeric('p_win'),                     // calibrated P(trip wins), shrunk toward random (K=30), %
+  pWinLo:      numeric('p_win_lo'),                  // 90% band
+  pWinHi:      numeric('p_win_hi'),
+  structures:  jsonb('structures'),                  // { direction | vol | premium | target: PairStat } (indicator-grading.ts)
+  bestStructure: text('best_structure'),             // fixed rule: decided family with the largest |t|, as a trade; null = none yet
   verdict:     text('verdict').notNull(),            // likely useful | likely worse than random | likely noise | too early
   needMore:    integer('need_more'),                 // extra signals for MDE <= 3 pts (too early only)
   days:        integer('days'),

@@ -6,21 +6,22 @@
 // per (indicator, version, ticker, tf, time, kind, side), grades and the scorecard are upserted.
 //
 // Runtime safety (AGENTS.md 8c): one Yahoo chart call per ticker with a 30 s deadline, <= 2 in flight, <= MAX_TICKERS
-// tickers (<= 20 calls/night), 8 min wall-clock cap for the whole job, a single running guard, DB writes in batches.
+// tickers (<= 80 calls/night), 15 min wall-clock cap for the whole job, a single running guard, DB writes in batches.
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, indicatorEvents, indicatorGrades, indicatorScorecard } from "@workspace/db";
 import { atr, etClock, INDICATORS, resample, TF_MINUTES, type TvBar, type TvTimeframe } from "@workspace/indicators";
 import { fetchIntradayHistory } from "./intraday-history.js";
-import { barCtx, buildScorecard, exitFor, gradeAt, placeboHit, randomIndex, roundTrip, type ScoreInput } from "./indicator-grading.js";
+import { barCtx, buildScorecard, exitFor, gradeAt, placeboHit, preMove, randomIndex, roundTrip, type ScoreInput } from "./indicator-grading.js";
 import { withDeadline } from "./yahoo-client.js";
+import { getUnionWatchlistTickers } from "./watchlist-tickers.js";
 import { logger } from "./logger.js";
 
 export const CORE_UNIVERSE = ["SPY", "QQQ", "IWM"] as const;
-const MAX_TICKERS = 20;
+const MAX_TICKERS = 80; // core + holdings + watchlist + hotlist; 1 Yahoo call each, 2 in flight
 const MAX_HOTLIST = 12;
 const FETCH_DEADLINE_MS = 30_000;
 const FETCH_CONCURRENCY = 2;
-const JOB_DEADLINE_MS = 8 * 60_000;
+const JOB_DEADLINE_MS = 15 * 60_000;
 const HISTORY_DAYS = 60;
 const TFS: TvTimeframe[] = ["5m", "15m", "1h"];
 const BATCH = 400;
@@ -31,8 +32,16 @@ export const indicatorGradingRunning = (): boolean => running;
 
 export type GradingSummary = { tickers: string[]; failed: string[]; events: number; graded: number; scorecardRows: number; ms: number; stoppedEarly: boolean };
 
-/** Core indexes + the Live hotlist (in-process list, else derived from the cached indicator table). */
+/** Core indexes + latest RH holdings + every watchlist + the Live hotlist (Jamie 11-04: grade what he trades). */
 export async function gradingUniverse(): Promise<string[]> {
+  const held: string[] = [];
+  try {
+    const r = await db.execute(sql`select distinct symbol from portfolio_positions where snapshot_id = (select max(snapshot_id) from portfolio_positions)`);
+    for (const row of r.rows as { symbol: string }[]) held.push(String(row.symbol).toUpperCase());
+    held.push(...(await getUnionWatchlistTickers()));
+  } catch (err) {
+    logger.warn({ err }, "indicator-grading: holdings/watchlist unavailable");
+  }
   const hot: string[] = [];
   try {
     const { liveHotlist, deriveHotList } = await import("./live-hotlist.js");
@@ -42,7 +51,8 @@ export async function gradingUniverse(): Promise<string[]> {
   } catch (err) {
     logger.warn({ err }, "indicator-grading: hotlist unavailable, core universe only");
   }
-  return [...new Set([...CORE_UNIVERSE, ...hot.slice(0, MAX_HOTLIST)])].slice(0, MAX_TICKERS);
+  const ok = (t: string) => /^[A-Z.]{1,6}$/.test(t);
+  return [...new Set([...CORE_UNIVERSE, ...held.filter(ok), ...hot.slice(0, MAX_HOTLIST)])].slice(0, MAX_TICKERS);
 }
 
 async function fetch5m(ticker: string): Promise<TvBar[]> {
@@ -65,6 +75,7 @@ async function processTicker(ticker: string, today: string, sessionOpen: boolean
     const atrS = atr(bars, 14);
     const ctx = barCtx(bars);
     const rix = randomIndex(bars, ctx);
+    const pre = preMove(bars, atrS);
     const idx = new Map(bars.map((b, i) => [b.time, i]));
     for (const def of INDICATORS) {
       if (!def.timeframes.includes(tf)) continue;
@@ -96,10 +107,13 @@ async function processTicker(ticker: string, today: string, sessionOpen: boolean
           if (id == null) return;
           const g = gradeAt(bars, m.i, m.side, atrS[m.i]!, ctx);
           if (g.hit == null) return;
-          const rt = roundTrip(bars, m.i, m.side, exitFor(m.i, m.side, signals, ctx), rix, `rt|${m.key}`);
+          const rt = roundTrip(bars, m.i, m.side, exitFor(m.i, m.side, signals, ctx), rix, `rt|${m.key}`, atrS, pre, TF_MINUTES[tf]!);
           gradeRows.push({
             rtPct: num(rt?.rtPct ?? null), rtBars: rt?.rtBars ?? null, rtExit: rt?.rtExit ?? null,
             rtRandomPct: num(rt?.rtRandomPct ?? null), rtRandomWin: num(rt?.rtRandomWin ?? null),
+            absPct: num(rt?.absPct ?? null), randomAbsPct: num(rt?.randomAbsPct ?? null), noBreach: rt?.noBreach ?? null,
+            randomNoBreach: num(rt?.randomNoBreach ?? null), target: rt?.target ?? null, randomTarget: num(rt?.randomTarget ?? null),
+            bracket: rt?.bracket ?? null, randomBracket: num(rt?.randomBracket ?? null), volMatched: rt?.volMatched ?? null,
             eventId: id, fwd30mPct: num(g.fwd30mPct), fwd60mPct: num(g.fwd60mPct), fwdClosePct: num(g.fwdClosePct),
             mfeAtr: num(g.mfeAtr), maeAtr: num(g.maeAtr), hit: g.hit, placeboHit: placeboHit(bars, atrS, m.i, m.side, m.key, ctx), gradedAt: new Date(),
           });
@@ -108,7 +122,8 @@ async function processTicker(ticker: string, today: string, sessionOpen: boolean
           await db.insert(indicatorGrades).values(gradeRows).onConflictDoUpdate({
             target: indicatorGrades.eventId,
             set: { fwd30mPct: sql`excluded.fwd_30m_pct`, fwd60mPct: sql`excluded.fwd_60m_pct`, fwdClosePct: sql`excluded.fwd_close_pct`, mfeAtr: sql`excluded.mfe_atr`, maeAtr: sql`excluded.mae_atr`, hit: sql`excluded.hit`, placeboHit: sql`excluded.placebo_hit`,
-              rtPct: sql`excluded.rt_pct`, rtBars: sql`excluded.rt_bars`, rtExit: sql`excluded.rt_exit`, rtRandomPct: sql`excluded.rt_random_pct`, rtRandomWin: sql`excluded.rt_random_win`, gradedAt: sql`excluded.graded_at` },
+              rtPct: sql`excluded.rt_pct`, rtBars: sql`excluded.rt_bars`, rtExit: sql`excluded.rt_exit`, rtRandomPct: sql`excluded.rt_random_pct`, rtRandomWin: sql`excluded.rt_random_win`,
+              absPct: sql`excluded.abs_pct`, randomAbsPct: sql`excluded.random_abs_pct`, noBreach: sql`excluded.no_breach`, randomNoBreach: sql`excluded.random_no_breach`, target: sql`excluded.target`, randomTarget: sql`excluded.random_target`, bracket: sql`excluded.bracket`, randomBracket: sql`excluded.random_bracket`, volMatched: sql`excluded.vol_matched`, gradedAt: sql`excluded.graded_at` },
           });
         }
         events += slice.length;
@@ -124,7 +139,10 @@ export async function rebuildScorecard(): Promise<number> {
   const res = await db.select({
     indicatorId: indicatorEvents.indicatorId, version: indicatorEvents.version, kind: indicatorEvents.kind, tf: indicatorEvents.tf,
     time: indicatorEvents.time, hit: indicatorGrades.hit, placeboHit: indicatorGrades.placeboHit,
-    rtPct: indicatorGrades.rtPct, rtRandomPct: indicatorGrades.rtRandomPct, rtRandomWin: indicatorGrades.rtRandomWin,
+    rtPct: indicatorGrades.rtPct, rtRandomPct: indicatorGrades.rtRandomPct, rtRandomWin: indicatorGrades.rtRandomWin, side: indicatorEvents.side,
+    absPct: indicatorGrades.absPct, randomAbsPct: indicatorGrades.randomAbsPct, noBreach: indicatorGrades.noBreach,
+    randomNoBreach: indicatorGrades.randomNoBreach, target: indicatorGrades.target, randomTarget: indicatorGrades.randomTarget,
+    bracket: indicatorGrades.bracket, randomBracket: indicatorGrades.randomBracket,
   }).from(indicatorGrades).innerJoin(indicatorEvents, eq(indicatorEvents.id, indicatorGrades.eventId));
   const inputs: ScoreInput[] = [];
   for (const r of res) {
@@ -133,7 +151,11 @@ export async function rebuildScorecard(): Promise<number> {
     inputs.push({
       indicatorId: r.indicatorId, version: r.version, kind: r.kind, tf: r.tf, day: etClock(t)[0], time: t,
       rtPct: Number(r.rtPct), rtRandomPct: Number(r.rtRandomPct), rtRandomWin: r.rtRandomWin == null ? null : Number(r.rtRandomWin),
-      hit: r.hit, placeboHit: r.placeboHit,
+      hit: r.hit, placeboHit: r.placeboHit, side: r.side === "sell" ? "sell" : "buy",
+      absPct: r.absPct == null ? null : Number(r.absPct), randomAbsPct: r.randomAbsPct == null ? null : Number(r.randomAbsPct),
+      noBreach: r.noBreach, randomNoBreach: r.randomNoBreach == null ? null : Number(r.randomNoBreach),
+      target: r.target, randomTarget: r.randomTarget == null ? null : Number(r.randomTarget),
+      bracket: r.bracket, randomBracket: r.randomBracket == null ? null : Number(r.randomBracket),
     });
   }
   const rows = buildScorecard(inputs);
@@ -145,6 +167,8 @@ export async function rebuildScorecard(): Promise<number> {
     liftPct: String(r.liftPct), mdePct: Number.isFinite(r.mdePct) ? String(r.mdePct) : null,
     hitPct: num(r.hitPct), placeboHitPct: num(r.placeboHitPct), liftPts: num(r.liftPts), mdePts: null,
     tStat: String(r.tStat), signBothHalves: r.signBothHalves,
+    pWin: String(r.pWin), pWinLo: String(r.pWinLo), pWinHi: String(r.pWinHi), bestStructure: r.bestStructure,
+    structures: JSON.parse(JSON.stringify(r.structures, (_k, v) => (typeof v === "number" && !Number.isFinite(v) ? null : v))),
     verdict: r.verdict, needMore: r.needMore, days: r.days, gradedThrough: new Date(r.gradedThrough * 1000), updatedAt: now,
   }));
   await db.transaction(async (tx) => {
