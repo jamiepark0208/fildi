@@ -1,0 +1,198 @@
+{
+  "tickers": 61,
+  "sessions": 42,
+  "swings": 7506,
+  "events": 82149,
+  "basePrec": 0.09371905134219442,
+  "midDay": "2026-10-07",
+  "rows": [
+    {
+      "indicatorId": "ut",
+      "kind": "Sell",
+      "recall": 0.3181454836131095,
+      "precision": 0.19883282244753595,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 16964,
+      "nHit": 3373
+    },
+    {
+      "indicatorId": "ut",
+      "kind": "Buy",
+      "recall": 0.3116173727684519,
+      "precision": 0.1994312122289371,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 16878,
+      "nHit": 3366
+    },
+    {
+      "indicatorId": "ichimoku",
+      "kind": "TK cross",
+      "recall": 0.17879030109245936,
+      "precision": 0.10594066730783458,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 13517,
+      "nHit": 1432
+    },
+    {
+      "indicatorId": "st",
+      "kind": "Flip",
+      "recall": 0.16626698641087131,
+      "precision": 0.20621134359784182,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 7599,
+      "nHit": 1567
+    },
+    {
+      "indicatorId": "mso",
+      "kind": "CHoCH",
+      "recall": 0.14042099653610446,
+      "precision": 0.19070041200706297,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 6796,
+      "nHit": 1296
+    },
+    {
+      "indicatorId": "squeeze",
+      "kind": "Release",
+      "recall": 0.13855582200905942,
+      "precision": 0.12921406951257697,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 9581,
+      "nHit": 1238
+    },
+    {
+      "indicatorId": "mso",
+      "kind": "BoS",
+      "recall": 0.10271782573940848,
+      "precision": 0.1354151028374118,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 6661,
+      "nHit": 902
+    },
+    {
+      "indicatorId": "mso",
+      "kind": "Div",
+      "recall": 0.049293898214761524,
+      "precision": 0.09801849405548217,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 3785,
+      "nHit": 371
+    },
+    {
+      "indicatorId": "lsh",
+      "kind": "Sweep",
+      "recall": 0.015587529976019185,
+      "precision": 0.36684782608695654,
+      "basePrec": 0.09371905134219442,
+      "nSwings": 7506,
+      "nEv": 368,
+      "nHit": 135
+    }
+  ],
+  "filterRows": [
+    {
+      "name": "open_9:30-10:30_ET",
+      "h1": {
+        "prec": 0.3381913303437967,
+        "n": 10704
+      },
+      "h2": {
+        "prec": 0.3434063395249977,
+        "n": 10821
+      },
+      "liftH1": 3.6085654464103114,
+      "liftH2": 3.6642105805267415,
+      "pass": true
+    },
+    {
+      "name": "5m+15m_same_side",
+      "h1": {
+        "prec": 0.30680582735377254,
+        "n": 4599
+      },
+      "h2": {
+        "prec": 0.2819486938103083,
+        "n": 4249
+      },
+      "liftH1": 3.2736761945395587,
+      "liftH2": 3.0084458791717266,
+      "pass": true
+    },
+    {
+      "name": "SPY+QQQ_same_side_10m",
+      "h1": {
+        "prec": 0.1912265946615909,
+        "n": 22591
+      },
+      "h2": {
+        "prec": 0.18607960490520237,
+        "n": 23893
+      },
+      "liftH1": 2.040423925796786,
+      "liftH2": 1.9855045718055102,
+      "pass": true
+    },
+    {
+      "name": "squeeze_on",
+      "h1": {
+        "prec": 0.16496973678036878,
+        "n": 21313
+      },
+      "h2": {
+        "prec": 0.1492168640880256,
+        "n": 17813
+      },
+      "liftH1": 1.7602582870586068,
+      "liftH2": 1.5921721565788494,
+      "pass": true
+    },
+    {
+      "name": "mid_10:30-14:00_ET",
+      "h1": {
+        "prec": 0.11843377376732195,
+        "n": 18618
+      },
+      "h2": {
+        "prec": 0.10714711848228135,
+        "n": 16762
+      },
+      "liftH1": 1.2637107618053791,
+      "liftH2": 1.1432800156187808,
+      "pass": false
+    }
+  ],
+  "exampleDays": [
+    {
+      "day": "2026-11-03",
+      "lines": [
+        "IOND buy 22.6ATR @ 2026-11-03 06:30 PT catch=UT",
+        "NOW buy 9.3ATR @ 2026-11-03 06:30 PT catch=UT",
+        "HUT buy 8.4ATR @ 2026-11-03 06:30 PT catch=UT"
+      ]
+    },
+    {
+      "day": "2026-10-07",
+      "lines": [
+        "GOSS sell 17.5ATR @ 2026-10-07 11:10 PT catch=other",
+        "DRAM buy 10.8ATR @ 2026-10-07 06:30 PT catch=UT",
+        "RKLB buy 8.6ATR @ 2026-10-07 10:55 PT catch=UT"
+      ]
+    },
+    {
+      "day": "2026-09-14",
+      "lines": [
+        "CABA buy 14.9ATR @ 2026-09-14 06:35 PT catch=UT",
+        "AEP sell 9.7ATR @ 2026-09-14 06:30 PT catch=other",
+        "VIST buy 8.6ATR @ 2026-09-14 06:30 PT catch=UT"
+      ]
+    }
+  ]
+}
