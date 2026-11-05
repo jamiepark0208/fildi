@@ -34,3 +34,6 @@ Claude answers each: accept → fix + re-run + card updated, or rebut with evide
 | S064 buy-zone puts | `S064-buy-zone-puts.md` | A212 |
 | S066 earnings block (interim) | `S066-earnings-puts.md` | A212 |
 | S049-crash re-audit | `S049-crash-reaudit.md` | A212 |
+| S152 indicator option structures (0/228) | `S152-indicator-option-structures.md` | A334 |
+| S153 swing reverse-engineer | `S153-swing-reverse-engineer.md` | A335 |
+| S154 signal-state playbook (quiet → long strangle, shadow) | `S154-signal-state-playbook.md` | A336 |
