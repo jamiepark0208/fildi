@@ -1,0 +1,5465 @@
+{
+  "runId": "2026-11-05",
+  "flags": [
+    {
+      "ticker": "A",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.06089722302611,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AA",
+      "field": "earningsPerShare",
+      "gold": 3.9,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "AAL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -15.6681424290107,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AAL",
+      "field": "earningsPerShare",
+      "gold": 0.31,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "AAOI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.7235560401014,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ABBV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -56.0274306498732,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ABBV",
+      "field": "earningsPerShare",
+      "gold": 3.54,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ABT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.696905715125206,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ABT",
+      "field": "earningsPerShare",
+      "gold": 3.57,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ACHR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.23025974025974,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ACLS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 34.5138110812474,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ADBE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.25831202046036,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ADI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.93354487200197,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ADI",
+      "field": "earningsPerShare",
+      "gold": 6.71,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-01"
+    },
+    {
+      "ticker": "ADM",
+      "field": "earningsPerShare",
+      "gold": 3.65,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ADP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.391557128412538,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ADSK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.55980861244019,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AEIS",
+      "field": "earningsPerShare",
+      "gold": 5.4,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "AES",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.69333782503561,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AGNC",
+      "field": "earningsPerShare",
+      "gold": 0.05,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "AIT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 24.0082824085741,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AIZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": 59.8171243148844,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AJG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -37.1478735856418,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AKAM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.8345434216313,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ALB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 56.1197196823971,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ALB",
+      "field": "earningsPerShare",
+      "gold": 4.13,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ALL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 106.767068273092,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ALLE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.54885938307396,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ALM",
+      "field": "earningsPerShare",
+      "gold": 0.18,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ALNY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 26.9195294117647,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ALNY",
+      "field": "earningsPerShare",
+      "gold": 5.93,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ALOY",
+      "field": "sharesOutstanding",
+      "gold": 68987642,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AM",
+      "field": "earningsPerShare",
+      "gold": 0.83,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "AMCR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -14.8655003142778,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.9621951219512,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMD",
+      "field": "earningsPerShare",
+      "gold": 4.6,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-27"
+    },
+    {
+      "ticker": "AME",
+      "field": "tangibleBookValuePerShare",
+      "gold": -21.9642507083112,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -40.6497572905545,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMG",
+      "field": "sharesOutstanding",
+      "gold": 25859933,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMGN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -44.0894804954705,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMKR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.2964722119094,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -48.0951026774558,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMZN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 53.710202571455,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AMZN",
+      "field": "earningsPerShare",
+      "gold": 7.7,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ANET",
+      "field": "tangibleBookValuePerShare",
+      "gold": 12.4840905493114,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AON",
+      "field": "tangibleBookValuePerShare",
+      "gold": -53.1822689796738,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AON",
+      "field": "sharesOutstanding",
+      "gold": 212157176,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "APA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.0398736685907,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "APG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -5.51194216943643,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "APG",
+      "field": "earningsPerShare",
+      "gold": -0.61,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "APH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.39585833558244,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "APH",
+      "field": "sharesOutstanding",
+      "gold": 2465966914,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "APH",
+      "field": "earningsPerShare",
+      "gold": 2,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "APLD",
+      "field": "earningsPerShare",
+      "gold": -0.91,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-31"
+    },
+    {
+      "ticker": "AR",
+      "field": "earningsPerShare",
+      "gold": 3.48,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ARES",
+      "field": "sharesOutstanding",
+      "gold": 223957742,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ARES",
+      "field": "earningsPerShare",
+      "gold": 2.17,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ARMK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -13.370945233335,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ARRY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.56946456934112,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ARRY",
+      "field": "earningsPerShare",
+      "gold": -0.96,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ARW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 94.660111163402,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ARW",
+      "field": "sharesOutstanding",
+      "gold": 50905423,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ASML",
+      "field": "earningsPerShare",
+      "gold": 40.64,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-27"
+    },
+    {
+      "ticker": "AVGO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -5.11855886049434,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AVGO",
+      "field": "earningsPerShare",
+      "gold": 6.02,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-02"
+    },
+    {
+      "ticker": "AVTR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.98443467893971,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AVTR",
+      "field": "earningsPerShare",
+      "gold": -0.84,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "AVY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.25747863293083,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AWK",
+      "field": "tangibleBookValuePerShare",
+      "gold": 53.3588713927697,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AXON",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.3924424270391,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AXTA",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.925038708081223,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "AZO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -173.444320781549,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BA",
+      "field": "sharesOutstanding",
+      "gold": 792449940,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BA",
+      "field": "earningsPerShare",
+      "gold": 9.69,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BABA",
+      "field": "earningsPerShare",
+      "gold": 6.47,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BALL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.80950943077513,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BALL",
+      "field": "earningsPerShare",
+      "gold": 1.98,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BAP",
+      "field": "earningsPerShare",
+      "gold": 26.55,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BAX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.43801689704575,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.457726107425858,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BDX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -35.1118336130826,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BDX",
+      "field": "earningsPerShare",
+      "gold": 5.79,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.54021520409729,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BE",
+      "field": "sharesOutstanding",
+      "gold": 295656689,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BE",
+      "field": "earningsPerShare",
+      "gold": 0.8,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BEAM",
+      "field": "earningsPerShare",
+      "gold": -0.68,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BEN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.80291562337287,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BHP",
+      "field": "earningsPerShare",
+      "gold": 3.87,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BIDU",
+      "field": "sharesOutstanding",
+      "gold": 274750119,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BIDU",
+      "field": "earningsPerShare",
+      "gold": -0.16,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BIIB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -9.81191863037576,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BIIB",
+      "field": "earningsPerShare",
+      "gold": 9.3,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BILI",
+      "field": "sharesOutstanding",
+      "gold": 332230191,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BILI",
+      "field": "earningsPerShare",
+      "gold": 0.54,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BILL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 10.5574117723733,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BJ",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.66416505867839,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BKNG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -18.6055890987959,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BKR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.56165207097385,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BLK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.243439516838,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BMNR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.9662079568399,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BMNR",
+      "field": "sharesOutstanding",
+      "gold": 603226394,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BMNR",
+      "field": "earningsPerShare",
+      "gold": -4.5,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-05-31"
+    },
+    {
+      "ticker": "BMRN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.19470927836484,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BMRN",
+      "field": "earningsPerShare",
+      "gold": 0.37,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BMY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.46886445200353,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BNGO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.54226350691585,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BNGO",
+      "field": "earningsPerShare",
+      "gold": -3.01,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "BOX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.90311295107179,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BOX",
+      "field": "earningsPerShare",
+      "gold": 0.64,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "BP",
+      "field": "earningsPerShare",
+      "gold": 2.05,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -20.2905225863596,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BRK.B",
+      "field": "earningsPerShare",
+      "gold": 39.76,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BRO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -21.6299694189602,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BSX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.0234567976033986,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BTSG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.28665802342608,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BTSG",
+      "field": "earningsPerShare",
+      "gold": 1.13,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "BWA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.3185784899723,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "BWXT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.28906481914576,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "C",
+      "field": "earningsPerShare",
+      "gold": 10.26,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CABA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.24210355518545,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CABA",
+      "field": "sharesOutstanding",
+      "gold": 169545445,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CACI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -175.475498846206,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CAG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.40199989771089,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CAH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -71.0048298763145,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CARR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -9.40035942056072,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CART",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.91297444589868,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CASY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 76.0195969893751,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CAT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 33.1490384615385,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CAVA",
+      "field": "earningsPerShare",
+      "gold": 0.55,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-12"
+    },
+    {
+      "ticker": "CB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 121.721150239826,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CBOE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.3785292628749,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CBRE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.77986921139299,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CCI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -22.093896713615,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CCI",
+      "field": "earningsPerShare",
+      "gold": 2.45,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CCJ",
+      "field": "earningsPerShare",
+      "gold": 0.59,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CCK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -9.37516141034005,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CDE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.57485313316706,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CDE",
+      "field": "sharesOutstanding",
+      "gold": 1021903475,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CDE",
+      "field": "earningsPerShare",
+      "gold": 0.92,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CDNS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.569613563720256,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CDW",
+      "field": "tangibleBookValuePerShare",
+      "gold": -28.9464,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.0608248620499,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CE",
+      "field": "earningsPerShare",
+      "gold": -10.6,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CELH",
+      "field": "earningsPerShare",
+      "gold": 0.23,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.4751853349846,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CFG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 34.7015967743777,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CHD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.9976426252482,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CHRW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.288587767494415,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CHYM",
+      "field": "sharesOutstanding",
+      "gold": 347019852,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CHYM",
+      "field": "earningsPerShare",
+      "gold": 0.88,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -112.946355994819,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CIFR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.14471022234605,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CINF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 105.413105635814,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CINF",
+      "field": "sharesOutstanding",
+      "gold": 153510324,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -5.36405833069752,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CLF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.01966678806876,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CLF",
+      "field": "earningsPerShare",
+      "gold": -1.57,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CLH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.72225800063487,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CLS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 44.7737613911617,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CLX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -16.3968064875193,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CMG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.92352022767248,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CMPS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.0027007004789,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CMPS",
+      "field": "sharesOutstanding",
+      "gold": 141710353,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CMS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 30.452806122449,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CNC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.8088885656389,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CNC",
+      "field": "earningsPerShare",
+      "gold": -10.36,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CNH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.49570591941968,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 103.414083978178,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COHU",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.04216735853179,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COHU",
+      "field": "earningsPerShare",
+      "gold": -0.83,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-26"
+    },
+    {
+      "ticker": "COIN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 32.2033948239133,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COIN",
+      "field": "earningsPerShare",
+      "gold": -3.84,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "COKE",
+      "field": "earningsPerShare",
+      "gold": 7.53,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-03"
+    },
+    {
+      "ticker": "COMP",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.38651592639544,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COMP",
+      "field": "sharesOutstanding",
+      "gold": 757522197,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 15.8127301420305,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COP",
+      "field": "earningsPerShare",
+      "gold": 5.75,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "COR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -101.638038999099,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CORZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.28563427173195,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COST",
+      "field": "tangibleBookValuePerShare",
+      "gold": 78.5284682335212,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "COTY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.08358886996025,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CPAY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -99.4253562551937,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CPB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -19.0085195755545,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CPB",
+      "field": "earningsPerShare",
+      "gold": 2.04,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-02"
+    },
+    {
+      "ticker": "CPNG",
+      "field": "earningsPerShare",
+      "gold": -0.77,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.44670239173175,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRCL",
+      "field": "earningsPerShare",
+      "gold": 2.32,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CRDO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.26016147586383,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.5692927350223,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.00022976021389,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -32.823815309842,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRM",
+      "field": "earningsPerShare",
+      "gold": 8.63,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "CRML",
+      "field": "earningsPerShare",
+      "gold": -1.87,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CROX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.04484848484848,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRSP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.0157353747684,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRWD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.51682323356275,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRWD",
+      "field": "sharesOutstanding",
+      "gold": 1023934842,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CRWD",
+      "field": "earningsPerShare",
+      "gold": 0.04,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "CSCO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.24455144450076,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CSGP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.20545613406271,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CSGP",
+      "field": "earningsPerShare",
+      "gold": 0.18,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CSL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -37.0257731958763,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CTAS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.4363944462939,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CTSH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.2544642857143,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CVNA",
+      "field": "earningsPerShare",
+      "gold": 2.08,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CVS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -22.81640625,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "CVS",
+      "field": "earningsPerShare",
+      "gold": 8.61,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "CVX",
+      "field": "earningsPerShare",
+      "gold": 5.74,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "CW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 15.7619025982898,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DAL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 10.3357228207197,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DASH",
+      "field": "earningsPerShare",
+      "gold": 2.41,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "DD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 22.7114381699054,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DD",
+      "field": "sharesOutstanding",
+      "gold": 132532338,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DD",
+      "field": "earningsPerShare",
+      "gold": 2.05,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "DDOG",
+      "field": "sharesOutstanding",
+      "gold": 334904614,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DDOG",
+      "field": "earningsPerShare",
+      "gold": 0.72,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "DELL",
+      "field": "sharesOutstanding",
+      "gold": 640000000,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.9976954156572,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DGX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -28.3041832210311,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DHI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 84.2659624992102,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DHR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -20.9638896787034,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DINO",
+      "field": "earningsPerShare",
+      "gold": 10.5,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "DIS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.8052318983769,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DIS",
+      "field": "earningsPerShare",
+      "gold": 6.25,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-27"
+    },
+    {
+      "ticker": "DKS",
+      "field": "sharesOutstanding",
+      "gold": 74955923,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DLR",
+      "field": "earningsPerShare",
+      "gold": 3.77,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "DLTR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.0023069068865,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DLTR",
+      "field": "earningsPerShare",
+      "gold": 6.23,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-01"
+    },
+    {
+      "ticker": "DNA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.90002351552481,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DOC",
+      "field": "earningsPerShare",
+      "gold": 0.35,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "DOCN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.2894838906655,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DOCN",
+      "field": "sharesOutstanding",
+      "gold": 117996815,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DOCN",
+      "field": "earningsPerShare",
+      "gold": 2.17,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "DOCU",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.42074972366295,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DOV",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.98192258617353,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DOW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.51812710522685,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DOW",
+      "field": "earningsPerShare",
+      "gold": -1.83,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "DRI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.6254932951177,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.79409371346117,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DUOL",
+      "field": "sharesOutstanding",
+      "gold": 40237065,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DUOL",
+      "field": "earningsPerShare",
+      "gold": 3.03,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "DVA",
+      "field": "tangibleBookValuePerShare",
+      "gold": -131.864337539432,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "DVN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 37.2672727272727,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EBAY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.51136363636364,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ECHO",
+      "field": "earningsPerShare",
+      "gold": -24.77,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ECL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -26.2467023172906,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EDIT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.07575591673418,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EDIT",
+      "field": "sharesOutstanding",
+      "gold": 153580035,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EFX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -30.7190435525192,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EG",
+      "field": "sharesOutstanding",
+      "gold": 37042996,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EHC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 10.7639738051635,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EL",
+      "field": "earningsPerShare",
+      "gold": 0.5,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ELAN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.92463393702222,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ELV",
+      "field": "tangibleBookValuePerShare",
+      "gold": 25.2690772672301,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EME",
+      "field": "tangibleBookValuePerShare",
+      "gold": 25.524899330615,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EMN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.9413637588575,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EMN",
+      "field": "sharesOutstanding",
+      "gold": 114380456,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EMN",
+      "field": "earningsPerShare",
+      "gold": 5.62,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "EMR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -11.5256364288275,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ENPH",
+      "field": "earningsPerShare",
+      "gold": 0.94,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ENTG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.52748691099476,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ENTG",
+      "field": "earningsPerShare",
+      "gold": 2,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-26"
+    },
+    {
+      "ticker": "EOG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 60.7478124343649,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EOG",
+      "field": "sharesOutstanding",
+      "gold": 524529176,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EOG",
+      "field": "earningsPerShare",
+      "gold": 10.17,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "EPD",
+      "field": "earningsPerShare",
+      "gold": 2.88,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "EQH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.87467218062743,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EQIX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 75.9384975956682,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ES",
+      "field": "tangibleBookValuePerShare",
+      "gold": 33.492564254207,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ETN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -29.8223938223938,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ETSY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.25815001023728,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ETSY",
+      "field": "earningsPerShare",
+      "gold": 3.76,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "EXE",
+      "field": "sharesOutstanding",
+      "gold": 230957348,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EXEL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.23460221188664,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EXPD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.0122268450263,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "EXPE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -58.4679356704201,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FANG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 139.542167898414,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FANG",
+      "field": "earningsPerShare",
+      "gold": 5.25,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "FAST",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.61660245058897,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FCX",
+      "field": "sharesOutstanding",
+      "gold": 1436017523,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FDS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -32.0689986528779,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FDX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 98.5741408090056,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FERG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 13.1194849023495,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FFIV",
+      "field": "tangibleBookValuePerShare",
+      "gold": 22.9416464294513,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FHN",
+      "field": "sharesOutstanding",
+      "gold": 473777158,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FHN",
+      "field": "earningsPerShare",
+      "gold": 1.38,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "FICO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -226.371718294208,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FIG",
+      "field": "earningsPerShare",
+      "gold": -0.66,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "FIS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -25.0276328268524,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FISV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -37.3556717807192,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FITB",
+      "field": "sharesOutstanding",
+      "gold": 903645765,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FIVE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 44.9753471598289,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FIVE",
+      "field": "earningsPerShare",
+      "gold": 7.92,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-01"
+    },
+    {
+      "ticker": "FLEX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.83179799576,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FLUT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -75.2050748817034,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FNF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.92537313432836,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FORM",
+      "field": "earningsPerShare",
+      "gold": 1.44,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-26"
+    },
+    {
+      "ticker": "FOUR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -50.6838135504353,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FOUR",
+      "field": "earningsPerShare",
+      "gold": 0.63,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "FROG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.54004848390003,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FRSX",
+      "field": "earningsPerShare",
+      "gold": -6.81,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "FSLR",
+      "field": "earningsPerShare",
+      "gold": 9.8,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "FSLY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.94611180124224,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FSLY",
+      "field": "earningsPerShare",
+      "gold": -0.4,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "FTNT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.58467193030221,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "FTV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -11.1308285810131,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.2877228252388,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.37895348916664,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GEHC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -11.8061343997556,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GEN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -17.0590219224283,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GEV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -9.70994593086505,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GFL",
+      "field": "earningsPerShare",
+      "gold": -0.46,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GGG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.74308949594504,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.43533027606856,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GILD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.0088638195004,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GIS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -25.0107004629982,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GIS",
+      "field": "earningsPerShare",
+      "gold": -0.16,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-30"
+    },
+    {
+      "ticker": "GL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 66.4515153155859,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GLPI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.0323747333494,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GLXY",
+      "field": "earningsPerShare",
+      "gold": -0.77,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GM",
+      "field": "earningsPerShare",
+      "gold": 2.24,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GMED",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.6463980097885,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GMED",
+      "field": "sharesOutstanding",
+      "gold": 134261914,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GNRC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.6612454847924,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GOLD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.4344351056116,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GOOGL",
+      "field": "sharesOutstanding",
+      "gold": 12294000000,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GOOGL",
+      "field": "earningsPerShare",
+      "gold": 19.15,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GOSS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.192348635218324,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GOSS",
+      "field": "sharesOutstanding",
+      "gold": 488846722,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GOSS",
+      "field": "earningsPerShare",
+      "gold": -52.8,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "GPC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.18470021205286,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GPN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -87.5958007938871,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "GPN",
+      "field": "earningsPerShare",
+      "gold": 2.13,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "GRAB",
+      "field": "earningsPerShare",
+      "gold": 0.11,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GS",
+      "field": "earningsPerShare",
+      "gold": 69.55,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GSK",
+      "field": "earningsPerShare",
+      "gold": 2.87,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "GWRE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.19613749394807,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "H",
+      "field": "earningsPerShare",
+      "gold": 0.81,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "HAL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.78931462927583,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HAL",
+      "field": "earningsPerShare",
+      "gold": 1.81,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "HALO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -11.9309727994949,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HBAN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.3803312443401,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HBAN",
+      "field": "sharesOutstanding",
+      "gold": 2015387251,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -16.7975951903808,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HII",
+      "field": "tangibleBookValuePerShare",
+      "gold": 56.1088646981549,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.20023256337175,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HL",
+      "field": "sharesOutstanding",
+      "gold": 671777326,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HL",
+      "field": "earningsPerShare",
+      "gold": 0.56,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "HMC",
+      "field": "earningsPerShare",
+      "gold": -0.72,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "HON",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.84625078764965,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HON",
+      "field": "sharesOutstanding",
+      "gold": 317358518,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HOOD",
+      "field": "sharesOutstanding",
+      "gold": 793425151,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HPE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.21366354973151,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HPE",
+      "field": "earningsPerShare",
+      "gold": 1.07,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "HPQ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -10.6533776301218,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HSY",
+      "field": "sharesOutstanding",
+      "gold": 146312143,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HSY",
+      "field": "earningsPerShare",
+      "gold": 7.32,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-27"
+    },
+    {
+      "ticker": "HUBB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -64.4648006762937,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HUBS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 25.6430443507105,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HUBS",
+      "field": "earningsPerShare",
+      "gold": 4.17,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "HUN",
+      "field": "earningsPerShare",
+      "gold": -0.97,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "HUT",
+      "field": "earningsPerShare",
+      "gold": -4.9,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "HWM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.479899497487437,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "HYLN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.949281304034646,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IBKR",
+      "field": "sharesOutstanding",
+      "gold": 453077771,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IBM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -56.0584421797804,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ICE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.6362007168459,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ICLR",
+      "field": "earningsPerShare",
+      "gold": 0.95,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "IDXX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.0994923213606,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IEX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.59471107167173,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IFF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.81309904153355,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IFF",
+      "field": "earningsPerShare",
+      "gold": 0.76,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ILMN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.72222222222222,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "INCY",
+      "field": "earningsPerShare",
+      "gold": 7.85,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "INSM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.05938372363579,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "INSM",
+      "field": "earningsPerShare",
+      "gold": -4.1,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "INTC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.3267419962335,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "INTC",
+      "field": "earningsPerShare",
+      "gold": -2.12,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-26"
+    },
+    {
+      "ticker": "INTU",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.37489567187314,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IONQ",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.95097296527961,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IONQ",
+      "field": "earningsPerShare",
+      "gold": -3.43,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "IONS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.65482683340064,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.58692185007975,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IP",
+      "field": "earningsPerShare",
+      "gold": -5.17,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "IQV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -90.8859223300971,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -5.44268842319887,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IR",
+      "field": "earningsPerShare",
+      "gold": 2.43,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "IRM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -26.1491344547213,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -48.3264063256984,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IT",
+      "field": "earningsPerShare",
+      "gold": 11.06,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ITT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -24.0436241610738,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ITW",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.70865587614356,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IVZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.95085324232082,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "IVZ",
+      "field": "earningsPerShare",
+      "gold": -0.68,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "J",
+      "field": "tangibleBookValuePerShare",
+      "gold": -17.8956654949405,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JAZZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.803806792473,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JAZZ",
+      "field": "earningsPerShare",
+      "gold": 14.59,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "JBL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.05789312805833,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JCI",
+      "field": "sharesOutstanding",
+      "gold": 605741470,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JCI",
+      "field": "earningsPerShare",
+      "gold": 3.54,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "JD",
+      "field": "earningsPerShare",
+      "gold": 1.43,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "JEF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 38.6631644173492,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JEF",
+      "field": "earningsPerShare",
+      "gold": 3.75,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-08-31"
+    },
+    {
+      "ticker": "JHX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.5772182942096,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JLL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 50.5156039581028,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JNJ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -5.64821252666897,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "JNJ",
+      "field": "earningsPerShare",
+      "gold": 8.64,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-27"
+    },
+    {
+      "ticker": "KDP",
+      "field": "tangibleBookValuePerShare",
+      "gold": -31.4827505182442,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KEY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 12.3297816702774,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KEYS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.7242972756663,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KHC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -13.5152027027027,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KLAC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.46988207683823,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KLAC",
+      "field": "earningsPerShare",
+      "gold": 3.99,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "KMB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.463018641010222,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KMI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.35334422898155,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KOPN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.383189948479604,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.00955859805648,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "KVUE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.86229291003883,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "L",
+      "field": "sharesOutstanding",
+      "gold": 202225230,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LCID",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.68470710150874,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LDOS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -28.1318563715286,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LECO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.72441706345926,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LEU",
+      "field": "sharesOutstanding",
+      "gold": 19733908,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -25.1995073891626,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LHX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -33.0280715077733,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LI",
+      "field": "earningsPerShare",
+      "gold": -0.65,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "LII",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.4036215224253,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LIN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.20911215858925,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LITE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 35.4150110375276,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LLY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 13.0885623567009,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LMT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -12.8698713584281,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LPLA",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.6187534347207,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LPLA",
+      "field": "earningsPerShare",
+      "gold": 12.57,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "LQDA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.11410935727455,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LSCC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.60229231602721,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LSCC",
+      "field": "earningsPerShare",
+      "gold": 0.25,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-10-03"
+    },
+    {
+      "ticker": "LUMN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.25792787236271,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LUMN",
+      "field": "earningsPerShare",
+      "gold": -0.66,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "LUV",
+      "field": "earningsPerShare",
+      "gold": 1.6,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "LYB",
+      "field": "earningsPerShare",
+      "gold": -0.83,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "LYFT",
+      "field": "sharesOutstanding",
+      "gold": 378540249,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LYV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -19.3365715776162,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "LYV",
+      "field": "earningsPerShare",
+      "gold": -1.11,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "MAR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -94.3789709346206,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MARA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.00726386786426,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MAS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.45746887966805,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MCD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.17544308602769,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MCHP",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.13603204805141,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MCHP",
+      "field": "earningsPerShare",
+      "gold": 0.68,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "MCK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -166.01900086079,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MCO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.4361948955916,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MDB",
+      "field": "earningsPerShare",
+      "gold": 0.71,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "MDGL",
+      "field": "earningsPerShare",
+      "gold": -12.85,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MDLZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -13.2426068588966,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MDLZ",
+      "field": "earningsPerShare",
+      "gold": 0.67,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MDT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.49443992426705,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MEDP",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.94798296802131,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MET",
+      "field": "tangibleBookValuePerShare",
+      "gold": 27.0779203103501,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MGM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -13.8740704867445,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MGM",
+      "field": "earningsPerShare",
+      "gold": 1.62,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MKL",
+      "field": "earningsPerShare",
+      "gold": 181.44,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MKSI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -23.7721893491124,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MLI",
+      "field": "sharesOutstanding",
+      "gold": 217974381,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MLI",
+      "field": "earningsPerShare",
+      "gold": 3.9,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-26"
+    },
+    {
+      "ticker": "MLM",
+      "field": "earningsPerShare",
+      "gold": 15.28,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "MMM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -10.1968229904333,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MNST",
+      "field": "sharesOutstanding",
+      "gold": 979525882,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MNST",
+      "field": "earningsPerShare",
+      "gold": 1.08,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "MO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -11.9277141327599,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MOH",
+      "field": "earningsPerShare",
+      "gold": 3.74,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MPC",
+      "field": "sharesOutstanding",
+      "gold": 272282280,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MPC",
+      "field": "earningsPerShare",
+      "gold": 28.88,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MRK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.622250353166422,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MRK",
+      "field": "earningsPerShare",
+      "gold": 3.55,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MRNA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.5413533834586,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MRSH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -30.4042105263158,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MRVL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.63553426844566,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MSCI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -97.1171548117155,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MSFT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 44.85148781473,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MSI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -48.9365558912387,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MSTR",
+      "field": "earningsPerShare",
+      "gold": -99.16,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "MTB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 117.708350601126,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MTD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -45.5938953879029,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MTRN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 31.2844115991948,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MTZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -8.94270922444852,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MU",
+      "field": "tangibleBookValuePerShare",
+      "gold": 120.915119363395,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "MU",
+      "field": "earningsPerShare",
+      "gold": 44.21,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-03"
+    },
+    {
+      "ticker": "NBIS",
+      "field": "earningsPerShare",
+      "gold": 1.28,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "NBIX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.7186574531096,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NCLH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.47095699000353,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NDAQ",
+      "field": "tangibleBookValuePerShare",
+      "gold": -14.9594913305934,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NDSN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -12.0845899754047,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NEM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 31.7717633993144,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NFLX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.29537307209685,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NIO",
+      "field": "earningsPerShare",
+      "gold": -0.26,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "NLY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.8580488528864,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NNE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.2898398019179,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NNE",
+      "field": "sharesOutstanding",
+      "gold": 53698146,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NOC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.20097314922531,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NOV",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.8677468722968,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NOV",
+      "field": "earningsPerShare",
+      "gold": 0.26,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "NOW",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.4913687703352,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NRG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -32.8993819737691,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NSC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 74.4824451732851,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NTAP",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.44387755102041,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NTDOY",
+      "field": "earningsPerShare",
+      "gold": 0.66,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "NTES",
+      "field": "earningsPerShare",
+      "gold": 7.2,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "NTLA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.19722436083309,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NTNX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.90520996033343,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NTRS",
+      "field": "earningsPerShare",
+      "gold": 12.75,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "NTSK",
+      "field": "earningsPerShare",
+      "gold": -1.52,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "NUE",
+      "field": "earningsPerShare",
+      "gold": 12.54,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-10-03"
+    },
+    {
+      "ticker": "NVDA",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.50045643153527,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NVDA",
+      "field": "earningsPerShare",
+      "gold": 6.53,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-26"
+    },
+    {
+      "ticker": "NVO",
+      "field": "earningsPerShare",
+      "gold": 4.09,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "NVT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.98455352743715,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NVTS",
+      "field": "sharesOutstanding",
+      "gold": 262555476,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NWSA",
+      "field": "sharesOutstanding",
+      "gold": 359167429,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NXPI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.77740404331172,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NXT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.6701042816379,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "NXT",
+      "field": "sharesOutstanding",
+      "gold": 150575535,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ODFL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 22.6090185214747,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OKE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.7589675607146,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OKLO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.3581301501422,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OLLI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.5410882115325,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OLN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.26929824561404,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OMC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -49.1160870878963,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OMC",
+      "field": "earningsPerShare",
+      "gold": 0.99,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ON",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.2756051741396,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ONDS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.614077558447468,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ONDS",
+      "field": "sharesOutstanding",
+      "gold": 570552341,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ONDS",
+      "field": "earningsPerShare",
+      "gold": -0.03,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ONON",
+      "field": "earningsPerShare",
+      "gold": 0.92,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ONTO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.8123304713152,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ORCL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.21626984126984,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ORLY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.50741228608653,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OVV",
+      "field": "tangibleBookValuePerShare",
+      "gold": 34.347021827599,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OVV",
+      "field": "earningsPerShare",
+      "gold": 4.91,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "OWL",
+      "field": "sharesOutstanding",
+      "gold": 6875000,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "OXY",
+      "field": "earningsPerShare",
+      "gold": 0.72,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "P",
+      "field": "sharesOutstanding",
+      "gold": 333227251,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PAA",
+      "field": "earningsPerShare",
+      "gold": 1.16,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "PAG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 27.9764042407355,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PAGS",
+      "field": "earningsPerShare",
+      "gold": 1.44,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "PANW",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.88343558282209,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PANW",
+      "field": "earningsPerShare",
+      "gold": 1.15,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "PAYC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.038374717833,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PAYX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.89550561797753,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PBR",
+      "field": "earningsPerShare",
+      "gold": 3.96,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "PCG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.6760299356248,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PDD",
+      "field": "earningsPerShare",
+      "gold": 8.89,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "PEG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 34.7678643653226,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PEP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.1339343306454,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PFE",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.98591741669873,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PFG",
+      "field": "earningsPerShare",
+      "gold": 7.02,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "PFGC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.038265306122449,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.54002056869735,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PGR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 59.5223531808924,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -23.6815544467616,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PINS",
+      "field": "sharesOutstanding",
+      "gold": 500526454,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PKG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 30.0791376499792,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PLTR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.65448645229257,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PLTR",
+      "field": "earningsPerShare",
+      "gold": 1.16,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "PLUG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.3968385870826,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PLUG",
+      "field": "sharesOutstanding",
+      "gold": 1397195278,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -22.1665384945657,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PN",
+      "field": "earningsPerShare",
+      "gold": -5.53,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-03-31"
+    },
+    {
+      "ticker": "PNC",
+      "field": "sharesOutstanding",
+      "gold": 396778009,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PNFP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 68.3131456953642,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PNFP",
+      "field": "sharesOutstanding",
+      "gold": 151121528,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "POWL",
+      "field": "sharesOutstanding",
+      "gold": 36432564,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "POWL",
+      "field": "earningsPerShare",
+      "gold": 5.22,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "PPG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.99185151652331,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.3334442722467,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PSX",
+      "field": "earningsPerShare",
+      "gold": 9.97,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "PTC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.27147592510635,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PVH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.20561219249287,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PWR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.75242987045924,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "PWR",
+      "field": "earningsPerShare",
+      "gold": 8.73,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "PYPL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.98924731182796,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "Q",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.36751505447279,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "QBTS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.42120905858213,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "QCOM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.2891791044776,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "QCOM",
+      "field": "earningsPerShare",
+      "gold": 12.7,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-28"
+    },
+    {
+      "ticker": "QSR",
+      "field": "earningsPerShare",
+      "gold": 3.98,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "QXO",
+      "field": "sharesOutstanding",
+      "gold": 1037490709,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "QXO",
+      "field": "earningsPerShare",
+      "gold": -0.89,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "R",
+      "field": "tangibleBookValuePerShare",
+      "gold": 37.9656929857532,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RBC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 6.09750068390886,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RBLX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.25988687934542,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RDW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.16106499681556,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RDW",
+      "field": "sharesOutstanding",
+      "gold": 249992609,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "REBN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.0446422364279101,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "REG",
+      "field": "earningsPerShare",
+      "gold": 2.97,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "RELY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.47136388910954,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RGEN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 12.1025517281706,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RGEN",
+      "field": "earningsPerShare",
+      "gold": 0.73,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "RGLD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 89.6035758825535,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RHHBY",
+      "field": "earningsPerShare",
+      "gold": 2.33,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "RIG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.56848701880036,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RIG",
+      "field": "earningsPerShare",
+      "gold": -1.6,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "RIOT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.29059785054788,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RIVN",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.89794520547945,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RKLB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 4.80233357280065,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RKT",
+      "field": "earningsPerShare",
+      "gold": -0.03,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "RMD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.4641113526607,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ROIV",
+      "field": "earningsPerShare",
+      "gold": -0.53,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ROK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -9.27521188996436,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ROKU",
+      "field": "earningsPerShare",
+      "gold": 2.35,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "ROL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.39285783127356,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ROP",
+      "field": "tangibleBookValuePerShare",
+      "gold": -119.576767676768,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ROST",
+      "field": "tangibleBookValuePerShare",
+      "gold": 21.0943353729494,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RPD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.30220316402808,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RPD",
+      "field": "earningsPerShare",
+      "gold": 0.21,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "RPM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.67285228217069,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RRC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.8478502892255,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RRX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -40.1306306306306,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RRX",
+      "field": "earningsPerShare",
+      "gold": 3.46,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "RS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 90.5775195320168,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RS",
+      "field": "earningsPerShare",
+      "gold": 15.35,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "RSG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -19.2719494727103,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RTX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -10.6495984734557,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RTX",
+      "field": "sharesOutstanding",
+      "gold": 1349440548,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RUN",
+      "field": "earningsPerShare",
+      "gold": 1.98,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "RVMD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 10.7810546640744,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RVMD",
+      "field": "earningsPerShare",
+      "gold": -9.14,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "RVTY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -14.3662621881273,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "RXRX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.840229337650203,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SAIL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.550968070756413,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SBAC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -70.6737237010783,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SBUX",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.96964912280702,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SCHW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.086911987524,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SCI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.98891227281208,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SECZ",
+      "field": "earningsPerShare",
+      "gold": -0.38,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "SEDG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.79489226430109,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SGI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -18.7064902199192,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SHAK",
+      "field": "sharesOutstanding",
+      "gold": 40350732,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SHW",
+      "field": "tangibleBookValuePerShare",
+      "gold": -32.0492549668874,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SITM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 30.247850030175,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SJM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -47.5112359550562,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SKHY",
+      "field": "earningsPerShare",
+      "gold": 15.68,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "SLB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.61585365853659,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SMR",
+      "field": "sharesOutstanding",
+      "gold": 410389522,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SMTC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.46371998348364,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SMTC",
+      "field": "earningsPerShare",
+      "gold": 1.56,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-26"
+    },
+    {
+      "ticker": "SNAP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.0305068698256121,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SNDK",
+      "field": "earningsPerShare",
+      "gold": 73.76,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-10-02"
+    },
+    {
+      "ticker": "SNPS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -37.2688134443256,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SNPS",
+      "field": "earningsPerShare",
+      "gold": 4.36,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "SNX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 20.4743038423447,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SNY",
+      "field": "earningsPerShare",
+      "gold": 1.87,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "SOLV",
+      "field": "tangibleBookValuePerShare",
+      "gold": -19.0108311829902,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SOUN",
+      "field": "sharesOutstanding",
+      "gold": 411576753,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SOUN",
+      "field": "earningsPerShare",
+      "gold": -0.62,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "SPCE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 2.80379315102631,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SPCE",
+      "field": "sharesOutstanding",
+      "gold": 151595903,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SPCX",
+      "field": "earningsPerShare",
+      "gold": 0.23,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "SPG",
+      "field": "sharesOutstanding",
+      "gold": 323551515,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SPGI",
+      "field": "tangibleBookValuePerShare",
+      "gold": -68.3718523628838,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SR",
+      "field": "earningsPerShare",
+      "gold": 4.94,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "SSB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 58.1937226823141,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SSNC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.8222506393862,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "STE",
+      "field": "tangibleBookValuePerShare",
+      "gold": 14.9128205128205,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "STLA",
+      "field": "earningsPerShare",
+      "gold": -8.73,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "STRL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.20771241830065,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "STRL",
+      "field": "earningsPerShare",
+      "gold": 13.88,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "STX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.7165805362761,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "STX",
+      "field": "earningsPerShare",
+      "gold": 13.9,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-10-02"
+    },
+    {
+      "ticker": "SUI",
+      "field": "earningsPerShare",
+      "gold": 0.78,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "SUNB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.01722545048652,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SUPX",
+      "field": "earningsPerShare",
+      "gold": -2.9,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "SW",
+      "field": "tangibleBookValuePerShare",
+      "gold": 18.7769502212068,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SWK",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.0554251726604,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SWK",
+      "field": "earningsPerShare",
+      "gold": 5.59,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-04"
+    },
+    {
+      "ticker": "SWKS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.1548172757475,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SWKS",
+      "field": "sharesOutstanding",
+      "gold": 150472782,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SWX",
+      "field": "earningsPerShare",
+      "gold": 4,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "SYK",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.70641802715149,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SYM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.936722541181286,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SYM",
+      "field": "sharesOutstanding",
+      "gold": 129873381,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "SYY",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.24156823160952,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "T",
+      "field": "earningsPerShare",
+      "gold": 2.97,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TCOM",
+      "field": "earningsPerShare",
+      "gold": 5.17,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "TDG",
+      "field": "tangibleBookValuePerShare",
+      "gold": -483.007931486286,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TDY",
+      "field": "tangibleBookValuePerShare",
+      "gold": 11.4567377247655,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TECH",
+      "field": "tangibleBookValuePerShare",
+      "gold": 5.31343348334038,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TECK",
+      "field": "earningsPerShare",
+      "gold": 3.68,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TEL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 12.9942249132741,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TENB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -7.83968648870714,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TENB",
+      "field": "earningsPerShare",
+      "gold": 0.06,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TFC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 31.9602699401246,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "THC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -93.2678293210032,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "THC",
+      "field": "earningsPerShare",
+      "gold": 25.88,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TJX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.584371409042,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TKO",
+      "field": "earningsPerShare",
+      "gold": 3.71,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "TLN",
+      "field": "earningsPerShare",
+      "gold": -4.13,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TM",
+      "field": "earningsPerShare",
+      "gold": 22.76,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "TME",
+      "field": "earningsPerShare",
+      "gold": 0.84,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "TMO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -47.4446616683094,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TMUS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 37.2358999621305,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TOL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 92.5778375855969,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TOST",
+      "field": "sharesOutstanding",
+      "gold": 514000000,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TPG",
+      "field": "earningsPerShare",
+      "gold": 0.67,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TPL",
+      "field": "earningsPerShare",
+      "gold": -1.87,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "TPR",
+      "field": "tangibleBookValuePerShare",
+      "gold": -4.90069860279441,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TRMB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.84973867595819,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TRMB",
+      "field": "earningsPerShare",
+      "gold": -0.69,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-03"
+    },
+    {
+      "ticker": "TRU",
+      "field": "tangibleBookValuePerShare",
+      "gold": -22.9785002621919,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TSM",
+      "field": "earningsPerShare",
+      "gold": 11.34,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "TT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.61960195159388,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TWLO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 24.3863547742361,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "TYL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -15.2771760736159,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "U",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.647423673881274,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "UBER",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.70466119252581,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "UDR",
+      "field": "earningsPerShare",
+      "gold": 1.58,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "UMBF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 69.8402828313369,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "UMC",
+      "field": "earningsPerShare",
+      "gold": 1.03,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "UNH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -39.3470982142857,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "UNH",
+      "field": "earningsPerShare",
+      "gold": 13.2,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "UNM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 67.1606895328445,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "UNM",
+      "field": "earningsPerShare",
+      "gold": 1.41,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "UNP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 37.0533697617311,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "URI",
+      "field": "tangibleBookValuePerShare",
+      "gold": 31.0852603196975,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "USAR",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.5104609863858,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "USAR",
+      "field": "sharesOutstanding",
+      "gold": 375076567,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "USB",
+      "field": "tangibleBookValuePerShare",
+      "gold": 27.0677839992198,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "USFD",
+      "field": "tangibleBookValuePerShare",
+      "gold": -10.4946833102173,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VALE",
+      "field": "earningsPerShare",
+      "gold": 0.5,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "VFC",
+      "field": "tangibleBookValuePerShare",
+      "gold": -0.0340880955860894,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VLO",
+      "field": "earningsPerShare",
+      "gold": 23.99,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "VLTO",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.24157764995892,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VMC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 24.4648985959438,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VMRK",
+      "field": "sharesOutstanding",
+      "gold": 374944409,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VNET",
+      "field": "earningsPerShare",
+      "gold": -1.27,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "VNOM",
+      "field": "earningsPerShare",
+      "gold": 0.02,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "VRSN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.9354120267261,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VRSN",
+      "field": "earningsPerShare",
+      "gold": 9.21,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "VRT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.86024000916941,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VRTX",
+      "field": "tangibleBookValuePerShare",
+      "gold": 39.3108945575443,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VST",
+      "field": "tangibleBookValuePerShare",
+      "gold": -6.22095409743112,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VTRS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -5.28552001437476,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VTRS",
+      "field": "sharesOutstanding",
+      "gold": 1148590864,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "VZ",
+      "field": "tangibleBookValuePerShare",
+      "gold": 15.2620338261893,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "W",
+      "field": "earningsPerShare",
+      "gold": -1.26,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "WAB",
+      "field": "tangibleBookValuePerShare",
+      "gold": -19.7619047619048,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WAT",
+      "field": "tangibleBookValuePerShare",
+      "gold": -27.9664036650547,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WAT",
+      "field": "sharesOutstanding",
+      "gold": 98248111,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WDAY",
+      "field": "sharesOutstanding",
+      "gold": 36000000,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WDAY",
+      "field": "earningsPerShare",
+      "gold": 3.21,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-07-31"
+    },
+    {
+      "ticker": "WEC",
+      "field": "earningsPerShare",
+      "gold": 5.15,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "WELL",
+      "field": "tangibleBookValuePerShare",
+      "gold": 64.7626357787206,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WFC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 44.5425772921109,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WING",
+      "field": "tangibleBookValuePerShare",
+      "gold": -34.4534878782308,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -19.3085240130752,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WMG",
+      "field": "sharesOutstanding",
+      "gold": 147729456,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WMT",
+      "field": "tangibleBookValuePerShare",
+      "gold": 8.27830863313845,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WMT",
+      "field": "sharesOutstanding",
+      "gold": 7933746241,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WOLF",
+      "field": "earningsPerShare",
+      "gold": -11.39,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-28"
+    },
+    {
+      "ticker": "WSM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 17.5204832780037,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WTRG",
+      "field": "tangibleBookValuePerShare",
+      "gold": 16.678071368527,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WTRG",
+      "field": "sharesOutstanding",
+      "gold": 286376038,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WTW",
+      "field": "tangibleBookValuePerShare",
+      "gold": -37.357848236523,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WULF",
+      "field": "tangibleBookValuePerShare",
+      "gold": 0.184046965670187,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WWD",
+      "field": "tangibleBookValuePerShare",
+      "gold": 19.1812900557567,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "WYNN",
+      "field": "tangibleBookValuePerShare",
+      "gold": -3.65245891613524,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "XOM",
+      "field": "tangibleBookValuePerShare",
+      "gold": 65.1603334150527,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "XOM",
+      "field": "earningsPerShare",
+      "gold": 7.77,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-09-30"
+    },
+    {
+      "ticker": "XPEV",
+      "field": "earningsPerShare",
+      "gold": -0.49,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "XPO",
+      "field": "tangibleBookValuePerShare",
+      "gold": 1.56410256410256,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "XYL",
+      "field": "tangibleBookValuePerShare",
+      "gold": -2.0712095626638,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "XYZ",
+      "field": "earningsPerShare",
+      "gold": 0.74,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "YELP",
+      "field": "tangibleBookValuePerShare",
+      "gold": 3.59632593670426,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "YUM",
+      "field": "tangibleBookValuePerShare",
+      "gold": -31.6231795120932,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "YUMC",
+      "field": "tangibleBookValuePerShare",
+      "gold": 9.23188405797101,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ZBH",
+      "field": "tangibleBookValuePerShare",
+      "gold": -11.9146825665214,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ZBRA",
+      "field": "tangibleBookValuePerShare",
+      "gold": -38.5877732951966,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ZG",
+      "field": "earningsPerShare",
+      "gold": -0.52,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ZS",
+      "field": "tangibleBookValuePerShare",
+      "gold": 7.14978381527705,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    },
+    {
+      "ticker": "ZTO",
+      "field": "earningsPerShare",
+      "gold": 1.69,
+      "cohort": "flagged",
+      "goldPeriodEnd": "2026-06-30"
+    },
+    {
+      "ticker": "ZTS",
+      "field": "tangibleBookValuePerShare",
+      "gold": -1.30627722999475,
+      "cohort": "flagged",
+      "goldPeriodEnd": null
+    }
+  ]
+}

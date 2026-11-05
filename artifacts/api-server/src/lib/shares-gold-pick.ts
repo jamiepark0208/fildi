@@ -29,6 +29,29 @@ export function parseYahooMostRecentQuarter(raw: string | null | undefined): str
   return null;
 }
 
+/** SEC TTM EPS wins over Yahoo trailingEps when statement period end is after Yahoo MRQ (A329 seg3 r5). */
+export function pickEarningsPerShareByPeriod(
+  candidates: { src: string; val: number }[],
+  secPeriodEnd: string | null | undefined,
+  yahooMrq: string | null | undefined,
+): { src: string; val: number } | null {
+  if (candidates.length === 0) return null;
+  const sec = candidates.find((c) => c.src === "sec");
+  const secWins =
+    sec != null &&
+    secPeriodEnd != null &&
+    secPeriodEnd !== "" &&
+    yahooMrq != null &&
+    yahooMrq !== "" &&
+    secPeriodEnd > yahooMrq;
+  if (secWins && sec != null) return sec;
+  const withoutStaleSec = secWins ? candidates : candidates.filter((c) => c.src !== "sec");
+  const pool = withoutStaleSec.length > 0 ? withoutStaleSec : candidates;
+  const yahoo = pool.find((c) => c.src === "yahoo");
+  if (yahoo) return yahoo;
+  return pool[0] ?? null;
+}
+
 /** Among share candidates, prefer the source with the newest pull timestamp (statement-date tie-break). */
 export function pickSharesByStatementDate(
   candidates: { src: string; val: number }[],

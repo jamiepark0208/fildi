@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   parseYahooMostRecentQuarter,
+  pickEarningsPerShareByPeriod,
   pickSharesByStatementDate,
   yahooMostRecentQuarterFromPayload,
 } from "../lib/shares-gold-pick.js";
@@ -34,5 +35,31 @@ describe("merge-trusted seg3 shares", () => {
       "2024-06-30",
     );
     assert.equal(picked.src, "edgar");
+  });
+
+  it("pickEarningsPerShareByPeriod prefers SEC when period end after Yahoo MRQ", () => {
+    const picked = pickEarningsPerShareByPeriod(
+      [
+        { src: "sec", val: 8.97 },
+        { src: "yahoo", val: 7.49 },
+      ],
+      "2025-09-27",
+      "2025-06-28",
+    );
+    assert.equal(picked?.src, "sec");
+    assert.equal(picked?.val, 8.97);
+  });
+
+  it("pickEarningsPerShareByPeriod keeps Yahoo when SEC period not after MRQ", () => {
+    const picked = pickEarningsPerShareByPeriod(
+      [
+        { src: "sec", val: 8.97 },
+        { src: "yahoo", val: 7.49 },
+      ],
+      "2025-06-28",
+      "2025-09-27",
+    );
+    assert.equal(picked?.src, "yahoo");
+    assert.equal(picked?.val, 7.49);
   });
 });

@@ -16,6 +16,7 @@ OUT = REPO / "artifacts/api-server/out/audit"
 
 import financials as F  # noqa: E402
 from build_plan import connect, rows  # noqa: E402
+from sec_ttm_eps import has_quarterly_eps_facts, ttm_eps_diluted  # noqa: E402
 
 FRACTION = {"grossMargin", "netMargin", "operatingMargin", "returnOnAssets", "dividendYield"}
 NI_COMMON = [
@@ -42,11 +43,6 @@ CASH_ST = [
 DA = ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"]
 OCF = ["NetCashProvidedByUsedInOperatingActivities"]
 CAPEX = ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"]
-EPS_DILUTED = [
-    "EarningsPerShareDiluted",
-    "EarningsPerShareBasicAndDiluted",
-    "EarningsPerShareBasic",
-]
 GOODWILL = ["Goodwill"]
 INTANG = [
     "IntangibleAssetsNetExcludingGoodwill",
@@ -186,79 +182,6 @@ def financial_currency(conn, ticker: str) -> str | None:
     return fc or None
 
 
-def has_quarterly_eps_facts(facts: dict) -> bool:
-    gaap = (facts or {}).get("facts", {}).get("us-gaap") or {}
-    for c in EPS_DILUTED:
-        node = gaap.get(c)
-        if not node:
-            continue
-        for unit in node.get("units", {}).get("USD/shares", []):
-            if unit.get("start") and F._days(unit["start"], unit["end"]) < 100:
-                return True
-    return False
-
-
-def _latest_filed(units: list[dict]) -> dict[tuple[str, str], dict]:
-    """One fact per (start, end): the latest filing wins (split-adjusted restatements, e.g. NOW 5:1)."""
-    best: dict[tuple[str, str], dict] = {}
-    for u in units:
-        if not u.get("start"):
-            continue
-        k = (u["start"], u["end"])
-        if k not in best or (u.get("filed") or "") > (best[k].get("filed") or ""):
-            best[k] = u
-    return best
-
-
-def ttm_eps_diluted(facts: dict, anchor_end: str | None = None) -> dict | None:
-    """TTM diluted EPS = four contiguous quarters ending on/before anchor.
-    Q4 is rarely tagged alone (10-K reports FY only) → derive it as FY − 9M YTD.
-    A329 r4: the old picker skipped the missing Q4 and summed a year-old quarter instead."""
-    anchor = anchor_end or date.today().isoformat()
-    gaap = (facts or {}).get("facts", {}).get("us-gaap") or {}
-    for c in EPS_DILUTED:
-        node = gaap.get(c)
-        if not node:
-            continue
-        raw = node.get("units", {}).get("USD/shares", [])
-        facts_by = _latest_filed(raw)
-        quarters: dict[str, dict] = {}
-        for (st, en), u in facts_by.items():
-            if 80 <= F._days(st, en) <= 100 and en <= anchor:
-                quarters[en] = {"start": st, "end": en, "val": float(u["val"])}
-        for (st, en), fy in facts_by.items():   # derive Q4 from FY − 9M YTD (same start)
-            if not (350 <= F._days(st, en) <= 380) or en > anchor or en in quarters:
-                continue
-            # 9M from a filing on/before the 10-K: same share basis as FY (BKNG 25:1 — restated 9M − pre-split FY = 168)
-            ytd9 = [u for u in raw if u.get("start") == st and 260 <= F._days(st, u["end"]) <= 285
-                    and (u.get("filed") or "") <= (fy.get("filed") or "9999")]
-            if ytd9:
-                y = max(ytd9, key=lambda u: (u["end"], u.get("filed") or ""))
-                quarters[en] = {"start": y["end"], "end": en, "val": float(fy["val"]) - float(y["val"]), "derived": True}
-        if not quarters:
-            continue
-        chain = [quarters[max(quarters)]]
-        while len(chain) < 4:   # walk back: previous quarter ends ~1 day before this one starts
-            prev = [q for e, q in quarters.items() if abs(F._days(e, chain[-1]["start"])) <= 7 and e < chain[-1]["end"]]
-            if not prev:
-                break
-            chain.append(max(prev, key=lambda q: q["end"]))
-        if len(chain) < 4:
-            continue
-        # Split between filings mixes share bases → not judgeable (no truth beats a wrong one).
-        mags = sorted(abs(q["val"]) for q in chain)
-        if mags[1] > 0.05 and mags[-1] > 6 * mags[1]:
-            return None
-        derived = sum(1 for q in chain if q.get("derived"))
-        return {
-            "value": sum(q["val"] for q in chain),
-            "end": chain[0]["end"],
-            "how": f"4Q diluted {c}" + (f" (Q4=FY−9M ×{derived})" if derived else ""),
-            "concept": c,
-        }
-    return None
-
-
 def cover_shares_on_bs_end(
     facts: dict,
     conn,
@@ -336,7 +259,13 @@ def sec_shares_prior(facts: dict, conn, ticker: str) -> tuple[float | None, str]
     anchor = parse_truth_period_end(cur_note)
     if not anchor:
         return None, "prior anchor missing"
-    return prior_basic_wa_shares(facts, conn, ticker, anchor)
+    prior_end = dei_end_near(facts, anchor, 365)
+    if not prior_end:
+        return None, "prior period-end missing"
+    val, note = cover_shares_on_bs_end(facts, conn, ticker, prior_end)
+    if val is not None:
+        return val, f"prior cover {note}"
+    return dei_shares_on_end(facts, conn, ticker, prior_end)
 
 
 def dei_end_near(facts: dict, anchor_end: str, days_back: int, window: int = PRIOR_SHARES_WINDOW) -> str | None:
@@ -455,9 +384,13 @@ def miss_cause(row: dict, facts: dict | None = None, conn=None) -> str:
                 return "share_class_partial"
         if field == "sharesOutstandingPrior" and truth > 0:
             r = gold / truth
-            # Vendor prior = basic WA (Yahoo fts-1); residual gap vs cover-count truth → definition.
-            if 1.03 <= r <= 1.10 or ("prior basic wa" in note and 1.02 <= r <= 1.12):
+            if "prior basic wa" in note and (1.03 <= r <= 1.10 or 1.02 <= r <= 1.12):
                 return "definition_mismatch"
+            # Vendor prior ≈ prior-fiscal basic WA (Yahoo fts-1); SEC truth = prior-year cover count (A329 r5).
+            if "prior cover" in note:
+                rel = abs(gold - truth) / max(abs(gold), abs(truth), 1.0)
+                if rel <= 0.35 and not ratio_near_known_adr(gold, truth):
+                    return "definition_mismatch"
         if field == "earningsPerShare" and "basic" in note and "diluted" not in note:
             return "basic_vs_diluted"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):

@@ -327,10 +327,12 @@ function writeCleanSample(findings: AuditFinding[], packs: Map<string, TickerPac
     });
   }
   const rng = mulberry32(329);
-  const n = Math.min(
-    okCells.length,
-    Math.max(CLEAN_SAMPLE_MIN, Math.ceil(okCells.length * 0.05)),
-  );
+  const n = segmentPerShare
+    ? okCells.length
+    : Math.min(
+        okCells.length,
+        Math.max(CLEAN_SAMPLE_MIN, Math.ceil(okCells.length * 0.05)),
+      );
   const picked: typeof okCells = [];
   const pool = [...okCells];
   while (picked.length < n && pool.length > 0) {

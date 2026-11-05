@@ -1,0 +1,392 @@
+{
+  "movedGt5Pct": 250,
+  "peChanges": [
+    {
+      "ticker": "ADI",
+      "peBefore": 40.8841951950604,
+      "peAfter": 40.8841951950604,
+      "epsBefore": 8.4269,
+      "epsAfter": 6.71,
+      "sharesBefore": 484565465,
+      "sharesAfter": 484565465
+    },
+    {
+      "ticker": "AEM",
+      "peBefore": 14.668258679799148,
+      "peAfter": 14.668258679799148,
+      "epsBefore": 12.2601,
+      "epsAfter": 10.62,
+      "sharesBefore": 500036237,
+      "sharesAfter": 500036237
+    },
+    {
+      "ticker": "ANET",
+      "peBefore": 46.36000696127401,
+      "peAfter": 46.36000696127401,
+      "epsBefore": 3.1709,
+      "epsAfter": 3.72,
+      "sharesBefore": 1263402335,
+      "sharesAfter": 1263402335
+    },
+    {
+      "ticker": "TEAM",
+      "peBefore": 569.1420007493443,
+      "peAfter": 569.1420007493443,
+      "epsBefore": -0.18700000000000003,
+      "epsAfter": -0.21,
+      "sharesBefore": 159005198,
+      "sharesAfter": 159005198
+    },
+    {
+      "ticker": "PODD",
+      "peBefore": 26.65622084829199,
+      "peAfter": 26.65622084829199,
+      "epsBefore": 5.3453,
+      "epsAfter": 6.13,
+      "sharesBefore": 69371043,
+      "sharesAfter": 69371043
+    },
+    {
+      "ticker": "QUBT",
+      "peBefore": -41.483870967741936,
+      "peAfter": -41.483870967741936,
+      "epsBefore": -0.06310000000000002,
+      "epsAfter": -0.05,
+      "sharesBefore": 226346861,
+      "sharesAfter": 226346861
+    },
+    {
+      "ticker": "AU",
+      "peBefore": 9.878692443637457,
+      "peAfter": 9.878692443637457,
+      "epsBefore": 7.4597,
+      "epsAfter": 8.11,
+      "sharesBefore": 505769256,
+      "sharesAfter": 505769256
+    },
+    {
+      "ticker": "TKO",
+      "peBefore": 41.75237398111518,
+      "peAfter": 41.75237398111518,
+      "epsBefore": 2.86,
+      "epsAfter": 3.71,
+      "sharesBefore": 73111098,
+      "sharesAfter": 73111098
+    },
+    {
+      "ticker": "TMUS",
+      "peBefore": 14.581523468264411,
+      "peAfter": 14.581523468264411,
+      "epsBefore": 9.562100000000001,
+      "epsAfter": 10.37,
+      "sharesBefore": 1059272571,
+      "sharesAfter": 1059272571
+    },
+    {
+      "ticker": "ARM",
+      "peBefore": 154.26488519410995,
+      "peAfter": 154.26488519410995,
+      "epsBefore": 0.9748000000000001,
+      "epsAfter": 0.88,
+      "sharesBefore": 1067998569,
+      "sharesAfter": 1067998569
+    },
+    {
+      "ticker": "RYAN",
+      "peBefore": 54.3293795776845,
+      "peAfter": 54.3293795776845,
+      "epsBefore": 0.6219,
+      "epsAfter": 0.71,
+      "sharesBefore": 122077702,
+      "sharesAfter": 122077702
+    },
+    {
+      "ticker": "AMZN",
+      "peBefore": 20.67278439551746,
+      "peAfter": 20.67278439551746,
+      "epsBefore": 12.3716,
+      "epsAfter": 7.7,
+      "sharesBefore": 10813138306,
+      "sharesAfter": 10813138306
+    },
+    {
+      "ticker": "AAL",
+      "peBefore": -11.20907515672557,
+      "peAfter": -11.20907515672557,
+      "epsBefore": -0.7268999999999999,
+      "epsAfter": 0.31,
+      "sharesBefore": 662618434,
+      "sharesAfter": 662618434
+    },
+    {
+      "ticker": "ERIE",
+      "peBefore": 25.38168631006346,
+      "peAfter": 25.38168631006346,
+      "epsBefore": 10.371500000000001,
+      "epsAfter": 11.03,
+      "sharesBefore": 46189068,
+      "sharesAfter": 46189068
+    },
+    {
+      "ticker": "COHR",
+      "peBefore": 24.2503751480455,
+      "peAfter": 24.2503751480455,
+      "epsBefore": 4.1127,
+      "epsAfter": 4.83,
+      "sharesBefore": 196958669,
+      "sharesAfter": 196958669
+    },
+    {
+      "ticker": "CRWD",
+      "peBefore": 9351.233897252832,
+      "peAfter": 9351.233897252832,
+      "epsBefore": 0.056999999999999995,
+      "epsAfter": 0.04,
+      "sharesBefore": 1023934842,
+      "sharesAfter": 1023934842
+    },
+    {
+      "ticker": "CSX",
+      "peBefore": 25.989711875644506,
+      "peAfter": 25.989711875644506,
+      "epsBefore": 1.9264000000000001,
+      "epsAfter": 1.63,
+      "sharesBefore": 1843398210,
+      "sharesAfter": 1843398210
+    },
+    {
+      "ticker": "DTM",
+      "peBefore": 25.03404975682395,
+      "peAfter": 25.03404975682395,
+      "epsBefore": 3.6776,
+      "epsAfter": 4.57,
+      "sharesBefore": 102015296,
+      "sharesAfter": 102015296
+    },
+    {
+      "ticker": "DUOL",
+      "peBefore": 58.63623753657266,
+      "peAfter": 58.63623753657266,
+      "epsBefore": 8.3895,
+      "epsAfter": 3.03,
+      "sharesBefore": 40237065,
+      "sharesAfter": 40237065
+    },
+    {
+      "ticker": "DVN",
+      "peBefore": 8.405599516239839,
+      "peAfter": 8.405599516239839,
+      "epsBefore": 4.2244,
+      "epsAfter": 4.6,
+      "sharesBefore": 1100000000,
+      "sharesAfter": 1100000000
+    },
+    {
+      "ticker": "DXCM",
+      "peBefore": 34.8583466002278,
+      "peAfter": 34.8583466002278,
+      "epsBefore": 2.5122,
+      "epsAfter": 2.34,
+      "sharesBefore": 372950922,
+      "sharesAfter": 372950922
+    },
+    {
+      "ticker": "KKR",
+      "peBefore": 19.30394184054152,
+      "peAfter": 19.30394184054152,
+      "epsBefore": 3.3066000000000004,
+      "epsAfter": 3.13,
+      "sharesBefore": 897635601,
+      "sharesAfter": 897635601
+    },
+    {
+      "ticker": "EDIT",
+      "peBefore": -3.3876815429893052,
+      "peAfter": -3.3876815429893052,
+      "epsBefore": -0.7444999999999999,
+      "epsAfter": -0.68,
+      "sharesBefore": 153580035,
+      "sharesAfter": 153580035
+    },
+    {
+      "ticker": "EQIX",
+      "peBefore": 61.260894965016846,
+      "peAfter": 61.260894965016846,
+      "epsBefore": 16.654400000000003,
+      "epsAfter": 15.54,
+      "sharesBefore": 98988318,
+      "sharesAfter": 98988318
+    },
+    {
+      "ticker": "ES",
+      "peBefore": 16.243957217944523,
+      "peAfter": 16.243957217944523,
+      "epsBefore": 3.8611,
+      "epsAfter": 4.7,
+      "sharesBefore": 376674754,
+      "sharesAfter": 376674754
+    },
+    {
+      "ticker": "EXC",
+      "peBefore": 18.0625,
+      "peAfter": 18.0625,
+      "epsBefore": 2.7298999999999998,
+      "epsAfter": 2.56,
+      "sharesBefore": 1023000000,
+      "sharesAfter": 1023000000
+    },
+    {
+      "ticker": "FERG",
+      "peBefore": 24.461614173228345,
+      "peAfter": 24.461614173228345,
+      "epsBefore": 12.4637,
+      "epsAfter": 10.16,
+      "sharesBefore": 193452717,
+      "sharesAfter": 193452717
+    },
+    {
+      "ticker": "FLUT",
+      "peBefore": -115.61960175627576,
+      "peAfter": -115.61960175627576,
+      "epsBefore": -4.2983,
+      "epsAfter": -5.27,
+      "sharesBefore": 173871245,
+      "sharesAfter": 173871245
+    },
+    {
+      "ticker": "FTV",
+      "peBefore": 32.421523451046774,
+      "peAfter": 32.421523451046774,
+      "epsBefore": 1.6994,
+      "epsAfter": 1.9,
+      "sharesBefore": 297644456,
+      "sharesAfter": 297644456
+    },
+    {
+      "ticker": "DGX",
+      "peBefore": 24.50562245316156,
+      "peAfter": 24.50562245316156,
+      "epsBefore": 10.0609,
+      "epsAfter": 9.42,
+      "sharesBefore": 110019073,
+      "sharesAfter": 110019073
+    },
+    {
+      "ticker": "ICLR",
+      "peBefore": 33.435759257265545,
+      "peAfter": 33.435759257265545,
+      "epsBefore": 0.8993999999999998,
+      "epsAfter": 0.95,
+      "sharesBefore": 77154209,
+      "sharesAfter": 77154209
+    },
+    {
+      "ticker": "DHR",
+      "peBefore": 37.21330288853354,
+      "peAfter": 37.21330288853354,
+      "epsBefore": 6.1080000000000005,
+      "epsAfter": 5.15,
+      "sharesBefore": 703530815,
+      "sharesAfter": 703530815
+    },
+    {
+      "ticker": "GM",
+      "peBefore": 8.379932333157026,
+      "peAfter": 8.379932333157026,
+      "epsBefore": 4.453600000000002,
+      "epsAfter": 2.24,
+      "sharesBefore": 843549423,
+      "sharesAfter": 843549423
+    },
+    {
+      "ticker": "AA",
+      "peBefore": 6.1761568384651895,
+      "peAfter": 6.1761568384651895,
+      "epsBefore": 5.7505999999999995,
+      "epsAfter": 3.9,
+      "sharesBefore": 263969874,
+      "sharesAfter": 263969874
+    },
+    {
+      "ticker": "APP",
+      "peBefore": 17.246573580229377,
+      "peAfter": 17.246573580229377,
+      "epsBefore": 13.01,
+      "epsAfter": 14.86,
+      "sharesBefore": 331322000,
+      "sharesAfter": 331322000
+    },
+    {
+      "ticker": "HAS",
+      "peBefore": 17.68151144782609,
+      "peAfter": 17.68151144782609,
+      "epsBefore": 6.7132,
+      "epsAfter": 5.59,
+      "sharesBefore": 139862589,
+      "sharesAfter": 139862589
+    },
+    {
+      "ticker": "BR",
+      "peBefore": 20.55538301490534,
+      "peAfter": 20.55538301490534,
+      "epsBefore": 9.623299999999999,
+      "epsAfter": 9.03,
+      "sharesBefore": 113106236,
+      "sharesAfter": 113106236
+    },
+    {
+      "ticker": "BE",
+      "peBefore": 102.8933887917061,
+      "peAfter": 102.8933887917061,
+      "epsBefore": 1.604,
+      "epsAfter": 0.8,
+      "sharesBefore": 295656689,
+      "sharesAfter": 295656689
+    },
+    {
+      "ticker": "BEN",
+      "peBefore": 13.755012944819532,
+      "peAfter": 13.755012944819532,
+      "epsBefore": 1.5713,
+      "epsAfter": 1.47,
+      "sharesBefore": 508076910,
+      "sharesAfter": 508076910
+    },
+    {
+      "ticker": "BN",
+      "peBefore": 15.387663806322509,
+      "peAfter": 15.387663806322509,
+      "epsBefore": 0.5746,
+      "epsAfter": 0.54,
+      "sharesBefore": 2232266331,
+      "sharesAfter": 2232266331
+    }
+  ],
+  "rankMoved10PctPts": [
+    {
+      "ticker": "RPD",
+      "beforeRank": 394,
+      "afterRank": 614,
+      "deltaPctPts": -24.229074889867846
+    },
+    {
+      "ticker": "MDLZ",
+      "beforeRank": 650,
+      "afterRank": 499,
+      "deltaPctPts": 16.629955947136565
+    },
+    {
+      "ticker": "CVS",
+      "beforeRank": 559,
+      "afterRank": 434,
+      "deltaPctPts": 13.766519823788549
+    },
+    {
+      "ticker": "UNM",
+      "beforeRank": 154,
+      "afterRank": 251,
+      "deltaPctPts": -10.682819383259911
+    }
+  ],
+  "universeRanked": 908
+}

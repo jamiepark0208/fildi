@@ -48,6 +48,7 @@ import {
 import { applyNegativeEquityGoldPolicy, applyNegativeTbvGoldPolicy } from "../lib/negative-equity-policy.js";
 import { applyStatementGoldPolicies } from "../lib/statement-gold-policy.js";
 import { skipYahooZeroDividend } from "../lib/dividend-yield-merge.js";
+import { parseYahooMostRecentQuarter, pickEarningsPerShareByPeriod } from "../lib/shares-gold-pick.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -168,7 +169,7 @@ export const FIELD_DEFS: FieldDef[] = [
   // A147: Yahoo 0 yield is often "unknown" for payers — skip when another free source > 0.5%.
   { tfCol: "dividendYield",      priority: [["yahoo","dividendYield"],     ["finnhub","dividendYield"], ["fmp","dividendYield"], ["alpha_vantage","dividendYield"]] },
   { tfCol: "analystTargetPrice", priority: [["yahoo","analystTargetPrice"],["fmp","analystTargetPrice"],                      ["alpha_vantage","analystTargetPrice"]] },
-  { tfCol: "earningsPerShare",   priority: [["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"], ["factset","earningsPerShare"]] },
+  { tfCol: "earningsPerShare",   priority: [["sec","earningsPerShare"], ["yahoo","trailingEps"],       ["finnhub","earningsPerShare"], ["fmp","earningsPerShare"], ["factset","earningsPerShare"]] },
 ];
 
 export const VALID_FIELD_DEFS = FIELD_DEFS;
@@ -267,6 +268,7 @@ function resolveFromIndex(
   existingVal?: number | null,
   pulledByField?: Map<string, Map<string, number>>,
   priorWinningSource?: string | null,
+  epsContext?: { yahooMrq: string | null; secPeriodEnd: string | null },
 ): ResolveResult {
   const { tfCol, priority } = fieldDef;
   const tf = tfCol as string;
@@ -327,6 +329,23 @@ function resolveFromIndex(
       return { source: override.overrideSource, value: srcVal, isOverride: true, divergent: false };
     }
     // overrideSource has no data — fall through to normal priority
+    }
+  }
+
+  // A329 seg3 r5: SEC TTM EPS when its period end beats Yahoo MRQ; else Yahoo trailingEps.
+  if (tf === "earningsPerShare" && ordered.length > 0) {
+    const secEnd =
+      epsContext?.secPeriodEnd ??
+      (pulledForSrc.get("sec") != null
+        ? new Date(pulledForSrc.get("sec")!).toISOString().slice(0, 10)
+        : null);
+    const picked = pickEarningsPerShareByPeriod(
+      ordered,
+      secEnd,
+      epsContext?.yahooMrq ?? null,
+    );
+    if (picked) {
+      return { source: picked.src, value: picked.val, isOverride: false, divergent: false };
     }
   }
 
@@ -598,6 +617,7 @@ export async function runMergeTrusted() {
   }
 
   const financialCurrencyByTicker = new Map<string, string>();
+  const yahooMrqByTicker = new Map<string, string>();
   if (allTickers.length > 0) {
     const CHUNK = 400;
     for (let i = 0; i < allTickers.length; i += CHUNK) {
@@ -615,6 +635,27 @@ export async function runMergeTrusted() {
         const t = String(row.ticker ?? "");
         const fc = row.fc != null ? String(row.fc) : "";
         if (t && fc) financialCurrencyByTicker.set(t, fc);
+      }
+      const mrqRows = await db.execute(sql`
+        SELECT DISTINCT ON (upper(key)) upper(key) AS ticker,
+          COALESCE(
+            payload->'defaultKeyStatistics'->>'mostRecentQuarter',
+            payload->'financialData'->>'mostRecentQuarter'
+          ) AS mrq
+        FROM vendor_raw
+        WHERE source = 'yahoo'
+          AND endpoint LIKE 'quoteSummary:%financialData%'
+          AND upper(key) IN (${sql.join(slice.map((t) => sql`${t}`), sql`, `)})
+          AND (
+            (payload->'defaultKeyStatistics' ? 'mostRecentQuarter')
+            OR (payload->'financialData' ? 'mostRecentQuarter')
+          )
+        ORDER BY upper(key), fetched_on DESC
+      `);
+      for (const row of (mrqRows as any).rows ?? (mrqRows as any)) {
+        const t = String(row.ticker ?? "").toUpperCase();
+        const mrq = parseYahooMostRecentQuarter(row.mrq != null ? String(row.mrq) : null);
+        if (t && mrq) yahooMrqByTicker.set(t, mrq);
       }
     }
   }
@@ -650,6 +691,11 @@ export async function runMergeTrusted() {
       const override = overrideIndex.get(`${ticker}:${fieldDef.tfCol}`);
       const existingRaw = existing?.[fieldDef.tfCol as string];
       const existingVal = existingRaw != null && existingRaw !== "" ? Number(existingRaw) : null;
+      const secPullMs = pulledIndex.get(ticker)?.get("earningsPerShare")?.get("sec");
+      const secPeriodEnd =
+        secPullMs != null && Number.isFinite(secPullMs)
+          ? new Date(secPullMs).toISOString().slice(0, 10)
+          : null;
       const result = resolveFromIndex(
         fieldDef,
         byField,
@@ -657,6 +703,10 @@ export async function runMergeTrusted() {
         existingVal != null && Number.isFinite(existingVal) ? existingVal : null,
         pulledIndex.get(ticker),
         priorWinMap.get(`${ticker}:${fieldDef.tfCol as string}`),
+        {
+          yahooMrq: yahooMrqByTicker.get(ticker) ?? null,
+          secPeriodEnd,
+        },
       );
 
       if (result?.hold) {

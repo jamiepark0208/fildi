@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build_plan import connect, rows  # noqa: E402
 
 import financials as F  # noqa: E402
+from sec_ttm_eps import has_quarterly_eps_facts, ttm_eps_diluted  # noqa: E402
 
 EQ = ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"]
 ROA_NI_CONCEPTS = (
@@ -19,7 +20,7 @@ ROA_NI_CONCEPTS = (
 
 
 SHARES_MAX_AGE_D = 120   # older cover = stale (buybacks); vendor current count wins instead
-SEC_OWNED_FIELDS = ("sharesOutstanding", "tangibleBookValuePerShare")   # deleted when not produced this run
+SEC_OWNED_FIELDS = ("sharesOutstanding", "tangibleBookValuePerShare", "earningsPerShare")   # deleted when not produced this run
 INTANG_EX_GW = ["IntangibleAssetsNetExcludingGoodwill"]
 INTANG_PARTS = ["FiniteLivedIntangibleAssetsNet", "IndefiniteLivedIntangibleAssetsExcludingGoodwill"]
 
@@ -256,6 +257,13 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
         tbv = tangible_book(facts, parent_eq, eq_end, cover)
         if tbv is not None:
             add("tangibleBookValuePerShare", tbv, eq)
+
+    # TTM diluted EPS (USD filers via USD/shares facts); ADRs skipped like shares.
+    eps_adr = F.detect_adr_ratio(facts, conn, t, asof) if conn else None
+    if not (eps_adr and eps_adr > 1) and has_quarterly_eps_facts(facts):
+        eps = ttm_eps_diluted(facts)
+        if eps and eps.get("end") is not None:
+            add("earningsPerShare", eps["value"], {"end": eps["end"], "filed": eps["end"]})
 
     return out
 
