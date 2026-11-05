@@ -83,7 +83,7 @@ if [ "$need_api" -eq 1 ]; then
   echo "agent-ship-check: typecheck api-server…"
   # Referenced lib/* projects resolve through emitted .d.ts — rebuild them first or new lib exports look missing.
   # api-zod too — temp worktrees often lack dist/; TS6305 otherwise flakes the push ship-check.
-  (cd "$TC/artifacts/api-server" && $TSC -b ../../lib/option-scoring ../../lib/db ../../lib/api-zod >/dev/null 2>&1) || true
+  (cd "$TC/artifacts/api-server" && $TSC -b ../../lib/option-scoring ../../lib/db ../../lib/api-zod ../../lib/indicators >/dev/null 2>&1) || true
   if ! (cd "$TC/artifacts/api-server" && $TSC -p tsconfig.json --noEmit); then
     echo "agent-ship-check: FAIL api-server typecheck — fix before push (A94)" >&2
     fail=1
@@ -92,7 +92,7 @@ fi
 if [ "$need_ui" -eq 1 ]; then
   echo "agent-ship-check: typecheck stock-compare…"
   # Temp worktrees often lack lib/*/dist — rebuild before UI tsc (same flake as api-server TS6305).
-  (cd "$TC/artifacts/stock-compare" && $TSC -b ../../lib/option-scoring ../../lib/api-client-react ../../lib/api-zod >/dev/null 2>&1) || true
+  (cd "$TC/artifacts/stock-compare" && $TSC -b ../../lib/option-scoring ../../lib/api-client-react ../../lib/api-zod ../../lib/indicators >/dev/null 2>&1) || true
   if ! (cd "$TC/artifacts/stock-compare" && $TSC -p tsconfig.json --noEmit); then
     echo "agent-ship-check: FAIL stock-compare typecheck — fix before push (A94)" >&2
     fail=1
