@@ -148,4 +148,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A333](asks/A333.md) | 2026-11-04 | Muse → Cursor | OpenBB + Hermes: free-terminal stack evaluation — research-lane data + report pilot | planned |
 | [A334](asks/A334.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S152 option-priced structures (straddle, verticals, outright) on indicator signals vs random | done |
 | [A335](asks/A335.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S153 reverse-engineer biggest intraday swings → which indicator caught them | done |
-| [A336](asks/A336.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S154 signal-state playbook: all structures × both sides × before/after × many holds, walk-forward | planned |
+| [A336](asks/A336.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S154 signal-state playbook: all structures × both sides × before/after × many holds, walk-forward | done |
