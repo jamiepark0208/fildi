@@ -77,25 +77,59 @@ MIRROR = {
 }
 HOLDS_ALL = ("30m", "60m", "close", "1d", "3d", "5d", "swing_flip")
 HOLDS_INTRADAY = ("30m", "60m", "close")
-IV_MIN_NAMES = 61
-IV_LOOKBACK_START = date(2025, 10, 8)
-IV_LOOKBACK_END = date(2026, 10, 8)
+HOLDS_MULTIDAY = ("1d", "3d", "5d", "swing_flip")
+THIN_IV_TICKERS = frozenset(
+    {"ALOY", "DRAM", "HOOY", "IOND", "OKLO", "RDDT", "RUM", "SECZ", "SKHY", "SPCX", "USAR"}
+)
+IV_MIN_NAMES = 50
+IV_LOOKBACK_START = date(2024, 11, 4)
 IV_MIN_DAYS = 252
+SWING_FLIP_CAP_DAYS = 10
+MULTIDAY_DTE = 10
+SWING_DTE = 35
 
 
-def daily_iv_coverage(conn, tickers: list[str]) -> tuple[int, int]:
-    """Names with ≥1y of lseg_research.daily_history iv30_put before study window."""
+def daily_iv_coverage(conn, tickers: list[str], lookback_end: date) -> tuple[int, int]:
+    """Names with ≥252d of lseg_research.daily_history iv30_put since IV_LOOKBACK_START."""
     ok = 0
-    for tk in tickers:
+    pool = [t for t in tickers if t not in THIN_IV_TICKERS]
+    for tk in pool:
         n = conn.execute(
             """SELECT COUNT(*) FROM lseg_research.daily_history
                WHERE ticker = %s AND iv30_put IS NOT NULL
                  AND date >= %s AND date <= %s""",
-            (tk, IV_LOOKBACK_START, IV_LOOKBACK_END),
+            (tk, IV_LOOKBACK_START, lookback_end),
         ).fetchone()[0]
         if n >= IV_MIN_DAYS:
             ok += 1
-    return ok, len(tickers)
+    return ok, len(pool)
+
+
+def load_daily_iv(conn, tickers: list[str], start: date, end: date) -> dict[tuple[str, date], float]:
+    rows = conn.execute(
+        """SELECT ticker, date, iv30_put::float FROM lseg_research.daily_history
+           WHERE ticker = ANY(%s) AND date >= %s AND date <= %s AND iv30_put IS NOT NULL""",
+        (list(tickers), start, end),
+    ).fetchall()
+    return {(r[0], r[1]): float(r[2]) for r in rows}
+
+
+def iv_on(cache: dict[tuple[str, date], float], tk: str, d: date) -> float | None:
+    for back in range(8):
+        v = cache.get((tk, d - timedelta(days=back)))
+        if v is not None and v > 0:
+            return v
+    return None
+
+
+def multiday_snap(spot: float, tk: str, ed: date, hold: str, iv_cache: dict) -> tuple[date, int, op.IvChainSnap] | None:
+    if tk in THIN_IV_TICKERS:
+        return None
+    iv = iv_on(iv_cache, tk, ed)
+    if iv is None:
+        return None
+    dte = SWING_DTE if hold == "swing_flip" else MULTIDAY_DTE
+    return op.make_iv_snap(spot, iv, ed, dte)
 
 
 def sma(arr: list[float], n: int) -> list[float]:
@@ -269,6 +303,7 @@ def exit_for_hold(
     hold: str,
     flip_times: dict[str, list[tuple[int, str]]],
     tk: str,
+    signal_side: str | None = None,
 ) -> tuple[int | None, float]:
     bars = meta.bars
     if hold in ("30m", "60m", "close"):
@@ -295,11 +330,19 @@ def exit_for_hold(
         return None, 0.0
     if hold == "swing_flip":
         t0 = bars[i]["time"]
+        entry_side = signal_side
         flips = flip_times.get(tk, [])
         ej = meta.sess[i]
-        cap = datetime.fromtimestamp(t0, NY).date() + timedelta(days=20)
-        for ts, side in flips:
+        cap = datetime.fromtimestamp(t0, NY).date() + timedelta(days=SWING_FLIP_CAP_DAYS)
+        want = None
+        if entry_side == "buy":
+            want = "sell"
+        elif entry_side == "sell":
+            want = "buy"
+        for ts, flip_side in flips:
             if ts <= t0:
+                continue
+            if want and flip_side != want:
                 continue
             if datetime.fromtimestamp(ts, NY).date() > cap:
                 break
@@ -337,6 +380,206 @@ class Entry:
 
 def open_hour(mod: int) -> bool:
     return RTH_OPEN <= mod < RTH_OPEN + 60
+
+
+def random_multiday(
+    ev_i: int,
+    hold: str,
+    meta: s152.TfMeta,
+    tk: str,
+    side: str,
+    pre_i: float | None,
+    iv_cache: dict,
+    flip_times: dict,
+) -> list[tuple[float, op.IvChainSnap, date, int, float, float]] | None:
+    i = ev_i
+    ej, hm = exit_for_hold(meta, i, hold, flip_times, tk, side if side in ("buy", "sell") else None)
+    if ej is None:
+        return None
+    bars = meta.bars
+    exit_spot = bars[ej]["close"]
+    pool = meta.pool
+    if not pool:
+        return None
+    rnd = s152.mulberry32(s152.hash_str(f"s154md|{tk}|{i}|{hold}"))
+    out: list[tuple[float, op.IvChainSnap, date, int, float, float]] = []
+    tries = 0
+    while len(out) < RANDOM_DRAWS and tries < RANDOM_DRAWS * 40:
+        tries += 1
+        a = pool[int(rnd() * len(pool))]
+        if a == i:
+            continue
+        if pre_i is not None and math.isfinite(pre_i) and math.isfinite(meta.pre[a]):
+            if abs(meta.pre[a] - pre_i) > PRE_TOL:
+                continue
+        ej2, hm2 = exit_for_hold(meta, a, hold, flip_times, tk, side if side in ("buy", "sell") else None)
+        if ej2 is None:
+            continue
+        ed2 = date.fromisoformat(meta.days[a])
+        snap3 = multiday_snap(bars[a]["close"], tk, ed2, hold, iv_cache)
+        if not snap3:
+            continue
+        exp, dte, snap = snap3
+        out.append((bars[a]["close"], snap, exp, dte, bars[ej2]["close"], hm2))
+    return out if len(out) >= RANDOM_DRAWS // 2 else None
+
+
+def median_val(xs: list[float]) -> float:
+    if not xs:
+        return float("nan")
+    s = sorted(xs)
+    return s[len(s) // 2]
+
+
+def ticker_oos_stats(oos_trades: list[dict]) -> tuple[float, float, int]:
+    by_tk: dict[str, list[float]] = defaultdict(list)
+    for t in oos_trades:
+        by_tk[t["tk"]].append(t["pnl"])
+    if not by_tk:
+        return float("nan"), float("nan"), 0
+    avgs = {tk: sum(v) / len(v) for tk, v in by_tk.items()}
+    top_tk = max(avgs, key=avgs.get)
+    ex_rets = [p for tk, ps in by_tk.items() if tk != top_tk for p in ps]
+    ex_avg = sum(ex_rets) / len(ex_rets) if ex_rets else float("nan")
+    n_pos = sum(1 for a in avgs.values() if a > 0)
+    return ex_avg, n_pos / len(avgs), len(avgs)
+
+
+def walk_forward(trades: list[dict], holds_run: tuple[str, ...], *, strict_ticker_bar: bool = False) -> list[dict]:
+    wf_rows: list[dict] = []
+    raw_p: list[float] = []
+    for state in sorted({t["state"] for t in trades}):
+        train = [t for t in trades if t["state"] == state and t["split"] == "train"]
+        test = [t for t in trades if t["state"] == state and t["split"] == "test"]
+        if not train:
+            continue
+        best_key = None
+        best_sort = float("-inf")
+        for st in STRUCTURES:
+            for hold in holds_run:
+                rets = [t["pnl"] for t in train if t["structure"] == st and t["hold"] == hold]
+                if len(rets) < 30:
+                    continue
+                s = sortino(rets)
+                if math.isfinite(s) and s > best_sort:
+                    best_sort = s
+                    best_key = (st, hold)
+        if not best_key:
+            wf_rows.append({"state": state, "pick": None, "reason": "no train combo n≥30"})
+            continue
+        st, hold = best_key
+        oos_trades = [t for t in test if t["structure"] == st and t["hold"] == hold]
+        oos = [t["pnl"] for t in oos_trades]
+        oos_rnd = [t["random_pnl"] for t in oos_trades if math.isfinite(t["random_pnl"])]
+        oos_put = [t["baseline_put"] for t in oos_trades if t["baseline_put"] is not None]
+        deltas = [a - b for a, b in zip(oos, oos_rnd) if math.isfinite(b)]
+        _, tstat, pval = s152.clustered_t(
+            deltas, [t["day"] for t in oos_trades][: len(deltas)]
+        )
+        ins_rets = [t["pnl"] for t in train if t["structure"] == st and t["hold"] == hold]
+        losers = [t for t in oos_trades if t["pnl"] < 0][:5]
+        mirrors = [
+            {"structure": t["structure"], "pnl": t["pnl"], "mirror": t["mirror_pnl"]}
+            for t in losers
+            if t.get("mirror_pnl") is not None
+        ]
+        ex_top_avg, pct_pos, _n_tk = ticker_oos_stats(oos_trades)
+        row = {
+            "state": state,
+            "pick_structure": st,
+            "pick_hold": hold,
+            "in_sortino": sortino(ins_rets),
+            "oos_sortino": sortino(oos),
+            "oos_baseline_put_sortino": sortino(oos_put),
+            "oos_random_sortino": sortino(oos_rnd),
+            "oos_n": len(oos),
+            "oos_days": len({t["day"] for t in oos_trades}),
+            "win_pct": sum(1 for x in oos if x > 0) / len(oos) if oos else float("nan"),
+            "cvar5": cvar5(oos),
+            "max_dd": max_dd(oos),
+            "avg_pnl": sum(oos) / len(oos) if oos else float("nan"),
+            "median_pnl": median_val(oos),
+            "ex_top_avg": ex_top_avg,
+            "pct_tickers_pos": pct_pos,
+            "p_vs_random": pval,
+            "mirrors_sample": mirrors,
+        }
+        row["pass"] = (
+            len(oos) >= 100
+            and row["oos_days"] >= 10
+            and math.isfinite(row["oos_sortino"])
+            and math.isfinite(row["oos_baseline_put_sortino"])
+            and row["oos_sortino"] > row["oos_baseline_put_sortino"]
+            and row["oos_sortino"] > row["oos_random_sortino"]
+        )
+        if strict_ticker_bar:
+            row["pass"] = (
+                row["pass"]
+                and math.isfinite(ex_top_avg)
+                and ex_top_avg > 0
+                and pct_pos >= 0.5
+            )
+        wf_rows.append(row)
+        raw_p.append(pval if math.isfinite(pval) else 1.0)
+
+    holm = s152.holm_adjust(raw_p) if raw_p else []
+    hi = 0
+    for row in wf_rows:
+        if row.get("pick_structure"):
+            row["p_holm"] = holm[hi]
+            row["pass"] = row.get("pass") and row["p_holm"] < 0.05
+            hi += 1
+    return wf_rows
+
+
+def format_multiday_section(
+    wf_rows: list[dict],
+    iv_note: str,
+    thin_list: str,
+    passed: list[dict],
+) -> str:
+    lines = [
+        "",
+        "## multi-day 11-04",
+        "",
+        f"**Holds:** 1d, 3d, 5d, swing (opposite 1h flip, cap {SWING_FLIP_CAP_DAYS}d). "
+        f"**DTE:** {MULTIDAY_DTE}d (1/3/5d), {SWING_DTE}d (swing). "
+        f"**Pricing:** daily `iv30_put` synthetic chain via `option_pricing.make_iv_snap`. "
+        f"**Excluded (IV&lt;252d):** {thin_list}. {iv_note}",
+        "",
+    ]
+    if passed:
+        lines.append(
+            f"**{len(passed)} cell(s) pass** OOS Sortino &gt; 30Δ put + random, n≥100, Holm p&lt;0.05, "
+            "ex-top-ticker avg&gt;0, ≥50% tickers positive."
+        )
+    else:
+        lines.append("**No cell passes** the pre-registered bar on multi-day holds.")
+    lines += [
+        "",
+        "| state | pick | n | avg | median | win% | CVaR5 | max DD | ex-top avg | tickers+ | OOS Sortino | vs put | vs rnd | Holm p | pass |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|",
+    ]
+    for r in wf_rows:
+        if not r.get("pick_structure"):
+            lines.append(f"| {r['state']} | — | — | — | — | — | — | — | — | — | — | — | — | — | N |")
+            continue
+        lines.append(
+            f"| {r['state']} | {r['pick_structure']} {r['pick_hold']} | {r['oos_n']} | {r['avg_pnl']:+.2f} | "
+            f"{r['median_pnl']:+.2f} | {100*r['win_pct']:.1f} | {r['cvar5']:.1f} | {r['max_dd']:.1f} | "
+            f"{r['ex_top_avg']:+.2f} | {100*r['pct_tickers_pos']:.0f}% | {r['oos_sortino']:.2f} | "
+            f"{r['oos_baseline_put_sortino']:.2f} | {r['oos_random_sortino']:.2f} | {r.get('p_holm', 1):.3g} | "
+            f"{'Y' if r.get('pass') else 'N'} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def merge_multiday_section(md_text: str, section: str) -> str:
+    marker = "## multi-day 11-04"
+    if marker in md_text:
+        pre, _rest = md_text.split(marker, 1)
+        return pre.rstrip() + "\n" + section
+    return md_text.rstrip() + "\n" + section
 
 
 def build_entries(
@@ -498,13 +741,20 @@ def main(smoke: bool = False) -> None:
     ).fetchall()
     tickers = sorted({r[0] for r in ev_rows})
     chain_tickers = sorted(t for t in tickers if t in cidx)
-    iv_ok_n, iv_pool = daily_iv_coverage(conn, chain_tickers or tickers)
-    use_multiday = iv_ok_n >= IV_MIN_NAMES
-    holds_run = HOLDS_ALL if use_multiday else HOLDS_INTRADAY
+    lookback_end = END.date()
+    iv_ok_n, iv_pool = daily_iv_coverage(conn, chain_tickers or tickers, lookback_end)
+    use_multiday = iv_ok_n >= IV_MIN_NAMES or (iv_pool >= 45 and iv_ok_n >= iv_pool - 1 and iv_ok_n >= 45)
+    holds_intraday = HOLDS_INTRADAY
     iv_note = (
-        f"lseg daily iv30_put: {iv_ok_n}/{iv_pool} study names ≥1y ({IV_LOOKBACK_START}→{IV_LOOKBACK_END}) — "
-        + ("multi-day/swing holds priced from daily IV." if use_multiday else "multi-day/swing holds skipped.")
+        f"lseg daily iv30_put: {iv_ok_n}/{iv_pool} non-thin names ≥252d ({IV_LOOKBACK_START}→{lookback_end}) — "
+        + ("multi-day/swing enabled." if use_multiday else "multi-day/swing skipped.")
     )
+    iv_cache = (
+        load_daily_iv(conn, [t for t in tickers if t not in THIN_IV_TICKERS], IV_LOOKBACK_START, lookback_end)
+        if use_multiday
+        else {}
+    )
+    thin_list = ", ".join(sorted(THIN_IV_TICKERS))
     bars_by_ticker: dict[str, dict[str, list[dict]]] = {}
     for tk in tickers:
         raw = conn.execute(
@@ -548,17 +798,66 @@ def main(smoke: bool = False) -> None:
     test_days = set(days_sorted[mid:])
 
     trades: list[dict] = []
+    trades_md: list[dict] = []
     spot_check = None
     rnd_cache: dict[tuple, list | None] = {}
+    rnd_md_cache: dict[tuple, list | None] = {}
+
+    def append_trade(
+        target: list[dict],
+        e: Entry,
+        hold: str,
+        m: s152.TfMeta,
+        side: str,
+        snap,
+        exp,
+        dte: int,
+        exit_spot: float,
+        hm: float,
+        rnd_ctx,
+    ) -> None:
+        b30 = baseline_put30(e.spot, snap, exp, dte, exit_spot, hm)
+        st_pnls: dict[str, float | None] = {}
+        for st in STRUCTURES:
+            st_pnls[st] = price_extended(st, side, e.spot, snap, exp, dte, exit_spot, hm)
+        rnd_by_st: dict[str, float] = {}
+        if rnd_ctx:
+            for st, sig in st_pnls.items():
+                if sig is None:
+                    continue
+                rs = [price_extended(st, side, r[0], r[1], r[2], r[3], r[4], r[5]) for r in rnd_ctx]
+                rs = [x for x in rs if x is not None]
+                rnd_by_st[st] = sum(rs) / len(rs) if rs else float("nan")
+        for st, sig in st_pnls.items():
+            if sig is None:
+                continue
+            mir = MIRROR.get(st)
+            mir_pnl = st_pnls.get(mir) if mir else None
+            rnd_pnl = rnd_by_st.get(st, float("nan"))
+            target.append(
+                {
+                    "state": e.state,
+                    "structure": st,
+                    "hold": hold,
+                    "pnl": sig,
+                    "mirror_pnl": mir_pnl,
+                    "random_pnl": rnd_pnl,
+                    "baseline_put": b30,
+                    "day": e.day,
+                    "split": "train" if e.day in train_days else "test",
+                    "tk": e.tk,
+                    "side": side,
+                    "time": e.time,
+                    "spot": e.spot,
+                    "exit_spot": exit_spot,
+                    "hm": hm,
+                }
+            )
 
     def rnd_for(e: Entry, hold: str, m: s152.TfMeta, side: str):
         key = (e.tk, e.i, hold)
         if key not in rnd_cache:
-            hz = "close"
-            if hold == "60m":
-                hz = "60m"
-            elif hold in ("30m", "1d", "3d", "5d", "swing_flip"):
-                hz = "close"
+            hz = "60m" if hold == "60m" else "close"
             rnd_cache[key] = s152.random_entries(
                 {"id": e.time, "i": e.i, "tk": e.tk, "side": side},
                 hz,
@@ -572,137 +871,70 @@ def main(smoke: bool = False) -> None:
     for e in entries:
         m = meta_all[e.meta_key]
         side = e.side if e.side in ("buy", "sell") else "buy"
-        for hold in holds_run:
-            ej, hm = exit_for_hold(m, e.i, hold, flip_times, e.tk)
+        sig_side = e.side if e.side in ("buy", "sell") else None
+        for hold in holds_intraday:
+            ej, hm = exit_for_hold(m, e.i, hold, flip_times, e.tk, sig_side)
             if ej is None:
                 continue
             exit_spot = m.bars[ej]["close"]
             rnd_ctx = rnd_for(e, hold, m, side)
-            b30 = baseline_put30(e.spot, e.snap, e.exp, e.dte, exit_spot, hm)
-            st_pnls: dict[str, float | None] = {}
-            for st in STRUCTURES:
-                st_pnls[st] = price_extended(st, side, e.spot, e.snap, e.exp, e.dte, exit_spot, hm)
-            rnd_by_st: dict[str, float] = {}
-            if rnd_ctx:
-                for st, sig in st_pnls.items():
-                    if sig is None:
-                        continue
-                    rs = [
-                        price_extended(st, side, r[0], r[1], r[2], r[3], r[4], r[5]) for r in rnd_ctx
-                    ]
-                    rs = [x for x in rs if x is not None]
-                    rnd_by_st[st] = sum(rs) / len(rs) if rs else float("nan")
-            for st, sig in st_pnls.items():
-                if sig is None:
-                    continue
-                mir = MIRROR.get(st)
-                mir_pnl = st_pnls.get(mir) if mir else None
-                rnd_pnl = rnd_by_st.get(st, float("nan"))
-                trades.append(
-                    {
-                        "state": e.state,
-                        "structure": st,
-                        "hold": hold,
-                        "pnl": sig,
-                        "mirror_pnl": mir_pnl,
-                        "random_pnl": rnd_pnl,
-                        "baseline_put": b30,
-                        "day": e.day,
-                        "split": "train" if e.day in train_days else "test",
-                        "tk": e.tk,
-                        "side": side,
-                        "time": e.time,
-                        "spot": e.spot,
-                        "exit_spot": exit_spot,
-                        "hm": hm,
-                    }
-                )
-                if spot_check is None and e.state == "pre_quiet_12" and st == "short_put_otm":
-                    spot_check = trades[-1]
+            append_trade(trades, e, hold, m, side, e.snap, e.exp, e.dte, exit_spot, hm, rnd_ctx)
+            if spot_check is None and e.state == "pre_quiet_12":
+                for t in reversed(trades):
+                    if t["structure"] == "short_put_otm" and t["hold"] == hold:
+                        spot_check = t
+                        break
 
-    # Walk-forward: best structure×hold per state on train by Sortino
-    wf_rows = []
-    raw_p = []
-    for state in sorted({t["state"] for t in trades}):
-        train = [t for t in trades if t["state"] == state and t["split"] == "train"]
-        test = [t for t in trades if t["state"] == state and t["split"] == "test"]
-        if not train:
-            continue
-        best_key = None
-        best_sort = float("-inf")
-        for st in STRUCTURES:
-            for hold in holds_run:
-                rets = [t["pnl"] for t in train if t["structure"] == st and t["hold"] == hold]
-                if len(rets) < 30:
+    if use_multiday:
+        for e in entries:
+            if e.tk in THIN_IV_TICKERS:
+                continue
+            m = meta_all[e.meta_key]
+            side = e.side if e.side in ("buy", "sell") else "buy"
+            sig_side = e.side if e.side in ("buy", "sell") else None
+            for hold in HOLDS_MULTIDAY:
+                ej, hm = exit_for_hold(m, e.i, hold, flip_times, e.tk, sig_side)
+                if ej is None:
                     continue
-                s = sortino(rets)
-                if math.isfinite(s) and s > best_sort:
-                    best_sort = s
-                    best_key = (st, hold)
-        if not best_key:
-            wf_rows.append({"state": state, "pick": None, "reason": "no train combo n≥30"})
-            continue
-        st, hold = best_key
-        oos = [t["pnl"] for t in test if t["structure"] == st and t["hold"] == hold]
-        oos_rnd = [t["random_pnl"] for t in test if t["structure"] == st and t["hold"] == hold and math.isfinite(t["random_pnl"])]
-        oos_put = [t["baseline_put"] for t in test if t["structure"] == st and t["hold"] == hold and t["baseline_put"] is not None]
-        deltas = [a - b for a, b in zip(oos, oos_rnd) if math.isfinite(b)]
-        _, tstat, pval = s152.clustered_t(deltas, [t["day"] for t in test if t["structure"] == st and t["hold"] == hold][: len(deltas)])
-        ins_rets = [t["pnl"] for t in train if t["structure"] == st and t["hold"] == hold]
-        losers = [t for t in test if t["structure"] == st and t["hold"] == hold and t["pnl"] < 0][:5]
-        mirrors = [
-            {"structure": t["structure"], "pnl": t["pnl"], "mirror": t["mirror_pnl"]}
-            for t in losers
-            if t.get("mirror_pnl") is not None
-        ]
-        row = {
-            "state": state,
-            "pick_structure": st,
-            "pick_hold": hold,
-            "in_sortino": sortino(ins_rets),
-            "oos_sortino": sortino(oos),
-            "oos_baseline_put_sortino": sortino(oos_put),
-            "oos_random_sortino": sortino(oos_rnd),
-            "oos_n": len(oos),
-            "oos_days": len({t["day"] for t in test if t["structure"] == st and t["hold"] == hold}),
-            "win_pct": sum(1 for x in oos if x > 0) / len(oos) if oos else float("nan"),
-            "cvar5": cvar5(oos),
-            "max_dd": max_dd(oos),
-            "avg_pnl": sum(oos) / len(oos) if oos else float("nan"),
-            "p_vs_random": pval,
-            "mirrors_sample": mirrors,
-        }
-        row["pass"] = (
-            len(oos) >= 100
-            and row["oos_days"] >= 10
-            and math.isfinite(row["oos_sortino"])
-            and math.isfinite(row["oos_baseline_put_sortino"])
-            and row["oos_sortino"] > row["oos_baseline_put_sortino"]
-            and row["oos_sortino"] > row["oos_random_sortino"]
-        )
-        wf_rows.append(row)
-        raw_p.append(pval if math.isfinite(pval) else 1.0)
+                ed = date.fromisoformat(e.day)
+                snap_pack = multiday_snap(e.spot, e.tk, ed, hold, iv_cache)
+                if not snap_pack:
+                    continue
+                exp, dte, snap = snap_pack
+                exit_spot = m.bars[ej]["close"]
+                key = (e.tk, e.i, hold)
+                if key not in rnd_md_cache:
+                    rnd_md_cache[key] = random_multiday(
+                        e.i, hold, m, e.tk, side, m.pre[e.i], iv_cache, flip_times
+                    )
+                append_trade(trades_md, e, hold, m, side, snap, exp, dte, exit_spot, hm, rnd_md_cache[key])
 
-    holm = s152.holm_adjust(raw_p) if raw_p else []
-    hi = 0
-    for row in wf_rows:
-        if row.get("pick_structure"):
-            row["p_holm"] = holm[hi]
-            row["pass"] = row.get("pass") and row["p_holm"] < 0.05
-            hi += 1
+    wf_rows = walk_forward(trades, holds_intraday, strict_ticker_bar=False)
+    wf_md = walk_forward(trades_md, HOLDS_MULTIDAY, strict_ticker_bar=True) if use_multiday else []
 
     quiet_rows = [r for r in wf_rows if r["state"].startswith("pre_quiet")]
     passed = [r for r in wf_rows if r.get("pass")]
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    OUT_JSON.write_text(json.dumps({"wf": wf_rows, "n_entries": len(entries), "n_trades": len(trades)}, indent=2))
+    OUT_JSON.write_text(
+        json.dumps(
+            {
+                "wf": wf_rows,
+                "wf_multiday": wf_md,
+                "n_entries": len(entries),
+                "n_trades": len(trades),
+                "n_trades_multiday": len(trades_md),
+            },
+            indent=2,
+        )
+    )
 
     lines = [
         "# S154 — Signal-state strategy playbook (walk-forward)",
         "",
         f"**Ask:** A336 · **Window:** {START.date()} → {END.date()} · **Chain days:** {chain_days} · "
         f"**Entries:** {len(entries)} · **Pricing:** shared `option_pricing.py` (RH {FILL_FRAC:.0%} spread; BS exit @ entry IV). "
-        f"**Holds:** {', '.join(holds_run)}. {iv_note}",
+        f"**Holds:** {', '.join(holds_intraday)}. {iv_note}",
         "",
         "## Verdict",
         "",
@@ -763,8 +995,20 @@ def main(smoke: bool = False) -> None:
         "",
         f"Re-run: `research/studies/scripts/s154_signal_state_playbook.py` · `{OUT_JSON.relative_to(ROOT)}`",
     ]
-    OUT_MD.write_text("\n".join(lines) + "\n")
-    print(f"entries={len(entries)} trades={len(trades)} wf={len(wf_rows)} pass={len(passed)} -> {OUT_MD}")
+    if OUT_MD.exists() and len(OUT_MD.read_text()) > 400:
+        md_body = OUT_MD.read_text()
+    else:
+        md_body = "\n".join(lines) + "\n"
+    if use_multiday and wf_md:
+        passed_md = [r for r in wf_md if r.get("pass")]
+        md_body = merge_multiday_section(
+            md_body, format_multiday_section(wf_md, iv_note, thin_list, passed_md)
+        )
+    OUT_MD.write_text(md_body)
+    print(
+        f"entries={len(entries)} trades={len(trades)} md_trades={len(trades_md)} "
+        f"wf={len(wf_rows)} md_wf={len(wf_md)} pass={len(passed)} -> {OUT_MD}"
+    )
 
 
 if __name__ == "__main__":

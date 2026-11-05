@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import math
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, timedelta
 
 FILL_FRAC = 0.23
 MIN_PREMIUM = 0.10
@@ -33,6 +34,37 @@ def bs_price(side: str, S: float, K: float, T_years: float, sig: float) -> float
     if side == "call":
         return S * norm_cdf(d1) - K * norm_cdf(d2)
     return K * norm_cdf(-d2) - S * norm_cdf(-d1)
+
+
+def bs_delta(side: str, S: float, K: float, T_years: float, sig: float) -> float:
+    sig = normalize_iv(sig)
+    if T_years <= 0 or sig <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    v = sig * math.sqrt(T_years)
+    d1 = (math.log(S / K) + 0.5 * sig * sig * T_years) / v
+    if side == "call":
+        return norm_cdf(d1)
+    return norm_cdf(d1) - 1.0
+
+
+def strike_for_abs_delta(side: str, S: float, T_years: float, sig: float, target: float) -> float:
+    """Strike with |delta| ≈ target (0.15 put → delta ≈ −0.15)."""
+    target = abs(target)
+    lo, hi = S * 0.5, S * 1.5
+    for _ in range(48):
+        mid = (lo + hi) / 2.0
+        d = abs(bs_delta(side, S, mid, T_years, sig))
+        if side == "put":
+            if d > target:
+                lo = mid
+            else:
+                hi = mid
+        else:
+            if d > target:
+                hi = mid
+            else:
+                lo = mid
+    return (lo + hi) / 2.0
 
 
 def implied_vol(side: str, S: float, K: float, T_years: float, mid: float) -> float:
@@ -379,3 +411,49 @@ def straddle_dollar_pnls(
     if rt is None:
         return None
     return long_d, short_d, rt
+
+
+@dataclass
+class IvChainSnap:
+    """Minimal chain for BS marks from daily iv30_put (S154 multi-day holds)."""
+
+    as_of: date
+    spot: float
+    by_expiry: dict[date, list[dict]]
+
+
+def _quote_from_mid(mid: float) -> tuple[float, float]:
+    mid = max(mid, MIN_PREMIUM * 0.5)
+    spr = max(0.04, mid * 0.12)
+    return mid - spr / 2.0, mid + spr / 2.0
+
+
+def make_iv_snap(spot: float, iv: float, as_of: date, dte: int) -> tuple[date, int, IvChainSnap]:
+    """Synthetic same-day chain: ATM ± steps + 15/25/30Δ legs, entry IV from daily iv30_put."""
+    exp = as_of + timedelta(days=max(dte, 1))
+    T0 = hold_T(dte, 0.0)
+    sig = normalize_iv(iv)
+    step = max(0.5, round(spot * 0.025 / 5) * 5) if spot >= 20 else max(0.25, round(spot * 0.05, 2))
+    atm = round(spot / step) * step
+    strikes: set[float] = {atm, atm - step, atm + step, atm - 2 * step, atm + 2 * step}
+    for side in ("call", "put"):
+        for tgt in (0.15, 0.25, 0.30):
+            strikes.add(round(strike_for_abs_delta(side, spot, T0, sig, tgt) / step) * step)
+    legs: list[dict] = []
+    for K in sorted(strikes):
+        if K <= 0:
+            continue
+        for side in ("call", "put"):
+            mid = bs_price(side, spot, K, T0, sig)
+            bid, ask = _quote_from_mid(mid)
+            legs.append(
+                {
+                    "side": side,
+                    "strike": float(K),
+                    "bid": bid,
+                    "ask": ask,
+                    "iv": sig,
+                    "delta": bs_delta(side, spot, K, T0, sig),
+                }
+            )
+    return exp, dte, IvChainSnap(as_of=as_of, spot=spot, by_expiry={exp: legs})

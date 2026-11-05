@@ -65,3 +65,17 @@ Time-of-day OOS: first hour 0 entries; midday ~100%; last hour 0–2 (N=24). Per
 - Baselines: vol-matched random (preMove ±0.25), always short 30Δ put; B&H/T-bill omitted (same sign as stock structures).
 
 Re-run: `research/studies/scripts/s154_signal_state_playbook.py` · `research/studies/out/S154/playbook.json`
+
+## multi-day 11-04
+
+**Holds:** 1d, 3d, 5d, swing (opposite 1h flip, cap 10d). **DTE:** 10d (1/3/5d), 35d (swing). **Pricing:** daily `iv30_put` synthetic chain via `option_pricing.make_iv_snap`. **Excluded (IV&lt;252d):** ALOY, DRAM, HOOY, IOND, OKLO, RDDT, RUM, SECZ, SKHY, SPCX, USAR. lseg daily iv30_put: 49/49 non-thin names ≥252d (2024-11-04→2026-11-05) — multi-day/swing enabled.
+
+**No cell passes** the pre-registered bar on multi-day holds.
+
+| state | pick | n | avg | median | win% | CVaR5 | max DD | ex-top avg | tickers+ | OOS Sortino | vs put | vs rnd | Holm p | pass |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|
+| post_signal_filtered | short_call_otm 1d | 64 | +2.43 | +1.62 | 95.3 | -0.0 | -0.0 | +2.25 | 100% | 467.57 | 0.07 | inf | 1 | N |
+| post_signal_filtered_countertrend | short_straddle 1d | 52 | +18.46 | +20.79 | 88.5 | -74.6 | -149.2 | +15.28 | 92% | 1.24 | 0.25 | 9.56 | 0.914 | N |
+| pre_quiet_12 | short_call_otm 1d | 118 | +2.66 | +1.80 | 91.5 | -6.1 | -14.5 | +2.59 | 95% | 1.50 | 0.08 | inf | 1 | N |
+| pre_quiet_24 | short_call_otm 1d | 116 | +2.61 | +1.80 | 91.4 | -6.1 | -14.5 | +2.54 | 95% | 1.46 | 0.09 | inf | 1 | N |
+| pre_quiet_6 | short_call_otm 1d | 118 | +2.67 | +1.80 | 91.5 | -6.1 | -14.5 | +2.60 | 95% | 1.50 | 0.09 | inf | 1 | N |
