@@ -310,10 +310,11 @@ async function loadFinnhubMetricByTicker(tickers: string[]): Promise<Map<string,
 
 export async function syncSecSourceFundamentals(tickers?: string[]): Promise<void> {
   const py = WATCHLIST_VENV;
-  const args = tickers?.length ? tickers : ["--scored-book"];
+  // A329 r4: whole merge universe — scored-book only left ~600 names on vendor TBVPS/shares.
+  const args = tickers?.length ? tickers : ["--universe"];
   await execFileAsync(py, [SEC_SYNC_PY, ...args], {
     cwd: REPO_ROOT,
-    timeout: 600_000,
+    timeout: 1_800_000,
     maxBuffer: 10 * 1024 * 1024,
   });
 }

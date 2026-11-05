@@ -340,6 +340,52 @@ def test_shares_ignores_future_dated_cover():   # AAL cover dated 2027-07-17
         {"end": "2026-10-16", "val": 2.0, "filed": "2026-10-23"}]}}}, "us-gaap": {}}}
     assert F.shares(f)["end"] == "2026-10-16"
 
+def _eps_facts(units):
+    return {"facts": {"us-gaap": {"EarningsPerShareDiluted": {"units": {"USD/shares": units}}}}}
+
+
+def _u(start, end, val, filed):
+    return {"start": start, "end": end, "val": val, "filed": filed}
+
+
+def test_ttm_eps_derives_q4_from_fy_minus_9m():
+    # LPLA shape: Q4 only inside the 10-K; old picker summed Q3'25 (−0.37) instead → 12.57 vs true 17.46.
+    f = _eps_facts([
+        _u("2025-07-01", "2025-09-30", -0.37, "2025-11-03"),
+        _u("2025-01-01", "2025-09-30", 7.15, "2025-11-03"),
+        _u("2025-01-01", "2025-12-31", 10.92, "2026-02-23"),
+        _u("2026-01-01", "2026-03-31", 4.43, "2026-05-04"),
+        _u("2026-04-01", "2026-06-30", 4.74, "2026-08-03"),
+        _u("2026-07-01", "2026-09-30", 4.52, "2026-10-29"),
+    ])
+    r = _l2.ttm_eps_diluted(f, "2026-09-30")
+    assert r and abs(r["value"] - 17.46) < 1e-9 and r["end"] == "2026-09-30", r
+
+
+def test_ttm_eps_latest_filed_restatement_wins():
+    # Same quarter in two filings (pre/post split): the later filing's value is used.
+    f = _eps_facts([
+        _u("2026-01-01", "2026-03-31", 5.0, "2026-05-01"),
+        _u("2026-01-01", "2026-03-31", 1.0, "2026-08-01"),
+        _u("2026-04-01", "2026-06-30", 1.0, "2026-08-01"),
+        _u("2025-10-01", "2025-12-31", 1.0, "2026-02-01"),
+        _u("2025-07-01", "2025-09-30", 1.0, "2025-11-01"),
+    ])
+    r = _l2.ttm_eps_diluted(f, "2026-06-30")
+    assert r and abs(r["value"] - 4.0) < 1e-9, r
+
+
+def test_ttm_eps_gap_is_none():
+    # MDB shape: a missing quarter and no 9M to derive Q4 → no truth, never a 3-quarter sum.
+    f = _eps_facts([
+        _u("2026-05-01", "2026-07-31", 0.5, "2026-09-01"),
+        _u("2026-02-01", "2026-04-30", 0.05, "2026-05-29"),
+        _u("2025-02-01", "2026-01-31", -0.88, "2026-03-11"),
+        _u("2025-05-01", "2025-07-31", -0.58, "2026-09-01"),
+    ])
+    assert _l2.ttm_eps_diluted(f, "2026-07-31") is None
+
+
 if __name__ == "__main__":
     test_ok_margin_hand_check()
     test_audit_instant_missing_not_zero()
@@ -360,4 +406,7 @@ if __name__ == "__main__":
     test_tangible_book_goodwill_other_date_is_none()
     test_tangible_book_untagged_preferred_dividends_is_none()
     test_shares_ignores_future_dated_cover()
+    test_ttm_eps_derives_q4_from_fy_minus_9m()
+    test_ttm_eps_latest_filed_restatement_wins()
+    test_ttm_eps_gap_is_none()
     print("ok")

@@ -289,14 +289,25 @@ def scored_book_tickers(conn) -> list[str]:
     return [x["ticker"] for x in r]
 
 
+def universe_tickers(conn) -> list[str]:
+    """Every name merge-trusted sees (A329 r4: scored-book only left ~600 names on vendor TBVPS — OMC +22 vs filing −49)."""
+    return [x["ticker"] for x in rows(conn, "SELECT DISTINCT UPPER(ticker) AS ticker FROM source_fundamentals ORDER BY 1")]
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("tickers", nargs="*", help="Tickers (default: --scored-book set)")
     p.add_argument("--scored-book", action="store_true")
+    p.add_argument("--universe", action="store_true", help="all tickers in source_fundamentals")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
     with connect() as conn:
-        tickers = scored_book_tickers(conn) if args.scored_book or not args.tickers else [t.upper() for t in args.tickers]
+        if args.universe:
+            tickers = universe_tickers(conn)
+        elif args.scored_book or not args.tickers:
+            tickers = scored_book_tickers(conn)
+        else:
+            tickers = [t.upper() for t in args.tickers]
         total = 0
         for t in tickers:
             try:
