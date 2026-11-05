@@ -1,4 +1,4 @@
-"""Shared option marks for S152 / S154 — RH entry fills, BS exit (years, entry IV per leg)."""
+"""Shared option marks for S152 / S154 — entry repriced to the signal spot from the snapshot IV, RH fills both sides, BS exit."""
 from __future__ import annotations
 
 import math
@@ -105,7 +105,8 @@ def rh_fill(bid: float, ask: float | None, buy: bool) -> float:
     if ask is None or ask <= bid:
         ask = bid * 1.05
     spr = ask - bid
-    return bid + FILL_FRAC * spr if buy else ask - FILL_FRAC * spr
+    # RH: a seller gets ~bid + 23 % of the spread, a buyer pays ~ask - 23 % (Claude 11-04: was inverted).
+    return ask - FILL_FRAC * spr if buy else bid + FILL_FRAC * spr
 
 
 def rh_fill_leg(L: dict, buy: bool) -> float:
@@ -113,15 +114,36 @@ def rh_fill_leg(L: dict, buy: bool) -> float:
     return rh_fill(bid, ask, buy)
 
 
+def snap_iv(L: dict, spot: float) -> float:
+    """IV inverted from the snapshot mid at the snapshot's own spot/DTE; cached on the leg."""
+    iv = L.get("_iv0")
+    if iv is None:
+        S0 = float(L.get("spot") or spot)
+        dte = int(L.get("dte") if L.get("dte") is not None else 1)
+        iv = implied_vol(L["side"], S0, float(L["strike"]), hold_T(dte, 0.0), quote_mid(L))
+        if not math.isfinite(iv) or iv <= 0:
+            iv = normalize_iv(L.get("iv"))
+        L["_iv0"] = iv
+    return iv
+
+
 def leg_entry(L: dict, buy: bool, spot: float, dte: int) -> tuple[float, float]:
-    """RH fill + IV inverted from that fill so BS exit marks are consistent with entry."""
-    T0 = hold_T(dte, 0.0)
-    px = rh_fill_leg(L, buy)
+    """Entry fill at the SIGNAL spot, round-trip spread charged here (Claude 11-04 fix).
+
+    Before: the stale snapshot quote (median 21 h old, spot moved median 1.5 %) was used as the fill and IV was
+    inverted at the signal spot -> garbage IV; buys filled at bid+23 % (below mid) and exits marked at mid.
+    Now: IV from the snapshot mid at the snapshot's own spot/DTE (sticky strike) -> BS mid at signal spot.
+    RH fill = 23 % of the spread from the favourable side (sell ~ bid+23 %, buy ~ ask-23 %), i.e. 27 % of the
+    spread worse than mid per side. Exits are marked at BS mid by callers, so the exit side's 27 % is added here
+    too: buy cost = mid + 0.54*spr, sell credit = mid - 0.54*spr.
+    """
     side = L["side"]
     K = float(L["strike"])
-    iv = implied_vol(side, spot, K, T0, px)
-    if not math.isfinite(iv) or iv <= 0:
-        iv = normalize_iv(L.get("iv"))
+    spr = quote_spread(L)
+    iv = snap_iv(L, spot)
+    mid = bs_price(side, spot, K, hold_T(dte, 0.0), iv)
+    rt = 2.0 * (0.5 - FILL_FRAC) * spr
+    px = mid + rt if buy else max(mid - rt, 0.0)
     return px, iv
 
 
@@ -172,13 +194,27 @@ def atm_straddle_strike(legs: list[dict], spot: float) -> float | None:
     return best_k
 
 
-def delta_strike(legs: list[dict], side: str, target: float) -> dict | None:
-    cands = [L for L in legs if L["side"] == side and L.get("delta") is not None]
+def leg_delta_at(L: dict, spot: float) -> float | None:
+    """Delta at the signal spot from the snapshot IV (snapshot delta is stale when spot moved)."""
+    dte = int(L.get("dte") or 1)
+    iv = snap_iv(L, spot)
+    if not (iv > 0):
+        return L.get("delta")
+    return bs_delta(L["side"], spot, float(L["strike"]), hold_T(dte, 0.0), iv)
+
+
+def delta_strike(legs: list[dict], side: str, target: float, spot: float | None = None) -> dict | None:
+    """Leg nearest |delta| = target; with spot, delta is recomputed at that spot (Claude 11-04)."""
+    cands = []
+    for L in legs:
+        if L["side"] != side:
+            continue
+        d = leg_delta_at(L, spot) if spot else L.get("delta")
+        if d is not None and math.isfinite(d):
+            cands.append((abs(abs(d) - target), L))
     if not cands:
         return None
-    if side == "call":
-        return min(cands, key=lambda L: abs(L["delta"] - target))
-    return min(cands, key=lambda L: abs(L["delta"] + target))
+    return min(cands, key=lambda x: x[0])[1]
 
 
 def debit_pnl(cost: float, exit_val: float, spot: float = 0) -> float | None:
@@ -202,18 +238,28 @@ def put_call_parity_gap(spot: float, call_leg: dict, put_leg: dict, K: float) ->
     return abs(c_mid - p_mid - (spot - K))
 
 
-def straddle_legs(legs: list[dict], spot: float) -> tuple[dict, dict, float | None]:
-    """Same strike when both quoted; else nearest OTM call + put to spot (OTM-only chain)."""
-    k = atm_straddle_strike(legs, spot)
-    if k is not None:
-        cL, pL = find_leg(legs, "call", k), find_leg(legs, "put", k)
-        if cL and pL:
-            return cL, pL, k
-    cL = nearest_leg(legs, "call", spot)
-    pL = nearest_leg(legs, "put", spot)
-    if not cL or not pL:
+def straddle_legs(legs: list[dict], spot: float) -> tuple[dict, dict, float]:
+    """True ATM straddle: strike nearest the signal spot. The chain store was OTM-only (1-35 %), so the ITM leg at
+    that strike is often missing -> synthesise it from the other leg by put-call parity (same IV, same spread)."""
+    strikes = sorted({L["strike"] for L in legs})
+    if not strikes:
         raise LookupError("no straddle legs")
-    return cL, pL, None
+    k = nearest_strike(strikes, spot)
+    cL, pL = find_leg(legs, "call", k), find_leg(legs, "put", k)
+    if not cL and not pL:
+        raise LookupError("no straddle legs")
+    src = cL or pL
+    if not cL or not pL:
+        S0 = float(src.get("spot") or spot)
+        mid = quote_mid(src)
+        spr = quote_spread(src)
+        other_mid = mid - (S0 - k) if src["side"] == "call" else mid + (S0 - k)
+        if other_mid <= spr / 2:
+            raise LookupError("parity leg below spread")
+        syn = dict(src, side="put" if src["side"] == "call" else "call", bid=other_mid - spr / 2, ask=other_mid + spr / 2,
+                   delta=None, synthetic=True)
+        cL, pL = (src, syn) if src["side"] == "call" else (syn, src)
+    return cL, pL, k
 
 
 def short_put_max_risk(strike: float, credit: float, spot: float) -> float:
@@ -245,9 +291,9 @@ def straddle_round_trip_spread(legs: list[dict], spot: float) -> float | None:
         cL, pL, _k = straddle_legs(legs, spot)
     except LookupError:
         return None
-    buy = rh_fill_leg(cL, True) + rh_fill_leg(pL, True)
-    sell = rh_fill_leg(cL, False) + rh_fill_leg(pL, False)
-    return buy - sell
+    buy = leg_entry(cL, True, spot, int(cL.get("dte") or 1))[0] + leg_entry(pL, True, spot, int(pL.get("dte") or 1))[0]
+    sell = leg_entry(cL, False, spot, int(cL.get("dte") or 1))[0] + leg_entry(pL, False, spot, int(pL.get("dte") or 1))[0]
+    return buy - sell  # full round trip (entry + exit side) for one long + one short straddle
 
 
 def price_structure(
@@ -344,8 +390,8 @@ def price_structure(
         return credit_pnl(credit, width, ex_cost)
 
     if name == "long_strangle":
-        cL = delta_strike(legs, "call", 0.25)
-        pL = delta_strike(legs, "put", 0.25)
+        cL = delta_strike(legs, "call", 0.25, spot=spot)
+        pL = delta_strike(legs, "put", 0.25, spot=spot)
         if not cL or not pL:
             return None
         c, p = leg_entry(cL, True, spot, dte), leg_entry(pL, True, spot, dte)
@@ -356,8 +402,8 @@ def price_structure(
         return debit_pnl(cost, ex, spot)
 
     if name == "iron_condor":
-        cS = delta_strike(legs, "call", 0.25)
-        pS = delta_strike(legs, "put", 0.25)
+        cS = delta_strike(legs, "call", 0.25, spot=spot)
+        pS = delta_strike(legs, "put", 0.25, spot=spot)
         if not cS or not pS:
             return None
         cw = find_leg(legs, "call", cS["strike"] + step)
@@ -454,6 +500,8 @@ def make_iv_snap(spot: float, iv: float, as_of: date, dte: int) -> tuple[date, i
                     "ask": ask,
                     "iv": sig,
                     "delta": bs_delta(side, spot, K, T0, sig),
+                    "spot": spot,
+                    "dte": dte,
                 }
             )
     return exp, dte, IvChainSnap(as_of=as_of, spot=spot, by_expiry={exp: legs})

@@ -114,5 +114,48 @@ class TestOptionPricing(unittest.TestCase):
         self.assertIsNotNone(best_pnl)
         self.assertLess(best_pnl, 20.0, f"max short 15Δ put P&L on +0.4% was {best_pnl:.1f}% of risk")
 
+    def _one_leg(self, side: str):
+        for (_tk, d), snap in self.chains.items():
+            ex = s152.pick_expiry(snap, d)
+            if not ex:
+                continue
+            exp, dte = ex
+            for L in snap.by_expiry.get(exp, []):
+                if L["side"] == side and L.get("ask") and L["ask"] > L["bid"] > 0.5:
+                    return snap, L, dte
+        self.skipTest("no leg")
+
+    def test_rh_fill_direction(self):
+        """Buyer pays above mid, seller receives below mid (was inverted before 11-04)."""
+        self.assertGreater(op.rh_fill(1.0, 1.2, True), 1.1)
+        self.assertLess(op.rh_fill(1.0, 1.2, False), 1.1)
+
+    def test_instant_round_trip_loses_spread(self):
+        """Buy then sell at the same spot and time: loses ~54 % of the spread, never gains."""
+        snap, L, dte = self._one_leg("call")
+        px, iv = op.leg_entry(L, True, snap.spot, int(L["dte"]))
+        mark = op.bs_price("call", snap.spot, L["strike"], op.hold_T(int(L["dte"]), 0.0), iv)
+        self.assertLess(mark - px, 0.0)
+        self.assertAlmostEqual(px - mark, 0.54 * op.quote_spread(L), delta=0.02 * op.quote_spread(L) + 1e-3)
+
+    def test_stale_snapshot_repriced_to_signal_spot(self):
+        """Snapshot at S0, signal at S0*1.03: call entry tracks the new spot, IV unchanged (sticky strike)."""
+        snap, L, dte = self._one_leg("call")
+        S0 = L["spot"]
+        _, iv0 = op.leg_entry(L, True, S0, int(L["dte"]))
+        px_up, iv_up = op.leg_entry(L, True, S0 * 1.03, int(L["dte"]))
+        self.assertAlmostEqual(iv_up, iv0, places=6)
+        self.assertGreater(px_up, op.quote_mid(L))
+        self.assertGreaterEqual(px_up, max(S0 * 1.03 - L["strike"], 0.0))
+
+    def test_parity_straddle_is_atm(self):
+        """Straddle strike = nearest strike to spot even when the chain is OTM-only."""
+        snap, L, dte = self._one_leg("call")
+        legs = snap.by_expiry[L["expiry"]]
+        cL, pL, k = op.straddle_legs(legs, snap.spot)
+        strikes = sorted({x["strike"] for x in legs})
+        self.assertEqual(k, op.nearest_strike(strikes, snap.spot))
+        self.assertEqual(cL["strike"], pL["strike"])
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

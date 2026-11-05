@@ -201,6 +201,7 @@ def load_chains(conn) -> dict[tuple[str, date], ChainSnap]:
                 "ask": r[8],
                 "iv": r[9],
                 "delta": r[10],
+                "spot": spot,
             }
             by_exp[r[2]].append(leg)
         out[(tk, as_of)] = ChainSnap(as_of=as_of, spot=spot, by_expiry=dict(by_exp))

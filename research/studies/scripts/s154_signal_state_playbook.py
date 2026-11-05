@@ -252,7 +252,7 @@ def price_extended(
         if not legs:
             return None
         side = "put" if bull else "call"
-        L = op.delta_strike(legs, side, 0.15)
+        L = op.delta_strike(legs, side, 0.15, spot=spot)
         if not L:
             return None
         px, iv = op.leg_entry(L, False, spot, dte)
@@ -263,7 +263,7 @@ def price_extended(
         legs = snap.by_expiry.get(exp)
         if not legs:
             return None
-        L = op.delta_strike(legs, "put", 0.15)
+        L = op.delta_strike(legs, "put", 0.15, spot=spot)
         if not L:
             return None
         px, iv = op.leg_entry(L, False, spot, dte)
@@ -273,7 +273,7 @@ def price_extended(
         legs = snap.by_expiry.get(exp)
         if not legs:
             return None
-        L = op.delta_strike(legs, "call", 0.15)
+        L = op.delta_strike(legs, "call", 0.15, spot=spot)
         if not L:
             return None
         px, iv = op.leg_entry(L, False, spot, dte)
@@ -289,7 +289,7 @@ def baseline_put30(spot: float, snap: s152.ChainSnap, exp: date, dte: int, exit_
     legs = snap.by_expiry.get(exp)
     if not legs:
         return None
-    L = op.delta_strike(legs, "put", 0.30)
+    L = op.delta_strike(legs, "put", 0.30, spot=spot)
     if not L:
         return None
     px, iv = op.leg_entry(L, False, spot, dte)
