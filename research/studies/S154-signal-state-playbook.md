@@ -38,6 +38,16 @@
 - **pre_quiet_24:** pick `long_strangle` 30m · OOS Sortino 0.42 (30Δ put 0.17, random -0.84) n=221
 - **pre_quiet_6:** pick `long_strangle` 30m · OOS Sortino 0.28 (30Δ put 0.26, random -0.84) n=223
 
+## Passing rule — OOS trade stats (long_strangle 30m, % of premium, no re-tune)
+
+| quiet N | n OOS | avg | median | win% | CVaR 5% | max DD |
+|---:|---:|---:|---:|---:|---:|---:|
+| 6 | 223 | +2.28 | −3.76 | 13.0 | −23.5 | −420 |
+| 12 | 222 | +2.26 | −3.78 | 12.6 | −23.5 | −426 |
+| 24 | 221 | +3.12 | −3.56 | 14.0 | −21.6 | −237 |
+
+Time-of-day OOS: first hour 0 entries; midday ~100%; last hour 0–2 (N=24). Per-ticker: `research/studies/out/A336_A334/packet_supplement.json`.
+
 ## Spot-checked trade
 
 - AAOI quiet pre_signal bar · **short_put_otm** hold 30m · entry 117.93 → exit 118.40 (30m) · P&L +0.1% risk · random +nan% · 30Δ put baseline +0.2%
