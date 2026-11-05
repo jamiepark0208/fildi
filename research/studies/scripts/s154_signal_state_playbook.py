@@ -197,10 +197,10 @@ def price_extended(
         L = s152.delta_strike(legs, side, 0.15)
         if not L:
             return None
-        px, iv = s152.leg_entry(L, False)
+        px, iv = s152.leg_entry(L, False, spot, dte)
         ex = s152.bs_price(side, exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-        width = max(px * 2, 1.0)
-        return s152.credit_pnl(px, width, ex)
+        fn = s152.credit_pnl_short_put if side == "put" else s152.credit_pnl_short_call
+        return fn(px, L["strike"], ex, spot)
     if name == "short_put_otm":
         legs = snap.by_expiry.get(exp)
         if not legs:
@@ -208,9 +208,9 @@ def price_extended(
         L = s152.delta_strike(legs, "put", 0.15)
         if not L:
             return None
-        px, iv = s152.leg_entry(L, False)
+        px, iv = s152.leg_entry(L, False, spot, dte)
         ex = s152.bs_price("put", exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-        return s152.credit_pnl(px, max(px * 2, 1.0), ex)
+        return s152.credit_pnl_short_put(px, L["strike"], ex, spot)
     if name == "short_call_otm":
         legs = snap.by_expiry.get(exp)
         if not legs:
@@ -218,9 +218,9 @@ def price_extended(
         L = s152.delta_strike(legs, "call", 0.15)
         if not L:
             return None
-        px, iv = s152.leg_entry(L, False)
+        px, iv = s152.leg_entry(L, False, spot, dte)
         ex = s152.bs_price("call", exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-        return s152.credit_pnl(px, max(px * 2, 1.0), ex)
+        return s152.credit_pnl_short_call(px, L["strike"], ex, spot)
     s152_name = name
     if name == "short_outright_otm":
         s152_name = "credit_far"
@@ -234,9 +234,9 @@ def baseline_put30(spot: float, snap: s152.ChainSnap, exp: date, dte: int, exit_
     L = s152.delta_strike(legs, "put", 0.30)
     if not L:
         return None
-    px, iv = s152.leg_entry(L, False)
+    px, iv = s152.leg_entry(L, False, spot, dte)
     ex = s152.bs_price("put", exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-    return s152.credit_pnl(px, max(px * 2, 1.0), ex)
+    return s152.credit_pnl_short_put(px, L["strike"], ex, spot)
 
 
 def exit_for_hold(

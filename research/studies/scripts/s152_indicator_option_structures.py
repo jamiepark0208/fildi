@@ -19,8 +19,30 @@ from zoneinfo import ZoneInfo
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
+_SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(_SCRIPTS))
 sys.path.insert(0, str(ROOT / "scripts" / "watchlist_sync"))
 from build_plan import connect  # noqa: E402
+from option_pricing import (  # noqa: E402
+    FILL_FRAC,
+    MIN_PREMIUM,
+    atm_straddle_strike,
+    bs_price,
+    credit_pnl,
+    credit_pnl_short_call,
+    credit_pnl_short_put,
+    debit_pnl,
+    delta_strike,
+    find_leg,
+    hold_T,
+    leg_entry,
+    nearest_leg,
+    nearest_strike,
+    price_structure,
+    rh_fill,
+    strike_step,
+    straddle_legs,
+)
 
 NY = ZoneInfo("America/New_York")
 START = datetime(2026, 10, 8, tzinfo=NY)
@@ -29,8 +51,6 @@ TV_inds = ("ut", "st", "ichimoku", "lsh", "squeeze", "mso")
 TF_MIN = {"5m": 5, "15m": 15, "1h": 60}
 PRE_BARS, PRE_TOL = 3, 0.25
 RANDOM_DRAWS = 20
-FILL_FRAC = 0.23
-MIN_PREMIUM = 0.10  # skip microscopic debits/credits that explode % P&L
 RTH_OPEN = 9 * 60 + 30
 STRUCTURES = (
     "long_outright",
@@ -48,24 +68,6 @@ OUT_JSON = ROOT / "research" / "studies" / "out" / "S152" / "cells.json"
 
 def norm_cdf(x: float) -> float:
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
-
-
-def bs_price(side: str, S: float, K: float, T: float, sig: float) -> float:
-    if T <= 0 or sig <= 0 or S <= 0 or K <= 0:
-        return max(S - K, 0.0) if side == "call" else max(K - S, 0.0)
-    v = sig * math.sqrt(T)
-    d1 = (math.log(S / K) + 0.5 * sig * sig * T) / v
-    d2 = d1 - v
-    if side == "call":
-        return S * norm_cdf(d1) - K * norm_cdf(d2)
-    return K * norm_cdf(-d2) - S * norm_cdf(-d1)
-
-
-def rh_fill(bid: float, ask: float | None, buy: bool) -> float:
-    if ask is None or ask <= bid:
-        ask = bid * 1.05
-    spr = ask - bid
-    return bid + FILL_FRAC * spr if buy else ask - FILL_FRAC * spr
 
 
 def et_clock(ts: datetime) -> tuple[str, int]:
@@ -228,189 +230,6 @@ def pick_expiry(snap: ChainSnap, ed: date) -> tuple[date, int] | None:
         if best is None or dte < (best[0] - ed).days:
             best = (exp, dte)
     return best
-
-
-def strike_step(strikes: list[float]) -> float:
-    strikes = sorted(set(strikes))
-    if len(strikes) < 2:
-        return 5.0
-    diffs = [strikes[i + 1] - strikes[i] for i in range(len(strikes) - 1) if strikes[i + 1] > strikes[i]]
-    return min(diffs) if diffs else 5.0
-
-
-def nearest_strike(strikes: list[float], spot: float) -> float:
-    return min(strikes, key=lambda k: abs(k - spot))
-
-
-def find_leg(legs: list[dict], side: str, strike: float) -> dict | None:
-    for L in legs:
-        if L["side"] == side and abs(L["strike"] - strike) < 1e-6:
-            return L
-    return None
-
-
-def nearest_leg(legs: list[dict], side: str, spot: float) -> dict | None:
-    cands = [L for L in legs if L["side"] == side]
-    if not cands:
-        return None
-    return min(cands, key=lambda L: abs(L["strike"] - spot))
-
-
-def delta_strike(legs: list[dict], side: str, target: float) -> dict | None:
-    cands = [L for L in legs if L["side"] == side and L.get("delta") is not None]
-    if not cands:
-        return None
-    if side == "call":
-        return min(cands, key=lambda L: abs(L["delta"] - target))
-    return min(cands, key=lambda L: abs(L["delta"] + target))
-
-
-def leg_entry(L: dict, buy: bool) -> tuple[float, float]:
-    iv = L["iv"] if L["iv"] and L["iv"] > 0 else 0.35
-    px = rh_fill(L["bid"], L["ask"], buy)
-    return px, iv
-
-
-def hold_T(dte: int, hold_min: float) -> float:
-    hold_days = hold_min / 390.0
-    rem = max(dte - hold_days, 0.02)
-    return rem / 252.0
-
-
-def price_structure(
-    name: str,
-    side_signal: str,
-    spot: float,
-    snap: ChainSnap,
-    exp: date,
-    dte: int,
-    exit_spot: float,
-    hold_min: float,
-    iv_mult: float = 1.0,
-) -> float | None:
-    legs = snap.by_expiry.get(exp)
-    if not legs:
-        return None
-    strikes = sorted({L["strike"] for L in legs})
-    step = strike_step(strikes)
-    atm = nearest_strike(strikes, spot)
-    T = hold_T(dte, hold_min)
-    bull = side_signal == "buy"
-
-    def pack(side: str, K: float, buy: bool) -> tuple[float, float] | None:
-        L = find_leg(legs, side, K)
-        if not L:
-            return None
-        px, iv = leg_entry(L, buy)
-        return px, iv
-
-    if name == "long_outright":
-        side = "call" if bull else "put"
-        e = pack(side, atm, True)
-        if not e:
-            return None
-        cost, iv = e
-        ex = bs_price(side, exit_spot, atm, T, iv * iv_mult)
-        return debit_pnl(cost, ex, spot)
-
-    if name == "debit_vertical":
-        if bull:
-            lo, hi = pack("call", atm, True), pack("call", atm + step, False)
-        else:
-            lo, hi = pack("put", atm, True), pack("put", atm - step, False)
-        if not lo or not hi:
-            return None
-        cost = lo[0] - hi[0]
-        ex = bs_price("call" if bull else "put", exit_spot, atm, T, lo[1] * iv_mult) - bs_price(
-            "call" if bull else "put", exit_spot, atm + (step if bull else -step), T, hi[1] * iv_mult
-        )
-        return debit_pnl(cost, ex, spot) if cost > 0 else None
-
-    if name == "credit_far":
-        if bull:
-            sellK, buyK = atm - step, atm - 2 * step
-            s, b = pack("put", sellK, False), pack("put", buyK, True)
-        else:
-            sellK, buyK = atm + step, atm + 2 * step
-            s, b = pack("call", sellK, False), pack("call", buyK, True)
-        if not s or not b:
-            return None
-        credit = s[0] - b[0]
-        ex_cost = bs_price("put" if bull else "call", exit_spot, sellK, T, s[1] * iv_mult) - bs_price(
-            "put" if bull else "call", exit_spot, buyK, T, b[1] * iv_mult
-        )
-        return credit_pnl(credit, step, ex_cost)
-
-    if name == "long_straddle":
-        cL, pL = nearest_leg(legs, "call", spot), nearest_leg(legs, "put", spot)
-        if not cL or not pL:
-            return None
-        c, p = leg_entry(cL, True), leg_entry(pL, True)
-        cost = c[0] + p[0]
-        ex = bs_price("call", exit_spot, cL["strike"], T, c[1] * iv_mult) + bs_price(
-            "put", exit_spot, pL["strike"], T, p[1] * iv_mult
-        )
-        return debit_pnl(cost, ex, spot)
-
-    if name == "long_strangle":
-        cL = delta_strike(legs, "call", 0.25)
-        pL = delta_strike(legs, "put", 0.25)
-        if not cL or not pL:
-            return None
-        c, p = leg_entry(cL, True), leg_entry(pL, True)
-        cost = c[0] + p[0]
-        ex = bs_price("call", exit_spot, cL["strike"], T, c[1] * iv_mult) + bs_price(
-            "put", exit_spot, pL["strike"], T, p[1] * iv_mult
-        )
-        return debit_pnl(cost, ex, spot)
-
-    if name == "short_straddle":
-        cL, pL = nearest_leg(legs, "call", spot), nearest_leg(legs, "put", spot)
-        if not cL or not pL:
-            return None
-        c, p = leg_entry(cL, False), leg_entry(pL, False)
-        credit = c[0] + p[0]
-        ex_cost = bs_price("call", exit_spot, cL["strike"], T, c[1] * iv_mult) + bs_price(
-            "put", exit_spot, pL["strike"], T, p[1] * iv_mult
-        )
-        width = max(credit * 2, step * 2)
-        return credit_pnl(credit, width, ex_cost)
-
-    if name == "iron_condor":
-        cS = delta_strike(legs, "call", 0.25)
-        pS = delta_strike(legs, "put", 0.25)
-        if not cS or not pS:
-            return None
-        cw = find_leg(legs, "call", cS["strike"] + step)
-        pw = find_leg(legs, "put", pS["strike"] - step)
-        if not cw or not pw:
-            return None
-        sc, bc = leg_entry(cS, False), leg_entry(cw, True)
-        sp, bp = leg_entry(pS, False), leg_entry(pw, True)
-        credit = sc[0] - bc[0] + sp[0] - bp[0]
-        ex = (
-            bs_price("call", exit_spot, cS["strike"], T, sc[1] * iv_mult)
-            - bs_price("call", exit_spot, cw["strike"], T, bc[1] * iv_mult)
-            + bs_price("put", exit_spot, pS["strike"], T, sp[1] * iv_mult)
-            - bs_price("put", exit_spot, pw["strike"], T, bp[1] * iv_mult)
-        )
-        return credit_pnl(credit, 2 * step, ex)
-
-    return None
-
-
-def debit_pnl(cost: float, exit_val: float, spot: float = 0) -> float | None:
-    floor = max(MIN_PREMIUM, 0.0025 * spot) if spot > 0 else MIN_PREMIUM
-    if cost < floor:
-        return None
-    return (exit_val - cost) / cost * 100.0
-
-
-def credit_pnl(credit: float, width: float, exit_cost: float) -> float | None:
-    risk = width - credit
-    if risk < MIN_PREMIUM or credit < MIN_PREMIUM:
-        return None
-    return (credit - exit_cost) / risk * 100.0
 
 
 def exit_bar_index(bars: list[dict], i: int, sess_end: int, horizon: str) -> int | None:
@@ -719,7 +538,7 @@ def main(smoke: bool = False) -> None:
     lines = [
         "# S152 — Option structures on indicator signals vs vol-matched random",
         "",
-        f"**Ask:** A334 · **Window:** {START.date()} → {END.date()} · **Chain days:** 19 · **Pricing:** entry RH bid+23% spread / ask−23%; exit BS flat entry IV (bias noted); IV sensitivity ±10% in JSON.",
+        f"**Ask:** A334 · **Window:** {START.date()} → {END.date()} · **Chain days:** 19 · **Pricing:** RH entry fill; IV inverted from fill; BS exit (years, entry IV); ±10% IV in JSON.",
         "",
         "## Verdict",
         "",
@@ -753,13 +572,16 @@ def main(smoke: bool = False) -> None:
             ]
         rmean = sum(rnd_vals) / len(rnd_vals) if rnd_vals else float("nan")
         legs = ev["snap"].by_expiry.get(ev["exp"], [])
-        cL, pL = nearest_leg(legs, "call", ev["price"]), nearest_leg(legs, "put", ev["price"])
+        try:
+            cL, pL, k = straddle_legs(legs, ev["price"])
+        except LookupError:
+            cL = pL = k = None
         leg_txt = ""
         if cL and pL:
-            ce, pe = leg_entry(cL, True), leg_entry(pL, True)
+            ce, pe = leg_entry(cL, True, ev["price"], ev["dte"]), leg_entry(pL, True, ev["price"], ev["dte"])
             leg_txt = (
-                f" legs: C{cL['strike']:.0f} fill {ce[0]:.2f} (iv {ce[1]:.2f}) · "
-                f"P{pL['strike']:.0f} fill {pe[0]:.2f} (iv {pe[1]:.2f}) · debit {ce[0]+pe[0]:.2f}"
+                f" legs: C{cL['strike']:.0f}/P{pL['strike']:.0f}"
+                f"{' same K' if k else ' nearest OTM'} · debit {ce[0]+pe[0]:.2f}"
             )
         lines += ["", "## Spot-checked trade (LSH straddle)", ""]
         lines.append(
@@ -769,8 +591,8 @@ def main(smoke: bool = False) -> None:
     lines += [
         "",
         f"**Events priced:** {len(events)} (6 TV indicators, buy/sell, chain as_of ≤ entry day, `optlab.bars_5m` exit bars).",
-        "**Caveat:** `option_chain_history` stores 1–35% OTM legs only; straddles use nearest call/put to spot (~1% OTM), so %‑of‑premium is scaled vs true ATM.",
-        "**IV:** exit marks hold entry IV (overstates long-vol if realized > implied); ±10% IV exit sensitivity not re-run (flat-IV primary).",
+        "**Caveat:** `option_chain_history` is 1–35% OTM only; ATM straddle uses nearest strike with both call+put at same K (~1% OTM).",
+        "**IV:** per-leg IV inverted from RH entry fill (stored chain IV ignored when inconsistent); exit BS holds that IV flat.",
         "",
         "## MDE (no pass)",
         "",
