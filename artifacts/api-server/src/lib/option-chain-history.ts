@@ -3,14 +3,15 @@
  *
  * Saves a trimmed copy of the chains the nightly option-score snapshot already fetched — zero extra Schwab/Yahoo calls.
  * Purpose: our own point-in-time chain history so backtests can use real bid/ask instead of Black-Scholes reconstructions.
- * Kept: OTM strikes 1–35% from spot with a live bid, 1–45 DTE (the chain window). Fields are the ones a backtest needs;
+ * Kept: strikes from 10% ITM through ATM to 35% OTM with a live bid, 1–45 DTE (the chain window). Fields are the ones a backtest needs;
  * greeks beyond delta are recomputable from iv and skipped.
  */
 import { logger } from "./logger.js";
 import type { OptionRow, OptionsChainResult } from "./options.js";
 
 export const CHAIN_HISTORY_MAX_OTM = 0.35;
-export const CHAIN_HISTORY_MIN_OTM = 0.01;
+/** Negative = ITM. -0.10 keeps ATM + up to 10 % ITM so straddles/ITM structures are testable (Jamie 11-04). */
+export const CHAIN_HISTORY_MIN_OTM = -0.10;
 
 export interface ChainHistoryRow {
   asOf: string;

@@ -13,12 +13,12 @@ const chain = (puts: OptionRow[], calls: OptionRow[]): OptionsChainResult => ({
 });
 
 describe("chainHistoryRows", () => {
-  it("keeps OTM strikes 1–35% away with a live bid", () => {
+  it("keeps strikes 10% ITM … 35% OTM (incl. ATM) with a live bid", () => {
     const rows = chainHistoryRows("abc", [chain(
       [row(99.5, 1), row(90, 0.5), row(60, 0.01), row(85, 0), row(95, 0.4, false), row(105, 6)],
       [row(110, 0.3), row(100.5, 1)],
     )], "2026-10-06");
-    assert.deepEqual(rows.map((r) => `${r.side}${r.strike}`), ["put90", "call110"]);
+    assert.deepEqual(rows.map((r) => `${r.side}${r.strike}`), ["put99.5", "put90", "put105", "call110", "call100.5"]);
     assert.equal(rows[0]!.ticker, "ABC");
     assert.equal(rows[0]!.source, "schwab");
   });
