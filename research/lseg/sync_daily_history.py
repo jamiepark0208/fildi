@@ -169,8 +169,9 @@ def main() -> None:
                             if not ser:
                                 continue
                             ohlc = {col: dict(series_of(full.get(ric_map[t]), ric_map[t], src)) for src, col in OHLC.items()}
-                            conn.execute("UPDATE lseg_research.daily_history SET close = NULL, high = NULL, low = NULL, volume = NULL WHERE ticker = %s", (t,))
-                            rows += [(t, d, v, None, None, None, None, None, None, ohlc["high"].get(d), ohlc["low"].get(d), ohlc["volume"].get(d))
+                            conn.execute("UPDATE lseg_research.daily_history SET close = NULL, high = NULL, low = NULL, volume = NULL, open = NULL WHERE ticker = %s", (t,))
+                            # Built from COLS so a new column can't desync the tuple from UPSERT (11-03: 'open' missing → every run crashed).
+                            rows += [(t, d, *[v if c == "close" else ohlc[c].get(d) if c in ohlc else None for c in COLS])
                                      for d, v in ser]
                             r = next(a for a in actions if a[0] == t)
                             conn.execute("INSERT INTO lseg_research.corporate_action_log (ticker, ratio, overlap_days, action) VALUES (%s, %s, %s, %s)",
