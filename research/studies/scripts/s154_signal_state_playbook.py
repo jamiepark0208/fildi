@@ -17,7 +17,11 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[3]
+_SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(_SCRIPTS))
 sys.path.insert(0, str(ROOT / "scripts" / "watchlist_sync"))
+
+import option_pricing as op  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
     "s152_indicator_option_structures",
@@ -33,7 +37,7 @@ from build_plan import connect  # noqa: E402
 NY = ZoneInfo("America/New_York")
 START, END = s152.START, s152.END
 TV_inds = s152.TV_inds
-FILL_FRAC = s152.FILL_FRAC
+FILL_FRAC = op.FILL_FRAC
 PRE_BARS, PRE_TOL = s152.PRE_BARS, s152.PRE_TOL
 RANDOM_DRAWS = s152.RANDOM_DRAWS
 RTH_OPEN = s152.RTH_OPEN
@@ -71,7 +75,27 @@ MIRROR = {
     "long_strangle": "iron_condor",
     "iron_condor": "long_strangle",
 }
-HOLDS = ("30m", "60m", "close", "1d", "3d", "5d", "swing_flip")
+HOLDS_ALL = ("30m", "60m", "close", "1d", "3d", "5d", "swing_flip")
+HOLDS_INTRADAY = ("30m", "60m", "close")
+IV_MIN_NAMES = 61
+IV_LOOKBACK_START = date(2025, 10, 8)
+IV_LOOKBACK_END = date(2026, 10, 8)
+IV_MIN_DAYS = 252
+
+
+def daily_iv_coverage(conn, tickers: list[str]) -> tuple[int, int]:
+    """Names with ≥1y of lseg_research.daily_history iv30_put before study window."""
+    ok = 0
+    for tk in tickers:
+        n = conn.execute(
+            """SELECT COUNT(*) FROM lseg_research.daily_history
+               WHERE ticker = %s AND iv30_put IS NOT NULL
+                 AND date >= %s AND date <= %s""",
+            (tk, IV_LOOKBACK_START, IV_LOOKBACK_END),
+        ).fetchone()[0]
+        if n >= IV_MIN_DAYS:
+            ok += 1
+    return ok, len(tickers)
 
 
 def sma(arr: list[float], n: int) -> list[float]:
@@ -194,49 +218,49 @@ def price_extended(
         if not legs:
             return None
         side = "put" if bull else "call"
-        L = s152.delta_strike(legs, side, 0.15)
+        L = op.delta_strike(legs, side, 0.15)
         if not L:
             return None
-        px, iv = s152.leg_entry(L, False, spot, dte)
-        ex = s152.bs_price(side, exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-        fn = s152.credit_pnl_short_put if side == "put" else s152.credit_pnl_short_call
+        px, iv = op.leg_entry(L, False, spot, dte)
+        ex = op.bs_price(side, exit_spot, L["strike"], op.hold_T(dte, hold_min), iv)
+        fn = op.credit_pnl_short_put if side == "put" else op.credit_pnl_short_call
         return fn(px, L["strike"], ex, spot)
     if name == "short_put_otm":
         legs = snap.by_expiry.get(exp)
         if not legs:
             return None
-        L = s152.delta_strike(legs, "put", 0.15)
+        L = op.delta_strike(legs, "put", 0.15)
         if not L:
             return None
-        px, iv = s152.leg_entry(L, False, spot, dte)
-        ex = s152.bs_price("put", exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-        return s152.credit_pnl_short_put(px, L["strike"], ex, spot)
+        px, iv = op.leg_entry(L, False, spot, dte)
+        ex = op.bs_price("put", exit_spot, L["strike"], op.hold_T(dte, hold_min), iv)
+        return op.credit_pnl_short_put(px, L["strike"], ex, spot)
     if name == "short_call_otm":
         legs = snap.by_expiry.get(exp)
         if not legs:
             return None
-        L = s152.delta_strike(legs, "call", 0.15)
+        L = op.delta_strike(legs, "call", 0.15)
         if not L:
             return None
-        px, iv = s152.leg_entry(L, False, spot, dte)
-        ex = s152.bs_price("call", exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-        return s152.credit_pnl_short_call(px, L["strike"], ex, spot)
+        px, iv = op.leg_entry(L, False, spot, dte)
+        ex = op.bs_price("call", exit_spot, L["strike"], op.hold_T(dte, hold_min), iv)
+        return op.credit_pnl_short_call(px, L["strike"], ex, spot)
     s152_name = name
     if name == "short_outright_otm":
         s152_name = "credit_far"
-    return s152.price_structure(s152_name, side_signal, spot, snap, exp, dte, exit_spot, hold_min)
+    return op.price_structure(s152_name, side_signal, spot, snap, exp, dte, exit_spot, hold_min)
 
 
 def baseline_put30(spot: float, snap: s152.ChainSnap, exp: date, dte: int, exit_spot: float, hold_min: float) -> float | None:
     legs = snap.by_expiry.get(exp)
     if not legs:
         return None
-    L = s152.delta_strike(legs, "put", 0.30)
+    L = op.delta_strike(legs, "put", 0.30)
     if not L:
         return None
-    px, iv = s152.leg_entry(L, False, spot, dte)
-    ex = s152.bs_price("put", exit_spot, L["strike"], s152.hold_T(dte, hold_min), iv)
-    return s152.credit_pnl_short_put(px, L["strike"], ex, spot)
+    px, iv = op.leg_entry(L, False, spot, dte)
+    ex = op.bs_price("put", exit_spot, L["strike"], op.hold_T(dte, hold_min), iv)
+    return op.credit_pnl_short_put(px, L["strike"], ex, spot)
 
 
 def exit_for_hold(
@@ -465,6 +489,7 @@ def build_entries(
 def main(smoke: bool = False) -> None:
     conn = connect()
     chains = s152.load_chains(conn)
+    chain_days = len({d for (_, d) in chains})
     cidx = s152.chain_index(chains)
     ev_rows = conn.execute(
         """SELECT e.ticker FROM indicator_events e
@@ -472,6 +497,14 @@ def main(smoke: bool = False) -> None:
         (START, END),
     ).fetchall()
     tickers = sorted({r[0] for r in ev_rows})
+    chain_tickers = sorted(t for t in tickers if t in cidx)
+    iv_ok_n, iv_pool = daily_iv_coverage(conn, chain_tickers or tickers)
+    use_multiday = iv_ok_n >= IV_MIN_NAMES
+    holds_run = HOLDS_ALL if use_multiday else HOLDS_INTRADAY
+    iv_note = (
+        f"lseg daily iv30_put: {iv_ok_n}/{iv_pool} study names ≥1y ({IV_LOOKBACK_START}→{IV_LOOKBACK_END}) — "
+        + ("multi-day/swing holds priced from daily IV." if use_multiday else "multi-day/swing holds skipped.")
+    )
     bars_by_ticker: dict[str, dict[str, list[dict]]] = {}
     for tk in tickers:
         raw = conn.execute(
@@ -539,7 +572,7 @@ def main(smoke: bool = False) -> None:
     for e in entries:
         m = meta_all[e.meta_key]
         side = e.side if e.side in ("buy", "sell") else "buy"
-        for hold in HOLDS:
+        for hold in holds_run:
             ej, hm = exit_for_hold(m, e.i, hold, flip_times, e.tk)
             if ej is None:
                 continue
@@ -598,7 +631,7 @@ def main(smoke: bool = False) -> None:
         best_key = None
         best_sort = float("-inf")
         for st in STRUCTURES:
-            for hold in HOLDS:
+            for hold in holds_run:
                 rets = [t["pnl"] for t in train if t["structure"] == st and t["hold"] == hold]
                 if len(rets) < 30:
                     continue
@@ -667,8 +700,9 @@ def main(smoke: bool = False) -> None:
     lines = [
         "# S154 — Signal-state strategy playbook (walk-forward)",
         "",
-        f"**Ask:** A336 · **Window:** {START.date()} → {END.date()} · **Chain days:** 19 · "
-        f"**Entries:** {len(entries)} · **Pricing:** RH {FILL_FRAC:.0%} spread; exit BS entry IV (flat); mirrors paired per spec.",
+        f"**Ask:** A336 · **Window:** {START.date()} → {END.date()} · **Chain days:** {chain_days} · "
+        f"**Entries:** {len(entries)} · **Pricing:** shared `option_pricing.py` (RH {FILL_FRAC:.0%} spread; BS exit @ entry IV). "
+        f"**Holds:** {', '.join(holds_run)}. {iv_note}",
         "",
         "## Verdict",
         "",
@@ -677,7 +711,7 @@ def main(smoke: bool = False) -> None:
         lines.append(f"**{len(passed)} state rule(s) pass** OOS Sortino > 30Δ put + random, n≥100, days≥10, Holm p<0.05.")
     else:
         lines.append(
-            "**No state→structure rule passes** pre-registered bar (19 chain days; multi-day holds need more snapshots — MDE below)."
+            f"**No state→structure rule passes** pre-registered bar ({chain_days} chain days; {iv_note} — MDE below)."
         )
     lines += ["", "## Walk-forward (train Sortino → OOS vs baselines)", ""]
     lines.append("| state | in-sample pick | in Sortino | OOS Sortino | vs 30Δ put | vs random | n OOS | days | Holm p | pass |")
@@ -717,8 +751,9 @@ def main(smoke: bool = False) -> None:
         "",
         "## MDE / data",
         "",
-        f"- Calendar span **{len(days_sorted)}** sessions with chain coverage; pass bar needs **≥100 OOS trades on ≥10 days** per state.",
-        "- Extend `option_chain_history` + intraday bars for multi-day DTE-matched exits (7–14 / 30–45 DTE buckets under-sampled here).",
+        f"- Calendar span **{len(days_sorted)}** entry session halves; pass bar needs **≥100 OOS trades on ≥10 days** per state.",
+        f"- {iv_note}",
+        "- Sanity: `test_option_pricing.py` (parity, random straddle <0, short 15Δ put on +0.4% spot <20% risk).",
         "",
         "## Methods",
         "",
