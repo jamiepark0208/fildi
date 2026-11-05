@@ -116,8 +116,8 @@ def miss_cause(row: dict) -> str:
         return "adr_ratio"
     if field == "sharesOutstandingPrior" and truth > 0:
         r = gold / truth
-        if 1.03 <= r <= 1.10:
-            return "definition"
+        if 1.03 <= r <= 1.10 or ("prior basic wa" in note and 1.02 <= r <= 1.12):
+            return "definition_mismatch"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
         return "definition"
     if field in DEFINITION_ONLY_FIELDS:
@@ -244,11 +244,11 @@ def test_miss_cause_skip_no_quarterly():
 
 def test_miss_cause_prior_shares_definition():
     assert miss_cause({
-        "note": "prior dei",
+        "note": "prior basic WA 2024-09-30",
         "truth": 1e9,
         "gold": 1.05e9,
         "field": "sharesOutstandingPrior",
-    }) == "definition"
+    }) == "definition_mismatch"
 
 
 def test_cover_shares_on_bs_end():
@@ -273,6 +273,25 @@ def test_sec_shares_no_diluted_fallback():
     truth, note = _l2.sec_shares_current(facts, None, "PLTR")
     assert truth is None
     assert "skip_no_cover_shares" in note
+
+
+def test_sec_shares_stale_dei_skip_not_miss():
+    from datetime import timedelta
+
+    old_end = (date.today() - timedelta(days=MAX_PERIOD_DAYS + 5)).isoformat()
+    facts = {
+        "facts": {
+            "dei": {
+                "EntityCommonStockSharesOutstanding": {
+                    "units": {"shares": [{"end": old_end, "val": 1e9, "filed": "2020-01-01"}]}
+                }
+            },
+            "us-gaap": {},
+        }
+    }
+    truth, note = sec_shares_current(facts, None, "RYAN")
+    assert truth is None
+    assert "skip_stale_dei" in note
 
 
 
@@ -335,6 +354,7 @@ if __name__ == "__main__":
     test_miss_cause_prior_shares_definition()
     test_cover_shares_on_bs_end()
     test_sec_shares_no_diluted_fallback()
+    test_sec_shares_stale_dei_skip_not_miss()
     test_tangible_book_subtracts_preferred_goodwill_intangibles()
     test_tangible_book_negative_is_kept()
     test_tangible_book_goodwill_other_date_is_none()
