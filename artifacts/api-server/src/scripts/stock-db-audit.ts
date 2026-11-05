@@ -131,9 +131,18 @@ async function loadMrqByTicker(tickers: string[]): Promise<Map<string, string>> 
     const inList = sql.join(slice.map((t) => sql`${t}`), sql`, `);
     const res = await db.execute(sql`
       SELECT DISTINCT ON (upper(key)) upper(key) AS ticker,
-        payload->'financialData'->>'mostRecentQuarter' AS mrq
+        COALESCE(
+          payload->'defaultKeyStatistics'->>'mostRecentQuarter',
+          payload->'financialData'->>'mostRecentQuarter'
+        ) AS mrq
       FROM vendor_raw
-      WHERE source = 'yahoo' AND payload ? 'financialData' AND upper(key) IN (${inList})
+      WHERE source = 'yahoo'
+        AND endpoint LIKE 'quoteSummary:%financialData%'
+        AND upper(key) IN (${inList})
+        AND (
+          (payload->'defaultKeyStatistics' ? 'mostRecentQuarter')
+          OR (payload->'financialData' ? 'mostRecentQuarter')
+        )
       ORDER BY upper(key), fetched_on DESC
     `);
     const list =

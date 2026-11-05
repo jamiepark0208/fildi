@@ -238,6 +238,10 @@ async function main(): Promise<void> {
   }).from(yahooFundamentals);
 
   const freshSet = new Set(existing.filter(r => isFresh(r.fetchedAt)).map(r => r.ticker));
+  if (process.env.A329_YAHOO_MRQ_REFETCH === "1") {
+    freshSet.clear();
+    appendLog("A329_YAHOO_MRQ_REFETCH=1 — refetch all (vendor_raw MRQ backfill)");
+  }
   appendLog(`${freshSet.size} tickers already fresh (< ${STALE_DAYS}d old) — will skip`);
 
   // Process with MAX_CONCURRENT concurrency

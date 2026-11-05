@@ -127,8 +127,14 @@ export async function fetchYahooFundamentals(ticker: string): Promise<YahooFunda
     raw = await yahooFinance.quoteSummary(symbol, {
       modules: ["financialData", "defaultKeyStatistics", "summaryDetail"],
     }, { validateResult: false });
+    const ks = (raw as { defaultKeyStatistics?: { mostRecentQuarter?: unknown } }).defaultKeyStatistics;
+    const fdIn = (raw as { financialData?: Record<string, unknown> }).financialData ?? {};
+    const payloadForRaw =
+      ks?.mostRecentQuarter != null && fdIn.mostRecentQuarter == null
+        ? { ...(raw as object), financialData: { ...fdIn, mostRecentQuarter: ks.mostRecentQuarter } }
+        : raw;
     const { rememberYahooQuoteSummary } = await import("./vendor-raw.js");
-    await rememberYahooQuoteSummary(symbol, "financialData,defaultKeyStatistics,summaryDetail", raw);
+    await rememberYahooQuoteSummary(symbol, "financialData,defaultKeyStatistics,summaryDetail", payloadForRaw);
   } catch (err: any) {
     logApiCall({ source: "yahoo", fn: "fetchYahooFundamentals", trigger: "backfill-yahoo script", ticker, outcome: "failure", error: err.message, requestedFields: "quoteSummary: financialData, defaultKeyStatistics" });
     return {};

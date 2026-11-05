@@ -1,0 +1,4795 @@
+{
+  "capturedAt": "2026-11-05T05:56:08.661Z",
+  "tickers": {
+    "ADI": {
+      "earningsPerShare": 8.4269,
+      "sharesOutstanding": 484565465,
+      "peRatio": 42.24787391919655
+    },
+    "AEM": {
+      "earningsPerShare": 12.2601,
+      "sharesOutstanding": 500036237,
+      "peRatio": 13.375341030018
+    },
+    "ANET": {
+      "earningsPerShare": 3.1709,
+      "sharesOutstanding": 1263402335,
+      "peRatio": 44.133957770002624
+    },
+    "AKAM": {
+      "earningsPerShare": 2.7721999999999998,
+      "sharesOutstanding": 143716609,
+      "peRatio": 32.676912456614254
+    },
+    "AU": {
+      "earningsPerShare": 7.4597,
+      "sharesOutstanding": 505769256,
+      "peRatio": 9.148269273535723
+    },
+    "SCHD": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": 19.361767
+    },
+    "ALGN": {
+      "earningsPerShare": 5.765699999999999,
+      "sharesOutstanding": 71039852,
+      "peRatio": 21.08694448532859
+    },
+    "AR": {
+      "earningsPerShare": 3.4827999999999997,
+      "sharesOutstanding": 308510000,
+      "peRatio": 8.119504134785803
+    },
+    "ARM": {
+      "earningsPerShare": 0.9748000000000001,
+      "sharesOutstanding": 1067998569,
+      "peRatio": 162.8628602865241
+    },
+    "ATO": {
+      "earningsPerShare": 8.4182,
+      "sharesOutstanding": 168988553,
+      "peRatio": 20.54018912529551
+    },
+    "DTE": {
+      "earningsPerShare": 6.350099999999999,
+      "sharesOutstanding": 207745154,
+      "peRatio": 21.277337559429476
+    },
+    "RYAN": {
+      "earningsPerShare": 0.6219,
+      "sharesOutstanding": 122077702,
+      "peRatio": 52.26088616086479
+    },
+    "AM": {
+      "earningsPerShare": 0.8342,
+      "sharesOutstanding": 472346000,
+      "peRatio": 19.164416784880796
+    },
+    "AMZN": {
+      "earningsPerShare": 12.3716,
+      "sharesOutstanding": 10813138306,
+      "peRatio": 19.48073645871621
+    },
+    "CHD": {
+      "earningsPerShare": 3.1082,
+      "sharesOutstanding": 236032052,
+      "peRatio": 29.575001591728967
+    },
+    "AAL": {
+      "earningsPerShare": -0.7268999999999999,
+      "sharesOutstanding": 662618434,
+      "peRatio": -10.542945231784431
+    },
+    "APD": {
+      "earningsPerShare": -0.21,
+      "sharesOutstanding": 222685530,
+      "peRatio": 92.11355835526514
+    },
+    "AZN": {
+      "earningsPerShare": 7.0665,
+      "sharesOutstanding": 1550885842,
+      "peRatio": 26.533910533910536
+    },
+    "BULL": {
+      "earningsPerShare": 0.08199999999999999,
+      "sharesOutstanding": 455832205,
+      "peRatio": 41.6
+    },
+    "BWA": {
+      "earningsPerShare": 1.9849,
+      "sharesOutstanding": 207057271,
+      "peRatio": 10.372291239335356
+    },
+    "BX": {
+      "earningsPerShare": 4.4872,
+      "sharesOutstanding": 748688068,
+      "peRatio": 20.611156810985456
+    },
+    "CLS": {
+      "earningsPerShare": 9.621400000000001,
+      "sharesOutstanding": 126111808,
+      "peRatio": 22.574739635802768
+    },
+    "CMCSA": {
+      "earningsPerShare": 3.1526,
+      "sharesOutstanding": 3539192198,
+      "peRatio": 7.586538461538462
+    },
+    "ERIE": {
+      "earningsPerShare": 10.371500000000001,
+      "sharesOutstanding": 46189068,
+      "peRatio": 24.448776065276522
+    },
+    "COHR": {
+      "earningsPerShare": 4.1127,
+      "sharesOutstanding": 195832246,
+      "peRatio": 25.79173888701605
+    },
+    "COHU": {
+      "earningsPerShare": -0.828,
+      "sharesOutstanding": 47346050,
+      "peRatio": 1305.1417838415987
+    },
+    "CRWD": {
+      "earningsPerShare": 0.056999999999999995,
+      "sharesOutstanding": 1023934842,
+      "peRatio": 9494.024522737855
+    },
+    "FLEX": {
+      "earningsPerShare": 2.588,
+      "sharesOutstanding": 369460804,
+      "peRatio": 22.163522012578614
+    },
+    "CLX": {
+      "earningsPerShare": 4.8118,
+      "sharesOutstanding": 122694263,
+      "peRatio": 16.797825809769815
+    },
+    "ET": {
+      "earningsPerShare": 1.5306,
+      "sharesOutstanding": 3443299601,
+      "peRatio": 11.254490491462832
+    },
+    "ETN": {
+      "earningsPerShare": 9.831900000000001,
+      "sharesOutstanding": 388500000,
+      "peRatio": 34.58766069089846
+    },
+    "CSGP": {
+      "earningsPerShare": 0.17710000000000004,
+      "sharesOutstanding": 417900000,
+      "peRatio": 53.57371945639438
+    },
+    "CSX": {
+      "earningsPerShare": 1.9264000000000001,
+      "sharesOutstanding": 1843398210,
+      "peRatio": 25.30373714046817
+    },
+    "CTAS": {
+      "earningsPerShare": 5.0889,
+      "sharesOutstanding": 400147000,
+      "peRatio": 43.78473581213307
+    },
+    "CTSH": {
+      "earningsPerShare": 4.6568,
+      "sharesOutstanding": 479000000,
+      "peRatio": 13.726881720430105
+    },
+    "DRI": {
+      "earningsPerShare": 10.24,
+      "sharesOutstanding": 114100000,
+      "peRatio": 20.50373831775701
+    },
+    "DTM": {
+      "earningsPerShare": 3.6776,
+      "sharesOutstanding": 101673925,
+      "peRatio": 26.09860366721789
+    },
+    "AIT": {
+      "earningsPerShare": 10.9564,
+      "sharesOutstanding": 36803000,
+      "peRatio": 27.8675799086758
+    },
+    "DUK": {
+      "earningsPerShare": 6.7418000000000005,
+      "sharesOutstanding": 778000000,
+      "peRatio": 18.758590829627632
+    },
+    "DUOL": {
+      "earningsPerShare": 8.3895,
+      "sharesOutstanding": 40237065,
+      "peRatio": 46.5395820963682
+    },
+    "FANG": {
+      "earningsPerShare": 5.2034,
+      "sharesOutstanding": 284594908,
+      "peRatio": 11.393820099554052
+    },
+    "COR": {
+      "earningsPerShare": 13.4507,
+      "sharesOutstanding": 193937673,
+      "peRatio": 18.80454456967001
+    },
+    "DVA": {
+      "earningsPerShare": 12.2103,
+      "sharesOutstanding": 68549000,
+      "peRatio": 12.400697249062867
+    },
+    "FDS": {
+      "earningsPerShare": 14.5529,
+      "sharesOutstanding": 35257384,
+      "peRatio": 22.051745186876257
+    },
+    "DVN": {
+      "earningsPerShare": 4.2244,
+      "sharesOutstanding": 1100000000,
+      "peRatio": 9.07240818139939
+    },
+    "DXCM": {
+      "earningsPerShare": 2.5122,
+      "sharesOutstanding": 372950922,
+      "peRatio": 32.687579310814876
+    },
+    "KKR": {
+      "earningsPerShare": 3.3066000000000004,
+      "sharesOutstanding": 897635601,
+      "peRatio": 18.28483695750523
+    },
+    "EBAY": {
+      "earningsPerShare": 4.832800000000001,
+      "sharesOutstanding": 449000000,
+      "peRatio": 27.143754808279787
+    },
+    "ECL": {
+      "earningsPerShare": 7.354,
+      "sharesOutstanding": 282000000,
+      "peRatio": 39.71645258089158
+    },
+    "EDIT": {
+      "earningsPerShare": -0.7444999999999999,
+      "sharesOutstanding": 153580035,
+      "peRatio": -3.2382250043280125
+    },
+    "MCK": {
+      "earningsPerShare": 37.3474,
+      "sharesOutstanding": 116590363,
+      "peRatio": 25.341146714140905
+    },
+    "PTC": {
+      "earningsPerShare": 10.286100000000001,
+      "sharesOutstanding": 119536000,
+      "peRatio": 21.955921163240678
+    },
+    "AS": {
+      "earningsPerShare": 0.9564,
+      "sharesOutstanding": 581822024,
+      "peRatio": 24.352685025295163
+    },
+    "EFX": {
+      "earningsPerShare": 6.1924,
+      "sharesOutstanding": 120400000,
+      "peRatio": 28.84313846903657
+    },
+    "ELV": {
+      "earningsPerShare": 23.4591,
+      "sharesOutstanding": 216055891,
+      "peRatio": 18.593812536440502
+    },
+    "FNV": {
+      "earningsPerShare": 7.6487,
+      "sharesOutstanding": 192873810,
+      "peRatio": 27.67654097491133
+    },
+    "ENTG": {
+      "earningsPerShare": 1.9901000000000004,
+      "sharesOutstanding": 152800000,
+      "peRatio": 54.8266550285044
+    },
+    "HOLX": {
+      "earningsPerShare": 2.4095,
+      "sharesOutstanding": null,
+      "peRatio": 31.2042
+    },
+    "EPD": {
+      "earningsPerShare": 2.8861,
+      "sharesOutstanding": 2159477169,
+      "peRatio": 12.461659627213606
+    },
+    "EQIX": {
+      "earningsPerShare": 16.654400000000003,
+      "sharesOutstanding": 98226000,
+      "peRatio": 58.954218190584385
+    },
+    "MPC": {
+      "earningsPerShare": 29.072699999999998,
+      "sharesOutstanding": 272282280,
+      "peRatio": 8.095039790604162
+    },
+    "BBIO": {
+      "earningsPerShare": -3.5685,
+      "sharesOutstanding": 194800782,
+      "peRatio": -26.538739641090704
+    },
+    "EQT": {
+      "earningsPerShare": 4.3114,
+      "sharesOutstanding": 625549428,
+      "peRatio": 14.774806082372336
+    },
+    "ES": {
+      "earningsPerShare": 3.8611,
+      "sharesOutstanding": 375416880,
+      "peRatio": 15.914282809462254
+    },
+    "ARCC": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "EVRG": {
+      "earningsPerShare": 3.9392,
+      "sharesOutstanding": 215800074,
+      "peRatio": 19.951840063995324
+    },
+    "EXC": {
+      "earningsPerShare": 2.7298999999999998,
+      "sharesOutstanding": 1023000000,
+      "peRatio": 17.7734375
+    },
+    "EXE": {
+      "earningsPerShare": 11.584800000000001,
+      "sharesOutstanding": 230957348,
+      "peRatio": 8.285256794131683
+    },
+    "EXEL": {
+      "earningsPerShare": 3.1837999999999997,
+      "sharesOutstanding": 262483000,
+      "peRatio": 21.293744421471846
+    },
+    "EXPD": {
+      "earningsPerShare": 6.8727,
+      "sharesOutstanding": 133884000,
+      "peRatio": 26.00033061944569
+    },
+    "FAST": {
+      "earningsPerShare": 1.2328,
+      "sharesOutstanding": 1148057473,
+      "peRatio": 42.54471544715447
+    },
+    "FCX": {
+      "earningsPerShare": 2.0404999999999998,
+      "sharesOutstanding": 1436017523,
+      "peRatio": 21.61095934886533
+    },
+    "FE": {
+      "earningsPerShare": 1.8738000000000001,
+      "sharesOutstanding": 577851052,
+      "peRatio": 25.101063829787233
+    },
+    "FERG": {
+      "earningsPerShare": 12.4637,
+      "sharesOutstanding": 193452717,
+      "peRatio": 23.817913385826774
+    },
+    "FHN": {
+      "earningsPerShare": 1.4516,
+      "sharesOutstanding": 473777158,
+      "peRatio": 10.912046104446274
+    },
+    "FLUT": {
+      "earningsPerShare": -4.2983,
+      "sharesOutstanding": 173871245,
+      "peRatio": -118.37615174312911
+    },
+    "FN": {
+      "earningsPerShare": 13.043800000000001,
+      "sharesOutstanding": 35717516,
+      "peRatio": 20.803320927569423
+    },
+    "BTDR": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "FTV": {
+      "earningsPerShare": 1.6994,
+      "sharesOutstanding": 313400000,
+      "peRatio": 31.6956684484114
+    },
+    "FUTU": {
+      "earningsPerShare": null,
+      "sharesOutstanding": 95750481,
+      "peRatio": 10.0396
+    },
+    "GEHC": {
+      "earningsPerShare": 4.3488,
+      "sharesOutstanding": 455342290,
+      "peRatio": 18.542528735632185
+    },
+    "GEN": {
+      "earningsPerShare": 1.7212999999999998,
+      "sharesOutstanding": 598000000,
+      "peRatio": 17.374269005847953
+    },
+    "GGG": {
+      "earningsPerShare": 3.1123000000000003,
+      "sharesOutstanding": 165150142,
+      "peRatio": 22.28571667945399
+    },
+    "BKNG": {
+      "earningsPerShare": 9.0415,
+      "sharesOutstanding": 743701257,
+      "peRatio": 14.792867076581855
+    },
+    "DGX": {
+      "earningsPerShare": 10.0609,
+      "sharesOutstanding": 110373360,
+      "peRatio": 23.679439468390544
+    },
+    "DHI": {
+      "earningsPerShare": 10.5125,
+      "sharesOutstanding": 279701267,
+      "peRatio": 13.844613918017158
+    },
+    "GH": {
+      "earningsPerShare": -3.4994,
+      "sharesOutstanding": 130635301,
+      "peRatio": -53.88662684804187
+    },
+    "ICLR": {
+      "earningsPerShare": 0.8993999999999998,
+      "sharesOutstanding": 77154209,
+      "peRatio": 33.54440777831224
+    },
+    "DHR": {
+      "earningsPerShare": 6.1080000000000005,
+      "sharesOutstanding": 703530815,
+      "peRatio": 36.449806868771354
+    },
+    "GKOS": {
+      "earningsPerShare": -3.2601999999999998,
+      "sharesOutstanding": 57511000,
+      "peRatio": -588.1135646687698
+    },
+    "GLPI": {
+      "earningsPerShare": 3.4087,
+      "sharesOutstanding": 283037310,
+      "peRatio": 12.024854025578525
+    },
+    "GLW": {
+      "earningsPerShare": 2.178,
+      "sharesOutstanding": 861401106,
+      "peRatio": 42.4096080927242
+    },
+    "MMC": {
+      "earningsPerShare": 8.3372,
+      "sharesOutstanding": null,
+      "peRatio": 21.688
+    },
+    "GM": {
+      "earningsPerShare": 4.453600000000002,
+      "sharesOutstanding": 904000000,
+      "peRatio": 8.009122820632822
+    },
+    "GME": {
+      "earningsPerShare": 1.508,
+      "sharesOutstanding": 448300000,
+      "peRatio": 15.967105263157894
+    },
+    "NU": {
+      "earningsPerShare": 0.7347,
+      "sharesOutstanding": 3808087961,
+      "peRatio": 13.445156269542377
+    },
+    "NVMI": {
+      "earningsPerShare": 7.9222,
+      "sharesOutstanding": 31806161,
+      "peRatio": 37.83875
+    },
+    "NVO": {
+      "earningsPerShare": 4.09,
+      "sharesOutstanding": 3335813124,
+      "peRatio": 9.779951
+    },
+    "SSNC": {
+      "earningsPerShare": 3.4663000000000004,
+      "sharesOutstanding": 241400000,
+      "peRatio": 23.30835734870317
+    },
+    "DIDIY": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "HES": {
+      "earningsPerShare": 7.220400000000001,
+      "sharesOutstanding": null,
+      "peRatio": 20.688
+    },
+    "EDU": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "GMED": {
+      "earningsPerShare": 3.9109999999999996,
+      "sharesOutstanding": 134261914,
+      "peRatio": 18.67403991664029
+    },
+    "GNRC": {
+      "earningsPerShare": 4.338,
+      "sharesOutstanding": 58988982,
+      "peRatio": 26.670476249219593
+    },
+    "GOLD": {
+      "earningsPerShare": 2.9212000000000002,
+      "sharesOutstanding": 29154756,
+      "peRatio": 11.255092411443826
+    },
+    "GOOGL": {
+      "earningsPerShare": 19.9118,
+      "sharesOutstanding": 12294000000,
+      "peRatio": 13.597866373709358
+    },
+    "GOSS": {
+      "earningsPerShare": -52.8,
+      "sharesOutstanding": 6116391,
+      "peRatio": -0.5763975155279503
+    },
+    "EOSE": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "EQX": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "DRAM": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": 13.513289
+    },
+    "AA": {
+      "earningsPerShare": 5.7505999999999995,
+      "sharesOutstanding": 263969874,
+      "peRatio": 6.0102620392062684
+    },
+    "BKR": {
+      "earningsPerShare": 3.1119000000000003,
+      "sharesOutstanding": 992674071,
+      "peRatio": 18.13186492361707
+    },
+    "DOC": {
+      "earningsPerShare": 0.3506,
+      "sharesOutstanding": 695036731,
+      "peRatio": 42.375084490199136
+    },
+    "FRHC": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "APP": {
+      "earningsPerShare": 13.01,
+      "sharesOutstanding": 305732000,
+      "peRatio": 15.581255858995823
+    },
+    "H": {
+      "earningsPerShare": 0.8061999999999999,
+      "sharesOutstanding": 41600929,
+      "peRatio": 60.92274434886024
+    },
+    "HALO": {
+      "earningsPerShare": 3.3468,
+      "sharesOutstanding": 113498000,
+      "peRatio": 17.61917808219178
+    },
+    "HAS": {
+      "earningsPerShare": 6.7132,
+      "sharesOutstanding": 141044467,
+      "peRatio": 17.156505227011383
+    },
+    "ITW": {
+      "earningsPerShare": 11.215300000000001,
+      "sharesOutstanding": 288600000,
+      "peRatio": 25.96376811594203
+    },
+    "ADSK": {
+      "earningsPerShare": 7.7129,
+      "sharesOutstanding": 209000000,
+      "peRatio": 29.808854500963367
+    },
+    "AMKR": {
+      "earningsPerShare": 2.2269,
+      "sharesOutstanding": 247810189,
+      "peRatio": 14.792137440268192
+    },
+    "AMRZ": {
+      "earningsPerShare": 2.1753,
+      "sharesOutstanding": 553082525,
+      "peRatio": 17.950687575061846
+    },
+    "JBL": {
+      "earningsPerShare": 9.7711,
+      "sharesOutstanding": 102974470,
+      "peRatio": 18.180388666866293
+    },
+    "JHX": {
+      "earningsPerShare": 0.24879999999999997,
+      "sharesOutstanding": 580174308,
+      "peRatio": 26.217588674309457
+    },
+    "GSAT": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "AZO": {
+      "earningsPerShare": 152.78750000000002,
+      "sharesOutstanding": 16173000,
+      "peRatio": 20.97672894133071
+    },
+    "BJ": {
+      "earningsPerShare": 4.577,
+      "sharesOutstanding": 126314692,
+      "peRatio": 23.95185995623632
+    },
+    "BMNR": {
+      "earningsPerShare": -4.5,
+      "sharesOutstanding": 603226394,
+      "peRatio": -4.562222222222222
+    },
+    "COTY": {
+      "earningsPerShare": -0.6875,
+      "sharesOutstanding": 880500000,
+      "peRatio": 24.63441480161434
+    },
+    "BR": {
+      "earningsPerShare": 9.623299999999999,
+      "sharesOutstanding": 113106236,
+      "peRatio": 19.95486915747797
+    },
+    "BSX": {
+      "earningsPerShare": 2.4659999999999997,
+      "sharesOutstanding": 1449473222,
+      "peRatio": 16.327817533823918
+    },
+    "CABA": {
+      "earningsPerShare": -1.5669999999999997,
+      "sharesOutstanding": 169545445,
+      "peRatio": -1.0867344166493835
+    },
+    "CAH": {
+      "earningsPerShare": 7.2448999999999995,
+      "sharesOutstanding": 232575728,
+      "peRatio": 23.0507788773795
+    },
+    "CDW": {
+      "earningsPerShare": 8.3196,
+      "sharesOutstanding": 129400000,
+      "peRatio": 18.001201923076923
+    },
+    "CEG": {
+      "earningsPerShare": 10.2635,
+      "sharesOutstanding": 354307379,
+      "peRatio": 21.730916147044216
+    },
+    "CF": {
+      "earningsPerShare": 13.4856,
+      "sharesOutstanding": 151338130,
+      "peRatio": 7.488037953922637
+    },
+    "KO": {
+      "earningsPerShare": 3.3918,
+      "sharesOutstanding": 4302549243,
+      "peRatio": 28.08919682971339
+    },
+    "LAC": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "EQR": {
+      "earningsPerShare": 2.3,
+      "sharesOutstanding": 374944409,
+      "peRatio": 59.0751
+    },
+    "BMRN": {
+      "earningsPerShare": 0.3617,
+      "sharesOutstanding": 193694734,
+      "peRatio": 18.19681526309371
+    },
+    "BMY": {
+      "earningsPerShare": 4.5405,
+      "sharesOutstanding": 2044085831,
+      "peRatio": 10.806148104642599
+    },
+    "DISH": {
+      "earningsPerShare": 1.8694,
+      "sharesOutstanding": null,
+      "peRatio": 1.4005
+    },
+    "ALM": {
+      "earningsPerShare": 0.18,
+      "sharesOutstanding": 288480750,
+      "peRatio": 48.333332
+    },
+    "ASML": {
+      "earningsPerShare": 40.64,
+      "sharesOutstanding": 385417742,
+      "peRatio": 38.531006
+    },
+    "ASND": {
+      "earningsPerShare": null,
+      "sharesOutstanding": 65803642,
+      "peRatio": 18.5024
+    },
+    "BAP": {
+      "earningsPerShare": 26.55,
+      "sharesOutstanding": 79419317,
+      "peRatio": 13.8197
+    },
+    "BB": {
+      "earningsPerShare": 0.1004,
+      "sharesOutstanding": 587032279,
+      "peRatio": 57.13966776666923
+    },
+    "DELL": {
+      "earningsPerShare": 17.2331,
+      "sharesOutstanding": 640000000,
+      "peRatio": 17.914653607626974
+    },
+    "MAJJ": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "BE": {
+      "earningsPerShare": 1.604,
+      "sharesOutstanding": 295656689,
+      "peRatio": 109.88130806044421
+    },
+    "BEN": {
+      "earningsPerShare": 1.5713,
+      "sharesOutstanding": 508076910,
+      "peRatio": 13.14178384689578
+    },
+    "BN": {
+      "earningsPerShare": 0.5746,
+      "sharesOutstanding": 2232266331,
+      "peRatio": 14.50938879556721
+    },
+    "BNY": {
+      "earningsPerShare": 9.411800000000001,
+      "sharesOutstanding": 688236337,
+      "peRatio": 15.968589439127225
+    },
+    "Q": {
+      "earningsPerShare": 2.7888,
+      "sharesOutstanding": 209208543,
+      "peRatio": 38.18737025560709
+    },
+    "BIIB": {
+      "earningsPerShare": 5.6469000000000005,
+      "sharesOutstanding": 146800000,
+      "peRatio": 44.23028675681996
+    },
+    "NB": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "C": {
+      "earningsPerShare": 11.0502,
+      "sharesOutstanding": 1655200000,
+      "peRatio": 10.764607311581651
+    },
+    "CB": {
+      "earningsPerShare": 28.5738,
+      "sharesOutstanding": 391101227,
+      "peRatio": 13.536802697610675
+    },
+    "CROX": {
+      "earningsPerShare": 11.5911,
+      "sharesOutstanding": 50200000,
+      "peRatio": 11.546282583333591
+    },
+    "CASY": {
+      "earningsPerShare": 20.7701,
+      "sharesOutstanding": 36904285,
+      "peRatio": 31.03468460306233
+    },
+    "CAT": {
+      "earningsPerShare": 23.247700000000002,
+      "sharesOutstanding": 465300000,
+      "peRatio": 23.06613026348823
+    },
+    "IEX": {
+      "earningsPerShare": 6.9557,
+      "sharesOutstanding": 73719896,
+      "peRatio": 34.15251798561151
+    },
+    "INTC": {
+      "earningsPerShare": -2.1202,
+      "sharesOutstanding": 5315000000,
+      "peRatio": -26.22254211846959
+    },
+    "CBRE": {
+      "earningsPerShare": 4.6715,
+      "sharesOutstanding": 295731478,
+      "peRatio": 29.01927194860814
+    },
+    "CDNS": {
+      "earningsPerShare": 5.030200000000001,
+      "sharesOutstanding": 271799000,
+      "peRatio": 67.068587911537
+    },
+    "HIMS": {
+      "earningsPerShare": -0.6349,
+      "sharesOutstanding": 224935790,
+      "peRatio": -43.61098996947231
+    },
+    "CHRW": {
+      "earningsPerShare": 5.2391,
+      "sharesOutstanding": 118429000,
+      "peRatio": 21.503686035553642
+    },
+    "CI": {
+      "earningsPerShare": 24.126099999999997,
+      "sharesOutstanding": 264240486,
+      "peRatio": 11.908093412430956
+    },
+    "SKHY": {
+      "earningsPerShare": 15.68,
+      "sharesOutstanding": 7051733240,
+      "peRatio": 9.257334
+    },
+    "HBI": {
+      "earningsPerShare": 0.9239999999999999,
+      "sharesOutstanding": null,
+      "peRatio": 6.9364
+    },
+    "BILL": {
+      "earningsPerShare": -0.13,
+      "sharesOutstanding": 85276782,
+      "peRatio": 25.099741495837787
+    },
+    "CIEN": {
+      "earningsPerShare": 4.4813,
+      "sharesOutstanding": 141808525,
+      "peRatio": 50.32201697244514
+    },
+    "MDGL": {
+      "earningsPerShare": -12.8703,
+      "sharesOutstanding": 23229561,
+      "peRatio": -65.79907474201772
+    },
+    "MKL": {
+      "earningsPerShare": 182.03339999999997,
+      "sharesOutstanding": 13794142,
+      "peRatio": 10.462852733686068
+    },
+    "MLI": {
+      "earningsPerShare": 3.9143,
+      "sharesOutstanding": 217974381,
+      "peRatio": 13.682266009852217
+    },
+    "NDAQ": {
+      "earningsPerShare": 3.6578999999999997,
+      "sharesOutstanding": 569894024,
+      "peRatio": 29.85819520510378
+    },
+    "SYM": {
+      "earningsPerShare": 0.0902,
+      "sharesOutstanding": 129873381,
+      "peRatio": 183.52213809160457
+    },
+    "V": {
+      "earningsPerShare": 11.752600000000001,
+      "sharesOutstanding": 1704112694,
+      "peRatio": 33.57142840031688
+    },
+    "WAB": {
+      "earningsPerShare": 8.0554,
+      "sharesOutstanding": 170600000,
+      "peRatio": 36.245962732919246
+    },
+    "APA": {
+      "earningsPerShare": 4.7331,
+      "sharesOutstanding": 350351510,
+      "peRatio": 7.5105575453038975
+    },
+    "APG": {
+      "earningsPerShare": -0.61,
+      "sharesOutstanding": 432160297,
+      "peRatio": 49.690093272066385
+    },
+    "AVTR": {
+      "earningsPerShare": -0.8466,
+      "sharesOutstanding": 682000000,
+      "peRatio": 34.161851357599424
+    },
+    "CACI": {
+      "earningsPerShare": 24.3689,
+      "sharesOutstanding": 22099000,
+      "peRatio": 25.624473621655948
+    },
+    "CIFR": {
+      "earningsPerShare": -2.7920000000000003,
+      "sharesOutstanding": 456365113,
+      "peRatio": -6.2616393619605395
+    },
+    "CRL": {
+      "earningsPerShare": -4.852200000000001,
+      "sharesOutstanding": 49217000,
+      "peRatio": 83.88774533714592
+    },
+    "PLD": {
+      "earningsPerShare": 4.4364,
+      "sharesOutstanding": 929153000,
+      "peRatio": 35.26775956284153
+    },
+    "XPO": {
+      "earningsPerShare": 3.4007,
+      "sharesOutstanding": 116508895,
+      "peRatio": 39.94094215072205
+    },
+    "TMC": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "TX": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "ULS": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "UUUU": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "AWK": {
+      "earningsPerShare": 5.7763,
+      "sharesOutstanding": 199104661,
+      "peRatio": 25.96099290780142
+    },
+    "CNH": {
+      "earningsPerShare": 0.24969999999999998,
+      "sharesOutstanding": 1242064719,
+      "peRatio": 28.15245043920703
+    },
+    "CNP": {
+      "earningsPerShare": 1.6975000000000002,
+      "sharesOutstanding": 652869575,
+      "peRatio": 23.295952814329667
+    },
+    "NVR": {
+      "earningsPerShare": 362.8101,
+      "sharesOutstanding": 2799387,
+      "peRatio": 16.65391419725785
+    },
+    "NVT": {
+      "earningsPerShare": 3.6492000000000004,
+      "sharesOutstanding": 161598060,
+      "peRatio": 28.40185616215469
+    },
+    "BALL": {
+      "earningsPerShare": 3.5157000000000003,
+      "sharesOutstanding": 266246511,
+      "peRatio": 16.642303941495758
+    },
+    "BURL": {
+      "earningsPerShare": 11.126199999999999,
+      "sharesOutstanding": 62815195,
+      "peRatio": 20.592274678111586
+    },
+    "COO": {
+      "earningsPerShare": 2.9301000000000004,
+      "sharesOutstanding": 195900000,
+      "peRatio": 18.529490157255452
+    },
+    "DT": {
+      "earningsPerShare": 0.5028999999999999,
+      "sharesOutstanding": 294652951,
+      "peRatio": 59.593351090116094
+    },
+    "ILMN": {
+      "earningsPerShare": 5.38,
+      "sharesOutstanding": 153000000,
+      "peRatio": 46.82323946998004
+    },
+    "MOH": {
+      "earningsPerShare": -0.9738000000000002,
+      "sharesOutstanding": 52200000,
+      "peRatio": 94.80045610034207
+    },
+    "PG": {
+      "earningsPerShare": 6.635100000000001,
+      "sharesOutstanding": 2317783143,
+      "peRatio": 23.636469178808447
+    },
+    "DPZ": {
+      "earningsPerShare": 18.1705,
+      "sharesOutstanding": 33627992,
+      "peRatio": 16.89362480435259
+    },
+    "EQH": {
+      "earningsPerShare": -3.1048999999999998,
+      "sharesOutstanding": 283358187,
+      "peRatio": 15.320888578255376
+    },
+    "GPC": {
+      "earningsPerShare": 0.2496999999999998,
+      "sharesOutstanding": 137617832,
+      "peRatio": 18.365916689352495
+    },
+    "GRAB": {
+      "earningsPerShare": 0.11,
+      "sharesOutstanding": 3973517000,
+      "peRatio": 25.738751670543977
+    },
+    "MDT": {
+      "earningsPerShare": 4.0646,
+      "sharesOutstanding": 1280177293,
+      "peRatio": 20.547492594964616
+    },
+    "MEDP": {
+      "earningsPerShare": 18.0355,
+      "sharesOutstanding": 28370780,
+      "peRatio": 36.372726567538756
+    },
+    "MGM": {
+      "earningsPerShare": 1.634,
+      "sharesOutstanding": 258323143,
+      "peRatio": 13.19143959770787
+    },
+    "MLM": {
+      "earningsPerShare": 15.28,
+      "sharesOutstanding": 60309739,
+      "peRatio": 32.04883573735455
+    },
+    "SGI": {
+      "earningsPerShare": 2.5075,
+      "sharesOutstanding": 210365491,
+      "peRatio": 22.235476933116974
+    },
+    "CRH": {
+      "earningsPerShare": 5.7057,
+      "sharesOutstanding": 665230751,
+      "peRatio": 16.93654743238283
+    },
+    "MO": {
+      "earningsPerShare": 4.8556,
+      "sharesOutstanding": 1674318297,
+      "peRatio": 13.84583186294102
+    },
+    "OLN": {
+      "earningsPerShare": -1.7353999999999998,
+      "sharesOutstanding": 113600000,
+      "peRatio": -10.1014175406246
+    },
+    "P": {
+      "earningsPerShare": 0.7305,
+      "sharesOutstanding": 333227251,
+      "peRatio": 121.35621892600005
+    },
+    "QCOM": {
+      "earningsPerShare": 8.6404,
+      "sharesOutstanding": 1050000000,
+      "peRatio": 12.726880661132155
+    },
+    "SAIL": {
+      "earningsPerShare": -0.3498,
+      "sharesOutstanding": 570911633,
+      "peRatio": -54.25714285714285
+    },
+    "FICO": {
+      "earningsPerShare": 34.6103,
+      "sharesOutstanding": 21597635,
+      "peRatio": 19.471941525790243
+    },
+    "FIG": {
+      "earningsPerShare": -3.647,
+      "sharesOutstanding": 455113611,
+      "peRatio": -19.274621656499296
+    },
+    "FITB": {
+      "earningsPerShare": 3.1900000000000004,
+      "sharesOutstanding": 906892564,
+      "peRatio": 17.57956767237136
+    },
+    "MPWR": {
+      "earningsPerShare": 16.4313,
+      "sharesOutstanding": 48768000,
+      "peRatio": 58.84128516844342
+    },
+    "CRML": {
+      "earningsPerShare": -1.87,
+      "sharesOutstanding": 148104864,
+      "peRatio": -21.551724137931036
+    },
+    "EG": {
+      "earningsPerShare": 47.8516,
+      "sharesOutstanding": 38342734,
+      "peRatio": 8.02956111369819
+    },
+    "MSFT": {
+      "earningsPerShare": 19.1495,
+      "sharesOutstanding": 7426194552,
+      "peRatio": 26.15197783273647
+    },
+    "MTSI": {
+      "earningsPerShare": 3.1235,
+      "sharesOutstanding": 76370931,
+      "peRatio": 57.27150374846357
+    },
+    "REBN": {
+      "earningsPerShare": -0.9123,
+      "sharesOutstanding": 8620122,
+      "peRatio": -1.8875
+    },
+    "FTAI": {
+      "earningsPerShare": 4.7735,
+      "sharesOutstanding": 102261586,
+      "peRatio": 35.22929932058031
+    },
+    "HUM": {
+      "earningsPerShare": 10.559400000000002,
+      "sharesOutstanding": 120080308,
+      "peRatio": 57.60452995175016
+    },
+    "NEE": {
+      "earningsPerShare": 5.5553,
+      "sharesOutstanding": 2083000000,
+      "peRatio": 21.032337874170103
+    },
+    "NEM": {
+      "earningsPerShare": 8.6098,
+      "sharesOutstanding": 1089000000,
+      "peRatio": 10.995692884680688
+    },
+    "CNA": {
+      "earningsPerShare": 4.5451,
+      "sharesOutstanding": 270671747,
+      "peRatio": 11.408212560386474
+    },
+    "HIG": {
+      "earningsPerShare": 16.6025,
+      "sharesOutstanding": 267413397,
+      "peRatio": 9.030789825970547
+    },
+    "HLT": {
+      "earningsPerShare": 7.410699999999999,
+      "sharesOutstanding": 230433192,
+      "peRatio": 43.710249688929544
+    },
+    "HON": {
+      "earningsPerShare": 22.1267,
+      "sharesOutstanding": 635300000,
+      "peRatio": 28.84151097335498
+    },
+    "HUN": {
+      "earningsPerShare": -1.0410000000000001,
+      "sharesOutstanding": 172622337,
+      "peRatio": -30.71786525310878
+    },
+    "NLY": {
+      "earningsPerShare": 1.6473999999999998,
+      "sharesOutstanding": 706972452,
+      "peRatio": 18.37701612903226
+    },
+    "INVH": {
+      "earningsPerShare": 1.093,
+      "sharesOutstanding": 610788732,
+      "peRatio": 24.40366972477064
+    },
+    "LVS": {
+      "earningsPerShare": 2.4299999999999997,
+      "sharesOutstanding": 675000000,
+      "peRatio": 13.835650123674656
+    },
+    "MU": {
+      "earningsPerShare": 74.2111,
+      "sharesOutstanding": 1131423212,
+      "peRatio": 11.665487089609945
+    },
+    "NTRA": {
+      "earningsPerShare": -1.3652,
+      "sharesOutstanding": 139693000,
+      "peRatio": -267.22638227063004
+    },
+    "IONQ": {
+      "earningsPerShare": -3.43,
+      "sharesOutstanding": 381002314,
+      "peRatio": -7.183233532934132
+    },
+    "IONS": {
+      "earningsPerShare": -3.4719,
+      "sharesOutstanding": 166184322,
+      "peRatio": -11.227328684630393
+    },
+    "NVDA": {
+      "earningsPerShare": 7.9108,
+      "sharesOutstanding": 24100000000,
+      "peRatio": 20.822361576507063
+    },
+    "NWSA": {
+      "earningsPerShare": 1.0272000000000001,
+      "sharesOutstanding": 359167429,
+      "peRatio": 28.601941747572816
+    },
+    "NYT": {
+      "earningsPerShare": 2.3908,
+      "sharesOutstanding": 160502862,
+      "peRatio": 27.508196721311478
+    },
+    "PSX": {
+      "earningsPerShare": 17.5091,
+      "sharesOutstanding": 400935020,
+      "peRatio": 9.822108376206183
+    },
+    "RCL": {
+      "earningsPerShare": 16.9114,
+      "sharesOutstanding": 267470925,
+      "peRatio": 17.703801611143746
+    },
+    "BTSG": {
+      "earningsPerShare": 1.13,
+      "sharesOutstanding": 192124125,
+      "peRatio": 41.66713898174437
+    },
+    "COMP": {
+      "earningsPerShare": 0.0566,
+      "sharesOutstanding": 757522197,
+      "peRatio": 155.33333333333334
+    },
+    "O": {
+      "earningsPerShare": 1.3672,
+      "sharesOutstanding": 950997048,
+      "peRatio": 37.81006720986034
+    },
+    "S": {
+      "earningsPerShare": -1.0099,
+      "sharesOutstanding": 342184493,
+      "peRatio": -22.8834538073077
+    },
+    "SAP": {
+      "earningsPerShare": 6.9259,
+      "sharesOutstanding": 1167559048,
+      "peRatio": 28.815804438392096
+    },
+    "GEV": {
+      "earningsPerShare": 38.153800000000004,
+      "sharesOutstanding": 264677066,
+      "peRatio": 30.116855169250528
+    },
+    "IQV": {
+      "earningsPerShare": 8.2333,
+      "sharesOutstanding": 169600000,
+      "peRatio": 32.61987577639751
+    },
+    "IR": {
+      "earningsPerShare": 2.4279,
+      "sharesOutstanding": 391121689,
+      "peRatio": 33.357001972386584
+    },
+    "AON": {
+      "earningsPerShare": 18.1361,
+      "sharesOutstanding": 269800000,
+      "peRatio": 22.920904689829815
+    },
+    "CBOE": {
+      "earningsPerShare": 12.8898,
+      "sharesOutstanding": 104330235,
+      "peRatio": 24.164391984227308
+    },
+    "IRM": {
+      "earningsPerShare": 1.4012,
+      "sharesOutstanding": 297702812,
+      "peRatio": 63.165849193361986
+    },
+    "ISRG": {
+      "earningsPerShare": 8.2657,
+      "sharesOutstanding": 346643718,
+      "peRatio": 46.20004983211275
+    },
+    "JPM": {
+      "earningsPerShare": 23.84,
+      "sharesOutstanding": 2655609509,
+      "peRatio": 13.6875109420509
+    },
+    "LRCX": {
+      "earningsPerShare": 6.7207,
+      "sharesOutstanding": 1249171000,
+      "peRatio": 24.53542786257736
+    },
+    "MAR": {
+      "earningsPerShare": 9.6482,
+      "sharesOutstanding": 257504397,
+      "peRatio": 37.248309119278495
+    },
+    "OKTA": {
+      "earningsPerShare": 1.6581000000000001,
+      "sharesOutstanding": 167139757,
+      "peRatio": 99.70453438013983
+    },
+    "PFGC": {
+      "earningsPerShare": 2.2855,
+      "sharesOutstanding": 156100000,
+      "peRatio": 42.14410480349345
+    },
+    "KLAC": {
+      "earningsPerShare": 3.6663,
+      "sharesOutstanding": 1302962435,
+      "peRatio": 28.862593911988302
+    },
+    "LSCC": {
+      "earningsPerShare": 0.2588,
+      "sharesOutstanding": 142225691,
+      "peRatio": 134.64401074406325
+    },
+    "LUNR": {
+      "earningsPerShare": -0.9317,
+      "sharesOutstanding": 160452309,
+      "peRatio": -14.488485939394442
+    },
+    "LYFT": {
+      "earningsPerShare": 6.999600000000001,
+      "sharesOutstanding": 378540249,
+      "peRatio": 29.533435498587114
+    },
+    "PH": {
+      "earningsPerShare": 28.4885,
+      "sharesOutstanding": 126047469,
+      "peRatio": 29.862208308708603
+    },
+    "AVB": {
+      "earningsPerShare": 8.08,
+      "sharesOutstanding": 141872069,
+      "peRatio": 23.44802
+    },
+    "CHTR": {
+      "earningsPerShare": 38.5258,
+      "sharesOutstanding": 119277492,
+      "peRatio": 3.10816716744059
+    },
+    "CPAY": {
+      "earningsPerShare": 16.5383,
+      "sharesOutstanding": 68362289,
+      "peRatio": 20.3837088553824
+    },
+    "PINS": {
+      "earningsPerShare": 0.21049999999999996,
+      "sharesOutstanding": 500526454,
+      "peRatio": 63.089527634204686
+    },
+    "PKG": {
+      "earningsPerShare": 8.1637,
+      "sharesOutstanding": 89098299,
+      "peRatio": 31.436498150431568
+    },
+    "MCO": {
+      "earningsPerShare": 16.4028,
+      "sharesOutstanding": 172400000,
+      "peRatio": 31.181801996021626
+    },
+    "MDB": {
+      "earningsPerShare": 0.7201,
+      "sharesOutstanding": 80556341,
+      "peRatio": 484.23916103908476
+    },
+    "ROST": {
+      "earningsPerShare": 8.2745,
+      "sharesOutstanding": 319453110,
+      "peRatio": 32.30125523012552
+    },
+    "RPD": {
+      "earningsPerShare": 0.3043,
+      "sharesOutstanding": 67400640,
+      "peRatio": 30.883788300371894
+    },
+    "RPM": {
+      "earningsPerShare": 5.4211,
+      "sharesOutstanding": 127643000,
+      "peRatio": 17.794682303690955
+    },
+    "RRX": {
+      "earningsPerShare": 4.8514,
+      "sharesOutstanding": 66400000,
+      "peRatio": 37.022633744855966
+    },
+    "RXRX": {
+      "earningsPerShare": -1.0382,
+      "sharesOutstanding": 622759259,
+      "peRatio": -3.7956574790439483
+    },
+    "SAIA": {
+      "earningsPerShare": 10.3686,
+      "sharesOutstanding": 26645402,
+      "peRatio": 31.140169469602274
+    },
+    "CRSP": {
+      "earningsPerShare": -4.7602,
+      "sharesOutstanding": 97000813,
+      "peRatio": -11.612078977932638
+    },
+    "D": {
+      "earningsPerShare": 2.9261,
+      "sharesOutstanding": 879000000,
+      "peRatio": 19.48980375069278
+    },
+    "FOXA": {
+      "earningsPerShare": 3.8384,
+      "sharesOutstanding": 201424858,
+      "peRatio": 11.518518378645798
+    },
+    "META": {
+      "earningsPerShare": 29.3369,
+      "sharesOutstanding": 2196045588,
+      "peRatio": 21.0789776884199
+    },
+    "MMM": {
+      "earningsPerShare": 6.7095,
+      "sharesOutstanding": 530279131,
+      "peRatio": 23.46088386246317
+    },
+    "MNDY": {
+      "earningsPerShare": 2.3486000000000002,
+      "sharesOutstanding": 42274119,
+      "peRatio": 64.48128017285035
+    },
+    "MSCI": {
+      "earningsPerShare": 18.889699999999998,
+      "sharesOutstanding": 73563183,
+      "peRatio": 34.96065573770492
+    },
+    "MSI": {
+      "earningsPerShare": 12.6892,
+      "sharesOutstanding": 165700000,
+      "peRatio": 38.661417322834644
+    },
+    "PVH": {
+      "earningsPerShare": -3.6891,
+      "sharesOutstanding": 46137833,
+      "peRatio": 10.061691088633005
+    },
+    "PWR": {
+      "earningsPerShare": 8.730599999999999,
+      "sharesOutstanding": 149577564,
+      "peRatio": 75.25773195876289
+    },
+    "QSI": {
+      "earningsPerShare": -0.4606,
+      "sharesOutstanding": 198946412,
+      "peRatio": -2.888888888888889
+    },
+    "QUBT": {
+      "earningsPerShare": -0.06310000000000002,
+      "sharesOutstanding": 226346861,
+      "peRatio": -41.483870967741936
+    },
+    "DAL": {
+      "earningsPerShare": 4.9998000000000005,
+      "sharesOutstanding": 657912380,
+      "peRatio": 15.387540415851607
+    },
+    "DDD": {
+      "earningsPerShare": -0.4153,
+      "sharesOutstanding": 166147027,
+      "peRatio": -10.92
+    },
+    "ESTC": {
+      "earningsPerShare": 3.3298,
+      "sharesOutstanding": 104991280,
+      "peRatio": 296.7961630066072
+    },
+    "ETR": {
+      "earningsPerShare": 3.9552000000000005,
+      "sharesOutstanding": 477777482,
+      "peRatio": 27.85677749360614
+    },
+    "EVR": {
+      "earningsPerShare": 17.6843,
+      "sharesOutstanding": 38457778,
+      "peRatio": 16.734234234234233
+    },
+    "GDDY": {
+      "earningsPerShare": 6.740600000000001,
+      "sharesOutstanding": 121274701,
+      "peRatio": 15.24314871186324
+    },
+    "GE": {
+      "earningsPerShare": 8.6656,
+      "sharesOutstanding": 1048766702,
+      "peRatio": 37.86594626075109
+    },
+    "SAM": {
+      "earningsPerShare": -6.780399999999998,
+      "sharesOutstanding": 8082058,
+      "peRatio": -34.36363636363637
+    },
+    "SBAC": {
+      "earningsPerShare": 9.2866,
+      "sharesOutstanding": 106088110,
+      "peRatio": 23.980622296434458
+    },
+    "SBUX": {
+      "earningsPerShare": 1.7344000000000002,
+      "sharesOutstanding": 1140000000,
+      "peRatio": 46.42784341182831
+    },
+    "SLB": {
+      "earningsPerShare": 2.0564,
+      "sharesOutstanding": 1476029613,
+      "peRatio": 21.797852411855224
+    },
+    "FNF": {
+      "earningsPerShare": 2.8762,
+      "sharesOutstanding": 268192827,
+      "peRatio": 9.471395881006865
+    },
+    "FORM": {
+      "earningsPerShare": 1.4537,
+      "sharesOutstanding": 78403115,
+      "peRatio": 39.784500280945416
+    },
+    "FSLY": {
+      "earningsPerShare": -0.5346,
+      "sharesOutstanding": 159300000,
+      "peRatio": -44.829787234042556
+    },
+    "HOOD": {
+      "earningsPerShare": 2.1694,
+      "sharesOutstanding": 793425151,
+      "peRatio": 39.01721074303014
+    },
+    "HPQ": {
+      "earningsPerShare": 2.6239,
+      "sharesOutstanding": 901790969,
+      "peRatio": 10.790084572583643
+    },
+    "LULU": {
+      "earningsPerShare": 12.2004,
+      "sharesOutstanding": 111380000,
+      "peRatio": 11.215082634553465
+    },
+    "MTB": {
+      "earningsPerShare": 20.2753,
+      "sharesOutstanding": 143708000,
+      "peRatio": 11.42191265680313
+    },
+    "MTCH": {
+      "earningsPerShare": 2.7947,
+      "sharesOutstanding": 227529464,
+      "peRatio": 13.832679903882635
+    },
+    "MTD": {
+      "earningsPerShare": 44.430099999999996,
+      "sharesOutstanding": 20359353,
+      "peRatio": 36.35352581393852
+    },
+    "MTRN": {
+      "earningsPerShare": 4.2917,
+      "sharesOutstanding": 20833725,
+      "peRatio": 34.5113808801214
+    },
+    "SG": {
+      "earningsPerShare": 0.10000000000000003,
+      "sharesOutstanding": 92754432,
+      "peRatio": 40.2327221438646
+    },
+    "SHAK": {
+      "earningsPerShare": 0.9486,
+      "sharesOutstanding": 40350732,
+      "peRatio": 63.528005217013266
+    },
+    "SQ": {
+      "earningsPerShare": 1.7770000000000001,
+      "sharesOutstanding": null,
+      "peRatio": 47.7364
+    },
+    "DINO": {
+      "earningsPerShare": 10.5664,
+      "sharesOutstanding": 171371164,
+      "peRatio": 4.924811260822496
+    },
+    "DKNG": {
+      "earningsPerShare": -0.3376,
+      "sharesOutstanding": 496454048,
+      "peRatio": -117.00742701041489
+    },
+    "JBS": {
+      "earningsPerShare": 1.0017,
+      "sharesOutstanding": 776405057,
+      "peRatio": 17.14646312034709
+    },
+    "NOV": {
+      "earningsPerShare": 0.2599,
+      "sharesOutstanding": 360803354,
+      "peRatio": 20.18960099058983
+    },
+    "NRG": {
+      "earningsPerShare": 4.1093,
+      "sharesOutstanding": 210210483,
+      "peRatio": 11.642965663895184
+    },
+    "NTAP": {
+      "earningsPerShare": 7.0851,
+      "sharesOutstanding": 196419005,
+      "peRatio": 24.45444088185703
+    },
+    "SHLS": {
+      "earningsPerShare": 0.18770000000000003,
+      "sharesOutstanding": 168299950,
+      "peRatio": 44.578947368421055
+    },
+    "SHOP": {
+      "earningsPerShare": 1.4829,
+      "sharesOutstanding": 1219581025,
+      "peRatio": 88.21074553764501
+    },
+    "SMCI": {
+      "earningsPerShare": 3.2003999999999997,
+      "sharesOutstanding": 656965384,
+      "peRatio": 7.796336541446756
+    },
+    "SMMT": {
+      "earningsPerShare": -1.1192,
+      "sharesOutstanding": 797749602,
+      "peRatio": -13.619668180058909
+    },
+    "DKS": {
+      "earningsPerShare": 9.3121,
+      "sharesOutstanding": 74955923,
+      "peRatio": 11.523950869029308
+    },
+    "DNA": {
+      "earningsPerShare": -5.0049,
+      "sharesOutstanding": 58207298,
+      "peRatio": -2.14989310475734
+    },
+    "IDXX": {
+      "earningsPerShare": 14.2281,
+      "sharesOutstanding": 79712000,
+      "peRatio": 47.22698524244554
+    },
+    "NFLX": {
+      "earningsPerShare": 3.4608,
+      "sharesOutstanding": 4106325903,
+      "peRatio": 17.631398679785775
+    },
+    "NTLA": {
+      "earningsPerShare": -3.3565,
+      "sharesOutstanding": 140126693,
+      "peRatio": -3.689536400107513
+    },
+    "NTNX": {
+      "earningsPerShare": 5.1499,
+      "sharesOutstanding": 226938000,
+      "peRatio": 52.19252165408656
+    },
+    "SN": {
+      "earningsPerShare": 4.8941,
+      "sharesOutstanding": 141158026,
+      "peRatio": 33.67939246271861
+    },
+    "SNA": {
+      "earningsPerShare": 19.235,
+      "sharesOutstanding": 51727124,
+      "peRatio": 18.79100411041537
+    },
+    "SOFI": {
+      "earningsPerShare": 0.5431,
+      "sharesOutstanding": 1291570324,
+      "peRatio": 28.3573533813227
+    },
+    "SPG": {
+      "earningsPerShare": 14.1792,
+      "sharesOutstanding": 323551515,
+      "peRatio": 33.403580927650296
+    },
+    "SRE": {
+      "earningsPerShare": 3.4797000000000002,
+      "sharesOutstanding": 652731668,
+      "peRatio": 24.742028985507243
+    },
+    "STE": {
+      "earningsPerShare": 8.1873,
+      "sharesOutstanding": 97800000,
+      "peRatio": 28.28239608801956
+    },
+    "AAPL": {
+      "earningsPerShare": 7.49,
+      "sharesOutstanding": 14532182000,
+      "peRatio": 37.56702414385895
+    },
+    "ACN": {
+      "earningsPerShare": 13.5496,
+      "sharesOutstanding": 611942109,
+      "peRatio": 17.301820041904715
+    },
+    "GWW": {
+      "earningsPerShare": 39.3779,
+      "sharesOutstanding": 47213119,
+      "peRatio": 35.6536597806682
+    },
+    "IT": {
+      "earningsPerShare": 11.143600000000001,
+      "sharesOutstanding": 63148976,
+      "peRatio": 14.854356820969794
+    },
+    "ITT": {
+      "earningsPerShare": 5.0945,
+      "sharesOutstanding": 89400000,
+      "peRatio": 44.19879740310786
+    },
+    "NVTS": {
+      "earningsPerShare": -1.3287,
+      "sharesOutstanding": 262555476,
+      "peRatio": -6.793650793650794
+    },
+    "TDG": {
+      "earningsPerShare": 36.7097,
+      "sharesOutstanding": 55276525,
+      "peRatio": 33.59368410707899
+    },
+    "TDY": {
+      "earningsPerShare": 21.843799999999998,
+      "sharesOutstanding": 46185578,
+      "peRatio": 30.38598901098901
+    },
+    "TEAM": {
+      "earningsPerShare": -0.18700000000000003,
+      "sharesOutstanding": 159005198,
+      "peRatio": 572.6489321843387
+    },
+    "TECH": {
+      "earningsPerShare": 1.158,
+      "sharesOutstanding": 156095113,
+      "peRatio": 62.63793103448276
+    },
+    "TEL": {
+      "earningsPerShare": 10.2164,
+      "sharesOutstanding": 289940672,
+      "peRatio": 21.524975514201763
+    },
+    "AES": {
+      "earningsPerShare": 2.6252,
+      "sharesOutstanding": 713564658,
+      "peRatio": 5.588014981273409
+    },
+    "BBY": {
+      "earningsPerShare": 6.0198,
+      "sharesOutstanding": 209100000,
+      "peRatio": 13.88292172868775
+    },
+    "HCA": {
+      "earningsPerShare": 29.8688,
+      "sharesOutstanding": 224605100,
+      "peRatio": 15.352300740579519
+    },
+    "HD": {
+      "earningsPerShare": 14.282599999999999,
+      "sharesOutstanding": 997689626,
+      "peRatio": 22.868527283566312
+    },
+    "JKHY": {
+      "earningsPerShare": 6.9733,
+      "sharesOutstanding": 70111999,
+      "peRatio": 21.92937834024205
+    },
+    "NXPI": {
+      "earningsPerShare": 12.718100000000002,
+      "sharesOutstanding": 252052988,
+      "peRatio": 18.107728270105927
+    },
+    "ODFL": {
+      "earningsPerShare": 5.1962,
+      "sharesOutstanding": 207356622,
+      "peRatio": 30.389314345370934
+    },
+    "TENB": {
+      "earningsPerShare": 0.0577,
+      "sharesOutstanding": 104507623,
+      "peRatio": 440.15386199215715
+    },
+    "TGT": {
+      "earningsPerShare": 9.6335,
+      "sharesOutstanding": 454296736,
+      "peRatio": 15.235683391447335
+    },
+    "TKO": {
+      "earningsPerShare": 2.86,
+      "sharesOutstanding": 73111098,
+      "peRatio": 40.39716978119062
+    },
+    "TMUS": {
+      "earningsPerShare": 9.562100000000001,
+      "sharesOutstanding": 1059272571,
+      "peRatio": 14.145461071399811
+    },
+    "ACGL": {
+      "earningsPerShare": 12.9104,
+      "sharesOutstanding": 359000000,
+      "peRatio": 9.679586731306204
+    },
+    "CLH": {
+      "earningsPerShare": 8.2492,
+      "sharesOutstanding": 52870599,
+      "peRatio": 29.92089399137175
+    },
+    "CLNE": {
+      "earningsPerShare": -0.4286,
+      "sharesOutstanding": 220445015,
+      "peRatio": -3.63975734951003
+    },
+    "HII": {
+      "earningsPerShare": 16.7831,
+      "sharesOutstanding": 39241527,
+      "peRatio": 18.887365911799762
+    },
+    "JLL": {
+      "earningsPerShare": 20.869600000000002,
+      "sharesOutstanding": 46945754,
+      "peRatio": 17.960671462829737
+    },
+    "JOBY": {
+      "earningsPerShare": -0.9803999999999999,
+      "sharesOutstanding": 989124237,
+      "peRatio": -5.444965988609355
+    },
+    "KDP": {
+      "earningsPerShare": 1.0468000000000002,
+      "sharesOutstanding": 1358663795,
+      "peRatio": 22.299435068140372
+    },
+    "KEYS": {
+      "earningsPerShare": 7.2832,
+      "sharesOutstanding": 170244745,
+      "peRatio": 32.179677159084314
+    },
+    "KGC": {
+      "earningsPerShare": 2.6341,
+      "sharesOutstanding": 1186240789,
+      "peRatio": 7.664090563170295
+    },
+    "KHC": {
+      "earningsPerShare": -2.87,
+      "sharesOutstanding": 1185823758,
+      "peRatio": -8.128175897439128
+    },
+    "KIM": {
+      "earningsPerShare": 0.9015,
+      "sharesOutstanding": 674093047,
+      "peRatio": 28.463678910566642
+    },
+    "AER": {
+      "earningsPerShare": 20.3091,
+      "sharesOutstanding": 157184065,
+      "peRatio": 8.2640885383539
+    },
+    "AFG": {
+      "earningsPerShare": 11.4526,
+      "sharesOutstanding": 83422202,
+      "peRatio": 12.463343108504398
+    },
+    "AIG": {
+      "earningsPerShare": 5.459,
+      "sharesOutstanding": 522893169,
+      "peRatio": 11.290916427589375
+    },
+    "ALL": {
+      "earningsPerShare": 50.5029,
+      "sharesOutstanding": 252857950,
+      "peRatio": 5.2320928371348545
+    },
+    "ALLY": {
+      "earningsPerShare": 4.6454,
+      "sharesOutstanding": 308492929,
+      "peRatio": 7.925258459147508
+    },
+    "IOND": {
+      "earningsPerShare": -6.68,
+      "sharesOutstanding": 44996175,
+      "peRatio": -566.3333333333333
+    },
+    "KOPN": {
+      "earningsPerShare": 0.0421,
+      "sharesOutstanding": 185872614,
+      "peRatio": -180
+    },
+    "OHI": {
+      "earningsPerShare": 2.7359000000000004,
+      "sharesOutstanding": 295539000,
+      "peRatio": 18.61117484950126
+    },
+    "AMAT": {
+      "earningsPerShare": 11.5943,
+      "sharesOutstanding": 793597443,
+      "peRatio": 29.038028625632663
+    },
+    "BK": {
+      "earningsPerShare": 8.06,
+      "sharesOutstanding": 686379000,
+      "peRatio": 17.01737
+    },
+    "AMP": {
+      "earningsPerShare": 41.4774,
+      "sharesOutstanding": 88400000,
+      "peRatio": 10.991581843373268
+    },
+    "ARES": {
+      "earningsPerShare": 2.17,
+      "sharesOutstanding": 223957742,
+      "peRatio": 23.694866430826814
+    },
+    "ADYEN": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "COIN": {
+      "earningsPerShare": -3.8560999999999996,
+      "sharesOutstanding": 264756000,
+      "peRatio": -51.77103569834482
+    },
+    "CPNG": {
+      "earningsPerShare": -0.4259,
+      "sharesOutstanding": 1639708712,
+      "peRatio": -28.063593614104402
+    },
+    "CPT": {
+      "earningsPerShare": 3.0379000000000005,
+      "sharesOutstanding": 104300000,
+      "peRatio": 104.82280697735919
+    },
+    "KR": {
+      "earningsPerShare": 1.8653,
+      "sharesOutstanding": 612647282,
+      "peRatio": 12.946753593300633
+    },
+    "MP": {
+      "earningsPerShare": -0.3443,
+      "sharesOutstanding": 178101588,
+      "peRatio": -109.875108916642
+    },
+    "NET": {
+      "earningsPerShare": -0.5828,
+      "sharesOutstanding": 322618775,
+      "peRatio": -469.492107069321
+    },
+    "ORLY": {
+      "earningsPerShare": 3.1445,
+      "sharesOutstanding": 841909238,
+      "peRatio": 28.568253968253966
+    },
+    "BAC": {
+      "earningsPerShare": 4.19,
+      "sharesOutstanding": 6900209006,
+      "peRatio": 11.382214819478667
+    },
+    "BAM": {
+      "earningsPerShare": 1.7291,
+      "sharesOutstanding": 1596765155,
+      "peRatio": 25.358212751174467
+    },
+    "BNTX": {
+      "earningsPerShare": null,
+      "sharesOutstanding": 251204366,
+      "peRatio": -13.172590948011305
+    },
+    "CL": {
+      "earningsPerShare": 2.5279,
+      "sharesOutstanding": 801239524,
+      "peRatio": 26.046085936829662
+    },
+    "CR": {
+      "earningsPerShare": 5.7307,
+      "sharesOutstanding": 57607816,
+      "peRatio": 33.003089549021645
+    },
+    "CRDO": {
+      "earningsPerShare": 2.8021,
+      "sharesOutstanding": 187951918,
+      "peRatio": 34.18471571029048
+    },
+    "KVUE": {
+      "earningsPerShare": 0.8624999999999999,
+      "sharesOutstanding": 1916115445,
+      "peRatio": 22.453488372093023
+    },
+    "LAMR": {
+      "earningsPerShare": 5.482100000000001,
+      "sharesOutstanding": 87129599,
+      "peRatio": 28.25045045045045
+    },
+    "OVV": {
+      "earningsPerShare": 3.5314999999999994,
+      "sharesOutstanding": 253300000,
+      "peRatio": 18.067478755821682
+    },
+    "PATH": {
+      "earningsPerShare": 0.6722,
+      "sharesOutstanding": 456464703,
+      "peRatio": 34.887830178903094
+    },
+    "AVY": {
+      "earningsPerShare": 9.1366,
+      "sharesOutstanding": 76877487,
+      "peRatio": 19.236356693397088
+    },
+    "BSY": {
+      "earningsPerShare": 0.891,
+      "sharesOutstanding": 290577762,
+      "peRatio": 46.2967032967033
+    },
+    "CW": {
+      "earningsPerShare": 14.532,
+      "sharesOutstanding": 36859333,
+      "peRatio": 34.28099173553719
+    },
+    "HST": {
+      "earningsPerShare": 1.4900000000000002,
+      "sharesOutstanding": 687800000,
+      "peRatio": 18.531022258654847
+    },
+    "HUBB": {
+      "earningsPerShare": 16.9371,
+      "sharesOutstanding": 53253805,
+      "peRatio": 26.599763173475427
+    },
+    "LDOS": {
+      "earningsPerShare": 10.7105,
+      "sharesOutstanding": 126380657,
+      "peRatio": 12.325899641083197
+    },
+    "LEN": {
+      "earningsPerShare": 5.3408,
+      "sharesOutstanding": 207876222,
+      "peRatio": 17.848379786321164
+    },
+    "PAYC": {
+      "earningsPerShare": 9.4003,
+      "sharesOutstanding": 45071619,
+      "peRatio": 28.492957746478872
+    },
+    "PAYX": {
+      "earningsPerShare": 5.0349,
+      "sharesOutstanding": 355600000,
+      "peRatio": 22.946428571428573
+    },
+    "PRU": {
+      "earningsPerShare": 11.1726,
+      "sharesOutstanding": 345000000,
+      "peRatio": 10.761775362318842
+    },
+    "PSA": {
+      "earningsPerShare": 10.6894,
+      "sharesOutstanding": 186843449,
+      "peRatio": 31.98017208227573
+    },
+    "PEAK": {
+      "earningsPerShare": 0.5591,
+      "sharesOutstanding": null,
+      "peRatio": 39.8541
+    },
+    "CCEP": {
+      "earningsPerShare": null,
+      "sharesOutstanding": 439066064,
+      "peRatio": 22.2148
+    },
+    "CG": {
+      "earningsPerShare": 0.9656,
+      "sharesOutstanding": 356332798,
+      "peRatio": 11.537060904116304
+    },
+    "CLSK": {
+      "earningsPerShare": -3.6548999999999996,
+      "sharesOutstanding": 256817073,
+      "peRatio": -2.1526472542786177
+    },
+    "LEU": {
+      "earningsPerShare": 2.182,
+      "sharesOutstanding": 19733908,
+      "peRatio": 37.738394467402266
+    },
+    "LH": {
+      "earningsPerShare": 12.0928,
+      "sharesOutstanding": 82200000,
+      "peRatio": 29.201320132013205
+    },
+    "LII": {
+      "earningsPerShare": 22.6797,
+      "sharesOutstanding": 34560675,
+      "peRatio": 16.463083949136962
+    },
+    "LIN": {
+      "earningsPerShare": 15.0584,
+      "sharesOutstanding": 459083779,
+      "peRatio": 30.970966905655615
+    },
+    "LLY": {
+      "earningsPerShare": 29.7962,
+      "sharesOutstanding": 940745031,
+      "peRatio": 38.92821324588954
+    },
+    "LNG": {
+      "earningsPerShare": 13.490199999999998,
+      "sharesOutstanding": 253600000,
+      "peRatio": 25.86048634535239
+    },
+    "PYPL": {
+      "earningsPerShare": 5.2539,
+      "sharesOutstanding": 830658298,
+      "peRatio": 11.604297636977462
+    },
+    "BP": {
+      "earningsPerShare": 0.5717,
+      "sharesOutstanding": 2575591468,
+      "peRatio": 7.292621534242529
+    },
+    "BRO": {
+      "earningsPerShare": 3.5866,
+      "sharesOutstanding": 336000000,
+      "peRatio": 20.848019349972162
+    },
+    "EGP": {
+      "earningsPerShare": 5.895999999999999,
+      "sharesOutstanding": 53348800,
+      "peRatio": 33.18872319391484
+    },
+    "EHC": {
+      "earningsPerShare": 6.1428,
+      "sharesOutstanding": 98653384,
+      "peRatio": 20.745435088520164
+    },
+    "EIX": {
+      "earningsPerShare": 10.2049,
+      "sharesOutstanding": 384787221,
+      "peRatio": 9.89249338619949
+    },
+    "EL": {
+      "earningsPerShare": 0.4976999999999999,
+      "sharesOutstanding": 247815431,
+      "peRatio": 35.54199091131364
+    },
+    "ELAN": {
+      "earningsPerShare": -0.4217,
+      "sharesOutstanding": 499621830,
+      "peRatio": 191.31044148563421
+    },
+    "LNT": {
+      "earningsPerShare": 3.1560000000000006,
+      "sharesOutstanding": 257137261,
+      "peRatio": 20.980522325405225
+    },
+    "CRCL": {
+      "earningsPerShare": 1.7523,
+      "sharesOutstanding": 234685190,
+      "peRatio": 67.40976930839119
+    },
+    "DG": {
+      "earningsPerShare": 7.6945,
+      "sharesOutstanding": 220222000,
+      "peRatio": 18.46110325318246
+    },
+    "EME": {
+      "earningsPerShare": 32.152100000000004,
+      "sharesOutstanding": 44520367,
+      "peRatio": 20.907564378248438
+    },
+    "ENSG": {
+      "earningsPerShare": 6.3802,
+      "sharesOutstanding": 58085000,
+      "peRatio": 25.464968722572856
+    },
+    "HUBS": {
+      "earningsPerShare": 2.7715,
+      "sharesOutstanding": 49866201,
+      "peRatio": 61.27911516610008
+    },
+    "HYLN": {
+      "earningsPerShare": -0.29479999999999995,
+      "sharesOutstanding": 178597218,
+      "peRatio": -10.27172796551308
+    },
+    "IBM": {
+      "earningsPerShare": 11.7212,
+      "sharesOutstanding": 945120805,
+      "peRatio": 24.917839095973942
+    },
+    "IFF": {
+      "earningsPerShare": 1.1289,
+      "sharesOutstanding": 255700000,
+      "peRatio": 60.66820585858214
+    },
+    "LOW": {
+      "earningsPerShare": 11.8624,
+      "sharesOutstanding": 561000000,
+      "peRatio": 17.817107863725596
+    },
+    "QBTS": {
+      "earningsPerShare": -0.7084,
+      "sharesOutstanding": 369263837,
+      "peRatio": -26.00626959247649
+    },
+    "R": {
+      "earningsPerShare": 13.1771,
+      "sharesOutstanding": 39417224,
+      "peRatio": 20.00354987575435
+    },
+    "CHKP": {
+      "earningsPerShare": 9.7617,
+      "sharesOutstanding": 102100634,
+      "peRatio": 18.461920148691902
+    },
+    "ESS": {
+      "earningsPerShare": 6.4252,
+      "sharesOutstanding": 64442290,
+      "peRatio": 46.53171824298058
+    },
+    "GL": {
+      "earningsPerShare": 14.952,
+      "sharesOutstanding": 92218183,
+      "peRatio": 10.511627906976743
+    },
+    "INCY": {
+      "earningsPerShare": 7.847799999999999,
+      "sharesOutstanding": 203832492,
+      "peRatio": 65.4172540441426
+    },
+    "INGM": {
+      "earningsPerShare": 1.8351000000000002,
+      "sharesOutstanding": 235073327,
+      "peRatio": 14.486338797814208
+    },
+    "MAA": {
+      "earningsPerShare": 3.4548,
+      "sharesOutstanding": 116878077,
+      "peRatio": 31.80538810488243
+    },
+    "MANH": {
+      "earningsPerShare": 3.4929,
+      "sharesOutstanding": 59845291,
+      "peRatio": 70.27173076292779
+    },
+    "MCD": {
+      "earningsPerShare": 12.3123,
+      "sharesOutstanding": 707641531,
+      "peRatio": 20.553171290101403
+    },
+    "RBC": {
+      "earningsPerShare": 10.119,
+      "sharesOutstanding": 32720037,
+      "peRatio": 49.01581027667985
+    },
+    "RBLX": {
+      "earningsPerShare": -1.4162,
+      "sharesOutstanding": 715696000,
+      "peRatio": -32.15377214330183
+    },
+    "RBRK": {
+      "earningsPerShare": -1.2599,
+      "sharesOutstanding": 160956763,
+      "peRatio": -91.51331973973176
+    },
+    "EXR": {
+      "earningsPerShare": 4.3972999999999995,
+      "sharesOutstanding": 211155322,
+      "peRatio": 33.48800879352284
+    },
+    "INTU": {
+      "earningsPerShare": 16.4982,
+      "sharesOutstanding": 267236000,
+      "peRatio": 17.057998084191652
+    },
+    "J": {
+      "earningsPerShare": 2.8307,
+      "sharesOutstanding": 119081294,
+      "peRatio": 53.10631229235881
+    },
+    "JAZZ": {
+      "earningsPerShare": 14.6253,
+      "sharesOutstanding": 61435000,
+      "peRatio": 85.00838280191685
+    },
+    "JBHT": {
+      "earningsPerShare": 7.1116,
+      "sharesOutstanding": 94594725,
+      "peRatio": 29.598803398802765
+    },
+    "JEF": {
+      "earningsPerShare": 3.9640999999999997,
+      "sharesOutstanding": 210626642,
+      "peRatio": 13.160633444920473
+    },
+    "L": {
+      "earningsPerShare": 8.1644,
+      "sharesOutstanding": 204427720,
+      "peRatio": 13.47671568627451
+    },
+    "LCID": {
+      "earningsPerShare": -11.4942,
+      "sharesOutstanding": 394070176,
+      "peRatio": -0.410217229821193
+    },
+    "LECO": {
+      "earningsPerShare": 10.0024,
+      "sharesOutstanding": 54845950,
+      "peRatio": 28.426573426573427
+    },
+    "REGN": {
+      "earningsPerShare": 40.4486,
+      "sharesOutstanding": 90692071,
+      "peRatio": 20.742677176039727
+    },
+    "F": {
+      "earningsPerShare": -1.8788000000000002,
+      "sharesOutstanding": 3916743591,
+      "peRatio": 8.13667498841631
+    },
+    "FDX": {
+      "earningsPerShare": 16.2818,
+      "sharesOutstanding": 234199353,
+      "peRatio": 17.41859891411177
+    },
+    "LHX": {
+      "earningsPerShare": 9.9789,
+      "sharesOutstanding": 186200733,
+      "peRatio": 23.18724542004513
+    },
+    "MRNA": {
+      "earningsPerShare": -7.9847,
+      "sharesOutstanding": 399235889,
+      "peRatio": -27.383479960336864
+    },
+    "MRSH": {
+      "earningsPerShare": 8.3435,
+      "sharesOutstanding": 485000000,
+      "peRatio": 24.357655502392344
+    },
+    "MRVL": {
+      "earningsPerShare": 3.03,
+      "sharesOutstanding": 876900000,
+      "peRatio": 97.85122198804642
+    },
+    "MS": {
+      "earningsPerShare": 12.996500000000001,
+      "sharesOutstanding": 1570566292,
+      "peRatio": 14.438589557196414
+    },
+    "BLK": {
+      "earningsPerShare": 41.9332,
+      "sharesOutstanding": 155069171,
+      "peRatio": 21.48641546489064
+    },
+    "CEVA": {
+      "earningsPerShare": -0.4127,
+      "sharesOutstanding": 28154072,
+      "peRatio": -138.4889360412246
+    },
+    "FIS": {
+      "earningsPerShare": 6.4994,
+      "sharesOutstanding": 515705917,
+      "peRatio": 5.941127826892693
+    },
+    "KTOS": {
+      "earningsPerShare": 0.17359999999999998,
+      "sharesOutstanding": 187721327,
+      "peRatio": 198.41711644117436
+    },
+    "LPLA": {
+      "earningsPerShare": 12.5378,
+      "sharesOutstanding": 78742290,
+      "peRatio": 16.155249308126457
+    },
+    "LQDA": {
+      "earningsPerShare": 1.3858000000000001,
+      "sharesOutstanding": 89508891,
+      "peRatio": 14.170584284754868
+    },
+    "MTZ": {
+      "earningsPerShare": 6.2768,
+      "sharesOutstanding": 80300833,
+      "peRatio": 33.52756529455261
+    },
+    "NDSN": {
+      "earningsPerShare": 9.883700000000001,
+      "sharesOutstanding": 55920000,
+      "peRatio": 33.5080971659919
+    },
+    "RIOT": {
+      "earningsPerShare": -3.8373,
+      "sharesOutstanding": 375183965,
+      "peRatio": -5.035161733920074
+    },
+    "RMD": {
+      "earningsPerShare": 10.4358,
+      "sharesOutstanding": 144239563,
+      "peRatio": 21.771812080536915
+    },
+    "ROIV": {
+      "earningsPerShare": -0.53,
+      "sharesOutstanding": 720352386,
+      "peRatio": -25.956908938352342
+    },
+    "FTI": {
+      "earningsPerShare": 2.8686000000000003,
+      "sharesOutstanding": 388833346,
+      "peRatio": 21.5476327307056
+    },
+    "FTNT": {
+      "earningsPerShare": 3.0715,
+      "sharesOutstanding": 734709741,
+      "peRatio": 41.50211009284279
+    },
+    "MARA": {
+      "earningsPerShare": -9.349699999999999,
+      "sharesOutstanding": 386299297,
+      "peRatio": -1.417120237506185
+    },
+    "MAS": {
+      "earningsPerShare": 4.3387,
+      "sharesOutstanding": 204300000,
+      "peRatio": 17.540073989316735
+    },
+    "NOW": {
+      "earningsPerShare": 1.3880000000000001,
+      "sharesOutstanding": 1038000000,
+      "peRatio": 77.24149643016352
+    },
+    "NSC": {
+      "earningsPerShare": 11.9296,
+      "sharesOutstanding": 224420699,
+      "peRatio": 29.116140051238254
+    },
+    "PNFP": {
+      "earningsPerShare": 7.802300000000001,
+      "sharesOutstanding": 151112640,
+      "peRatio": 13.137245789825517
+    },
+    "SNX": {
+      "earningsPerShare": 16.576999999999998,
+      "sharesOutstanding": 79777511,
+      "peRatio": 13.904878048780489
+    },
+    "SWK": {
+      "earningsPerShare": 4.1013,
+      "sharesOutstanding": 155036411,
+      "peRatio": 25.57946210268949
+    },
+    "SWKS": {
+      "earningsPerShare": 1.9310999999999998,
+      "sharesOutstanding": 150472782,
+      "peRatio": 56.87596444386429
+    },
+    "CAG": {
+      "earningsPerShare": -3.9794,
+      "sharesOutstanding": 478565642,
+      "peRatio": 9.932964552206656
+    },
+    "CME": {
+      "earningsPerShare": 12.2365,
+      "sharesOutstanding": 361319613,
+      "peRatio": 25.618564131971247
+    },
+    "STOR": {
+      "earningsPerShare": 1.1570999999999998,
+      "sharesOutstanding": null,
+      "peRatio": 28.3537
+    },
+    "NNE": {
+      "earningsPerShare": -0.6948000000000001,
+      "sharesOutstanding": 53698146,
+      "peRatio": -14.11111111111111
+    },
+    "NOC": {
+      "earningsPerShare": 31.7023,
+      "sharesOutstanding": 141997194,
+      "peRatio": 17.48649507467429
+    },
+    "SE": {
+      "earningsPerShare": 2.5707,
+      "sharesOutstanding": 566956729,
+      "peRatio": 25.346722160701585
+    },
+    "SSB": {
+      "earningsPerShare": 9.3978,
+      "sharesOutstanding": 99138204,
+      "peRatio": 11.328903352532055
+    },
+    "STT": {
+      "earningsPerShare": 13.1286,
+      "sharesOutstanding": 279077907,
+      "peRatio": 12.610105293004576
+    },
+    "SYF": {
+      "earningsPerShare": 9.843499999999999,
+      "sharesOutstanding": 347000000,
+      "peRatio": 7.966678556282709
+    },
+    "SYK": {
+      "earningsPerShare": 9.651299999999999,
+      "sharesOutstanding": 380691004,
+      "peRatio": 23.865224153282135
+    },
+    "AIZ": {
+      "earningsPerShare": 21.1751,
+      "sharesOutstanding": 49792919,
+      "peRatio": 14.242703986947097
+    },
+    "GILD": {
+      "earningsPerShare": -2.6551000000000005,
+      "sharesOutstanding": 1240338614,
+      "peRatio": -50.90923461353729
+    },
+    "GRMN": {
+      "earningsPerShare": 9.6967,
+      "sharesOutstanding": 192620000,
+      "peRatio": 25.54328652624572
+    },
+    "GWRE": {
+      "earningsPerShare": 1.6284,
+      "sharesOutstanding": 81992669,
+      "peRatio": 73.53424657534246
+    },
+    "OKE": {
+      "earningsPerShare": 5.788500000000001,
+      "sharesOutstanding": 630450437,
+      "peRatio": 16.10215710058892
+    },
+    "OKLO": {
+      "earningsPerShare": -0.9317,
+      "sharesOutstanding": 186017650,
+      "peRatio": -24.13714088424756
+    },
+    "TSM": {
+      "earningsPerShare": 98.25160000000001,
+      "sharesOutstanding": 5185652400,
+      "peRatio": 24.1644592023281
+    },
+    "WAL": {
+      "earningsPerShare": 9.224,
+      "sharesOutstanding": 102524000,
+      "peRatio": 8.555252252899809
+    },
+    "APO": {
+      "earningsPerShare": 3.0261,
+      "sharesOutstanding": 578981398,
+      "peRatio": 12.858250331279711
+    },
+    "BMBL": {
+      "earningsPerShare": -4.2284,
+      "sharesOutstanding": 131968314,
+      "peRatio": -62.23785685292924
+    },
+    "COP": {
+      "earningsPerShare": 7.5747,
+      "sharesOutstanding": 1218294007,
+      "peRatio": 12.547062345171076
+    },
+    "CORZ": {
+      "earningsPerShare": -4.418,
+      "sharesOutstanding": 321340441,
+      "peRatio": -3.281545294427664
+    },
+    "COST": {
+      "earningsPerShare": 20.7597,
+      "sharesOutstanding": 443266000,
+      "peRatio": 44.54845659742292
+    },
+    "OLLI": {
+      "earningsPerShare": 4.4748,
+      "sharesOutstanding": 59402403,
+      "peRatio": 19.28444271254824
+    },
+    "ON": {
+      "earningsPerShare": 1.5507,
+      "sharesOutstanding": 389284489,
+      "peRatio": 33.78717985949
+    },
+    "OPEN": {
+      "earningsPerShare": -1.7276999999999998,
+      "sharesOutstanding": 971091050,
+      "peRatio": -2.7370798818336546
+    },
+    "ORCL": {
+      "earningsPerShare": 6.4411000000000005,
+      "sharesOutstanding": 3023736000,
+      "peRatio": 18.838197217816674
+    },
+    "OTIS": {
+      "earningsPerShare": 3.8944,
+      "sharesOutstanding": 438600000,
+      "peRatio": 19.193186593651603
+    },
+    "PLUG": {
+      "earningsPerShare": -1.2492,
+      "sharesOutstanding": 1397195278,
+      "peRatio": -3.4059534133209013
+    },
+    "PNW": {
+      "earningsPerShare": 5.214499999999999,
+      "sharesOutstanding": 121197234,
+      "peRatio": 20.679462571976966
+    },
+    "A": {
+      "earningsPerShare": 5.0738,
+      "sharesOutstanding": 281928854,
+      "peRatio": 34.47004999394918
+    },
+    "CCL": {
+      "earningsPerShare": 2.2762,
+      "sharesOutstanding": 1369649119,
+      "peRatio": 13.153153153153152
+    },
+    "COF": {
+      "earningsPerShare": 17.5299,
+      "sharesOutstanding": 601533153,
+      "peRatio": 12.543916630164636
+    },
+    "CRBG": {
+      "earningsPerShare": 1.7553,
+      "sharesOutstanding": 496373746,
+      "peRatio": 22.47798742138365
+    },
+    "DOCU": {
+      "earningsPerShare": 1.6440000000000001,
+      "sharesOutstanding": 186902452,
+      "peRatio": 46.05189262046501
+    },
+    "POET": {
+      "earningsPerShare": -0.6014999999999999,
+      "sharesOutstanding": 173058088,
+      "peRatio": -18.178571428571427
+    },
+    "POWL": {
+      "earningsPerShare": 4.385800000000001,
+      "sharesOutstanding": 36432564,
+      "peRatio": 30.56268343878276
+    },
+    "QGEN": {
+      "earningsPerShare": 1.9437,
+      "sharesOutstanding": 206496521,
+      "peRatio": 25.573604060913706
+    },
+    "QLYS": {
+      "earningsPerShare": 5.7699,
+      "sharesOutstanding": 34595001,
+      "peRatio": 35.94280081420506
+    },
+    "RNR": {
+      "earningsPerShare": 59.9983,
+      "sharesOutstanding": 43961539,
+      "peRatio": 5.989293731652564
+    },
+    "SCCO": {
+      "earningsPerShare": 6.767900000000001,
+      "sharesOutstanding": 844343266,
+      "peRatio": 21.945170089298593
+    },
+    "SCI": {
+      "earningsPerShare": 3.8335,
+      "sharesOutstanding": 139678199,
+      "peRatio": 19.875661375661377
+    },
+    "ADM": {
+      "earningsPerShare": 3.6531000000000002,
+      "sharesOutstanding": 475919192,
+      "peRatio": 12.912167449962148
+    },
+    "ADP": {
+      "earningsPerShare": 10.942900000000002,
+      "sharesOutstanding": 397800000,
+      "peRatio": 27.057586837294334
+    },
+    "DOV": {
+      "earningsPerShare": 8.5912,
+      "sharesOutstanding": 134680225,
+      "peRatio": 25.82466747279323
+    },
+    "ELS": {
+      "earningsPerShare": 1.9536000000000002,
+      "sharesOutstanding": 194785616,
+      "peRatio": 29.294000025261823
+    },
+    "ENPH": {
+      "earningsPerShare": 0.9898,
+      "sharesOutstanding": 132314277,
+      "peRatio": 32.361702127659576
+    },
+    "RDDT": {
+      "earningsPerShare": 4.2978000000000005,
+      "sharesOutstanding": 146942127,
+      "peRatio": 17.880840516664236
+    },
+    "RDW": {
+      "earningsPerShare": -1.3638,
+      "sharesOutstanding": 249992609,
+      "peRatio": -10.81225033288948
+    },
+    "REG": {
+      "earningsPerShare": 3.0389999999999997,
+      "sharesOutstanding": 182902234,
+      "peRatio": 25.309764309764308
+    },
+    "SECZ": {
+      "earningsPerShare": -0.38,
+      "sharesOutstanding": 163265685,
+      "peRatio": -26
+    },
+    "SNAP": {
+      "earningsPerShare": -0.18589999999999998,
+      "sharesOutstanding": 1756223000,
+      "peRatio": -118.8653568087097
+    },
+    "SNDK": {
+      "earningsPerShare": 72.89280000000001,
+      "sharesOutstanding": 142289365,
+      "peRatio": 5.211181400802679
+    },
+    "SNOW": {
+      "earningsPerShare": -3.1744,
+      "sharesOutstanding": 352800000,
+      "peRatio": -92.9435483870968
+    },
+    "ADBE": {
+      "earningsPerShare": 17.9203,
+      "sharesOutstanding": 389200000,
+      "peRatio": 13.491005000945751
+    },
+    "ALLE": {
+      "earningsPerShare": 8.0371,
+      "sharesOutstanding": 86066997,
+      "peRatio": 23.639200998751562
+    },
+    "EWBC": {
+      "earningsPerShare": 10.4075,
+      "sharesOutstanding": 137011856,
+      "peRatio": 12.372130050792915
+    },
+    "FCNCA": {
+      "earningsPerShare": 194.1791,
+      "sharesOutstanding": 10106394,
+      "peRatio": 12.609741529105126
+    },
+    "GS": {
+      "earningsPerShare": 72.3599,
+      "sharesOutstanding": 288434583,
+      "peRatio": 12.543085229710533
+    },
+    "GSK": {
+      "earningsPerShare": 2.87,
+      "sharesOutstanding": 2003515299,
+      "peRatio": 15.9874
+    },
+    "HBAN": {
+      "earningsPerShare": 1.3126,
+      "sharesOutstanding": 2015387251,
+      "peRatio": 11.696803512876071
+    },
+    "RELY": {
+      "earningsPerShare": 1.3893,
+      "sharesOutstanding": 211684054,
+      "peRatio": 18.242469590493215
+    },
+    "RGEN": {
+      "earningsPerShare": 0.7337,
+      "sharesOutstanding": 56325429,
+      "peRatio": 244.20547945205482
+    },
+    "RGLD": {
+      "earningsPerShare": 9.1712,
+      "sharesOutstanding": 84727857,
+      "peRatio": 25.572535991140644
+    },
+    "SO": {
+      "earningsPerShare": 4.1465,
+      "sharesOutstanding": 1150362966,
+      "peRatio": 22.59036144578313
+    },
+    "STLD": {
+      "earningsPerShare": 13.5529,
+      "sharesOutstanding": 142217487,
+      "peRatio": 13.699114325652715
+    },
+    "ARE": {
+      "earningsPerShare": -8.387699999999999,
+      "sharesOutstanding": 174160645,
+      "peRatio": 28.4698850834771
+    },
+    "AXON": {
+      "earningsPerShare": 2.4145000000000003,
+      "sharesOutstanding": 81237415,
+      "peRatio": 120.17564332208323
+    },
+    "BABA": {
+      "earningsPerShare": 3.8044,
+      "sharesOutstanding": 2397065032,
+      "peRatio": 18.481510754854437
+    },
+    "HWM": {
+      "earningsPerShare": 4.6345,
+      "sharesOutstanding": 397660490,
+      "peRatio": 40.42327766255187
+    },
+    "IBKR": {
+      "earningsPerShare": 2.6145,
+      "sharesOutstanding": 453077771,
+      "peRatio": 28.468186636049705
+    },
+    "RGTI": {
+      "earningsPerShare": -0.7325999999999999,
+      "sharesOutstanding": 333768747,
+      "peRatio": -48.54751612776077
+    },
+    "RIG": {
+      "earningsPerShare": -1.7737999999999998,
+      "sharesOutstanding": 1116921983,
+      "peRatio": 22.67199010117856
+    },
+    "RIO": {
+      "earningsPerShare": 7.382099999999999,
+      "sharesOutstanding": 1254639382,
+      "peRatio": 11.059620596205963
+    },
+    "SUNB": {
+      "earningsPerShare": 3.3084999999999996,
+      "sharesOutstanding": 409764897,
+      "peRatio": 25.214501510574017
+    },
+    "TAP": {
+      "earningsPerShare": -11.5393,
+      "sharesOutstanding": 174117990,
+      "peRatio": 9.128237014118136
+    },
+    "CART": {
+      "earningsPerShare": 1.821,
+      "sharesOutstanding": 242867000,
+      "peRatio": 25.2789638356048
+    },
+    "CINF": {
+      "earningsPerShare": 17.059800000000003,
+      "sharesOutstanding": 153510324,
+      "peRatio": 12.018255178056181
+    },
+    "CMI": {
+      "earningsPerShare": 19.57,
+      "sharesOutstanding": 137664487,
+      "peRatio": 25.58456821665815
+    },
+    "CRWV": {
+      "earningsPerShare": -3.8000000000000003,
+      "sharesOutstanding": 458871690,
+      "peRatio": -10.711877407008089
+    },
+    "KEY": {
+      "earningsPerShare": 1.9531,
+      "sharesOutstanding": 1058176000,
+      "peRatio": 11.243059806935003
+    },
+    "MA": {
+      "earningsPerShare": 18.1819,
+      "sharesOutstanding": 869464115,
+      "peRatio": 35.63766519823788
+    },
+    "MET": {
+      "earningsPerShare": 5.5057,
+      "sharesOutstanding": 635476927,
+      "peRatio": 12.73379388507204
+    },
+    "MSTR": {
+      "earningsPerShare": -94.3194,
+      "sharesOutstanding": 377641410,
+      "peRatio": -1.43798624673185
+    },
+    "NJR": {
+      "earningsPerShare": 3.6121000000000003,
+      "sharesOutstanding": 101467946,
+      "peRatio": 14.90406963901532
+    },
+    "NTRS": {
+      "earningsPerShare": 11.969199999999999,
+      "sharesOutstanding": 186337588,
+      "peRatio": 13.537254901960784
+    },
+    "CRS": {
+      "earningsPerShare": 11.340900000000001,
+      "sharesOutstanding": 49606583,
+      "peRatio": 21.9268297729577
+    },
+    "OWL": {
+      "earningsPerShare": 0.1189,
+      "sharesOutstanding": 6875000,
+      "peRatio": 12.211022546063216
+    },
+    "PSTG": {
+      "earningsPerShare": 0.5448000000000001,
+      "sharesOutstanding": null,
+      "peRatio": 119.0622
+    },
+    "PFG": {
+      "earningsPerShare": 7.0459000000000005,
+      "sharesOutstanding": 217380912,
+      "peRatio": 16.04843304843305
+    },
+    "PFLT": {
+      "earningsPerShare": 0.5063,
+      "sharesOutstanding": 99217896,
+      "peRatio": 11.544418809071635
+    },
+    "PLTR": {
+      "earningsPerShare": 1.1735,
+      "sharesOutstanding": 2409153000,
+      "peRatio": 113.43323736131268
+    },
+    "PM": {
+      "earningsPerShare": 6.8675,
+      "sharesOutstanding": 1801783490,
+      "peRatio": 28.614855570839065
+    },
+    "PNC": {
+      "earningsPerShare": 19.7371,
+      "sharesOutstanding": 397242557,
+      "peRatio": 12.081411047299978
+    },
+    "PODD": {
+      "earningsPerShare": 5.3453,
+      "sharesOutstanding": 69354199,
+      "peRatio": 25.01504278612591
+    },
+    "TEM": {
+      "earningsPerShare": -1.4342,
+      "sharesOutstanding": 177198230,
+      "peRatio": -56.03721793219785
+    },
+    "TLN": {
+      "earningsPerShare": -4.3607,
+      "sharesOutstanding": 45687828,
+      "peRatio": 20.69843187711453
+    },
+    "ALB": {
+      "earningsPerShare": 0.27,
+      "sharesOutstanding": 118005057,
+      "peRatio": 9.125964517513323
+    },
+    "BILI": {
+      "earningsPerShare": 3.3696,
+      "sharesOutstanding": 332230191,
+      "peRatio": 23.811672955066523
+    },
+    "CMPS": {
+      "earningsPerShare": -3.4723999999999995,
+      "sharesOutstanding": 141710353,
+      "peRatio": -4.080760095011876
+    },
+    "DECK": {
+      "earningsPerShare": 7.5443,
+      "sharesOutstanding": 133479987,
+      "peRatio": 11.092505613528083
+    },
+    "DOCN": {
+      "earningsPerShare": 2.1504,
+      "sharesOutstanding": 117996815,
+      "peRatio": 177.07322418057166
+    },
+    "FOUR": {
+      "earningsPerShare": 0.63,
+      "sharesOutstanding": 78960120,
+      "peRatio": 32.535434923248836
+    },
+    "PGR": {
+      "earningsPerShare": 19.9328,
+      "sharesOutstanding": 579500000,
+      "peRatio": 12.10796877263374
+    },
+    "RF": {
+      "earningsPerShare": 2.6544000000000003,
+      "sharesOutstanding": 851929506,
+      "peRatio": 10.799433747173174
+    },
+    "HEI": {
+      "earningsPerShare": 6.0076,
+      "sharesOutstanding": 54195000,
+      "peRatio": 53.51440635961326
+    },
+    "PPG": {
+      "earningsPerShare": 6.9857,
+      "sharesOutstanding": 220900000,
+      "peRatio": 16.462867841354658
+    },
+    "PPL": {
+      "earningsPerShare": 1.685,
+      "sharesOutstanding": 751041000,
+      "peRatio": 18.58693490981355
+    },
+    "RGA": {
+      "earningsPerShare": 22.7853,
+      "sharesOutstanding": 62656102,
+      "peRatio": 11.604559403770276
+    },
+    "RKLB": {
+      "earningsPerShare": -0.27949999999999997,
+      "sharesOutstanding": 598350482,
+      "peRatio": -194.74060822898
+    },
+    "SCHW": {
+      "earningsPerShare": 6.0866,
+      "sharesOutstanding": 1729335714,
+      "peRatio": 14.285426273087813
+    },
+    "TECK": {
+      "earningsPerShare": 3.68,
+      "sharesOutstanding": 483000468,
+      "peRatio": 17.130434
+    },
+    "TER": {
+      "earningsPerShare": 7.2888,
+      "sharesOutstanding": 156124751,
+      "peRatio": 29.65311742502391
+    },
+    "TME": {
+      "earningsPerShare": 2.8512,
+      "sharesOutstanding": 804799234,
+      "peRatio": 10.716677829872738
+    },
+    "WFC": {
+      "earningsPerShare": 7.4163,
+      "sharesOutstanding": 3001850317,
+      "peRatio": 11.664038064612472
+    },
+    "WMT": {
+      "earningsPerShare": 2.76,
+      "sharesOutstanding": 3418000000,
+      "peRatio": 43.355988220338425
+    },
+    "AMT": {
+      "earningsPerShare": 7.097700000000001,
+      "sharesOutstanding": 463763555,
+      "peRatio": 26.877546363731597
+    },
+    "ASTS": {
+      "earningsPerShare": -2.1396,
+      "sharesOutstanding": 299789305,
+      "peRatio": -16.50318224888398
+    },
+    "CAMT": {
+      "earningsPerShare": 0.6034999999999999,
+      "sharesOutstanding": 46668177,
+      "peRatio": 37.79260513370013
+    },
+    "KMB": {
+      "earningsPerShare": 5.8674,
+      "sharesOutstanding": 331900000,
+      "peRatio": 16.081083390254456
+    },
+    "PR": {
+      "earningsPerShare": 1.5063999999999997,
+      "sharesOutstanding": 751746410,
+      "peRatio": 10.217905346433824
+    },
+    "RIVN": {
+      "earningsPerShare": -2.5821,
+      "sharesOutstanding": 1460000000,
+      "peRatio": -5.575527420141792
+    },
+    "RSG": {
+      "earningsPerShare": 7.054600000000001,
+      "sharesOutstanding": 304639653,
+      "peRatio": 33.531380219371194
+    },
+    "KMI": {
+      "earningsPerShare": 1.6195,
+      "sharesOutstanding": 2224777750,
+      "peRatio": 20.953321965290282
+    },
+    "LITE": {
+      "earningsPerShare": -81.4174,
+      "sharesOutstanding": 90700000,
+      "peRatio": 33.321617987559655
+    },
+    "ECOL": {
+      "earningsPerShare": 0.1712,
+      "sharesOutstanding": null,
+      "peRatio": 186.5654
+    },
+    "ROKU": {
+      "earningsPerShare": 2.3407,
+      "sharesOutstanding": 147850000,
+      "peRatio": 54.49482017151121
+    },
+    "RVTY": {
+      "earningsPerShare": 2.1013,
+      "sharesOutstanding": 112281000,
+      "peRatio": 68.20393929065065
+    },
+    "TM": {
+      "earningsPerShare": 22.76,
+      "sharesOutstanding": 1177806551,
+      "peRatio": 8.1264
+    },
+    "TMO": {
+      "earningsPerShare": 18.9375,
+      "sharesOutstanding": 369747286,
+      "peRatio": 34.34530691107701
+    },
+    "TPG": {
+      "earningsPerShare": 0.6145,
+      "sharesOutstanding": 160109058,
+      "peRatio": 17.649369506455933
+    },
+    "TROW": {
+      "earningsPerShare": 10.2188,
+      "sharesOutstanding": 213325929,
+      "peRatio": 10.688320602530304
+    },
+    "TSCO": {
+      "earningsPerShare": 1.8588,
+      "sharesOutstanding": 527017000,
+      "peRatio": 18.870967741935484
+    },
+    "TW": {
+      "earningsPerShare": 4.26,
+      "sharesOutstanding": 114038202,
+      "peRatio": 29.51173708920188
+    },
+    "ALNY": {
+      "earningsPerShare": 5.8756,
+      "sharesOutstanding": 133937576,
+      "peRatio": 23.956899456688262
+    },
+    "CMS": {
+      "earningsPerShare": 3.3569999999999998,
+      "sharesOutstanding": 313577136,
+      "peRatio": 18.203421150971113
+    },
+    "DASH": {
+      "earningsPerShare": 2.41,
+      "sharesOutstanding": 411998576,
+      "peRatio": 66.06647515605736
+    },
+    "DD": {
+      "earningsPerShare": 3.72,
+      "sharesOutstanding": 135042975,
+      "peRatio": 24.627873726699935
+    },
+    "NBIX": {
+      "earningsPerShare": 6.8214999999999995,
+      "sharesOutstanding": 100100000,
+      "peRatio": 23.10560656807527
+    },
+    "NCLH": {
+      "earningsPerShare": 1.5813000000000001,
+      "sharesOutstanding": 459275445,
+      "peRatio": 12.07045765881625
+    },
+    "ABBV": {
+      "earningsPerShare": 3.5593999999999997,
+      "sharesOutstanding": 1767616306,
+      "peRatio": 32.46291480879854
+    },
+    "FRSX": {
+      "earningsPerShare": -6.81,
+      "sharesOutstanding": 4126507,
+      "peRatio": -0.17140211640211642
+    },
+    "ROL": {
+      "earningsPerShare": 1.0938,
+      "sharesOutstanding": 481193751,
+      "peRatio": 34.26605504587156
+    },
+    "ROP": {
+      "earningsPerShare": 25.3271,
+      "sharesOutstanding": 106600000,
+      "peRatio": 18.740799366838147
+    },
+    "TYL": {
+      "earningsPerShare": 7.5436000000000005,
+      "sharesOutstanding": 40952274,
+      "peRatio": 53.18947368421053
+    },
+    "U": {
+      "earningsPerShare": -1.3615000000000002,
+      "sharesOutstanding": 432860000,
+      "peRatio": -59.66391880518875
+    },
+    "UAA": {
+      "earningsPerShare": -1.1586,
+      "sharesOutstanding": 188839506,
+      "peRatio": 181.55137699211687
+    },
+    "UAL": {
+      "earningsPerShare": 10.9363,
+      "sharesOutstanding": 324894375,
+      "peRatio": 12.355980393625739
+    },
+    "AEE": {
+      "earningsPerShare": 5.680899999999999,
+      "sharesOutstanding": 276400000,
+      "peRatio": 19.431338028169016
+    },
+    "AGNC": {
+      "earningsPerShare": 0.05,
+      "sharesOutstanding": 1107600000,
+      "peRatio": -200.84292811565535
+    },
+    "AMGN": {
+      "earningsPerShare": 16.102600000000002,
+      "sharesOutstanding": 540911490,
+      "peRatio": 29.141509428598088
+    },
+    "HRL": {
+      "earningsPerShare": 0.622,
+      "sharesOutstanding": 550350800,
+      "peRatio": 16.44874274661509
+    },
+    "TTWO": {
+      "earningsPerShare": -1.7318,
+      "sharesOutstanding": 186980443,
+      "peRatio": 117.17944819471296
+    },
+    "LDI": {
+      "earningsPerShare": -0.3068,
+      "sharesOutstanding": 232227582,
+      "peRatio": -2.660909090909091
+    },
+    "NXT": {
+      "earningsPerShare": 3.8583,
+      "sharesOutstanding": 150575535,
+      "peRatio": 25.409826738430947
+    },
+    "TWLO": {
+      "earningsPerShare": 7.1865,
+      "sharesOutstanding": 154734032,
+      "peRatio": 24.028512741057902
+    },
+    "UI": {
+      "earningsPerShare": 15.854500000000002,
+      "sharesOutstanding": 60522091,
+      "peRatio": 27.115088242605022
+    },
+    "ULTA": {
+      "earningsPerShare": 27.448900000000002,
+      "sharesOutstanding": 44166000,
+      "peRatio": 23.103711790393014
+    },
+    "UMBF": {
+      "earningsPerShare": 12.3383,
+      "sharesOutstanding": 75960675,
+      "peRatio": 9.933989954326567
+    },
+    "UNP": {
+      "earningsPerShare": 12.8265,
+      "sharesOutstanding": 593245884,
+      "peRatio": 23.360158162043728
+    },
+    "UTHR": {
+      "earningsPerShare": 27.957499999999996,
+      "sharesOutstanding": 42588726,
+      "peRatio": 21.537249283667624
+    },
+    "OGE": {
+      "earningsPerShare": 2.2857000000000003,
+      "sharesOutstanding": 206100000,
+      "peRatio": 21.634361233480174
+    },
+    "PCG": {
+      "earningsPerShare": 1.3649,
+      "sharesOutstanding": 2680110496,
+      "peRatio": 8.51463504954377
+    },
+    "WBD": {
+      "earningsPerShare": -1.28,
+      "sharesOutstanding": 2507136702,
+      "peRatio": -24.1796875
+    },
+    "PEN": {
+      "earningsPerShare": 4.0714,
+      "sharesOutstanding": 39229670,
+      "peRatio": 78.62899262899262
+    },
+    "PFE": {
+      "earningsPerShare": 0.7554000000000001,
+      "sharesOutstanding": 5699673589,
+      "peRatio": 19.10553003198266
+    },
+    "SITM": {
+      "earningsPerShare": 0.5045000000000001,
+      "sharesOutstanding": 30071036,
+      "peRatio": 109.72502397953484
+    },
+    "TRGP": {
+      "earningsPerShare": 10.52,
+      "sharesOutstanding": 214431021,
+      "peRatio": 26.49036237388996
+    },
+    "TRMB": {
+      "earningsPerShare": -0.48,
+      "sharesOutstanding": 236000000,
+      "peRatio": -784.452043329587
+    },
+    "BPOP": {
+      "earningsPerShare": 15.901800000000001,
+      "sharesOutstanding": 65719385,
+      "peRatio": 9.638045826270627
+    },
+    "DE": {
+      "earningsPerShare": 17.991500000000002,
+      "sharesOutstanding": 269625412,
+      "peRatio": 36.69153584576186
+    },
+    "FIX": {
+      "earningsPerShare": 46.3123,
+      "sharesOutstanding": 34985904,
+      "peRatio": 25.381162300537824
+    },
+    "SMR": {
+      "earningsPerShare": -2.9188,
+      "sharesOutstanding": 410389522,
+      "peRatio": -9.562187158890787
+    },
+    "SOLV": {
+      "earningsPerShare": 8.1867,
+      "sharesOutstanding": 170223729,
+      "peRatio": 50.419308287064084
+    },
+    "SPCE": {
+      "earningsPerShare": -3.3804,
+      "sharesOutstanding": 151595903,
+      "peRatio": -1.016260162601626
+    },
+    "TXN": {
+      "earningsPerShare": 7.7536000000000005,
+      "sharesOutstanding": 913770316,
+      "peRatio": 36.7126019174425
+    },
+    "TXRH": {
+      "earningsPerShare": 6.2432,
+      "sharesOutstanding": 65640926,
+      "peRatio": 28.00860616763202
+    },
+    "UPS": {
+      "earningsPerShare": 5.3719,
+      "sharesOutstanding": 749349405,
+      "peRatio": 18.16552945604581
+    },
+    "AGI": {
+      "earningsPerShare": 2.7778,
+      "sharesOutstanding": 418604465,
+      "peRatio": 12.170786516853932
+    },
+    "ICE": {
+      "earningsPerShare": 7.3289,
+      "sharesOutstanding": 567000000,
+      "peRatio": 22.650928558205386
+    },
+    "JNJ": {
+      "earningsPerShare": 6.5886,
+      "sharesOutstanding": 2407310266,
+      "peRatio": 29.496063571513744
+    },
+    "TXT": {
+      "earningsPerShare": 5.2988,
+      "sharesOutstanding": 174310000,
+      "peRatio": 16.52542372881356
+    },
+    "UPST": {
+      "earningsPerShare": 0.5381,
+      "sharesOutstanding": 98908658,
+      "peRatio": 31.527776753243884
+    },
+    "URI": {
+      "earningsPerShare": 45.4674,
+      "sharesOutstanding": 61916588,
+      "peRatio": 24.220220183332703
+    },
+    "USB": {
+      "earningsPerShare": 5.3783,
+      "sharesOutstanding": 1558051446,
+      "peRatio": 11.349029950713488
+    },
+    "AME": {
+      "earningsPerShare": 6.8414,
+      "sharesOutstanding": 229000000,
+      "peRatio": 36.3421052631579
+    },
+    "AMG": {
+      "earningsPerShare": 27.9145,
+      "sharesOutstanding": 25859933,
+      "peRatio": 11.809523565986424
+    },
+    "SEIC": {
+      "earningsPerShare": 5.7442,
+      "sharesOutstanding": 122232251,
+      "peRatio": 17.589677164542707
+    },
+    "SPGI": {
+      "earningsPerShare": 16.811999999999998,
+      "sharesOutstanding": 289900000,
+      "peRatio": 28.208438222927104
+    },
+    "SPOT": {
+      "earningsPerShare": null,
+      "sharesOutstanding": 205584205,
+      "peRatio": 32.7859
+    },
+    "UBER": {
+      "earningsPerShare": 4.5543000000000005,
+      "sharesOutstanding": 2042560121,
+      "peRatio": 20.392828338315184
+    },
+    "UDR": {
+      "earningsPerShare": 1.5859,
+      "sharesOutstanding": 328273044,
+      "peRatio": 32.82621565718212
+    },
+    "UHS": {
+      "earningsPerShare": 24.5564,
+      "sharesOutstanding": 51687770,
+      "peRatio": 7.2238988580750405
+    },
+    "VEEV": {
+      "earningsPerShare": 6.1148,
+      "sharesOutstanding": 161908850,
+      "peRatio": 46.45776581369732
+    },
+    "AAOI": {
+      "earningsPerShare": -0.7792,
+      "sharesOutstanding": 84569237,
+      "peRatio": -82.097022587269
+    },
+    "CNC": {
+      "earningsPerShare": -10.439300000000001,
+      "sharesOutstanding": 495068000,
+      "peRatio": 17.21321867037324
+    },
+    "INSM": {
+      "earningsPerShare": -4.1038,
+      "sharesOutstanding": 214255853,
+      "peRatio": -64.40997404852827
+    },
+    "SHW": {
+      "earningsPerShare": 10.8815,
+      "sharesOutstanding": 241588072,
+      "peRatio": 29.93373077539138
+    },
+    "VFC": {
+      "earningsPerShare": 0.6866,
+      "sharesOutstanding": 391515399,
+      "peRatio": 18.644444671866147
+    },
+    "VG": {
+      "earningsPerShare": 1.4184999999999999,
+      "sharesOutstanding": 531488393,
+      "peRatio": 7.273797487406539
+    },
+    "VRSK": {
+      "earningsPerShare": 6.508,
+      "sharesOutstanding": 138397709,
+      "peRatio": 27.488880956959107
+    },
+    "VRSN": {
+      "earningsPerShare": 9.2845,
+      "sharesOutstanding": 91900000,
+      "peRatio": 34.08034744842562
+    },
+    "ABNB": {
+      "earningsPerShare": 4.398,
+      "sharesOutstanding": 419529556,
+      "peRatio": 31.45957070197465
+    },
+    "JNPR": {
+      "earningsPerShare": 1.0462,
+      "sharesOutstanding": null,
+      "peRatio": 37.8645
+    },
+    "SJM": {
+      "earningsPerShare": 2.1479999999999997,
+      "sharesOutstanding": 106661858,
+      "peRatio": 13.880694143167029
+    },
+    "UNM": {
+      "earningsPerShare": 4.2858,
+      "sharesOutstanding": 158306798,
+      "peRatio": 13.540547491503132
+    },
+    "USAR": {
+      "earningsPerShare": -2.3901000000000003,
+      "sharesOutstanding": 375076567,
+      "peRatio": -18.145833333333336
+    },
+    "USFD": {
+      "earningsPerShare": 3.2536,
+      "sharesOutstanding": 220500000,
+      "peRatio": 31.18769230769231
+    },
+    "ATI": {
+      "earningsPerShare": 3.4205,
+      "sharesOutstanding": 135822697,
+      "peRatio": 37.62725253868671
+    },
+    "AXP": {
+      "earningsPerShare": 17.9867,
+      "sharesOutstanding": 686000000,
+      "peRatio": 18.408646849649937
+    },
+    "CELH": {
+      "earningsPerShare": 0.23,
+      "sharesOutstanding": 253035047,
+      "peRatio": 27.123563301583623
+    },
+    "CPB": {
+      "earningsPerShare": 1.3303,
+      "sharesOutstanding": 298234693,
+      "peRatio": 13.170426275600166
+    },
+    "CSCO": {
+      "earningsPerShare": 3.3282,
+      "sharesOutstanding": 3942586873,
+      "peRatio": 25.527766807556535
+    },
+    "AJG": {
+      "earningsPerShare": 6.0482,
+      "sharesOutstanding": 257000000,
+      "peRatio": 32.81075698477962
+    },
+    "ALAB": {
+      "earningsPerShare": 2.0308,
+      "sharesOutstanding": 174782075,
+      "peRatio": 71.72539140873373
+    },
+    "AXTA": {
+      "earningsPerShare": 1.56,
+      "sharesOutstanding": 214045097,
+      "peRatio": 16.04326577082651
+    },
+    "VIST": {
+      "earningsPerShare": 7.6281,
+      "sharesOutstanding": 110617402,
+      "peRatio": 8.314100651050879
+    },
+    "VLO": {
+      "earningsPerShare": 24.1777,
+      "sharesOutstanding": 278884400,
+      "peRatio": 7.904012159353694
+    },
+    "VLTO": {
+      "earningsPerShare": 3.9671,
+      "sharesOutstanding": 248400000,
+      "peRatio": 29.29974811083123
+    },
+    "CPRT": {
+      "earningsPerShare": 1.551,
+      "sharesOutstanding": 926298293,
+      "peRatio": 19.386025958300696
+    },
+    "FRO": {
+      "earningsPerShare": 6.6773,
+      "sharesOutstanding": 222622889,
+      "peRatio": 5.0606628262234
+    },
+    "RUM": {
+      "earningsPerShare": -0.5826,
+      "sharesOutstanding": 276328597,
+      "peRatio": -10.448979591836736
+    },
+    "SYY": {
+      "earningsPerShare": 3.6542,
+      "sharesOutstanding": 491913960,
+      "peRatio": 20.24863387978142
+    },
+    "VMC": {
+      "earningsPerShare": 8.4719,
+      "sharesOutstanding": 130600000,
+      "peRatio": 33.56132075471698
+    },
+    "VMRK": {
+      "earningsPerShare": 2.2546,
+      "sharesOutstanding": 773779120,
+      "peRatio": 50.30271629803143
+    },
+    "CMA": {
+      "earningsPerShare": 9.6791,
+      "sharesOutstanding": null,
+      "peRatio": 8.9355
+    },
+    "K": {
+      "earningsPerShare": 3.6540999999999997,
+      "sharesOutstanding": null,
+      "peRatio": 22.7341
+    },
+    "RRC": {
+      "earningsPerShare": 3.627,
+      "sharesOutstanding": 235458212,
+      "peRatio": 13.286354267192742
+    },
+    "RTX": {
+      "earningsPerShare": 6.1552,
+      "sharesOutstanding": 1349440548,
+      "peRatio": 33.76712710038091
+    },
+    "STRL": {
+      "earningsPerShare": 13.8809,
+      "sharesOutstanding": 30502537,
+      "peRatio": 26.01909221902017
+    },
+    "WMB": {
+      "earningsPerShare": 2.5065,
+      "sharesOutstanding": 1223167472,
+      "peRatio": 29.01928278684422
+    },
+    "ARMK": {
+      "earningsPerShare": 1.4326999999999999,
+      "sharesOutstanding": 262899495,
+      "peRatio": 30.020042680024055
+    },
+    "OGS": {
+      "earningsPerShare": 4.6341,
+      "sharesOutstanding": 62857151,
+      "peRatio": 17.05894736842105
+    },
+    "RJF": {
+      "earningsPerShare": 11.5101,
+      "sharesOutstanding": 198139594,
+      "peRatio": 11.669516857316173
+    },
+    "RKT": {
+      "earningsPerShare": 0.15030000000000002,
+      "sharesOutstanding": 1906422676,
+      "peRatio": 30.841175761203097
+    },
+    "STX": {
+      "earningsPerShare": 13.8741,
+      "sharesOutstanding": 229561109,
+      "peRatio": 15.170899413819544
+    },
+    "STZ": {
+      "earningsPerShare": 11.1499,
+      "sharesOutstanding": 170752511,
+      "peRatio": 13.155238095238095
+    },
+    "ABT": {
+      "earningsPerShare": 2.6962,
+      "sharesOutstanding": 1741813154,
+      "peRatio": 33.48868532421119
+    },
+    "ALOY": {
+      "earningsPerShare": -3.1421,
+      "sharesOutstanding": 68987642,
+      "peRatio": -2.5
+    },
+    "THC": {
+      "earningsPerShare": 25.931099999999997,
+      "sharesOutstanding": 80519000,
+      "peRatio": 7.477788425216844
+    },
+    "TJX": {
+      "earningsPerShare": 5.4067,
+      "sharesOutstanding": 1107087991,
+      "peRatio": 25.98299957050553
+    },
+    "TOL": {
+      "earningsPerShare": 12.453600000000002,
+      "sharesOutstanding": 94800000,
+      "peRatio": 12.025785656728445
+    },
+    "TOST": {
+      "earningsPerShare": 0.8083,
+      "sharesOutstanding": 514000000,
+      "peRatio": 35.574577704405286
+    },
+    "AFL": {
+      "earningsPerShare": 9.332,
+      "sharesOutstanding": 501343298,
+      "peRatio": 17.453851209717648
+    },
+    "APH": {
+      "earningsPerShare": 2,
+      "sharesOutstanding": 2465966914,
+      "peRatio": 31.641894484673845
+    },
+    "CE": {
+      "earningsPerShare": -10.677999999999999,
+      "sharesOutstanding": 109327556,
+      "peRatio": 12.166384733168183
+    },
+    "WMG": {
+      "earningsPerShare": 1.2837,
+      "sharesOutstanding": 147729456,
+      "peRatio": 20.86272354713213
+    },
+    "WPM": {
+      "earningsPerShare": 4.508,
+      "sharesOutstanding": 454125089,
+      "peRatio": 24.820237181019685
+    },
+    "WTRG": {
+      "earningsPerShare": 1.9581,
+      "sharesOutstanding": 283632983,
+      "peRatio": 20.463580959390665
+    },
+    "NOVA": {
+      "earningsPerShare": -2.9558,
+      "sharesOutstanding": null,
+      "peRatio": 0
+    },
+    "BWXT": {
+      "earningsPerShare": 3.863,
+      "sharesOutstanding": 91621980,
+      "peRatio": 29.910235258907775
+    },
+    "SW": {
+      "earningsPerShare": 0.9439,
+      "sharesOutstanding": 524526976,
+      "peRatio": 45.22916666666667
+    },
+    "TPL": {
+      "earningsPerShare": 7.843599999999999,
+      "sharesOutstanding": 68974683,
+      "peRatio": 42.3469387755102
+    },
+    "BITF": {
+      "earningsPerShare": -0.2364,
+      "sharesOutstanding": null,
+      "peRatio": -8.375634517766498
+    },
+    "AFRM": {
+      "earningsPerShare": 5.53,
+      "sharesOutstanding": 296881962,
+      "peRatio": 36.22612106178725
+    },
+    "TRV": {
+      "earningsPerShare": 38.4317,
+      "sharesOutstanding": 204946347,
+      "peRatio": 11.381732413027155
+    },
+    "TSEM": {
+      "earningsPerShare": 2.5352,
+      "sharesOutstanding": 113517666,
+      "peRatio": 46.76373501888503
+    },
+    "TSLA": {
+      "earningsPerShare": 0.9095000000000001,
+      "sharesOutstanding": 3952757946,
+      "peRatio": 362.27272727272725
+    },
+    "TSN": {
+      "earningsPerShare": 1.619,
+      "sharesOutstanding": 281792507,
+      "peRatio": 22.37270027808764
+    },
+    "TT": {
+      "earningsPerShare": 13.2004,
+      "sharesOutstanding": 249000000,
+      "peRatio": 31.105812220566317
+    },
+    "VRT": {
+      "earningsPerShare": 4.418900000000001,
+      "sharesOutstanding": 385060421,
+      "peRatio": 53.3868778280543
+    },
+    "AMH": {
+      "earningsPerShare": 1.3061,
+      "sharesOutstanding": 359179944,
+      "peRatio": 30.36848768399816
+    },
+    "ARRY": {
+      "earningsPerShare": -0.5671999999999999,
+      "sharesOutstanding": 154007692,
+      "peRatio": 23.58166931791038
+    },
+    "AVGO": {
+      "earningsPerShare": 7.8333,
+      "sharesOutstanding": 4773629865,
+      "peRatio": 36.16562293823663
+    },
+    "VTR": {
+      "earningsPerShare": 0.5451,
+      "sharesOutstanding": 512946359,
+      "peRatio": 158.25454545454545
+    },
+    "VTRS": {
+      "earningsPerShare": -0.3571,
+      "sharesOutstanding": 1148590864,
+      "peRatio": 55.984613108448
+    },
+    "ARW": {
+      "earningsPerShare": 15.650300000000001,
+      "sharesOutstanding": 50905423,
+      "peRatio": 10.0268972142171
+    },
+    "BNGO": {
+      "earningsPerShare": -3.7628000000000004,
+      "sharesOutstanding": 10740200,
+      "peRatio": -0.5607476635514018
+    },
+    "DIS": {
+      "earningsPerShare": 4.8475,
+      "sharesOutstanding": 1726686902,
+      "peRatio": 18.268800000000002
+    },
+    "JCI": {
+      "earningsPerShare": 3.54,
+      "sharesOutstanding": 605741470,
+      "peRatio": 24.448904789855376
+    },
+    "WDC": {
+      "earningsPerShare": 25.9625,
+      "sharesOutstanding": 374323269,
+      "peRatio": 14.02204595840109
+    },
+    "WELL": {
+      "earningsPerShare": 2.2714,
+      "sharesOutstanding": 733609863,
+      "peRatio": 84.90290047065011
+    },
+    "WM": {
+      "earningsPerShare": 7.0631,
+      "sharesOutstanding": 397634916,
+      "peRatio": 29.758666560145677
+    },
+    "AEP": {
+      "earningsPerShare": 5.7754,
+      "sharesOutstanding": 544397352,
+      "peRatio": 20.312311566395813
+    },
+    "BF.B": {
+      "earningsPerShare": 1.5513,
+      "sharesOutstanding": 290383416,
+      "peRatio": 18.92156862745098
+    },
+    "BRK.B": {
+      "earningsPerShare": 39.76,
+      "sharesOutstanding": 1408035161,
+      "peRatio": 38.77515692046447
+    },
+    "CFG": {
+      "earningsPerShare": 5.2895,
+      "sharesOutstanding": 419195029,
+      "peRatio": 12.114555477493594
+    },
+    "GFS": {
+      "earningsPerShare": 1.28,
+      "sharesOutstanding": 557418603,
+      "peRatio": 32.913997696250384
+    },
+    "WPC": {
+      "earningsPerShare": 2.9192,
+      "sharesOutstanding": 219145876,
+      "peRatio": 22.133561643835616
+    },
+    "WSM": {
+      "earningsPerShare": 9.7751,
+      "sharesOutstanding": 117779173,
+      "peRatio": 26.02051282051282
+    },
+    "WSO": {
+      "earningsPerShare": 12.5122,
+      "sharesOutstanding": 35977494,
+      "peRatio": 24.915267785771384
+    },
+    "APLD": {
+      "earningsPerShare": -0.91,
+      "sharesOutstanding": 302387140,
+      "peRatio": -11.198496974330856
+    },
+    "CDE": {
+      "earningsPerShare": 1.17,
+      "sharesOutstanding": 1027934998,
+      "peRatio": 12.731016687030596
+    },
+    "PHM": {
+      "earningsPerShare": 9.3662,
+      "sharesOutstanding": 184086754,
+      "peRatio": 13.541088580576307
+    },
+    "RL": {
+      "earningsPerShare": 15.861300000000002,
+      "sharesOutstanding": 37635070,
+      "peRatio": 26.136514247846254
+    },
+    "WAT": {
+      "earningsPerShare": 3.9989,
+      "sharesOutstanding": 98185855,
+      "peRatio": 79.07435379196687
+    },
+    "WST": {
+      "earningsPerShare": 7.8225,
+      "sharesOutstanding": 72000000,
+      "peRatio": 52.111395646606915
+    },
+    "WTFC": {
+      "earningsPerShare": 13.5312,
+      "sharesOutstanding": 66974913,
+      "peRatio": 11.914877300613497
+    },
+    "WTW": {
+      "earningsPerShare": 16.2882,
+      "sharesOutstanding": 92871937,
+      "peRatio": 19.671083585175356
+    },
+    "CMG": {
+      "earningsPerShare": 1.0840999999999998,
+      "sharesOutstanding": 1264975000,
+      "peRatio": 29.488795853481644
+    },
+    "WY": {
+      "earningsPerShare": 0.6539,
+      "sharesOutstanding": 720531000,
+      "peRatio": 43.25630252100841
+    },
+    "WYNN": {
+      "earningsPerShare": 4.336,
+      "sharesOutstanding": 102973891,
+      "peRatio": 16.567078646916695
+    },
+    "XEL": {
+      "earningsPerShare": 3.6548,
+      "sharesOutstanding": 623600715,
+      "peRatio": 21.34417344173442
+    },
+    "XYL": {
+      "earningsPerShare": 4.2057,
+      "sharesOutstanding": 243584000,
+      "peRatio": 22.92142857142857
+    },
+    "YELP": {
+      "earningsPerShare": 2.0845000000000002,
+      "sharesOutstanding": 54263621,
+      "peRatio": 10.991270725030331
+    },
+    "YUM": {
+      "earningsPerShare": 7.944500000000001,
+      "sharesOutstanding": 272901085,
+      "peRatio": 19.97413196615503
+    },
+    "CAVA": {
+      "earningsPerShare": 0.55,
+      "sharesOutstanding": 116806198,
+      "peRatio": 110.53804590875434
+    },
+    "CCI": {
+      "earningsPerShare": 1.8946,
+      "sharesOutstanding": 435000000,
+      "peRatio": 44.82496364249166
+    },
+    "COKE": {
+      "earningsPerShare": 6.6242,
+      "sharesOutstanding": 56517334,
+      "peRatio": 27.39176626826029
+    },
+    "SOUN": {
+      "earningsPerShare": -0.62,
+      "sharesOutstanding": 411576753,
+      "peRatio": -10.110429447852761
+    },
+    "SPCX": {
+      "earningsPerShare": 0.23,
+      "sharesOutstanding": 8246541218,
+      "peRatio": 1265.6515897895208
+    },
+    "WCC": {
+      "earningsPerShare": 14.1338,
+      "sharesOutstanding": 43009941,
+      "peRatio": 24.316044260027663
+    },
+    "WCN": {
+      "earningsPerShare": 4.459,
+      "sharesOutstanding": 255614663,
+      "peRatio": 45.196125907990314
+    },
+    "WEC": {
+      "earningsPerShare": 5.1621,
+      "sharesOutstanding": 325461519,
+      "peRatio": 20.541582196678352
+    },
+    "WULF": {
+      "earningsPerShare": -4.3816,
+      "sharesOutstanding": 498968677,
+      "peRatio": -4.223908264668136
+    },
+    "ACLS": {
+      "earningsPerShare": 2.9752,
+      "sharesOutstanding": 30881489,
+      "peRatio": 34.32902064288829
+    },
+    "AMD": {
+      "earningsPerShare": 3.8971999999999998,
+      "sharesOutstanding": 1640087251,
+      "peRatio": 85.16118677279051
+    },
+    "BAX": {
+      "earningsPerShare": -2.0742,
+      "sharesOutstanding": 516995999,
+      "peRatio": 31.469135802469133
+    },
+    "BEAM": {
+      "earningsPerShare": -0.8146999999999995,
+      "sharesOutstanding": 101748962,
+      "peRatio": -5.939628738238328
+    },
+    "CCK": {
+      "earningsPerShare": 7.175600000000001,
+      "sharesOutstanding": 113421634,
+      "peRatio": 16.460536161097018
+    },
+    "CHYM": {
+      "earningsPerShare": 0.88,
+      "sharesOutstanding": 347019852,
+      "peRatio": 60.739209097958124
+    },
+    "CLF": {
+      "earningsPerShare": -0.8491,
+      "sharesOutstanding": 569759243,
+      "peRatio": -74.35139711217911
+    },
+    "ETSY": {
+      "earningsPerShare": 1.4432999999999998,
+      "sharesOutstanding": 86205886,
+      "peRatio": 26.632626538318707
+    },
+    "PAAS": {
+      "earningsPerShare": 3.3149,
+      "sharesOutstanding": 414618000,
+      "peRatio": 10.626272953401752
+    },
+    "WWD": {
+      "earningsPerShare": 8.9912,
+      "sharesOutstanding": 59045820,
+      "peRatio": 37.00667408231368
+    },
+    "BA": {
+      "earningsPerShare": 9.69,
+      "sharesOutstanding": 792449940,
+      "peRatio": -409.2258215330561
+    },
+    "BDX": {
+      "earningsPerShare": 3.3141,
+      "sharesOutstanding": 272386800,
+      "peRatio": 37.01040631700047
+    },
+    "BHP": {
+      "earningsPerShare": 1.9322,
+      "sharesOutstanding": 2541476901,
+      "peRatio": 15.932977490718168
+    },
+    "BIDU": {
+      "earningsPerShare": -1.7449000000000003,
+      "sharesOutstanding": 274750119,
+      "peRatio": 16.312961312191973
+    },
+    "RVMD": {
+      "earningsPerShare": -8.87,
+      "sharesOutstanding": 214336418,
+      "peRatio": -20.429233735971795
+    },
+    "TIGO": {
+      "earningsPerShare": 3.9809,
+      "sharesOutstanding": 167710000,
+      "peRatio": 23.61639491511687
+    },
+    "TRU": {
+      "earningsPerShare": 3.7904,
+      "sharesOutstanding": 192400000,
+      "peRatio": 20.725593667546175
+    },
+    "VICI": {
+      "earningsPerShare": 2.5786,
+      "sharesOutstanding": 1068811371,
+      "peRatio": 9.227452161404086
+    },
+    "VIK": {
+      "earningsPerShare": 3.0098000000000003,
+      "sharesOutstanding": 318867000,
+      "peRatio": 28.518272425249172
+    },
+    "ZS": {
+      "earningsPerShare": -0.3953,
+      "sharesOutstanding": 163054698,
+      "peRatio": 3860.6270581778267
+    },
+    "ZTS": {
+      "earningsPerShare": 6.0789,
+      "sharesOutstanding": 413223602,
+      "peRatio": 14.126541744620246
+    },
+    "CRM": {
+      "earningsPerShare": 10.976500000000001,
+      "sharesOutstanding": 823000000,
+      "peRatio": 21.3472210039746
+    },
+    "CVNA": {
+      "earningsPerShare": 2.08,
+      "sharesOutstanding": 719916415,
+      "peRatio": 45.688061045607945
+    },
+    "CVS": {
+      "earningsPerShare": 3.8,
+      "sharesOutstanding": 1279474188,
+      "peRatio": 13.22736201601146
+    },
+    "CVX": {
+      "earningsPerShare": 10.4285,
+      "sharesOutstanding": 1991597732,
+      "peRatio": 12.683908794773602
+    },
+    "DDOG": {
+      "earningsPerShare": 0.5,
+      "sharesOutstanding": 334904614,
+      "peRatio": 403.3346624184717
+    },
+    "DLR": {
+      "earningsPerShare": 2.2363,
+      "sharesOutstanding": 343557000,
+      "peRatio": 64.54939864311972
+    },
+    "DLTR": {
+      "earningsPerShare": 8.189,
+      "sharesOutstanding": 187630299,
+      "peRatio": 16.910507003664257
+    },
+    "PEG": {
+      "earningsPerShare": 4.0215000000000005,
+      "sharesOutstanding": 498000000,
+      "peRatio": 18.111940298507466
+    },
+    "SR": {
+      "earningsPerShare": 9.277899999999999,
+      "sharesOutstanding": 59000000,
+      "peRatio": 14.41983629447072
+    },
+    "STLA": {
+      "earningsPerShare": -8.73,
+      "sharesOutstanding": 2903426690,
+      "peRatio": 62.3608017817372
+    },
+    "DOW": {
+      "earningsPerShare": -1.2635,
+      "sharesOutstanding": 722340711,
+      "peRatio": 16.87076514586796
+    },
+    "MPLX": {
+      "earningsPerShare": 4.65,
+      "sharesOutstanding": 1013027039,
+      "peRatio": 13.381569041332758
+    },
+    "ECHO": {
+      "earningsPerShare": -24.77,
+      "sharesOutstanding": 159467376,
+      "peRatio": 4.231416913239889
+    },
+    "ED": {
+      "earningsPerShare": 6.07,
+      "sharesOutstanding": 369828633,
+      "peRatio": 18.246866782876346
+    },
+    "EMN": {
+      "earningsPerShare": 5.62,
+      "sharesOutstanding": 114380456,
+      "peRatio": 10.981721165460788
+    },
+    "EMR": {
+      "earningsPerShare": 4.57,
+      "sharesOutstanding": 557800000,
+      "peRatio": 33.88312551520108
+    },
+    "EOG": {
+      "earningsPerShare": 12.852300000000001,
+      "sharesOutstanding": 524529176,
+      "peRatio": 15.257620452310716
+    },
+    "EXPE": {
+      "earningsPerShare": 16.01,
+      "sharesOutstanding": 114498625,
+      "peRatio": 15.117611814093316
+    },
+    "ACHR": {
+      "earningsPerShare": -1.0812,
+      "sharesOutstanding": 770023800,
+      "peRatio": -3.1544729356915244
+    },
+    "MCHP": {
+      "earningsPerShare": 0.68,
+      "sharesOutstanding": 543008691,
+      "peRatio": 37.550837036597855
+    },
+    "MNST": {
+      "earningsPerShare": 1.08,
+      "sharesOutstanding": 979525882,
+      "peRatio": 41.1830121384266
+    },
+    "DFS": {
+      "earningsPerShare": 22.448700000000002,
+      "sharesOutstanding": null,
+      "peRatio": 8.9277
+    },
+    "FISV": {
+      "earningsPerShare": 5.2133,
+      "sharesOutstanding": 532047720,
+      "peRatio": -16.61868401080556
+    },
+    "FIVE": {
+      "earningsPerShare": 11.145700000000001,
+      "sharesOutstanding": 55054035,
+      "peRatio": 18.904501014499132
+    },
+    "FSLR": {
+      "earningsPerShare": 16.2206,
+      "sharesOutstanding": 107481151,
+      "peRatio": 10.685509644204144
+    },
+    "GIS": {
+      "earningsPerShare": -1.6604000000000003,
+      "sharesOutstanding": 534629472,
+      "peRatio": 11.094627602378704
+    },
+    "GLXY": {
+      "earningsPerShare": -0.77,
+      "sharesOutstanding": 194292392,
+      "peRatio": -58.70923405903016
+    },
+    "GPN": {
+      "earningsPerShare": 2.13,
+      "sharesOutstanding": 264618390,
+      "peRatio": -23.11772204572025
+    },
+    "HAL": {
+      "earningsPerShare": 2.3883,
+      "sharesOutstanding": 827126342,
+      "peRatio": 14.654147915278637
+    },
+    "TPR": {
+      "earningsPerShare": 7.27,
+      "sharesOutstanding": 199391678,
+      "peRatio": 15.28348709011347
+    },
+    "HL": {
+      "earningsPerShare": 0.4952,
+      "sharesOutstanding": 671777326,
+      "peRatio": 16.66876971608833
+    },
+    "HMC": {
+      "earningsPerShare": -0.72,
+      "sharesOutstanding": 1297672194,
+      "peRatio": 12.402307653854841
+    },
+    "HPE": {
+      "earningsPerShare": 1.9631999999999998,
+      "sharesOutstanding": 1327464779,
+      "peRatio": 18.98163357153913
+    },
+    "HSY": {
+      "earningsPerShare": 7.32,
+      "sharesOutstanding": 146312143,
+      "peRatio": 19.95443614008743
+    },
+    "HUT": {
+      "earningsPerShare": -5.42,
+      "sharesOutstanding": 120037556,
+      "peRatio": -13.574056539192613
+    },
+    "IP": {
+      "earningsPerShare": -5.17,
+      "sharesOutstanding": 529569895,
+      "peRatio": 30.896699278871743
+    },
+    "IREN": {
+      "earningsPerShare": -2.22,
+      "sharesOutstanding": 404613536,
+      "peRatio": -12.786313312768591
+    },
+    "IVZ": {
+      "earningsPerShare": -0.18479999999999963,
+      "sharesOutstanding": 444000000,
+      "peRatio": 10.661736965215423
+    },
+    "JD": {
+      "earningsPerShare": 1.43,
+      "sharesOutstanding": 1350500000,
+      "peRatio": 13.6173
+    },
+    "LI": {
+      "earningsPerShare": -0.65,
+      "sharesOutstanding": 804674894,
+      "peRatio": -18.369900917346925
+    },
+    "LUMN": {
+      "earningsPerShare": -1.02,
+      "sharesOutstanding": 1031445404,
+      "peRatio": -7.132132132132131
+    },
+    "LUV": {
+      "earningsPerShare": 2.0284,
+      "sharesOutstanding": 489208201,
+      "peRatio": 16.380118268600764
+    },
+    "LYB": {
+      "earningsPerShare": -0.83,
+      "sharesOutstanding": 322084769,
+      "peRatio": 9.12096225944825
+    },
+    "NBIS": {
+      "earningsPerShare": -0.39560000000000006,
+      "sharesOutstanding": 238400165,
+      "peRatio": 988.2964
+    },
+    "LYV": {
+      "earningsPerShare": -1.11,
+      "sharesOutstanding": 235421446,
+      "peRatio": -1411.2588267781766
+    },
+    "OXY": {
+      "earningsPerShare": 7.1937999999999995,
+      "sharesOutstanding": 986026416,
+      "peRatio": 7.929500273523801
+    },
+    "SMTC": {
+      "earningsPerShare": 1.56,
+      "sharesOutstanding": 92668555,
+      "peRatio": 34.5064029931908
+    },
+    "MDLZ": {
+      "earningsPerShare": 2.7263,
+      "sharesOutstanding": 1283649766,
+      "peRatio": 20.74049160570644
+    },
+    "CCJ": {
+      "earningsPerShare": 0.59,
+      "sharesOutstanding": 435532978,
+      "peRatio": 142.6865
+    },
+    "MKSI": {
+      "earningsPerShare": 6.29,
+      "sharesOutstanding": 67617558,
+      "peRatio": 21.754375101917308
+    },
+    "MRK": {
+      "earningsPerShare": 1.2521,
+      "sharesOutstanding": 2467171638,
+      "peRatio": 89.6834577507659
+    },
+    "NI": {
+      "earningsPerShare": 1.95,
+      "sharesOutstanding": 479668642,
+      "peRatio": 21.65339332743551
+    },
+    "NIO": {
+      "earningsPerShare": -1.9408,
+      "sharesOutstanding": 2357167022,
+      "peRatio": -36.38727928092349
+    },
+    "AHR": {
+      "earningsPerShare": 0.6742,
+      "sharesOutstanding": 179658367,
+      "peRatio": 84.50769230769231
+    },
+    "FROG": {
+      "earningsPerShare": -0.3711,
+      "sharesOutstanding": 123301311,
+      "peRatio": -251.1473195153586
+    },
+    "GD": {
+      "earningsPerShare": 16.3938,
+      "sharesOutstanding": 270389759,
+      "peRatio": 23.583123425692694
+    },
+    "NNN": {
+      "earningsPerShare": 2.02,
+      "sharesOutstanding": 190248177,
+      "peRatio": 20.638613861386137
+    },
+    "FFIV": {
+      "earningsPerShare": 12.5531,
+      "sharesOutstanding": 57684000,
+      "peRatio": 22.431837425910246
+    },
+    "RDFN": {
+      "earningsPerShare": -1.5248,
+      "sharesOutstanding": null,
+      "peRatio": null
+    },
+    "MELI": {
+      "earningsPerShare": 36.77,
+      "sharesOutstanding": 50696802,
+      "peRatio": 43.13519181285173
+    },
+    "NTDOY": {
+      "earningsPerShare": 0.66,
+      "sharesOutstanding": 4611492820,
+      "peRatio": 19.7806
+    },
+    "NTSK": {
+      "earningsPerShare": -1.52,
+      "sharesOutstanding": 267134729,
+      "peRatio": -20.520799860187957
+    },
+    "NUE": {
+      "earningsPerShare": 12.54,
+      "sharesOutstanding": 226875676,
+      "peRatio": 14.37459577525727
+    },
+    "BG": {
+      "earningsPerShare": 5.140000000000001,
+      "sharesOutstanding": 192143784,
+      "peRatio": 16.274914089347078
+    },
+    "LMT": {
+      "earningsPerShare": 28.1538,
+      "sharesOutstanding": 229000000,
+      "peRatio": 24.040632054176072
+    },
+    "OMC": {
+      "earningsPerShare": 0.99,
+      "sharesOutstanding": 313100000,
+      "peRatio": 9.928643174568158
+    },
+    "ONDS": {
+      "earningsPerShare": 0.3117,
+      "sharesOutstanding": 570552341,
+      "peRatio": 12.496411867922207
+    },
+    "ONON": {
+      "earningsPerShare": 1.1837,
+      "sharesOutstanding": 300830569,
+      "peRatio": 24.56433635239122
+    },
+    "ONTO": {
+      "earningsPerShare": 2.66,
+      "sharesOutstanding": 49074247,
+      "peRatio": 34.38757527750989
+    },
+    "BOX": {
+      "earningsPerShare": 0.9026,
+      "sharesOutstanding": 137200773,
+      "peRatio": 67.203125
+    },
+    "HP": {
+      "earningsPerShare": -1.3784999999999998,
+      "sharesOutstanding": 99938945,
+      "peRatio": -27.4791439970983
+    },
+    "PAA": {
+      "earningsPerShare": 1.16,
+      "sharesOutstanding": 705566460,
+      "peRatio": 7.060582529469397
+    },
+    "PAG": {
+      "earningsPerShare": 14.2161,
+      "sharesOutstanding": 65760464,
+      "peRatio": 14.923347398030943
+    },
+    "PAGS": {
+      "earningsPerShare": 7.527500000000001,
+      "sharesOutstanding": 159059831,
+      "peRatio": 4.849549847667081
+    },
+    "PANW": {
+      "earningsPerShare": 0.5125,
+      "sharesOutstanding": 818000000,
+      "peRatio": 213.15576439653546
+    },
+    "PBR": {
+      "earningsPerShare": 10.348299999999998,
+      "sharesOutstanding": 3721115691,
+      "peRatio": 4.519570512160818
+    },
+    "PDD": {
+      "earningsPerShare": 8.89,
+      "sharesOutstanding": 1423396462,
+      "peRatio": 8.1554
+    },
+    "GFL": {
+      "earningsPerShare": -0.46,
+      "sharesOutstanding": 349077362,
+      "peRatio": -70.21328244790851
+    },
+    "PN": {
+      "earningsPerShare": -5.53,
+      "sharesOutstanding": 8598775,
+      "peRatio": -8.414590104730951
+    },
+    "CSL": {
+      "earningsPerShare": 17.434600000000003,
+      "sharesOutstanding": 41000000,
+      "peRatio": 22.018760659465606
+    },
+    "NTES": {
+      "earningsPerShare": 7.2,
+      "sharesOutstanding": 640321746,
+      "peRatio": 14.318
+    },
+    "QSR": {
+      "earningsPerShare": 2.7736,
+      "sharesOutstanding": 346323165,
+      "peRatio": 16.638346473917696
+    },
+    "QXO": {
+      "earningsPerShare": -0.89,
+      "sharesOutstanding": 1037490709,
+      "peRatio": -18.84909456740443
+    },
+    "CYBR": {
+      "earningsPerShare": -2.9265000000000003,
+      "sharesOutstanding": null,
+      "peRatio": -139.70613360669742
+    },
+    "AMCR": {
+      "earningsPerShare": 2.384,
+      "sharesOutstanding": 461945690,
+      "peRatio": 19.73109243697479
+    },
+    "MKC": {
+      "earningsPerShare": 5.5331,
+      "sharesOutstanding": 254541615,
+      "peRatio": 17.830078015901094
+    },
+    "NKE": {
+      "earningsPerShare": 2.0864000000000003,
+      "sharesOutstanding": 1482600000,
+      "peRatio": 23.67921312153319
+    },
+    "RHHBY": {
+      "earningsPerShare": 15.3263,
+      "sharesOutstanding": 5520599304,
+      "peRatio": 20.947664112453346
+    },
+    "ROK": {
+      "earningsPerShare": 10.68,
+      "sharesOutstanding": 111273953,
+      "peRatio": 34.42579989971031
+    },
+    "RPRX": {
+      "earningsPerShare": 1.88,
+      "sharesOutstanding": 445277344,
+      "peRatio": 13.796995496444573
+    },
+    "RS": {
+      "earningsPerShare": 21.447,
+      "sharesOutstanding": 50941910,
+      "peRatio": 18.094606613533056
+    },
+    "RUN": {
+      "earningsPerShare": 1.48,
+      "sharesOutstanding": 240846982,
+      "peRatio": 6.861220743968173
+    },
+    "SKX": {
+      "earningsPerShare": 4.3734,
+      "sharesOutstanding": null,
+      "peRatio": 14.2557
+    },
+    "SEDG": {
+      "earningsPerShare": -4.5,
+      "sharesOutstanding": 61525748,
+      "peRatio": -15.994660663155754
+    },
+    "SNPS": {
+      "earningsPerShare": 5.6530000000000005,
+      "sharesOutstanding": 185994000,
+      "peRatio": 114.23223931515938
+    },
+    "SNY": {
+      "earningsPerShare": 3.2604,
+      "sharesOutstanding": 2396137370,
+      "peRatio": 12.478479921291704
+    },
+    "SUI": {
+      "earningsPerShare": -6.114299999999999,
+      "sharesOutstanding": 123486747,
+      "peRatio": -20.761973428275393
+    },
+    "SUPX": {
+      "earningsPerShare": -2.9,
+      "sharesOutstanding": 44186112,
+      "peRatio": -1.6572491730981256
+    },
+    "SVM": {
+      "earningsPerShare": 0.11,
+      "sharesOutstanding": 221206309,
+      "peRatio": 13.361344537815127
+    },
+    "SWX": {
+      "earningsPerShare": 4,
+      "sharesOutstanding": 72224593,
+      "peRatio": 21.130587393119
+    },
+    "T": {
+      "earningsPerShare": 1.8742,
+      "sharesOutstanding": 6736473433,
+      "peRatio": 10.763379751561672
+    },
+    "TCOM": {
+      "earningsPerShare": 34.4892,
+      "sharesOutstanding": 629705222,
+      "peRatio": 20.5150578442333
+    },
+    "TTD": {
+      "earningsPerShare": 0.83,
+      "sharesOutstanding": 429686475,
+      "peRatio": 32.74781129519376
+    },
+    "UMC": {
+      "earningsPerShare": 6.6403,
+      "sharesOutstanding": 2507908580,
+      "peRatio": 14.187072117039882
+    },
+    "UNH": {
+      "earningsPerShare": 17.5216,
+      "sharesOutstanding": 896022611,
+      "peRatio": 21.873497157051105
+    },
+    "VALE": {
+      "earningsPerShare": 2.4327,
+      "sharesOutstanding": 4255762795,
+      "peRatio": 21.96
+    },
+    "VNET": {
+      "earningsPerShare": -0.40479999999999994,
+      "sharesOutstanding": 279561356,
+      "peRatio": -7.36166007905138
+    },
+    "VNOM": {
+      "earningsPerShare": 0.02,
+      "sharesOutstanding": 194405049,
+      "peRatio": 15.757323659423482
+    },
+    "W": {
+      "earningsPerShare": -2.47,
+      "sharesOutstanding": 115990166,
+      "peRatio": -1605.3299492385786
+    },
+    "WDAY": {
+      "earningsPerShare": 4.9275,
+      "sharesOutstanding": 36000000,
+      "peRatio": 34.960514435651035
+    },
+    "WOLF": {
+      "earningsPerShare": -11.39,
+      "sharesOutstanding": 52995396,
+      "peRatio": -2.6237565827969576
+    },
+    "XOM": {
+      "earningsPerShare": 7.77,
+      "sharesOutstanding": 4111911960,
+      "peRatio": 13.81970664000848
+    },
+    "XPEV": {
+      "earningsPerShare": -1.6317,
+      "sharesOutstanding": 783622601,
+      "peRatio": -24.07670684430811
+    },
+    "ZTO": {
+      "earningsPerShare": 12.7774,
+      "sharesOutstanding": 554416690,
+      "peRatio": 9.947803521050615
+    },
+    "PXD": {
+      "earningsPerShare": 20.2265,
+      "sharesOutstanding": null,
+      "peRatio": 12.8736
+    },
+    "VRTX": {
+      "earningsPerShare": 17.186700000000002,
+      "sharesOutstanding": 253991224,
+      "peRatio": 31.154145577483078
+    },
+    "VST": {
+      "earningsPerShare": 6.476699999999999,
+      "sharesOutstanding": 335635195,
+      "peRatio": 15.603197901063048
+    },
+    "VZ": {
+      "earningsPerShare": 3.8398,
+      "sharesOutstanding": 4144598336,
+      "peRatio": 9.891930008691517
+    },
+    "WING": {
+      "earningsPerShare": 4.2115,
+      "sharesOutstanding": 27053133,
+      "peRatio": 37.34115794336818
+    },
+    "WRB": {
+      "earningsPerShare": 4.727,
+      "sharesOutstanding": 377155799,
+      "peRatio": 15.61746361746362
+    },
+    "WTS": {
+      "earningsPerShare": 11.4566,
+      "sharesOutstanding": 27466760,
+      "peRatio": 32.029333333333334
+    },
+    "XYZ": {
+      "earningsPerShare": 0.5593999999999999,
+      "sharesOutstanding": 540816000,
+      "peRatio": 46.623593010387246
+    },
+    "YUMC": {
+      "earningsPerShare": 2.7229,
+      "sharesOutstanding": 354000000,
+      "peRatio": 17.52747252747253
+    },
+    "ZBH": {
+      "earningsPerShare": 4.1087,
+      "sharesOutstanding": 190737689,
+      "peRatio": 19.87653448750754
+    },
+    "ZBRA": {
+      "earningsPerShare": 10.930600000000002,
+      "sharesOutstanding": 47087454,
+      "peRatio": 22.036195269982517
+    },
+    "ZG": {
+      "earningsPerShare": 0.2253,
+      "sharesOutstanding": 41402072,
+      "peRatio": 57.71631190005412
+    },
+    "ZION": {
+      "earningsPerShare": 7.9797,
+      "sharesOutstanding": 147653000,
+      "peRatio": 8.101506017601524
+    },
+    "ZM": {
+      "earningsPerShare": 10.7959,
+      "sharesOutstanding": 263233141,
+      "peRatio": 11.013703210199475
+    },
+    "TFC": {
+      "earningsPerShare": 4.1281,
+      "sharesOutstanding": 1262470000,
+      "peRatio": 10.563283173594229
+    },
+    "AEIS": {
+      "earningsPerShare": 5.3661,
+      "sharesOutstanding": 40481991,
+      "peRatio": 28.810716376466157
+    },
+    "CARR": {
+      "earningsPerShare": 1.4424,
+      "sharesOutstanding": 818160206,
+      "peRatio": -462.5074133164045
+    },
+    "EW": {
+      "earningsPerShare": 1.68,
+      "sharesOutstanding": 576400000,
+      "peRatio": 38.58546707304566
+    },
+    "X": {
+      "earningsPerShare": 0.2789,
+      "sharesOutstanding": null,
+      "peRatio": 128.0085
+    },
+    "CHX": {
+      "earningsPerShare": 1.5148000000000001,
+      "sharesOutstanding": null,
+      "peRatio": 16.8554
+    },
+    "CTRA": {
+      "earningsPerShare": 2.17,
+      "sharesOutstanding": 759356619,
+      "peRatio": 14.3999
+    },
+    "PCAR": {
+      "earningsPerShare": 5.2361,
+      "sharesOutstanding": 526505329,
+      "peRatio": 17.157992096191037
+    },
+    "PEP": {
+      "earningsPerShare": 7.9544999999999995,
+      "sharesOutstanding": 1366000000,
+      "peRatio": 18.014435695538058
+    },
+    "WTR": {
+      "earningsPerShare": null,
+      "sharesOutstanding": null,
+      "peRatio": null
+    }
+  }
+}

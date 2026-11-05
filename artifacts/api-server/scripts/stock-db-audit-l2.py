@@ -609,9 +609,17 @@ def yahoo_mrq(conn, ticker: str) -> str | None:
     r = rows(
         conn,
         """
-        SELECT payload->'financialData'->>'mostRecentQuarter' AS mrq
+        SELECT COALESCE(
+          payload->'defaultKeyStatistics'->>'mostRecentQuarter',
+          payload->'financialData'->>'mostRecentQuarter'
+        ) AS mrq
         FROM vendor_raw
-        WHERE source = 'yahoo' AND key = %s AND payload ? 'financialData'
+        WHERE source = 'yahoo' AND key = %s
+          AND endpoint LIKE 'quoteSummary:%%financialData%%'
+          AND (
+            payload->'defaultKeyStatistics' ? 'mostRecentQuarter'
+            OR payload->'financialData' ? 'mostRecentQuarter'
+          )
         ORDER BY fetched_on DESC
         LIMIT 1
         """,

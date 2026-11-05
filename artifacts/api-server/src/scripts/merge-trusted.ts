@@ -517,9 +517,9 @@ export async function runMergeTrusted() {
         peRatio: ex.peRatio != null && ex.peRatio !== "" ? Number(ex.peRatio) : null,
       };
     }
-    mkdirSync(join(dirname(fileURLToPath(import.meta.url)), "../../../out/audit"), { recursive: true });
+    mkdirSync(join(dirname(fileURLToPath(import.meta.url)), "../../out/audit"), { recursive: true });
     writeFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../../../out/audit/a329-seg3-pre-merge.json"),
+      join(dirname(fileURLToPath(import.meta.url)), "../../out/audit/a329-seg3-pre-merge.json"),
       JSON.stringify({ capturedAt: new Date().toISOString(), tickers: seg3PreMerge }, null, 2),
     );
   }
