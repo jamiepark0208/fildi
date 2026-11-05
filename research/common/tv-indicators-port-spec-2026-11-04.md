@@ -50,5 +50,12 @@ Start only after phase 1's commit passes Claude review.
 - Row hover/expand: per kind (Buy / Sell / BoS / CHoCH / sweep) and per tf rows. One-line tooltips only.
 - Data via `GET /api/indicators/scorecard` (catalog row in `.agents/context/api-endpoints.md`).
 
+### C v2 (Claude 11-04 evening — supersedes the hit/placebo columns above; grader a33a1c20)
+- Answer first per indicator row (cell kind=ALL, tf=ALL): **verdict chip** (direction) · **confidence** `p_win` with band `p_win_lo–p_win_hi` vs `random_win_pct` · **best structure** (`best_structure`, else "no edge yet") · n · days · last graded.
+- Expand: rows per `kind` incl. `… · up` / `… · down` cells × tf; for each, the 4 families from `structures` jsonb (direction %/trade, bracket pts, vol |move| %, premium pts): signal vs random, lift, t, both-halves tick, verdict. Old `hit_pct/placebo_hit_pct` = small grey "old ATR test" column.
+- Header line (fixed text): "Stock-path test, vs vol-matched random entries; structures over 60 min. Option-priced test = S152 (A334)."
+- Default on/off toggle per indicator (feeds both charts' default menu) — keep from v1.
+- API: `GET /api/indicators/scorecard` returns all `indicator_scorecard` rows (+ registry meta: label, source url/author, version, timeframes from `@workspace/indicators` INDICATORS) — DB read only, cache 10 min in `lib/ttl-cache.ts`; add the api-endpoints.md row.
+
 ## Acceptance
 tsc 0 both apps; tests pass; scorecard populated for ≥ 1 night on SPY/QQQ; Settings tab renders; adding a dummy indicator touches only its file + registry line (prove in the report); ship check ok.
