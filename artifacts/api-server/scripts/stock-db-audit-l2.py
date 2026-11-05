@@ -67,6 +67,7 @@ PRIOR_SHARES_WINDOW = 45
 MAX_PERIOD_DAYS = 15 * 30
 # Aligned definitions (FIELD_DEFS + gold + truth) — period/ADR mismatches are not "definition".
 DEFINITION_ONLY_FIELDS = {"debtToEquity"}
+DEFINITION_RATE_EXCLUDED = frozenset({"definition", "definition_mismatch"})
 FLOW_PERIOD_FIELDS = {"netIncome", "freeCashFlow", "totalRevenue", "ebitda"}
 INSTANT_PERIOD_FIELDS = {"totalStockholdersEquity", "totalDebt", "cashAndEquivalents"}
 
@@ -273,6 +274,48 @@ def cover_shares_on_bs_end(
     return tot, f"dei sum classes {end} (±{DEI_SHARES_FALLBACK_DAYS}d from {bs_end})"
 
 
+def basic_wa_end_near(facts: dict, anchor_end: str, days_back: int, window: int = PRIOR_SHARES_WINDOW) -> str | None:
+    """Quarterly basic WA period end nearest anchor_end − days_back (±window)."""
+    vals = [
+        u
+        for u in F._units(facts, "WeightedAverageNumberOfSharesOutstandingBasic", "shares")
+        if u.get("start") and 80 <= F._days(u["start"], u["end"]) <= 100
+    ]
+    if not vals:
+        return None
+    target = date.fromisoformat(anchor_end) - timedelta(days=days_back)
+    ends = {u["end"] for u in vals if abs((date.fromisoformat(u["end"]) - target).days) <= window}
+    return max(ends) if ends else None
+
+
+def prior_basic_wa_shares(
+    facts: dict, conn, ticker: str, anchor_end: str
+) -> tuple[float | None, str]:
+    """Yahoo/FMP prior ≈ prior fiscal basic weighted-average; SEC match on same concept."""
+    end = basic_wa_end_near(facts, anchor_end, 365)
+    if not end:
+        return None, "prior basic WA end missing"
+    basic = F._latest_basic_wa(facts, end)
+    if not basic:
+        return None, f"prior basic WA missing on {end}"
+    val = float(basic["val"])
+    adr = F.detect_adr_ratio(facts, conn, ticker, end) if conn and ticker else None
+    if adr and adr > 1:
+        val = F.filing_shares_to_ads(val, adr)
+        return val, f"prior basic WA {end} ADS ÷{adr}"
+    return val, f"prior basic WA {end}"
+
+
+def sec_shares_prior(facts: dict, conn, ticker: str) -> tuple[float | None, str]:
+    _cur, cur_note = sec_shares_current(facts, conn, ticker)
+    if _cur is None:
+        return None, cur_note
+    anchor = parse_truth_period_end(cur_note)
+    if not anchor:
+        return None, "prior anchor missing"
+    return prior_basic_wa_shares(facts, conn, ticker, anchor)
+
+
 def dei_end_near(facts: dict, anchor_end: str, days_back: int, window: int = PRIOR_SHARES_WINDOW) -> str | None:
     dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
     vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
@@ -389,9 +432,9 @@ def miss_cause(row: dict, facts: dict | None = None, conn=None) -> str:
                 return "share_class_partial"
         if field == "sharesOutstandingPrior" and truth > 0:
             r = gold / truth
-            # Yahoo/FMP prior ≈ diluted weighted average ~1y ago; SEC dei is cover count.
-            if 1.03 <= r <= 1.10:
-                return "definition"
+            # Vendor prior = basic WA (Yahoo fts-1); residual gap vs cover-count truth → definition.
+            if 1.03 <= r <= 1.10 or ("prior basic wa" in note and 1.02 <= r <= 1.12):
+                return "definition_mismatch"
         if field == "earningsPerShare" and "basic" in note and "diluted" not in note:
             return "basic_vs_diluted"
     if field in ("totalRevenue", "totalStockholdersEquity") and scale_looks_adr(gold, truth):
@@ -509,13 +552,7 @@ def sec_truth(conn, facts, ticker, field, gold_period_end: str | None = None):
     if field == "sharesOutstanding":
         return sec_shares_current(facts, conn, ticker)
     if field == "sharesOutstandingPrior":
-        sh = F.shares(facts, conn, ticker)
-        if not sh:
-            return None, "shares tag missing"
-        prior_end = dei_end_near(facts, sh["end"], 365)
-        if not prior_end:
-            return None, "prior dei missing"
-        return dei_shares_on_end(facts, conn, ticker, prior_end)
+        return sec_shares_prior(facts, conn, ticker)
     if field == "tangibleBookValuePerShare":
         # One definition with the producer (sec_gold_fields.tangible_book): common equity − preferred − goodwill
         # − intangibles ex-goodwill, every leg at the equity date; a missing leg is a skip, never 0.
@@ -600,7 +637,7 @@ def row_counts_for_rate(row: dict, facts: dict | None, conn) -> bool:
     if row.get("truth") is None:
         return False
     cause = miss_cause(row, facts, conn)
-    return cause != "definition"
+    return cause not in DEFINITION_RATE_EXCLUDED
 
 
 def cohort_summary(judged_rows, cohort: str, conn, cache: dict):
