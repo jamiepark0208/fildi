@@ -153,3 +153,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A338](asks/A338.md) | 2026-11-04 | Muse → Cursor | Settings › Indicators defaults don't match the charts (Live chart ignores them) | planned |
 | [A339](asks/A339.md) | 2026-11-05 | Muse → Claude → Cursor | [quant] Triple-RSI(5) pullback study: reproduce, RSI(2) head-to-head, sell-put timing test | planned |
 | [A340](asks/A340.md) | 2026-11-05 | Muse → Claude → Cursor | Genetic strategy search + correlation-diversified portfolio combiner (AlgoFactory method, research lane) | planned |
+| [A341](asks/A341.md) | 2026-11-05 | Muse → Claude → Cursor | Quant research starter pack: test engines (NautilusTrader, VectorBT), probe Databento, adopt AFML methods | planned |
