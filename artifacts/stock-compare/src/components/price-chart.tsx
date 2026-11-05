@@ -873,7 +873,7 @@ export function PriceChart({
   }, []);
   /** Clickable indicator tags — EM/EMA on by default for technical chart. */
   const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorId>>(
-    () => new Set<IndicatorId>(getDefaultIndicators().filter((id) => INDICATOR_META.some((m) => m.id === id)) as IndicatorId[]),
+    () => new Set<IndicatorId>(getDefaultIndicators(["em", "ema"]).filter((id) => INDICATOR_META.some((m) => m.id === id)) as IndicatorId[]),
   );
   const toggleIndicator = useCallback((id: IndicatorId) => {
     setActiveIndicators((prev) => {

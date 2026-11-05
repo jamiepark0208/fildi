@@ -2,11 +2,14 @@
 const KEY = "fildi_default_indicators";
 const EVT = "fildi:default-indicators";
 
-export function getDefaultIndicators(): string[] {
+/** `fallback` = the chart's own default when Settings › Indicators was never touched (key absent). */
+export function getDefaultIndicators(fallback: string[] = []): string[] {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const raw = localStorage.getItem(KEY);
+    if (raw == null) return fallback;
+    const v = JSON.parse(raw);
     return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-  } catch { return []; }
+  } catch { return fallback; }
 }
 
 export function setDefaultIndicator(id: string, on: boolean): string[] {
