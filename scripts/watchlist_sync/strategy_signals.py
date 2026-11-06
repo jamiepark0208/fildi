@@ -79,7 +79,7 @@ def detect_shadow(asof: date) -> list[tuple[str, str, dict]]:
                         "study": PRESETS[meta["preset"]]["study"],
                         "delta": meta["delta"],
                         "exit": meta["exit"],
-                        "close": float(r.close),
+                        "close": float(r.c),  # panel price cols are o/h/l/c
                         "up_climax": int(getattr(r, "up_climax", 0)),
                     },
                 )
@@ -182,7 +182,11 @@ def main():
                           json.dumps({"z": z, "iv30": iv, "close": c, "iv_jump_5d": j, "peer_group": g,
                                       "same_group_today": sum(1 for x in sig if x[5] and x[5] == g)}))
                          for t, z, iv, c, j, g in sig])
-        shadow = detect_shadow(asof)
+        try:  # A330 shadow must never roll back the live panic-puts rows above (LPY venv once lacked pyarrow)
+            shadow = detect_shadow(asof)
+        except Exception as e:  # noqa: BLE001
+            print(f"shadow put_climax skipped: {type(e).__name__}: {e}")
+            shadow = []
         for sid, t, det in shadow:
             cur.execute(
                 """INSERT INTO watchlist_sync.strategy_signals (strategy_id, as_of, ticker, trigger, details)

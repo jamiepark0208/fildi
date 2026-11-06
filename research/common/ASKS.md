@@ -140,7 +140,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A329](asks/A329.md) | 2026-11-03 | Jamie → Claude → Cursor | Stock DB full audit: every name × field, root cause, SEC-verified, guard per error class | planned (seg3 accepted 11-05) |
 | [A327](asks/A327.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] Learning loop v2: week-clustered, grades rejected ideas, demotes failing rules, replay on history | planned |
 | [A328](asks/A328.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] S151: turning points by horizon → indicator combos → trade, entry timing, exit (strict for longs) | planned |
-| [A330](asks/A330.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] Wire S151 turning-point signals into Model List, put engine, option score, Live, Explain (shadow first) | planned |
+| [A330](asks/A330.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] Wire S151 turning-point signals into Model List, put engine, option score, Live, Explain (shadow first) | done (stage 1 11-05; stage 2 waits A327) |
 | [A331](asks/A331.md) | 2026-11-03 | Jamie → Claude → Cursor | Backtest Lab: interactive backtest page (inputs, signal builder, candles + markers, inspector, results vs baseline) | done (Cursor P1 backend 11-04) |
 | [A291](asks/A291.md) | 2026-10-28 | Claude → Cursor | [quant] S120: is bad earnings news punished more than good news is rewarded lately? (extends S018) | verified (Claude ran S120: asymmetry always ~3×, not worse in 2026) |
 | [A292](asks/A292.md) | 2026-10-28 | Claude → Cursor | [quant] S121: does the DCF expensive flag hurt puts only when rates rise? (S119 follow-up) | verified (Claude ran S121 stock-level: hint only) |

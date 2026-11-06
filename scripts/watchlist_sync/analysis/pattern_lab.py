@@ -368,7 +368,9 @@ def s151_panel(tickers: list[str] | None, rebuild: bool) -> pd.DataFrame:
     cache = S151_CACHE if not tickers else None
     if cache and cache.exists() and not rebuild and not tickers:
         p = pd.read_pickle(cache)
-        if "good_low_close_week" in p.columns:
+        with connect() as c:  # A330: nightly readers need today's bars — stale cache froze scores at 11-02
+            db_max = rows(c, "SELECT max(date) d FROM lseg_research.daily_history WHERE close > 0", None)[0]["d"]
+        if "good_low_close_week" in p.columns and p.date.max() >= pd.Timestamp(db_max):
             return p
         rebuild = True
     raw = load(tickers)
