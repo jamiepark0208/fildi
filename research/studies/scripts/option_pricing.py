@@ -344,6 +344,23 @@ def price_structure(
         )
         return debit_pnl(cost, ex, spot) if cost > 0 else None
 
+    if name == "credit_vertical":
+        # Mirror of debit_vertical: same strikes, opposite direction (sell the debit's long leg).
+        # RH fills via leg_entry (buy mid+0.54*spr, sell mid−0.54*spr). % of width−credit.
+        if bull:
+            short, long_leg = pack("call", atm, False), pack("call", atm + step, True)
+            side, k_s, k_l = "call", atm, atm + step
+        else:
+            short, long_leg = pack("put", atm, False), pack("put", atm - step, True)
+            side, k_s, k_l = "put", atm, atm - step
+        if not short or not long_leg:
+            return None
+        credit = short[0] - long_leg[0]
+        ex_cost = bs_price(side, exit_spot, k_s, T, short[1] * iv_mult) - bs_price(
+            side, exit_spot, k_l, T, long_leg[1] * iv_mult
+        )
+        return credit_pnl(credit, abs(k_s - k_l), ex_cost)
+
     if name == "credit_far":
         if bull:
             sellK, buyK = atm - step, atm - 2 * step
