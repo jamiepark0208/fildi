@@ -176,10 +176,14 @@ export function rankCompetitors(
   const key = subject.toUpperCase();
   const limit = opts?.limit ?? 12;
   const includeSubject = opts?.includeSubject !== false;
-  const techMap = new Map(techRows.map(r => [r.ticker.toUpperCase(), r]));
-  const fundMap = new Map(fundRows.map(r => [r.ticker.toUpperCase(), r]));
-
   const universe = Array.from(new Set([key, ...peerTickers.map((t) => t.toUpperCase())]));
+  const cohort = new Set(universe);
+  // Sector-fill names must not enter this set (A345). Percentiles use the passed cohort only,
+  // even if the caller fetched extra fundamentals rows.
+  const cohortTech = techRows.filter(r => cohort.has(r.ticker.toUpperCase()));
+  const cohortFund = fundRows.filter(r => cohort.has(r.ticker.toUpperCase()));
+  const techMap = new Map(cohortTech.map(r => [r.ticker.toUpperCase(), r]));
+  const fundMap = new Map(cohortFund.map(r => [r.ticker.toUpperCase(), r]));
 
   const techScores = new Map<string, number>();
   for (const t of universe) {
@@ -191,7 +195,7 @@ export function rankCompetitors(
   }
 
   // Fallback peer-relative fund score only when persisted fund_* is missing
-  const fallbackFund = computeFundScoresForRows(fundRows);
+  const fallbackFund = computeFundScoresForRows(cohortFund);
 
   const scored = universe.map((u) => {
     const techRow = techMap.get(u) ?? null;
@@ -212,7 +216,7 @@ export function rankCompetitors(
       fundQuality: pf.quality,
       fundSafety: pf.safety,
       pendingBackfill,
-      breakdown: computeFundMetricBreakdown(fundRows, u),
+      breakdown: computeFundMetricBreakdown(cohortFund, u),
     };
   });
 

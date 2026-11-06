@@ -1361,11 +1361,14 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
     }
     // Cap large taxonomy groups; small groups (e.g. Quantum Computing) show everyone.
     peers = peers.slice(0, 24);
-    const groupSet = new Set([key, ...peers]);
+    const groupPeers = [...peers];
+    const groupSet = new Set([key, ...groupPeers]);
 
-    // Display only. Scoring cohort stays the taxonomy group. Fill the peers box with
-    // other active names in the same sector, largest market cap first.
-    if (peers.length < 16) {
+    // Display only. Scoring cohort stays the taxonomy (or legacy) group. Sector-fill names
+    // are appended after ranking with inGroup:false and no rank, so they cannot move
+    // fallback fund percentiles or the subject's rank (A345).
+    const fillPeers: string[] = [];
+    if (groupPeers.length < 16) {
       const extra = await db.execute(sql`
         SELECT r.ticker, r.sector
         FROM ticker_registry r
@@ -1381,18 +1384,19 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
       for (const row of extraRows) {
         const t = String(row.ticker ?? "").toUpperCase();
         if (!t || groupSet.has(t)) continue;
-        peers.push(t);
-        if (peers.length >= 16) break;
+        fillPeers.push(t);
+        if (groupPeers.length + fillPeers.length >= 16) break;
       }
     }
 
-    const allTickers = [key, ...peers];
+    const scoreTickers = [key, ...groupPeers];
+    const displayTickers = [...scoreTickers, ...fillPeers];
     const [techRows, fundRows] = await Promise.all([
-      db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, allTickers)),
-      db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, allTickers)),
+      db.select().from(tickerTechnicals).where(inArray(tickerTechnicals.ticker, scoreTickers)),
+      db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, scoreTickers)),
     ]);
 
-    const rankedCore = rankCompetitors(key, peers, techRows, fundRows, {
+    const rankedCore = rankCompetitors(key, groupPeers, techRows, fundRows, {
       limit: 25,
       includeSubject: true,
     });
@@ -1400,24 +1404,43 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
       db.execute(sql`
         SELECT DISTINCT ON (ticker) ticker, close::float8 AS px
         FROM prices_historical
-        WHERE ticker IN (${sql.join(allTickers.map((t) => sql`${t}`), sql`, `)})
+        WHERE ticker IN (${sql.join(displayTickers.map((t) => sql`${t}`), sql`, `)})
         ORDER BY ticker, date DESC
       `),
       db.execute(sql`
         SELECT ticker, finnhub_market_cap::float8 AS cap
         FROM finnhub_fundamentals
-        WHERE ticker IN (${sql.join(allTickers.map((t) => sql`${t}`), sql`, `)})
+        WHERE ticker IN (${sql.join(displayTickers.map((t) => sql`${t}`), sql`, `)})
       `),
     ]);
     const asRows = <T,>(res: unknown): T[] => (Array.isArray(res) ? res as T[] : ((res as { rows?: T[] }).rows ?? []));
     const pxMap = new Map(asRows<{ ticker: string; px: number | null }>(pxRes).map((r) => [r.ticker.toUpperCase(), r.px]));
     const capMap = new Map(asRows<{ ticker: string; cap: number | null }>(capRes).map((r) => [r.ticker.toUpperCase(), r.cap]));
-    const ranked = rankedCore.map((r) => ({
-      ...r,
-      inGroup: groupSet.has(r.ticker),
-      price: pxMap.get(r.ticker) ?? null,
-      marketCap: capMap.get(r.ticker) ?? null,
-    }));
+    const ranked = [
+      ...rankedCore.map((r) => ({
+        ...r,
+        inGroup: true,
+        price: pxMap.get(r.ticker) ?? null,
+        marketCap: capMap.get(r.ticker) ?? null,
+      })),
+      ...fillPeers.map((t) => ({
+        ticker: t,
+        inGroup: false,
+        rank: null,
+        isSubject: false,
+        combinedScore: null,
+        techScore: null,
+        fundScore: null,
+        fundValue: null,
+        fundGrowth: null,
+        fundQuality: null,
+        fundSafety: null,
+        pendingBackfill: false,
+        breakdown: [] as { label: string; value: number; zScore: number }[],
+        price: pxMap.get(t) ?? null,
+        marketCap: capMap.get(t) ?? null,
+      })),
+    ];
 
     return res.json({
       ticker: key,
