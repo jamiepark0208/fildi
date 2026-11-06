@@ -138,7 +138,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A324](asks/A324.md) | 2026-11-02 | Muse → Cursor | CI red: api-server unit tests fail on branch tip (regression window f476 + 1e7c) | done (green since 3c3bc7a9) |
 | [A326](asks/A326.md) | 2026-11-03 | Muse → Cursor | CI red: stock-compare typecheck fails since ae575af55 (DisplayRow vs StockDBTab) | planned |
 | [A329](asks/A329.md) | 2026-11-03 | Jamie → Claude → Cursor | Stock DB full audit: every name × field, root cause, SEC-verified, guard per error class | planned (seg3 accepted 11-05) |
-| [A327](asks/A327.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] Learning loop v2: week-clustered, grades rejected ideas, demotes failing rules, replay on history | planned |
+| [A327](asks/A327.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] Learning loop v2: week-clustered, grades rejected ideas, demotes failing rules, replay on history | done (stage 1) |
 | [A328](asks/A328.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] S151: turning points by horizon → indicator combos → trade, entry timing, exit (strict for longs) | planned |
 | [A330](asks/A330.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] Wire S151 turning-point signals into Model List, put engine, option score, Live, Explain (shadow first) | done (stage 1 11-05; stage 2 waits A327) |
 | [A331](asks/A331.md) | 2026-11-03 | Jamie → Claude → Cursor | Backtest Lab: interactive backtest page (inputs, signal builder, candles + markers, inspector, results vs baseline) | done (Cursor P1 backend 11-04) |

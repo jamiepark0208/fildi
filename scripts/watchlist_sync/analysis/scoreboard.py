@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from build_plan import connect  # noqa: E402
+from grade_weeks import expiry_week_from_detail, format_n, week_cluster_metrics  # noqa: E402
 
 MIN_EXPIRIES = 8
 
@@ -280,7 +281,7 @@ def engine_puts(conn) -> tuple:
     live = f"{m:+.1f} bp/wk, worst week {min(means):+.0f} · " + " · ".join(f"{k} {v['bp_wk']:+.0f} (n {v['n']})" for k, v in by.items())
     verdict = ("too early" if len(means) < MIN_EXPIRIES else "failed" if m + 2 * se < 0 else
                "holding" if m >= 29.6 - 2 * se else "drifting")
-    return (item, "S101", promised, live, f"{len(rs)} puts · {len(means)} expiries", verdict,
+    return (item, "S101", promised, live, format_n(len(rs), len(means)), verdict,
             {"by_state": by, "weeks": {str(k): round(sum(v) / len(v), 1) for k, v in wk.items()}})
 
 
@@ -340,8 +341,47 @@ def rich_puts(conn) -> tuple:
     verdict = ("too early" if weeks < MIN_EXPIRIES else "failed" if m + 2 * se < 0 else
                "holding" if (by.get("high") or {}).get("bp_wk", -1e9) >= (by.get("low") or {}).get("bp_wk", 1e9) else "drifting")
     live = f"{m:+.1f} bp/wk per sector-week bet · " + " · ".join(f"{k} {v['bp_wk']:+.0f} (n {v['n']})" for k, v in sorted(by.items()))
-    return (item, "S109", promised, live, f"{len(rs)} puts · {len(bets)} sector-week bets · {weeks} expiries", verdict,
+    return (item, "S109", promised, live, format_n(len(rs), weeks), verdict,
             {"by_tier": by, "by_sector": {k: _perf(v) for k, v in sec.items()}, "by_name": {k: _perf(v) for k, v in name.items()}})
+
+
+def blocked_gate_checks(conn) -> list[tuple]:
+    """Per L1 gate: week-clustered P&L of blocked ideas vs sell_puts kept (shown) ideas."""
+    rows_ = conn.execute(
+        """SELECT folder_key, ret::float8, detail FROM watchlist_sync.grades
+           WHERE horizon = 'expiry' AND bucket <> 'data'
+             AND (folder_key LIKE 'blocked:%' OR folder_key = 'sell_puts')"""
+    ).fetchall()
+    kept_raw, by_gate = [], defaultdict(list)
+    for fk, ret, detail in rows_:
+        d = detail or {}
+        wk = expiry_week_from_detail(d)
+        if wk is None:
+            continue
+        row = {"ret": ret, "week": wk, "breach": bool(d.get("breach"))}
+        if fk == "sell_puts":
+            kept_raw.append(row)
+        elif fk.startswith("blocked:"):
+            by_gate[fk.split(":", 1)[1]].append(row)
+    kept = week_cluster_metrics(kept_raw)
+    out = []
+    for gate, blocked in sorted(by_gate.items()):
+        rem = week_cluster_metrics(blocked)
+        item = f"Blocked gate: {gate}"
+        promised = "Gate removes losers, not winners (week-clustered kept vs removed P&L)"
+        k_m, r_m = kept.get("week_mean_ret"), rem.get("week_mean_ret")
+        live = (
+            f"kept {k_m:+.2%}/trade · removed {r_m:+.2%}/trade · breach removed {rem.get('breach_rate') or 0:.0%}"
+            if k_m is not None and r_m is not None
+            else "insufficient paired data"
+        )
+        n_label = format_n(rem["n_trades"], rem["n_weeks"])
+        verdict = "too early" if rem["n_weeks"] < MIN_EXPIRIES else (
+            "drifting" if k_m is not None and r_m is not None and r_m >= k_m else "holding"
+        )
+        out.append((f"blocked_{gate}", item, "A327", promised, live, n_label, verdict,
+                    {"kept": kept, "removed": rem, "gate": gate}))
+    return out
 
 
 CHECKS = [model_list, options_shadow, fair_value, assign_odds, own_vs_avoid, fv_spread, ira_vs_benchmark, engine_puts, pace_takes,
@@ -459,6 +499,13 @@ def main() -> None:
             live = f"check failed: {e}"[:200]
             _upsert(conn, key, label, "", "", live, "", "no live check", {"last_error": live})
             item, verdict = label, "no live check"
+        print(f"{verdict:14} {item}: {live}")
+    for check_key, item, src, promised, live, n, verdict, detail in blocked_gate_checks(conn):
+        try:
+            _upsert(conn, check_key, item, src, promised, live, n, verdict, dict(detail or {}))
+        except Exception as e:  # noqa: BLE001
+            conn.rollback()
+            _upsert(conn, check_key, item, "", "", f"check failed: {e}"[:200], "", "no live check", {})
         print(f"{verdict:14} {item}: {live}")
 
 

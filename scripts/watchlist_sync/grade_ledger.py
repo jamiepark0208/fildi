@@ -25,6 +25,7 @@ from collections import Counter, defaultdict
 from datetime import date
 
 from build_plan import connect, rows
+from grade_weeks import failed_l1_gates
 
 DDL = """
 CREATE TABLE IF NOT EXISTS watchlist_sync.grades (
@@ -45,6 +46,105 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.grades (
 OPTION_FOLDERS = {"sell_puts", "rich_puts", "sell_calls", "review"}
 VERDICT_FOLDERS = {"own": 1, "income": 1, "holdings": 1, "watch": 0, "avoid": -1}  # expected sign of vs-peers return
 HORIZONS = {"5d": 5, "10d": 10, "21d": 21}
+
+
+def grade_option_at_expiry(
+    *,
+    run_id: int,
+    folder_key: str,
+    ticker: str,
+    run_date: date,
+    opt_type: str,
+    strike: float,
+    expiry: date,
+    fill: float,
+    iv: float,
+    px_series,
+    spy_series,
+    er_dates,
+    today: date,
+    done: set,
+    extra_detail: dict | None = None,
+    verdict: str = "",
+    pillars=None,
+    flags=None,
+) -> tuple | None:
+    """Return one grades row tuple or None if not gradeable / already done."""
+    if expiry >= today or (run_id, folder_key, ticker, "expiry") in done:
+        return None
+    s = px_series
+    if not s:
+        return None
+    d_exp, st = close_on_or_before(s, expiry)
+    d0, s0 = close_on_or_before(s, run_date)
+    if st is None or s0 is None or d_exp < expiry:
+        return None
+    K = float(strike)
+    intrinsic = max(0.0, K - st) if opt_type == "put" else max(0.0, st - K)
+    ret = (fill - intrinsic) / (K if opt_type == "put" else s0)
+    premium_kept = (fill - intrinsic) / fill if fill and fill > 0 else None
+    days = max((expiry - run_date).days, 1)
+    sigma_move = iv * math.sqrt(days / 365)
+    risk_adj = (ret / sigma_move) if sigma_move and sigma_move > 0 else None
+    move = st / s0 - 1
+    spy_move = (close_on_or_before(spy_series, expiry)[1] / close_on_or_before(spy_series, run_date)[1] - 1) if spy_series else 0
+    er_in = any(run_date < d <= expiry for d in er_dates)
+    if premium_kept is not None and risk_adj is not None:
+        if premium_kept >= 0.85 and risk_adj >= 0.5:
+            tier = "best"
+        elif premium_kept >= 0.5 and ret > 0:
+            tier = "good"
+        elif abs(ret) < 0.01 or (0 <= premium_kept < 0.5 and ret >= 0):
+            tier = "flat"
+        elif premium_kept < -0.5:
+            tier = "very_bad"
+        else:
+            tier = "bad"
+    else:
+        tier = "good" if ret > 0 else "bad"
+    outcome = "good" if tier in ("best", "good") else ("flat" if tier == "flat" else "bad")
+    if outcome == "good":
+        bucket = "n/a"
+    elif er_in and abs(move) > 2 * iv * math.sqrt(1 / 252) * math.sqrt(days):
+        bucket = "event"
+    elif abs(move - spy_move) < abs(spy_move) and move * spy_move > 0:
+        bucket = "market"
+    elif abs(move) <= sigma_move:
+        bucket = "luck"
+    else:
+        bucket = "factor"
+    detail = {
+        "fill": fill,
+        "strike": K,
+        "close_expiry": st,
+        "spot_entry": s0,
+        "move": move,
+        "spy_move": spy_move,
+        "sigma_move": sigma_move,
+        "premium_kept": premium_kept,
+        "risk_adj": risk_adj,
+        "tier": tier,
+        "earnings_in_window": er_in,
+        "days": days,
+        "expiry": expiry.isoformat(),
+        "breach": intrinsic > 0,
+    }
+    if extra_detail:
+        detail.update(extra_detail)
+    if verdict or pillars or flags:
+        detail.update({"verdict": verdict, "pillars": pillars, "flags": flags})
+    return (
+        run_id,
+        folder_key,
+        ticker,
+        "expiry",
+        outcome,
+        ret,
+        move - spy_move,
+        None,
+        bucket,
+        json.dumps(detail),
+    )
 
 
 def series(conn):
@@ -176,6 +276,52 @@ def main() -> None:
                     outcome = "flat" if want == 0 else ("good" if rel * want > 0 else "bad")
                     out.append((it["run_id"], f, t, h, outcome, r, (r - rs) if rs is not None else None, vp, "n/a",
                                 json.dumps({"verdict": it["verdict"], "pillars": it["pillars"], "flags": it["flags"]})))
+        blocked = rows(
+            conn,
+            """SELECT pi.plan_id, pi.list_key, pi.ticker, pi.option_type, pi.strike::float8 strike, pi.expiry,
+                      pi.model_premium::float8 premium, pi.model_spot::float8 spot, pi.model_iv::float8 iv, pi.l1_checks,
+                      p.close_date AS run_date, mr.id AS run_id
+               FROM watchlist_sync.plan_items pi
+               JOIN watchlist_sync.plans p ON p.id = pi.plan_id
+               JOIN LATERAL (
+                 SELECT id FROM watchlist_sync.model_runs WHERE plan_id = pi.plan_id ORDER BY id DESC LIMIT 1
+               ) mr ON mr.id IS NOT NULL
+               WHERE NOT pi.l1_pass AND pi.kind = 'option' AND pi.expiry < %s""",
+            (today,),
+        )
+        for bi in blocked:
+            t = bi["ticker"]
+            s = px.get(t)
+            gates = failed_l1_gates(bi["l1_checks"])
+            if not gates:
+                continue
+            fill = float(bi["premium"] or 0)
+            if fill <= 0:
+                continue
+            iv = float(bi["iv"] or 0.4)
+            run_date = bi["run_date"]
+            exp = bi["expiry"]
+            for gate in gates:
+                fk = f"blocked:{gate}"
+                row = grade_option_at_expiry(
+                    run_id=bi["run_id"],
+                    folder_key=fk,
+                    ticker=t,
+                    run_date=run_date,
+                    opt_type=bi["option_type"] or "put",
+                    strike=bi["strike"],
+                    expiry=exp,
+                    fill=fill,
+                    iv=iv,
+                    px_series=s,
+                    spy_series=spy,
+                    er_dates=er.get(t, []),
+                    today=today,
+                    done=done,
+                    extra_detail={"blocked_gate": gate, "plan_id": bi["plan_id"], "list_key": bi["list_key"]},
+                )
+                if row:
+                    out.append(row)
         print(f"gradeable now: {len(out)} " + str(dict(Counter((o[1], o[3]) for o in out))))
         if out:
             print("outcomes:", dict(Counter((o[1], o[4]) for o in out)), "· buckets:", dict(Counter(o[8] for o in out if o[4] == "bad")))
