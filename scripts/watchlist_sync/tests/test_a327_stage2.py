@@ -10,7 +10,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analysis import a327_replay as R  # noqa: E402
-from grade_weeks import iso_week  # noqa: E402
+import learn as L  # noqa: E402
+import params as PM  # noqa: E402
+from grade_weeks import iso_week, month_block  # noqa: E402
 from rule_posterior import (  # noqa: E402
     decide,
     hand_beta_posterior_mean,
@@ -106,6 +108,86 @@ class A327Stage2(unittest.TestCase):
                 demote, reason, _ = decide(prior, bad, floor)
                 self.assertTrue(demote, msg=rid)
                 self.assertEqual(reason, "posterior_floor")
+
+    def _synthetic_promotion_trades(self) -> list[dict]:
+        trades = []
+        prior_end = L.PROMOTION_PRIOR_END
+        for wi in range(30):
+            d = date(2021, 2, 1) + timedelta(days=7 * wi)
+            if d >= date(2022, 1, 1):
+                break
+            wk = iso_week(d)
+            mb = month_block(d)
+            for i in range(12):
+                iv_rv = 1.0 + 0.06 * i
+                iv_rank = max(0.05, 0.95 - 0.06 * i)
+                ret = 0.004 * i
+                trades.append(
+                    {
+                        "d": d,
+                        "week": wk,
+                        "month": mb,
+                        "ret": ret,
+                        "breach": False,
+                        "iv_rv": iv_rv,
+                        "iv_rank_1y": iv_rank,
+                        "iv_pct": 40 + i,
+                    }
+                )
+        for wi in range(40):
+            d = date(2022, 1, 3) + timedelta(days=7 * wi)
+            wk = iso_week(d)
+            mb = month_block(d)
+            for i in range(12):
+                iv_rv = 1.0 + 0.06 * i
+                iv_rank = max(0.05, 0.95 - 0.06 * i)
+                ret = 0.004 * i
+                trades.append(
+                    {
+                        "d": d,
+                        "week": wk,
+                        "month": mb,
+                        "ret": ret,
+                        "breach": False,
+                        "iv_rv": iv_rv,
+                        "iv_rank_1y": iv_rank,
+                        "iv_pct": 40 + i,
+                    }
+                )
+        del prior_end
+        return trades
+
+    def test_challenger_identical_weights_near_fifty_fifty(self):
+        trades = self._synthetic_promotion_trades()
+        cp = copy.deepcopy(PM.SEED)
+        np = copy.deepcopy(PM.SEED)
+        ok, p = L.challenger_posterior_from_pool(trades, cp, np, date(2023, 6, 1))
+        self.assertFalse(ok)
+        self.assertAlmostEqual(p, 0.5, delta=0.08)
+
+    def test_challenger_iv_rv_weight_beats_rank(self):
+        trades = self._synthetic_promotion_trades()
+        cp = copy.deepcopy(PM.SEED)
+        np = copy.deepcopy(PM.SEED)
+        cp["premium"] = {"w_iv_rv": 0.05, "w_iv_rank": 0.95, "w_iv_level": 0.0}
+        np["premium"] = {"w_iv_rv": 0.95, "w_iv_rank": 0.05, "w_iv_level": 0.0}
+        ok, p = L.challenger_posterior_from_pool(trades, cp, np, date(2023, 6, 1))
+        self.assertTrue(p > 0.9, msg=f"P(better)={p:.3f}")
+        self.assertTrue(ok)
+
+    def test_two_cycle_promotion_with_clear_challenger(self):
+        trades = self._synthetic_promotion_trades()
+        cp = copy.deepcopy(PM.SEED)
+        cp["premium"] = {"w_iv_rv": 0.05, "w_iv_rank": 0.95, "w_iv_level": 0.0}
+        np = copy.deepcopy(cp)
+        np["premium"] = {"w_iv_rv": 0.95, "w_iv_rank": 0.05, "w_iv_level": 0.0}
+        why = [{"param": "premium.w_iv_rv", "old": 0.05, "new": 0.95, "why": "test"}]
+        pending = {w["param"]: L.param_direction(w) for w in why}
+        confirmed = [w for w in why if pending.get(w["param"]) == L.param_direction(w)]
+        self.assertEqual(len(confirmed), 1)
+        ok1, _ = L.challenger_posterior_from_pool(trades, cp, L.apply_rationale(cp, confirmed), date(2023, 6, 1))
+        ok2, _ = L.challenger_posterior_from_pool(trades, cp, L.apply_rationale(cp, confirmed), date(2023, 6, 1))
+        self.assertTrue(ok1 and ok2)
 
 
 if __name__ == "__main__":

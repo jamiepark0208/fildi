@@ -26,7 +26,9 @@ from grade_weeks import iso_week  # noqa: E402
 from rule_posterior import (  # noqa: E402
     decide,
     load_learning_rules,
+    observe_live,
     prior_from_trades,
+    prob_below_floor,
 )
 
 import s059_option_factors as S59  # noqa: E402
@@ -176,9 +178,38 @@ def decision_at_week(
     }
 
 
+def rule_posterior_snapshot(
+    all_rules: dict[str, list[dict]],
+    rules_spec: dict,
+    as_of: date,
+) -> list[dict]:
+    rows_out = []
+    for rid, spec in rules_spec.items():
+        if rid.startswith("_"):
+            continue
+        trades = all_rules.get(rid, [])
+        if as_of < learning_replay_from(spec):
+            continue
+        prior, live = prior_and_live(trades, as_of, spec)
+        post = observe_live(prior, live)
+        post.n_live_weeks = len({t.get("week") or iso_week(t["d"]) for t in live if t.get("d")})
+        floor = spec["floor"]
+        rows_out.append(
+            {
+                "rule": rid,
+                "live_weeks": post.n_live_weeks,
+                "pnl_wk_bp": (post.pnl.mu or 0) * 1e4,
+                "floor_bp": floor.get("pnl_wk_bp"),
+                "p_below": prob_below_floor(post, floor),
+            }
+        )
+    return rows_out
+
+
 def run_replay(conn, *, fast: bool = False) -> dict:
     rules_spec = load_learning_rules()
     all_rules = load_rule_trades(conn)
+    s059_pool = L.warm_s059_promotion_cache(conn, REPLAY_END + timedelta(days=7))
     weeks = list(iter_weeks(REPLAY_START, REPLAY_END))
     if fast:
         weeks = weeks[::4]
@@ -212,7 +243,7 @@ def run_replay(conn, *, fast: bool = False) -> dict:
             confirmed = [x for x in why if pending_dirs.get(x["param"]) == L.param_direction(x)]
             pending_dirs = new_dirs
             if confirmed:
-                ok, _p_better = L.challenger_posterior_ok(champ, NP, ev)
+                ok, _p_better = L.challenger_posterior_ok(champ, NP, ev, conn=conn, as_of=w, s059_pool=s059_pool)
                 if ok:
                     ym = (w.year, w.month)
                     if promo_months[ym] < 1:
@@ -233,9 +264,17 @@ def run_replay(conn, *, fast: bool = False) -> dict:
     std_last = stds(last12)
 
     q5_kept = "put_edge_q5" in active
-    rich_demoted = "rich_puts" in shadow
+    iv_demoted = any(r == "iv_rv_gate" for r, _, _ in demote_log)
     promo_ok = all(c <= 1 for c in promo_months.values())
     conv_ok = sum(std_last.values()) <= sum(std_first.values()) * 1.05 + 1e-9
+    rule_table = rule_posterior_snapshot(all_rules, rules_spec, REPLAY_END)
+    iv_demote_wk = next((date.fromisoformat(x[1]) for x in demote_log if x[0] == "iv_rv_gate"), None)
+    iv_hand_at_demote = None
+    if iv_demote_wk:
+        for row in rule_posterior_snapshot(all_rules, rules_spec, iv_demote_wk + timedelta(days=1)):
+            if row["rule"] == "iv_rv_gate":
+                iv_hand_at_demote = row
+                break
 
     return {
         "weeks": len(weeks),
@@ -248,11 +287,16 @@ def run_replay(conn, *, fast: bool = False) -> dict:
         "std_last": std_last,
         "checks": {
             "i_q5_kept": q5_kept,
-            "ii_rich_demoted": rich_demoted,
+            "ii_demotion_path": iv_demoted,
             "iii_promo_monthly": promo_ok,
             "iv_weight_converge": conv_ok,
         },
+        "rule_table": rule_table,
+        "iv_rv_gate_hand": iv_hand_at_demote,
+        "iv_rv_gate_demote_week": iv_demote_wk.isoformat() if iv_demote_wk else None,
         "weight_snap": weight_snap,
+        "std_first_vals": {k: [b[k] for b in first12] for k in keys} if first12 else {},
+        "std_last_vals": {k: [b[k] for b in last12] for k in keys} if last12 else {},
     }
 
 
@@ -282,6 +326,36 @@ def write_report(res: dict) -> None:
     lines += [
         "",
         f"Promotions: {len(res['promotions'])} (≤ 1/month target)",
+    ]
+    if res.get("promotions"):
+        by_m: dict[str, list[str]] = defaultdict(list)
+        for wk in res["promotions"]:
+            d = date.fromisoformat(wk)
+            by_m[f"{d.year}-{d.month:02d}"].append(wk)
+        lines.append("")
+        lines.append("### Promotions by month")
+        for ym in sorted(by_m):
+            lines.append(f"- {ym}: {', '.join(by_m[ym])}")
+    lines += [
+        "",
+        "## Per-rule posteriors @ replay end",
+        "",
+        "| rule | live weeks | P&L/wk bp (post) | floor bp | P(below floor) |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for row in res.get("rule_table") or []:
+        lines.append(
+            f"| {row['rule']} | {row['live_weeks']} | {row['pnl_wk_bp']:+.1f} | {row['floor_bp']} | {row['p_below']:.3f} |"
+        )
+    hand = res.get("iv_rv_gate_hand")
+    if hand:
+        lines += [
+            "",
+            f"**Hand-check iv_rv_gate @ {res.get('iv_rv_gate_demote_week')}:** "
+            f"live weeks {hand['live_weeks']}, posterior P&L/wk {hand['pnl_wk_bp']:+.1f} bp vs floor {hand['floor_bp']} bp, "
+            f"P(below floor)={hand['p_below']:.4f}",
+        ]
+    lines += [
         "",
         "## Acceptance",
         "",
@@ -295,8 +369,24 @@ def write_report(res: dict) -> None:
         "| weight | σ first | σ last |",
         "|---|---|---|",
     ]
+    if res.get("weight_snap"):
+        d0, w0 = res["weight_snap"][0]
+        d1, w1 = res["weight_snap"][-1]
+        lines += [
+            "",
+            f"First monthly snapshot ({d0}): "
+            + ", ".join(f"{k}={w0[k]:.4f}" for k in sorted(w0)),
+            f"Last monthly snapshot ({d1}): "
+            + ", ".join(f"{k}={w1[k]:.4f}" for k in sorted(w1)),
+            "",
+        ]
     for k in sorted(res["std_first"]):
-        lines.append(f"| {k} | {res['std_first'][k]:.4f} | {res['std_last'].get(k, float('nan')):.4f} |")
+        fv = res.get("std_first_vals", {}).get(k, [])
+        lv = res.get("std_last_vals", {}).get(k, [])
+        lines.append(
+            f"| {k} | {res['std_first'][k]:.4f} | {res['std_last'].get(k, float('nan')):.4f} |"
+            + (f" last mo {lv[:3]}" if lv else "")
+        )
     OUT_MD.write_text("\n".join(lines) + "\n")
 
     if res["weight_snap"]:

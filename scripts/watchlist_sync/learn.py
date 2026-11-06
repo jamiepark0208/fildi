@@ -29,8 +29,9 @@ import argparse
 import copy
 import json
 import sys
+from bisect import bisect_right
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from build_plan import connect, rows
@@ -41,14 +42,18 @@ sys.path.insert(0, str(HERE / "analysis"))
 sys.path.insert(0, str(HERE))
 from grade_weeks import MIN_LIVE_WEEKS, expiry_week_from_detail, format_n, iso_week  # noqa: E402
 from rule_posterior import (  # noqa: E402
+    RuleState,
     load_learning_rules,
     observe_live,
     prior_from_promise,
+    prior_from_trades,
     prob_better_than,
     promotion_allowed,
     should_demote,
 )
 OUT = HERE / "out" / "step6"
+PROMOTION_PRIOR_END = date(2020, 12, 31)
+_S059_PROMOTION_CACHE: list[dict] | None = None
 
 
 def backtest_evidence(as_of: date | None = None) -> dict:
@@ -262,19 +267,148 @@ def apply_rule_posteriors(P: dict, conn) -> tuple[dict, list[str]]:
     return P, notes
 
 
-def challenger_posterior_ok(CP: dict, NP: dict, ev: dict) -> tuple[bool, float]:
-    """Challenger must beat champion on combined backtest+live P&L posterior (A327 §3)."""
-    champ = prior_from_promise({"pnl_wk_bp": 30, "breach_max": 0.18})
-    chal = prior_from_promise({"pnl_wk_bp": 30, "breach_max": 0.18})
-    bump = 0.0
-    for k, block in (("kept", ev.get("kept") or {}),):
-        for name, r in block.items():
-            if r and r.get("pic") is not None and abs(r.get("pt") or 0) >= CP["learning"]["min_t"]:
-                bump += max(0.0, r["pic"]) * 1e-4
-    chal.pnl.mu += bump
-    chal.pnl.tau = max(chal.pnl.tau, 4.0)
+def premium_score(t: dict, Pw: dict) -> float | None:
+    """Same PREMIUM blend as fit_model_v14.score_all (wavg0 + lin)."""
+    import fit_model as F13
+
+    parts: list[tuple[float, float | None]] = []
+    if Pw.get("w_iv_rv", 0) > 0 and t.get("iv_rv") is not None:
+        parts.append((Pw["w_iv_rv"], F13.lin(float(t["iv_rv"]), 0.8, 1.5)))
+    if Pw.get("w_iv_rank", 0) > 0 and t.get("iv_rank_1y") is not None:
+        parts.append((Pw["w_iv_rank"], 100 * float(t["iv_rank_1y"])))
+    iv_pct = t.get("iv_pct")
+    if Pw.get("w_iv_level", 0) > 0 and iv_pct is not None:
+        parts.append((Pw["w_iv_level"], F13.lin(float(iv_pct), 25, 90)))
+    wv = [(w, v) for w, v in parts if v is not None and w > 0]
+    return F13.wavg(wv) if wv else None
+
+
+def _top_quintile_trades(trades: list[dict], Pw: dict) -> list[dict]:
+    by_w: dict[tuple[int, int], list[tuple[float, dict]]] = defaultdict(list)
+    for t in trades:
+        sc = premium_score(t, Pw)
+        if sc is None:
+            continue
+        by_w[t["week"]].append((sc, t))
+    out: list[dict] = []
+    for pairs in by_w.values():
+        if len(pairs) < 5:
+            continue
+        pairs.sort(key=lambda x: -x[0])
+        q = max(1, len(pairs) // 5)
+        out.extend(x[1] for x in pairs[:q])
+    return out
+
+
+def _iv_history(conn) -> dict[str, list[tuple[date, float]]]:
+    H: dict[str, list[tuple[date, float]]] = defaultdict(list)
+    for r in rows(
+        conn,
+        """SELECT ticker, date, iv30_put::float8 v FROM lseg_research.daily_history
+           WHERE iv30_put > 0 ORDER BY ticker, date""",
+    ):
+        H[r["ticker"]].append((r["date"], float(r["v"])))
+    return H
+
+
+def _iv_rank_1y(H: dict[str, list[tuple[date, float]]], ticker: str, d: date) -> float | None:
+    from backtest_puts import pct_rank  # noqa: E402
+
+    series = H.get(ticker) or []
+    if not series:
+        return None
+    i = bisect_right([x[0] for x in series], d) - 1
+    if i < 0:
+        return None
+    hist = [v for dd, v in series[max(0, i - 252) : i]]
+    return pct_rank(series[i][1], hist)
+
+
+def build_s059_promotion_trades(conn, end: date) -> list[dict]:
+    """S059 sim puts enriched for premium scoring; entry dates < end."""
+    import s059_option_factors as S59  # noqa: E402
+
+    H = _iv_history(conn)
+    out: list[dict] = []
+    for e in S59.aligned_events(conn):
+        d = e["d"]
+        if d >= end:
+            continue
+        tkr = e.get("t") or e.get("ticker")
+        iv_dec = e.get("iv30")
+        out.append(
+            {
+                "d": d,
+                "t": tkr,
+                "ret": float(e["pnl"]),
+                "breach": bool(e["breach"]),
+                "week": iso_week(d),
+                "month": (d.year, d.month),
+                "iv_rv": e.get("iv_rv"),
+                "iv_pct": float(iv_dec) * 100 if iv_dec is not None else None,
+                "iv_rank_1y": _iv_rank_1y(H, tkr, d) if tkr else None,
+            }
+        )
+    return out
+
+
+def warm_s059_promotion_cache(conn, end: date) -> list[dict]:
+    global _S059_PROMOTION_CACHE
+    _S059_PROMOTION_CACHE = build_s059_promotion_trades(conn, end)
+    return _S059_PROMOTION_CACHE
+
+
+def weight_posterior_state(
+    trades: list[dict],
+    Pw: dict,
+    *,
+    prior_end: date,
+    as_of: date,
+) -> RuleState:
+    pool = [t for t in trades if t["d"] < as_of]
+    prior_picks = _top_quintile_trades([t for t in pool if t["d"] < prior_end], Pw)
+    live_picks = _top_quintile_trades([t for t in pool if prior_end <= t["d"]], Pw)
+    prior = prior_from_trades(prior_picks, use_month_blocks=True)
+    post = observe_live(prior, live_picks)
+    post.n_live_weeks = len({t["week"] for t in live_picks})
+    return post
+
+
+def challenger_posterior_from_pool(
+    trades: list[dict],
+    CP: dict,
+    NP: dict,
+    as_of: date,
+    *,
+    prior_end: date = PROMOTION_PRIOR_END,
+) -> tuple[bool, float]:
+    champ_w = CP["premium"]
+    chal_w = NP["premium"]
+    champ = weight_posterior_state(trades, champ_w, prior_end=prior_end, as_of=as_of)
+    chal = weight_posterior_state(trades, chal_w, prior_end=prior_end, as_of=as_of)
     prob = prob_better_than(chal, champ)
     return promotion_allowed(prob), prob
+
+
+def challenger_posterior_ok(
+    CP: dict,
+    NP: dict,
+    ev: dict,
+    conn=None,
+    as_of: date | None = None,
+    s059_pool: list[dict] | None = None,
+) -> tuple[bool, float]:
+    """Champion vs challenger premium weights on the same S059 trades (top quintile / week, A327 §3)."""
+    del ev  # IC still drives propose_params; posterior uses trade picks only
+    as_of = as_of or date.today()
+    if s059_pool is not None:
+        pool = [t for t in s059_pool if t["d"] < as_of]
+    elif conn is not None:
+        pool = build_s059_promotion_trades(conn, as_of)
+    else:
+        with connect() as c:
+            pool = build_s059_promotion_trades(c, as_of)
+    return challenger_posterior_from_pool(pool, CP, NP, as_of)
 
 
 def apply_rationale(P: dict, rationale: list[dict]) -> dict:
@@ -404,7 +538,7 @@ def main() -> None:
             )
             return
         NP = apply_rationale(CP, confirmed)
-        ok_post, p_better = challenger_posterior_ok(CP, NP, ev)
+        ok_post, p_better = challenger_posterior_ok(CP, NP, ev, conn=conn)
         if not ok_post:
             print(f"no challenger: P(better than champion)={p_better:.2f} < 0.90 posterior bar")
             return
