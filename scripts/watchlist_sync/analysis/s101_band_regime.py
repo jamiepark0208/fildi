@@ -290,6 +290,45 @@ def support_and_tech(L, rows):
     L.append("")
 
 
+def trades(start: date | None = None, end: date | None = None, conn=None):
+    """S101 put candidates (1-week hold, default band) for A327 replay."""
+    import pickle
+    from grade_weeks import iso_week, month_block
+
+    if not CACHE.exists():
+        if conn is None:
+            with connect() as c:
+                rows = build(c)
+        else:
+            rows = build(conn)
+    else:
+        rows = pickle.loads(CACHE.read_bytes())
+    out = []
+    for r in rows:
+        if r.get("h") != 1:
+            continue
+        d = r["d"]
+        if start and d < start:
+            continue
+        if end and d >= end:
+            continue
+        dl = r.get("dlt")
+        if dl is None or not (0.08 <= dl < 0.10):
+            continue
+        out.append(
+            {
+                "d": d,
+                "ret": float(r["hc"]),
+                "breach": not bool(r["kept"]),
+                "week": iso_week(d),
+                "month": month_block(d),
+                "dlt": dl,
+                "ms": r.get("ms"),
+            }
+        )
+    return out
+
+
 def main():
     args = {a.split("=")[0]: (a.split("=")[1] if "=" in a else True) for a in sys.argv[1:]}
     only = set(args["--tickers"].split(",")) if "--tickers" in args else None

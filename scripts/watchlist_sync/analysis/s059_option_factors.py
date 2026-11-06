@@ -126,6 +126,41 @@ def aligned_events(conn):
     return ev
 
 
+def trades(start: date | None = None, end: date | None = None, conn=None):
+    """Weekly simulated puts for A327 replay (point-in-time filter on entry date)."""
+    from build_plan import connect as _connect
+
+    def norm(ev):
+        from grade_weeks import iso_week, month_block
+
+        out = []
+        for e in ev:
+            d = e["d"]
+            if start and d < start:
+                continue
+            if end and d >= end:
+                continue
+            out.append(
+                {
+                    "d": d,
+                    "t": e.get("t"),
+                    "ret": float(e["pnl"]),
+                    "breach": bool(e["breach"]),
+                    "week": iso_week(d),
+                    "month": month_block(d),
+                    "iv_rv": e.get("iv_rv"),
+                    "vol_of_vol": e.get("vol_of_vol"),
+                    "put_tech": e.get("put_tech"),
+                }
+            )
+        return out
+
+    if conn is not None:
+        return norm(aligned_events(conn))
+    with _connect() as c:
+        return norm(aligned_events(c))
+
+
 def main():
     with connect() as conn:
         ev = aligned_events(conn)

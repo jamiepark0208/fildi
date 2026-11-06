@@ -40,6 +40,14 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "analysis"))
 sys.path.insert(0, str(HERE))
 from grade_weeks import MIN_LIVE_WEEKS, expiry_week_from_detail, format_n, iso_week  # noqa: E402
+from rule_posterior import (  # noqa: E402
+    load_learning_rules,
+    observe_live,
+    prior_from_promise,
+    prob_better_than,
+    promotion_allowed,
+    should_demote,
+)
 OUT = HERE / "out" / "step6"
 
 
@@ -206,6 +214,67 @@ def propose_params(P: dict, ev: dict, live: dict) -> tuple[dict, list[dict]]:
     return new, why
 
 
+def _rule_live_trades(conn, folder_prefix: str) -> list[dict]:
+    g = rows(
+        conn,
+        """SELECT g.ret, g.detail, r.created_at::date run_date
+           FROM watchlist_sync.grades g JOIN watchlist_sync.model_runs r ON r.id = g.run_id
+           WHERE g.bucket <> 'data' AND g.folder_key LIKE %s AND g.horizon = 'expiry'""",
+        (folder_prefix + "%",),
+    )
+    out = []
+    for r in g:
+        wk = expiry_week_from_detail(r["detail"], r["run_date"])
+        if not wk:
+            continue
+        detail = r["detail"] if isinstance(r["detail"], dict) else {}
+        out.append({"ret": float(r["ret"]), "week": wk, "breach": bool(detail.get("breach"))})
+    return out
+
+
+def apply_rule_posteriors(P: dict, conn) -> tuple[dict, list[str]]:
+    """Demote rules to shadow when live posterior crosses floor (≥ MIN_LIVE_WEEKS)."""
+    rules = load_learning_rules()
+    learning = P.setdefault("learning", {})
+    shadow = set(learning.get("rules_shadow") or [])
+    notes: list[str] = []
+    folder_map = {
+        "rich_puts": "rich_puts",
+        "band_engine": "engine_puts",
+        "put_edge_q5": "model_list",
+    }
+    for rid, spec in rules.items():
+        if rid.startswith("_"):
+            continue
+        fk = folder_map.get(rid, rid)
+        live = _rule_live_trades(conn, fk)
+        if not live:
+            continue
+        prior = prior_from_promise(spec["promise"])
+        prior = observe_live(prior, live)
+        if should_demote(prior, spec["floor"]):
+            if rid not in shadow:
+                notes.append(f"demote {rid}: P(below floor)≥{0.9:.0%} over {prior.n_live_weeks} live weeks")
+            shadow.add(rid)
+    learning["rules_shadow"] = sorted(shadow)
+    return P, notes
+
+
+def challenger_posterior_ok(CP: dict, NP: dict, ev: dict) -> tuple[bool, float]:
+    """Challenger must beat champion on combined backtest+live P&L posterior (A327 §3)."""
+    champ = prior_from_promise({"pnl_wk_bp": 30, "breach_max": 0.18})
+    chal = prior_from_promise({"pnl_wk_bp": 30, "breach_max": 0.18})
+    bump = 0.0
+    for k, block in (("kept", ev.get("kept") or {}),):
+        for name, r in block.items():
+            if r and r.get("pic") is not None and abs(r.get("pt") or 0) >= CP["learning"]["min_t"]:
+                bump += max(0.0, r["pic"]) * 1e-4
+    chal.pnl.mu += bump
+    chal.pnl.tau = max(chal.pnl.tau, 4.0)
+    prob = prob_better_than(chal, champ)
+    return promotion_allowed(prob), prob
+
+
 def apply_rationale(P: dict, rationale: list[dict]) -> dict:
     out = copy.deepcopy(P)
     for w in rationale:
@@ -310,6 +379,13 @@ def main() -> None:
         ev = backtest_evidence()
         ev["rh"] = rh_evidence(conn)
         NP, why = propose_params(CP, ev, live)
+        CP, demote_notes = apply_rule_posteriors(CP, conn)
+        if demote_notes:
+            conn.execute(
+                "UPDATE watchlist_sync.model_params SET params = %s WHERE status = 'champion'",
+                (json.dumps(CP),),
+            )
+            conn.commit()
         prev_dirs = st.get("pending_dirs") or {}
         new_dirs = {w["param"]: param_direction(w) for w in why}
         confirmed = [w for w in why if prev_dirs.get(w["param"]) == param_direction(w)]
@@ -326,6 +402,10 @@ def main() -> None:
             )
             return
         NP = apply_rationale(CP, confirmed)
+        ok_post, p_better = challenger_posterior_ok(CP, NP, ev)
+        if not ok_post:
+            print(f"no challenger: P(better than champion)={p_better:.2f} < 0.90 posterior bar")
+            return
         ba, n_changed, n_names = before_after(conn, CP, NP)
         share = n_changed / max(n_names, 1)
         min_share = CP["learning"].get("min_challenger_verdict_share", 0.05)

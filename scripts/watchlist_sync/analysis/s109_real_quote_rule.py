@@ -84,6 +84,42 @@ def trades(q, px):
     return out
 
 
+def trades_range(start: date | None = None, end: date | None = None, conn=None):
+    """Real-quote puts for A327 replay (Jamie rule subset tagged by caller)."""
+    from build_plan import connect as _connect
+
+    def norm(rs):
+        from grade_weeks import iso_week, month_block
+
+        out = []
+        for r in rs:
+            d = r["d"]
+            if start and d < start:
+                continue
+            if end and d >= end:
+                continue
+            out.append(
+                {
+                    "d": d,
+                    "ret": float(r["r"]),
+                    "breach": not bool(r["kept"]),
+                    "week": iso_week(d),
+                    "month": month_block(d),
+                    "inc": r["inc"],
+                    "otm": r["otm"],
+                    "dd52": r["dd52"],
+                }
+            )
+        return out
+
+    if conn is not None:
+        q, px = load(conn)
+        return norm(trades(q, px))
+    with _connect() as c:
+        q, px = load(c)
+        return norm(trades(q, px))
+
+
 def K_bad(k, S):
     return k <= 0 or k >= S * 1.0 or k < 0.4 * S   # OTM puts only; deep wings are quote noise
 

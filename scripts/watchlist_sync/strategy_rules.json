@@ -543,5 +543,33 @@
   },
   "horizons": {
     "_doc": "Long calls by horizon (S086 board, 58 today-like weeks, per trade held to expiry, cheap-gated): buy-all 30/45/90 DTE +17 / +18 / +40 %; revisions +32 / +53 / +80 %; revisions + 60-day +24 / +51 / +94 %. Per trade, not per month — longer ties capital up longer. Shown per angle on Rankings › Structures › Long options."
+  },
+  "learning_rules": {
+    "_doc": "A327 v2: backtest promise + live floor for rule_posterior.py / learn.py demotion. bp/wk on net seller return; breach_max = assignment rate.",
+    "put_edge_q5": {
+      "study": "S059/S102",
+      "promise": {"pnl_wk_bp": 34, "breach_max": 0.18},
+      "floor": {"pnl_wk_bp": 15, "breach_max": 0.28}
+    },
+    "iv_rv_gate": {
+      "study": "S059",
+      "promise": {"pnl_wk_bp": 40, "breach_max": 0.16},
+      "floor": {"pnl_wk_bp": 10, "breach_max": 0.25}
+    },
+    "band_engine": {
+      "study": "S101",
+      "promise": {"pnl_wk_bp": 28, "breach_max": 0.17},
+      "floor": {"pnl_wk_bp": 8, "breach_max": 0.26}
+    },
+    "rich_puts": {
+      "study": "S109",
+      "promise": {"pnl_wk_bp": 90, "breach_max": 0.22},
+      "floor": {"pnl_wk_bp": 45, "breach_max": 0.30}
+    },
+    "sector_drop_relax": {
+      "study": "S102",
+      "promise": {"pnl_wk_bp": 50, "breach_max": 0.22},
+      "floor": {"pnl_wk_bp": 20, "breach_max": 0.32}
+    }
   }
 }
