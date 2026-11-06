@@ -305,40 +305,60 @@ def split_mask(dates: pd.DatetimeIndex, split: str) -> np.ndarray:
 
 def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Generator,
                  tbill_curve, hold_days: int, *, do_random: bool = True) -> dict:
+    """Metrics with ticker-matched monthly excess (Claude review 5236a50a).
+
+    Per month: excess = mean(selected) − mean(pool), where pool = only tickers
+    that fired that month × all their days that month. t is on that monthly
+    excess series (not raw return vs 0). Random draws use the same pools.
+    """
     sm = split_mask(dates, split)
-    mask = entry & sm[:, None] & np.isfinite(rets)
+    finite = np.isfinite(rets)
+    mask = entry & sm[:, None] & finite
     r = side * rets
     sel = r[mask]
     n = int(sel.size)
     empty = {"n": 0, "mean_bp": np.nan, "excess_bp": np.nan, "t": np.nan, "win": np.nan,
-             "rand_mean_bp": np.nan, "pct_beaten": np.nan, "uncond_bp": np.nan, "tbill_bp": np.nan}
+             "rand_mean_bp": np.nan, "pct_beaten": np.nan, "uncond_bp": np.nan, "tbill_bp": np.nan,
+             "mo_excess": pd.Series(dtype=float)}
     if n == 0:
         return empty
     mean = float(np.mean(sel))
     win = float(np.mean(sel > 0))
-    u_mask = sm[:, None] & np.isfinite(rets)
-    uncond = float(np.mean(side * rets[u_mask])) if u_mask.any() else np.nan
-    # month-clustered t on selected monthly means vs 0 (return level)
+    u_mask = sm[:, None] & finite
+    uncond = float(np.mean(r[u_mask])) if u_mask.any() else np.nan
     months = dates.to_period("M")
     sel_i, sel_j = np.where(mask)
     if len(sel_i) == 0:
         return empty
-    mo_lab = months[sel_i]
-    mo_means = pd.Series(sel, index=mo_lab).groupby(level=0).mean()
-    if len(mo_means) >= 4:
-        t = float(mo_means.mean() / (mo_means.std(ddof=1) / np.sqrt(len(mo_means))))
+
+    # Per-month ticker-matched pool + monthly excess
+    mo_ex_vals: list[float] = []
+    mo_ex_ix: list = []
+    pools: dict = {}
+    for mo in pd.unique(months[sel_i]):
+        in_mo = months[sel_i] == mo
+        m_i, m_j = sel_i[in_mo], sel_j[in_mo]
+        sel_mo = r[m_i, m_j]
+        day_ix = np.where(sm & (months == mo))[0]
+        fired = np.unique(m_j)
+        if day_ix.size == 0 or fired.size == 0:
+            continue
+        block = r[np.ix_(day_ix, fired)]
+        pool = block[np.isfinite(block)]
+        if sel_mo.size == 0 or pool.size == 0:
+            continue
+        mo_ex_vals.append(float(sel_mo.mean() - pool.mean()))
+        mo_ex_ix.append(mo)
+        pools[mo] = (pool, int(sel_mo.size))
+    mo_excess = pd.Series(mo_ex_vals, index=mo_ex_ix, dtype=float)
+    if len(mo_excess) >= 4:
+        sd = float(mo_excess.std(ddof=1))
+        t = float(mo_excess.mean() / (sd / np.sqrt(len(mo_excess)))) if sd > 0 else float("nan")
     else:
         t = float("nan")
+
     rand_mean = pct_beaten = excess = float("nan")
     if do_random:
-        # precompute per-month pools + counts once
-        cnt_by_mo = pd.Series(1, index=mo_lab).groupby(level=0).sum()
-        pools = {}
-        for mo, cnt in cnt_by_mo.items():
-            day_ix = np.where(sm & (months == mo))[0]
-            pool = (side * rets[day_ix]).ravel()
-            pool = pool[np.isfinite(pool)]
-            pools[mo] = (pool, int(cnt))
         rand_means = []
         for _ in range(N_RAND):
             picks = []
@@ -355,9 +375,10 @@ def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Gener
             pct_beaten = float(np.mean(rm < mean))
             excess = mean - rand_mean
     else:
-        excess = mean - uncond if np.isfinite(uncond) else np.nan
-        rand_mean = uncond
-    # tbill: one rate at split midpoint
+        # matched-pool excess (mean of monthly excesses)
+        excess = float(mo_excess.mean()) if len(mo_excess) else float("nan")
+        rand_mean = mean - excess if np.isfinite(excess) else uncond
+
     mid_i = int(np.where(sm)[0][len(np.where(sm)[0]) // 2]) if sm.any() else 0
     d0 = pd.Timestamp(dates[mid_i]).date()
     rate = tbill_at(tbill_curve, d0)
@@ -373,6 +394,7 @@ def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Gener
         "uncond_bp": uncond * 1e4 if np.isfinite(uncond) else np.nan,
         "tbill_bp": tbill_bp,
         "rets_sel": sel,
+        "mo_excess": mo_excess,
     }
 
 
@@ -389,7 +411,10 @@ def deflated_sharpe(xs: np.ndarray, n_trials: int) -> float:
     """Bailey & López de Prado DSR = Φ(…); returns probability SR is not max-null."""
     if xs.size < 10 or n_trials < 1:
         return float("nan")
-    sr = xs.mean() / xs.std(ddof=1)
+    sd = float(xs.std(ddof=1))
+    if not np.isfinite(sd) or sd <= 0:
+        return float("nan")
+    sr = float(xs.mean() / sd)
     if not np.isfinite(sr):
         return float("nan")
     n = xs.size
@@ -494,22 +519,11 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
                 m_fv = cell_metrics(dates, rets, entry, side, "fitval",
                                     np.random.default_rng(rng0.integers(0, 2**31 - 1)),
                                     tbill_curve, hd, do_random=False)
-                # fit+val combined selected rets for DSR later
-                sm = split_mask(dates, "fitval")
-                mask = entry & sm[:, None] & np.isfinite(rets)
-                sel_fv = (side * rets)[mask]
-                # monthly series for PBO (full sample)
-                sm_all = np.ones(len(dates), dtype=bool)
-                mask_all = entry & sm_all[:, None] & np.isfinite(rets)
-                dd = pd.DataFrame({
-                    "date": np.repeat(dates, rets.shape[1])[mask_all.ravel()],
-                    "ret": (side * rets)[mask_all],
-                })
-                if len(dd):
-                    mo = dd.groupby(dd.date.dt.to_period("M"))["ret"].mean()
-                else:
-                    mo = pd.Series(dtype=float)
-                cell_series.append(mo)
+                # Full-sample monthly excess for PBO (same matched-pool definition)
+                m_all = cell_metrics(dates, rets, entry, side, "all",
+                                     np.random.default_rng(0),
+                                     tbill_curve, hd, do_random=False)
+                cell_series.append(m_all["mo_excess"])
                 rows_out.append({
                     "strategy": sid,
                     "side": side_name,
@@ -523,29 +537,29 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
                     "t_fitval": m_fv["t"], "excess_bp_fitval": m_fv["excess_bp"],
                     "pct_beaten_holdout": m_ho["pct_beaten"],
                     "uncond_bp_holdout": m_ho["uncond_bp"], "tbill_bp": m_ho["tbill_bp"],
-                    "_sel_fv": sel_fv,
+                    "_mo_ex_fv": m_fv["mo_excess"],
                 })
 
     n_trials = len(rows_out)
     for r in rows_out:
-        r["dsr"] = deflated_sharpe(r["_sel_fv"], n_trials)
+        # DSR on monthly-excess series (n = months), not overlapping trade returns
+        xs = r["_mo_ex_fv"].to_numpy(dtype=float) if len(r["_mo_ex_fv"]) else np.asarray([])
+        r["dsr"] = deflated_sharpe(xs, n_trials)
         r["survivor"] = (
             np.isfinite(r["excess_bp_holdout"]) and r["excess_bp_holdout"] > 0
             and np.isfinite(r["t_fitval"]) and r["t_fitval"] >= 2
             and np.isfinite(r["dsr"]) and r["dsr"] >= 0.95
         )
 
-    # PBO over cells with enough months
+    # PBO on monthly-excess matrix (not raw selected means)
     if cell_series:
-        # align months
         all_months = sorted(set().union(*[set(s.index) for s in cell_series if len(s)]))
         if all_months:
             mat = np.full((len(cell_series), len(all_months)), np.nan)
             for i, s in enumerate(cell_series):
                 for j, mo in enumerate(all_months):
                     if mo in s.index:
-                        mat[i, j] = s.loc[mo]
-            # fill nan with column median for CSCV stability
+                        mat[i, j] = float(s.loc[mo])
             col_med = np.nanmedian(mat, axis=0)
             inds = np.where(np.isnan(mat))
             mat[inds] = np.take(col_med, inds[1])
@@ -557,7 +571,7 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
     for r in rows_out:
         r["pbo"] = pbo
         r["n_trials"] = n_trials
-        del r["_sel_fv"]
+        del r["_mo_ex_fv"]
 
     df = pd.DataFrame(rows_out)
     df = df.sort_values(["survivor", "excess_bp_holdout"], ascending=[False, False], na_position="last")
@@ -684,7 +698,83 @@ def self_test(pack: dict) -> list[str]:
     b = rng_b.integers(0, 1000, size=20)
     ok_seed = np.array_equal(a, b)
     lines.append(f"{'PASS' if ok_seed else 'FAIL'} (iv) random seed={SEED} reproducible")
+
+    # (v) placebo: random 3% entry, 20 seeds → 0 survivors in ≥ 19/20
+    tbill_curve = load_tbill()
+    hold_cache = {hd: fwd_returns(o, c, hd) for hd in HOLDS}
+    n_placebo_ok = 0
+    n_seeds = 20
+    n_trials_p = len(HOLDS) * 2
+    for s in range(n_seeds):
+        rng = np.random.default_rng(10_000 + s)
+        entry_p = rng.random(c.shape) < 0.03
+        n_surv = 0
+        for hd in HOLDS:
+            rets = hold_cache[hd]
+            for side in (1, -1):
+                m_ho = cell_metrics(dates, rets, entry_p, side, "holdout",
+                                    np.random.default_rng(rng.integers(0, 2**31 - 1)),
+                                    tbill_curve, hd, do_random=False)
+                m_fv = cell_metrics(dates, rets, entry_p, side, "fitval",
+                                    np.random.default_rng(rng.integers(0, 2**31 - 1)),
+                                    tbill_curve, hd, do_random=False)
+                xs = m_fv["mo_excess"].to_numpy(dtype=float)
+                dsr = deflated_sharpe(xs, n_trials_p)
+                survived = (
+                    np.isfinite(m_ho["excess_bp"]) and m_ho["excess_bp"] > 0
+                    and np.isfinite(m_fv["t"]) and m_fv["t"] >= 2
+                    and np.isfinite(dsr) and dsr >= 0.95
+                )
+                if survived:
+                    n_surv += 1
+        if n_surv == 0:
+            n_placebo_ok += 1
+    ok_placebo = n_placebo_ok >= 19
+    lines.append(
+        f"{'PASS' if ok_placebo else 'FAIL'} (v) placebo 3% × {n_seeds} seeds: "
+        f"{n_placebo_ok}/{n_seeds} with 0 survivors (need ≥19)"
+    )
+
+    # (vi) gap_up vs gap_down long same-hold must not both survive without a printed note
+    notes = gap_contradiction_notes(_fake_gap_both_survive_df())
+    notes_empty = gap_contradiction_notes(_fake_gap_one_survive_df())
+    ok_note = len(notes) >= 1 and len(notes_empty) == 0
+    lines.append(
+        f"{'PASS' if ok_note else 'FAIL'} (vi) gap_up/gap_down contradiction note helper "
+        f"(both→{len(notes)} note(s), one→{len(notes_empty)})"
+    )
     return lines
+
+
+def _fake_gap_both_survive_df() -> pd.DataFrame:
+    return pd.DataFrame([
+        {"strategy": "gap_up_2pct", "side": "long", "hold": 21, "survivor": True},
+        {"strategy": "gap_down_2pct", "side": "long", "hold": 21, "survivor": True},
+    ])
+
+
+def _fake_gap_one_survive_df() -> pd.DataFrame:
+    return pd.DataFrame([
+        {"strategy": "gap_up_2pct", "side": "long", "hold": 21, "survivor": True},
+        {"strategy": "gap_down_2pct", "side": "long", "hold": 21, "survivor": False},
+    ])
+
+
+def gap_contradiction_notes(df: pd.DataFrame) -> list[str]:
+    """Note when gap_up AND gap_down long survive on the same hold (noise tell)."""
+    notes = []
+    if df is None or len(df) == 0 or "survivor" not in df.columns:
+        return notes
+    surv = df[df["survivor"] == True]  # noqa: E712
+    for hold in sorted(surv["hold"].unique(), key=lambda x: str(x)):
+        up = ((surv.strategy == "gap_up_2pct") & (surv.side == "long") & (surv.hold == hold)).any()
+        dn = ((surv.strategy == "gap_down_2pct") & (surv.side == "long") & (surv.hold == hold)).any()
+        if up and dn:
+            notes.append(
+                f"NOTE: gap_up_2pct AND gap_down_2pct both survive long/hold={hold} "
+                f"— directionally opposite; treat as noise unless one side dies OOS."
+            )
+    return notes
 
 
 # ── report ───────────────────────────────────────────────────────────────────
@@ -699,6 +789,9 @@ def write_outputs(df: pd.DataFrame, cold_s: float, warm_s: float | None) -> tupl
     surv = df[df["survivor"] == True]  # noqa: E712
     best = df.iloc[0] if len(df) else None
     top10 = df.nlargest(10, "excess_bp_holdout", keep="all")
+    notes = gap_contradiction_notes(df)
+    for n in notes:
+        print(n)
     L = [
         f"# Fast screen {day} (A341)",
         f"cold={cold_s:.1f}s warm={warm_s:.1f}s" if warm_s is not None else f"cold={cold_s:.1f}s",
@@ -722,6 +815,9 @@ def write_outputs(df: pd.DataFrame, cold_s: float, warm_s: float | None) -> tupl
                 f"- {r.strategy}/{r.side}/{r.hold}: excess {r.excess_bp_holdout:.1f}bp "
                 f"t_fv={r.t_fitval:.2f} DSR={r.dsr:.3f}"
             )
+    if notes:
+        L += ["", "## Notes"]
+        L.extend(f"- {n}" for n in notes)
     L += ["", "## Top 10 by holdout excess"]
     for _, r in top10.iterrows():
         L.append(
