@@ -170,6 +170,13 @@ def main() -> None:
         rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/data_freshness.py", log)
         bad = [l for l in out.splitlines() if l.startswith("✗")]
         say(f"11 data freshness: {last(out, pat='freshness')}" + (f" — STALE: {'; '.join(b[2:90] for b in bad[:4])} → fix the job (not just re-run)" if bad else ""))
+        # 11c weekly goal-gap scan (Jamie 11-06: agents must find improvements themselves). Due when goals.md log has no row in 7 d.
+        gp = ROOT / '.agents/context/goals.md'
+        if gp.exists():
+            rows = re.findall(r'^\| (\d{4}-\d{2}-\d{2})', gp.read_text(encoding='utf-8'), re.M)
+            lastw = max(rows) if rows else None
+            if not lastw or (datetime.now().date() - datetime.fromisoformat(lastw).date()).days >= 7:
+                say(f"11c goal-gap scan DUE (last {lastw or 'never'}) → Claude: run § Weekly gap scan in .agents/context/goals.md, ship one fix")
         # 11b WRDS login (Jamie 10-29: a broken login went unreported). Reads the last connect result only — no network,
         # no Duo push. A failure is told to Jamie in one line, never retried by the agent.
         try:

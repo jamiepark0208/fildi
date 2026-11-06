@@ -8,6 +8,9 @@
 | Cursor | `.cursor/context/session.md` | Last Cursor session notes |
 | Claude | `.agents/context/state.md` | Phase / next tasks — **Claude writes**; Cursor **read-only** |
 
+## Goals (read first for any "what next / improve" question)
+`.agents/context/goals.md` — 4 goals, scoreboard (return vs T-bill, time saved), weekly gap scan + log.
+
 ## By topic (pick one)
 | Topic | Canonical file | Do not open first |
 |---|---|---|
@@ -19,6 +22,7 @@
 | Desk commentaries (any labeled email → Live Daily News, JSON-only Drive) | `.agents/context/desk-commentaries.md` | — |
 | Schwab Market Data (options/quotes P0, RPM + 7d refresh) | `.agents/context/schwab-market-data.md` | — |
 | Efficiency (AI tokens, RPM, drift, compute) | `.agents/context/efficiency-playbook.md` | — |
+| **Repeated Jamie prompts → Maintain / Settings / Automation** | `.cursor/context/prompt-automation-map.md` | Re-deriving ops from chat; parallel dashboards |
 | WRDS academic batch (IBES/CRSP + W1–W4) | `research/wrds/PLAYBOOK.md` | Scores only via IBES growth extras; FinRatios/calibration offline |
 | LSEG ↔ WRDS research split (shared plan) | `research/LSEG_WRDS_SYNC.md` | **§11 mutual impact** + **§13 ops** before editing |
 | Research ops health (WRDS/LSEG cache + desktop) | `GET /api/research/ops` · `research/common/health.py` · Scheduled Tasks **Research Ops Health** | Probe only — never auto-sync vendors |
@@ -28,6 +32,7 @@
 | Shared research universe (≤50 tickers) | `research/common/universe_book.txt` | Do not duplicate it |
 | WRDS → fund growth (IBES breadth/SUE) | `fund-score-engine` + `wrds_research` | Soft UI: Breakdown Street panel; options ER haircut |
 | Stock DB quality / NR | `.agents/context/stock-db-best-realistic.md` | Archived quality-audit snapshots |
+| Database Agent (NR mediation) | `.claude/skills/database-agent.md` + `.agents/context/database-agent-log.md` | Cheapest accurate overrides; fuchsia cells |
 | Fundamentals cadence | `.agents/context/fundamentals-refresh-cadence.md` | — |
 | Earnings-window triggers | `.agents/context/event-driven-refresh.md` | — |
 | Derived PEG/formulas | `.agents/context/derived-metrics-framework.md` | — |
