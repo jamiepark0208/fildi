@@ -51,6 +51,12 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 6. **Ties:** binary/discrete features need average ranks (`rank()` in the harness) — argsort ranks garbled S045 v1.
 7. **Dates:** check the weekday before calling a day "missed" (10-17-2026 is a Saturday).
 
+**4b. "Everything loses" is never a verdict (Jamie 11-06, said many times).** A loss is a trade for the other side. Every packet ends with:
+1. **Comparator:** universe-relative (excess vs same-window median) + random same-delta/same-week pick + T-bill. Raw P&L alone = invalid packet.
+2. **Mirror:** the opposite side on the same rows (short ↔ long, sell put ↔ buy put / avoid). Worse than random at |t| ≥ 2 = a fade signal → test it as one.
+3. **What works:** the best cell found (state × structure × side) with n, bp/week, worst week, vs comparator. If both sides ≈ random, say "X carries no information — trade the base", name the base and its number.
+4. Lead the packet with (3); "fail" lines ≤ 1.
+
 **Put-engine changes: benchmark gate (Jamie 10-28).** Before any factor / regime / strike rule reaches put_recs, register it as a variant in `analysis/put_benchmark.py` and get **BETTER** vs the live engine (holdout and pre-2023 both). It also lists the Alpaca wheel score and fixed 0.11Δ as public/naive baselines.
 
 ## 5. From result to product (the A167 pattern)

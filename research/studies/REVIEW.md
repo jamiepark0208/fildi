@@ -13,6 +13,7 @@
 | Trade-level output | `out/…/*.json` (local, gitignored — re-run to create) |
 
 ## Review checklist (in this order — the order costs least first)
+0. **Auto-revise** a packet whose verdict is "nothing works / all lose" without comparator + mirror + best cell (PLAYBOOK § 4b). Jamie 11-06.
 1. **Right question?** Does the target match the trader's decision (METHODS 1b), and are the comparators what he'd do instead (incl. a same-risk version)?
 2. **Reproduce** one headline number from the script, not the card.
 3. **Look-ahead:** every input known at entry (point-in-time joins, `≤ as_of`, earnings timing per `CONVENTIONS.md`)?
