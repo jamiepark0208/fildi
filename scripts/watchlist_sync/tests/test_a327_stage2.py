@@ -240,6 +240,56 @@ class A327Stage2(unittest.TestCase):
         self.assertIn("blocked: P=0.42", msg)
         self.assertNotIn("P=0.50", msg)
 
+    def _weight_sum(self, prem: dict) -> float:
+        return sum(v for v in prem.values() if L._is_weight(v))
+
+    def _premium_evidence(self) -> dict:
+        cell = lambda pic: {"ic": pic, "t": 3.0, "pic": pic, "pt": 3.0, "months": 30, "n": 100}
+        return {
+            "kept": {"iv_rv": cell(0.50), "iv_rank_1y": cell(0.10), "iv30": cell(0.40)},
+            "own": {},
+            "flags": {},
+            "rh": {"n": 0},
+        }
+
+    def test_confirmed_premium_matches_proposal_and_sums_to_one(self):
+        P = copy.deepcopy(PM.SEED)
+        proposed, why = L.propose_params(P, self._premium_evidence(), {"folders": {}})
+        prem_why = [w for w in why if w["param"].startswith("premium.")]
+        self.assertGreaterEqual(len(prem_why), 2)
+        before = copy.deepcopy(P)
+        chal, rationale = L.build_confirmed_challenger(P, prem_why)
+        self.assertEqual(P, before)
+        self.assertAlmostEqual(self._weight_sum(chal["premium"]), 1.0, delta=1e-4)
+        for k, v in proposed["premium"].items():
+            if L._is_weight(v):
+                self.assertAlmostEqual(chal["premium"][k], v, places=4)
+            else:
+                self.assertEqual(chal["premium"][k], v)
+        for w in rationale:
+            if w["param"].startswith("premium."):
+                k = w["param"].split(".", 1)[1]
+                self.assertEqual(w["new"], chal["premium"][k])
+        self.assertIs(chal["premium"]["contract_iv_pre_earnings"], False)
+
+    def test_single_premium_move_sums_to_one(self):
+        P = copy.deepcopy(PM.SEED)
+        confirmed = [{"param": "premium.w_iv_rv", "old": 0.70, "new": 0.72, "why": "nudge"}]
+        chal, rationale = L.build_confirmed_challenger(P, confirmed)
+        self.assertAlmostEqual(self._weight_sum(chal["premium"]), 1.0, delta=1e-4)
+        self.assertEqual(rationale[0]["new"], chal["premium"]["w_iv_rv"])
+        self.assertIs(chal["premium"]["contract_iv_pre_earnings"], False)
+
+    def test_champion_premium_scores_identical_when_weights_rescale(self):
+        champ = {"w_iv_rv": 0.70, "w_iv_rank": 0.30, "w_iv_level": 0.00}
+        scaled = {k: v * 1.02 for k, v in champ.items()}
+        for i in range(20):
+            t = {"iv_rv": 0.85 + i * 0.03, "iv_rank_1y": (i % 7) / 10, "iv_pct": 25 + i}
+            a = L.premium_score(t, champ)
+            b = L.premium_score(t, scaled)
+            self.assertIsNotNone(a)
+            self.assertAlmostEqual(a, b, places=9)
+
 
 if __name__ == "__main__":
     unittest.main()

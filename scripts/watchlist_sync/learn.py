@@ -151,20 +151,29 @@ def bounded(old: float, target: float, rel: float, lo: float, hi: float) -> floa
     return round(max(lo, min(hi, max(old - step, min(old + step, target)))), 4)
 
 
-def _redistribute_premium(champ: dict[str, float], key: str, new_val: float) -> dict[str, float]:
-    """Shift one weight without re-targeting backtest IC shares (avoids w_iv_rv snapping toward ~0.55 each cycle)."""
+def _is_weight(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _redistribute_premium(champ: dict, key: str, new_val: float) -> dict:
+    """Shift one weight without re-targeting backtest IC shares (avoids w_iv_rv snapping toward ~0.55 each cycle).
+
+    Only numeric weights move. Flags such as contract_iv_pre_earnings stay as stored.
+    """
     out = dict(champ)
-    old = champ[key]
-    delta = new_val - old
-    out[key] = new_val
-    others = [k for k in out if k != key]
-    rest = sum(champ[k] for k in others)
+    old = float(champ[key])
+    delta = float(new_val) - old
+    out[key] = float(new_val)
+    others = [k for k in out if k != key and _is_weight(champ.get(k))]
+    rest = sum(float(champ[k]) for k in others)
     if rest > 0 and abs(delta) >= 1e-9:
         for k in others:
-            out[k] = round(champ[k] - delta * (champ[k] / rest), 4)
-    s = sum(out.values())
+            out[k] = round(float(champ[k]) - delta * (float(champ[k]) / rest), 4)
+    weights = [k for k in out if _is_weight(out[k])]
+    s = sum(float(out[k]) for k in weights)
     if s > 0 and abs(s - 1.0) > 1e-6:
-        out = {k: round(v / s, 4) for k, v in out.items()}
+        for k in weights:
+            out[k] = round(float(out[k]) / s, 4)
     return out
 
 
@@ -657,19 +666,43 @@ def challenger_posterior_ok(
     return challenger_posterior_from_pool(pool, CP, NP, as_of)
 
 
-def apply_rationale(P: dict, rationale: list[dict]) -> dict:
+def build_confirmed_challenger(P: dict, confirmed: list[dict]) -> tuple[dict, list[dict]]:
+    """Challenger = champion plus confirmed moves only (A343).
+
+    Premium keys replay `_redistribute_premium` in why order so the weights still sum to 1.
+    Rationale `new` is rewritten from those final weights (a later move can change an earlier key).
+    """
     out = copy.deepcopy(P)
-    for w in rationale:
+    prem_moves = [w for w in confirmed if str(w.get("param", "")).startswith("premium.")]
+    if prem_moves:
+        prem = dict(out["premium"])
+        for w in prem_moves:
+            k = w["param"].split(".", 1)[1]
+            prem = _redistribute_premium(prem, k, float(w["new"]))
+        out["premium"] = prem
+    for w in confirmed:
         param, new = w["param"], w["new"]
-        if param.startswith("premium."):
-            out["premium"][param.split(".", 1)[1]] = new
-        elif param.startswith("thresholds."):
+        if str(param).startswith("premium."):
+            continue
+        if str(param).startswith("thresholds."):
             out["thresholds"][param.split(".", 1)[1]] = new
         elif param == "street.k":
             out["street"]["k"] = new
-        elif param.startswith("severity."):
+        elif str(param).startswith("severity."):
             out["severity"][param.split(".", 1)[1]] = new
-    return out
+    rationale: list[dict] = []
+    for w in confirmed:
+        nw = dict(w)
+        if str(w.get("param", "")).startswith("premium."):
+            k = w["param"].split(".", 1)[1]
+            nw["new"] = out["premium"][k]
+        rationale.append(nw)
+    return out, rationale
+
+
+def apply_rationale(P: dict, rationale: list[dict]) -> dict:
+    params, _rewritten = build_confirmed_challenger(P, rationale)
+    return params
 
 
 def param_direction(w: dict) -> str:
@@ -789,7 +822,7 @@ def main() -> None:
                 f"# Learning cycle {date.today()}\n\nHeld: first-cycle moves (need repeat next cycle): {why}\n"
             )
             return
-        NP = apply_rationale(CP, confirmed)
+        NP, confirmed = build_confirmed_challenger(CP, confirmed)
         ok_post, p_better, post_reason = challenger_posterior_for_moves(CP, NP, confirmed, ev, conn=conn)
         if not ok_post:
             msg = format_posterior_block(confirmed, p_better, post_reason)
