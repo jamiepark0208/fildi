@@ -189,6 +189,57 @@ class A327Stage2(unittest.TestCase):
         ok2, _ = L.challenger_posterior_from_pool(trades, cp, L.apply_rationale(cp, confirmed), date(2023, 6, 1))
         self.assertTrue(ok1 and ok2)
 
+    def test_threshold_only_passes_live_grade_gate_not_fake_posterior(self):
+        P = copy.deepcopy(PM.SEED)
+        ev = {"kept": {}, "own": {}, "flags": {}}
+        live = {"folders": {"own:21d": {"n": 40, "n_weeks": 8, "good": 0.3, "n_label": "40"}}}
+        _new, why = L.propose_params(P, ev, live)
+        thr = [w for w in why if w["param"] == "thresholds.green_own"]
+        self.assertEqual(len(thr), 1)
+        self.assertEqual([w["param"] for w in why], ["thresholds.green_own"])
+        prev = {w["param"]: L.param_direction(w) for w in why}
+        confirmed = [w for w in why if prev.get(w["param"]) == L.param_direction(w)]
+        ok, p, reason = L.challenger_posterior_for_moves(P, _new, confirmed, ev)
+        self.assertTrue(ok)
+        self.assertIsNone(p)
+        self.assertEqual(reason, "thresholds: live-grade gate (no backtest posterior)")
+        self.assertNotIn("P=0.50", reason)
+        self.assertNotIn("blocked", reason)
+
+    def test_unknown_family_blocks_without_fake_posterior(self):
+        cp = copy.deepcopy(PM.SEED)
+        confirmed = [{"param": "own.w_fund", "old": 0.45, "new": 0.50, "why": "no"}]
+        ok, p, reason = L.challenger_posterior_for_moves(cp, cp, confirmed, {})
+        self.assertFalse(ok)
+        self.assertIsNone(p)
+        self.assertEqual(reason, "no posterior branch for own.w_fund")
+        msg = L.format_posterior_block(confirmed, p, reason)
+        self.assertIn("blocked: no posterior branch for own.w_fund", msg)
+        self.assertNotIn("P=0.50", msg)
+
+    def test_mixed_premium_fail_blocks_whole_challenger(self):
+        cp = copy.deepcopy(PM.SEED)
+        confirmed = [
+            {"param": "premium.w_iv_rv", "old": 0.70, "new": 0.72, "why": "prem"},
+            {"param": "thresholds.green_own", "old": 62, "new": 63, "why": "live"},
+        ]
+        real = L.challenger_posterior_ok
+
+        def fail_prem(*_a, **_k):
+            return False, 0.42
+
+        L.challenger_posterior_ok = fail_prem
+        try:
+            ok, p, reason = L.challenger_posterior_for_moves(cp, cp, confirmed, {})
+        finally:
+            L.challenger_posterior_ok = real
+        self.assertFalse(ok)
+        self.assertAlmostEqual(p, 0.42)
+        self.assertIn("thresholds: live-grade gate (no backtest posterior)", reason)
+        msg = L.format_posterior_block(confirmed, p, reason)
+        self.assertIn("blocked: P=0.42", msg)
+        self.assertNotIn("P=0.50", msg)
+
 
 if __name__ == "__main__":
     unittest.main()

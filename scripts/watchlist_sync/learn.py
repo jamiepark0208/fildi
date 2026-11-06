@@ -425,6 +425,18 @@ def falling_knife_posterior_ok(CP: dict, NP: dict, ev: dict, as_of: date | None 
     return _paired_weekly_z(inv_a, inv_b)
 
 
+def _posterior_family(param: str) -> str:
+    if param.startswith("premium."):
+        return "premium"
+    if param == "street.k":
+        return "street.k"
+    if param == "severity.falling_knife":
+        return "falling_knife"
+    if param.startswith("thresholds."):
+        return "thresholds"
+    return "unknown"
+
+
 def challenger_posterior_for_moves(
     CP: dict,
     NP: dict,
@@ -432,16 +444,63 @@ def challenger_posterior_for_moves(
     ev: dict,
     conn=None,
     as_of: date | None = None,
-) -> tuple[bool, float]:
-    params = {w["param"] for w in confirmed}
-    prem = {p for p in params if p.startswith("premium.")}
-    if prem:
-        return challenger_posterior_ok(CP, NP, ev, conn=conn, as_of=as_of)
-    if params == {"street.k"}:
-        return street_k_posterior_ok(CP, NP, ev, as_of=as_of)
-    if params == {"severity.falling_knife"}:
-        return falling_knife_posterior_ok(CP, NP, ev, as_of=as_of)
-    return False, 0.5
+) -> tuple[bool, float | None, str]:
+    """Score each param family and AND them (A342).
+
+    premium / street.k / falling_knife keep their backtest posteriors.
+    thresholds.* have no backtest posterior: the live-grade gate in propose_params
+    (n / weeks / good<0.5) plus the two-cycle confirmation that built `confirmed`
+    is the gate, returned as P=None.
+    An unknown family blocks with ``no posterior branch for <param>`` — never a fake P=0.50.
+    """
+    families: dict[str, list[dict]] = {}
+    order: list[str] = []
+    for w in confirmed:
+        fam = _posterior_family(w["param"])
+        if fam not in families:
+            order.append(fam)
+            families[fam] = []
+        families[fam].append(w)
+
+    ok = True
+    fail_p: float | None = None
+    pass_p: float | None = None
+    notes: list[str] = []
+
+    def _take(fok: bool, p: float) -> None:
+        nonlocal ok, fail_p, pass_p
+        if not fok:
+            ok = False
+            if fail_p is None:
+                fail_p = p
+        elif pass_p is None:
+            pass_p = p
+
+    for fam in order:
+        if fam == "premium":
+            _take(*challenger_posterior_ok(CP, NP, ev, conn=conn, as_of=as_of))
+        elif fam == "street.k":
+            _take(*street_k_posterior_ok(CP, NP, ev, as_of=as_of))
+        elif fam == "falling_knife":
+            _take(*falling_knife_posterior_ok(CP, NP, ev, as_of=as_of))
+        elif fam == "thresholds":
+            notes.append("thresholds: live-grade gate (no backtest posterior)")
+        else:
+            ok = False
+            for w in families[fam]:
+                notes.append(f"no posterior branch for {w['param']}")
+
+    p_out = fail_p if fail_p is not None else (pass_p if ok else None)
+    return ok, p_out, "; ".join(notes)
+
+
+def format_posterior_block(confirmed: list[dict], p: float | None, reason: str) -> str:
+    """Digest fragment for a blocked challenger. No numeric P when there is no posterior."""
+    moves = ", ".join(f"{w['param']} {w['old']}→{w['new']}" for w in confirmed)
+    if p is None:
+        return f"{moves} blocked: {reason or 'no posterior branch'}"
+    extra = f" ({reason})" if reason else ""
+    return f"{moves} blocked: P={p:.2f}{extra}"
 
 
 def premium_score(t: dict, Pw: dict) -> float | None:
@@ -731,13 +790,19 @@ def main() -> None:
             )
             return
         NP = apply_rationale(CP, confirmed)
-        ok_post, p_better = challenger_posterior_for_moves(CP, NP, confirmed, ev, conn=conn)
+        ok_post, p_better, post_reason = challenger_posterior_for_moves(CP, NP, confirmed, ev, conn=conn)
         if not ok_post:
-            moves = ", ".join(f"{w['param']} {w['old']}→{w['new']}" for w in confirmed)
-            msg = f"{moves} blocked: P={p_better:.2f}" + (f"; {'; '.join(digest_bits)}" if digest_bits else "")
-            print(f"no challenger: P(better than champion)={p_better:.2f} < 0.90 posterior bar")
+            msg = format_posterior_block(confirmed, p_better, post_reason)
+            if digest_bits:
+                msg = f"{msg}; {'; '.join(digest_bits)}"
+            if p_better is None:
+                print(f"no challenger: {post_reason or 'no posterior branch'}")
+            else:
+                print(f"no challenger: P(better than champion)={p_better:.2f} < 0.90 posterior bar")
             append_learn_digest(msg)
             return
+        if post_reason:
+            digest_bits.append(post_reason)
         ba, n_changed, n_names = before_after(conn, CP, NP)
         share = n_changed / max(n_names, 1)
         min_share = CP["learning"].get("min_challenger_verdict_share", 0.05)
