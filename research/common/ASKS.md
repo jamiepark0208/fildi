@@ -163,3 +163,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A348](asks/A348.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] 7 quant strategies from @daytrading — test the batch (overnight edge, z-score vs RSI, PEAD, gap on minute bars) | planned |
 | [A349](asks/A349.md) | 2026-11-06 | Muse → Claude → Cursor | AI quant lab batch: TradingAgents, AI Hedge Fund, RD-Agent, Freqtrade (OpenBB/Nautilus/Qlib covered) | planned |
 | [A350](asks/A350.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] IV Walls reversal rule: minute-bar test on fildi IV walls | planned |
+| [A351](asks/A351.md) | 2026-11-06 | Muse → Claude → Cursor | Evaluate DeepSeek Harness + Super-Agent as the post-Cursor builder seat | planned |
