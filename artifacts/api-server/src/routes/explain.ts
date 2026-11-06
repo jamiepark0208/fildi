@@ -8,6 +8,7 @@ import { validate } from "../middleware/validate.js";
 import { markAiCached } from "../middleware/rateLimiter.js";
 import { explainScoreSchema } from "../lib/validators/explain.js";
 import { readLatestFairValue, type LatestFairValue } from "../lib/fair-value-snapshots.js";
+import { readTurningPointScores, readIndicatorsDailyPayload } from "../lib/turning-point-scores.js";
 
 const router  = Router();
 
@@ -65,6 +66,8 @@ interface TechnicalData {
   fallingKnife:     boolean;
   earningsDaysOut:  number | null;
   reason:           string;
+  /** Server-attached S151 context line (A330). */
+  turningPointLine?: string | null;
 }
 
 interface ExplainRequest {
@@ -91,7 +94,8 @@ function fundamentalHash(d: FundamentalData): string {
 }
 
 function technicalHash(d: TechnicalData): string {
-  return `${PROMPT_VERSION}_${d.side ?? "put"}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}`;
+  const tp = d.turningPointLine ? `_tp${d.turningPointLine.length}` : "";
+  return `${PROMPT_VERSION}_${d.side ?? "put"}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}${tp}`;
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
@@ -193,6 +197,7 @@ IV rank: ${d.ivRank.toFixed(0)}/100 | IV vs realized: ${d.ivVsRealizedVol.toFixe
 MACD: ${d.macdDirection} | Falling knife: ${d.fallingKnife ? "YES — price momentum sharply negative" : "no"}
 ${earningsNote}
 ${componentLine}
+${d.turningPointLine ? `\nContext (do not repeat verbatim — weave in if relevant): ${d.turningPointLine}` : ""}
 
 Write exactly 2 bullets (starting with -). Rules:
 - Each bullet: max 12 words + one parenthetical with the key number
@@ -241,8 +246,16 @@ router.post("/explain/score", validate(explainScoreSchema), async (req, res) => 
       result = await generateExplanation(ticker, fundamentalSurface, bundle, { ...fundamentalData, fairValueSnapshot }, log, { userId });
     } else {
       if (!technicalData) return res.status(400).json({ error: "technicalData required" });
+      const tp = await readTurningPointScores(ticker);
       const surface = technicalData.side === "call" ? technicalCallSurface : technicalPutSurface;
-      result = await generateExplanation(ticker, surface, bundle, technicalData, log, { userId });
+      result = await generateExplanation(
+        ticker,
+        surface,
+        bundle,
+        { ...technicalData, turningPointLine: tp.line },
+        log,
+        { userId },
+      );
     }
     markAiCached(res, result.cached);
     return res.json({ explanation: result.explanation, cached: result.cached });

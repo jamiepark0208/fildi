@@ -83,6 +83,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("sector ETFs", PY, HERE, ["sector_etfs.py"]),   # A277: 49 sector/theme ETF closes (SOXX, REMX, SRVR …) → per-name sector_drop state
         ("band table", PY, HERE, ["band_engine.py", "refresh"]),   # A277 §8 / S101: weekly refit of the sold-put band table (~5 min) — read by build_plan + structures
         ("indicators", PY, HERE, ["indicators.py"]),   # A279: UT Bot / SuperTrend cluster / SMC / Fear & Greed per name → indicators_daily (display; S102)
+        ("turning points", SH, HERE, ["-c", f"{PY} turning_points.py 2>&1 | tail -2 || echo 'turning points skipped'"]),  # A330: S151 odds → turning_point_scores (soft)
         ("put edge", PY, HERE, ["put_edge.py"]),   # today's quintiles before the engine reads them (10-28: it read yesterday's)
         ("put recs", PY, HERE, ["put_recs.py"]),
         ("put manage", PY, HERE, ["put_manage.py"]),   # A279 / S103: open short puts → take + re-sell at ≥ 4× pace (weeklies), else hold; never trend stops   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)

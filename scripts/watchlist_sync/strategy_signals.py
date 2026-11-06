@@ -6,6 +6,8 @@ with iv30_put > 48.7 → signal. Contract = S049's pick_contract (monthly put ne
 LSEG mid on the next session (Schwab snapshots only hold 3–14 DTE puts). Graded after expiry: pnl ÷ strike from the entry mid and intrinsic at the expiry close (LSEG).
 Rows: watchlist_sync.strategy_signals (read by the Strategies tab / Options board badge, A189).
 
+A330 shadow challengers (S151 Phase 4): put_climax_spy_oversold · put_climax_low_ivrv — logged + graded only; panic rows unchanged.
+
     ../../research/lseg/.venv/bin/python strategy_signals.py [--asof=YYYY-MM-DD]
 """
 from __future__ import annotations
@@ -19,8 +21,14 @@ HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE / "analysis")]
 from build_plan import connect  # noqa: E402
 import s049_panic_puts as P  # noqa: E402  (one home for the event rule)
+import pattern_lab as PL  # noqa: E402
+from backtest_lab import PRESETS, preset_fires  # noqa: E402
 
 IV_MIN = 48.7
+SHADOW = {
+    "put_climax_spy_oversold": {"delta": -0.08, "exit": "half_dte", "preset": "put_climax_spy_oversold"},
+    "put_climax_low_ivrv": {"delta": -0.08, "exit": "stop50", "preset": "put_climax_low_ivrv"},
+}
 DDL = """
 CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_signals (
   strategy_id text NOT NULL, as_of date NOT NULL, ticker text NOT NULL,
@@ -56,9 +64,31 @@ def detect(conn, asof: date | None):
     return asof, out
 
 
+def detect_shadow(asof: date) -> list[tuple[str, str, dict]]:
+    panel = PL.s151_panel(None, rebuild=False)
+    out = []
+    for sid, meta in SHADOW.items():
+        fired = preset_fires(panel, meta["preset"], asof)
+        for r in fired.itertuples():
+            out.append(
+                (
+                    sid,
+                    r.ticker,
+                    {
+                        "preset": meta["preset"],
+                        "study": PRESETS[meta["preset"]]["study"],
+                        "delta": meta["delta"],
+                        "exit": meta["exit"],
+                        "close": float(r.close),
+                        "up_climax": int(getattr(r, "up_climax", 0)),
+                    },
+                )
+            )
+    return out
+
+
 def price_open(conn):
-    """Once LSEG has the next session's close: pick the 0.20Δ monthly put (same code as the S049 backtest) and record its
-    mid that day as the entry."""
+    """Once LSEG has the next session's close: pick the put at strategy delta and record entry mid."""
     opens = conn.execute("SELECT strategy_id, as_of, ticker FROM watchlist_sync.strategy_signals WHERE status = 'open'").fetchall()
     if not opens or P.OP is None:
         return
@@ -70,7 +100,8 @@ def price_open(conn):
             if not nxt:
                 continue
             d, S, iv = nxt
-            got = P.pick_contract(ld, conn, t, d, S, iv, live=True)
+            td = SHADOW.get(sid, {}).get("delta", -0.20)
+            got = P.pick_contract(ld, conn, t, d, S, iv, live=True, target_delta=td)
             mid = P.mid_on(got[2], d) if got else None
             if not mid:
                 conn.execute("UPDATE watchlist_sync.strategy_signals SET status = 'no_contract' WHERE strategy_id = %s "
@@ -83,18 +114,59 @@ def price_open(conn):
     conn.commit()
 
 
+def _grade_row(conn, sid, asof, t, expiry, strike, entry_mid, entry_date, settle_px, exit_mode: str):
+    intr = max(0.0, strike - settle_px)
+    ret = (entry_mid - intr) / strike
+    itm = intr > 0
+    if exit_mode == "stop50" and ret <= -0.5:
+        pass  # stop hit — still graded at this observation
+    conn.execute("""UPDATE watchlist_sync.strategy_signals SET status = 'graded', settle = %s, ret = %s, itm = %s,
+                    graded_at = now() WHERE strategy_id = %s AND as_of = %s AND ticker = %s""",
+                 (settle_px, ret, itm, sid, asof, t))
+
+
 def grade(conn):
-    for sid, asof, t, e, k, m in conn.execute("""SELECT strategy_id, as_of, ticker, expiry, strike, entry_mid
-                                                 FROM watchlist_sync.strategy_signals WHERE status = 'priced'
-                                                 AND expiry < current_date""").fetchall():
+    for sid, asof, t, e, k, m, ed in conn.execute("""SELECT strategy_id, as_of, ticker, expiry, strike, entry_mid, entry_date
+                                                 FROM watchlist_sync.strategy_signals WHERE status = 'priced'""").fetchall():
+        exit_mode = "expiry" if sid == "panic-puts-hiv" else SHADOW.get(sid, {}).get("exit", "expiry")
+        if exit_mode == "half_dte" and ed and e:
+            half = ed + timedelta(days=max(1, (e - ed).days // 2))
+            if date.today() < half:
+                continue
+            grade_day = half
+        elif exit_mode == "stop50" and ed and e:
+            half = ed + timedelta(days=max(1, (e - ed).days // 2))
+            grade_day = min(date.today(), half) if date.today() >= ed + timedelta(days=1) else None
+            if grade_day is None:
+                continue
+            # walk daily closes for stop
+            rows = conn.execute("""SELECT date, close::float FROM lseg_research.daily_history
+                                   WHERE ticker = %s AND date > %s AND date <= %s ORDER BY date""",
+                                (t, ed, e)).fetchall()
+            stopped = False
+            for d, c in rows:
+                intr = max(0.0, k - c)
+                if (m - intr) / k <= -0.5:
+                    st = conn.execute("SELECT close::float FROM lseg_research.daily_history WHERE ticker = %s AND date <= %s "
+                                      "ORDER BY date DESC LIMIT 1", (t, d)).fetchone()
+                    if st:
+                        _grade_row(conn, sid, asof, t, e, k, m, ed, st[0], exit_mode)
+                    stopped = True
+                    break
+            if stopped:
+                continue
+            if date.today() < half:
+                continue
+            grade_day = half
+        else:
+            if e >= date.today():
+                continue
+            grade_day = e
         st = conn.execute("SELECT close::float FROM lseg_research.daily_history WHERE ticker = %s AND date <= %s "
-                          "ORDER BY date DESC LIMIT 1", (t, e)).fetchone()
+                          "ORDER BY date DESC LIMIT 1", (t, grade_day)).fetchone()
         if not st:
             continue
-        intr = max(0.0, k - st[0])
-        conn.execute("""UPDATE watchlist_sync.strategy_signals SET status = 'graded', settle = %s, ret = %s, itm = %s,
-                        graded_at = now() WHERE strategy_id = %s AND as_of = %s AND ticker = %s""",
-                     (st[0], (m - intr) / k, intr > 0, sid, asof, t))
+        _grade_row(conn, sid, asof, t, e, k, m, ed, st[0], exit_mode)
     conn.commit()
 
 
@@ -110,11 +182,31 @@ def main():
                           json.dumps({"z": z, "iv30": iv, "close": c, "iv_jump_5d": j, "peer_group": g,
                                       "same_group_today": sum(1 for x in sig if x[5] and x[5] == g)}))
                          for t, z, iv, c, j, g in sig])
+        shadow = detect_shadow(asof)
+        for sid, t, det in shadow:
+            cur.execute(
+                """INSERT INTO watchlist_sync.strategy_signals (strategy_id, as_of, ticker, trigger, details)
+                   VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""",
+                (
+                    sid,
+                    asof,
+                    t,
+                    f"S151 up-volume climax + filter → sell ~0.08Δ put next open ({sid})",
+                    json.dumps(det),
+                ),
+            )
     conn.commit()
     price_open(conn)
     grade(conn)
     n = conn.execute("SELECT status, count(*) FROM watchlist_sync.strategy_signals GROUP BY 1").fetchall()
-    print(f"strategy signals {asof}: {len(sig)} new ({', '.join(t for t, *_ in sig) or 'none'}); totals {dict(n)}")
+    sh = conn.execute(
+        "SELECT strategy_id, count(*) FROM watchlist_sync.strategy_signals WHERE as_of = %s AND strategy_id = ANY(%s) GROUP BY 1",
+        (asof, list(SHADOW.keys())),
+    ).fetchall()
+    print(
+        f"strategy signals {asof}: {len(sig)} panic new ({', '.join(t for t, *_ in sig) or 'none'}); "
+        f"shadow {dict(sh)}; totals {dict(n)}"
+    )
 
 
 if __name__ == "__main__":

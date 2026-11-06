@@ -117,8 +117,8 @@ def third_friday(y, m):
     return d + timedelta((4 - d.weekday()) % 7)
 
 
-def pick_contract(ld, conn, t, d, S, iv, live=False):
-    """Monthly put nearest 0.20Δ (BS at iv30), expiry nearest 30 DTE in 15–45 → (expiry, strike, LSEG history) or None.
+def pick_contract(ld, conn, t, d, S, iv, live=False, target_delta: float = -0.20):
+    """Monthly put nearest |target_delta| (BS at iv30), expiry nearest 30 DTE in 15–45 → (expiry, strike, LSEG history) or None.
     Shared with strategy_signals.py (live=True allows unexpired contracts)."""
     if not iv:
         return None
@@ -130,9 +130,9 @@ def pick_contract(ld, conn, t, d, S, iv, live=False):
     e = min(exps, key=lambda x: abs((x - d).days - 30))
     v, T = iv / 100, (e - d).days / 365
     lo, hi = S * 0.5, S
-    for _ in range(40):  # strike with BS put delta −0.20
+    for _ in range(40):
         k = (lo + hi) / 2
-        lo, hi = (k, hi) if put_delta(S, k, v, T) > -0.20 else (lo, k)
+        lo, hi = (k, hi) if put_delta(S, k, v, T) > target_delta else (lo, k)
     for K in OP.candidates(conn, t, e, "P", (lo + hi) / 2, CHAIN):
         hist = OP.history(ld, conn, t, e, "P", K)
         if hist:

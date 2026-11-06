@@ -25,28 +25,20 @@ export function scoreTone(score: number | null | undefined): string {
   return "border-rose-500 bg-rose-500 text-white";
 }
 
-/** Family chips — solid desk hues (match Stock DB / Live gold tabs). */
-const PILLAR_SOLID: Record<string, string> = {
-  Value:   "bg-sky-500 text-black border-sky-500",
-  Growth:  "bg-emerald-500 text-black border-emerald-500",
-  Quality: "bg-violet-500 text-white border-violet-500",
-  Safety:  "bg-[#d4af37] text-black border-[#d4af37]",
-  Tech:    "bg-cyan-400 text-black border-cyan-400",
-};
+/** Peer score ink: green ≥60, amber 40–59, red below. Scores are already peer-relative. */
+export function scoreInk(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(score)) return "text-white";
+  if (score >= 60) return "text-emerald-400";
+  if (score >= 40) return "text-amber-300";
+  return "text-rose-400";
+}
 
-/** Oval score pill — label over value (matches TagBadge shape; MemoHeader row). */
+/** Oval score pill — white label, peer-colored number. */
 export function PillarChip({ label, score, title }: { label: string; score: number | null | undefined; title?: string }) {
-  const solid = PILLAR_SOLID[label] ?? scoreTone(score);
   const chip = (
-    <span
-      className={cn(
-        "inline-flex flex-col items-center justify-center px-2 py-0.5 rounded-full border shrink-0",
-        "text-[8px] font-semibold uppercase tracking-wide leading-none",
-        solid,
-      )}
-    >
-      <span className="font-sans">{label}</span>
-      <span className="font-mono tabular-nums text-[10px] font-bold leading-none mt-0.5 normal-case tracking-normal">
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-white/20 bg-zinc-950 shrink-0 whitespace-nowrap leading-none">
+      <span className="text-[9px] font-bold uppercase tracking-wide font-sans text-white">{label}</span>
+      <span className={cn("font-mono tabular-nums text-[12px] font-bold leading-none normal-case tracking-normal", scoreInk(score))}>
         {score != null && Number.isFinite(score) ? score.toFixed(0) : "—"}
       </span>
     </span>
@@ -119,6 +111,15 @@ export interface BreakdownData {
   peerSector?: string | null;
   /** ETF / fund strip — set when Yahoo quoteType is ETF (stock fund model N/A). */
   etfProfile?: EtfProfile | null;
+  technicalsContext?: {
+    turningPoint: {
+      asOf: string | null;
+      weekLow: { prob: number; decile: number; base: number } | null;
+      monthHigh: { prob: number; decile: number; base: number } | null;
+      line: string | null;
+    };
+    indicatorsDaily: Record<string, unknown> | null;
+  };
 }
 
 // ── Data fetching ──────────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ export function TagBadge({
   title?: string;
 }) {
   const badgeClass = cn(
-    "text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border transition-colors",
+    "text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full border transition-colors whitespace-nowrap shrink-0",
     matches ? "cursor-pointer" : "cursor-default",
     TAG_STYLES[type],
   );
@@ -272,6 +273,8 @@ export function BreakdownPanel({ title, children, empty, fullWidth, action, scro
         {action}
       </div>
       <div
+        data-lenis-prevent
+        data-lenis-prevent-wheel
         className={cn(
           "min-h-0",
           scrollMax ?? "flex-1 overflow-y-auto",

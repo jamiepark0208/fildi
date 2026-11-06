@@ -276,6 +276,17 @@ def _preset_mask(panel: pd.DataFrame, preset: dict, edges: dict) -> pd.Series:
     return P4.signal_mask(panel, sig, edges, {})
 
 
+def preset_fires(panel: pd.DataFrame, preset_id: str, asof: date) -> pd.DataFrame:
+    """Names firing a catalog preset on asof (S151 pair rules — import, don't re-derive)."""
+    if preset_id not in PRESETS:
+        raise ValueError(preset_id)
+    preset = PRESETS[preset_id]
+    edges = P4.fit_edges(panel)
+    mask = _preset_mask(panel, preset, edges)
+    day = pd.Timestamp(asof)
+    return panel[mask & (panel.date == day)].copy()
+
+
 def _pricing_meta(conn) -> dict:
     try:
         r = conn.execute(

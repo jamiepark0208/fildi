@@ -45,6 +45,7 @@ import {
   loadScoreHistory,
   readFundPeerGroupId,
 } from "../lib/breakdown-enrichment.js";
+import { readTurningPointScores, readIndicatorsDailyPayload } from "../lib/turning-point-scores.js";
 
 import { pegGrowthPeerZScore } from "../lib/peg-peer-growth.js";
 import { buildBullBullets, buildBearBullets } from "../lib/breakdown-bullets.js";
@@ -700,17 +701,19 @@ function getChartInterval(period: string): "5m" | "1h" | "1d" {
   }
 }
 
+const VALID_INTERVALS = new Set(["1m", "2m", "5m", "15m", "30m", "1h", "1d"]);
+
 const VALID_PERIODS = new Set(["1D", "1W", "1M", "3M", "1Y"]);
 
 router.get("/stocks/history", async (req, res) => {
-  const { ticker, period } = req.query as { ticker?: string; period?: string };
+  const { ticker, period, interval: intervalQ } = req.query as { ticker?: string; period?: string; interval?: string };
   if (!ticker || typeof ticker !== "string") {
     return res.status(400).json({ error: "ticker is required" });
   }
   if (!period || !VALID_PERIODS.has(period)) {
     return res.status(400).json({ error: "period must be one of: 1D, 1W, 1M, 3M, 1Y" });
   }
-  const interval = getChartInterval(period);
+  const interval = intervalQ && VALID_INTERVALS.has(intervalQ) ? intervalQ : getChartInterval(period);
   // Include interval in cache key so old A181 daily-for-1W entries don't stick.
   const key = `${ticker.toUpperCase()}_${period}_${interval}`;
   const cache = period === "1D" || period === "1W" || period === "1M" ? historyCache1D : historyCache;
@@ -929,9 +932,14 @@ type BreakdownPayload = {
     trailingPe: number | null;
     holdings: Array<{ symbol: string; holdingPercent: number | null }>;
   } | null;
+  /** S151 turning-point odds + latest indicators_daily (display only, A330). */
+  technicalsContext?: {
+    turningPoint: Awaited<ReturnType<typeof readTurningPointScores>>;
+    indicatorsDaily: Record<string, unknown> | null;
+  };
 };
 
-function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
+function attachCatalysts(payload: BreakdownPayload, _ticker?: string): BreakdownPayload {
   const items = buildCatalystItems({
     earningsDate: payload.earningsDate ?? null,
     analystActions: payload.analystActions ?? [],
@@ -952,7 +960,7 @@ function attachCatalysts(payload: BreakdownPayload): BreakdownPayload {
 }
 
 // Bump when breakdown payload shape or catalyst parsing changes (invalidates stale entries).
-const BREAKDOWN_CACHE_VER = 18; // 18: eventBulletsGeneratedAt on bull/bear cases
+const BREAKDOWN_CACHE_VER = 20; // 20: technicalsContext turning_point_scores + indicators_daily
 
 // Overlays golden-source live last + day% onto cached breakdown metrics (list/header parity).
 async function overlayBreakdownPrice(ticker: string, payload: BreakdownPayload): Promise<BreakdownPayload> {
@@ -1219,7 +1227,11 @@ router.get("/stocks/breakdown", async (req, res) => {
       readFundPeerGroupId(upperTicker),
     ]);
     if (!scoreEvidence.peerGroupId) scoreEvidence.peerGroupId = peerGroupId;
-    const tradeOverlay = await buildTradeOverlay(upperTicker, street.eventRisk);
+    const [tradeOverlay, turningPoint, indicatorsDaily] = await Promise.all([
+      buildTradeOverlay(upperTicker, street.eventRisk),
+      readTurningPointScores(upperTicker),
+      readIndicatorsDailyPayload(upperTicker),
+    ]);
 
     const earningsDate = parseEarningsDate(summary, earningsDbRows[0]?.earningsDate ?? null);
 
@@ -1237,15 +1249,16 @@ router.get("/stocks/breakdown", async (req, res) => {
       scoreHistory,
       street,
       tradeOverlay,
+      technicalsContext: { turningPoint, indicatorsDaily },
       earningsDate,
       earningsHistory,
       peers: peersPayload.peers.slice(0, 8),
       peerIndustry: peersPayload.industry,
       peerSector: peersPayload.sector,
       etfProfile,
-    });
+    }, upperTicker);
     })) as BreakdownPayload;
-    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(payload)));
+    return res.json(await overlayBreakdownPrice(upperTicker, attachCatalysts(payload, upperTicker)));
   } catch (err: any) {
     const msg = String(err?.message ?? err);
     if (msg.includes("No fundamentals data") || msg.includes("Not Found")) {
@@ -1348,6 +1361,30 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
     }
     // Cap large taxonomy groups; small groups (e.g. Quantum Computing) show everyone.
     peers = peers.slice(0, 24);
+    const groupSet = new Set([key, ...peers]);
+
+    // Display only. Scoring cohort stays the taxonomy group. Fill the peers box with
+    // other active names in the same sector, largest market cap first.
+    if (peers.length < 16) {
+      const extra = await db.execute(sql`
+        SELECT r.ticker, r.sector
+        FROM ticker_registry r
+        LEFT JOIN finnhub_fundamentals f ON f.ticker = r.ticker
+        WHERE r.sector = (SELECT sector FROM ticker_registry WHERE ticker = ${key})
+          AND r.is_active AND r.fetch_fundamentals
+          AND r.ticker <> ${key}
+        ORDER BY f.finnhub_market_cap DESC NULLS LAST
+        LIMIT 24
+      `);
+      const extraRows = (Array.isArray(extra) ? extra : (extra as unknown as { rows?: { ticker: string; sector: string | null }[] }).rows ?? []) as { ticker: string; sector: string | null }[];
+      if (!sector && extraRows[0]?.sector) sector = extraRows[0].sector;
+      for (const row of extraRows) {
+        const t = String(row.ticker ?? "").toUpperCase();
+        if (!t || groupSet.has(t)) continue;
+        peers.push(t);
+        if (peers.length >= 16) break;
+      }
+    }
 
     const allTickers = [key, ...peers];
     const [techRows, fundRows] = await Promise.all([
@@ -1355,10 +1392,32 @@ router.get("/stocks/competitors/:ticker", async (req, res) => {
       db.select().from(tickerFundamentals).where(inArray(tickerFundamentals.ticker, allTickers)),
     ]);
 
-    const ranked = rankCompetitors(key, peers, techRows, fundRows, {
+    const rankedCore = rankCompetitors(key, peers, techRows, fundRows, {
       limit: 25,
       includeSubject: true,
     });
+    const [pxRes, capRes] = await Promise.all([
+      db.execute(sql`
+        SELECT DISTINCT ON (ticker) ticker, close::float8 AS px
+        FROM prices_historical
+        WHERE ticker IN (${sql.join(allTickers.map((t) => sql`${t}`), sql`, `)})
+        ORDER BY ticker, date DESC
+      `),
+      db.execute(sql`
+        SELECT ticker, finnhub_market_cap::float8 AS cap
+        FROM finnhub_fundamentals
+        WHERE ticker IN (${sql.join(allTickers.map((t) => sql`${t}`), sql`, `)})
+      `),
+    ]);
+    const asRows = <T,>(res: unknown): T[] => (Array.isArray(res) ? res as T[] : ((res as { rows?: T[] }).rows ?? []));
+    const pxMap = new Map(asRows<{ ticker: string; px: number | null }>(pxRes).map((r) => [r.ticker.toUpperCase(), r.px]));
+    const capMap = new Map(asRows<{ ticker: string; cap: number | null }>(capRes).map((r) => [r.ticker.toUpperCase(), r.cap]));
+    const ranked = rankedCore.map((r) => ({
+      ...r,
+      inGroup: groupSet.has(r.ticker),
+      price: pxMap.get(r.ticker) ?? null,
+      marketCap: capMap.get(r.ticker) ?? null,
+    }));
 
     return res.json({
       ticker: key,
