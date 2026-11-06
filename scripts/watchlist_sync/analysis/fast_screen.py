@@ -1212,6 +1212,268 @@ def run_usecases(pack: dict, seed: int = SEED) -> tuple[Path, float]:
 
 
 
+# ── A341 puts: same-delta short-put pricing of screen hits ───────────────────
+
+PUT_DELTAS = (0.30, 0.20)
+PUT_DTE, PUT_ENTRY, PUT_EXIT = 45, "next_open", "half_dte"
+HOLD_START = date(2025, 1, 1)
+
+
+def _import_lab():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("backtest_lab", HERE / "backtest_lab.py")
+    lab = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(lab)
+    return lab
+
+
+def _import_excess():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("s151_ex", HERE / "s151_phase4_excess.py")
+    ex = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(ex)
+    return ex
+
+
+def a350_iv_wall_daily_ok() -> bool:
+    """A350 needs daily IV-wall series; ticker_technicals.put_wall_strike is null placeholder."""
+    try:
+        with connect() as conn:
+            n = rows(conn, "SELECT COUNT(*) AS n FROM ticker_technicals WHERE put_wall_strike IS NOT NULL")
+        return bool(n and int(n[0]["n"]) > 0)
+    except Exception:
+        return False
+
+
+def _pnl_coll_bp_wk(tr: dict, dte: int) -> float:
+    """Credit-normalized S151 pnl → bp/week of strike collateral."""
+    k = float(tr.get("K") or 0.0)
+    cr = float(tr.get("credit") or 0.0)
+    if k <= 0 or dte <= 0:
+        return float("nan")
+    return float(tr["pnl"]) * cr / k * 1e4 * 7.0 / dte
+
+
+def _load_put_pool(lab, delta: float) -> tuple[list[dict], int]:
+    for dte in (PUT_DTE, 25, 14):
+        pool = lab._load_trade_pool("sell_put", delta, dte, PUT_ENTRY, PUT_EXIT)
+        if pool:
+            return pool, dte
+    return [], PUT_DTE
+
+
+def _pool_index(pool: list[dict]) -> dict[tuple[str, date], dict]:
+    out: dict[tuple[str, date], dict] = {}
+    for x in pool:
+        d = x["d"]
+        if hasattr(d, "date"):
+            d = d.date()
+        out[(x["ticker"], d)] = {**x, "d": d}
+    return out
+
+
+def _put_cell_stats(sig: list[dict], peer_ex: list[float], tb_bp: float, dte: int) -> dict:
+    if not sig:
+        return {"n": 0, "bp_wk": np.nan, "win": np.nan, "worst_dec": np.nan,
+                "t": np.nan, "peer_ex_bp": np.nan, "tbill_bp": tb_bp}
+    bps = np.array([_pnl_coll_bp_wk(x, dte) for x in sig], dtype=float)
+    bps = bps[np.isfinite(bps)]
+    if bps.size == 0:
+        return {"n": 0, "bp_wk": np.nan, "win": np.nan, "worst_dec": np.nan,
+                "t": np.nan, "peer_ex_bp": np.nan, "tbill_bp": tb_bp}
+    by: dict[tuple[int, int], list[float]] = {}
+    for x, bp in zip(sig, [_pnl_coll_bp_wk(x, dte) for x in sig]):
+        if not np.isfinite(bp):
+            continue
+        by.setdefault((x["d"].year, x["d"].month), []).append(bp)
+    mo = [float(np.mean(v)) for v in by.values()]
+    t = float(np.mean(mo) / (np.std(mo, ddof=1) / np.sqrt(len(mo)))) if len(mo) >= 4 and np.std(mo, ddof=1) > 0 else float("nan")
+    pex = np.asarray(peer_ex, dtype=float)
+    pex = pex[np.isfinite(pex)]
+    return {
+        "n": int(bps.size),
+        "bp_wk": float(np.mean(bps)),
+        "win": float(np.mean(bps > 0)),
+        "worst_dec": float(np.percentile(bps, 10)),
+        "t": t,
+        "peer_ex_bp": float(np.mean(pex)) if pex.size else float("nan"),
+        "tbill_bp": tb_bp,
+    }
+
+
+def _peer_ex_for_sigs(sig: list[dict], day_dec_pnl: dict, dte: int) -> list[float]:
+    """Leave-one-out excess vs same-day same vol-decile peers' put bp/wk."""
+    out = []
+    for x in sig:
+        key = (x["d"], int(x.get("_dec", -1)))
+        peers = day_dec_pnl.get(key, [])
+        mine = _pnl_coll_bp_wk(x, dte)
+        if len(peers) < 2 or not np.isfinite(mine):
+            out.append(float("nan"))
+            continue
+        loo = (sum(peers) - mine) / (len(peers) - 1)
+        out.append(mine - loo)
+    return out
+
+
+def _build_day_dec_pnl(pool: list[dict], tick_ix: dict, dates, dec: np.ndarray, dte: int) -> dict:
+    date_ix = {pd.Timestamp(d).date(): i for i, d in enumerate(dates)}
+    buckets: dict[tuple[date, int], list[float]] = {}
+    for x in pool:
+        d = x["d"].date() if hasattr(x["d"], "date") else x["d"]
+        ti = tick_ix.get(x["ticker"])
+        di = date_ix.get(d)
+        if ti is None or di is None:
+            continue
+        dv = int(dec[di, ti])
+        if dv < 0:
+            continue
+        bp = _pnl_coll_bp_wk({**x, "d": d}, dte)
+        if np.isfinite(bp):
+            buckets.setdefault((d, dv), []).append(bp)
+            x["_dec"] = dv
+    return buckets
+
+
+def _match_signals(entry: np.ndarray, dates, tickers, idx: dict) -> tuple[list[dict], int, float]:
+    """Signal close t → pool entry date t+1. Returns (matched trades, n_signal, coverage)."""
+    n_sig = 0
+    matched = []
+    for t, j in zip(*np.where(entry[:-1])):
+        n_sig += 1
+        d_ent = pd.Timestamp(dates[t + 1]).date()
+        tr = idx.get((tickers[j], d_ent))
+        if tr is not None:
+            matched.append(tr)
+    cov = (len(matched) / n_sig) if n_sig else 0.0
+    return matched, n_sig, cov
+
+
+def run_puts(pack: dict) -> Path:
+    """Price z50<-2.5 long + gap_up_5pct as same-delta short puts vs vol-decile peers + T-bill."""
+    t0 = time.perf_counter()
+    lab = _import_lab()
+    EX = _import_excess()
+    dates, tickers, o, c, h = _align(pack)
+    tbill = load_tbill()
+    dec = vol_decile_mat(realized_vol20(c))
+    tick_ix = {t: i for i, t in enumerate(tickers)}
+    signals = {
+        "z50<-2.5/long": _sig_z_variant(c, 50, -2.5),
+        "gap_up_5pct": _sig_gap_variant(o, c, 0.05, "up"),
+    }
+    # T-bill bp/wk on collateral (flat approx)
+    mid = pd.Timestamp(dates[len(dates) // 2]).date()
+    rate = tbill_at(tbill, mid) or 0.0
+    tb_bp = rate * 7.0 / 365.0 * 1e4
+    rows_out = []
+    for delta in PUT_DELTAS:
+        pool, dte = _load_put_pool(lab, delta)
+        if not pool:
+            for sname, entry in signals.items():
+                n_sig = int(entry[:-1].sum())
+                rows_out.append({"signal": sname, "delta": delta, "n": 0, "coverage": 0.0,
+                                 "n_sig": n_sig,
+                                 "note": f"trade pool missing sell_put Δ{delta} — no impute"})
+            continue
+        for x in pool:
+            if hasattr(x["d"], "date"):
+                x["d"] = x["d"].date()
+        day_dec = _build_day_dec_pnl(pool, tick_ix, dates, dec, dte)
+        idx = _pool_index(pool)
+        sector_map = {r["ticker"]: r.get("sector") or "?" for r in pool}
+        for sname, entry in signals.items():
+            matched, n_sig, cov = _match_signals(entry, dates, tickers, idx)
+            if n_sig == 0:
+                rows_out.append({"signal": sname, "delta": delta, "n": 0, "coverage": 0.0,
+                                 "n_sig": 0, "note": "no signal days"})
+                continue
+            if not matched:
+                rows_out.append({"signal": sname, "delta": delta, "n": 0, "coverage": 0.0,
+                                 "n_sig": n_sig, "note": "0% pool coverage — no impute"})
+                continue
+            peer_ex = _peer_ex_for_sigs(matched, day_dec, dte)
+            fit = [x for x in matched if x["d"] < HOLD_START]
+            ho = [x for x in matched if x["d"] >= HOLD_START]
+            st_all = _put_cell_stats(matched, peer_ex, tb_bp, dte)
+            st_fit = _put_cell_stats(fit, _peer_ex_for_sigs(fit, day_dec, dte), tb_bp, dte)
+            st_ho = _put_cell_stats(ho, _peer_ex_for_sigs(ho, day_dec, dte), tb_bp, dte)
+            m = EX.metrics_for(matched, pool, sector_map, date(2018, 1, 1), None, None)
+            rows_out.append({
+                "signal": sname, "delta": delta, "dte": dte, "n": st_all["n"],
+                "n_sig": n_sig, "coverage": cov,
+                "bp_wk": st_all["bp_wk"], "win": st_all["win"],
+                "worst_dec": st_all["worst_dec"], "t": st_all["t"],
+                "peer_ex_bp": st_all["peer_ex_bp"], "tbill_bp": tb_bp,
+                "fit_bp": st_fit["bp_wk"], "fit_t": st_fit["t"], "fit_n": st_fit["n"],
+                "ho_bp": st_ho["bp_wk"], "ho_t": st_ho["t"], "ho_n": st_ho["n"],
+                "ex_sm": m.get("excess_mean_sm", float("nan")) if m else float("nan"),
+                "note": "",
+            })
+    # regime split: z10<-2.5 short h21 + pead short h21 × SPY>/<SMA200
+    regime_rows = _regime_split_puts(pack, dates, tickers, o, c)
+    return _write_puts_md(rows_out, regime_rows, time.perf_counter() - t0)
+
+
+def _regime_split_puts(pack, dates, tickers, o, c) -> list[dict]:
+    """z10<-2.5 short h21 + pead short h21 under SPY>/<SMA200; n + month-clustered t."""
+    ctx = _context_masks(pack, dates, tickers, c)
+    rets = fwd_returns(o, c, 21)
+    pead_e = load_pead_entry(dates, tickers)
+    entries = {"z10<-2.5": _sig_z_variant(c, 10, -2.5), "pead": pead_e}
+    out = []
+    for sname, entry in entries.items():
+        for reg in ("SPY>SMA200", "SPY<SMA200"):
+            mask = ctx.get(reg)
+            if mask is None:
+                continue
+            ent = entry & mask[:, None] & np.isfinite(rets)
+            sel = (-1.0 * rets)[ent]
+            n = int(sel.size)
+            mean_bp = float(np.mean(sel) * 1e4) if n else float("nan")
+            t = month_cluster_t(dates, -1.0 * rets, ent)
+            out.append({"signal": f"{sname}/short/h21", "regime": reg,
+                        "n": n, "t": t, "mean_bp": mean_bp})
+    return out
+
+
+def _write_puts_md(cells: list[dict], regime: list[dict], wall: float) -> Path:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    day = date.today().isoformat()
+    md = OUT_DIR / f"{day}-puts.md"
+    ranked = sorted(
+        [r for r in cells if r.get("n", 0) > 0 and np.isfinite(r.get("peer_ex_bp", np.nan))],
+        key=lambda r: r["peer_ex_bp"], reverse=True,
+    )
+    rest = [r for r in cells if r not in ranked]
+    L = [f"# Fast screen puts {day} (A341)",
+         f"sell_put Δ{list(PUT_DELTAS)} DTE≈{PUT_DTE} {PUT_ENTRY}/{PUT_EXIT}; "
+         f"collateral bp/wk; peers=same-day 20d-vol-decile LOO; wall={wall:.1f}s",
+         "library: A339=triple_rsi5 ✓; A348 overnight/intraday/rsi_rotation ✓; "
+         + ("A350 iv-wall daily ✓" if a350_iv_wall_daily_ok()
+            else "A350: needs minute data, skipped"),
+         "", "## Best cells (by peer excess bp/wk)"]
+    for r in (ranked + rest)[:12]:
+        if r.get("n", 0) == 0:
+            L.append(f"- {r.get('signal','?')} Δ{r.get('delta')}: coverage "
+                     f"{100*r.get('coverage',0):.1f}% n_sig={r.get('n_sig',0)} — {r.get('note','')}")
+            continue
+        L.append(
+            f"- {r['signal']} Δ{r['delta']}: n={r['n']} cov={100*r['coverage']:.1f}% "
+            f"bp/wk={r['bp_wk']:+.1f} peer_ex={r['peer_ex_bp']:+.1f} "
+            f"win={100*r['win']:.0f}% worst_dec={r['worst_dec']:+.1f} t={r['t']:.2f} "
+            f"tb={r['tbill_bp']:+.2f} | fit n={r['fit_n']} {r['fit_bp']:+.1f}bp t={r['fit_t']:.2f} "
+            f"→ ho n={r['ho_n']} {r['ho_bp']:+.1f}bp t={r['ho_t']:.2f}"
+        )
+    L += ["", "## Regime (stock h21 short)"]
+    for r in regime:
+        L.append(f"- {r['signal']} {r['regime']}: n={r['n']} mean={r['mean_bp']:+.1f}bp t={r['t']:.2f}")
+    md.write_text("\n".join(L[:30]) + "\n")
+    return md
+
+
 # ── report ───────────────────────────────────────────────────────────────────
 
 def write_outputs(df: pd.DataFrame, cold_s: float, warm_s: float | None) -> tuple[Path, Path]:
@@ -1275,7 +1537,12 @@ def main() -> int:
     p_run.add_argument("--skip-usecases", action="store_true")
     p_st = sub.add_parser("self-test")
     p_st.add_argument("--rebuild", action="store_true")
+    p_puts = sub.add_parser("puts")
+    p_puts.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
+
+    if not a350_iv_wall_daily_ok():
+        print("A350: needs minute data, skipped")
 
     if args.cmd == "self-test":
         t0 = time.perf_counter()
@@ -1285,6 +1552,12 @@ def main() -> int:
             print(ln)
         print(f"self-test wall {time.perf_counter()-t0:.1f}s")
         return 0 if all(ln.startswith("PASS") for ln in lines) else 1
+
+    if args.cmd == "puts":
+        pack = load_bars(None, rebuild=args.rebuild)
+        md = run_puts(pack)
+        print(f"wrote {md}")
+        return 0
 
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] or None
     strats = [s.strip() for s in args.strategies.split(",") if s.strip()] or None
