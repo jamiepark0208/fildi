@@ -52,8 +52,23 @@ from rule_posterior import (  # noqa: E402
     should_demote,
 )
 OUT = HERE / "out" / "step6"
+LEARN_DIGEST = Path.home() / ".fildi" / "learn-digest.txt"
 PROMOTION_PRIOR_END = date(2020, 12, 31)
+RULE_FOLDER_MAP = {
+    "rich_puts": "rich_puts",
+    "band_engine": "engine_puts",
+    "put_edge_q5": "model_list",
+}
 _S059_PROMOTION_CACHE: list[dict] | None = None
+
+
+def append_learn_digest(msg: str) -> str:
+    """One line per propose run (A327 §7); agent_start reads the last line."""
+    line = f"{date.today()} · {msg}"
+    LEARN_DIGEST.parent.mkdir(parents=True, exist_ok=True)
+    with LEARN_DIGEST.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    return line
 
 
 def backtest_evidence(as_of: date | None = None) -> dict:
@@ -245,26 +260,188 @@ def apply_rule_posteriors(P: dict, conn) -> tuple[dict, list[str]]:
     learning = P.setdefault("learning", {})
     shadow = set(learning.get("rules_shadow") or [])
     notes: list[str] = []
-    folder_map = {
-        "rich_puts": "rich_puts",
-        "band_engine": "engine_puts",
-        "put_edge_q5": "model_list",
-    }
     for rid, spec in rules.items():
-        if rid.startswith("_"):
+        if rid.startswith("_") or spec.get("status") == "shadow":
             continue
-        fk = folder_map.get(rid, rid)
+        fk = RULE_FOLDER_MAP.get(rid, rid)
         live = _rule_live_trades(conn, fk)
         if not live:
             continue
         prior = prior_from_promise(spec["promise"])
         prior = observe_live(prior, live)
+        prior.n_live_weeks = len({t["week"] for t in live})
         if should_demote(prior, spec["floor"]):
             if rid not in shadow:
                 notes.append(f"demote {rid}: P(below floor)≥{0.9:.0%} over {prior.n_live_weeks} live weeks")
             shadow.add(rid)
     learning["rules_shadow"] = sorted(shadow)
     return P, notes
+
+
+def apply_shadow_rule_proposals(P: dict, conn) -> tuple[dict, list[str]]:
+    """S151 shadow challengers: propose active only when P(better than champion lane) ≥ 0.9 (≥ 6 live weeks)."""
+    rules = load_learning_rules()
+    learning = P.setdefault("learning", {})
+    active = set(learning.get("rules_active") or [])
+    log: list[str] = list(learning.get("shadow_proposals") or [])
+    notes: list[str] = []
+    for rid, spec in rules.items():
+        if rid.startswith("_") or spec.get("status") != "shadow":
+            continue
+        if rid in active:
+            continue
+        live_s = _rule_live_trades(conn, f"shadow:{rid}")
+        n_wks = len({t["week"] for t in live_s})
+        if n_wks < MIN_LIVE_WEEKS:
+            continue
+        champ_lane = spec.get("champion_lane", "put_edge_q5")
+        champ_spec = rules.get(champ_lane) or {}
+        fk = RULE_FOLDER_MAP.get(champ_lane, champ_lane)
+        live_c = _rule_live_trades(conn, fk)
+        post_s = observe_live(prior_from_promise(spec["promise"]), live_s)
+        post_s.n_live_weeks = n_wks
+        post_c = observe_live(prior_from_promise(champ_spec.get("promise", spec["promise"])), live_c)
+        post_c.n_live_weeks = len({t["week"] for t in live_c})
+        p = prob_better_than(post_s, post_c)
+        if promotion_allowed(p):
+            msg = f"propose shadow→active {rid} P={p:.2f} vs {champ_lane} ({n_wks}w)"
+            if msg not in log:
+                log.append(msg)
+            notes.append(msg)
+    learning["shadow_proposals"] = log[-30:]
+    return P, notes
+
+
+def shadow_promotion_decision(
+    live_shadow: list[dict],
+    live_champ: list[dict],
+    shadow_promise: dict,
+    champ_promise: dict,
+) -> tuple[bool, float]:
+    """Test hook: P(shadow better than champion lane) with week-clustered live rows."""
+    n_wks = len({t["week"] for t in live_shadow})
+    if n_wks < MIN_LIVE_WEEKS:
+        return False, 0.5
+    post_s = observe_live(prior_from_promise(shadow_promise), live_shadow)
+    post_s.n_live_weeks = n_wks
+    post_c = observe_live(prior_from_promise(champ_promise), live_champ)
+    post_c.n_live_weeks = len({t["week"] for t in live_champ})
+    p = prob_better_than(post_s, post_c)
+    return promotion_allowed(p), p
+
+
+def _promotion_backtest_trades(as_of: date | None = None) -> list[dict]:
+    import backtest_puts as B
+    from statistics import median
+
+    with connect() as conn:
+        H, peer, er, sm = B.load(conn)
+    trades = B.build_trades(H, peer, er, sm, 0.85, 0.20)
+    if as_of is not None:
+        trades = [t for t in trades if t["entry"] < as_of]
+    by_m = defaultdict(list)
+    for t in trades:
+        by_m[t["entry"]].append(t)
+    for ts in by_m.values():
+        g = defaultdict(list)
+        for x in ts:
+            if x["peer"] and x["fwd63"] is not None:
+                g[x["peer"]].append(x["fwd63"])
+        for x in ts:
+            v = g.get(x["peer"]) or []
+            x["fwd63_rel"] = (x["fwd63"] - median(v)) if len(v) >= 4 and x["fwd63"] is not None else None
+    out = []
+    for t in trades:
+        out.append(
+            {
+                **t,
+                "d": t["entry"],
+                "week": iso_week(t["entry"]),
+                "breach": bool(t.get("assigned")),
+            }
+        )
+    return out
+
+
+def _street_own_pass(t: dict, P: dict, thr: float = 0.55) -> bool:
+    cam = t.get("combined_alpha_rank")
+    if cam is None:
+        return False
+    scale = P["street"]["k"] / max(PM.SEED["street"]["k"], 1e-6)
+    return float(cam) * scale >= thr
+
+
+def _paired_weekly_z(means_a: dict, means_b: dict, min_weeks: int = MIN_LIVE_WEEKS) -> tuple[bool, float]:
+    d = [means_b[w] - means_a[w] for w in means_a.keys() & means_b.keys()]
+    if len(d) < min_weeks:
+        return False, 0.5
+    m = sum(d) / len(d)
+    sd = (sum((x - m) ** 2 for x in d) / (len(d) - 1)) ** 0.5
+    if sd == 0:
+        return (m > 0 and promotion_allowed(1.0)), (1.0 if m > 0 else 0.5 if m == 0 else 0.0)
+    from scipy.stats import norm
+
+    prob = float(norm.cdf(m / (sd / len(d) ** 0.5)))
+    return promotion_allowed(prob), prob
+
+
+def street_k_posterior_ok(
+    CP: dict,
+    NP: dict,
+    ev: dict,
+    as_of: date | None = None,
+    pool: list[dict] | None = None,
+) -> tuple[bool, float]:
+    del ev
+    trades = pool if pool is not None else _promotion_backtest_trades(as_of)
+    flip = [t for t in trades if _street_own_pass(t, CP) != _street_own_pass(t, NP) and t.get("fwd63_rel") is not None]
+
+    def means(P):
+        g = defaultdict(list)
+        for t in flip:
+            if t.get("fwd63_rel") is None:
+                continue
+            g[t["week"]].append(float(t["fwd63_rel"]) if _street_own_pass(t, P) else 0.0)
+        return {w: sum(v) / len(v) for w, v in g.items()}
+
+    return _paired_weekly_z(means(CP), means(NP))
+
+
+def falling_knife_posterior_ok(CP: dict, NP: dict, ev: dict, as_of: date | None = None) -> tuple[bool, float]:
+    del ev
+    trades = _promotion_backtest_trades(as_of)
+    flagged = [t for t in trades if t.get("fk_proxy")]
+
+    def breach_means(P):
+        g = defaultdict(list)
+        wt = max(0.05, min(1.0, P["severity"]["falling_knife"]))
+        for t in flagged:
+            g[t["week"]].append((1.0 if t["breach"] else 0.0) * wt)
+        return {w: sum(v) / len(v) for w, v in g.items()}
+
+    a, b = breach_means(CP), breach_means(NP)
+    inv_a = {w: -v for w, v in a.items()}
+    inv_b = {w: -v for w, v in b.items()}
+    return _paired_weekly_z(inv_a, inv_b)
+
+
+def challenger_posterior_for_moves(
+    CP: dict,
+    NP: dict,
+    confirmed: list[dict],
+    ev: dict,
+    conn=None,
+    as_of: date | None = None,
+) -> tuple[bool, float]:
+    params = {w["param"] for w in confirmed}
+    prem = {p for p in params if p.startswith("premium.")}
+    if prem:
+        return challenger_posterior_ok(CP, NP, ev, conn=conn, as_of=as_of)
+    if params == {"street.k"}:
+        return street_k_posterior_ok(CP, NP, ev, as_of=as_of)
+    if params == {"severity.falling_knife"}:
+        return falling_knife_posterior_ok(CP, NP, ev, as_of=as_of)
+    return False, 0.5
 
 
 def premium_score(t: dict, Pw: dict) -> float | None:
@@ -396,17 +573,8 @@ def paired_weekly_prob(pool: list[dict], champ_w: dict, chal_w: dict, min_weeks:
             if t.get("ret") is not None:
                 g[t["week"]].append(float(t["ret"]))
         return {w: sum(v) / len(v) for w, v in g.items()}
-    a, b = wk_means(champ_w), wk_means(chal_w)
-    d = [b[w] - a[w] for w in a.keys() & b.keys()]
-    if len(d) < min_weeks:
-        return False, 0.5
-    m = sum(d) / len(d)
-    sd = (sum((x - m) ** 2 for x in d) / (len(d) - 1)) ** 0.5
-    if sd == 0:
-        return (m > 0 and promotion_allowed(1.0)), (1.0 if m > 0 else 0.5 if m == 0 else 0.0)
-    from scipy.stats import norm
-    prob = float(norm.cdf(m / (sd / len(d) ** 0.5)))
-    return promotion_allowed(prob), prob
+
+    return _paired_weekly_z(wk_means(champ_w), wk_means(chal_w), min_weeks)
 
 
 def challenger_posterior_ok(
@@ -535,42 +703,54 @@ def main() -> None:
         ev["rh"] = rh_evidence(conn)
         NP, why = propose_params(CP, ev, live)
         CP, demote_notes = apply_rule_posteriors(CP, conn)
-        if demote_notes:
+        CP, shadow_notes = apply_shadow_rule_proposals(CP, conn)
+        if demote_notes or shadow_notes:
             conn.execute(
                 "UPDATE watchlist_sync.model_params SET params = %s WHERE status = 'champion'",
                 (json.dumps(CP),),
             )
             conn.commit()
+        digest_bits: list[str] = list(demote_notes) + list(shadow_notes)
         prev_dirs = st.get("pending_dirs") or {}
         new_dirs = {w["param"]: param_direction(w) for w in why}
         confirmed = [w for w in why if prev_dirs.get(w["param"]) == param_direction(w)]
         st["pending_dirs"] = new_dirs
         state_f.write_text(json.dumps({"last_cycle": date.today().isoformat(), "graded": live.get("graded", 0), "pending_dirs": new_dirs}))
         if not why:
+            msg = "no change" if not digest_bits else "; ".join(digest_bits)
             print(f"no change proposed: champion {cv} is consistent with the evidence")
+            append_learn_digest(msg)
             (OUT / f"cycle_{date.today()}.md").write_text(f"# Learning cycle {date.today()}\n\nNo change: champion {cv} is consistent with the evidence.\n\n```json\n{json.dumps(ev, indent=1, default=str)[:4000]}\n```\n")
             return
         if not confirmed:
+            msg = f"held first-cycle ({len(why)} moves)" + (f"; {'; '.join(digest_bits)}" if digest_bits else "")
             print(f"no challenger: {len(why)} proposed move(s) need a 2nd consecutive cycle in the same direction")
+            append_learn_digest(msg)
             (OUT / f"cycle_{date.today()}.md").write_text(
                 f"# Learning cycle {date.today()}\n\nHeld: first-cycle moves (need repeat next cycle): {why}\n"
             )
             return
         NP = apply_rationale(CP, confirmed)
-        ok_post, p_better = challenger_posterior_ok(CP, NP, ev, conn=conn)
+        ok_post, p_better = challenger_posterior_for_moves(CP, NP, confirmed, ev, conn=conn)
         if not ok_post:
+            moves = ", ".join(f"{w['param']} {w['old']}→{w['new']}" for w in confirmed)
+            msg = f"{moves} blocked: P={p_better:.2f}" + (f"; {'; '.join(digest_bits)}" if digest_bits else "")
             print(f"no challenger: P(better than champion)={p_better:.2f} < 0.90 posterior bar")
+            append_learn_digest(msg)
             return
         ba, n_changed, n_names = before_after(conn, CP, NP)
         share = n_changed / max(n_names, 1)
         min_share = CP["learning"].get("min_challenger_verdict_share", 0.05)
         if share < min_share:
+            msg = f"blocked verdict share {share:.0%}" + (f"; {'; '.join(digest_bits)}" if digest_bits else "")
             print(f"no challenger: verdict share {share:.1%} < {min_share:.0%} minimum ({n_changed}/{n_names} names)")
+            append_learn_digest(msg)
             return
         why = confirmed
         for r in rows(conn, "SELECT version, params FROM watchlist_sync.model_params WHERE status = 'challenger'"):
             if PM.merged(r["params"]) == NP:
                 print(f"no new challenger: the evidence still points to open challenger {r['version']}")
+                append_learn_digest(f"existing challenger {r['version']}" + (f"; {'; '.join(digest_bits)}" if digest_bits else ""))
                 return
         ver = next_version(conn, cv)
         conn.execute("""INSERT INTO watchlist_sync.model_params (version, status, parent, params, rationale, evidence)
@@ -593,10 +773,15 @@ def main() -> None:
             )
             conn.commit()
             rep.append(f"\n**Auto-promoted** (bounded: {n_changed}/{n_names} = {share:.0%} verdicts changed ≤ {CP['learning']['auto_max_verdict_share']:.0%}).")
+            append_learn_digest(f"auto-promoted {ver}; {'; '.join(digest_bits)}" if digest_bits else f"auto-promoted {ver}")
         elif CP["learning"]["auto_promote"] and not promotion_allowed_this_week(CP):
             rep.append("\n**Held as challenger:** max 1 promotion per week (last promotion within 7 days).")
+            append_learn_digest(f"proposed {ver} held (1/wk); {'; '.join(digest_bits)}" if digest_bits else f"proposed {ver} held (1/wk)")
         elif CP["learning"]["auto_promote"]:
             rep.append(f"\n**Needs the user:** {share:.0%} of verdicts would change (> {CP['learning']['auto_max_verdict_share']:.0%}). Held as challenger.")
+            append_learn_digest(f"proposed {ver} needs user; {'; '.join(digest_bits)}" if digest_bits else f"proposed {ver} needs user")
+        else:
+            append_learn_digest(f"proposed {ver}; {'; '.join(digest_bits)}" if digest_bits else f"proposed challenger {ver}")
         (OUT / f"proposal_{ver}.md").write_text("\n".join(rep) + "\n")
         print("\n".join(rep))
 

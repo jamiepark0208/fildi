@@ -128,8 +128,13 @@ def main() -> None:
                              f"AND report_date > '{since}' AND report_date < CURRENT_DATE\""],
                             cwd=ROOT, capture_output=True, text=True).stdout.strip()
         if mc:
-            say(f"6e megacap earnings since THESIS_{since}: {mc} → market read with fildi-market-thesis (new THESIS + LOG C#); "
+            say(f"6f megacap earnings since THESIS_{since}: {mc} → market read with fildi-market-thesis (new THESIS + LOG C#); "
                 "per-name notes are automatic")
+        learn_digest = Path.home() / ".fildi" / "learn-digest.txt"
+        if learn_digest.exists():
+            last = [ln for ln in learn_digest.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            if last:
+                say(f"6e learning loop: {last[-1][:220]}")
         # 10-24 (Jamie): A228 sat in 'revise' 3 days with no owner action → new work duplicated it. Untouched > 3 days = stalled.
         stalled = []
         for l in open_rows:

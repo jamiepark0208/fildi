@@ -570,6 +570,20 @@
       "study": "S102",
       "promise": {"pnl_wk_bp": 50, "breach_max": 0.22},
       "floor": {"pnl_wk_bp": 20, "breach_max": 0.32}
+    },
+    "put_climax_spy_oversold": {
+      "study": "S151",
+      "status": "shadow",
+      "champion_lane": "put_edge_q5",
+      "promise": {"pnl_wk_bp": 60, "breach_max": 0.009},
+      "floor": {"pnl_wk_bp": 15, "breach_max": 0.05}
+    },
+    "put_climax_low_ivrv": {
+      "study": "S151",
+      "status": "shadow",
+      "champion_lane": "put_edge_q5",
+      "promise": {"pnl_wk_bp": 53, "breach_max": 0.045},
+      "floor": {"pnl_wk_bp": 12, "breach_max": 0.08}
     }
   }
 }

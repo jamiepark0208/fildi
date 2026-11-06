@@ -25,7 +25,9 @@ from collections import Counter, defaultdict
 from datetime import date
 
 from build_plan import connect, rows
-from grade_weeks import failed_l1_gates
+from grade_weeks import expiry_week_from_detail, failed_l1_gates, iso_week
+
+SHADOW_STRATEGY_IDS = ("put_climax_spy_oversold", "put_climax_low_ivrv")
 
 DDL = """
 CREATE TABLE IF NOT EXISTS watchlist_sync.grades (
@@ -322,6 +324,59 @@ def main() -> None:
                 )
                 if row:
                     out.append(row)
+        sig_tbl = rows(
+            conn,
+            "SELECT to_regclass('watchlist_sync.strategy_signals') IS NOT NULL ok",
+        )[0]["ok"]
+        if sig_tbl:
+            for sr in rows(
+                conn,
+                """SELECT strategy_id, as_of, ticker, entry_date, expiry, strike, entry_mid, ret, itm
+                   FROM watchlist_sync.strategy_signals
+                   WHERE status = 'graded' AND strategy_id = ANY(%s)""",
+                (list(SHADOW_STRATEGY_IDS),),
+            ):
+                fk = f"shadow:{sr['strategy_id']}"
+                run_row = rows(
+                    conn,
+                    """SELECT id FROM watchlist_sync.model_runs
+                       WHERE created_at::date <= %s ORDER BY created_at DESC LIMIT 1""",
+                    (sr["as_of"],),
+                )
+                if not run_row:
+                    continue
+                run_id = run_row[0]["id"]
+                if (run_id, fk, sr["ticker"], "expiry") in done:
+                    continue
+                ret = float(sr["ret"] or 0)
+                ed = sr["entry_date"] or sr["as_of"]
+                detail = {
+                    "strategy_id": sr["strategy_id"],
+                    "as_of": sr["as_of"].isoformat(),
+                    "entry_date": ed.isoformat() if ed else None,
+                    "expiry": sr["expiry"].isoformat() if sr["expiry"] else None,
+                    "strike": sr["strike"],
+                    "fill": sr["entry_mid"],
+                    "breach": bool(sr["itm"]),
+                }
+                wk = expiry_week_from_detail(detail, ed)
+                if wk:
+                    detail["expiry_week"] = list(wk)
+                outcome = "good" if ret > 0 else ("flat" if abs(ret) < 1e-6 else "bad")
+                out.append(
+                    (
+                        run_id,
+                        fk,
+                        sr["ticker"],
+                        "expiry",
+                        outcome,
+                        ret,
+                        None,
+                        None,
+                        "n/a",
+                        json.dumps(detail),
+                    )
+                )
         print(f"gradeable now: {len(out)} " + str(dict(Counter((o[1], o[3]) for o in out))))
         if out:
             print("outcomes:", dict(Counter((o[1], o[4]) for o in out)), "· buckets:", dict(Counter(o[8] for o in out if o[4] == "bad")))
