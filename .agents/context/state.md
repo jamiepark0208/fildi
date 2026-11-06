@@ -17,6 +17,7 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **11-06 16:30 Claude:** A341 puts 79b79c5f pass: gap_up≥5 % 0.20Δ put +6.0 bp/wk vs vol peers (ho +14.7 vs T-bill 7.3); z50<−2.5 dip 0.20Δ put +3.4, low tail. Regime idea dropped (raw loses). NEXT: holdout peer excess + 2×2 vs live put score (does the tag add inside champion picks?) → Model List tag. Dispatcher fixed (run quit on own claim).
 - **11-06 15:40 Claude:** A341 engine ACCEPTED 4d78273b (68 cells 11 s, 1,030 variants 28 s). Hits: z50<−2.5 put timing breach −4.6 pp; SPY<SMA200 boosts dip/PEAD fades; gap-up ≥5 % avoid-list. Cursor pricing them as same-delta puts + regime n + A339/A348/A350 library adds → review puts packet.
 - **11-06 15:00 Claude:** A341 fast screen gate fixed 1553c87d (placebo 20/20); comparator leak found (same-month pool carries the drop) → vol-decile peers; zscore20 L21 real but small (+13–37 bp). Cursor running comparator fix + Use-case pass (variant grids, put-breach job, context splits) → review "what works" table.
 - **11-06 14:20 Claude:** A341 fast-screen spec in A341.md; Cursor auto dispatched (fast_screen.py, numpy, 9-strategy library × both sides, random/T-bill comparators, DSR/PBO, survivor rule) → review packet, then add A348/A339/A350 strategies to the library.
