@@ -344,8 +344,11 @@ def _eps_facts(units):
     return {"facts": {"us-gaap": {"EarningsPerShareDiluted": {"units": {"USD/shares": units}}}}}
 
 
-def _u(start, end, val, filed):
-    return {"start": start, "end": end, "val": val, "filed": filed}
+def _u(start, end, val, filed, fp=None):
+    d = {"start": start, "end": end, "val": val, "filed": filed}
+    if fp:
+        d["fp"] = fp
+    return d
 
 
 def test_ttm_eps_derives_q4_from_fy_minus_9m():
@@ -453,3 +456,40 @@ def test_per_class_filer_prior_from_balance_sheet():
     ]}}}}}
     val, note = _l2.sec_shares_prior(facts, None, "X")
     assert val == 2383.0 and "prior bs" in note
+
+
+def test_ttm_eps_ytd_formula_when_quarter_missing():
+    # MDB 11-05: Oct-25 10-Q untagged, but 6M YTDs exist → TTM = FY −0.88 + 6M 0.55 − prior 6M −1.04 = 0.71
+    f = _eps_facts([
+        _u("2026-05-01", "2026-07-31", 0.5, "2026-09-01"),
+        _u("2026-02-01", "2026-04-30", 0.05, "2026-05-29"),
+        _u("2026-02-01", "2026-07-31", 0.55, "2026-09-01", "Q2"),
+        _u("2025-02-01", "2026-01-31", -0.88, "2026-03-11"),
+        _u("2025-02-01", "2025-07-31", -1.04, "2026-09-01"),
+    ])
+    r = _l2.ttm_eps_diluted(f, "2026-07-31")
+    assert r and abs(r["value"] - 0.71) < 1e-9 and r["end"] == "2026-07-31", r
+
+
+def test_ttm_eps_stale_tag_is_none():
+    # RNR: EPS tag stops at Q1 while net income runs to Q3 (two-class tags) → no truth, not a 6-month-old TTM
+    f = _eps_facts([
+        _u("2025-04-01", "2025-06-30", 1.0, "2025-08-01"),
+        _u("2025-07-01", "2025-09-30", 1.0, "2025-11-01"),
+        _u("2025-10-01", "2025-12-31", 1.0, "2026-02-01"),
+        _u("2026-01-01", "2026-03-31", 1.0, "2026-05-01"),
+    ])
+    f["facts"]["us-gaap"]["NetIncomeLoss"] = {"units": {"USD": [
+        {"start": "2026-07-01", "end": "2026-09-30", "val": 5e8, "filed": "2026-10-28", "form": "10-Q"}]}}
+    assert _l2.ttm_eps_diluted(f, "2026-09-30") is None
+
+
+def test_ttm_eps_ytd_rejects_transition_period():
+    # FDX 11-05: FY May-26 + 4-month transition Jun–Sep 26 (spin gain) − prior Jun–Sep → fake 35.98
+    f = _eps_facts([
+        _u("2025-06-01", "2026-05-31", 18.55, "2026-07-20"),
+        _u("2026-06-01", "2026-09-30", 22.21, "2026-10-28", "Q3"),
+        _u("2025-06-01", "2025-09-30", 4.78, "2026-10-28"),
+        _u("2026-07-01", "2026-09-30", 1.21, "2026-10-28"),
+    ])
+    assert _l2.ttm_eps_diluted(f, "2026-09-30") is None
