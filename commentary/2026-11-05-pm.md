@@ -54,4 +54,9 @@ Systems: Mac online, fildi API/scheduler unverified (no probe route on device); 
 - Asia/Europe, BoE, claims, payrolls: https://theretest.com/brief/2026-11-05-morning · https://bankofvol.substack.com/p/rotation-holds-semis-sell-the-prints
 - Morning thesis: commentary/2026-11-05-am.md (this repo)
 - Book snapshot: Robinhood option-orders export from Jamie's Mac, pulled 2026-11-05 (partial — DB is Mac-local; see Book impact)
-- Desk: Gmail label tradedash-brief, Nov 5 — no qualifying put-seller item beyond what is covered above, so no Desk flagged section
+- Desk: Gmail label tradedash-brief, Nov 5 — IREN items flagged in the Desk flagged — update section below (added by the 20:10 PT desk catch-up; the recap's first pass missed them)
+
+## Desk flagged — update
+
+- *IREN into Friday's expiry: Microsoft is rethinking its neocloud strategy — Bloomberg reports project delays, rising costs and execution risks at IREN, Nebius and Nscale (FactSet Technology sector summary, Nov 5). IREN closed −17% at $18.03, so the short IREN 20P x2 expiring Friday is ~$1.97 in the money.*
+- *IREN reported fiscal Q1 after the close: revenue $228M vs ~$221M expected, AI Cloud revenue $200M (+182% QoQ), but the $4B ARR target slipped to early 2027 on a customer-requested Texas data-center change tied to Microsoft. Shares bounced ~10.7% after hours to ~$19.95 — still under the $20 strike, so the puts stay in the money. Assignment risk is live into Friday's open; check the print before the bell.*
