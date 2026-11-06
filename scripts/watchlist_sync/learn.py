@@ -51,12 +51,14 @@ from rule_posterior import (  # noqa: E402
 OUT = HERE / "out" / "step6"
 
 
-def backtest_evidence() -> dict:
+def backtest_evidence(as_of: date | None = None) -> dict:
     import backtest_puts as B
     from statistics import median
     with connect() as conn:
         H, peer, er, sm = B.load(conn)
     trades = B.build_trades(H, peer, er, sm, 0.85, 0.20)
+    if as_of is not None:
+        trades = [t for t in trades if t["entry"] < as_of]
     by_m = defaultdict(list)
     for t in trades:
         by_m[t["entry"]].append(t)

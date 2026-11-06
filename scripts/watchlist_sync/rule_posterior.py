@@ -159,6 +159,15 @@ def should_demote(state: RuleState, floor: dict[str, Any]) -> bool:
     return state.n_live_weeks >= MIN_LIVE_WEEKS and prob_below_floor(state, floor) >= DEMOTE_P
 
 
+def decide(prior: RuleState, live_trades: list[dict], floor: dict[str, Any]) -> tuple[bool, str, RuleState]:
+    """Generic demotion decision: prior + live window (non-overlapping) vs floor."""
+    post = observe_live(prior, live_trades)
+    post.n_live_weeks = len({t.get("week") or iso_week(t["d"]) for t in live_trades if t.get("d")})
+    if should_demote(post, floor):
+        return True, "posterior_floor", post
+    return False, "", post
+
+
 def prob_better_than(challenger: RuleState, champion: RuleState) -> float:
     var = challenger.pnl.sigma() ** 2 + champion.pnl.sigma() ** 2
     if var <= 0:
@@ -185,6 +194,7 @@ __all__ = [
     "observe_live",
     "prior_from_promise",
     "prior_from_trades",
+    "decide",
     "prob_below_floor",
     "prob_better_than",
     "prob_breach_above",

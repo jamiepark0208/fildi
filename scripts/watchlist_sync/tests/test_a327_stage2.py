@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from analysis import a327_replay as R  # noqa: E402
 from grade_weeks import iso_week  # noqa: E402
 from rule_posterior import (  # noqa: E402
+    decide,
     hand_beta_posterior_mean,
     observe_live,
     prior_from_promise,
@@ -69,8 +70,16 @@ class A327Stage2(unittest.TestCase):
             ],
         }
         spec = {
-            "put_edge_q5": {"floor": {"pnl_wk_bp": 15, "breach_max": 0.28}, "promise": {"pnl_wk_bp": 34, "breach_max": 0.18}},
-            "rich_puts": {"floor": {"pnl_wk_bp": 45, "breach_max": 0.30}, "promise": {"pnl_wk_bp": 90, "breach_max": 0.22}},
+            "put_edge_q5": {
+                "study": "S059",
+                "floor": {"pnl_wk_bp": 15, "breach_max": 0.28},
+                "promise": {"pnl_wk_bp": 34, "breach_max": 0.18},
+            },
+            "rich_puts": {
+                "study": "S109",
+                "floor": {"pnl_wk_bp": 45, "breach_max": 0.30},
+                "promise": {"pnl_wk_bp": 90, "breach_max": 0.22},
+            },
         }
         w1 = date(2022, 6, 6)
         w2 = date(2022, 10, 3)
@@ -83,6 +92,20 @@ class A327Stage2(unittest.TestCase):
             trimmed = R.decision_at_week(w, cut, spec)
             self.assertEqual(full["active"], trimmed["active"])
             self.assertEqual(full["shadow"], trimmed["shadow"])
+
+    def test_good_prior_six_bad_live_weeks_demotes_any_rule(self):
+        floor = {"pnl_wk_bp": 50, "breach_max": 0.12}
+        promise = {"pnl_wk_bp": 80, "breach_max": 0.10}
+        bad = []
+        for i in range(6):
+            d = date(2026, 1, 5) + timedelta(days=7 * i)
+            bad.append({"d": d, "ret": -0.01, "breach": True, "week": iso_week(d)})
+        for rid in ("put_edge_q5", "rich_puts"):
+            with self.subTest(rid=rid):
+                prior = prior_from_promise(promise)
+                demote, reason, _ = decide(prior, bad, floor)
+                self.assertTrue(demote, msg=rid)
+                self.assertEqual(reason, "posterior_floor")
 
 
 if __name__ == "__main__":

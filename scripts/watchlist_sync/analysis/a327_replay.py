@@ -6,8 +6,6 @@
 from __future__ import annotations
 
 import copy
-import json
-import math
 import sys
 from collections import defaultdict
 from datetime import date, timedelta
@@ -26,12 +24,9 @@ import params as PM  # noqa: E402
 from build_plan import connect  # noqa: E402
 from grade_weeks import iso_week  # noqa: E402
 from rule_posterior import (  # noqa: E402
+    decide,
     load_learning_rules,
-    observe_live,
     prior_from_trades,
-    prob_below_floor,
-    promotion_allowed,
-    should_demote,
 )
 
 import s059_option_factors as S59  # noqa: E402
@@ -40,6 +35,9 @@ import s109_real_quote_rule as S109  # noqa: E402
 
 REPLAY_START = date(2021, 1, 4)
 REPLAY_END = date(2026, 10, 27)
+PRIOR_END_S059 = date(2020, 12, 31)
+PRIOR_END_S109 = date(2021, 12, 31)
+REPLAY_FROM_S109 = date(2022, 1, 4)
 OUT_MD = Path(__file__).resolve().parents[3] / "research" / "studies" / "a327-replay.md"
 OUT_PNG = OUT_MD.with_suffix(".png")
 
@@ -109,14 +107,32 @@ def iter_weeks(start: date, end: date):
         w += timedelta(days=7)
 
 
-def replay_prior(trades: list[dict], as_of: date) -> tuple:
-    cut = [t for t in trades if t["d"] < as_of]
-    return prior_from_trades(cut, use_month_blocks=True), cut
+def learning_prior_end(spec: dict) -> date:
+    study = str(spec.get("study") or "")
+    if "S109" in study:
+        return PRIOR_END_S109
+    return PRIOR_END_S059
 
 
-def replay_live_weeks(trades: list[dict], as_of: date, lookback_weeks: int = 12) -> list[dict]:
-    start = as_of - timedelta(days=7 * lookback_weeks)
-    return [t for t in trades if start <= t["d"] < as_of]
+def learning_replay_from(spec: dict) -> date:
+    study = str(spec.get("study") or "")
+    if "S109" in study:
+        return REPLAY_FROM_S109
+    return REPLAY_START
+
+
+def prior_and_live(trades: list[dict], as_of: date, spec: dict) -> tuple:
+    pe = learning_prior_end(spec)
+    prior_trades = [t for t in trades if t["d"] < pe]
+    live_trades = [t for t in trades if pe <= t["d"] < as_of]
+    prior = prior_from_trades(prior_trades, use_month_blocks=True)
+    return prior, live_trades
+
+
+def replay_prior(trades: list[dict], as_of: date, spec: dict) -> tuple:
+    pe = learning_prior_end(spec)
+    prior_trades = [t for t in trades if t["d"] < pe]
+    return prior_from_trades(prior_trades, use_month_blocks=True), prior_trades
 
 
 def decision_at_week(
@@ -134,19 +150,20 @@ def decision_at_week(
         if not spec or rid.startswith("_"):
             continue
         trades = all_rules.get(rid, [])
-        prior, _ = replay_prior(trades, as_of)
-        live = replay_live_weeks(trades, as_of)
-        post = observe_live(prior, live)
-        post.n_live_weeks = len({t["week"] for t in live})
-        if should_demote(post, spec["floor"]):
+        if as_of < learning_replay_from(spec):
+            continue
+        prior, live = prior_and_live(trades, as_of, spec)
+        demote, reason, _ = decide(prior, live, spec["floor"])
+        if demote:
             active.discard(rid)
             shadow.add(rid)
-            demoted.append((rid, as_of.isoformat(), prob_below_floor(post, spec["floor"])))
+            demoted.append((rid, as_of.isoformat(), reason))
     replay_pnl = {}
     for rid in rules_spec:
         if rid.startswith("_"):
             continue
-        prior, cut = replay_prior(all_rules.get(rid, []), as_of)
+        spec = rules_spec[rid]
+        prior, cut = replay_prior(all_rules.get(rid, []), as_of, spec)
         if cut:
             replay_pnl[rid] = (prior.pnl.mu or 0) * 1e4
         else:
@@ -169,63 +186,39 @@ def run_replay(conn, *, fast: bool = False) -> dict:
     shadow: set[str] = set()
     demote_log: list[tuple] = []
     promotions: list[str] = []
-    last_promo_month: tuple[int, int] | None = None
+    promo_months: dict[tuple[int, int], int] = defaultdict(int)
     weight_snap: list[tuple[date, dict]] = []
     champ = copy.deepcopy(PM.SEED)
     pending_dirs: dict[str, str] = {}
 
-    cumulative: dict[str, list[dict]] = defaultdict(list)
     for w in weeks:
         for rid in list(active):
             spec = rules_spec[rid]
-            cumulative[rid].extend(t for t in all_rules[rid] if w - timedelta(days=7) <= t["d"] < w)
-            prior, _ = replay_prior(all_rules[rid], w)
-            bt_bp = (prior.pnl.mu or 0) * 1e4
-            live = list(cumulative[rid])
-            post = observe_live(prior, live)
-            post.n_live_weeks = len({t["week"] for t in live})
-            if rid == "put_edge_q5" and bt_bp >= spec["floor"].get("pnl_wk_bp", 0):
+            if w < learning_replay_from(spec):
                 continue
-            if rid == "rich_puts" and w >= date(2024, 1, 1) and should_demote(post, spec["floor"]):
+            trades = all_rules.get(rid, [])
+            prior, live = prior_and_live(trades, w, spec)
+            demote, reason, _ = decide(prior, live, spec["floor"])
+            if demote:
                 active.discard(rid)
                 shadow.add(rid)
-                demote_log.append((rid, w.isoformat(), "posterior_floor"))
-                continue
-            if rid == "rich_puts" and bt_bp < spec["floor"].get("pnl_wk_bp", 0):
-                active.discard(rid)
-                shadow.add(rid)
-                demote_log.append((rid, w.isoformat(), "backtest_below_floor"))
-                continue
-            if should_demote(post, spec["floor"]):
-                active.discard(rid)
-                shadow.add(rid)
-                demote_log.append((rid, w.isoformat(), "posterior_floor"))
+                demote_log.append((rid, w.isoformat(), reason))
 
-        cut_sim = [t for t in all_rules["iv_rv_gate"] if t["d"] < w]
-        ev = {
-            "kept": {
-                "iv_rv": {"pic": 0.12, "pt": 4.0, "months": 30},
-                "iv_rank_1y": {"pic": 0.06, "pt": 2.5, "months": 30},
-                "iv30": {"ic": 0.04, "t": 2.0, "months": 30},
-            },
-            "own": {},
-            "flags": {},
-            "rh": {},
-        }
-        live_stub = {"folders": {}}
-        NP, why = L.propose_params(champ, ev, live_stub)
-        new_dirs = {x["param"]: L.param_direction(x) for x in why}
-        confirmed = [x for x in why if pending_dirs.get(x["param"]) == L.param_direction(x)]
-        pending_dirs = new_dirs
-        if confirmed:
-            ok, p_better = L.challenger_posterior_ok(champ, NP, ev)
-            if ok:
-                ym = (w.year, w.month)
-                if last_promo_month != ym:
-                    champ = L.apply_rationale(champ, confirmed)
-                    promotions.append(w.isoformat())
-                    last_promo_month = ym
         if w.day <= 7:
+            ev = L.backtest_evidence(as_of=w)
+            live_stub = {"folders": {}}
+            NP, why = L.propose_params(champ, ev, live_stub)
+            new_dirs = {x["param"]: L.param_direction(x) for x in why}
+            confirmed = [x for x in why if pending_dirs.get(x["param"]) == L.param_direction(x)]
+            pending_dirs = new_dirs
+            if confirmed:
+                ok, _p_better = L.challenger_posterior_ok(champ, NP, ev)
+                if ok:
+                    ym = (w.year, w.month)
+                    if promo_months[ym] < 1:
+                        champ = L.apply_rationale(champ, confirmed)
+                        promotions.append(w.isoformat())
+                        promo_months[ym] += 1
             weight_snap.append((w, dict(champ["premium"])))
 
     w_vals = [x[1] for x in weight_snap]
@@ -239,9 +232,9 @@ def run_replay(conn, *, fast: bool = False) -> dict:
     std_first = stds(first12)
     std_last = stds(last12)
 
-    q5_kept = "put_edge_q5" in active or "put_edge_q5" not in shadow
+    q5_kept = "put_edge_q5" in active
     rich_demoted = "rich_puts" in shadow
-    promo_ok = len(promotions) <= (len(weeks) // 4 + 2)
+    promo_ok = all(c <= 1 for c in promo_months.values())
     conv_ok = sum(std_last.values()) <= sum(std_first.values()) * 1.05 + 1e-9
 
     return {
@@ -250,6 +243,7 @@ def run_replay(conn, *, fast: bool = False) -> dict:
         "shadow": sorted(shadow),
         "demote_log": demote_log,
         "promotions": promotions,
+        "promo_months": dict(promo_months),
         "std_first": std_first,
         "std_last": std_last,
         "checks": {

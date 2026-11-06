@@ -6,20 +6,19 @@ Weeks simulated: 304 (2021-01-04 → 2026-10-27)
 
 | status | rules |
 |---|---|
-| kept | band_engine, put_edge_q5 |
-| demoted | iv_rv_gate, rich_puts |
+| kept | band_engine, put_edge_q5, rich_puts |
+| demoted | iv_rv_gate |
 
 ## Demotions (first event per rule)
 
-- **rich_puts** @ 2021-01-04 (backtest_below_floor)
-- **iv_rv_gate** @ 2022-09-26 (posterior_floor)
+- **iv_rv_gate** @ 2025-03-31 (posterior_floor)
 
 Promotions: 0 (≤ 1/month target)
 
 ## Acceptance
 
 - i_q5_kept: **pass**
-- ii_rich_demoted: **pass**
+- ii_rich_demoted: **fail**
 - iii_promo_monthly: **pass**
 - iv_weight_converge: **pass**
 
