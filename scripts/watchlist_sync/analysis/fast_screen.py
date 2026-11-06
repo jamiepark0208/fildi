@@ -7,9 +7,12 @@ rsi_rotation, pead, 52w_high_breakout. Both sides. Entry next open after close s
 Holds {1,5,10,21} or rule exit. Cost 5 bp/side. AFML DSR + PBO/CSCV. Survivor:
 holdout excess > 0 AND fit+val month-clustered t ≥ 2 AND DSR ≥ 0.95.
 
+Primary comparator (Claude review 1553c87d): same-day same vol-decile peers (20d realized
+vol). Ticker-matched monthly excess kept as secondary column. Gate uses primary.
+
     cd scripts/watchlist_sync && .venv/bin/python analysis/fast_screen.py self-test
     .venv/bin/python analysis/fast_screen.py run [--strategies a,b] [--tickers ..] [--rebuild]
-Out: research/studies/out/fast_screen/<date>.csv + .md
+Out: research/studies/out/fast_screen/<date>.csv + .md + <date>-usecases.md
 """
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ import argparse
 import pickle
 import sys
 import time
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +38,7 @@ from a352_score_rank import load_tbill, tbill_at  # noqa: E402
 from build_plan import connect, rows  # noqa: E402
 
 CACHE = Path.home() / ".fildi" / "cache" / "fast_screen_bars.pkl"
+CACHE_VER = 2  # bumped when pack schema changes (iv)
 OUT_DIR = REPO / "research" / "studies" / "out" / "fast_screen"
 COST = 0.0005  # 5 bp / side
 HOLDS = (1, 5, 10, 21)
@@ -42,6 +46,8 @@ N_RAND = 200
 SEED = 42
 CSCV_BLOCKS = 16
 EULER = 0.5772156649
+# Claude review 1553c87d reference (zscore20/long/21 holdout vs vol-decile peers)
+REF_Z20_L21_BP, REF_Z20_L21_N = 12.6, 17_129
 
 
 # ── bars ─────────────────────────────────────────────────────────────────────
@@ -49,17 +55,24 @@ EULER = 0.5772156649
 def load_bars(tickers: list[str] | None, rebuild: bool) -> dict:
     if CACHE.is_file() and not rebuild and tickers is None:
         with CACHE.open("rb") as f:
-            return pickle.load(f)
+            pack = pickle.load(f)
+        if pack.get("ver") == CACHE_VER and "iv" in pack:
+            return pack
     t0 = time.perf_counter()
     df = PL.load(tickers)
     df = df.sort_values(["ticker", "date"])
     wide = {}
     for col in ("o", "h", "l", "c", "v"):
         wide[col] = df.pivot(index="date", columns="ticker", values=col).sort_index()
+    iv = ((df["iv30_put"] + df["iv30_call"]) / 2.0)
+    df = df.assign(_iv=iv)
+    wide["iv"] = df.pivot(index="date", columns="ticker", values="_iv").reindex(
+        index=wide["c"].index, columns=wide["c"].columns)
     dates = wide["c"].index
     tickers_out = list(wide["c"].columns)
-    pack = {"o": wide["o"], "h": wide["h"], "l": wide["l"], "c": wide["c"], "v": wide["v"],
-            "dates": dates, "tickers": tickers_out, "loaded_s": time.perf_counter() - t0}
+    pack = {"ver": CACHE_VER, "o": wide["o"], "h": wide["h"], "l": wide["l"], "c": wide["c"],
+            "v": wide["v"], "iv": wide["iv"], "dates": dates, "tickers": tickers_out,
+            "loaded_s": time.perf_counter() - t0}
     if tickers is None:
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         with CACHE.open("wb") as f:
@@ -89,6 +102,70 @@ def rsi_mat(c: np.ndarray, n: int) -> np.ndarray:
 def sma_mat(c: np.ndarray, n: int) -> np.ndarray:
     return pd.DataFrame(c).rolling(n, min_periods=n).mean().to_numpy()
 
+
+def atr14_mat(h: np.ndarray, l: np.ndarray, c: np.ndarray) -> np.ndarray:
+    prev = np.roll(c, 1, 0)
+    prev[0] = np.nan
+    tr = np.maximum(h - l, np.maximum(np.abs(h - prev), np.abs(l - prev)))
+    return pd.DataFrame(tr).ewm(alpha=1 / 14, adjust=False).mean().to_numpy()
+
+
+def realized_vol20(c: np.ndarray) -> np.ndarray:
+    r = pd.DataFrame(c).pct_change()
+    return r.rolling(20, min_periods=20).std().to_numpy()
+
+
+def vol_decile_mat(rv: np.ndarray) -> np.ndarray:
+    """Same-day cross-section vol deciles 0..9; -1 if too thin."""
+    n, m = rv.shape
+    out = np.full((n, m), -1, dtype=np.int8)
+    for t in range(n):
+        row = rv[t]
+        ok = np.isfinite(row)
+        n_ok = int(ok.sum())
+        if n_ok < 30:
+            continue
+        ranks = np.empty(m, dtype=float)
+        ranks[:] = np.nan
+        ranks[ok] = pd.Series(row[ok]).rank(method="first").to_numpy()
+        dec = np.floor((ranks - 1.0) / n_ok * 10.0)
+        dec = np.clip(dec, 0, 9)
+        out[t] = np.where(np.isfinite(dec), dec, -1).astype(np.int8)
+    return out
+
+
+def leave_one_out_decile_means(rets: np.ndarray, dec: np.ndarray) -> np.ndarray:
+    """Per day × vol-decile: leave-one-out mean return of peers (primary comparator)."""
+    n, m = rets.shape
+    out = np.full((n, m), np.nan)
+    for t in range(n):
+        drow = dec[t]
+        rrow = rets[t]
+        for d in range(10):
+            idx = np.flatnonzero((drow == d) & np.isfinite(rrow))
+            if idx.size < 2:
+                continue
+            vals = rrow[idx]
+            out[t, idx] = (vals.sum() - vals) / (idx.size - 1)
+    return out
+
+
+def fwd_min_low_mat(l: np.ndarray, hold: int) -> np.ndarray:
+    """Min low from entry open day t+1 through t+hold (put-breach path)."""
+    n, m = l.shape
+    out = np.full((n, m), np.nan)
+    for t in range(n - hold):
+        out[t] = np.min(l[t + 1: t + hold + 1], axis=0)
+    return out
+
+
+def load_sectors(tickers: list[str]) -> dict[str, str]:
+    q = """SELECT ticker, gics_sector FROM research_common.security_class
+           WHERE gics_sector IS NOT NULL"""
+    with connect() as conn:
+        raw = rows(conn, q)
+    want = set(tickers)
+    return {r["ticker"]: r["gics_sector"] for r in raw if r["ticker"] in want}
 
 # ── strategy library ─────────────────────────────────────────────────────────
 
@@ -304,21 +381,26 @@ def split_mask(dates: pd.DatetimeIndex, split: str) -> np.ndarray:
 
 
 def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Generator,
-                 tbill_curve, hold_days: int, *, do_random: bool = True) -> dict:
-    """Metrics with ticker-matched monthly excess (Claude review 5236a50a).
+                 tbill_curve, hold_days: int, *, peer_mean: np.ndarray | None = None,
+                 do_random: bool = True) -> dict:
+    """Primary = same-day vol-decile peer excess (Claude review 1553c87d).
 
-    Per month: excess = mean(selected) − mean(pool), where pool = only tickers
-    that fired that month × all their days that month. t is on that monthly
-    excess series (not raw return vs 0). Random draws use the same pools.
+    peer_mean: leave-one-out mean of raw rets in same day × vol-decile.
+    excess_bp / t / mo_excess (for DSR/PBO/gate) use primary.
+    matched_excess_bp = secondary ticker-matched monthly excess (kept, not gated).
+    raw_excess_bp = mean(sel) − unconditional same-split mean.
     """
     sm = split_mask(dates, split)
     finite = np.isfinite(rets)
+    if peer_mean is not None:
+        finite = finite & np.isfinite(peer_mean)
     mask = entry & sm[:, None] & finite
     r = side * rets
     sel = r[mask]
     n = int(sel.size)
     empty = {"n": 0, "mean_bp": np.nan, "excess_bp": np.nan, "t": np.nan, "win": np.nan,
              "rand_mean_bp": np.nan, "pct_beaten": np.nan, "uncond_bp": np.nan, "tbill_bp": np.nan,
+             "matched_excess_bp": np.nan, "raw_excess_bp": np.nan,
              "mo_excess": pd.Series(dtype=float)}
     if n == 0:
         return empty
@@ -326,14 +408,36 @@ def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Gener
     win = float(np.mean(sel > 0))
     u_mask = sm[:, None] & finite
     uncond = float(np.mean(r[u_mask])) if u_mask.any() else np.nan
+    raw_excess = mean - uncond if np.isfinite(uncond) else float("nan")
     months = dates.to_period("M")
     sel_i, sel_j = np.where(mask)
     if len(sel_i) == 0:
         return empty
 
-    # Per-month ticker-matched pool + monthly excess
-    mo_ex_vals: list[float] = []
-    mo_ex_ix: list = []
+    # Primary: trade-level excess vs same-day vol-decile peers
+    if peer_mean is not None:
+        trade_ex = (side * (rets - peer_mean))[mask]
+        excess = float(np.mean(trade_ex)) if trade_ex.size else float("nan")
+        mo_prim: dict = {}
+        for mo in pd.unique(months[sel_i]):
+            in_mo = months[sel_i] == mo
+            vals = trade_ex[in_mo]
+            if vals.size:
+                mo_prim[mo] = float(vals.mean())
+        mo_excess = pd.Series(mo_prim, dtype=float)
+    else:
+        trade_ex = sel
+        excess = float("nan")
+        mo_excess = pd.Series(dtype=float)
+
+    if len(mo_excess) >= 4:
+        sd = float(mo_excess.std(ddof=1))
+        t = float(mo_excess.mean() / (sd / np.sqrt(len(mo_excess)))) if sd > 0 else float("nan")
+    else:
+        t = float("nan")
+
+    # Secondary: ticker-matched monthly (old comparator; not used for gate)
+    mo_m_vals: list[float] = []
     pools: dict = {}
     for mo in pd.unique(months[sel_i]):
         in_mo = months[sel_i] == mo
@@ -347,18 +451,21 @@ def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Gener
         pool = block[np.isfinite(block)]
         if sel_mo.size == 0 or pool.size == 0:
             continue
-        mo_ex_vals.append(float(sel_mo.mean() - pool.mean()))
-        mo_ex_ix.append(mo)
+        mo_m_vals.append(float(sel_mo.mean() - pool.mean()))
         pools[mo] = (pool, int(sel_mo.size))
-    mo_excess = pd.Series(mo_ex_vals, index=mo_ex_ix, dtype=float)
-    if len(mo_excess) >= 4:
-        sd = float(mo_excess.std(ddof=1))
-        t = float(mo_excess.mean() / (sd / np.sqrt(len(mo_excess)))) if sd > 0 else float("nan")
-    else:
-        t = float("nan")
+    matched_excess = float(np.mean(mo_m_vals)) if mo_m_vals else float("nan")
 
-    rand_mean = pct_beaten = excess = float("nan")
-    if do_random:
+    rand_mean = pct_beaten = float("nan")
+    if do_random and peer_mean is not None:
+        # Random same-count draws from vol-decile peer excesses on signal days
+        peer_ex_all = (side * (rets - peer_mean))
+        day_pool = peer_ex_all[sm[:, None] & np.isfinite(peer_ex_all)]
+        if day_pool.size >= n:
+            rand_means = [float(rng.choice(day_pool, size=n, replace=False).mean()) for _ in range(N_RAND)]
+            rm = np.asarray(rand_means)
+            rand_mean = float(rm.mean())
+            pct_beaten = float(np.mean(rm < excess)) if np.isfinite(excess) else float("nan")
+    elif do_random:
         rand_means = []
         for _ in range(N_RAND):
             picks = []
@@ -374,10 +481,6 @@ def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Gener
             rand_mean = float(rm.mean())
             pct_beaten = float(np.mean(rm < mean))
             excess = mean - rand_mean
-    else:
-        # matched-pool excess (mean of monthly excesses)
-        excess = float(mo_excess.mean()) if len(mo_excess) else float("nan")
-        rand_mean = mean - excess if np.isfinite(excess) else uncond
 
     mid_i = int(np.where(sm)[0][len(np.where(sm)[0]) // 2]) if sm.any() else 0
     d0 = pd.Timestamp(dates[mid_i]).date()
@@ -387,6 +490,8 @@ def cell_metrics(dates, rets, entry, side: int, split: str, rng: np.random.Gener
         "n": n,
         "mean_bp": mean * 1e4,
         "excess_bp": excess * 1e4 if np.isfinite(excess) else np.nan,
+        "matched_excess_bp": matched_excess * 1e4 if np.isfinite(matched_excess) else np.nan,
+        "raw_excess_bp": raw_excess * 1e4 if np.isfinite(raw_excess) else np.nan,
         "t": t,
         "win": win,
         "rand_mean_bp": rand_mean * 1e4 if np.isfinite(rand_mean) else np.nan,
@@ -476,10 +581,14 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
     if "pead" in names:
         pead_entry = load_pead_entry(dates, tickers)
 
-    # precompute hold returns
+    # precompute hold returns + vol-decile peer means (primary comparator)
     hold_rets = {hh: fwd_returns(o, c, hh) for hh in HOLDS}
     overnight_r = overnight_returns(o, c)
     intraday_r = intraday_returns(o, c)
+    dec = vol_decile_mat(realized_vol20(c))
+    peer_means: dict = {hh: leave_one_out_decile_means(hold_rets[hh], dec) for hh in HOLDS}
+    peer_means["overnight"] = leave_one_out_decile_means(overnight_r, dec)
+    peer_means["intraday"] = leave_one_out_decile_means(intraday_r, dec)
 
     rows_out = []
     cell_series = []  # for PBO: monthly mean series per cell
@@ -492,37 +601,37 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
             entry = pead_entry
         # hold set
         if sid == "overnight":
-            hold_list = [("overnight", overnight_r, 1)]
+            hold_list = [("overnight", overnight_r, 1, peer_means["overnight"])]
         elif sid == "intraday":
-            hold_list = [("intraday", intraday_r, 1)]
+            hold_list = [("intraday", intraday_r, 1, peer_means["intraday"])]
         elif sid == "pead":
-            hold_list = [(hh, hold_rets[hh], hh) for hh in (5, 21)]
+            hold_list = [(hh, hold_rets[hh], hh, peer_means[hh]) for hh in (5, 21)]
         elif exit_ is not None:
             rule_r = rule_exit_returns(o, c, entry, exit_)
-            hold_list = [("rule", rule_r, 5)] + [(hh, hold_rets[hh], hh) for hh in HOLDS]
+            pm_rule = leave_one_out_decile_means(rule_r, dec)
+            hold_list = [("rule", rule_r, 5, pm_rule)] + [
+                (hh, hold_rets[hh], hh, peer_means[hh]) for hh in HOLDS]
         else:
-            hold_list = [(hh, hold_rets[hh], hh) for hh in HOLDS]
+            hold_list = [(hh, hold_rets[hh], hh, peer_means[hh]) for hh in HOLDS]
 
         dense = bool(entry.mean() > 0.05)  # overnight/intraday-like
-        for hold_lab, rets, hd in hold_list:
+        for hold_lab, rets, hd, pm in hold_list:
             for side, side_name in ((1, "long"), (-1, "short")):
-                # Full 200-draw random only on holdout (acceptance metric); fit/val use uncond excess.
                 m_fit = cell_metrics(dates, rets, entry, side, "fit",
                                      np.random.default_rng(rng0.integers(0, 2**31 - 1)),
-                                     tbill_curve, hd, do_random=False)
+                                     tbill_curve, hd, peer_mean=pm, do_random=False)
                 m_val = cell_metrics(dates, rets, entry, side, "val",
                                      np.random.default_rng(rng0.integers(0, 2**31 - 1)),
-                                     tbill_curve, hd, do_random=False)
+                                     tbill_curve, hd, peer_mean=pm, do_random=False)
                 m_ho = cell_metrics(dates, rets, entry, side, "holdout",
                                     np.random.default_rng(rng0.integers(0, 2**31 - 1)),
-                                    tbill_curve, hd, do_random=not dense)
+                                    tbill_curve, hd, peer_mean=pm, do_random=not dense)
                 m_fv = cell_metrics(dates, rets, entry, side, "fitval",
                                     np.random.default_rng(rng0.integers(0, 2**31 - 1)),
-                                    tbill_curve, hd, do_random=False)
-                # Full-sample monthly excess for PBO (same matched-pool definition)
+                                    tbill_curve, hd, peer_mean=pm, do_random=False)
                 m_all = cell_metrics(dates, rets, entry, side, "all",
                                      np.random.default_rng(0),
-                                     tbill_curve, hd, do_random=False)
+                                     tbill_curve, hd, peer_mean=pm, do_random=False)
                 cell_series.append(m_all["mo_excess"])
                 rows_out.append({
                     "strategy": sid,
@@ -534,6 +643,8 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
                     "t_val": m_val["t"], "win_val": m_val["win"],
                     "n_holdout": m_ho["n"], "mean_bp_holdout": m_ho["mean_bp"],
                     "excess_bp_holdout": m_ho["excess_bp"], "t_holdout": m_ho["t"], "win_holdout": m_ho["win"],
+                    "matched_excess_bp_holdout": m_ho["matched_excess_bp"],
+                    "raw_excess_bp_holdout": m_ho["raw_excess_bp"],
                     "t_fitval": m_fv["t"], "excess_bp_fitval": m_fv["excess_bp"],
                     "pct_beaten_holdout": m_ho["pct_beaten"],
                     "uncond_bp_holdout": m_ho["uncond_bp"], "tbill_bp": m_ho["tbill_bp"],
@@ -546,7 +657,7 @@ def run_screen(pack: dict, strategies: list[str] | None, seed: int = SEED) -> pd
         xs = r["_mo_ex_fv"].to_numpy(dtype=float) if len(r["_mo_ex_fv"]) else np.asarray([])
         r["dsr"] = deflated_sharpe(xs, n_trials)
         r["survivor"] = (
-            np.isfinite(r["excess_bp_holdout"]) and r["excess_bp_holdout"] > 0
+            np.isfinite(r["excess_bp_holdout"]) and r["excess_bp_holdout"] > 1.0  # >1bp (dense≈0 noise)
             and np.isfinite(r["t_fitval"]) and r["t_fitval"] >= 2
             and np.isfinite(r["dsr"]) and r["dsr"] >= 0.95
         )
@@ -699,25 +810,37 @@ def self_test(pack: dict) -> list[str]:
     ok_seed = np.array_equal(a, b)
     lines.append(f"{'PASS' if ok_seed else 'FAIL'} (iv) random seed={SEED} reproducible")
 
-    # (v) placebo: random 3% entry, 20 seeds → 0 survivors in ≥ 19/20
+    # (v)+(vii) need full universe for vol-decile placebo + zscore reference
+    full = pack
+    if len(tickers) < 50 and CACHE.is_file():
+        try:
+            full = load_bars(None, rebuild=False)
+        except Exception:
+            full = pack
+    fd, ft, fo, fc, fh = _align(full)
+    fl = full["l"].to_numpy(dtype=float)
+    fv = full["v"].to_numpy(dtype=float)
     tbill_curve = load_tbill()
-    hold_cache = {hd: fwd_returns(o, c, hd) for hd in HOLDS}
+    hold_cache = {hd: fwd_returns(fo, fc, hd) for hd in HOLDS}
+    dec = vol_decile_mat(realized_vol20(fc))
+    peer_cache = {hd: leave_one_out_decile_means(hold_cache[hd], dec) for hd in HOLDS}
     n_placebo_ok = 0
     n_seeds = 20
     n_trials_p = len(HOLDS) * 2
     for s in range(n_seeds):
         rng = np.random.default_rng(10_000 + s)
-        entry_p = rng.random(c.shape) < 0.03
+        entry_p = rng.random(fc.shape) < 0.03
         n_surv = 0
         for hd in HOLDS:
             rets = hold_cache[hd]
+            pm = peer_cache[hd]
             for side in (1, -1):
-                m_ho = cell_metrics(dates, rets, entry_p, side, "holdout",
+                m_ho = cell_metrics(fd, rets, entry_p, side, "holdout",
                                     np.random.default_rng(rng.integers(0, 2**31 - 1)),
-                                    tbill_curve, hd, do_random=False)
-                m_fv = cell_metrics(dates, rets, entry_p, side, "fitval",
+                                    tbill_curve, hd, peer_mean=pm, do_random=False)
+                m_fv = cell_metrics(fd, rets, entry_p, side, "fitval",
                                     np.random.default_rng(rng.integers(0, 2**31 - 1)),
-                                    tbill_curve, hd, do_random=False)
+                                    tbill_curve, hd, peer_mean=pm, do_random=False)
                 xs = m_fv["mo_excess"].to_numpy(dtype=float)
                 dsr = deflated_sharpe(xs, n_trials_p)
                 survived = (
@@ -742,6 +865,18 @@ def self_test(pack: dict) -> list[str]:
     lines.append(
         f"{'PASS' if ok_note else 'FAIL'} (vi) gap_up/gap_down contradiction note helper "
         f"(both→{len(notes)} note(s), one→{len(notes_empty)})"
+    )
+
+    # (vii) zscore20/long/21 holdout vs vol-decile peers ≈ +12.6 bp (n≈17,129)
+    ent_z, _ = sig_zscore20(fo, fh, fl, fc, fv, fd)
+    m_z = cell_metrics(fd, hold_cache[21], ent_z, 1, "holdout",
+                       np.random.default_rng(SEED), tbill_curve, 21,
+                       peer_mean=peer_cache[21], do_random=False)
+    bp, nn = m_z["excess_bp"], m_z["n"]
+    ok_z = (nn >= 15_000 and np.isfinite(bp) and 0.0 < bp < 40.0)
+    lines.append(
+        f"{'PASS' if ok_z else 'FAIL'} (vii) zscore20/long/21 holdout vs vol-decile peers: "
+        f"{bp:.1f}bp n={nn} (ref ≈ +{REF_Z20_L21_BP}bp n≈{REF_Z20_L21_N})"
     )
     return lines
 
@@ -775,6 +910,306 @@ def gap_contradiction_notes(df: pd.DataFrame) -> list[str]:
                 f"— directionally opposite; treat as noise unless one side dies OOS."
             )
     return notes
+
+
+# ── use-case pass (Jamie 11-06) ───────────────────────────────────────────────
+
+def _sig_rsi_variant(c, period: int, thr: float, decl_days: int) -> np.ndarray:
+    r = rsi_mat(c, period)
+    sma200 = sma_mat(c, 200)
+    entry = (r < thr) & (c > sma200) & np.isfinite(r) & np.isfinite(sma200)
+    if decl_days >= 2:
+        decl = np.ones_like(r, dtype=bool)
+        for k in range(decl_days):
+            decl &= (np.roll(r, k, 0) < np.roll(r, k + 1, 0))
+        entry &= decl & (np.roll(r, decl_days, 0) < 60)
+    entry[: max(200, period + decl_days + 1)] = False
+    return entry
+
+
+def _sig_z_variant(c, win: int, thr: float) -> np.ndarray:
+    m = sma_mat(c, win)
+    sd = pd.DataFrame(c).rolling(win, min_periods=win).std().to_numpy()
+    z = (c - m) / np.where(sd == 0, np.nan, sd)
+    entry = (z < thr) & np.isfinite(z)
+    entry[:win] = False
+    return entry
+
+
+def _sig_gap_variant(o, c, pct: float, direction: str) -> np.ndarray:
+    prev = np.roll(c, 1, 0)
+    if direction == "down":
+        entry = (o <= prev * (1 - pct)) & np.isfinite(o) & np.isfinite(prev)
+    else:
+        entry = (o >= prev * (1 + pct)) & np.isfinite(o) & np.isfinite(prev)
+    entry[0] = False
+    return entry
+
+
+def _sig_52w_variant(c, look: int) -> np.ndarray:
+    prior = pd.DataFrame(c).rolling(look, min_periods=look).max().shift(1).to_numpy()
+    entry = (c > prior) & np.isfinite(prior)
+    entry[:look] = False
+    return entry
+
+
+def _breach_stats(entry, side, o, atr, fwd_min, k: float, split: str, dates,
+                  peer_breach_rate: np.ndarray | None) -> dict:
+    """Put strike = entry_open − k×ATR14; breach if fwd min low < strike."""
+    sm = split_mask(dates, split)
+    ent_px = np.roll(o, -1, 0)  # open t+1 aligned to signal t
+    strike = ent_px - k * atr
+    breached = fwd_min < strike
+    ok = entry & sm[:, None] & np.isfinite(fwd_min) & np.isfinite(strike) & np.isfinite(ent_px)
+    if side < 0:
+        # short equity / call-side: mirror not used for put-seller job
+        pass
+    n = int(ok.sum())
+    if n == 0:
+        return {"n": 0, "breach": np.nan, "breach_delta": np.nan}
+    br = float(breached[ok].mean())
+    delta = np.nan
+    if peer_breach_rate is not None:
+        peers = peer_breach_rate[ok]
+        peers = peers[np.isfinite(peers)]
+        if peers.size:
+            delta = br - float(peers.mean())
+    return {"n": n, "breach": br, "breach_delta": delta}
+
+
+def _peer_breach_rate(breached: np.ndarray, dec: np.ndarray) -> np.ndarray:
+    """Same-day vol-decile leave-one-out breach rate."""
+    n, m = breached.shape
+    out = np.full((n, m), np.nan)
+    b = breached.astype(float)
+    b[~np.isfinite(b)] = np.nan
+    for t in range(n):
+        drow = dec[t]
+        brow = b[t]
+        for d in range(10):
+            idx = np.flatnonzero((drow == d) & np.isfinite(brow))
+            if idx.size < 2:
+                continue
+            vals = brow[idx]
+            out[t, idx] = (vals.sum() - vals) / (idx.size - 1)
+    return out
+
+
+def _context_masks(pack, dates, tickers, c) -> dict[str, np.ndarray]:
+    """Named boolean day masks / ticker masks for context splits."""
+    out = {}
+    if "SPY" in tickers:
+        j = tickers.index("SPY")
+        spy = c[:, j]
+        sma = sma_mat(spy[:, None], 200)[:, 0]
+        above = (spy > sma) & np.isfinite(sma)
+        out["SPY>SMA200"] = above
+        out["SPY<SMA200"] = ~above & np.isfinite(sma)
+    iv = pack["iv"].to_numpy(dtype=float) if "iv" in pack else None
+    if iv is not None:
+        # cross-sectional IV tercile each day
+        terc = np.full(iv.shape, -1, dtype=np.int8)
+        for t in range(len(dates)):
+            row = iv[t]
+            ok = np.isfinite(row)
+            if ok.sum() < 30:
+                continue
+            q = np.nanpercentile(row[ok], [100 / 3, 200 / 3])
+            terc[t, ok] = np.digitize(row[ok], q)  # 0,1,2
+        for lab, k in (("IV_lo", 0), ("IV_mid", 1), ("IV_hi", 2)):
+            out[lab] = terc == k  # ticker×day bool via broadcasting later
+        out["_iv_terc"] = terc
+    secs = load_sectors(tickers)
+    out["_sectors"] = secs
+    return out
+
+
+def run_usecases(pack: dict, seed: int = SEED) -> tuple[Path, float]:
+    """Variant grids + put-breach + lenses + context → what-works md (≤40 lines)."""
+    t0 = time.perf_counter()
+    dates, tickers, o, c, h = _align(pack)
+    l = pack["l"].to_numpy(dtype=float)
+    v = pack["v"].to_numpy(dtype=float)
+    tbill = load_tbill()
+    atr = atr14_mat(h, l, c)
+    dec = vol_decile_mat(realized_vol20(c))
+    hold_rets = {hh: fwd_returns(o, c, hh) for hh in HOLDS}
+    peer_means = {hh: leave_one_out_decile_means(hold_rets[hh], dec) for hh in HOLDS}
+    fwd_mins = {hh: fwd_min_low_mat(l, hh) for hh in (5, 10, 21)}
+    # precompute put-breach peer rates for k=1 and 1.5×ATR
+    ent_px = np.roll(o, -1, 0)
+    peer_br = {}
+    for hh in (5, 10, 21):
+        for k in (1.0, 1.5):
+            breached = fwd_mins[hh] < (ent_px - k * atr)
+            peer_br[(hh, k)] = _peer_breach_rate(breached, dec)
+
+    variants: list[tuple[str, str, np.ndarray, int]] = []
+    for per in (2, 3, 4, 5, 7, 14):
+        for thr in (5, 10, 15, 20, 25, 30):
+            for decl in (0, 2, 3):
+                variants.append(("rsi", f"rsi{per}<{thr}_d{decl}",
+                                 _sig_rsi_variant(c, per, thr, decl), 5))
+    for win in (10, 20, 50):
+        for thr in (-1.5, -2.0, -2.5):
+            variants.append(("zscore", f"z{win}<{thr:g}", _sig_z_variant(c, win, thr), 21))
+    for pct in (0.01, 0.02, 0.03, 0.05):
+        for d in ("down", "up"):
+            variants.append(("gap", f"gap_{d}_{int(pct*100)}pct",
+                             _sig_gap_variant(o, c, pct, d), 5))
+    for look in (63, 126, 252):
+        variants.append(("52w", f"high_{look}d", _sig_52w_variant(c, look), 10))
+    pead_e = load_pead_entry(dates, tickers)
+    for hh in (5, 10, 21):
+        variants.append(("pead", f"pead_h{hh}", pead_e, hh))
+
+    rng0 = np.random.default_rng(seed)
+    rows = []
+    n_trials = 0
+    # Phase 1: cheap grid — fitval pick metrics + holdout primary/matched/raw only
+    for fam, lab, entry, pref_h in variants:
+        holds = (pref_h,) if fam == "pead" else HOLDS
+        for hd in holds:
+            pm = peer_means[hd]
+            rets = hold_rets[hd]
+            for side, sname in ((1, "long"), (-1, "short")):
+                n_trials += 1
+                m_fv = cell_metrics(dates, rets, entry, side, "fitval",
+                                    np.random.default_rng(rng0.integers(0, 2**31 - 1)),
+                                    tbill, hd, peer_mean=pm, do_random=False)
+                m_ho = cell_metrics(dates, rets, entry, side, "holdout",
+                                    np.random.default_rng(rng0.integers(0, 2**31 - 1)),
+                                    tbill, hd, peer_mean=pm, do_random=False)
+                rows.append({
+                    "family": fam, "variant": lab, "side": sname, "hold": hd,
+                    "entry": entry, "n_ho": m_ho["n"], "ex_ho": m_ho["excess_bp"],
+                    "t_fv": m_fv["t"], "ex_fv": m_fv["excess_bp"],
+                    "matched_ho": m_ho["matched_excess_bp"], "raw_ho": m_ho["raw_excess_bp"],
+                    "_mo": m_fv["mo_excess"],
+                })
+
+    for r in rows:
+        xs = r["_mo"].to_numpy(dtype=float) if len(r["_mo"]) else np.asarray([])
+        r["dsr"] = deflated_sharpe(xs, max(n_trials, 1))
+        del r["_mo"]
+
+    df = pd.DataFrame([{k: v for k, v in r.items() if k != "entry"} | {"_i": i}
+                       for i, r in enumerate(rows)])
+    entries = [r["entry"] for r in rows]
+
+    # Phase 2: pick best variant per family×side on fitval excess; enrich holdout jobs
+    ctx = _context_masks(pack, dates, tickers, c)
+    picks = []
+    for fam in sorted(df.family.unique()):
+        for sname in ("long", "short"):
+            sub = df[(df.family == fam) & (df.side == sname)].copy()
+            sub = sub[np.isfinite(sub.ex_fv)]
+            if sub.empty:
+                continue
+            best = sub.sort_values(["ex_fv", "t_fv"], ascending=False).iloc[0]
+            i = int(best._i)
+            entry = entries[i]
+            hd = int(best.hold)
+            side = 1 if sname == "long" else -1
+            pm = peer_means[hd]
+            rets = hold_rets[hd]
+            # breach (long only, hold≥5)
+            br_d = float("nan")
+            if side == 1 and hd in fwd_mins:
+                st = _breach_stats(entry, side, o, atr, fwd_mins[hd], 1.0, "holdout",
+                                   dates, peer_br[(hd, 1.0)])
+                st15 = _breach_stats(entry, side, o, atr, fwd_mins[hd], 1.5, "holdout",
+                                     dates, peer_br[(hd, 1.5)])
+                br_d = st["breach_delta"] if np.isfinite(st["breach_delta"]) else st15["breach_delta"]
+                if np.isfinite(st15["breach_delta"]) and (
+                        not np.isfinite(br_d) or st15["breach_delta"] < br_d):
+                    br_d = st15["breach_delta"]
+            where = []
+            for name, mask in ctx.items():
+                if name.startswith("_"):
+                    continue
+                ent2 = entry & mask[:, None] if mask.ndim == 1 else entry & mask
+                m_c = cell_metrics(dates, rets, ent2, side, "holdout",
+                                   np.random.default_rng(0), tbill, hd,
+                                   peer_mean=pm, do_random=False)
+                if np.isfinite(m_c["excess_bp"]) and m_c["excess_bp"] > 0 and m_c["n"] >= 30:
+                    where.append(f"{name}:{m_c['excess_bp']:.0f}bp")
+            secs = ctx.get("_sectors") or {}
+            if secs:
+                sec_scores = []
+                for sec in sorted(set(secs.values())):
+                    cols = [j for j, t in enumerate(tickers) if secs.get(t) == sec]
+                    if not cols:
+                        continue
+                    ent_s = np.zeros_like(entry)
+                    ent_s[:, cols] = entry[:, cols]
+                    m_s = cell_metrics(dates, rets, ent_s, side, "holdout",
+                                       np.random.default_rng(0), tbill, hd,
+                                       peer_mean=pm, do_random=False)
+                    if m_s["n"] >= 30 and np.isfinite(m_s["excess_bp"]) and m_s["excess_bp"] > 0:
+                        sec_scores.append((m_s["excess_bp"], sec))
+                for bp, sec in sorted(sec_scores, reverse=True)[:2]:
+                    where.append(f"{sec}:{bp:.0f}bp")
+            jobs = []
+            n_ok = int(best.n_ho) >= 50
+            if n_ok and np.isfinite(best.ex_ho) and best.ex_ho > 0 and np.isfinite(best.t_fv) and best.t_fv >= 2:
+                jobs.append("stock entry")
+            if n_ok and np.isfinite(br_d) and br_d < -0.01:
+                jobs.append("put timing")
+            if n_ok and np.isfinite(best.ex_ho) and best.ex_ho < -5:
+                jobs.append("avoid-list")
+            if where and "stock entry" not in jobs:
+                jobs.append("sizing")
+            if not jobs:
+                jobs = ["weak"]
+            lens = "vol-decile"
+            if np.isfinite(best.raw_ho) and np.isfinite(best.ex_ho) and best.raw_ho > best.ex_ho + 20:
+                lens += "; raw≫matched→high-beta pick"
+            picks.append({
+                "family": fam, "variant": best.variant, "side": sname, "hold": hd,
+                "job": "/".join(jobs), "ex_ho": float(best.ex_ho),
+                "matched": float(best.matched_ho) if np.isfinite(best.matched_ho) else float("nan"),
+                "raw": float(best.raw_ho) if np.isfinite(best.raw_ho) else float("nan"),
+                "breach_d": br_d, "t_fv": float(best.t_fv) if np.isfinite(best.t_fv) else float("nan"),
+                "dsr": float(best.dsr) if np.isfinite(best.dsr) else float("nan"),
+                "n": int(best.n_ho), "where": ",".join(where[:4]), "lens": lens,
+            })
+
+    picks_df = pd.DataFrame(picks)
+    works = picks_df[picks_df.job != "weak"].sort_values("ex_ho", ascending=False) if len(picks_df) else picks_df
+    weak = picks_df[picks_df.job == "weak"] if len(picks_df) else picks_df
+
+    day = date.today().isoformat()
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    md = OUT_DIR / f"{day}-usecases.md"
+    wall = time.perf_counter() - t0
+    L = [f"# Fast screen use-cases {day} (A341)",
+         f"variants={len(variants)} cells={len(rows)} n_trials={n_trials} wall={wall:.1f}s",
+         "comparator=vol-decile(20d) primary; ticker-matched secondary",
+         "",
+         "## What works",
+         "strategy → best version → job → holdout bp + breach Δ + where"]
+    for _, r in works.head(12).iterrows():
+        bd = f"{r.breach_d*100:+.1f}pp" if np.isfinite(r.breach_d) else "n/a"
+        L.append(
+            f"- {r.family}/{r.side}: {r.variant} h={r.hold} → {r.job} | "
+            f"ho {r.ex_ho:+.1f}bp (matched {r.matched:+.0f}/raw {r.raw:+.0f}) "
+            f"breachΔ {bd} t_fv={r.t_fv:.1f} DSR={r.dsr:.2f} n={r.n} | {r['where'] or '—'}"
+        )
+    if len(weak):
+        L += ["", "## Weak (closest variant)"]
+        for _, r in weak.head(6).iterrows():
+            L.append(
+                f"- {r.family}/{r.side}: {r.variant} h={r.hold} ho={r.ex_ho:+.1f}bp "
+                f"t_fv={r.t_fv:.1f} — no clear job"
+            )
+    L += ["", f"Ref: zscore20/L21 vol-decile ≈ +{REF_Z20_L21_BP}bp n≈{REF_Z20_L21_N}"]
+    md.write_text("\n".join(L[:40]) + "\n")
+    # csv without entry matrices
+    pd.DataFrame([{k: v for k, v in r.items() if k != "entry"} for r in rows]).to_csv(
+        OUT_DIR / f"{day}-usecases.csv", index=False)
+    return md, wall
+
 
 
 # ── report ───────────────────────────────────────────────────────────────────
@@ -837,6 +1272,7 @@ def main() -> int:
     p_run.add_argument("--strategies", default="")
     p_run.add_argument("--tickers", default="")
     p_run.add_argument("--rebuild", action="store_true")
+    p_run.add_argument("--skip-usecases", action="store_true")
     p_st = sub.add_parser("self-test")
     p_st.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
@@ -854,7 +1290,7 @@ def main() -> int:
     strats = [s.strip() for s in args.strategies.split(",") if s.strip()] or None
 
     # run: cold then warm timing
-    if CACHE.is_file() and not args.rebuild:
+    if CACHE.is_file() and not args.rebuild and tickers is None:
         CACHE.unlink()  # force cold
     t0 = time.perf_counter()
     pack = load_bars(tickers, rebuild=True)
@@ -874,11 +1310,16 @@ def main() -> int:
           f"PBO={df.pbo.iloc[0]:.3f} DSR_best={df.dsr.iloc[0]:.3f}")
     print(f"wrote {csv_p}")
     print(f"wrote {md_p}")
-    # acceptance timings
     if cold > 300:
         print(f"WARN cold {cold:.1f}s > 5 min")
     if warm > 60:
         print(f"WARN warm {warm:.1f}s > 60 s")
+
+    if not args.skip_usecases and tickers is None:
+        uc_md, uc_s = run_usecases(pack_w)
+        print(f"usecases wall={uc_s:.1f}s wrote {uc_md}")
+        if uc_s > 300:
+            print(f"WARN usecases {uc_s:.1f}s > 5 min")
     return 0
 
 
