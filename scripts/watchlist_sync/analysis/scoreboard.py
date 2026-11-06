@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import json
 import sys
+from bisect import bisect_right
 from collections import defaultdict
+from datetime import date, timedelta
 from pathlib import Path
+from statistics import median
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from build_plan import connect  # noqa: E402
@@ -43,21 +46,231 @@ LABEL_ALIASES = {
 }
 
 
+def _round(x, n=3):
+    return None if x is None else round(float(x), n)
+
+
+def _mean(xs: list[float]) -> float | None:
+    xs = [float(x) for x in xs if x is not None]
+    return sum(xs) / len(xs) if xs else None
+
+
+def _strike_key(v):
+    try:
+        return round(float(v), 4)
+    except (TypeError, ValueError):
+        return v
+
+
+def dedupe_first_snapshot(rows: list[dict], date_key: str = "snapshot_date", id_key: str = "id") -> list[dict]:
+    """One row per (ticker, expiry, strike): earliest snapshot, then lowest id. A352."""
+    best: dict[tuple, tuple] = {}
+    for r in rows:
+        key = (r.get("ticker"), r.get("expiry"), _strike_key(r.get("strike")))
+        stamp = (r.get(date_key) is None, r.get(date_key), r.get(id_key) or 0)
+        prev = best.get(key)
+        if prev is None or stamp < prev[0]:
+            best[key] = (stamp, r)
+    return [v[1] for v in best.values()]
+
+
+def ntile_partition(rows: list[dict], partition: str, order_key: str, buckets: int = 3, id_key: str = "id") -> list[dict]:
+    """PostgreSQL ntile: order within each partition; remainder rows go to the lower buckets. A352."""
+    groups: dict = defaultdict(list)
+    for r in rows:
+        if r.get(order_key) is None:
+            continue
+        groups[r.get(partition)].append(r)
+    out = []
+    for g in groups.values():
+        g = sorted(g, key=lambda r: (r.get(order_key), r.get(id_key) or 0))
+        n = len(g)
+        base, rem = divmod(n, buckets)
+        sizes = [base + 1] * rem + [base] * (buckets - rem)
+        idx = 0
+        for tercile, sz in enumerate(sizes, start=1):
+            for _ in range(sz):
+                if idx >= n:
+                    break
+                row = dict(g[idx])
+                row["tercile"] = tercile
+                out.append(row)
+                idx += 1
+    return out
+
+
+def weeks_inverted(weeks: list[dict], lo: str = "t1_excess", hi: str = "t3_excess") -> tuple[bool, int, int]:
+    """True when the high tercile's excess is worse than the low tercile's on at least 2/3 of weeks."""
+    usable = [w for w in weeks if w.get(lo) is not None and w.get(hi) is not None]
+    if not usable:
+        return False, 0, 0
+    bad = sum(1 for w in usable if w[hi] < w[lo])
+    return bad * 3 >= 2 * len(usable), bad, len(usable)
+
+
+def _on_or_before(days: list, d):
+    if d is None or not days:
+        return None
+    i = bisect_right(days, d) - 1
+    return days[i] if i >= 0 else None
+
+
+def _as_date(v):
+    if isinstance(v, date):
+        return v
+    if v is None:
+        return None
+    return date.fromisoformat(str(v)[:10])
+
+
+def attach_universe_excess(conn, picks: list[dict], start_key: str = "snapshot_date", end_key: str = "expiry") -> None:
+    """excess = LSEG stock return − fmp_fundamentals median over the same trading-day window. Percent points."""
+    spy = [r[0] for r in conn.execute(
+        "SELECT date FROM lseg_research.daily_history WHERE ticker = 'SPY' AND close > 0 ORDER BY date"
+    ).fetchall()]
+    for p in picks:
+        p["d0"] = _on_or_before(spy, _as_date(p.get(start_key)))
+        p["d1"] = _on_or_before(spy, _as_date(p.get(end_key)))
+    dates = sorted({p["d0"] for p in picks if p.get("d0")} | {p["d1"] for p in picks if p.get("d1")})
+    uni_px: dict[str, dict] = defaultdict(dict)
+    px: dict[tuple, float] = {}
+    if dates:
+        for t, d, c in conn.execute(
+            """SELECT h.ticker, h.date, h.close::float8
+               FROM lseg_research.daily_history h
+               JOIN fmp_fundamentals f ON f.ticker = h.ticker
+               WHERE h.date = ANY(%s) AND h.close > 0""",
+            (dates,),
+        ).fetchall():
+            uni_px[t][d] = c
+            px[(t, d)] = c
+        need = list({p["ticker"] for p in picks if p.get("ticker")})
+        if need:
+            for t, d, c in conn.execute(
+                """SELECT ticker, date, close::float8 FROM lseg_research.daily_history
+                   WHERE ticker = ANY(%s) AND date = ANY(%s) AND close > 0""",
+                (need, dates),
+            ).fetchall():
+                px[(t, d)] = c
+    windows: dict[tuple, float | None] = {}
+    for p in picks:
+        key = (p.get("d0"), p.get("d1"))
+        if key in windows or not key[0] or not key[1] or key[0] >= key[1]:
+            continue
+        rets = []
+        for series in uni_px.values():
+            a, b = series.get(key[0]), series.get(key[1])
+            if a and b and a > 0:
+                rets.append(b / a - 1.0)
+        windows[key] = median(rets) if rets else None
+    for p in picks:
+        a, b = px.get((p.get("ticker"), p.get("d0"))), px.get((p.get("ticker"), p.get("d1")))
+        if a and b and a > 0:
+            p["stock_ret_pct"] = (b / a - 1.0) * 100.0
+        elif p.get("spot") and p.get("settle_close") and float(p["spot"]) > 0:
+            p["stock_ret_pct"] = (float(p["settle_close"]) / float(p["spot"]) - 1.0) * 100.0
+        else:
+            p["stock_ret_pct"] = None
+        med = windows.get((p.get("d0"), p.get("d1")))
+        p["uni_med_pct"] = med * 100.0 if med is not None else None
+        if p["stock_ret_pct"] is not None and p["uni_med_pct"] is not None:
+            p["excess_pct"] = p["stock_ret_pct"] - p["uni_med_pct"]
+        else:
+            p["excess_pct"] = None
+
+
+def grade_week_table(picks: list[dict]) -> list[dict]:
+    """One row per expiry: mean excess, short-put P&L, long-put mirror, within-expiry tercile excess."""
+    by: dict = defaultdict(list)
+    for p in picks:
+        by[p.get("expiry")].append(p)
+    weeks = []
+    for exp in sorted(by, key=lambda x: str(x)):
+        g = by[exp]
+        terc: dict = defaultdict(list)
+        for p in g:
+            if p.get("tercile") is not None:
+                terc[p["tercile"]].append(p.get("excess_pct"))
+        pnl = [p.get("pnl_pct") for p in g if p.get("pnl_pct") is not None]
+        weeks.append({
+            "expiry": str(exp)[:10],
+            "n": len(g),
+            "pick_ret_pct": _round(_mean([p.get("stock_ret_pct") for p in g])),
+            "universe_median_pct": _round(_mean([p.get("uni_med_pct") for p in g])),
+            "excess_pct": _round(_mean([p.get("excess_pct") for p in g])),
+            "put_pnl_pct": _round(_mean(pnl)),
+            "mirror_pnl_pct": _round(-_mean(pnl) if pnl else None),
+            "t1_excess": _round(_mean(terc.get(1) or [])),
+            "t2_excess": _round(_mean(terc.get(2) or [])),
+            "t3_excess": _round(_mean(terc.get(3) or [])),
+        })
+    return weeks
+
+
+def _tercile_summary(picks: list[dict]) -> list[dict]:
+    by: dict = defaultdict(list)
+    for p in picks:
+        by[p["tercile"]].append(p)
+    out = []
+    for t in sorted(by):
+        g = by[t]
+        pnl = [p["pnl_pct"] for p in g if p.get("pnl_pct") is not None]
+        out.append({
+            "tercile": t,
+            "n": len(g),
+            "win": round(sum(x >= 0 for x in pnl) / len(pnl), 2) if pnl else None,
+            "pnl_pct": _round(_mean(pnl)),
+            "excess_pct": _round(_mean([p.get("excess_pct") for p in g])),
+            "mirror_pnl_pct": _round(-_mean(pnl) if pnl else None),
+        })
+    return out
+
+
+def _grade_verdict(weeks: list[dict], n_expiries: int, summary: list[dict]) -> str:
+    inverted, _, _ = weeks_inverted(weeks)
+    if inverted:
+        return "inverted"
+    if n_expiries < MIN_EXPIRIES:
+        return "too early"
+    if summary and summary[-1].get("excess_pct") is not None and summary[0].get("excess_pct") is not None:
+        return "holding" if summary[-1]["excess_pct"] >= summary[0]["excess_pct"] else "drifting"
+    return "too early"
+
+
 def model_list(conn) -> tuple:
-    """Model List option score (fit-1.4.3, S008): higher score should mean better graded outcome."""
-    r = conn.execute("""SELECT count(DISTINCT expiry), count(*) FROM model_recs WHERE graded_at IS NOT NULL AND side = 'put'""").fetchone()
-    weeks, n = r
-    terc = conn.execute("""SELECT t, count(*), avg((pnl_per_share >= 0)::int), avg(pnl_pct) FROM (
-                             SELECT *, ntile(3) OVER (ORDER BY option_score) t FROM model_recs
-                             WHERE graded_at IS NOT NULL AND side = 'put') x GROUP BY t ORDER BY t""").fetchall()
-    d = [{"tercile": t, "n": k, "win": round(float(w), 2), "pnl_pct": round(float(p), 3)} for t, k, w, p in terc]
-    live = " · ".join(f"T{x['tercile']} win {x['win']:.0%} P&L {x['pnl_pct']:+.2f}%" for x in d) if d else "no graded picks"
-    if weeks < MIN_EXPIRIES:
-        verdict = "too early"
-    else:
-        verdict = "holding" if d and d[-1]["pnl_pct"] >= d[0]["pnl_pct"] else "drifting"
-    return ("Model List put score (fit-1.4.3)", "S008", "Top-third scores beat bottom third on graded P&L",
-            live, f"{n} puts · {weeks} expiries", verdict, {"terciles": d})
+    """Model List option score (fit-1.4.3, S008). A352: deduped, terciles within expiry, excess vs universe."""
+    raw_rows = conn.execute(
+        """SELECT id, snapshot_date, ticker, expiry, strike::float8, option_score::float8,
+                  spot::float8, settle_close::float8, pnl_pct::float8
+           FROM model_recs
+           WHERE graded_at IS NOT NULL AND side = 'put' AND option_score IS NOT NULL"""
+    ).fetchall()
+    raw = [{
+        "id": i, "snapshot_date": sd, "ticker": t, "expiry": ex, "strike": k,
+        "option_score": sc, "spot": spot, "settle_close": st, "pnl_pct": None if pnl is None else float(pnl),
+    } for i, sd, t, ex, k, sc, spot, st, pnl in raw_rows]
+    picks = dedupe_first_snapshot(raw)
+    attach_universe_excess(conn, picks)
+    terc = ntile_partition(picks, "expiry", "option_score")
+    weeks = grade_week_table(terc)
+    summary = _tercile_summary(terc)
+    n_exp = len({p["expiry"] for p in picks})
+    verdict = _grade_verdict(weeks, n_exp, summary)
+    bits = []
+    for x in summary:
+        if x.get("pnl_pct") is None:
+            continue
+        ex = f" excess {x['excess_pct']:+.2f}pp" if x.get("excess_pct") is not None else ""
+        mir = f" mirror {x['mirror_pnl_pct']:+.2f}%" if x.get("mirror_pnl_pct") is not None else ""
+        bits.append(f"T{x['tercile']}{ex} P&L {x['pnl_pct']:+.2f}%{mir}")
+    live = " · ".join(bits) if bits else "no graded picks"
+    dupes = len(raw) - len(picks)
+    if verdict == "inverted":
+        live = "inverted · " + live
+    return ("Model List put score (fit-1.4.3)", "S008",
+            "Top-third scores beat bottom third on stock excess vs the universe, same expiry",
+            live, f"{len(picks)} puts · {n_exp} expiries · {dupes} dupes dropped", verdict,
+            {"terciles": summary, "weeks": weeks, "deduped": dupes, "n_raw": len(raw), "ask": "A352"})
 
 
 def options_shadow(conn) -> tuple:
@@ -316,33 +529,73 @@ def _perf(bps: list[float]) -> dict:
             "sharpe": round(m / sd, 2) if sd else None, "sortino": round(m / dn, 2) if dn else None}
 
 
+def _rich_pick(rid, ticker, ret, detail, graded_at) -> dict | None:
+    d = detail or {}
+    x = d.get("rich") or {}
+    exp = _as_date(d.get("expiry") or x.get("expiry"))
+    if exp is None:
+        return None
+    days = int(d.get("days") or x.get("days") or 7)
+    score = x.get("score")
+    return {
+        "id": rid,
+        "ticker": ticker,
+        "expiry": exp,
+        "strike": x.get("strike") if x.get("strike") is not None else d.get("strike"),
+        "snapshot_date": exp - timedelta(days=max(days, 1)),
+        "graded_at": graded_at,
+        "option_score": None if score is None else float(score),
+        "pnl_pct": None if ret is None else float(ret) * 100.0,
+        "spot": d.get("spot_entry") or x.get("spot"),
+        "settle_close": d.get("close_expiry"),
+        "tier": x.get("tier") or "?",
+        "sector": x.get("sector") or "?",
+        "group": (x.get("group") or {}).get("id"),
+        "days": days,
+        "ret": ret,
+    }
+
+
 def rich_puts(conn) -> tuple:
-    """Rich-crash lane (S109, Jamie 10-27): graded shadow puts by confidence tier; a sector's puts in one week count as one bet;
-    per-name and per-sector records (Sharpe / Sortino) show which names the rule works on."""
-    rs = conn.execute("""SELECT ticker, ret::float8, detail FROM watchlist_sync.grades WHERE folder_key = 'rich_puts'
-                         AND horizon = 'expiry' AND jsonb_typeof(detail->'rich') = 'object'""").fetchall()
+    """Rich-crash lane (S109). A352: same dedupe, within-expiry terciles, and universe excess as the Model List."""
+    rs = conn.execute(
+        """SELECT id, ticker, ret::float8, detail, graded_at FROM watchlist_sync.grades
+           WHERE folder_key = 'rich_puts' AND horizon = 'expiry' AND jsonb_typeof(detail->'rich') = 'object'"""
+    ).fetchall()
     item, promised = "Rich puts — your rule (S109)", "high tier +185 / mid +87 / low +34 bp per collateral-week on real quotes, worst-5 % week −81 / −384 / −425"
-    if not rs:
+    parsed = [p for p in (_rich_pick(*row) for row in rs) if p]
+    picks = dedupe_first_snapshot(parsed)
+    if not picks:
         return (item, "S109", promised, "no graded rich-lane puts yet (first expiry 10-30)", "0", "too early", {})
     tier, sec, name, cl = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
-    for t, ret, d in rs:
-        bp = 1e4 * ret / (max(d.get("days") or 7, 1) / 7)
-        x = d["rich"]
-        tier[x.get("tier") or "?"].append(bp)
-        sec[x.get("sector") or "?"].append(bp)
-        name[t].append(bp)
-        g = (x.get("group") or {}).get("id")   # co-movement group (10-27) — one bet per group per expiry; sector before that
-        cl[(d.get("expiry"), f"g{g}" if g is not None else x.get("sector") or t)].append(bp)
-    bets = [sum(v) / len(v) for v in cl.values()]   # sector-week = one bet
+    for p in picks:
+        bp = 1e4 * p["ret"] / (max(p["days"] or 7, 1) / 7)
+        tier[p["tier"]].append(bp)
+        sec[p["sector"]].append(bp)
+        name[p["ticker"]].append(bp)
+        g = p["group"]
+        cl[(str(p["expiry"])[:10], f"g{g}" if g is not None else p["sector"] or p["ticker"])].append(bp)
+    bets = [sum(v) / len(v) for v in cl.values()]
     by = {k: _perf(v) for k, v in tier.items()}
-    weeks = len({k[0] for k in cl})
+    n_exp = len({p["expiry"] for p in picks})
     m = sum(bets) / len(bets)
     se = (sum((x - m) ** 2 for x in bets) / max(len(bets) - 1, 1)) ** 0.5 / len(bets) ** 0.5
-    verdict = ("too early" if weeks < MIN_EXPIRIES else "failed" if m + 2 * se < 0 else
-               "holding" if (by.get("high") or {}).get("bp_wk", -1e9) >= (by.get("low") or {}).get("bp_wk", 1e9) else "drifting")
-    live = f"{m:+.1f} bp/wk per sector-week bet · " + " · ".join(f"{k} {v['bp_wk']:+.0f} (n {v['n']})" for k, v in sorted(by.items()))
-    return (item, "S109", promised, live, format_n(len(rs), weeks), verdict,
-            {"by_tier": by, "by_sector": {k: _perf(v) for k, v in sec.items()}, "by_name": {k: _perf(v) for k, v in name.items()}})
+    attach_universe_excess(conn, picks)
+    terc = ntile_partition(picks, "expiry", "option_score")
+    weeks = grade_week_table(terc)
+    summary = _tercile_summary(terc)
+    base = ("too early" if n_exp < MIN_EXPIRIES else "failed" if m + 2 * se < 0 else
+            "holding" if (by.get("high") or {}).get("bp_wk", -1e9) >= (by.get("low") or {}).get("bp_wk", 1e9) else "drifting")
+    verdict = "inverted" if weeks_inverted(weeks)[0] else base
+    live = f"{m:+.1f} bp/wk per group-week bet · " + " · ".join(f"{k} {v['bp_wk']:+.0f} (n {v['n']})" for k, v in sorted(by.items()))
+    if summary and summary[0].get("excess_pct") is not None and summary[-1].get("excess_pct") is not None:
+        live += f" · T1 excess {summary[0]['excess_pct']:+.2f}pp T3 {summary[-1]['excess_pct']:+.2f}pp"
+    if verdict == "inverted":
+        live = "inverted · " + live
+    dupes = len(parsed) - len(picks)
+    return (item, "S109", promised, live, format_n(len(picks), n_exp) + f" · {dupes} dupes dropped", verdict,
+            {"by_tier": by, "by_sector": {k: _perf(v) for k, v in sec.items()}, "by_name": {k: _perf(v) for k, v in name.items()},
+             "terciles": summary, "weeks": weeks, "deduped": dupes, "ask": "A352"})
 
 
 def blocked_gate_checks(conn) -> list[tuple]:
