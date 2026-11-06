@@ -17,6 +17,7 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **11-06 00:10 Claude:** A327 stage 2 ACCEPTED (b5ff8552 + Claude paired-weekly fix): 304-wk replay, IC moves w_iv_rv 0.70→0.58 repeat 56 months but pick worse trades (P better ≤ 0.59) → blocked; iv_rv_gate demoted 2025-03-31 (+5.7 vs floor 10). Stage 3 (S151 shadow rules, street.k/severity paired tests, digest line 6e) dispatched to Cursor. Then A330 stage 2.
 - **11-05 23:20 Claude:** A327 s2 fix 3288f67e honest (304 wk; iv_rv_gate demoted 2025-03-31) but challenger_posterior_ok is constant-prior → promotions unreachable; (ii) amended (S109 rich puts PASS, my spec error). Fix 2 dispatched to Cursor. Review SHA → c497a317.
 - **11-05 22:40 Claude:** A327 s2 (96de7e6d) FAILED review — replay hardcoded Q5 keep + rich-puts demote, prior/live overlap, stub IC, fast mode; fix dispatched to Cursor (review block in A327.md). Review SHA → 305fc73c. Next: review s2 fix packet, then stage 3.
 - **11-05 22:00 Claude:** A327 stage 1 accepted (47653641 + Claude fix: 5/10/21d grades week-clustered by pick week); stage 2 (rule_posterior.py + a327_replay.py 2021→2026, look-ahead test) dispatched to Cursor → review packet next.
