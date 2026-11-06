@@ -56,7 +56,7 @@ async function fetchScreenerHttp(scrIds: ScrId): Promise<ScreenerMover[]> {
     `?count=${SCREENER_COUNT}&scrIds=${encodeURIComponent(scrIds)}`;
   const res = await fetch(url, {
     headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
-    signal: AbortSignal.timeout(12_000),
+    signal: AbortSignal.timeout(6_000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = await res.json() as { finance?: { result?: Array<{ quotes?: any[] }> } };
@@ -75,10 +75,11 @@ async function fetchScreenerUncached(scrIds: ScrId): Promise<ScreenerMover[]> {
 
   let res: any;
   try {
-    res = await (yahooFinance as any).screener(
-      { scrIds, count: SCREENER_COUNT },
-      { validateResult: false },
-    );
+    // Deadline: the SDK call has no timeout of its own (perf-watch 11-05: p95 19.9 s).
+    res = await Promise.race([
+      (yahooFinance as any).screener({ scrIds, count: SCREENER_COUNT }, { validateResult: false }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("screener SDK timeout 6s")), 6_000).unref()),
+    ]);
   } catch (err: any) {
     // v3.14.1 throws FailedYahooValidationError even with validateResult:false on
     // some lists (day_gainers), but the error object still carries the full parsed
@@ -121,6 +122,21 @@ async function fetchGlobalMoversUncached(): Promise<GlobalMovers> {
   };
 }
 
+let lastGlobal: GlobalMovers | null = null;
+
+/** Serve the last good board at once when the 90 s TTL lapses; refresh behind (runtime-safe rule 8c). */
 export async function fetchGlobalMovers(): Promise<GlobalMovers> {
-  return globalMoversCache.getOrCompute("global", fetchGlobalMoversUncached);
+  const hit = globalMoversCache.get("global");
+  if (hit) return hit;
+  const fresh = globalMoversCache.getOrCompute("global", fetchGlobalMoversUncached)
+    .then((v) => {
+      // Lists swallow vendor errors as [] — don't let an all-empty board replace a good one.
+      if (v.gainers.length + v.losers.length + v.mostActive.length > 0) lastGlobal = v;
+      return v;
+    });
+  if (lastGlobal) {
+    fresh.catch(() => { /* next request retries */ });
+    return lastGlobal;
+  }
+  return fresh;
 }
