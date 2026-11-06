@@ -42,6 +42,11 @@ from a352_score_rank import (  # noqa: E402
     tbill_at,
 )
 from build_plan import connect, rows  # noqa: E402
+from screen_signals import (  # noqa: E402  A341 one home
+    sig_gap_variant as _sig_gap_variant,
+    sig_z_variant as _sig_z_variant,
+    sma_mat,
+)
 
 CACHE = Path.home() / ".fildi" / "cache" / "fast_screen_bars.pkl"
 CACHE_VER = 2  # bumped when pack schema changes (iv)
@@ -103,10 +108,6 @@ def rsi_mat(c: np.ndarray, n: int) -> np.ndarray:
     up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
     dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
     return (100 - 100 / (1 + up / dn.replace(0, np.nan))).to_numpy()
-
-
-def sma_mat(c: np.ndarray, n: int) -> np.ndarray:
-    return pd.DataFrame(c).rolling(n, min_periods=n).mean().to_numpy()
 
 
 def atr14_mat(h: np.ndarray, l: np.ndarray, c: np.ndarray) -> np.ndarray:
@@ -930,25 +931,6 @@ def _sig_rsi_variant(c, period: int, thr: float, decl_days: int) -> np.ndarray:
             decl &= (np.roll(r, k, 0) < np.roll(r, k + 1, 0))
         entry &= decl & (np.roll(r, decl_days, 0) < 60)
     entry[: max(200, period + decl_days + 1)] = False
-    return entry
-
-
-def _sig_z_variant(c, win: int, thr: float) -> np.ndarray:
-    m = sma_mat(c, win)
-    sd = pd.DataFrame(c).rolling(win, min_periods=win).std().to_numpy()
-    z = (c - m) / np.where(sd == 0, np.nan, sd)
-    entry = (z < thr) & np.isfinite(z)
-    entry[:win] = False
-    return entry
-
-
-def _sig_gap_variant(o, c, pct: float, direction: str) -> np.ndarray:
-    prev = np.roll(c, 1, 0)
-    if direction == "down":
-        entry = (o <= prev * (1 - pct)) & np.isfinite(o) & np.isfinite(prev)
-    else:
-        entry = (o >= prev * (1 + pct)) & np.isfinite(o) & np.isfinite(prev)
-    entry[0] = False
     return entry
 
 

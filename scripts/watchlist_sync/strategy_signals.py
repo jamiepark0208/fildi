@@ -7,6 +7,7 @@ LSEG mid on the next session (Schwab snapshots only hold 3–14 DTE puts). Grade
 Rows: watchlist_sync.strategy_signals (read by the Strategies tab / Options board badge, A189).
 
 A330 shadow challengers (S151 Phase 4): put_climax_spy_oversold · put_climax_low_ivrv — logged + graded only; panic rows unchanged.
+A341 shadow challengers: put_gap_up_5pct_d20 · put_z50_dip_d20 (fast_screen signals; 0.20Δ put) — logged + graded only.
 
     ../../research/lseg/.venv/bin/python strategy_signals.py [--asof=YYYY-MM-DD]
 """
@@ -14,8 +15,11 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
+
+import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE / "analysis")]
@@ -23,11 +27,35 @@ from build_plan import connect  # noqa: E402
 import s049_panic_puts as P  # noqa: E402  (one home for the event rule)
 import pattern_lab as PL  # noqa: E402
 from backtest_lab import PRESETS, preset_fires  # noqa: E402
+from screen_signals import sig_gap_variant, sig_z_variant  # noqa: E402  A341 one home
 
 IV_MIN = 48.7
 SHADOW = {
-    "put_climax_spy_oversold": {"delta": -0.08, "exit": "half_dte", "preset": "put_climax_spy_oversold"},
-    "put_climax_low_ivrv": {"delta": -0.08, "exit": "stop50", "preset": "put_climax_low_ivrv"},
+    "put_climax_spy_oversold": {
+        "delta": -0.08,
+        "exit": "half_dte",
+        "preset": "put_climax_spy_oversold",
+        "trigger": "S151 up-volume climax + SPY RSI bottom-Q → sell ~0.08Δ put next open",
+    },
+    "put_climax_low_ivrv": {
+        "delta": -0.08,
+        "exit": "stop50",
+        "preset": "put_climax_low_ivrv",
+        "trigger": "S151 up-volume climax + low IV÷RV → sell ~0.08Δ put next open",
+    },
+    # A341 — signal at close; entry next open via price_open; no score weight.
+    "put_gap_up_5pct_d20": {
+        "delta": -0.20,
+        "exit": "expiry",
+        "screen": "gap_up_5pct",
+        "trigger": "Gap-up ≥5%: +21.5 bp/wk in top picks, shadow",
+    },
+    "put_z50_dip_d20": {
+        "delta": -0.20,
+        "exit": "expiry",
+        "screen": "z50_dip",
+        "trigger": "Z50 dip −2.5σ: +9.3 bp/wk in top picks, shadow",
+    },
 }
 DDL = """
 CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_signals (
@@ -68,6 +96,8 @@ def detect_shadow(asof: date) -> list[tuple[str, str, dict]]:
     panel = PL.s151_panel(None, rebuild=False)
     out = []
     for sid, meta in SHADOW.items():
+        if "preset" not in meta:
+            continue
         fired = preset_fires(panel, meta["preset"], asof)
         for r in fired.itertuples():
             out.append(
@@ -81,6 +111,65 @@ def detect_shadow(asof: date) -> list[tuple[str, str, dict]]:
                         "exit": meta["exit"],
                         "close": float(r.c),  # panel price cols are o/h/l/c
                         "up_climax": int(getattr(r, "up_climax", 0)),
+                    },
+                )
+            )
+    return out
+
+
+def detect_screen_shadow(conn, asof: date) -> list[tuple[str, str, dict]]:
+    """A341 put_gap_up_5pct_d20 / put_z50_dip_d20 — reuse screen_signals (no second copy)."""
+    rows = conn.execute(
+        """SELECT ticker, date, open::float, close::float FROM lseg_research.daily_history
+           WHERE close > 0 AND date >= %s AND date <= %s ORDER BY ticker, date""",
+        (asof - timedelta(days=140), asof),
+    ).fetchall()
+    by_t: dict[str, list[tuple[date, float, float]]] = defaultdict(list)
+    for t, d, o, c in rows:
+        if o is None or c is None:
+            continue
+        by_t[t].append((d, float(o), float(c)))
+    out: list[tuple[str, str, dict]] = []
+    for t, series in by_t.items():
+        if not series or series[-1][0] != asof or len(series) < 51:
+            continue
+        o = np.asarray([x[1] for x in series], dtype=float)[:, None]
+        c = np.asarray([x[2] for x in series], dtype=float)[:, None]
+        gap = sig_gap_variant(o, c, 0.05, "up")
+        z50 = sig_z_variant(c, 50, -2.5)
+        close = float(series[-1][2])
+        open_px = float(series[-1][1])
+        prior = float(series[-2][2]) if len(series) >= 2 else None
+        if bool(gap[-1, 0]):
+            meta = SHADOW["put_gap_up_5pct_d20"]
+            out.append(
+                (
+                    "put_gap_up_5pct_d20",
+                    t,
+                    {
+                        "screen": "gap_up_5pct",
+                        "study": "A341",
+                        "delta": meta["delta"],
+                        "exit": meta["exit"],
+                        "close": close,
+                        "open": open_px,
+                        "prior_close": prior,
+                        "gap_pct": (open_px / prior - 1.0) if prior else None,
+                    },
+                )
+            )
+        if bool(z50[-1, 0]):
+            meta = SHADOW["put_z50_dip_d20"]
+            out.append(
+                (
+                    "put_z50_dip_d20",
+                    t,
+                    {
+                        "screen": "z50_dip",
+                        "study": "A341",
+                        "delta": meta["delta"],
+                        "exit": meta["exit"],
+                        "close": close,
                     },
                 )
             )
@@ -182,11 +271,15 @@ def main():
                           json.dumps({"z": z, "iv30": iv, "close": c, "iv_jump_5d": j, "peer_group": g,
                                       "same_group_today": sum(1 for x in sig if x[5] and x[5] == g)}))
                          for t, z, iv, c, j, g in sig])
-        try:  # A330 shadow must never roll back the live panic-puts rows above (LPY venv once lacked pyarrow)
+        try:  # A330/A341 shadow must never roll back the live panic-puts rows above
             shadow = detect_shadow(asof)
         except Exception as e:  # noqa: BLE001
             print(f"shadow put_climax skipped: {type(e).__name__}: {e}")
             shadow = []
+        try:
+            shadow += detect_screen_shadow(conn, asof)
+        except Exception as e:  # noqa: BLE001
+            print(f"shadow A341 screen skipped: {type(e).__name__}: {e}")
         for sid, t, det in shadow:
             cur.execute(
                 """INSERT INTO watchlist_sync.strategy_signals (strategy_id, as_of, ticker, trigger, details)
@@ -195,7 +288,7 @@ def main():
                     sid,
                     asof,
                     t,
-                    f"S151 up-volume climax + filter → sell ~0.08Δ put next open ({sid})",
+                    SHADOW.get(sid, {}).get("trigger", sid),
                     json.dumps(det),
                 ),
             )

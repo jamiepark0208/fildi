@@ -584,6 +584,20 @@
       "champion_lane": "put_edge_q5",
       "promise": {"pnl_wk_bp": 53, "breach_max": 0.045},
       "floor": {"pnl_wk_bp": 12, "breach_max": 0.08}
+    },
+    "put_gap_up_5pct_d20": {
+      "study": "A341",
+      "status": "shadow",
+      "champion_lane": "put_edge_q5",
+      "promise": {"pnl_wk_bp": 21.5, "breach_max": 0.25},
+      "floor": {"pnl_wk_bp": 0, "breach_max": 0.35}
+    },
+    "put_z50_dip_d20": {
+      "study": "A341",
+      "status": "shadow",
+      "champion_lane": "put_edge_q5",
+      "promise": {"pnl_wk_bp": 9.3, "breach_max": 0.25},
+      "floor": {"pnl_wk_bp": 0, "breach_max": 0.35}
     }
   }
 }

@@ -15,6 +15,11 @@ import type { ModelThesis } from "@/components/model-thesis-report";
 import { HouseViewWarnings } from "@/components/live/house-view-card";
 import { PutBandSelector } from "@/components/put-band-selector";
 import { bookGroupChip, engineAwareness, newsChip } from "@/lib/model-list-awareness";
+import {
+  SHADOW_STRATEGY_META,
+  useActiveShadowStrategyBadges,
+  type StrategySignal,
+} from "@/hooks/use-strategy-signals";
 
 /** Shared Model value cols — VIEW chip + SCR/RANK (universe put score or section confidence). */
 export const WATCHLIST_ROW =
@@ -22,7 +27,7 @@ export const WATCHLIST_ROW =
 
 /** My List only — trailing 14px for always-visible remove X (keeps headers aligned). */
 export const WATCHLIST_ROW_MINE =
-  "grid grid-cols-[14px_minmax(4.5ch,1fr)_minmax(5ch,1.1fr)_minmax(4.5ch,1fr)_minmax(4.5ch,1fr)_minmax(4ch,0.9fr)_14px] items-center gap-x-1.5 px-1.5 h-[26px] text-[11px] w-full";
+  "grid grid-cols-[14px_minmax(4.5ch,1fr)_minmax(5ch,1.1fr)_minmax(4.5ch,1fr)_minmax(4.5ch,1fr)_14px] items-center gap-x-1.5 px-1.5 h-[26px] text-[11px] w-full";
 
 /** Per-folder metric column labels (SCR = put universe score; CONF/URG = section-native). */
 const FOLDER_METRIC: Record<string, { score: string; rank: string; tip: string; invert?: boolean }> = {
@@ -149,12 +154,14 @@ function ItemRow({
   folderSize,
   selected,
   onSelect,
+  shadowSignals,
 }: {
   item: ModelListItem;
   folderKey: string;
   folderSize: number;
   selected: boolean;
   onSelect: () => void;
+  shadowSignals?: StrategySignal[];
 }) {
   const view = VERDICT_CHIPS[item.verdict] ?? VERDICT_CHIPS[""]!;
   const chgPct = item.close != null && item.prevClose ? (item.close / item.prevClose - 1) * 100 : null;
@@ -280,6 +287,20 @@ function ItemRow({
             <TooltipContent className="max-w-xs text-xs whitespace-pre-wrap">{putAware.news.tip}</TooltipContent>
           </Tooltip>
         ) : null}
+        {(shadowSignals ?? []).map((s) => {
+          const meta = SHADOW_STRATEGY_META[s.strategyId];
+          if (!meta) return null;
+          return (
+            <Tooltip key={`${s.strategyId}:${s.asOf}`}>
+              <TooltipTrigger asChild>
+                <span className="text-[7px] px-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 cursor-help">
+                  {meta.label}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">{meta.tip}</TooltipContent>
+            </Tooltip>
+          );
+        })}
       </span>
     </div>
   );
@@ -344,6 +365,8 @@ function FolderTable({
   const hasTrades = folder.items.some((i) => i.contract?.win);
   const [lens, setLens] = useSessionState<LensKey>(`fildi_model_lens_${folder.key}`, "model");
   const items = hasTrades && lens !== "model" ? [...folder.items].sort((a, b) => LENSES[lens].value(b) - LENSES[lens].value(a)) : folder.items;
+  const { byTicker: shadowByTicker } = useActiveShadowStrategyBadges(3);
+  const showShadow = folder.key === "sell_puts";
   const emptyHint =
     folder.key === "sell_calls"
       ? `${folder.description} Different from Rankings › Structures covered-call study rows (S076 fail / research board) — Model List only shows calls on free shares that passed L1+L2 live checks.`
@@ -453,6 +476,7 @@ function FolderTable({
                     folderKey={folder.key}
                     folderSize={folder.items.length}
                     selected={selectedKey === key}
+                    shadowSignals={showShadow ? shadowByTicker.get(item.ticker.toUpperCase()) : undefined}
                     onSelect={() =>
                       onSelect({
                         folderKey: folder.key,

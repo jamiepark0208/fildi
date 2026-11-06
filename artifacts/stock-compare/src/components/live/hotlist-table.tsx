@@ -12,7 +12,11 @@ import { useHotlistSignalAccuracy } from "@/hooks/use-hotlist-signal-accuracy";
 import { num, pct, scoreColor } from "./live-format";
 import { RecConflictChip } from "./rec-conflict-chip";
 import type { RecConflict } from "@/lib/rec-conflicts";
-import { useActivePanicPutBadges } from "@/hooks/use-strategy-signals";
+import {
+  SHADOW_STRATEGY_META,
+  useActivePanicPutBadges,
+  useActiveShadowStrategyBadges,
+} from "@/hooks/use-strategy-signals";
 
 export type HotlistSide = "dip" | "rally";
 
@@ -133,6 +137,7 @@ export function HotlistTable({
   const { data: signalAccuracy } = useHotlistSignalAccuracy();
   // S054 panic+hiIV — shown on Oversold (put) side only.
   const { byTicker: panicByTicker } = useActivePanicPutBadges(3);
+  const { byTicker: shadowByTicker } = useActiveShadowStrategyBadges(3);
   const levelTitle = isRally
     ? "Nearest resistance above price (swing highs / pivot R1)."
     : "Nearest support below price (swing lows / pivot S1).";
@@ -186,6 +191,20 @@ export function HotlistTable({
                       panic
                     </span>
                   )}
+                  {!isRally &&
+                    (shadowByTicker.get(e.ticker.toUpperCase()) ?? []).map((s) => {
+                      const meta = SHADOW_STRATEGY_META[s.strategyId];
+                      if (!meta) return null;
+                      return (
+                        <span
+                          key={`${s.strategyId}:${s.asOf}`}
+                          className="ml-1 text-[9px] font-semibold text-fuchsia-200 border border-fuchsia-400/40 rounded px-0.5"
+                          title={meta.tip}
+                        >
+                          {meta.label}
+                        </span>
+                      );
+                    })}
                   <TickerRecordBadge
                     record={tickerRecords?.[e.ticker]?.[optSide]}
                     livePrice={e.price}

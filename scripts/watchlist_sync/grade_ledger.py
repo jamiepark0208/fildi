@@ -27,7 +27,12 @@ from datetime import date
 from build_plan import connect, rows
 from grade_weeks import expiry_week_from_detail, failed_l1_gates, iso_week
 
-SHADOW_STRATEGY_IDS = ("put_climax_spy_oversold", "put_climax_low_ivrv")
+SHADOW_STRATEGY_IDS = (
+    "put_climax_spy_oversold",
+    "put_climax_low_ivrv",
+    "put_gap_up_5pct_d20",
+    "put_z50_dip_d20",
+)
 
 DDL = """
 CREATE TABLE IF NOT EXISTS watchlist_sync.grades (

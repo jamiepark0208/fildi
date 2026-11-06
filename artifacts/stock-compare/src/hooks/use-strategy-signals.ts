@@ -1,8 +1,9 @@
 /**
  * A189 — live Strategy Library signals (panic-puts-hiv etc).
+ * A330/A341 — shadow challenger tags on Model List / Options board.
  */
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 export interface StrategySignalDetails {
   z?: number;
@@ -11,6 +12,16 @@ export interface StrategySignalDetails {
   peer_group?: string | null;
   same_group_today?: number;
 }
+
+/** Shadow strategy chips — tooltip ≤ 12 words with in-sample bp (A341). */
+export const SHADOW_STRATEGY_META: Record<string, { label: string; tip: string }> = {
+  put_climax_spy_oversold: { label: "Clx", tip: "S151 climax + SPY oversold, shadow" },
+  put_climax_low_ivrv: { label: "ClxIV", tip: "S151 climax + low IV÷RV, shadow" },
+  put_gap_up_5pct_d20: { label: "Gap5", tip: "Gap-up ≥5%: +21.5 bp/wk in top picks, shadow" },
+  put_z50_dip_d20: { label: "Z50", tip: "Z50 dip −2.5σ: +9.3 bp/wk in top picks, shadow" },
+};
+
+export const SHADOW_STRATEGY_IDS = Object.keys(SHADOW_STRATEGY_META);
 
 export interface StrategySignal {
   strategyId: string;
@@ -46,18 +57,20 @@ export interface StrategySignalsResponse {
   live: StrategySignalsLive;
 }
 
+async function fetchStrategySignals(strategyId: string, days: number): Promise<StrategySignalsResponse> {
+  const res = await fetch(
+    `/api/strategies/${encodeURIComponent(strategyId)}/signals?days=${days}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) throw new Error("strategy signals failed");
+  return res.json();
+}
+
 export function useStrategySignals(strategyId: string | null, days = 30) {
   return useQuery({
     queryKey: ["strategy-signals", strategyId, days],
     enabled: Boolean(strategyId),
-    queryFn: async (): Promise<StrategySignalsResponse> => {
-      const res = await fetch(
-        `/api/strategies/${encodeURIComponent(strategyId!)}/signals?days=${days}`,
-        { credentials: "include" },
-      );
-      if (!res.ok) throw new Error("strategy signals failed");
-      return res.json();
-    },
+    queryFn: () => fetchStrategySignals(strategyId!, days),
     staleTime: 5 * 60_000,
   });
 }
@@ -79,4 +92,38 @@ export function useActivePanicPutBadges(sessions = 3) {
     return map;
   }, [q.data?.signals, sessions]);
   return { ...q, byTicker };
+}
+
+/** Open/priced A330/A341 shadow challenger fires — Model List put rows + Options board. */
+export function useActiveShadowStrategyBadges(sessions = 3) {
+  const queries = useQueries({
+    queries: SHADOW_STRATEGY_IDS.map((id) => ({
+      queryKey: ["strategy-signals", id, 14] as const,
+      queryFn: () => fetchStrategySignals(id, 14),
+      staleTime: 5 * 60_000,
+    })),
+  });
+  const dataStamp = queries.map((q) => q.dataUpdatedAt).join("|");
+  const byTicker = useMemo(() => {
+    const map = new Map<string, StrategySignal[]>();
+    for (const q of queries) {
+      const rows = q.data?.signals ?? [];
+      const dates = [...new Set(rows.map((r) => r.asOf))].sort().reverse().slice(0, sessions);
+      const dateSet = new Set(dates);
+      for (const s of rows) {
+        if (!dateSet.has(s.asOf)) continue;
+        if (s.status !== "open" && s.status !== "priced") continue;
+        const t = s.ticker.toUpperCase();
+        const list = map.get(t) ?? [];
+        if (!list.some((x) => x.strategyId === s.strategyId && x.asOf === s.asOf)) {
+          list.push(s);
+          map.set(t, list);
+        }
+      }
+    }
+    return map;
+    // dataStamp tracks query result identity; queries array is stable enough per render batch
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dataStamp is the intentional dep
+  }, [dataStamp, sessions]);
+  return { byTicker, isLoading: queries.some((q) => q.isLoading) };
 }

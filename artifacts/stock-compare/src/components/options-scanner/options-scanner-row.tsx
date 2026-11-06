@@ -7,7 +7,11 @@ import { pickBestStrike, type StockContext, type OptionScoreResult } from "@/lib
 import type { TechnicalRow, TechnicalScore } from "@/lib/technical-rankings";
 import type { MacroRegime } from "@/lib/option-scorer-constants";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
-import { useActivePanicPutBadges } from "@/hooks/use-strategy-signals";
+import {
+  SHADOW_STRATEGY_META,
+  useActivePanicPutBadges,
+  useActiveShadowStrategyBadges,
+} from "@/hooks/use-strategy-signals";
 import { TickerRecordBadge } from "@/components/live/ticker-record-badge";
 import { RecConflictChip } from "@/components/live/rec-conflict-chip";
 import { RiskWhatIfBadge } from "@/components/live/risk-what-if-badge";
@@ -194,6 +198,8 @@ export function ScannerRow({
   const [subTab, setSubTab] = useState<"strikes" | "term">("strikes");
   const { byTicker: panicByTicker } = useActivePanicPutBadges(3);
   const panicSig = panicByTicker.get(ticker.toUpperCase()) ?? null;
+  const { byTicker: shadowByTicker } = useActiveShadowStrategyBadges(3);
+  const shadowSigs = !isCall ? (shadowByTicker.get(ticker.toUpperCase()) ?? []) : [];
 
   const { data: ivTerm, isLoading: ivTermLoading } = useQuery({
     queryKey: ["iv-term-structure", ticker],
@@ -402,6 +408,19 @@ export function ScannerRow({
               Panic
             </span>
           )}
+          {shadowSigs.map((s) => {
+            const meta = SHADOW_STRATEGY_META[s.strategyId];
+            if (!meta) return null;
+            return (
+              <span
+                key={`${s.strategyId}:${s.asOf}`}
+                className={cn(CHIP, "border-fuchsia-400/50")}
+                title={meta.tip}
+              >
+                {meta.label}
+              </span>
+            );
+          })}
         </div>
 
         {/* Price + Δ — wider col track; no overflow clip so % change stays visible */}
