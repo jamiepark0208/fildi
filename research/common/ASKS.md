@@ -161,3 +161,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A346](asks/A346.md) | 2026-11-05 | Muse → Cursor | Explain cache: technicalHash keys only on the turning-point line's length, so different TP lines collide | planned |
 | [A347](asks/A347.md) | 2026-11-06 | Muse → Claude → Cursor | Kronos candlestick foundation model: fair validation on fildi data, adopt/drop + catalog row | planned |
 | [A348](asks/A348.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] 7 quant strategies from @daytrading — test the batch (overnight edge, z-score vs RSI, PEAD, gap on minute bars) | planned |
+| [A349](asks/A349.md) | 2026-11-06 | Muse → Claude → Cursor | AI quant lab batch: TradingAgents, AI Hedge Fund, RD-Agent, Freqtrade (OpenBB/Nautilus/Qlib covered) | planned |
+| [A350](asks/A350.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] IV Walls reversal rule: minute-bar test on fildi IV walls | planned |
