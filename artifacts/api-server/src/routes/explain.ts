@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
@@ -93,8 +94,13 @@ function fundamentalHash(d: FundamentalData): string {
   return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}_${story}${fvKey}`;
 }
 
-function technicalHash(d: TechnicalData): string {
-  const tp = d.turningPointLine ? `_tp${d.turningPointLine.length}` : "";
+/** Cache key for technical explain. Turning-point line is hashed by content (A346):
+ *  same-length lines with different probabilities must not collide. `_tp` is absent when the line is null. */
+export function technicalHash(d: TechnicalData): string {
+  const line = d.turningPointLine;
+  const tp = line
+    ? `_tp${createHash("sha1").update(line).digest("hex").slice(0, 12)}`
+    : "";
   return `${PROMPT_VERSION}_${d.side ?? "put"}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}${tp}`;
 }
 
