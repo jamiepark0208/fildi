@@ -410,3 +410,46 @@ if __name__ == "__main__":
     test_ttm_eps_latest_filed_restatement_wins()
     test_ttm_eps_gap_is_none()
     print("ok")
+
+
+# A329 follow-up (11-05): prior-shares truth on split names + per-class filers
+def _wa(start, end, filed, val):
+    return {"start": start, "end": end, "filed": filed, "val": val, "form": "10-Q"}
+
+
+def test_prior_cover_split_adjusted_from_restated_wa():
+    # 2:1 split between the two covers: prior cover 100 (never restated), prior-year basic WA 98 → restated 196
+    facts = {"facts": {
+        "dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": [
+            {"end": "2025-10-20", "filed": "2025-10-30", "val": 100},
+            {"end": "2026-10-20", "filed": "2026-10-30", "val": 205},
+        ]}}},
+        "us-gaap": {"WeightedAverageNumberOfSharesOutstandingBasic": {"units": {"shares": [
+            _wa("2025-07-01", "2025-09-30", "2025-10-30", 98),
+            _wa("2025-07-01", "2025-09-30", "2026-10-30", 196),
+        ]}}},
+    }}
+    val, note = _l2.split_adjust_prior(facts, 100.0, "prior dei", "2025-10-20", "2026-10-20", "2025-10-30")
+    assert val == 200.0 and "split ×2" in note
+
+
+def test_prior_bs_shares_takes_latest_restatement():
+    # HON 1:2 reverse: 2025-09-30 first filed 635, re-filed 318 → truth = 318, no second adjustment
+    facts = {"facts": {"dei": {}, "us-gaap": {"CommonStockSharesOutstanding": {"units": {"shares": [
+        {"end": "2025-09-30", "filed": "2025-10-23", "val": 635, "form": "10-Q"},
+        {"end": "2025-09-30", "filed": "2026-10-22", "val": 318, "form": "10-Q"},
+    ]}}}}}
+    val, _ = cover_shares_on_bs_end(facts, None, "X", "2025-09-30")
+    assert val == 318.0
+
+
+def test_per_class_filer_prior_from_balance_sheet():
+    today = date.today()
+    cur = today.replace(day=1).isoformat()
+    prior = date.fromordinal(date.fromisoformat(cur).toordinal() - 365).isoformat()
+    facts = {"facts": {"dei": {}, "us-gaap": {"CommonStockSharesOutstanding": {"units": {"shares": [
+        {"end": prior, "filed": prior, "val": 2383, "form": "10-Q"},
+        {"end": cur, "filed": cur, "val": 2409, "form": "10-Q"},
+    ]}}}}}
+    val, note = _l2.sec_shares_prior(facts, None, "X")
+    assert val == 2383.0 and "prior bs" in note

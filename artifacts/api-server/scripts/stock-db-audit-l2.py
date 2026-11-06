@@ -16,6 +16,7 @@ OUT = REPO / "artifacts/api-server/out/audit"
 
 import financials as F  # noqa: E402
 from build_plan import connect, rows  # noqa: E402
+import sec_gold_fields as SG  # noqa: E402
 from sec_ttm_eps import has_quarterly_eps_facts, ttm_eps_diluted  # noqa: E402
 
 FRACTION = {"grossMargin", "netMargin", "operatingMargin", "returnOnAssets", "dividendYield"}
@@ -194,11 +195,9 @@ def cover_shares_on_bs_end(
         node = gaap.get(c)
         if not node:
             continue
-        for unit in node.get("units", {}).get("shares", []):
-            if unit.get("start"):
-                continue
-            if unit["end"] == bs_end:
-                return float(unit["val"]), f"us-gaap {c} {bs_end}"
+        on_end = [u for u in node.get("units", {}).get("shares", []) if not u.get("start") and u["end"] == bs_end]
+        if on_end:   # latest filing = split-restated (HON 1:2 reverse: first-filed 635 M, restated 318 M)
+            return float(max(on_end, key=lambda u: u.get("filed", ""))["val"]), f"us-gaap {c} {bs_end}"
     dei = (facts.get("facts", {}).get("dei", {}) or {}).get(DEI_COVER)
     vals = [u for u in (dei or {}).get("units", {}).get("shares", [])]
     near = [
@@ -255,6 +254,8 @@ def prior_basic_wa_shares(
 def sec_shares_prior(facts: dict, conn, ticker: str) -> tuple[float | None, str]:
     _cur, cur_note = sec_shares_current(facts, conn, ticker)
     if _cur is None:
+        if "skip_no_cover_shares" in cur_note:   # per-class filers (GOOGL PLTR COIN): balance-sheet total, like the producer
+            return bs_shares_prior(facts)
         return None, cur_note
     anchor = parse_truth_period_end(cur_note)
     if not anchor:
@@ -263,9 +264,41 @@ def sec_shares_prior(facts: dict, conn, ticker: str) -> tuple[float | None, str]
     if not prior_end:
         return None, "prior period-end missing"
     val, note = cover_shares_on_bs_end(facts, conn, ticker, prior_end)
-    if val is not None:
-        return val, f"prior cover {note}"
-    return dei_shares_on_end(facts, conn, ticker, prior_end)
+    if val is None:
+        val, note = dei_shares_on_end(facts, conn, ticker, prior_end)
+    else:
+        note = f"prior cover {note}"
+    filed = min((u["filed"] for u in F._units(facts, "CommonStockSharesOutstanding", "shares") if u["end"] == prior_end), default=None)
+    dei = (facts.get("facts", {}).get("dei", {}) or {}).get(DEI_COVER) or {}
+    filed = filed or min((u["filed"] for u in dei.get("units", {}).get("shares", []) if u["end"] == prior_end), default=prior_end)
+    return split_adjust_prior(facts, val, note, prior_end, anchor, filed)
+
+
+def split_adjust_prior(facts: dict, val: float | None, note: str, prior_end: str, cur_end: str, filed: str) -> tuple[float | None, str]:
+    """Cover counts are never restated, so a split between the two covers makes prior look 2–25× off.
+    Factor = SEC's restated ÷ originally-filed prior basic WA (same source as the producer; cross-checked
+    vs optlab.splits on CRWD/KLAC/NFLX/NOW/LCID 11-05). `filed` = filing of the value used; a split before it is
+    already in the value (stored facts keep the latest restatement)."""
+    if val is None:
+        return val, note
+    k = SG._split_factor(facts, prior_end, cur_end, filed)
+    return (val * k, f"{note} split ×{k:g}") if k != 1.0 else (val, note)
+
+
+def bs_shares_prior(facts: dict, cur_end: str | None = None) -> tuple[float | None, str]:
+    vals = [u for u in F._units(facts, "CommonStockSharesOutstanding", "shares") if u["end"] <= date.today().isoformat()]
+    if not vals:
+        return None, "skip_no_cover_shares"
+    cur_end = cur_end or max(u["end"] for u in vals)
+    if days_apart(cur_end, date.today().isoformat()) > MAX_PERIOD_DAYS:
+        return None, "skip_stale_dei"
+    target = date.fromisoformat(cur_end) - timedelta(days=365)
+    near = [u for u in vals if abs((date.fromisoformat(u["end"]) - target).days) <= PRIOR_SHARES_WINDOW]
+    if not near:
+        return None, "prior period-end missing"
+    end = max(u["end"] for u in near)
+    u = max((x for x in near if x["end"] == end), key=lambda x: x["filed"])
+    return split_adjust_prior(facts, float(u["val"]), f"prior bs CommonStockSharesOutstanding {end}", end, cur_end, u["filed"])
 
 
 def dei_end_near(facts: dict, anchor_end: str, days_back: int, window: int = PRIOR_SHARES_WINDOW) -> str | None:
