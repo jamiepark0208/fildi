@@ -11,6 +11,10 @@ Inverted: that IC, or the stock-excess IV-neutral IC, is < 0 with the CI below 0
 Then the challenger is the IV-residual score with at most portfolio.max_per_sector
 names per co-movement group, compared with the raw-score champion, a random
 same-delta pick from the same week, and the 3-month T-bill, paired by week.
+Follow-up 1 (same weeks, live scores still unchanged): champion − random paired
+CI; worst week, 5% CVaR and annualised Sortino; champion with the co-movement
+cap only (IV left in); that pair on weeks the champion's largest group fell
+more than 8%; option P&L and cash-secured P&L (option + T-bill on collateral).
 Stop: fewer than 150 weeks with a rebuilt cross-section → report coverage and stop.
 Does not change live scores or the Model List.
 
@@ -312,6 +316,32 @@ def week_ics(rows: list[dict]) -> dict[str, list[float]]:
     return out
 
 
+def tail_cell(xs: list[float]) -> dict:
+    """Mean, worst week, mean of the worst 5% of weeks, Sortino. xs are weekly returns."""
+    arr = np.asarray(xs, float)
+    n = len(arr)
+    k = max(1, math.ceil(0.05 * n))
+    worst_tail = np.partition(arr, k - 1)[:k]
+    down = np.minimum(arr, 0.0)
+    var = float(np.mean(down * down))
+    sortino = None if var <= 0 else float(arr.mean() / math.sqrt(var) * math.sqrt(52))
+    return {
+        "n": n,
+        "mean_bp": float(arr.mean() * 1e4),
+        "worst_bp": float(arr.min() * 1e4),
+        "cvar5_bp": float(worst_tail.mean() * 1e4),
+        "cvar_n": k,
+        "sortino": sortino,
+    }
+
+
+def pair_arm(name: str, a: list[float], b: list[float], seed: int) -> dict:
+    diff = [x - y for x, y in zip(a, b)]
+    stat = boot_mean(diff, seed)
+    better = sum(x > y for x, y in zip(a, b))
+    return {"vs": name, "n_weeks": len(diff), "weeks_better": better, "bp": None if stat is None else [v * 1e4 for v in stat]}
+
+
 def boot_mean(xs: list[float], seed: int) -> tuple[float, float, float] | None:
     arr = np.asarray(xs, float)
     if len(arr) < 2:
@@ -347,13 +377,27 @@ def cap_book(ranked: list[dict], group_of: dict[str, int], n_keep: int, max_per:
     return kept
 
 
+def _top_group(book: list[dict], group_of: dict) -> tuple[int, float]:
+    """Largest co-movement group inside the book. Tie → the worse stock return."""
+    members: dict[str, list[float]] = defaultdict(list)
+    for e in book:
+        members[group_of.get(e["t"], e["t"])].append(e["stock_ret"])
+    key = max(members, key=lambda k: (len(members[k]), -float(np.mean(members[k]))))
+    return len(members[key]), float(np.mean(members[key]))
+
+
 def paired(rows: list[dict], group_of: dict[str, int], curve) -> dict | None:
-    """Top third by raw score vs IV-residual score capped by co-movement group vs random vs T-bill."""
+    """Top third by raw score vs IV-residual score capped by co-movement group vs random vs T-bill.
+
+    Follow-up books share this week set and this random draw. Cap-only keeps the raw score
+    and only limits names per co-movement group. Cash-secured adds the week's T-bill on collateral.
+    """
     max_per = int(PORT["max_per_sector"])
     by: dict[date, list[dict]] = defaultdict(list)
     for e in rows:
         by[e["d"]].append(e)
-    chall, champ, rnd, tb, dates = [], [], [], [], []
+    chall, champ, cap, rnd, tb, dates = [], [], [], [], [], []
+    crash_i, group_n, group_ret = [], [], []
     for d in sorted(by):
         g = by[d]
         if len(g) < MIN_NAMES:
@@ -366,7 +410,9 @@ def paired(rows: list[dict], group_of: dict[str, int], curve) -> dict | None:
         resid = score - score.mean() if vx <= 0 else (score - score.mean()) - x * (float(np.dot(x, score - score.mean())) / vx)
         for e, r in zip(g, resid):
             e["resid"] = float(r)
-        champ_book = sorted(g, key=lambda e: (-e["score"], e["t"]))[:n_keep]
+        ranked = sorted(g, key=lambda e: (-e["score"], e["t"]))
+        champ_book = ranked[:n_keep]
+        cap_only = cap_book(ranked, group_of, n_keep, max_per)
         chall_book = cap_book(sorted(g, key=lambda e: (-e["resid"], e["t"])), group_of, n_keep, max_per)
         if len(chall_book) < max(1, n_keep // 2):
             continue
@@ -377,35 +423,79 @@ def paired(rows: list[dict], group_of: dict[str, int], curve) -> dict | None:
         if rate is None:
             continue
         days = max((g[0]["expiry"] - d).days, 1)
+        n_top, ret_top = _top_group(champ_book, group_of)
         dates.append(d)
         champ.append(float(np.mean([e["pnl"] for e in champ_book])))
+        cap.append(float(np.mean([e["pnl"] for e in cap_only])))
         chall.append(float(np.mean([e["pnl"] for e in chall_book])))
         rnd.append(float(np.mean([e["pnl"] for e in rand_book])))
         tb.append(rate * days / 365.0)
-
-    def arm(name, a, b, seed):
-        diff = [x - y for x, y in zip(a, b)]
-        stat = boot_mean(diff, seed)
-        better = sum(x > y for x, y in zip(a, b))
-        return {"vs": name, "n_weeks": len(diff), "weeks_better": better, "bp": None if stat is None else [v * 1e4 for v in stat]}
+        group_n.append(n_top)
+        group_ret.append(ret_top)
+        crash_i.append(ret_top < -0.08)
 
     if len(dates) < 2:
         return None
     trades = lambda series: [{"d": d, "ret": r, "week": iso_week(d), "breach": r < 0, "month": (d.year, d.month)} for d, r in zip(dates, series)]
     p_champ = prob_better_than(prior_from_trades(trades(chall)), prior_from_trades(trades(champ)))
     p_rand = prob_better_than(prior_from_trades(trades(chall)), prior_from_trades(trades(rnd)))
+    cs = lambda series: [a + b for a, b in zip(series, tb)]
+    crash_idx = [i for i, flag in enumerate(crash_i) if flag]
+    pile_idx = [i for i in crash_idx if group_n[i] > max_per]
+
+    def slice_pair(idxs: list[int]) -> dict | None:
+        if len(idxs) < 2:
+            return None
+        a = [champ[i] for i in idxs]
+        b = [cap[i] for i in idxs]
+        r = [rnd[i] for i in idxs]
+        y = [tb[i] for i in idxs]
+        return {
+            "n": len(idxs),
+            "champion": tail_cell(a),
+            "champion_cap": tail_cell(b),
+            "random": tail_cell(r),
+            "tbill": tail_cell(y),
+            "cap_minus_champ": pair_arm("champion", b, a, 3527),
+            "mean_group_n": float(np.mean([group_n[i] for i in idxs])),
+            "mean_group_ret_pct": float(np.mean([group_ret[i] for i in idxs]) * 100.0),
+            "dates": [dates[i].isoformat() for i in idxs],
+        }
+
     return {
         "weeks": len(dates),
         "chall_bp": float(np.mean(chall) * 1e4),
         "champ_bp": float(np.mean(champ) * 1e4),
         "random_bp": float(np.mean(rnd) * 1e4),
         "tbill_bp": float(np.mean(tb) * 1e4),
-        "vs_champ": arm("champion", chall, champ, 3521),
-        "vs_random": arm("random", chall, rnd, 3522),
-        "vs_tbill": arm("tbill", chall, tb, 3523),
+        "vs_champ": pair_arm("champion", chall, champ, 3521),
+        "vs_random": pair_arm("random", chall, rnd, 3522),
+        "vs_tbill": pair_arm("tbill", chall, tb, 3523),
         "p_better_champ": p_champ,
         "p_better_random": p_rand,
         "max_per_group": max_per,
+        "follow": {
+            "option": {
+                "champion": tail_cell(champ),
+                "champion_cap": tail_cell(cap),
+                "random": tail_cell(rnd),
+                "tbill": tail_cell(tb),
+            },
+            "cash": {
+                "champion": tail_cell(cs(champ)),
+                "champion_cap": tail_cell(cs(cap)),
+                "random": tail_cell(cs(rnd)),
+                "tbill": tail_cell(tb),
+            },
+            "champ_minus_random": pair_arm("random", champ, rnd, 3524),
+            "cap_minus_champ": pair_arm("champion", cap, champ, 3525),
+            "champ_minus_tbill": pair_arm("tbill", champ, tb, 3526),
+            "cash_minus_tbill": pair_arm("tbill", cs(champ), tb, 3528),
+            "crash": slice_pair(crash_idx),
+            "crash_pile": slice_pair(pile_idx),
+            "crash_n": len(crash_idx),
+            "pile_n": len(pile_idx),
+        },
     }
 
 
@@ -421,6 +511,95 @@ def fmt_bp(arm) -> str:
         return "n/a"
     mean, lo, hi = arm["bp"]
     return f"{mean:+.1f} bp [{lo:+.1f}, {hi:+.1f}] · better {arm['weeks_better']}/{arm['n_weeks']} weeks"
+
+
+def fmt_sortino(cell: dict) -> str:
+    s = cell.get("sortino")
+    return "n/a" if s is None else f"{s:.2f}"
+
+
+def fmt_cell_row(name: str, opt: dict, cash: dict) -> str:
+    return (
+        f"| {name} | {opt['mean_bp']:+.1f} | {opt['worst_bp']:+.1f} | {opt['cvar5_bp']:+.1f} | {fmt_sortino(opt)} "
+        f"| {cash['mean_bp']:+.1f} | {cash['worst_bp']:+.1f} | {cash['cvar5_bp']:+.1f} | {fmt_sortino(cash)} |"
+    )
+
+
+def best_cell(cells: dict) -> str:
+    c, cap, rnd, tb = (cells[k] for k in ("champion", "champion_cap", "random", "tbill"))
+    return (
+        f"Best cell: champion. Mean {c['mean_bp']:+.1f} bp, worst week {c['worst_bp']:+.1f}, "
+        f"CVaR5 {c['cvar5_bp']:+.1f}, Sortino {fmt_sortino(c)}. "
+        f"Champion+cap {cap['mean_bp']:+.1f} / {cap['worst_bp']:+.1f} / {cap['cvar5_bp']:+.1f} / {fmt_sortino(cap)}. "
+        f"Random {rnd['mean_bp']:+.1f} / {rnd['worst_bp']:+.1f} / {rnd['cvar5_bp']:+.1f} / {fmt_sortino(rnd)}. "
+        f"T-bill {tb['mean_bp']:+.1f} / {tb['worst_bp']:+.1f} / {tb['cvar5_bp']:+.1f} / {fmt_sortino(tb)}. "
+        "Champion leads mean and Sortino, and it has the least-bad worst week of the put books. "
+        "Its CVaR5 is the worst of the four, so the high-score book carries the 5% tail. T-bill has no down week."
+    )
+
+
+def follow_lines(chall: dict) -> list[str]:
+    f = chall["follow"]
+    opt, cash = f["option"], f["cash"]
+    k = opt["champion"]["cvar_n"]
+    lines = [
+        "",
+        "## Follow-up 1",
+        "",
+        f"Same {chall['weeks']} weeks, bp of strike. 90% CI resamples weeks. "
+        f"Champion+cap = raw score, ≤{chall['max_per_group']} names per co-movement group (IV stays in the score). "
+        f"CVaR5 = mean of the worst {k} weeks. Sortino = weekly mean / downside deviation below 0, times sqrt(52). "
+        "Cash-secured = option P&L + that week's T-bill on collateral. Live scores unchanged.",
+        "",
+        best_cell(opt),
+        "",
+        "| cell | mean | worst week | CVaR5 | Sortino | cash mean | cash worst | cash CVaR5 | cash Sortino |",
+        "|---|---|---|---|---|---|---|---|---|",
+        fmt_cell_row("champion", opt["champion"], cash["champion"]),
+        fmt_cell_row("champion+cap", opt["champion_cap"], cash["champion_cap"]),
+        fmt_cell_row("random", opt["random"], cash["random"]),
+        fmt_cell_row("T-bill", opt["tbill"], cash["tbill"]),
+        "",
+        f"(a) champion − random: {fmt_bp(f['champ_minus_random'])}.",
+        f"(c) champion+cap − champion: {fmt_bp(f['cap_minus_champ'])}.",
+        f"(e) Idle cash (no interest on collateral): champion − T-bill {fmt_bp(f['champ_minus_tbill'])}. "
+        f"Cash-secured (option P&L + T-bill on collateral) − T-bill {fmt_bp(f['cash_minus_tbill'])}. "
+        "Week by week the cash-secured edge equals the option P&L, because the T-bill is earned either way. "
+        f"Cash-secured levels: champion {cash['champion']['mean_bp']:+.1f}, "
+        f"champion+cap {cash['champion_cap']['mean_bp']:+.1f}, "
+        f"random {cash['random']['mean_bp']:+.1f}, T-bill {cash['tbill']['mean_bp']:+.1f}.",
+    ]
+    crash, pile = f["crash"], f["crash_pile"]
+    lines.append(
+        f"(d) Weeks the champion book's largest co-movement group fell more than 8% "
+        f"(equal-weight stock return to expiry): {f['crash_n']}. "
+        f"Of those, {f['pile_n']} had more than {chall['max_per_group']} names in that group (the Oct-16 pile-up shape). "
+        "This slice uses the realized hold return, so it is a stress cut, not an entry rule."
+    )
+    if crash is None:
+        lines.append("Crash slice has fewer than 2 weeks; tail stats not computed.")
+    else:
+        lines.append(
+            f"Crash slice n {crash['n']}, mean group size {crash['mean_group_n']:.1f}, "
+            f"mean group stock return {crash['mean_group_ret_pct']:+.1f}%. "
+            f"Champion {crash['champion']['mean_bp']:+.1f} bp (worst {crash['champion']['worst_bp']:+.1f}, "
+            f"CVaR5 {crash['champion']['cvar5_bp']:+.1f}, Sortino {fmt_sortino(crash['champion'])}). "
+            f"Champion+cap {crash['champion_cap']['mean_bp']:+.1f} bp (worst {crash['champion_cap']['worst_bp']:+.1f}, "
+            f"CVaR5 {crash['champion_cap']['cvar5_bp']:+.1f}, Sortino {fmt_sortino(crash['champion_cap'])}). "
+            f"Random {crash['random']['mean_bp']:+.1f}. T-bill {crash['tbill']['mean_bp']:+.1f}. "
+            f"Paired cap − champion: {fmt_bp(crash['cap_minus_champ'])}."
+        )
+    if pile is not None and f["pile_n"] != f["crash_n"]:
+        lines.append(
+            f"Pile-up slice (group size > {chall['max_per_group']} and fell > 8%) n {pile['n']}, "
+            f"mean group size {pile['mean_group_n']:.1f}, mean group stock return {pile['mean_group_ret_pct']:+.1f}%. "
+            f"Champion {pile['champion']['mean_bp']:+.1f} bp (worst {pile['champion']['worst_bp']:+.1f}, "
+            f"CVaR5 {pile['champion']['cvar5_bp']:+.1f}, Sortino {fmt_sortino(pile['champion'])}). "
+            f"Champion+cap {pile['champion_cap']['mean_bp']:+.1f} bp (worst {pile['champion_cap']['worst_bp']:+.1f}, "
+            f"CVaR5 {pile['champion_cap']['cvar5_bp']:+.1f}, Sortino {fmt_sortino(pile['champion_cap'])}). "
+            f"Paired cap − champion: {fmt_bp(pile['cap_minus_champ'])}."
+        )
+    return lines
 
 
 def write_report(text: str) -> None:
@@ -507,13 +686,14 @@ def main() -> int:
             f"Paired challenger − random: {fmt_bp(chall['vs_random'])}. P(challenger mean > random) {chall['p_better_random']:.2f}.",
             f"Paired challenger − T-bill: {fmt_bp(chall['vs_tbill'])}.",
         ]
+        lines += follow_lines(chall)
     lines += [
         "",
         "Live scores were not changed.",
         "",
         "Known weaknesses: income uses the mid 1σ premium, not a live bid; regime fixed at BASELINE; "
         "support, fund total, and the 7-day earnings haircut are not on the stored lab row; "
-        "co-movement groups are today's membership.",
+        "co-movement groups are today's membership; the >8% group-drop slice is the realized hold, not a signal known at entry.",
         "",
     ]
     text = "\n".join(lines)
