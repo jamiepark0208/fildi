@@ -164,7 +164,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A349](asks/A349.md) | 2026-11-06 | Muse → Claude → Cursor | AI quant lab batch: TradingAgents, AI Hedge Fund, RD-Agent, Freqtrade (OpenBB/Nautilus/Qlib covered) | planned |
 | [A350](asks/A350.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] IV Walls reversal rule: minute-bar test on fildi IV walls | planned |
 | [A351](asks/A351.md) | 2026-11-06 | Muse → Claude → Cursor | Evaluate DeepSeek Harness + Super-Agent as the post-Cursor builder seat | planned |
-| [A352](asks/A352.md) | 2026-11-06 | Claude → Grok | [quant] Put picks fall more than universe; option score ranks backwards — fix grade, test history | done |
+| [A352](asks/A352.md) | 2026-11-06 | Claude → Grok | [quant] Put picks fall more than universe; option score ranks backwards — fix grade, test history | verified |
 | [A353](asks/A353.md) | 2026-11-06 | Claude → Cursor | [quant] Signals catch swing starts, lose on exits — exit-rule menu + mirror side of S152/S154/S155 | planned |
 | [A354](asks/A354.md) | 2026-11-06 | Muse → Cursor | Volume profile chart overlay (POC + value area) + TPO from minute bars; delta out | planned |
 | [A355](asks/A355.md) | 2026-11-06 | Muse → Cursor | Graphify pilot: query a code graph instead of re-reading files; measured token cut or drop | planned |
