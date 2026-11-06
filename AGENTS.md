@@ -37,7 +37,7 @@ Claude, Cursor, Muse (live remote; bus = git `cursor/mac-dev` + ASKS) share the 
 4c. **Store what you fetch:** whole vendor responses in `vendor_raw` (A266); map fields via FIELD_DEFS or say why not in `research/common/data-inventory.md`. Check that inventory before saying "fully integrated".
 5. **One home per piece of logic** (`scripts/watchlist_sync/FACTOR_MAP.md`).
 6. State files per tool: Claude `.agents/context/state.md`, Cursor `.cursor/context/cursor-state.md`, Muse = ASKS only.
-7. Scoring/selection changes need approval + before/after (bug fixes/display don't). **Jamie asking for the task IS the approval** — finish end to end incl. promotion, show before/after.
+7. Scoring/selection changes need a logic check + measured before/after, then **the agent decides** (Jamie 11-06; no approval ask). **Jamie asking for the task IS the approval** — finish end to end incl. promotion, show before/after.
 8. **Before coding:** state assumptions, write the success check first, loop until it passes. Every changed line traces to the request; match local style.
 8b. **Ship gate:** changes under `artifacts/api-server/src/**` or `artifacts/stock-compare/src/**` pass `scripts/agent-ship-check.sh` (enforced on push; a bad import once took down the live API).
 8c. **Runtime-safe:** anything that fetches/caches/polls/runs in background: deadline on every vendor call; serve saved value + refresh behind; cap fan-out vs the vendor rate limit; poll interval > server TTL; ship with a measured before/after (ms, calls/min). `scripts/perf-guards.sh` flags risky lines on push (advisory); a tripped `perf-watch` signal (agent_start 5c) = fix now.

@@ -5,6 +5,7 @@
 ## Decisions
 - **Ask Jamie only about money, accounts, trades.** Bugs, data repairs, remaps, engine merges: decide, fix, verify, report (10-18, 10-21: "why do I have a decision on something as simple as the expiry date").
 - **Asking for the task is the approval** — finish end to end incl. promotion; show before/after; don't re-ask (10-18).
+- **Score changes are the agent's call (Jamie 11-06):** "a score change doesn't need my approval, it needs you to check if the logic makes better sense and for you to decide." Check the logic + measured before/after (holdout, vs the live score, vs T-bill), then decide and ship; report the decision and numbers, never ask.
 - **"Do what's left" = verify and do it now**, don't relist (10-17). Pick the next step from research + tests; never "confirm X?" (10-19).
 - Show opportunities with their cost; he decides (10-14).
 - **Free cash never filters or flags an opportunity** (repeated; 10-22). He frees cash by selling stock or closing puts. Show the collateral needed as plain info, never as a warn/block/size-down (A243).
