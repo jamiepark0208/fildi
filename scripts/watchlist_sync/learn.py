@@ -39,7 +39,7 @@ import params as PM
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "analysis"))
 sys.path.insert(0, str(HERE))
-from grade_weeks import MIN_LIVE_WEEKS, expiry_week_from_detail, format_n  # noqa: E402
+from grade_weeks import MIN_LIVE_WEEKS, expiry_week_from_detail, format_n, iso_week  # noqa: E402
 OUT = HERE / "out" / "step6"
 
 
@@ -87,21 +87,21 @@ def live_evidence(conn) -> dict:
         return {"graded": 0}
     g = rows(
         conn,
-        """SELECT folder_key, horizon, outcome, bucket, vs_peers, ret, detail
-           FROM watchlist_sync.grades WHERE bucket <> 'data'""",
+        """SELECT g.folder_key, g.horizon, g.outcome, g.bucket, g.vs_peers, g.ret, g.detail, r.created_at::date run_date
+           FROM watchlist_sync.grades g JOIN watchlist_sync.model_runs r ON r.id = g.run_id WHERE g.bucket <> 'data'""",
     )
     by = defaultdict(list)
     weeks_by = defaultdict(set)
     for r in g:
         by[(r["folder_key"], r["horizon"])].append(r)
-        if r["horizon"] == "expiry":
-            wk = expiry_week_from_detail(r["detail"])
-            if wk:
-                weeks_by[r["folder_key"]].add(wk)
+        # expiry rows cluster by expiry week; 5/10/21d verdict rows by pick week (A327 review: own/income never had expiry rows)
+        wk = expiry_week_from_detail(r["detail"]) if r["horizon"] == "expiry" else iso_week(r["run_date"])
+        if wk:
+            weeks_by[(r["folder_key"], r["horizon"])].add(wk)
     folders = {}
     for k, v in by.items():
         fk, hz = k
-        nw = len(weeks_by.get(fk, ()))
+        nw = len(weeks_by.get(k, ()))
         folders[f"{fk}:{hz}"] = {
             "n": len(v),
             "n_weeks": nw,
