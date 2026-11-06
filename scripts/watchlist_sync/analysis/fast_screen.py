@@ -20,6 +20,7 @@ import argparse
 import pickle
 import sys
 import time
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
@@ -34,7 +35,12 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT))
 
 import pattern_lab as PL  # noqa: E402
-from a352_score_rank import load_tbill, tbill_at  # noqa: E402
+from a352_score_rank import (  # noqa: E402
+    MIN_NAMES,
+    load_tbill,
+    rebuild_book,
+    tbill_at,
+)
 from build_plan import connect, rows  # noqa: E402
 
 CACHE = Path.home() / ".fildi" / "cache" / "fast_screen_bars.pkl"
@@ -1274,31 +1280,40 @@ def _pool_index(pool: list[dict]) -> dict[tuple[str, date], dict]:
     return out
 
 
-def _put_cell_stats(sig: list[dict], peer_ex: list[float], tb_bp: float, dte: int) -> dict:
-    if not sig:
-        return {"n": 0, "bp_wk": np.nan, "win": np.nan, "worst_dec": np.nan,
-                "t": np.nan, "peer_ex_bp": np.nan, "tbill_bp": tb_bp}
-    bps = np.array([_pnl_coll_bp_wk(x, dte) for x in sig], dtype=float)
-    bps = bps[np.isfinite(bps)]
-    if bps.size == 0:
-        return {"n": 0, "bp_wk": np.nan, "win": np.nan, "worst_dec": np.nan,
-                "t": np.nan, "peer_ex_bp": np.nan, "tbill_bp": tb_bp}
+def _month_cluster_t_vals(dates_ym: list[tuple[int, int]], vals: list[float]) -> float:
     by: dict[tuple[int, int], list[float]] = {}
-    for x, bp in zip(sig, [_pnl_coll_bp_wk(x, dte) for x in sig]):
-        if not np.isfinite(bp):
+    for ym, v in zip(dates_ym, vals):
+        if not np.isfinite(v):
             continue
-        by.setdefault((x["d"].year, x["d"].month), []).append(bp)
+        by.setdefault(ym, []).append(float(v))
     mo = [float(np.mean(v)) for v in by.values()]
-    t = float(np.mean(mo) / (np.std(mo, ddof=1) / np.sqrt(len(mo)))) if len(mo) >= 4 and np.std(mo, ddof=1) > 0 else float("nan")
+    if len(mo) < 4 or np.std(mo, ddof=1) <= 0:
+        return float("nan")
+    return float(np.mean(mo) / (np.std(mo, ddof=1) / np.sqrt(len(mo))))
+
+
+def _put_cell_stats(sig: list[dict], peer_ex: list[float], tb_bp: float, dte: int) -> dict:
+    empty = {"n": 0, "bp_wk": np.nan, "win": np.nan, "worst_dec": np.nan,
+             "t": np.nan, "peer_ex_bp": np.nan, "peer_ex_t": np.nan, "tbill_bp": tb_bp}
+    if not sig:
+        return empty
+    bps_all = [_pnl_coll_bp_wk(x, dte) for x in sig]
+    bps = np.array([b for b in bps_all if np.isfinite(b)], dtype=float)
+    if bps.size == 0:
+        return empty
+    yms = [(x["d"].year, x["d"].month) for x in sig]
+    t = _month_cluster_t_vals(yms, bps_all)
     pex = np.asarray(peer_ex, dtype=float)
-    pex = pex[np.isfinite(pex)]
+    pex_ok = pex[np.isfinite(pex)]
+    peer_t = _month_cluster_t_vals(yms, list(pex))
     return {
         "n": int(bps.size),
         "bp_wk": float(np.mean(bps)),
         "win": float(np.mean(bps > 0)),
         "worst_dec": float(np.percentile(bps, 10)),
         "t": t,
-        "peer_ex_bp": float(np.mean(pex)) if pex.size else float("nan"),
+        "peer_ex_bp": float(np.mean(pex_ok)) if pex_ok.size else float("nan"),
+        "peer_ex_t": peer_t,
         "tbill_bp": tb_bp,
     }
 
@@ -1409,12 +1424,100 @@ def run_puts(pack: dict) -> Path:
                 "peer_ex_bp": st_all["peer_ex_bp"], "tbill_bp": tb_bp,
                 "fit_bp": st_fit["bp_wk"], "fit_t": st_fit["t"], "fit_n": st_fit["n"],
                 "ho_bp": st_ho["bp_wk"], "ho_t": st_ho["t"], "ho_n": st_ho["n"],
+                "ho_peer_ex": st_ho["peer_ex_bp"], "ho_peer_t": st_ho["peer_ex_t"],
                 "ex_sm": m.get("excess_mean_sm", float("nan")) if m else float("nan"),
                 "note": "",
             })
     # regime split: z10<-2.5 short h21 + pead short h21 × SPY>/<SMA200
     regime_rows = _regime_split_puts(pack, dates, tickers, o, c)
-    return _write_puts_md(rows_out, regime_rows, time.perf_counter() - t0)
+    # marginal: a352 champion top-tier × signal 2×2 at Δ0.20
+    x22 = _score_signal_x22(signals, dates, tickers)
+    return _write_puts_md(rows_out, regime_rows, x22, time.perf_counter() - t0)
+
+
+def _signal_entry_keys(entry: np.ndarray, dates, tickers) -> set[tuple[str, date]]:
+    """Signal close/bar t → entry date t+1 (same convention as put pool match)."""
+    out: set[tuple[str, date]] = set()
+    for t, j in zip(*np.where(entry[:-1])):
+        out.add((tickers[j], pd.Timestamp(dates[t + 1]).date()))
+    return out
+
+
+def _score_signal_x22(signals: dict, dates, tickers) -> list[dict]:
+    """2×2: a352 champion top-third vs rest × {signal, no signal}; same weeks/tickers."""
+    with connect() as conn:
+        book = rebuild_book(conn)
+    tick_set = set(tickers)
+    by: dict[date, list[dict]] = defaultdict(list)
+    for e in book:
+        by[e["d"]].append(e)
+    labeled: list[dict] = []
+    n_book = 0
+    n_joinable = 0
+    for d, g in by.items():
+        if len(g) < MIN_NAMES:
+            continue
+        n_keep = max(1, len(g) // 3)
+        ranked = sorted(g, key=lambda e: (-e["score"], e["t"]))
+        top = {id(e) for e in ranked[:n_keep]}
+        for e in g:
+            n_book += 1
+            if e["t"] in tick_set:
+                n_joinable += 1
+            labeled.append({
+                "t": e["t"], "d": e["d"],
+                "top": id(e) in top,
+                "bp_wk": float(e["pnl"]) * 1e4,
+                "in_bars": e["t"] in tick_set,
+            })
+    cov = (n_joinable / n_book) if n_book else 0.0
+    out = []
+    for sname, entry in signals.items():
+        keys = _signal_entry_keys(entry, dates, tickers)
+        cells = {
+            ("top", True): [], ("top", False): [],
+            ("rest", True): [], ("rest", False): [],
+        }
+        for e in labeled:
+            if not e["in_bars"]:
+                continue
+            tier = "top" if e["top"] else "rest"
+            sig = (e["t"], e["d"]) in keys
+            cells[(tier, sig)].append(e)
+        def cell_stat(rows: list[dict]) -> dict:
+            if not rows:
+                return {"n": 0, "bp_wk": float("nan")}
+            bps = [r["bp_wk"] for r in rows if np.isfinite(r["bp_wk"])]
+            return {"n": len(bps), "bp_wk": float(np.mean(bps)) if bps else float("nan")}
+        top_sig, top_nos = cells[("top", True)], cells[("top", False)]
+        st_ts, st_tn = cell_stat(top_sig), cell_stat(top_nos)
+        added = (st_ts["bp_wk"] - st_tn["bp_wk"]
+                 if np.isfinite(st_ts["bp_wk"]) and np.isfinite(st_tn["bp_wk"])
+                 else float("nan"))
+        # month-clustered t on (signal − month mean of top-tier no-signal)
+        nos_by_m: dict[tuple[int, int], list[float]] = defaultdict(list)
+        for r in top_nos:
+            if np.isfinite(r["bp_wk"]):
+                nos_by_m[(r["d"].year, r["d"].month)].append(r["bp_wk"])
+        nos_m = {k: float(np.mean(v)) for k, v in nos_by_m.items()}
+        yms, diffs = [], []
+        for r in top_sig:
+            if not np.isfinite(r["bp_wk"]):
+                continue
+            ym = (r["d"].year, r["d"].month)
+            if ym not in nos_m:
+                continue
+            yms.append(ym)
+            diffs.append(r["bp_wk"] - nos_m[ym])
+        added_t = _month_cluster_t_vals(yms, diffs)
+        out.append({
+            "signal": sname, "join_cov": cov,
+            "top_sig": st_ts, "top_nosig": st_tn,
+            "rest_sig": cell_stat(cells[("rest", True)]),
+            "rest_nosig": cell_stat(cells[("rest", False)]),
+            "added_bp": added, "added_t": added_t,
+        })
+    return out
 
 
 def _regime_split_puts(pack, dates, tickers, o, c) -> list[dict]:
@@ -1439,7 +1542,7 @@ def _regime_split_puts(pack, dates, tickers, o, c) -> list[dict]:
     return out
 
 
-def _write_puts_md(cells: list[dict], regime: list[dict], wall: float) -> Path:
+def _write_puts_md(cells: list[dict], regime: list[dict], x22: list[dict], wall: float) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     day = date.today().isoformat()
     md = OUT_DIR / f"{day}-puts.md"
@@ -1455,7 +1558,7 @@ def _write_puts_md(cells: list[dict], regime: list[dict], wall: float) -> Path:
          + ("A350 iv-wall daily ✓" if a350_iv_wall_daily_ok()
             else "A350: needs minute data, skipped"),
          "", "## Best cells (by peer excess bp/wk)"]
-    for r in (ranked + rest)[:12]:
+    for r in (ranked + rest)[:6]:
         if r.get("n", 0) == 0:
             L.append(f"- {r.get('signal','?')} Δ{r.get('delta')}: coverage "
                      f"{100*r.get('coverage',0):.1f}% n_sig={r.get('n_sig',0)} — {r.get('note','')}")
@@ -1465,12 +1568,34 @@ def _write_puts_md(cells: list[dict], regime: list[dict], wall: float) -> Path:
             f"bp/wk={r['bp_wk']:+.1f} peer_ex={r['peer_ex_bp']:+.1f} "
             f"win={100*r['win']:.0f}% worst_dec={r['worst_dec']:+.1f} t={r['t']:.2f} "
             f"tb={r['tbill_bp']:+.2f} | fit n={r['fit_n']} {r['fit_bp']:+.1f}bp t={r['fit_t']:.2f} "
-            f"→ ho n={r['ho_n']} {r['ho_bp']:+.1f}bp t={r['ho_t']:.2f}"
+            f"→ ho n={r['ho_n']} raw={r['ho_bp']:+.1f}bp t={r['ho_t']:.2f} "
+            f"peer_ex={r.get('ho_peer_ex', float('nan')):+.1f}bp t={r.get('ho_peer_t', float('nan')):.2f}"
+        )
+    L += ["", "## Holdout peer excess (≥2025-01-01, Δ0.20)"]
+    for r in cells:
+        if r.get("delta") != 0.2 or r.get("n", 0) == 0:
+            continue
+        if r.get("signal") not in ("gap_up_5pct", "z50<-2.5/long"):
+            continue
+        L.append(
+            f"- {r['signal']}: n={r['ho_n']} peer_ex={r.get('ho_peer_ex', float('nan')):+.1f} bp/wk "
+            f"t={r.get('ho_peer_t', float('nan')):.2f} (raw {r['ho_bp']:+.1f}bp t={r['ho_t']:.2f})"
+        )
+    L += ["", "## Score×signal 2×2 (a352 champion top-third, Δ0.20 weeks)"]
+    if x22:
+        L.append(f"join coverage={100 * x22[0]['join_cov']:.1f}% (ticker in bar pack)")
+    for x in x22:
+        def fmt(c):
+            return f"n={c['n']} {c['bp_wk']:+.1f}bp" if c["n"] else "n=0"
+        L.append(
+            f"- {x['signal']}: top∩sig {fmt(x['top_sig'])}; top∩nosig {fmt(x['top_nosig'])}; "
+            f"rest∩sig {fmt(x['rest_sig'])}; rest∩nosig {fmt(x['rest_nosig'])}; "
+            f"added_in_top={x['added_bp']:+.1f}bp/wk t={x['added_t']:.2f}"
         )
     L += ["", "## Regime (stock h21 short)"]
     for r in regime:
         L.append(f"- {r['signal']} {r['regime']}: n={r['n']} mean={r['mean_bp']:+.1f}bp t={r['t']:.2f}")
-    md.write_text("\n".join(L[:30]) + "\n")
+    md.write_text("\n".join(L[:40]) + "\n")
     return md
 
 
