@@ -31,6 +31,7 @@ This file is the **judgment layer** on top: what Jamie expects a good study to d
 11. **Free / local first; state the cost.** No LLM for numeric decisions; OpenJev only per its tier (`.agents/openjev/REGISTRY.md`).
 
 ## 2. Efficient backtesting pattern (budget-aware)
+0. **Screen first:** `analysis/fast_screen.py` (PLAYBOOK § 0, S157) answers "does X work, in which version, for which job" in seconds on cached daily bars; only its hits get a full study.
 1. Smoke on real quotes (LSEG/Polygon) for 4–5 names → keep every trade (JSON).
 2. Calibrate a cheap model on those real fills (e.g. real ÷ Black-Scholes by |Δ| bucket = the skew ratio) → full universe on the model, 0 vendor requests.
 3. Spend real-quote requests only to **confirm the deciding slice** (usually the holdout of the winning arm).

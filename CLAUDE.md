@@ -43,7 +43,7 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | Dev tool reference (codegraph/markitdown/madge) | .claude/skills/startup.md |
 | OpenJev miss→teach→eval | .claude/skills/openjev-train.md |
 | Grep patterns for hot files | .claude/skills/hot-files.md |
-| Backtest / "does X help trades?" | research/studies/PLAYBOOK.md |
+| Backtest / "does X help trades?" | research/studies/PLAYBOOK.md (§ 0 fast screen first) |
 | Study judgment (comparators, verdict wording, review packet) | .agents/skills/fildi-quant-research/SKILL.md |
 | Indicator / pattern study | .agents/skills/fildi-pattern-research/SKILL.md |
 | Data source choice (LSEG/WRDS/Schwab/Polygon/FRED) + budgets | .agents/skills/fildi-market-data/SKILL.md |

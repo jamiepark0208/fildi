@@ -2,6 +2,14 @@
 
 > Claude 2026-10-18, from S041–S045. Rules = `METHODS.md`; this is the hands-on how. Read `INDEX.md` first (maybe it's answered).
 
+## 0. Screen first, study second (A341, Jamie 11-06 "studies too slow")
+Any "does strategy/signal X work?" starts in the fast screen (S157) — seconds, not hours. Full study only for what it flags.
+1. Add the signal as one vectorized fn (≤ 15 lines) in `scripts/watchlist_sync/analysis/screen_signals.py` (one home; live shadow signals import it too) + a library row in `analysis/fast_screen.py`.
+2. `cd scripts/watchlist_sync && .venv/bin/python analysis/fast_screen.py self-test` then `run` (68 cells ≈ 11 s, plus the use-case grid unless `--skip-usecases`: 1,030 variants ≈ 28 s — settings grids, put-breach job, raw vs matched lenses, SPY-regime/IV/sector splits), then `puts` (same-delta short-put P&L vs peers + T-bill, 2×2 vs the live put score).
+3. Gate is built in: comparator = **same-day, same 20d-vol-decile peers** (leave-one-out); t, deflated Sharpe and PBO on **monthly excess**; placebo must give 0 survivors ≥ 19/20.
+4. Report "best version + its job" (stock entry / put timing / avoid / sizing), never a drop list. Put use found → shadow challenger in `strategy_signals.py` + chip, promotion trigger pre-registered (A341 decision block); the agent decides the score change (AGENTS 7).
+5. Needs minute bars, option marks beyond the trade pool, or Δ outside 0.08–0.20 → that's when a full study (§ 1–5) is worth it.
+
 ## 1. Start from the decision, not the stock
 Jamie earns by **selling weekly puts (and covered calls)** and sorting names into Model List folders. Grade a feature on the
 decision it feeds (METHODS 1b):
@@ -52,7 +60,7 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 7. **Dates:** check the weekday before calling a day "missed" (10-17-2026 is a Saturday).
 
 **4b. "Everything loses" is never a verdict (Jamie 11-06, said many times).** A loss is a trade for the other side. Every packet ends with:
-1. **Comparator:** universe-relative (excess vs same-window median) + random same-delta/same-week pick + T-bill. Raw P&L alone = invalid packet.
+1. **Comparator:** universe-relative (excess vs same-window median) + random same-delta/same-week pick + T-bill. Raw P&L alone = invalid packet. Random pool = **same day, vol-matched**; never "same ticker, same month" (the pool carries the drop the signal waits for → fake +300 bp on every fade, A341 11-06).
 2. **Mirror:** the opposite side on the same rows (short ↔ long, sell put ↔ buy put / avoid). Worse than random at |t| ≥ 2 = a fade signal → test it as one.
 3. **What works:** the best cell found (state × structure × side) with n, bp/week, worst week, vs comparator. If both sides ≈ random, say "X carries no information — trade the base", name the base and its number.
 4. Lead the packet with (3); "fail" lines ≤ 1.
