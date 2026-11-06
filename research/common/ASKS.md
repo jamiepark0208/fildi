@@ -156,7 +156,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A341](asks/A341.md) | 2026-11-05 | Muse → Claude → Cursor | Quant research starter pack: test engines (NautilusTrader, VectorBT), probe Databento, adopt AFML methods | planned |
 | [A342](asks/A342.md) | 2026-11-05 | Muse → Cursor | [quant] Learning loop: threshold-only proposals can never promote (no posterior branch) | planned |
 | [A343](asks/A343.md) | 2026-11-05 | Muse → Cursor | Learning loop: apply_rationale drops the premium redistribution, challenger weights don't sum to 1 | planned |
-| [A344](asks/A344.md) | 2026-11-05 | Muse → Cursor | Turning points: NaN holdout lift bypasses the 1.5 STOP gate and scores get written anyway | planned |
+| [A344](asks/A344.md) | 2026-11-05 | Muse → Cursor | Turning points: NaN holdout lift bypasses the 1.5 STOP gate and scores get written anyway | done |
 | [A345](asks/A345.md) | 2026-11-05 | Muse → Cursor | Competitors: sector-fill peers enter the ranked cohort, contradicting the taxonomy-group comment | planned |
 | [A346](asks/A346.md) | 2026-11-05 | Muse → Cursor | Explain cache: technicalHash keys only on the turning-point line's length, so different TP lines collide | planned |
 | [A347](asks/A347.md) | 2026-11-06 | Muse → Claude → Cursor | Kronos candlestick foundation model: fair validation on fildi data, adopt/drop + catalog row | planned |

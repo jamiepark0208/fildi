@@ -6,6 +6,7 @@ Scores latest session; writes watchlist_sync.turning_point_scores. Display only 
 from __future__ import annotations
 
 import json
+import math
 import pickle
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -163,6 +164,11 @@ def panel_universe(conn) -> int:
     return int(n)
 
 
+def holdout_gate_failed(lift: float) -> bool:
+    """True when holdout lift is below bar or unmeasurable (NaN / degenerate holdout)."""
+    return not math.isfinite(lift) or lift < 1.5
+
+
 def main() -> None:
     asof = next((date.fromisoformat(a.split("=")[1]) for a in sys.argv if a.startswith("--asof=")), None)
     force = "--refit" in sys.argv
@@ -176,11 +182,17 @@ def main() -> None:
     models = load_or_fit_models(p, force=force)
     lift = holdout_month_high_lift(p, models)
     if check_only:
+        if not math.isfinite(lift):
+            print("holdout month-high top-decile lift: unmeasurable (degenerate holdout)")
+            sys.exit(2)
         print(f"holdout month-high top-decile lift: {lift:.3f}")
         sys.exit(0 if lift >= 1.5 else 2)
 
-    if lift < 1.5:
-        print(f"STOP: holdout month-high top-decile lift {lift:.3f} < 1.5 (S151 bar 1.77×)")
+    if holdout_gate_failed(lift):
+        if not math.isfinite(lift):
+            print("STOP: holdout month-high top-decile lift unmeasurable (degenerate holdout) — S151 bar 1.5×")
+        else:
+            print(f"STOP: holdout month-high top-decile lift {lift:.3f} < 1.5 (S151 bar 1.77×)")
         sys.exit(2)
 
     scored = score_day(p, models, asof)
