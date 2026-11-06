@@ -1,5 +1,5 @@
 # S156 — exit menu, and the other side of the option trades
-2026-11-06 · PASS stock / FAIL options · `research/studies/scripts/s156_exit_menu.py` · `out/S156/cells.json`
+2026-11-06 · FAIL (after known-at fix) · `research/studies/scripts/s156_exit_menu.py` · `out/S156/cells.json`
 
 ## Question
 S153 says UT/ST/MSO mark swing starts, and the round trip lost because the exit was the next flip. Does another exit, or the short side of S155/S152, make money net of cost?
@@ -10,33 +10,30 @@ S155 mirror: Polygon minute prints already cached (68 priced ticker-days). No ne
 S152 mirror: `credit_vertical` in `option_pricing.py`, same strikes as the debit vertical, RH fill mid±0.54×spread, BS exit. 18,282 graded events, 2026-10-08 → 11-05, `optlab.bars_5m`.
 
 ## Method
-Entries with the signal, and the fade (brackets re-simulated; the flip exit shares the signal's exit bar). Filters: unfiltered, first hour, 5m+15m agree, SPY+QQQ agree. Agree counts only a signal whose timestamp is already ≤ the entry. S153's ± window looks 10–15m ahead and is not a tradable entry.
+Entries with the signal, and the fade (brackets re-simulated; the flip exit shares the signal's exit bar). Filters: unfiltered, first hour, 5m+15m agree, SPY+QQQ agree.
+**Known-at (A353 revise):** `indicator_events.time` is bar OPEN. 15m known = t15+900s; 5m entry known = sec+300s; require t15+900 ≤ sec+300 and ≤3 × 5m bars. Entry price = signal bar close. Unit test: 09:30 15m vs 09:35 5m → reject.
 Exits: next flip, ATR target/stop 1/1, 2/1, 3/1.5, trail 1.5 ATR, 30m, 60m, close, chandelier 3 ATR.
 Comparator: same exit on a vol-matched random bar, same ticker-day, same direction (5 draws). S155 comparator: same contracts, 5–30 min after the signal. Credit comparator: same, 8 draws.
 Pass: lift > 0, own net > 0, Holm p < 0.05, both date halves > 0, ≥ 30 ticker-days, and the same after dropping the ticker with the largest lift sum. Holm is over the 144 pre-registered cells (72 stock + 36 S155 + 36 credit). A one-trade-per-ticker-day-side book is Holmed on its own 72 cells, not inside the 144.
 
-## Result
-9/144 pass. All nine are "5m and 15m agree, trade with the signal." The exit barely matters.
+## Result (post known-at)
+**0/144 pass on the pre-registered book.** The prior 9 tf15×with passes were look-ahead: a 09:30 15m stamp (known 09:45) was wrongly pairing with 09:35 5m entries.
 
-| Cell | n | ticker-days | net % | win | worst day | lift | t | calendar t | Holm |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| chandelier 3 ATR | 4942 | 2155 | +0.26 | 50% | −0.42 | +0.28 | 10.6 | 5.6 | ~0 |
-| 60m | 4942 | 2155 | +0.23 | 58% | −0.58 | +0.27 | 11.4 | 6.7 | ~0 |
-| to close | 4942 | 2155 | +0.32 | 56% | −0.34 | +0.26 | 9.3 | 3.7 | ~0 |
-| next flip | 4942 | 2155 | +0.24 | 52% | −0.21 | +0.25 | 10.6 | 6.6 | ~0 |
-| 30m | 4942 | 2155 | +0.20 | 59% | −0.66 | +0.21 | 11.3 | 5.6 | ~0 |
+Old edge survival (tf15 × chandelier × with, main book): n 4942 → 763 (15% of trades kept); lift +0.28 → **−0.066** (none of the +0.28 lift survives; sign flips). Best remaining tf15×with cell is trail 1.5 ATR, lift +0.005, t 0.15, Holm 1.
 
-Halves for the chandelier cell +0.19 / +0.37. Dropping SECZ leaves lift +0.27. Worst single name-day on that cell is −3.8%; hold-to-close's worst name-day is −11.2%.
-One signal per ticker-day-side (n 3157): the flip is the best of the nine (net +0.17%, lift +0.20, t 7.3, calendar t 4.9, worst day −0.47%, worst name-day −5.5%). Still passes its own Holm. Chandelier does not beat the flip once duplicate signals are removed.
+Highest-lift main stock cells still fail own-net>0 (e.g. tf15×close×fade lift +0.274 but net −0.005). Unfiltered flip-with still loses (net −0.045%, lift −0.022).
+Option mirrors unchanged in substance: best powered short-against (ichimoku 60m) lift +2.0%, Holm 1, net −3.6%. Best powered credit (ST 1h 60m) lift +3.6, Holm 0.52, net −5.4%. 14 thin cells (LSH, MDE ~17 pp).
+
+Secondary first-signal book (not in the 144): 24/72 pass, mostly open×fade and tf15×fade (best tf15×close×fade net +0.043%, lift +0.30). Not a pass on the pre-registered menu.
 
 ## Verdict
-The entry filter carries the result. The flip was throwing the trade away only on unfiltered signals (net −0.045%, lift −0.022, t −3.2, Holm 0.11). With 5m and 15m already agreed, the flip itself is about +17 bp net on the first signal of that side. Open-hour and SPY+QQQ filters do not clear a positive net.
-Option mirrors do not. Best powered short-against cell (ichimoku, 60m, 52 days) lift +2.0% vs a later entry, t 1.9, Holm 1, net −3.6% after the print-range cost. Best powered credit vertical (ST, 1h, 60m, 45 days) lift +3.6, t 2.8, Holm 0.44, net −5.4% of risk. 14 cells have under 30 ticker-days (LSH slices, n_days 1–3, MDE about 17 pp). None of those are the stock rule.
+FAIL. The tradable 5m+15m agree filter does not carry a with-signal exit edge once timestamps are known-at correct. S153's `5m+15m_same_side` used `|Δi5|≤3` (same leak class) — its 3.0× lift is not a tradable claim without a known-at re-grade.
 
 ## Decision
-Nothing promoted. One 60-day window is not a score change. Re-test the 5m+15m stock rule on the next 60 sessions before it touches a live exit.
+Nothing promoted. Do not use the prior S156 "9 passes" packet.
 
 ## Caveats
-Nine passing exits are the same entries; Holm treats them as independent, so "9 passes" is one finding. Ticker-day t ignores names moving together; the calendar-day t is the number to quote (5.6 on the best stacked cell, 4.9 on the deduped flip). Worst day in the table is the average name that day, not the worst name. Spread on the option mirror is a print range, not a quote. Credit exits are Black-Scholes mids, the same limit S152 had.
+Holm on stacked exits still overstates independence if any cell had passed. Option spread = print range. Credit exits = BS mids.
 
 Re-run: `scripts/watchlist_sync/.venv/bin/python research/studies/scripts/s156_exit_menu.py`
+Unit: `cd research/studies/scripts && …/python -m unittest test_s156_exit_menu`

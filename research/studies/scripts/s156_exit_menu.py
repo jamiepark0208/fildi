@@ -6,7 +6,9 @@ exit, or the other side of the option structures, make money net of cost vs a sa
 
 Stock: Yahoo 5m via the same fetchIntradayHistory S153 uses (61 indicator_events names, ~60d).
   Entries UT/ST/MSO 5m. Filters: unfiltered, first hour ET, 5m+15m agree, SPY+QQQ agree.
-  Agree is causal (other signal timestamp <= entry). S153's ± window looks ahead and is not tradable.
+  Agree is causal on known-at times: indicator_events.time is bar OPEN, so 15m is
+  known at t15+900s and a 5m entry is known at sec+300s; require t15+900 <= sec+300.
+  S153's ± window looks ahead and is not tradable. Entry price = signal bar close.
   Exits: next flip, ATR target/stop 1/1 2/1 3/1.5, trail 1.5 ATR, 30m/60m/close, chandelier 3 ATR.
   Cost 2 bp/side. Comparator: vol-matched random bar, same ticker-day, same trade direction.
   Side `with` follows the signal. Side `fade` runs the same exit rule in the other direction
@@ -134,9 +136,15 @@ def pnl_at(entry: float, exit_px: float, direction: int) -> float:
     return direction * (exit_px / entry - 1.0) * 100.0 - COST_STOCK
 
 
+def tf15_agree(t15: int, sec: int) -> bool:
+    """15m bar open t15 known at close (+900s); 5m entry open sec known at close (+300s)."""
+    return t15 + 900 <= sec + 300
+
+
 def simulate(bars: list[dict], i: int, end: int, direction: int, atr_i: float, kind: str, flip_j: int | None) -> float | None:
     if i >= end:
         return None
+    # Entry price = signal bar close (not open).
     entry = bars[i]["c"]
     if entry <= 0 or not math.isfinite(atr_i) or atr_i <= 0:
         return None
@@ -218,6 +226,17 @@ def self_check() -> None:
     fade = simulate(bars, 20, 29, -1, 1.0, "atr_2_1", None)
     # short target = 98; bar 21 low is 100 so no target; later bars stay ~100
     assert fade is not None and fade < 0, fade
+    # Known-at: 09:30 15m stamp is known 09:45; 09:35 5m entry known 09:40 → reject.
+    t0930 = int(datetime(2026, 11, 6, 9, 30, tzinfo=NY).timestamp())
+    t0935 = int(datetime(2026, 11, 6, 9, 35, tzinfo=NY).timestamp())
+    t0940 = int(datetime(2026, 11, 6, 9, 40, tzinfo=NY).timestamp())
+    assert not tf15_agree(t0930, t0935), "09:30 15m must not qualify 09:35 5m entry"
+    assert tf15_agree(t0930, t0940), "09:30 15m may qualify once 5m known-at >= 09:45"
+    # Entry uses close: open 100 → close 105 should book +5%−cost on a flat next-bar exit path.
+    bars_px = [{"o": 100.0, "h": 106.0, "l": 99.0, "c": 105.0, "atr": 1.0}]
+    bars_px += [{"o": 105.0, "h": 105.1, "l": 104.9, "c": 105.0, "atr": 1.0} for _ in range(5)]
+    close_entry = simulate(bars_px, 0, 5, 1, 1.0, "t_30", None)
+    assert close_entry is not None and abs(close_entry - (0.0 - COST_STOCK)) < 1e-6, close_entry
     print("self-check ok", flush=True)
 
 
@@ -511,8 +530,8 @@ def build_stock(conn, smoke: bool) -> list[dict]:
         flags = ["unfiltered"]
         if 9 * 60 + 30 <= mod < 10 * 60 + 30:
             flags.append("open")
-        # 15m signal must already have fired (timestamp <= entry) and sit on this bar or the prior 3.
-        if any(t15 <= sec and 0 <= i - j <= 3 for j, t15 in tf15.get((tk, ind, kind, side, day), ())):
+        # 15m known-at (open+900) must be <= 5m entry known-at (open+300); stay within 3 × 5m bars.
+        if any(tf15_agree(t15, sec) and 0 <= i - j <= 3 for j, t15 in tf15.get((tk, ind, kind, side, day), ())):
             flags.append("tf15")
         if near(spy[side], sec) and near(qqq[side], sec):
             flags.append("mkt")
