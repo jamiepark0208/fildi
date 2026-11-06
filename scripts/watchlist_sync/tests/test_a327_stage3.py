@@ -70,9 +70,12 @@ class A327Stage3(unittest.TestCase):
         self.assertGreaterEqual(p, 0.9)
 
     def test_learn_digest_line(self):
-        line = L.append_learn_digest("unit-test digest line")
-        self.assertIn(str(date.today()), line)
-        self.assertTrue(L.LEARN_DIGEST.exists())
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(L, "LEARN_DIGEST", Path(d) / "learn-digest.txt"):
+            line = L.append_learn_digest("unit-test digest line")
+            self.assertIn(str(date.today()), line)
+            self.assertTrue(L.LEARN_DIGEST.exists())
 
 
 if __name__ == "__main__":
