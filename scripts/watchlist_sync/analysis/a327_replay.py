@@ -217,6 +217,7 @@ def run_replay(conn, *, fast: bool = False) -> dict:
     shadow: set[str] = set()
     demote_log: list[tuple] = []
     promotions: list[str] = []
+    proposal_log: list[tuple] = []
     promo_months: dict[tuple[int, int], int] = defaultdict(int)
     weight_snap: list[tuple[date, dict]] = []
     champ = copy.deepcopy(PM.SEED)
@@ -242,8 +243,12 @@ def run_replay(conn, *, fast: bool = False) -> dict:
             new_dirs = {x["param"]: L.param_direction(x) for x in why}
             confirmed = [x for x in why if pending_dirs.get(x["param"]) == L.param_direction(x)]
             pending_dirs = new_dirs
+            _p_better = None
             if confirmed:
                 ok, _p_better = L.challenger_posterior_ok(champ, NP, ev, conn=conn, as_of=w, s059_pool=s059_pool)
+            if why:
+                proposal_log.append((w.isoformat(), [f"{x['param']} {x['old']}→{x['new']}" for x in why], len(confirmed), _p_better))
+            if confirmed:
                 if ok:
                     ym = (w.year, w.month)
                     if promo_months[ym] < 1:
@@ -278,6 +283,7 @@ def run_replay(conn, *, fast: bool = False) -> dict:
 
     return {
         "weeks": len(weeks),
+        "proposal_log": proposal_log,
         "active_end": sorted(active),
         "shadow": sorted(shadow),
         "demote_log": demote_log,
@@ -326,6 +332,11 @@ def write_report(res: dict) -> None:
     lines += [
         "",
         f"Promotions: {len(res['promotions'])} (≤ 1/month target)",
+        "",
+        f"Months with a proposed move: {len(res.get('proposal_log', []))} · confirmed 2 cycles: {sum(1 for x in res.get('proposal_log', []) if x[2])} · "
+        f"max P(better) {max([x[3] for x in res.get('proposal_log', []) if x[3] is not None], default=None)}",
+        "",
+        *[f"- {d}: {'; '.join(m)} · confirmed {c} · P {p if p is None else round(p, 3)}" for d, m, c, p in res.get('proposal_log', [])[:40]],
     ]
     if res.get("promotions"):
         by_m: dict[str, list[str]] = defaultdict(list)

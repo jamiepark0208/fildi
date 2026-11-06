@@ -382,11 +382,30 @@ def challenger_posterior_from_pool(
     *,
     prior_end: date = PROMOTION_PRIOR_END,
 ) -> tuple[bool, float]:
-    champ_w = CP["premium"]
-    chal_w = NP["premium"]
-    champ = weight_posterior_state(trades, champ_w, prior_end=prior_end, as_of=as_of)
-    chal = weight_posterior_state(trades, chal_w, prior_end=prior_end, as_of=as_of)
-    prob = prob_better_than(chal, champ)
+    # Paired by week (Claude review b5ff8552): both weight sets pick from the same weekly pool, so their
+    # top quintiles overlap heavily; comparing two independent posteriors double-counts shared variance
+    # and P(better) almost never reaches 0.9. Test the mean weekly difference instead.
+    pool = [t for t in trades if t["d"] < as_of]
+    return paired_weekly_prob(pool, CP["premium"], NP["premium"])
+
+
+def paired_weekly_prob(pool: list[dict], champ_w: dict, chal_w: dict, min_weeks: int = MIN_LIVE_WEEKS) -> tuple[bool, float]:
+    def wk_means(Pw):
+        g = defaultdict(list)
+        for t in _top_quintile_trades(pool, Pw):
+            if t.get("ret") is not None:
+                g[t["week"]].append(float(t["ret"]))
+        return {w: sum(v) / len(v) for w, v in g.items()}
+    a, b = wk_means(champ_w), wk_means(chal_w)
+    d = [b[w] - a[w] for w in a.keys() & b.keys()]
+    if len(d) < min_weeks:
+        return False, 0.5
+    m = sum(d) / len(d)
+    sd = (sum((x - m) ** 2 for x in d) / (len(d) - 1)) ** 0.5
+    if sd == 0:
+        return (m > 0 and promotion_allowed(1.0)), (1.0 if m > 0 else 0.5 if m == 0 else 0.0)
+    from scipy.stats import norm
+    prob = float(norm.cdf(m / (sd / len(d) ** 0.5)))
     return promotion_allowed(prob), prob
 
 

@@ -15,6 +15,49 @@ Weeks simulated: 304 (2021-01-04 → 2026-10-27)
 
 Promotions: 0 (≤ 1/month target)
 
+Months with a proposed move: 57 · confirmed 2 cycles: 56 · max P(better) 0.5867722642099907
+
+- 2022-02-07: street.k 8.0→6.0 · confirmed 0 · P None
+- 2022-03-07: premium.w_iv_rv 0.7→0.875; street.k 8.0→6.0 · confirmed 1 · P 0.077
+- 2022-04-04: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-05-02: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-06-06: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-07-04: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-08-01: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-09-05: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-10-03: street.k 8.0→6.0 · confirmed 1 · P 0.5
+- 2022-11-07: premium.w_iv_rv 0.7→0.5858; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 1 · P 0.154
+- 2022-12-05: premium.w_iv_rv 0.7→0.5834; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.164
+- 2023-01-02: premium.w_iv_rv 0.7→0.5834; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.193
+- 2023-02-06: premium.w_iv_rv 0.7→0.5909; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.198
+- 2023-03-06: premium.w_iv_rv 0.7→0.5791; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.165
+- 2023-04-03: premium.w_iv_rv 0.7→0.5791; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.15
+- 2023-05-01: premium.w_iv_rv 0.7→0.5709; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.155
+- 2023-06-05: premium.w_iv_rv 0.7→0.5749; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.178
+- 2023-07-03: premium.w_iv_rv 0.7→0.5749; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.187
+- 2023-08-07: premium.w_iv_rv 0.7→0.6044; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.183
+- 2023-09-04: premium.w_iv_rv 0.7→0.6; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.166
+- 2023-10-02: premium.w_iv_rv 0.7→0.6; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.0 · confirmed 3 · P 0.133
+- 2023-11-06: premium.w_iv_rv 0.7→0.616; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.3777 · confirmed 3 · P 0.134
+- 2023-12-04: premium.w_iv_rv 0.7→0.5756; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.7168 · confirmed 3 · P 0.143
+- 2024-01-01: premium.w_iv_rv 0.7→0.5756; premium.w_iv_rank 0.3→0.375; street.k 8.0→6.7168 · confirmed 3 · P 0.163
+- 2024-02-05: premium.w_iv_rv 0.7→0.6112; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.7805 · confirmed 3 · P 0.171
+- 2024-03-04: premium.w_iv_rv 0.7→0.6072; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.1966 · confirmed 2 · P 0.173
+- 2024-04-01: premium.w_iv_rv 0.7→0.6072; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.1966 · confirmed 3 · P 0.178
+- 2024-05-06: premium.w_iv_rv 0.7→0.6099; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.4702 · confirmed 3 · P 0.177
+- 2024-06-03: premium.w_iv_rv 0.7→0.6099; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.4702 · confirmed 3 · P 0.181
+- 2024-07-01: premium.w_iv_rv 0.7→0.6099; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.3778 · confirmed 3 · P 0.215
+- 2024-08-05: premium.w_iv_rv 0.7→0.6148; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.1643 · confirmed 3 · P 0.273
+- 2024-09-02: premium.w_iv_rv 0.7→0.6148; premium.w_iv_rank 0.3→0.375; street.k 8.0→8.1643 · confirmed 3 · P 0.281
+- 2024-10-07: premium.w_iv_rv 0.7→0.6186; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.7654 · confirmed 2 · P 0.262
+- 2024-11-04: premium.w_iv_rv 0.7→0.6289; premium.w_iv_rank 0.3→0.3711; street.k 8.0→7.7699 · confirmed 3 · P 0.353
+- 2024-12-02: premium.w_iv_rv 0.7→0.6289; premium.w_iv_rank 0.3→0.3711; street.k 8.0→7.7699 · confirmed 3 · P 0.351
+- 2025-01-06: premium.w_iv_rv 0.7→0.6199; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.5305 · confirmed 3 · P 0.289
+- 2025-02-03: premium.w_iv_rv 0.7→0.6199; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.5305 · confirmed 3 · P 0.357
+- 2025-03-03: premium.w_iv_rv 0.7→0.6171; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.2377 · confirmed 3 · P 0.38
+- 2025-04-07: premium.w_iv_rv 0.7→0.6052; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.2953 · confirmed 3 · P 0.234
+- 2025-05-05: premium.w_iv_rv 0.7→0.5933; premium.w_iv_rank 0.3→0.375; street.k 8.0→7.4272 · confirmed 3 · P 0.231
+
 ## Per-rule posteriors @ replay end
 
 | rule | live weeks | P&L/wk bp (post) | floor bp | P(below floor) |
