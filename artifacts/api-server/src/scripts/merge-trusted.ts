@@ -62,7 +62,7 @@ export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "..
 type SFPair = [source: string, sfField: string];
 type FieldDef = { tfCol: string; priority: SFPair[] };
 
-const SEC_OWNED_TFCOLS = new Set(["sharesOutstanding", "tangibleBookValuePerShare"]);
+const SEC_OWNED_TFCOLS = new Set(["sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare"]);
 
 export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
@@ -141,7 +141,8 @@ export const FIELD_DEFS: FieldDef[] = [
   // Shares stay a reported count. Market cap / price is circular (the cap is shares × price) and is not a source.
   // 11-04: sec = latest filing cover (≤ 120 d old, class-summed, no ADRs); yahoo lagged buybacks (BAC +4.5 %, TMUS +4.5 %).
   { tfCol: "sharesOutstanding",       priority: [["sec","sharesOutstanding"], ["yahoo","sharesOutstanding"],    ["fmp","sharesOutstanding"],          ["edgar","sharesOutstanding"]] },
-  { tfCol: "sharesOutstandingPrior",  priority: [["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
+  // 11-05: sec = cover count ~1 y before the current cover (same definition → share change is real); vendors = prior-FY basic WA.
+  { tfCol: "sharesOutstandingPrior",  priority: [["sec","sharesOutstandingPrior"], ["yahoo","sharesOutstandingPrior"], ["fmp","sharesOutstandingPrior"]] },
   { tfCol: "currentRatio",            priority: [["sec","currentRatio"],         ["yahoo","currentRatio"],         ["finnhub","currentRatio"],           ["fmp","currentRatio"], ["factset","currentRatio"]] },
 
   // ── Income statement (absolute $) ─────────────────────────────────────────

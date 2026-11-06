@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -20,7 +21,7 @@ ROA_NI_CONCEPTS = (
 
 
 SHARES_MAX_AGE_D = 120   # older cover = stale (buybacks); vendor current count wins instead
-SEC_OWNED_FIELDS = ("sharesOutstanding", "tangibleBookValuePerShare", "earningsPerShare")   # deleted when not produced this run
+SEC_OWNED_FIELDS = ("sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare", "earningsPerShare")   # deleted when not produced this run
 INTANG_EX_GW = ["IntangibleAssetsNetExcludingGoodwill"]
 INTANG_PARTS = ["FiniteLivedIntangibleAssetsNet", "IndefiniteLivedIntangibleAssetsExcludingGoodwill"]
 
@@ -115,6 +116,72 @@ def _latest_bs_shares(facts: dict) -> dict | None:
         return None
     u = max(vals, key=lambda x: (x["end"], x["filed"]))
     return {"value": float(u["val"]), "concept": "CommonStockSharesOutstanding", "end": u["end"], "filed": u["filed"]}
+
+
+PRIOR_WINDOW_D = 45   # same as the L2 truth (stock-db-audit-l2 PRIOR_SHARES_WINDOW)
+
+
+def _prior_cover(facts: dict, cover: dict) -> dict | None:
+    """A329 (11-05): prior-year count on the SAME definition as `cover` (a cover/balance-sheet count ~365 d
+    earlier), so shares/prior − 1 is a real YoY change, not cover vs a vendor's basic weighted average."""
+    target = date.fromisoformat(cover["end"]) - timedelta(days=365)
+    if str(cover.get("concept", "")).startswith("dei:"):
+        dei = (facts.get("facts", {}).get("dei", {}) or {}).get("EntityCommonStockSharesOutstanding")
+        vals = (dei or {}).get("units", {}).get("shares", [])
+        concept = "dei:EntityCommonStockSharesOutstanding"
+    else:
+        vals = F._units(facts, "CommonStockSharesOutstanding", "shares")
+        concept = "CommonStockSharesOutstanding"
+    near = [u for u in vals if abs((date.fromisoformat(u["end"]) - target).days) <= PRIOR_WINDOW_D]
+    if not near:
+        return None
+    end = max(u["end"] for u in near)
+    on_end = [u for u in near if u["end"] == end]
+    filed = max(u["filed"] for u in on_end)
+    same = [u for u in on_end if u["filed"] == filed]
+    # dei: one row per class on one filing → sum; balance sheet: already the total → latest row
+    value = sum(float(u["val"]) for u in same) if concept.startswith("dei:") else float(same[-1]["val"])
+    if value <= 0:
+        return None
+    # Cover counts are never restated for splits (APH 2:1, BKNG 25:1, AMCR 1:5 → fake ±80–2200 %).
+    factor = _split_factor(facts, end, cover["end"], filed)
+    value *= factor
+    lo_hi = (0.67, 1.5) if factor == 1.0 else (0.5, 2.0)
+    if not lo_hi[0] <= cover["value"] / value <= lo_hi[1]:
+        return None   # big move with no (or an implausible) split → let the vendor prior stand
+    return {"value": value, "concept": concept, "end": end, "filed": filed, "split_factor": factor}
+
+
+def _split_factor(facts: dict, prior_end: str, cur_end: str, prior_filed: str) -> float:
+    """Split factor between prior_end and cur_end from SEC's own restatements: a later filing re-reports the
+    prior-year basic weighted average split-adjusted; restated ÷ originally-filed = the factor (1.0 = none)."""
+    node = (facts.get("facts", {}).get("us-gaap", {}) or {}).get("WeightedAverageNumberOfSharesOutstandingBasic") or {}
+    vals = [u for u in node.get("units", {}).get("shares", []) if u.get("start") and u.get("val")]
+    lo = date.fromisoformat(prior_end) - timedelta(days=200)
+    by_period: dict[tuple, list] = {}
+    for u in vals:
+        if lo <= date.fromisoformat(u["end"]) <= date.fromisoformat(cur_end):
+            by_period.setdefault((u["start"], u["end"]), []).append(u)
+    best = 1.0
+    for us in by_period.values():
+        orig = min(us, key=lambda x: x["filed"])
+        rest = max(us, key=lambda x: x["filed"])
+        if rest["filed"] <= orig["filed"] or orig["filed"] < prior_filed:   # split before the prior cover = already in it
+            continue
+        r = float(rest["val"]) / float(orig["val"])
+        if (r >= 1.4 or r <= 0.7) and _clean_ratio(r) and abs(math.log(r)) > abs(math.log(best)):
+            best = r
+    return best
+
+
+def _clean_ratio(r: float) -> bool:
+    """A split is n:m with small m (2:1, 3:2, 25:1, 1:10). Rejects ×1000 unit slips (RGEN, WAT) and
+    merger restatements (WTRG 0.696)."""
+    q = max(r, 1 / r)
+    return any(abs(q / s - 1) <= 0.015 for s in SPLIT_RATIOS)
+
+
+SPLIT_RATIOS = (1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 35, 40, 50, 100)
 
 
 def _at_shares(facts: dict, end: str) -> tuple[bool, float | None]:
@@ -249,6 +316,9 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
         cover_ok = False
     if cover_ok and F._days(cover["end"], date.today().isoformat()) <= SHARES_MAX_AGE_D:
         add("sharesOutstanding", cover["value"], cover)
+        prior = _prior_cover(facts, cover)
+        if prior:
+            add("sharesOutstandingPrior", prior["value"], prior)
 
     eq_end = (eq or {}).get("end")
     fresh_eq = bool(eq_end) and F._days(eq_end, date.today().isoformat()) <= 200
