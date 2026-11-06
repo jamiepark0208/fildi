@@ -60,3 +60,11 @@ Systems: Mac online; no shell probe available — API/scheduler unverified.
 - Mitrade / TradingKey, "Chip Stocks Rebound," Nov 6, 2026 — https://www.mitrade.com/insights/news/live-news/article-8-2237325-20261106
 - StockMarketWatch premarket movers, Nov 6, 2026 — https://stockmarketwatch.com/movers/premarket
 - Desk step: Gmail label tradedash-brief searched Nov 6 (10 items); no item qualified as material to a put-seller and not already covered elsewhere, so no Desk flagged section.
+
+## Desk flagged — update
+
+- *Tue Nov 10 after close: CRWV reports, same day as CPI — a double event; no short premium into it.*
+- *Thu Nov 12 after close: AMAT and CSCO report — semis still in earnings season; no short premium into the prints.*
+- *Fri Nov 13: October PPI — a second inflation print in the same week as CPI; keep short-dated exposure light into Friday.*
+
+Source: FactSet StreetAccount, "US Week Ahead: Nov 09-13," Nov 6, 2026 (via Gmail label tradedash-brief).
