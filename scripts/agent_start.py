@@ -132,9 +132,9 @@ def main() -> None:
                 "per-name notes are automatic")
         learn_digest = Path.home() / ".fildi" / "learn-digest.txt"
         if learn_digest.exists():
-            last = [ln for ln in learn_digest.read_text(encoding="utf-8").splitlines() if ln.strip()]
-            if last:
-                say(f"6e learning loop: {last[-1][:220]}")
+            ld_lines = [ln for ln in learn_digest.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            if ld_lines:
+                say(f"6e learning loop: {ld_lines[-1][:220]}")
         # 10-24 (Jamie): A228 sat in 'revise' 3 days with no owner action → new work duplicated it. Untouched > 3 days = stalled.
         stalled = []
         for l in open_rows:
