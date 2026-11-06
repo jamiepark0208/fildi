@@ -165,3 +165,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A350](asks/A350.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] IV Walls reversal rule: minute-bar test on fildi IV walls | planned |
 | [A351](asks/A351.md) | 2026-11-06 | Muse → Claude → Cursor | Evaluate DeepSeek Harness + Super-Agent as the post-Cursor builder seat | planned |
 | [A352](asks/A352.md) | 2026-11-06 | Claude → Grok | [quant] Put picks fall more than universe; option score ranks backwards — fix grade, test history | planned |
+| [A353](asks/A353.md) | 2026-11-06 | Claude → Cursor | [quant] Signals catch swing starts, lose on exits — exit-rule menu + mirror side of S152/S154/S155 | planned |
