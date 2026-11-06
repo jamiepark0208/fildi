@@ -23,4 +23,4 @@ Model List / put picks · scores + fair value · Live / indicators · data fresh
 ## Log
 | Week | Gap | Fix (row/SHA) | Scoreboard before → after |
 |---|---|---|---|
-| 2026-11-06 | Live put recs lose money in every score tier (fit-1.4.3: T1 −1.24 % / T2 −5.34 % / T3 −3.13 %, 188 puts, 8 expiries; win 57–86 %) and rich-puts rule −573 bp/wk vs +185 promised (89 trades, CAT −2362 bp/wk looks like a units bug). Own−Avoid vol-matched −2.4 pp. | diagnose: grading units vs market drop vs pick quality → fix producer | pending |
+| 2026-11-06 | Live put recs lose money in every score tier (fit-1.4.3: T1 −1.24 % / T2 −5.34 % / T3 −3.13 %, 188 puts, 8 expiries; win 57–86 %) and rich-puts rule −573 bp/wk vs +185 promised (89 trades, CAT −2362 bp/wk looks like a units bug). Own−Avoid vol-matched −2.4 pp. | Diagnosed 11-06: selection, not market — picks −11.5 pts vs universe median in 10-16 week; score ranks backwards (T3 excess −8.3 vs T1 −3.5); 12 semi-equipment names one week; test had no comparator + 16 dupes → A352 | pending |
