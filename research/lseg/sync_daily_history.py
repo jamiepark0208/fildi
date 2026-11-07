@@ -14,8 +14,15 @@ Usage: .venv/bin/python sync_daily_history.py [--tickers … | coverage default]
 from __future__ import annotations
 
 import argparse
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 from statistics import median
+
+_REPO = Path(__file__).resolve().parents[2]
+if str(_REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(_REPO / "scripts"))
+from fetch_guard import FetchRunRecorder  # noqa: E402
 
 from _session import add_lseg_universe_args, clean, connect_local, load_ric_map, lseg_session, resolve_lseg_universe
 from db import ensure_schema, log_pull, upsert_sync_state
@@ -32,6 +39,7 @@ UPSERT = f"""
 INSERT INTO lseg_research.daily_history (ticker, date, {", ".join(COLS)}, fetched_at)
 VALUES (%s, %s, {", ".join(["%s"] * len(COLS))}, now())
 ON CONFLICT (ticker, date) DO UPDATE SET {", ".join(f"{c} = COALESCE(EXCLUDED.{c}, daily_history.{c})" for c in COLS)}, fetched_at = now()
+WHERE ({", ".join(f"daily_history.{c}" for c in COLS)}) IS DISTINCT FROM ({", ".join(f"COALESCE(EXCLUDED.{c}, daily_history.{c})" for c in COLS)})
 """
 ACTION_DDL = """CREATE TABLE IF NOT EXISTS lseg_research.corporate_action_log (
   id bigserial PRIMARY KEY, ticker text NOT NULL, detected_at timestamptz NOT NULL DEFAULT now(),
@@ -101,6 +109,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     add_lseg_universe_args(p)
     p.add_argument("--start", default="2020-01-01")
+    p.add_argument("--backfill", action="store_true", help="First-time history for tickers with no rows (default: skip)")
     args = p.parse_args()
     tickers = resolve_lseg_universe(args)
     end = date.today().isoformat()
@@ -121,11 +130,20 @@ def main() -> None:
     ric_map = load_ric_map(tickers)
     # one date range per batch: new/forced tickers from --start; existing ones from their overlap window
     groups: dict[str, list[str]] = {}
+    skipped_new = 0
     for t in tickers:
-        s = args.start if args.force or t not in stored else (min(stored[t]) - timedelta(days=1)).isoformat()
+        if t not in stored and not args.backfill and not args.force:
+            skipped_new += 1
+            continue
+        s = args.start if args.force or t not in stored else (min(stored[t]) - timedelta(days=OVERLAP - 1)).isoformat()
         groups.setdefault(s, []).append(t)
     total, actions, no_iv = 0, [], []
+    meter = None
     with lseg_session() as ld, connect_local() as conn:
+        meter = FetchRunRecorder(conn, source="lseg", job="sync_daily_history",
+                                 meta={"backfill": bool(args.backfill or args.force), "skipped_new": skipped_new})
+        meter.keys_planned = len(tickers)
+        meter.keys_skipped = skipped_new
         try:
             for start, ts in sorted(groups.items()):
                 for i in range(0, len(ts), BATCH):
@@ -187,8 +205,13 @@ def main() -> None:
             raise
         upsert_sync_state(conn, dataset=DATASET, watermark=end, rows=total, tickers=tickers)
         log_pull(conn, dataset=DATASET, status="ok", tickers=tickers, rows=total, watermark_from=args.start)
+        if meter:
+            meter.rows_changed = total
+            meter.keys_fetched = len(tickers) - skipped_new
+            meter.finish(mode="backfill" if args.backfill or args.force else "tail")
         conn.commit()
     print(f"{DATASET}: {total} rows upserted · {len(tickers)} tickers in {sum((len(v) + BATCH - 1) // BATCH for v in groups.values())} batches · "
+          f"skipped_new={skipped_new} · "
           f"corporate actions: {[(t, round(r, 4)) for t, r, _ in actions] or 'none'} · new names without IV: {no_iv[:20]}")
 
 

@@ -10,8 +10,14 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 import pandas as pd
+
+_REPO = Path(__file__).resolve().parents[2]
+if str(_REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(_REPO / "scripts"))
+from fetch_guard import FetchRunRecorder  # noqa: E402
 
 from _auth import connect
 from db import (
@@ -115,6 +121,11 @@ def _upsert_statsum_df(local, df: pd.DataFrame, tickers: list[str], start: str, 
           numest = EXCLUDED.numest, numup = EXCLUDED.numup, numdown = EXCLUDED.numdown,
           medest = EXCLUDED.medest, meanest = EXCLUDED.meanest, stdev = EXCLUDED.stdev,
           highest = EXCLUDED.highest, lowest = EXCLUDED.lowest, fetched_at = now()
+        WHERE (wrds_research.ibes_statsum.numest, wrds_research.ibes_statsum.numup, wrds_research.ibes_statsum.numdown,
+               wrds_research.ibes_statsum.medest, wrds_research.ibes_statsum.meanest, wrds_research.ibes_statsum.stdev,
+               wrds_research.ibes_statsum.highest, wrds_research.ibes_statsum.lowest)
+          IS DISTINCT FROM (EXCLUDED.numest, EXCLUDED.numup, EXCLUDED.numdown, EXCLUDED.medest, EXCLUDED.meanest,
+                            EXCLUDED.stdev, EXCLUDED.highest, EXCLUDED.lowest)
     """
     return execute_values(local, sql, rows)
 
@@ -369,6 +380,12 @@ def main() -> int:
         return 1
     finally:
         db.close()
+    with connect_local() as local:
+        rec = FetchRunRecorder(local, source="wrds", job="sync_ibes")
+        rec.rows_changed = n1 + n2
+        rec.keys_fetched = len(tickers)
+        rec.finish(mode="tail" if not args.force else "backfill")
+        local.commit()
     print(f"done statsum={n1} surpsum={n2}")
     return 0
 

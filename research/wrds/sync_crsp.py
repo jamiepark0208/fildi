@@ -9,8 +9,14 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pandas as pd
+
+_REPO = Path(__file__).resolve().parents[2]
+if str(_REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(_REPO / "scripts"))
+from fetch_guard import FetchRunRecorder  # noqa: E402
 
 from _auth import connect
 from db import (
@@ -138,6 +144,11 @@ def main() -> int:
                   ticker = EXCLUDED.ticker, prc = EXCLUDED.prc, ret = EXCLUDED.ret,
                   retx = EXCLUDED.retx, vol = EXCLUDED.vol, shrout = EXCLUDED.shrout, openprc = EXCLUDED.openprc,
                   fetched_at = now()
+                WHERE (wrds_research.crsp_dsf.ticker, wrds_research.crsp_dsf.prc, wrds_research.crsp_dsf.ret,
+                       wrds_research.crsp_dsf.retx, wrds_research.crsp_dsf.vol, wrds_research.crsp_dsf.shrout,
+                       wrds_research.crsp_dsf.openprc)
+                  IS DISTINCT FROM (EXCLUDED.ticker, EXCLUDED.prc, EXCLUDED.ret, EXCLUDED.retx, EXCLUDED.vol,
+                                    EXCLUDED.shrout, EXCLUDED.openprc)
             """
             n = execute_values(local, sql, rows)
             upsert_sync_state(
@@ -148,6 +159,10 @@ def main() -> int:
                 local, dataset=DATASET, status="ok", tickers=tickers, rows=n,
                 watermark_from=start, watermark_to=max_date,
             )
+            rec = FetchRunRecorder(local, source="wrds", job="sync_crsp_dsf")
+            rec.rows_changed = n
+            rec.keys_fetched = len(tickers)
+            rec.finish(mode="skip" if n == 0 else ("backfill" if args.force else "tail"))
             local.commit()
             print(f"  upserted {n} → watermark {max_date}")
     except Exception as e:
