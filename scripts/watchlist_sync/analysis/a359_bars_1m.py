@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from calendar import monthrange
@@ -132,13 +133,21 @@ def backfill_ticker(conn, ticker: str, d0: date, d1: date, state: dict) -> int:
         ck = (a.isoformat(), b.isoformat())
         if ck in done:
             continue
-        _, df, _ = fetch_month(conn, key, a, b)
+        status, df, _ = fetch_month(conn, key, a, b)
+        if status != 200:
+            # Never mark a failed month done (11-07: quota 429 would have skipped months for good).
+            raise RuntimeError(f"{key} {a}..{b}: HTTP {status} — stop; resume after quota reset")
         if not df.empty:
             n_rows += len(df)
             append_parquet(key, df)
         done.add(ck)
         state.setdefault(key, {"chunks": []})["chunks"].append(list(ck))
-        STATE_PATH.write_text(json.dumps(state, indent=2))
+        # Merge on write: parallel workers on disjoint tickers share this file (Claude 11-07).
+        disk = json.loads(STATE_PATH.read_text()) if STATE_PATH.is_file() else {}
+        disk[key] = state[key]
+        tmp = STATE_PATH.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(disk, indent=2))
+        tmp.replace(STATE_PATH)
         time.sleep(1.05)
     return n_rows
 

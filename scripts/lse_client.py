@@ -130,6 +130,10 @@ def _request(conn, url: str, *, endpoint: str, vkey: str) -> tuple[int, bytes, d
         meter(conn, 1)
         hdrs = dict(e.headers.items()) if e.headers else {}
         if e.code == 429:
+            body429 = e.read()
+            if b"rows-exhausted" in body429:
+                # Daily row quota (12.5M/day) — retrying sleeps for hours; fail fast (Claude 11-07).
+                return 429, body429, hdrs
             wait = float(hdrs.get("Retry-After", "60"))
             for attempt in range(5):
                 time.sleep(max(5, wait * (attempt + 1)))
@@ -146,6 +150,30 @@ def _request(conn, url: str, *, endpoint: str, vkey: str) -> tuple[int, bytes, d
                     wait = float((e2.headers or {}).get("Retry-After", wait))
             return 429, b"rate limited", hdrs
         return e.code, e.read(), hdrs
+
+
+_PAIR_MEM: dict[str, dict] | None = None
+
+
+def warm_pair_cache(conn) -> int:
+    """One read of cached /v3/pairs rows. The per-key lookup is a full table probe and too slow at 6k keys."""
+    global _PAIR_MEM
+    if _PAIR_MEM is not None:
+        return len(_PAIR_MEM)
+    mem: dict[str, dict] = {}
+    for key, pl in conn.execute(
+        """SELECT DISTINCT ON (key) key, payload FROM vendor_raw
+           WHERE source = 'lse' AND endpoint = 'pairs'
+           ORDER BY key, fetched_on DESC"""
+    ).fetchall():
+        if isinstance(pl, str):
+            pl = json.loads(pl)
+        elif pl is not None and not isinstance(pl, dict):
+            pl = dict(pl)
+        if isinstance(pl, dict):
+            mem[str(key)] = pl
+    _PAIR_MEM = mem
+    return len(mem)
 
 
 def _vendor_json_cached(conn, endpoint: str, key: str) -> dict[str, Any] | None:
@@ -168,6 +196,8 @@ def _vendor_json_cached(conn, endpoint: str, key: str) -> dict[str, Any] | None:
 def get_json(conn, path: str, *, cache_key: str | None = None) -> dict[str, Any]:
     ep = path.split("?")[0]
     key = cache_key or path
+    if ep == "pairs" and _PAIR_MEM is not None and key in _PAIR_MEM:
+        return {"http_status": 200, **_PAIR_MEM[key]}
     cached = _vendor_json_cached(conn, ep, key)
     if cached is not None:
         return {"http_status": 200, **cached}
