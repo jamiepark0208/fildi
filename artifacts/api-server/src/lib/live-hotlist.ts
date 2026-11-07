@@ -178,11 +178,15 @@ export class LiveHotlistManager extends EventEmitter {
   // /live/state and /live/entry-signals both auto-trigger a refresh when
   // lastRefreshedAt is null (post-restart); without this guard concurrent
   // requests race into duplicate scans (see 2026-07-28 "tickers: 0" incident).
-  async refresh(): Promise<void> {
+  // Not `async`: an async wrapper would hand callers a fresh, unhandled promise (A251).
+  refresh(): Promise<void> {
     if (this.inFlightRefresh) return this.inFlightRefresh;
     this.inFlightRefresh = this.doRefresh().finally(() => {
       this.inFlightRefresh = null;
     });
+    // A251: routes fire-and-forget this (`void refresh()`); an unhandled rejection shuts the API down.
+    // Mark it handled here; awaiting callers still receive the rejection.
+    this.inFlightRefresh.catch(err => logger.warn({ err }, "live-hotlist: refresh failed"));
     return this.inFlightRefresh;
   }
 
