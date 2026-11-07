@@ -741,7 +741,7 @@ def tail_stats_coll(trades: list[dict]) -> dict[str, Any]:
     for t in trades:
         sess = t.get("session", "")[:4]
         if sess.isdigit():
-            by_y[sess].append(float(t["pnl_coll_frac"]))
+            by_y[sess].append(float(t.get("pnl_coll_frac_mid", t["pnl_coll_frac"])))
     per_year = {y: float(np.mean(v)) for y, v in sorted(by_y.items())}
     return {
         "worst5_mean_mid": w5m, "worst5_mean_cross": w5c,
@@ -1002,7 +1002,7 @@ def _frontier_row(
         "n_eff": stats.get("n_eff"),
         "win": stats.get("win"),
         "gross_pnl_coll": stats.get("mean_pnl_coll_gross"),
-        "net_mid_pnl_coll": stats.get("mean_pnl_coll"),
+        "net_mid_pnl_coll": stats.get("mean_pnl_coll_mid"),
         "net_cross_pnl_coll": stats.get("mean_pnl_coll_cross"),
         "lift": lift,
         "base_n": base_n,
@@ -1077,14 +1077,14 @@ def write_report(payload: dict[str, Any], tag: str) -> Path:
 
 def format_survivor_tail_table(rows: list[dict[str, Any]]) -> str:
     lines = [
-        "window | rsi | role | n | win | net_mid | w5_mid | cvar1_mid | maxL_mid | net_cross | w5_cross | lift",
-        "---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:",
+        "window | rsi | role | n | N_eff | win | net_mid | w5_mid | cvar1_mid | maxL_mid | net_cross | w5_cross | lift",
+        "---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:",
     ]
     for r in rows:
         lift = r.get("lift")
         lift_v = float(lift) if lift is not None and lift == lift else float("nan")
         lines.append(
-            f"{r['window']} | {r['rsi_lt']:.0f} | {r['role']} | {r['n']} | {r.get('win', float('nan')):.1%} | "
+            f"{r['window']} | {r['rsi_lt']:.0f} | {r['role']} | {r['n']} | {r.get('n_eff') or 0:.0f} | {r.get('win', float('nan')):.1%} | "
             f"{r.get('net_mid_pnl_coll', float('nan')):.4%} | {r.get('worst5_mean_mid', float('nan')):.4%} | "
             f"{r.get('cvar1_mid', float('nan')):.4%} | {r.get('max_loss_mid', float('nan')):.4%} | "
             f"{r.get('net_cross_pnl_coll', float('nan')):.4%} | {r.get('worst5_mean_cross', float('nan')):.4%} | "
