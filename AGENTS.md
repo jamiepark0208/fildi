@@ -10,6 +10,8 @@
 6. **[`.agents/context/recurring-bugs.md`](.agents/context/recurring-bugs.md)** — bug classes that keep coming back (stand-in 0s, two pickers, ticker joins, step order, units). Read before any fix to recs/scores/surfaces; fix the producer, add the case to its row.
 7. **Stock notes (Jamie 10-28)** — per-ticker dated facts that took analysis to learn (trades, earnings reactions, levels, backtests, character). **Before** analysing or recommending a ticker: `scripts/stock_notes.py show <T…>`. **After**: add ≤ 2 notes, one fact each, ≤ 280 chars, `--src` study/bug id, `--author <you>` (`stock_notes.py add T <trade|earnings|levels|backtest|character|lesson> "…"`). Notes are history, never a forecast. Shown in Breakdown › Notes and fed to the AI explain prompts.
 
+**Jamie's verify path (A381, 3 surfaces only):** BOARD / Strategies (what works, live vs claim per A380) · Ideas tab (the queue) · this file. Anything else is agent detail.
+
 ## Skills
 `.claude/skills/<name>.md` — load **one** at a time (see CLAUDE.md / CURSOR.md tables).
 **Shared financial skills (every agent, Jamie 10-20):** `.agents/skills/fildi-quant-research` (studies, backtests, scenarios — the judgment rules) · `fildi-market-data` (sources, budgets) · `fildi-market-thesis` (test a market view: claim tree, analogs, money flows, scenarios, scored) · `fildi-grade-quality` (is a score/rec working) · `fildi-pattern-research` (indicators as context: forward turning-point labels, lift tiers, confluence + combined model — Jamie 10-29) · `fildi-briefs-dig` (Jamie's tradedash-brief emails → typed facts → verify vs our data → so-what → graded claims; plan `research/common/briefs-dig-plan-2026-10-30.md` — Jamie 10-30). Study reviews: `research/studies/REVIEW.md`.

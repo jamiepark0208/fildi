@@ -47,5 +47,5 @@ rejects almost any context signal by construction. This skill replaces it for in
 - Add a feature = add a column in `features()` + its name in `FEATS`. Cite the source (TradingView script, paper).
 
 ## 6. Keep from fildi-quant-research
-Holdout once, both halves, no look-ahead in features, numbers reproduce from the script, INDEX row after. The adoption bar
+Holdout once, both halves ([study contract](../../dispatch/_study-contract.md) §3–5), no look-ahead in features, numbers reproduce from the script, INDEX row after. The adoption bar
 there still applies to **changing what the Model List / put engine picks** — not to whether a pattern is shown as context.

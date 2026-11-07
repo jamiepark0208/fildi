@@ -30,7 +30,7 @@
 
 ## Data
 10. **Survivorship:** our ticker list is today's survivors. Bias ≈ 0 at ≥ $3 / ≥ $300M, ~+0.1 pt/mo in high-vol small caps (S010).
-11. **Fills:** Robinhood realistic fill = bid + ~23% of the spread (10–36%); Fildi chain premium = bid. Backtests use BS at IV × 0.85 fill. S012.
+11. **Fills:** verdict fills = [study contract](../../.agents/dispatch/_study-contract.md) §1 (RH fill range 10–36 % of spread, S012). Fildi chain premium = bid. Old BS-at-IV×0.85 backtests = context only.
 12. **Reconstructed options** (BS at LSEG ATM IV, no skew) are not chain history; contract-level parts (buffer, DTE, liquidity) need
     `option_chain_history` (accruing since 2026-10-06) or the live ledger.
 13. Point-in-time only: fundamentals before filing dates and percentile inputs over a growing bar window both leak (S004 #7).
