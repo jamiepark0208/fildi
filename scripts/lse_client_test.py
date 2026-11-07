@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lse_client import occ_symbol, parse_export_rows
+from lse_client import occ_symbol, parse_export_rows, snap_put_strike
 
 
 class TestOcc(unittest.TestCase):
@@ -41,16 +41,29 @@ class TestCsv(unittest.TestCase):
         self.assertAlmostEqual(rows[0]["close"], 0.08)
 
 
+class TestSnap(unittest.TestCase):
+    def test_nearest_at_or_below(self) -> None:
+        listed = [90.0, 95.0, 100.0, 105.0, 110.0]
+        self.assertAlmostEqual(snap_put_strike(102.3, listed), 100.0)
+        self.assertAlmostEqual(snap_put_strike(100.0, listed), 100.0)
+
+    def test_too_far_below(self) -> None:
+        listed = [90.0, 95.0, 100.0]
+        self.assertIsNone(snap_put_strike(131.425, listed))
+
+    def test_no_strike_below_model(self) -> None:
+        self.assertIsNone(snap_put_strike(50.0, [55.0, 60.0]))
+
+
 class TestResume(unittest.TestCase):
     def test_should_skip_logic(self) -> None:
         sys.path.insert(0, str(Path(__file__).resolve().parent / "watchlist_sync"))
         sys.path.insert(0, str(Path(__file__).resolve().parent / "watchlist_sync" / "analysis"))
-        from a357_lse_option_backfill import should_skip_occ, skip_occ
+        from a357_lse_option_backfill import skip_occ
 
         self.assertTrue(skip_occ({"X"}, set(), "X"))
         self.assertTrue(skip_occ(set(), {"Y"}, "Y"))
-        self.assertTrue(should_skip_occ(set(), True))
-        self.assertFalse(should_skip_occ(set(), False))
+        self.assertFalse(skip_occ(set(), set(), "Z"))
 
 
 if __name__ == "__main__":

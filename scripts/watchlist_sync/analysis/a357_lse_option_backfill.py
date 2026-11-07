@@ -2,7 +2,7 @@
 """A357 step 3 — LSE traded daily bars for A352/S059 put contracts + model_recs puts.
 
   .venv/bin/python analysis/a357_lse_option_backfill.py --dry-run
-  .venv/bin/python analysis/a357_lse_option_backfill.py --limit 20 --smoke-validate
+  .venv/bin/python analysis/a357_lse_option_backfill.py --limit 20 --s059-only
   .venv/bin/python analysis/a357_lse_option_backfill.py   # full resumable run
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ sys.path.insert(0, str(SYNC))
 import s045_put_retest as S045  # noqa: E402
 import s059_option_factors as S59  # noqa: E402
 from build_plan import connect  # noqa: E402
-from lse_client import export_options_csv, occ_symbol, parse_export_rows  # noqa: E402
+from lse_client import export_options_csv, list_put_strikes, occ_symbol, parse_export_rows, snap_put_strike  # noqa: E402
 
 ENTRY_CUT = date(2025, 10, 15)
 CHAIN_OVERLAP = date(2026, 10, 8)  # option_chain_history.as_of min
@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS lse_option_daily (
   ticker text NOT NULL,
   side text NOT NULL,
   strike numeric NOT NULL,
+  model_strike numeric,
   expiry date NOT NULL,
   date date NOT NULL,
   open numeric,
@@ -48,6 +49,8 @@ CREATE TABLE IF NOT EXISTS lse_option_daily (
 CREATE TABLE IF NOT EXISTS lse_option_fetch_log (
   occ text PRIMARY KEY,
   status text NOT NULL,
+  model_strike numeric,
+  strike numeric,
   fetched_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_lse_option_daily_ticker ON lse_option_daily (ticker, date);
@@ -62,11 +65,18 @@ class Contract:
     strike: float
     expiry: date
     entry: date
+    model_strike: float | None = None
+    source: str = "s059"
 
 
 def ensure_tables(conn) -> None:
     for stmt in [s.strip() for s in DDL.split(";") if s.strip()]:
         conn.execute(stmt)
+    conn.commit()
+    for col, tbl in (("model_strike", "lse_option_daily"), ("model_strike", "lse_option_fetch_log"), ("strike", "lse_option_fetch_log")):
+        conn.execute(
+            f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} numeric"
+        )
     conn.commit()
 
 
@@ -87,23 +97,93 @@ def strike_for_event(conn, e: dict) -> float | None:
     return spot * math.exp(-S045.Z * iv * math.sqrt(tt))
 
 
-def collect_s059_puts(conn) -> dict[str, Contract]:
+def _pairs_cache(conn, cache: dict[tuple[str, date], list[float]], ticker: str, expiry: date) -> list[float]:
+    key = (ticker.upper(), expiry)
+    if key not in cache:
+        cache[key] = list_put_strikes(conn, ticker, expiry)
+    return cache[key]
+
+
+def _log_fetch(conn, occ: str, status: str, *, model_strike: float | None, strike: float | None) -> None:
+    conn.execute(
+        """INSERT INTO lse_option_fetch_log (occ, status, model_strike, strike)
+           VALUES (%s, %s, %s, %s)
+           ON CONFLICT (occ) DO UPDATE SET status = EXCLUDED.status,
+             model_strike = EXCLUDED.model_strike, strike = EXCLUDED.strike, fetched_at = now()""",
+        (occ, status, model_strike, strike),
+    )
+    conn.commit()
+
+
+def _s059_contract(conn, e: dict, pairs_cache: dict[tuple[str, date], list[float]]) -> Contract | None:
+    model = strike_for_event(conn, e)
+    if model is None or model <= 0:
+        return None
+    key = (e["t"].upper(), e["expiry"])
+    if key not in pairs_cache:
+        pairs_cache[key] = list_put_strikes(conn, e["t"], e["expiry"])
+    listed = pairs_cache[key]
+    snapped = snap_put_strike(model, listed)
+    if snapped is None:
+        bad_occ = occ_symbol(e["t"], e["expiry"], model, "put")
+        _log_fetch(conn, bad_occ, "no_listed_strike", model_strike=model, strike=None)
+        return None
+    occ = occ_symbol(e["t"], e["expiry"], snapped, "put")
+    return Contract(
+        occ=occ,
+        ticker=e["t"],
+        side="put",
+        strike=snapped,
+        expiry=e["expiry"],
+        entry=e["d"],
+        model_strike=model,
+        source="s059",
+    )
+
+
+def collect_s059_puts(conn, *, pair_progress: bool = True) -> dict[str, Contract]:
     out: dict[str, Contract] = {}
-    for e in S59.aligned_events(conn):
-        if e["d"] < ENTRY_CUT:
+    pairs_cache: dict[tuple[str, date], list[float]] = {}
+    events = [e for e in S59.aligned_events(conn) if e["d"] >= ENTRY_CUT]
+    keys_n = len({(e["t"], e["expiry"]) for e in events})
+    fetched = 0
+    for i, e in enumerate(events):
+        key = (e["t"].upper(), e["expiry"])
+        if key not in pairs_cache:
+            pairs_cache[key] = list_put_strikes(conn, e["t"], e["expiry"])
+            fetched += 1
+            if pair_progress and fetched % 25 == 0:
+                print(f"pairs cache {fetched}/{keys_n} unique (ticker, expiry)", flush=True)
+        c = _s059_contract(conn, e, pairs_cache)
+        if c:
+            out[c.occ] = c
+    return out
+
+
+def collect_s059_sample(conn, limit: int) -> list[Contract]:
+    """Fetch pairs lazily until `limit` snapped S059 contracts (smoke path)."""
+    pairs_cache: dict[tuple[str, date], list[float]] = {}
+    out: list[Contract] = []
+    events = sorted(
+        (e for e in S59.aligned_events(conn) if e["d"] >= ENTRY_CUT),
+        key=lambda e: (e["d"], e["t"]),
+        reverse=True,
+    )
+    for e in events:
+        key = (e["t"].upper(), e["expiry"])
+        if key not in pairs_cache:
+            pairs_cache[key] = list_put_strikes(conn, e["t"], e["expiry"])
+        c = _s059_contract(conn, e, pairs_cache)
+        if not c:
             continue
-        strike = strike_for_event(conn, e)
-        if strike is None or strike <= 0:
+        if any(x.occ == c.occ for x in out):
             continue
-        occ = occ_symbol(e["t"], e["expiry"], strike, "put")
-        out[occ] = Contract(
-            occ=occ,
-            ticker=e["t"],
-            side="put",
-            strike=strike,
-            expiry=e["expiry"],
-            entry=e["d"],
-        )
+        fetch_log, done = load_skip_sets(conn)
+        if skip_occ(fetch_log, done, c.occ):
+            continue
+        out.append(c)
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -122,6 +202,8 @@ def collect_model_puts(conn) -> dict[str, Contract]:
             strike=strike_f,
             expiry=expiry,
             entry=snap,
+            model_strike=None,
+            source="model_recs",
         )
     return out
 
@@ -134,15 +216,12 @@ def collect_contracts(conn) -> list[Contract]:
 def load_skip_sets(conn) -> tuple[set[str], set[str]]:
     logged = {
         r[0]
-        for r in conn.execute("SELECT occ FROM lse_option_fetch_log WHERE status = 'no_data'").fetchall()
+        for r in conn.execute(
+            "SELECT occ FROM lse_option_fetch_log WHERE status IN ('no_data', 'no_listed_strike')"
+        ).fetchall()
     }
     done = {r[0] for r in conn.execute("SELECT DISTINCT occ FROM lse_option_daily").fetchall()}
     return logged, done
-
-
-def should_skip_occ(fetch_log: set[str], has_daily: bool) -> bool:
-    """Skip when logged no-data (fetch_log) or daily bars already stored."""
-    return has_daily
 
 
 def skip_occ(fetch_log: set[str], done: set[str], occ: str) -> bool:
@@ -153,16 +232,18 @@ def persist_rows(conn, c: Contract, rows: list[dict]) -> int:
     n = 0
     for r in rows:
         conn.execute(
-            """INSERT INTO lse_option_daily (occ, ticker, side, strike, expiry, date, open, high, low, close, volume)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """INSERT INTO lse_option_daily (occ, ticker, side, strike, model_strike, expiry, date, open, high, low, close, volume)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                ON CONFLICT (occ, date) DO UPDATE SET
                  open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
-                 close = EXCLUDED.close, volume = EXCLUDED.volume, fetched_at = now()""",
+                 close = EXCLUDED.close, volume = EXCLUDED.volume,
+                 model_strike = EXCLUDED.model_strike, fetched_at = now()""",
             (
                 c.occ,
                 c.ticker,
                 c.side,
                 c.strike,
+                c.model_strike,
                 c.expiry,
                 r["date"],
                 r.get("open"),
@@ -181,19 +262,11 @@ def fetch_one(conn, c: Contract) -> str:
     d0 = c.entry - timedelta(days=3)
     status, body = export_options_csv(conn, c.occ, date_from=d0, date_to=c.expiry)
     if status == 404 or "data-unavailable" in body.lower() or "not found" in body.lower():
-        conn.execute(
-            "INSERT INTO lse_option_fetch_log (occ, status) VALUES (%s, %s) ON CONFLICT (occ) DO NOTHING",
-            (c.occ, "no_data"),
-        )
-        conn.commit()
+        _log_fetch(conn, c.occ, "no_data", model_strike=c.model_strike, strike=c.strike)
         return "no_data"
     head = body.lstrip()[:40].lower()
     if status != 200 or '"time"' not in head:
-        conn.execute(
-            "INSERT INTO lse_option_fetch_log (occ, status) VALUES (%s, %s) ON CONFLICT (occ) DO UPDATE SET status = EXCLUDED.status, fetched_at = now()",
-            (c.occ, f"http_{status}"),
-        )
-        conn.commit()
+        _log_fetch(conn, c.occ, f"http_{status}", model_strike=c.model_strike, strike=c.strike)
         return f"http_{status}"
     rows = parse_export_rows(body)
     persist_rows(conn, c, rows)
@@ -249,39 +322,56 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--smoke-validate", action="store_true")
+    ap.add_argument("--s059-only", action="store_true", help="Only S059 contracts (for strike-snap smoke)")
+    ap.add_argument("--min-ok", type=int, default=0, help="Exit 1 if fewer than N ok_* in this run")
     args = ap.parse_args()
 
     with connect() as conn:
         ensure_tables(conn)
-        contracts = collect_contracts(conn)
-        print(f"A357 backfill · {len(contracts)} unique OCC contracts (s059≥{ENTRY_CUT} ∪ model_recs puts)", flush=True)
+        smoke_sample = args.s059_only and args.limit and not args.dry_run
+        if smoke_sample:
+            todo = collect_s059_sample(conn, args.limit)
+            contracts = todo
+            print(f"A357 smoke · {len(todo)} S059 contracts (lazy pairs)", flush=True)
+        else:
+            contracts = collect_contracts(conn)
+            n_s059 = sum(1 for c in contracts if c.source == "s059")
+            print(
+                f"A357 backfill · {len(contracts)} unique OCC ({n_s059} S059≥{ENTRY_CUT} + model_recs puts)",
+                flush=True,
+            )
         if args.dry_run:
             return
 
         fetch_log, done = load_skip_sets(conn)
-        todo = [c for c in contracts if not skip_occ(fetch_log, done, c.occ)]
+        if not smoke_sample:
+            todo = [c for c in contracts if not skip_occ(fetch_log, done, c.occ)]
+            if args.s059_only:
+                todo = [c for c in todo if c.source == "s059"]
+        else:
+            todo = [c for c in contracts if not skip_occ(fetch_log, done, c.occ)]
         todo.sort(key=lambda c: (c.entry, c.ticker), reverse=True)
         if args.smoke_validate:
             todo = [c for c in todo if c.entry >= CHAIN_OVERLAP]
         if args.smoke_validate and args.limit == 0:
-            todo = []  # validate-only: no new exports
+            todo = []
         elif args.limit:
             todo = todo[: args.limit]
         print(f"pending {len(todo)} (skipped {len(contracts) - len(todo)} resumable)", flush=True)
 
-        if args.smoke_validate and args.limit == 0 and not todo:
-            todo = []
-
-        if not todo and not args.smoke_validate:
-            return
-
+        ok_count = 0
         if todo:
             for i, c in enumerate(todo, 1):
                 st = fetch_one(conn, c)
+                if st.startswith("ok_"):
+                    ok_count += 1
                 if i % 25 == 0 or args.limit:
                     print(f"  [{i}/{len(todo)}] {c.ticker} {c.occ[-20:]} → {st}", flush=True)
 
-        if args.smoke_validate:
+        if args.min_ok and ok_count < args.min_ok:
+            raise SystemExit(f"smoke failed: {ok_count} ok (need ≥ {args.min_ok})")
+
+        if args.smoke_validate and todo:
             refreshed = {
                 r[0]
                 for r in conn.execute(

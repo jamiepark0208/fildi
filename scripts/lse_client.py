@@ -141,10 +141,31 @@ def _request(conn, url: str, *, endpoint: str, vkey: str) -> tuple[int, bytes, d
         return e.code, e.read(), hdrs
 
 
+def _vendor_json_cached(conn, endpoint: str, key: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        """SELECT payload FROM vendor_raw
+           WHERE source = 'lse' AND endpoint = %s AND key = %s
+           ORDER BY fetched_on DESC LIMIT 1""",
+        (endpoint, key),
+    ).fetchone()
+    if not row:
+        return None
+    pl = row[0]
+    if isinstance(pl, dict):
+        return pl
+    if isinstance(pl, str):
+        return json.loads(pl)
+    return dict(pl) if pl else None
+
+
 def get_json(conn, path: str, *, cache_key: str | None = None) -> dict[str, Any]:
-    url = f"{BASE}/{path.lstrip('/')}"
+    ep = path.split("?")[0]
     key = cache_key or path
-    status, body, _ = _request(conn, url, endpoint=path.split("?")[0], vkey=key)
+    cached = _vendor_json_cached(conn, ep, key)
+    if cached is not None:
+        return {"http_status": 200, **cached}
+    url = f"{BASE}/{path.lstrip('/')}"
+    status, body, _ = _request(conn, url, endpoint=ep, vkey=key)
     try:
         data = json.loads(body.decode())
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -152,6 +173,48 @@ def get_json(conn, path: str, *, cache_key: str | None = None) -> dict[str, Any]
     if status == 200:
         _save_vendor_json(conn, path.split("?")[0], key, data)
     return {"http_status": status, **data}
+
+
+def list_put_strikes(conn, ticker: str, expiry: date) -> list[float]:
+    """Listed put strikes for (underlying, expiry) via /v3/pairs (cached in vendor_raw)."""
+    q = urllib.parse.urlencode(
+        {
+            "market": "us_options",
+            "underlying": ticker,
+            "expiry": expiry.isoformat(),
+            "option_type": "put",
+            "limit": "10000",
+        }
+    )
+    cache_key = f"pairs|{ticker.upper()}|{expiry.isoformat()}|put"
+    data = get_json(conn, f"pairs?{q}", cache_key=cache_key)
+    if data.get("http_status") != 200:
+        return []
+    strikes: list[float] = []
+    for p in data.get("pairs") or []:
+        if str(p.get("expiry", ""))[:10] != expiry.isoformat():
+            continue
+        sk = p.get("strike_price", p.get("strike"))
+        if sk is None:
+            continue
+        try:
+            strikes.append(float(sk))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(strikes))
+
+
+def snap_put_strike(model_strike: float, listed: list[float], *, max_gap_frac: float = 0.05) -> float | None:
+    """Nearest listed strike at or below model_strike; None if gap > max_gap_frac."""
+    if model_strike <= 0 or not listed:
+        return None
+    at_or_below = [s for s in listed if s <= model_strike + 1e-6]
+    if not at_or_below:
+        return None
+    snapped = max(at_or_below)
+    if (model_strike - snapped) / model_strike > max_gap_frac:
+        return None
+    return snapped
 
 
 def export_options_csv(
