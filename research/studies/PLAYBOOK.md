@@ -1,4 +1,5 @@
 # Backtest playbook — how to answer "does X help Jamie's trades?" (all agents)
+> **Non-negotiable checks = `.agents/dispatch/_study-contract.md` (R1–R7, recurring-bugs.md § Study classes; Jamie 11-07).** It is auto-appended to quant dispatches; this file must not restate or contradict it — on conflict the contract wins.
 
 > Claude 2026-10-18, from S041–S045. Rules = `METHODS.md`; this is the hands-on how. Read `INDEX.md` first (maybe it's answered).
 

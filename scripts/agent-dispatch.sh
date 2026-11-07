@@ -144,6 +144,11 @@ FULL="$(mktemp -t agent-dispatch-prompt)"
   # 11-06: a run read its own dispatcher's claim + task files as another agent's work and quit.
   [[ -n "${ASK_ID:-}" ]] && echo "The claim .agents/claims/dispatch-$ASK_ID.json is THIS run's own (agent-dispatch pid $$) — not a collision; proceed."
   echo "Smoke gate (mandatory): before any command that runs > 5 min, run the smallest slice (≤ 2 min) and print SANITY lines — trade/row count plausible, output CHANGES when the main parameter changes, one trade/row hand-checked against raw data. Any SANITY fail → stop, write the failure in the packet, do NOT start the full run. Print the first full-run result line within 10 min."
+  # 11-07 (Jamie): the same study mistakes recurred (mid fills, wrong comparator, n too small, look-ahead) because the rules lived in
+  # docs the builder never read (1 of 22 dispatch prompts cited PLAYBOOK). Quant prompts now carry the contract inline.
+  if grep -qiE "\[quant\]|analysis/|backtest|study|grid|S[0-9]{3}" "$PROMPT_FILE" || { [[ -n "${ASK_ID:-}" ]] && grep -E "\[$ASK_ID\]" "$(dirname "$0")/../research/common/ASKS.md" | grep -q "\[quant\]"; }; then
+    echo; cat "$(dirname "$0")/../.agents/dispatch/_study-contract.md"
+  fi
   echo
   cat "$PROMPT_FILE"
 } > "$FULL"

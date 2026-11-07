@@ -17,6 +17,8 @@
 - 10-22 · A244 review said call/put history was 'forward-only, needs a purchase' — Polygon already serves ~2 y of option closes. Never write 'no data / must buy' without a live vendor probe (one curl) cited in the packet.
 - 10-22 · Plans written before a data inventory drew 11 review findings (A244). Order now: read-only inventory (data + INDEX overlap + existing code) → plan → review.
 
+- 11-07 · Study verdicts kept repeating 7 mistakes (21 of 94 reviews = revise; A359 → fix4): mid fills (A362, A369), $ comparator not per buying power (S020), WORKS on 14 events (S159), look-ahead (S152/S156), guessed dates (S026), measured an easier job (A369 d), regime cut skipped (A370). Rule now: the STUDY CONTRACT appended to your prompt — packet line 1 `CONTRACT 1-7: ok|missing`.
+
 ## Review stats
 - 2026-10-21 · auto · 1 reviewed · planned 0 / revise 1 / declined 0 / needs Jamie 0
 - 2026-10-21 · auto · 6 reviewed · planned 1 / revise 5 / declined 0 / needs Jamie 0

@@ -213,14 +213,11 @@ Closed rows (done / reviewed ok) moved from ASKS.md on 2026-10-06 to keep the li
 | [A79](asks/A79.md) | 2026-10-14 | Muse → Cursor | Earnings risk score on the calendar (pre-earnings blowup flag) | declined (Claude triage 2026-11-07) |
 | [A101](asks/A101.md) | 2026-10-14 | Muse → Cursor | Easy-win scanner: laggards, reversals, vol mispricings | declined (Claude triage 2026-11-07) |
 | [A103](asks/A103.md) | 2026-10-15 | Muse → Cursor | SkillOpt pilot: validation-gated self-evolving skills for fildi agents | declined (Claude triage 2026-11-07) |
-| [A115](asks/A115.md) | 2026-10-15 | Muse → Cursor | Trend-efficiency regime filter for premium selling | declined (Claude triage 2026-11-07) |
 | [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | declined (Claude triage 2026-11-07) |
 | [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | declined (Claude triage 2026-11-07) |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | declined (Claude triage 2026-11-07) |
 | [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | declined (Claude triage 2026-11-07) |
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | declined (Claude triage 2026-11-07) |
-| [A140](asks/A140.md) | 2026-10-17 | Muse → Grok | Post-down-day setup flag for scanner + options-book brief | declined (Claude triage 2026-11-07) |
-| [A184](asks/A184.md) | 2026-10-19 | Claude → Claude | [quant] Strategy backlog: ORB, intraday momentum, FVG, revisions drift, trend, 52w high, RSI(2), squeeze, GEX | declined (Claude triage 2026-11-07) |
 | [A188](asks/A188.md) | 2026-10-19 | Claude → Claude | [quant] Intraday mispricing list (research-based): option day/night, EOD hedging momentum, 0DTE regime, opex pinning, liquidity reversal, pre-FOMC | declined (Claude triage 2026-11-07) |
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | declined (Claude triage 2026-11-07) |
 | [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | declined (Claude triage 2026-11-07) |
@@ -295,9 +292,12 @@ Closed rows (done / reviewed ok) moved from ASKS.md on 2026-10-06 to keep the li
 | [A316](asks/A316.md) | 2026-10-29 | Claude → Cursor | Put list — show "moves with" group + news-gap tag per put idea + AI explain lines | done → archived (Claude triage 2026-11-07: > 7 d, done) |
 | [A317](asks/A317.md) | 2026-10-30 | Muse → Cursor | writeEarningsHistory deletes all upcoming dates when vendor returns two within 21 days | done → archived (Claude triage 2026-11-07: > 7 d, done) |
 | [A319](asks/A319.md) | 2026-11-01 | Muse → Cursor | LSE free data as fildi research lane (never live) — validation study | declined (Claude triage 2026-11-07) |
-| [A328](asks/A328.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] S151: turning points by horizon → indicator combos → trade, entry timing, exit (strict for longs) | declined (Claude triage 2026-11-07) |
-| [A339](asks/A339.md) | 2026-11-05 | Muse → Claude → Cursor | [quant] Triple-RSI(5) pullback study: reproduce, RSI(2) head-to-head, sell-put timing test | declined (Claude triage 2026-11-07) |
 | [A340](asks/A340.md) | 2026-11-05 | Muse → Claude → Cursor | Genetic strategy search + correlation-diversified portfolio combiner (AlgoFactory method, research lane) | declined (Claude triage 2026-11-07) |
 | [A348](asks/A348.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] 7 quant strategies from @daytrading — test the batch (overnight edge, z-score vs RSI, PEAD, gap on minute bars) | declined (Claude triage 2026-11-07) |
 | [A350](asks/A350.md) | 2026-11-06 | Muse → Claude → Cursor | [quant] IV Walls reversal rule: minute-bar test on fildi IV walls | declined (Claude triage 2026-11-07) |
 | [A366](asks/A366.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] STUDY: 50% of max profit vs hold on Jamie's own short-put book — does SPY result survive single names? | declined (Claude triage 2026-11-07) |
+| [A115](asks/A115.md) | 2026-10-15 | Muse → Cursor | Trend-efficiency regime filter for premium selling | declined (Claude re-review 11-07 after A370: stands) |
+| [A140](asks/A140.md) | 2026-10-17 | Muse → Grok | Post-down-day setup flag for scanner + options-book brief | declined (Claude re-review 11-07 after A370: stands) |
+| [A184](asks/A184.md) | 2026-10-19 | Claude → Claude | [quant] Strategy backlog: ORB, intraday momentum, FVG, revisions drift, trend, 52w high, RSI(2), squeeze, GEX | declined (Claude re-review 11-07 after A370: stands) |
+| [A328](asks/A328.md) | 2026-11-03 | Jamie → Claude → Cursor | [quant] S151: turning points by horizon → indicator combos → trade, entry timing, exit (strict for longs) | declined (Claude re-review 11-07 after A370: stands) |
+| [A339](asks/A339.md) | 2026-11-05 | Muse → Claude → Cursor | [quant] Triple-RSI(5) pullback study: reproduce, RSI(2) head-to-head, sell-put timing test | declined (Claude re-review 11-07 after A370: stands) |

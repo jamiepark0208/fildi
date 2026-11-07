@@ -1,4 +1,5 @@
 # Reviewing a study — guide for any reviewing agent (Codex, Grok, Muse, Claude)
+> **Non-negotiable checks = `.agents/dispatch/_study-contract.md` (R1–R7, recurring-bugs.md § Study classes; Jamie 11-07).** It is auto-appended to quant dispatches; this file must not restate or contradict it — on conflict the contract wins.
 > Jamie 10-20: "I'm skeptical of the Research tab; Codex reviews Claude's results, finds ways to enhance them, gives feedback."
 > Goal: find what's wrong **and** what would make the answer more useful. Skeptic ≠ correct: every finding cites evidence and carries a fix.
 

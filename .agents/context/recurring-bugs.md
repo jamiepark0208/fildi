@@ -49,3 +49,15 @@ Also (10-28, Jamie: "excluding data is careless"): a gate never deletes a row �
 | B25 | Comparator leaks the move | 11-06 A341: random pool = same ticker, same month → pool days before a drop carry the drop → every dip-buy / fade cell +300 bp fake; t on raw return and DSR on overlapping per-trade returns passed everything | Pool = same-day vol-matched peers; t/DSR/PBO on monthly excess; placebo signal 0 survivors (fast_screen self-test v) | fast_screen.py cell_metrics |
 | B24 | Producer runs on a subset / merge before populate | 11-05 A329 seg3: SEC shares/TBVPS ran scored-book only (338 of 942) → OMC TBVPS +22 vs filing −49; r5 merged after a Yahoo refetch without populate → AMZN EPS 7.70 (July) vs 13.13. | Producer universe ≠ merge universe; a manual run skipped bronze → source_fundamentals. | sec_gold_fields `--universe` is the nightly default; manual re-merge = backfill → populate-source-fundamentals → merge-trusted (enrich-and-merge order). Check source_fundamentals fetched_at before judging a merge. |
 Check command (run after any change to recs/scores/surfaces): `scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/put_consistency.py --strict` (exit 1 on any mismatch).
+
+## Study classes (Jamie 11-07: same research mistakes kept recurring — 21 of 94 Claude commit reviews = revise; A359 went to fix4)
+Guard for all: `.agents/dispatch/_study-contract.md` (auto-appended to quant dispatches) now; the A369 study harness enforces it in code (packet INCOMPLETE → can't be done).
+| # | Class | Seen | Guard |
+|---|---|---|---|
+| R1 | Verdict at mid, not a real fill | A362 (net_mid column printed cross), A369 staging "survives" at mid vs −8.6 bp cross | contract 1; one cost model in the harness (17 study scripts each had their own) |
+| R2 | Wrong comparator | S020 spreads vs CSP in $ (not per buying power / tail); B25 pool shares ticker-month | contract 2 |
+| R3 | Verdict on too few events | S159 called WORKS on 14–17 events → UNDERPOWERED | contract 3 |
+| R4 | Look-ahead | S152, S156, A362 | contract 4 (shift + placebo every cell) |
+| R5 | Approximated input | S026 CPI week = "week containing the 12th" | contract 6 |
+| R6 | Measured an easier job | A369 (d) timed the threshold sweep, not the 288-cell grid; counts not parity | contract 7 |
+| R7 | Dead verdict treated as forever | BOARD dead list had no re-check | BOARD Kind + Re-check; `asks_revisit.py` (session start 6g) |

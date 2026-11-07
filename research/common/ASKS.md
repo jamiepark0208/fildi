@@ -25,7 +25,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude → Cursor | Material decision changes using existing action tickets | done (Cursor 11-07, uncommitted) |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
-| [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-29, A312 narrowed: VWAP timing + VIX overlay only; ORB declined) |
+| [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | done (Cursor 11-07, failed validation, uncommitted) |
 | [A225](asks/A225.md) | 2026-10-20 | Muse → Cursor | Test: Superpowers + Claude Mem gated installs (Mac lane weak spots) | parked (Superpowers deferred; Mem declined) |
 | [A227](asks/A227.md) | 2026-10-21 | Muse → Grok + Claude | REVIEW: Muse's Oct 20 reel-batch rejections — challenge every one (18 items) | parked (Claude triage 2026-11-07) |
 | [A228](asks/A228.md) | 2026-10-21 | Muse → Claude + Cursor | WRDS + LSEG: usage audit, entitled-but-unused inventory, adoption workstreams W1–W8 | split 10-24 → A264 (W8 panel), A265 (W2 CBOE), W4 = A262 S092; W1/W3/W5–W7 parked |
@@ -37,14 +37,14 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A244](asks/A244.md) | 2026-10-22 | Jamie → Claude → Cursor | [quant] Long calls/puts: research-merged strategy (direction × timing × price), study, then Model List/Live/Rankings/Track record | parked (Claude 10-29, A312: S133 FAIL; paper board stays; revisit = revisions + 60-day calls beat buy-all after ±25 % call-cost stress, both halves) |
 | [A246](asks/A246.md) | 2026-10-24 | Muse → Claude → Cursor | [quant] Closed-loop strategy self-improvement: generate → backtest → promote/demote with validation gates (paper-only) | parked (Claude triage 2026-11-07) |
 | [A262](asks/A262.md) | 2026-10-24 | Jamie → Claude → Cursor | [quant] Test every free outside signal source vs Fildi (OSAP, JKP, option signals, StarMine extras, Finnhub, own-data flow, qlib, tastytrade, movers, QC/Quantpedia) — S089–S098 | planned (Claude 10-29, A312 narrowed: Polygon endpoints from stored tables, no fresh fetch; tastytrade rank ~2027-03) |
-| [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | planned (Claude 10-29, A312: one GARCH packet on put-pnl harness only; PySR declined; MAPIE wraps that forecast) |
+| [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | done (Cursor 11-07, failed validation, uncommitted) |
 | [A276](asks/A276.md) | 2026-10-26 | Muse → Cursor | A238 packet-split pilot: unblock oldest quant studies (A188 + A184) before Dec 11 | verified (Claude 11-03: S124 FAIL; S125 FAIL after 2 bug fixes; pilot GO w/ recomputable hand-check) |
 | [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | planned (Claude 10-29, A312: leftover = retire old pickBestStrike on Rankings + Live; covered-call bands closed S101c) |
-| [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | parked (Claude 10-29, A312: indicator families now run via A314; revisit after 12-11 token cliff) |
+| [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | parked (Claude re-review 11-07 after A370) |
 | [A308](asks/A308.md) | 2026-10-28 | Claude → Cursor | [quant] Forward ledger earnings_up: skew + StarMine forecasters (S127 follow-up) | revise (Claude 11-03 commit review: see file) |
 | [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude → Cursor | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | planned |
 | [A320](asks/A320.md) | 2026-11-02 | Muse → Cursor | Chronos-Bolt fair retest: less-smooth targets, adopt/drop gate + catalog row | parked (Claude triage 2026-11-07) |
-| [A321](asks/A321.md) | 2026-11-02 | Muse → Cursor | FinBERT real-headline validation: adopt as triage or drop + catalog row | planned |
+| [A321](asks/A321.md) | 2026-11-02 | Muse → Cursor | FinBERT real-headline validation: adopt as triage or drop + catalog row | done (Cursor 11-07, drop, uncommitted) |
 | [A322](asks/A322.md) | 2026-11-02 | Muse → Cursor | Setup-but-unused credentials verdict: Codiv keep/drop, S&P Global auth+license check | done (Cursor 11-07) |
 | [A323](asks/A323.md) | 2026-11-02 | Muse → Cursor | Settings catalog freshness: registry-driven rows + backfill post-Oct-24 tools | done (Cursor 11-07) |
 | [A324](asks/A324.md) | 2026-11-02 | Muse → Cursor | CI red: api-server unit tests fail on branch tip (regression window f476 + 1e7c) | done (green since 3c3bc7a9) |
@@ -55,7 +55,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A331](asks/A331.md) | 2026-11-03 | Jamie → Claude → Cursor | Backtest Lab: interactive backtest page (inputs, signal builder, candles + markers, inspector, results vs baseline) | done (Cursor P1 backend 11-04) |
 | [A291](asks/A291.md) | 2026-10-28 | Claude → Cursor | [quant] S120: is bad earnings news punished more than good news is rewarded lately? (extends S018) | verified (Claude ran S120: asymmetry always ~3×, not worse in 2026) |
 | [A292](asks/A292.md) | 2026-10-28 | Claude → Cursor | [quant] S121: does the DCF expensive flag hurt puts only when rates rise? (S119 follow-up) | verified (Claude ran S121 stock-level: hint only) |
-| [A332](asks/A332.md) | 2026-11-03 | Claude → Cursor | Agent token diet: split 4 most-grepped oversized files + prune grep-polluting dirs | accepted (Claude-filed; target 1 dispatched 11-03) |
+| [A332](asks/A332.md) | 2026-11-03 | Claude → Cursor | Agent token diet: split 4 most-grepped oversized files + prune grep-polluting dirs | declined (merged into A381, Claude 11-07) |
 | [A333](asks/A333.md) | 2026-11-04 | Muse → Cursor | OpenBB + Hermes: free-terminal stack evaluation — research-lane data + report pilot | parked (Claude triage 2026-11-07) |
 | [A334](asks/A334.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S152 option-priced structures (straddle, verticals, outright) on indicator signals vs random | done |
 | [A335](asks/A335.md) | 2026-11-04 | Jamie → Claude → Cursor | [quant] S153 reverse-engineer biggest intraday swings → which indicator caught them | done |
@@ -88,7 +88,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A367](asks/A367.md) | 2026-11-07 | Jamie → Claude → Cursor | Fetch hygiene: backfill once, then fetch only the new tail; guard every heavy fetch/process (watermark, change signal, distinct-only upsert, fetch_runs meter) | done (Cursor 11-07, Claude review 70571445) |
 | [A368](asks/A368.md) | 2026-11-07 | Jamie → Claude → Cursor | Strategy board on Track Record › Strategies (Works / Dead / Testing) + Live S159 trigger chip | done (Cursor 11-07, uncommitted) |
 | [A369](asks/A369.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Faster + higher-quality studies: per-stock threshold lens, cost-aware staging, leak test, precomputed signal tables | revise (Claude review e8e3c4db 11-07: staging on mid, no parity, leak opt-in) |
-| [A370](asks/A370.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Indicators as put-timing filters in the seller's universe (high-IV sell / low-IV buy), regime-cut, real quotes | planned |
+| [A370](asks/A370.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Indicators as put-timing filters in the seller's universe (high-IV sell / low-IV buy), regime-cut, real quotes | revise (Claude 11-07: regime cut + tail missing; uncommitted) |
 | [A371](asks/A371.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Evidence audit of BOARD winners: survivorship, S088 real-quote replay, regime split, one N_eff standard | planned |
 | [A372](asks/A372.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Put management + book layer: rolling, delta/IV/earnings exits, vol-scaled sizing, book drawdown | planned |
 | [A373](asks/A373.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Borrow from agentic-trading-desk: macro pillar regime test, 3-pillar backtest, TV-convention indicator tests, invalidation line | planned |
@@ -98,3 +98,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | open |
 | [A378](asks/A378.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] S160 test-era centering flaw — subtract train-era base for both eras (Medium) | open |
 | [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | open |
+| [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |
+| [A381](asks/A381.md) | 2026-11-07 | Jamie → Claude → Cursor | Repo + instruction diet: archive finished study scripts, split study engines, one rulebook | planned |

@@ -2,6 +2,8 @@
 name: fildi-quant-research
 description: Run, judge and review FILDI backtests, studies and scenario analyses for the trader's real decisions (short puts, covered calls, Model List). Use before any "does X help trades?", "is X an edge?", study review, or scoring change — any agent.
 ---
+> **Non-negotiable checks = `.agents/dispatch/_study-contract.md` (R1–R7, recurring-bugs.md § Study classes; Jamie 11-07).** It is auto-appended to quant dispatches; this file must not restate or contradict it — on conflict the contract wins.
+
 
 # FILDI quant research — judgment + workflow (shared by Claude, Codex, Cursor, Muse)
 The how-to lives in `research/studies/PLAYBOOK.md` (data tables, harnesses, checks) and `METHODS.md` (rules, each learned from a failed study).

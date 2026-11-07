@@ -1,4 +1,5 @@
 # Method rules (lessons that cost us a study to learn)
+> **Non-negotiable checks = `.agents/dispatch/_study-contract.md` (R1–R7, recurring-bugs.md § Study classes; Jamie 11-07).** It is auto-appended to quant dispatches; this file must not restate or contradict it — on conflict the contract wins.
 > Apply all of these before trusting a result. Each line names the study that taught it.
 
 ## Targets and confounds

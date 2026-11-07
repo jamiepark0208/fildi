@@ -148,6 +148,9 @@ def main() -> None:
                 stalled.append(f"{aid} {st_.group(1)} ({route.group(1) if route else '?'})")
         say(f"6b stalled ASKS (no change > 3 d): {len(stalled)}" + (" — " + "; ".join(stalled[:12]) + (" …" if len(stalled) > 12 else "")
             + " → owner acts or re-routes; a 'revise' goes back to its author" if stalled else ""))
+        # 11-07 (Jamie): Ideas grew to ~135 rows — filing is free, closing is not. Cap build-ready rows at 15.
+        ready = [re.search(r"\[(A\d+)\]", l).group(1) for l in open_rows if re.search(r"\|\s*(open|planned|accepted)\b", l)]
+        say(f"6i build-ready rows: {len(ready)}/15" + (" — OVER CAP: park or merge before filing new rows" if len(ready) > 15 else ""))
         # 11-07 (Jamie): parked/declined rows and BOARD dead rows must not sit forever → triggers flip them back.
         rv = subprocess.run([sys.executable, "scripts/asks_revisit.py", "--apply"], cwd=ROOT, capture_output=True, text=True)
         say("6g " + ((rv.stdout or rv.stderr).strip().splitlines() or ["revisit: no output"])[-1][:300])
