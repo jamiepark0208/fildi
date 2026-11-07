@@ -17,6 +17,8 @@ import { formatMdYy } from "@/lib/format";
 import { THEME_META, THEME_ORDER, themeOf, simpleOf, type TradeTheme } from "./structure-themes";
 import { StructurePicksTable, useStructuresBoard, type StructurePick } from "./structure-picks";
 import { LongOptionBoard } from "./LongOptionBoard";
+import { StructureBuilder } from "./StructureBuilder";
+import { StructureRanker } from "./StructureRanker";
 import { blendScores, deskAction } from "./structure-desk";
 
 type Sum = {
@@ -424,7 +426,10 @@ function WhenWorks({ s }: { s: S }) {
 }
 
 /* ---------- main ---------- */
+type LabTab = "backtest" | "builder" | "ranker";
+
 export function StructureLab() {
+  const [labTab, setLabTab] = useState<LabTab>("backtest");
   const { data, isLoading } = useQuery({
     queryKey: ["structures-backtest"],
     queryFn: async (): Promise<Resp> => {
@@ -482,6 +487,41 @@ export function StructureLab() {
     return m;
   }, [board.data]);
 
+  const tabBar = (
+    <div className="flex gap-1 border-b border-zinc-800 pb-1 mb-1">
+      {(["backtest", "builder", "ranker"] as const).map((t) => (
+        <button
+          key={t}
+          type="button"
+          className={cn(
+            "px-2 py-0.5 rounded-t text-[10px] uppercase font-semibold",
+            labTab === t ? "bg-[#d4af37]/25 text-[#fef3c7] border border-[#d4af37]/40" : "text-amber-100",
+          )}
+          onClick={() => setLabTab(t)}
+        >
+          {t === "backtest" ? "Backtest" : t === "builder" ? "Builder" : "Ranker"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (labTab === "builder") {
+    return (
+      <div className="space-y-1.5 text-xs">
+        {tabBar}
+        <StructureBuilder />
+      </div>
+    );
+  }
+  if (labTab === "ranker") {
+    return (
+      <div className="space-y-1.5 text-xs">
+        {tabBar}
+        <StructureRanker />
+      </div>
+    );
+  }
+
   if (isLoading) return <p className="text-xs text-amber-100 mt-1">Loading…</p>;
   if (!data?.structures?.length) return <p className="text-xs text-amber-100 mt-1">Backtest not run yet (S076).</p>;
 
@@ -532,6 +572,7 @@ export function StructureLab() {
 
   return (
     <div className="space-y-1.5 text-xs">
+      {tabBar}
       {metaSlot ? createPortal(metaBar, metaSlot) : (
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-0.5">{metaBar}</div>
       )}

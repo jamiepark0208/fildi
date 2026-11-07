@@ -1,0 +1,23 @@
+/** S076 / BOARD.md one-liners for structure ranker chips (static). */
+export const STRUCTURE_EVIDENCE: Record<string, { label: string; tone: "works" | "dead" | "mixed" | "untested" }> = {
+  cash_secured_put: { label: "S088 / S047 live", tone: "works" },
+  covered_call: { label: "S046 OOS calls", tone: "works" },
+  long_call: { label: "S100 revisions gate", tone: "works" },
+  long_put: { label: "S076 fail (2021→ tape)", tone: "dead" },
+  short_put_spread: { label: "S020 vs CSP", tone: "dead" },
+  short_strangle: { label: "S020 vs CSP", tone: "dead" },
+  short_straddle: { label: "S020 vs CSP", tone: "dead" },
+  long_straddle: { label: "S020 vs CSP", tone: "dead" },
+  long_strangle: { label: "S020 vs CSP", tone: "dead" },
+  iron_condor: { label: "S076 untested / thin", tone: "untested" },
+  calendar: { label: "S026 event weeks 0/22", tone: "dead" },
+  collar: { label: "S076 promising", tone: "mixed" },
+  pmcc: { label: "S076 partial", tone: "mixed" },
+  debit_call_vertical: { label: "S076 mixed", tone: "mixed" },
+  debit_put_vertical: { label: "S076 mixed", tone: "mixed" },
+  bull_put_spread: { label: "S020 vs CSP", tone: "dead" },
+  bear_call_spread: { label: "S020 vs CSP", tone: "dead" },
+  long_stock: { label: "baseline", tone: "untested" },
+  short_stock: { label: "baseline", tone: "untested" },
+  diagonal: { label: "S076 thin", tone: "untested" },
+};

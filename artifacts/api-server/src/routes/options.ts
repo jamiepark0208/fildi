@@ -10,6 +10,8 @@ import { rankingsWantLivePrices } from "../lib/rankings-live-prices.js";
 import { assessOptionChainQuoteDq, selectPremiumCandidates } from "@workspace/option-scoring";
 import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js";
 import { chainIsFresh, chainUniverse, engineExpiry, inMarketHours, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
+import { type Leg, priceStructure } from "../lib/structures/legs.js";
+import { rankStructuresForView, type MarketView } from "../lib/structures/rank.js";
 import { getSchwabChainForExpiry } from "../lib/schwab-client.js";
 import { logger } from "../lib/logger.js";
 
@@ -170,6 +172,29 @@ router.get("/options/structures/backtest", async (_req, res) => {
   return res.json(await readStructureBacktest());
 });
 
+// POST /api/options/structures/price — A192 Part L: price arbitrary legs from stored chain
+router.post("/options/structures/price", async (req, res) => {
+  const { ticker, legs, horizonDays } = req.body ?? {};
+  if (typeof ticker !== "string" || !/^[A-Z]{1,10}$/i.test(ticker)) {
+    return res.status(400).json({ error: "ticker required" });
+  }
+  if (!Array.isArray(legs) || legs.length === 0) {
+    return res.status(400).json({ error: "legs required" });
+  }
+  const snap = await readChainSnapshot(ticker.toUpperCase()).catch(() => null);
+  if (!snap?.chains?.length) {
+    return res.status(404).json({ error: "no stored chain — refresh chain first" });
+  }
+  const spot = snap.chains[0].spot;
+  const horizon = typeof horizonDays === "number" ? horizonDays : 30;
+  try {
+    const result = priceStructure(legs as Leg[], { spot, chains: snap.chains }, horizon);
+    return res.json({ ticker: ticker.toUpperCase(), spot, asOf: snap.fetchedAt, ...result });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: String((err as Error)?.message ?? err) });
+  }
+});
+
 // POST /api/options/rankings/refresh — admin: recompute Overall snapshots now
 router.post("/options/rankings/refresh", requireAdmin, async (req, res) => {
   try {
@@ -269,6 +294,36 @@ router.get("/options/quote-dq", async (req, res) => {
     failCount: fail.length,
     rows,
   });
+});
+
+const MARKET_VIEWS = new Set(["bull", "bear", "neutral", "vol_up", "vol_down"]);
+
+// GET /api/options/:ticker/structures/rank — A192 Part L view ranker (stored chain only)
+router.get("/options/:ticker/structures/rank", async (req, res) => {
+  const ticker = req.params.ticker.toUpperCase();
+  if (!/^[A-Z]{1,10}$/.test(ticker)) {
+    return res.status(400).json({ error: "Invalid ticker" });
+  }
+  const viewRaw = String(req.query.view ?? "neutral").toLowerCase();
+  const view = (MARKET_VIEWS.has(viewRaw) ? viewRaw : "neutral") as MarketView;
+  const horizon = Math.min(180, Math.max(1, parseInt(String(req.query.horizon ?? "30"), 10) || 30));
+  const maxLoss = Math.max(100, parseFloat(String(req.query.maxLoss ?? "1000")) || 1000);
+  const snap = await readChainSnapshot(ticker).catch(() => null);
+  if (!snap?.chains?.length) {
+    return res.status(404).json({ error: "no stored chain" });
+  }
+  try {
+    const ranked = await rankStructuresForView({
+      ticker,
+      chains: snap.chains,
+      view,
+      horizonDays: horizon,
+      maxLoss,
+    });
+    return res.json({ ...ranked, asOf: snap.fetchedAt, spot: snap.chains[0].spot });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: String((err as Error)?.message ?? err) });
+  }
 });
 
 // GET /api/options/:ticker/term-structure — ATM IV across the expiry calendar (1W/1M/2M/3M/6M/1Y)
