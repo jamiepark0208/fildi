@@ -15,6 +15,7 @@ Usage: .venv/bin/python analysis/lab_fund_features.py
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from bisect import bisect_right
@@ -23,7 +24,12 @@ from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+_REPO = Path(__file__).resolve().parents[3]
+import sys as _sys
+if str(_REPO / "scripts") not in _sys.path:
+    _sys.path.insert(0, str(_REPO / "scripts"))
 from build_plan import connect, rows  # noqa: E402
+from fetch_guard import FetchRunRecorder, inputs_unchanged_since_run  # noqa: E402
 
 DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.lab_fund (
   ticker text NOT NULL, as_of date NOT NULL, features jsonb NOT NULL, computed_at timestamptz NOT NULL DEFAULT now(),
@@ -39,9 +45,19 @@ def f(v):
 
 
 def main() -> None:
+    code_hash = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16]
     with connect() as conn:
         conn.execute(DDL)
-        keys = rows(conn, "SELECT DISTINCT ticker, as_of FROM watchlist_sync.lab_outcomes")
+        ibes_wm = conn.execute("SELECT MAX(statpers)::text FROM wrds_research.ibes_statsum").fetchone()[0]
+        if inputs_unchanged_since_run(conn, job="lab_fund_features", input_watermark=ibes_wm or "none",
+                                      code_path=__file__):
+            print("lab_fund: skip — IBES watermark + code unchanged")
+            return
+        keys = rows(conn, """SELECT DISTINCT o.ticker, o.as_of
+                             FROM watchlist_sync.lab_outcomes o
+                             WHERE NOT EXISTS (
+                               SELECT 1 FROM watchlist_sync.lab_fund f
+                               WHERE f.ticker = o.ticker AND f.as_of = o.as_of)""")
         st = defaultdict(list)
         for r in rows(conn, """SELECT UPPER(oftic) t, statpers d, numest, numup, numdown, meanest, stdev FROM wrds_research.ibes_statsum
                                WHERE measure = 'EPS' AND fiscalp IN ('ANN', 'Y') AND fpi IN ('1', '1.0') AND oftic IS NOT NULL ORDER BY 1, 2"""):
@@ -86,9 +102,15 @@ def main() -> None:
         feats["ibes_sue"] = sum(u) / len(u) if u else None
         out.append((t, a, json.dumps(feats)))
     with connect() as conn:
+        rec = FetchRunRecorder(conn, source="wrds", job="lab_fund_features",
+                               meta={"input_watermark": ibes_wm, "code_hash": code_hash})
         with conn.cursor() as cur:
             cur.executemany("""INSERT INTO watchlist_sync.lab_fund (ticker, as_of, features) VALUES (%s, %s, %s)
-                               ON CONFLICT (ticker, as_of) DO UPDATE SET features = EXCLUDED.features, computed_at = now()""", out)
+                               ON CONFLICT (ticker, as_of) DO UPDATE SET features = EXCLUDED.features, computed_at = now()
+                               WHERE lab_fund.features IS DISTINCT FROM EXCLUDED.features""", out)
+        rec.rows_changed = len(out)
+        rec.keys_fetched = len(out)
+        rec.finish(mode="tail" if out else "skip")
         conn.commit()
     cov = sum(1 for _, _, x in out if json.loads(x).get("ibes_breadth") is not None)
     fg = sum(1 for _, _, x in out if json.loads(x).get("ibes_fwd_growth") is not None)

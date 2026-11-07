@@ -13,6 +13,7 @@ import { fetchAndStoreOHLCV } from "../lib/indicators.js";
 import { refreshTechnicals } from "../lib/technicals-db.js";
 import { lastCompletedSessionYmd } from "../lib/market-hours.js";
 import { priceCoverage, MIN_PRICE_COVERAGE as MIN_COVERAGE } from "../lib/price-coverage.js";
+import { startFetchRun } from "../lib/fetch-guard.js";
 
 const ACTIVE_DAYS = 30;
 const maxArg = process.argv.find((a) => a.startsWith("--max="));
@@ -22,6 +23,7 @@ const newMaxArg = process.argv.find((a) => a.startsWith("--new-max="));
 const NEW_MAX = newMaxArg ? Number(newMaxArg.split("=")[1]) : 60;
 
 async function main() {
+  const meter = await startFetchRun("multi", "backfill-stale-prices");
   const expected = lastCompletedSessionYmd();
   let tickers: string[];
   if (tickersArg) {
@@ -55,6 +57,7 @@ async function main() {
 
   if (tickers.length === 0) {
     const coverage = await priceCoverage(expected);
+    await meter.finish("skip");
     console.log(JSON.stringify({ ok: true, skipped: true, reason: "none stale", coverage }));
     await pool.end();
     if (coverage.pct < MIN_COVERAGE) process.exitCode = 2;
@@ -65,10 +68,12 @@ async function main() {
   const ok: string[] = [];
   const failed: { ticker: string; err: string }[] = [];
 
+  meter.bump({ keysPlanned: tickers.length });
   for (const t of tickers) {
     try {
       const rows = await fetchAndStoreOHLCV(t);
       ok.push(t);
+      meter.bump({ keysFetched: 1, vendorCalls: 1, rowsInserted: rows.length });
       console.error(`  ${t}: ${rows.length} bars`);
     } catch (err) {
       failed.push({ ticker: t, err: err instanceof Error ? err.message : String(err) });
@@ -91,6 +96,7 @@ async function main() {
   );
 
   const coverage = await priceCoverage(expected);
+  await meter.finish("tail");
   console.log(
     JSON.stringify(
       {

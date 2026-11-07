@@ -15,6 +15,7 @@ import { logger } from "./logger.js";
 import { getSchwabDailyBars } from "./schwab-client.js";
 import { schwabSymbol, yahooSymbol } from "./vendor-ticker.js";
 import { lastCompletedSessionYmd } from "./market-hours.js";
+import { planKey } from "./fetch-guard.js";
 import { decidePriceReplace } from "./price-source-rank.js";
 import {
   barYmd,
@@ -197,7 +198,17 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
     if (cached.length >= 15) return cached;
   }
   ohlcvFetchAttemptAt.set(upper, Date.now());
-  const period1 = cutoffStr();
+  const latest = await latestOHLCVDate(upper);
+  const latestYmd = latest ? String(latest).slice(0, 10) : null;
+  const tailPlan = planKey(upper, latestYmd, { overlapDays: 3 });
+  if (tailPlan.mode === "skip") {
+    const cached = await readOHLCVFromDB(upper);
+    if (cached.length) return cached;
+  }
+  const period1 =
+    tailPlan.tailFrom && tailPlan.mode === "tail"
+      ? (tailPlan.tailFrom < cutoffStr() ? cutoffStr() : tailPlan.tailFrom)
+      : cutoffStr();
   const period2 = yahooPeriod2Exclusive();
   // A87: fetch under vendor symbol; upsert still uses registry ticker (`upper`).
   const schwabSym = schwabSymbol(upper);
