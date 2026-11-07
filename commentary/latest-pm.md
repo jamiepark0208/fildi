@@ -1,62 +1,61 @@
-# Evening Market Recap — Thursday, November 5, 2026 (Post-Close)
+# Evening Market Recap — Friday, November 6, 2026 (Post-Close)
 
-**Banner:** S&P 7,353.73 −4.36% · Dow 51,523.06 −3.44% · Nasdaq 24,315.00 −5.52% · 10Y 4.84% (−6 bp) · Brent $98.29 +3.88% · VIX 28.18 (+69.7%)
+**Banner:** S&P 7,376.86 +0.31% · Dow 51,285.73 −0.46% · Nasdaq 24,579.42 +1.09% · 10Y 4.86% (+2 bp) · Brent $97.90 (−0.5%) · VIX 25.58 (−9.2%)
 
 ## What moved today
 
-- **The rotation broke into a rout.** Wednesday's post-midterm rally was fully wiped out — the chip purge turned into a broad selloff on fears a Democratic Congress slows the AI buildout, with data-center moratorium fears in the mix.
-- **Semis led the fall.** PHLX Semiconductor Index −12.25%; SNDK −22%, AMD −17%, MU −17%, NVDA −9.3%, PLTR −9.7%, CRWD −9.9%, TSLA −10.8%. Nasdaq 100 −6.36%, its worst day since March 2020.
-- **Yields fell on stress, not data.** Jobless claims printed 189K vs ~196–197K expected, yet the 10Y fell 6 bp to 4.84% and the 2Y 10 bp to 4.48% — the bond bid came from the equity selloff.
-- **Oil bounced off the plunge.** Brent +3.9% to $98.29 and WTI +2.7% to $90.52 after Wednesday's −8.7% slide, on doubt over whether the US pursues an Iran deal.
-- **Havens and crypto split.** Gold ~$4,100, +~0.9%; bitcoin ~$75,800, −5.3%.
+- **Hot jobs set the tone.** October payrolls +165K vs +65K expected, unemployment 4.1% vs 4.2%, wages +0.4% m/m. December hike odds firmed to ~65–67% and yields rose across the curve.
+- **Chips led a narrow bounce.** PHLX Semiconductor Index +4.2% after Thursday's −12.25% (worst since March 2020): AMD +11.0% to $449.04, NVDA +2.8% to $186.64, MU +5.1%, MRVL +5.7%, LRCX +8.2% on a $25B buyback. The bounce was funded by Thursday's winners — staples −1.3%, defensives gave back.
+- **Asia finished the flush overnight.** Nikkei −6.0% into a bear market (>20% below its record), KOSPI −6.0% after an 8% intraday drop tripped a circuit breaker, Taiwan −4.5%, Hang Seng −1.3%. Europe stayed lower (STOXX 600 −1.0%), though European chips bounced with the US tape (ASML +2.6%).
+- **Data-center politics eased a notch.** Texas governor-elect Hinojosa signaled she does not oppose data centers outright, Trump reiterated support for their development, and OpenAI said it will press ahead with US data-center expansion despite the midterm sweep.
+- **TSLA +4.2% to $358.22** after Musk said Cybertruck production winds down around mid-2027 to free Gigafactory Texas for Cybercab output. Fox completed its $22bn Roku acquisition ($160/share in cash and stock); ROKU closed flat at $160.52.
+- **The bounce faded from the highs.** S&P and Nasdaq closed near session lows and the Dow ended lower — relief, not a turn.
 
 ## Breadth and leadership
 
-- No index rose: S&P −4.36%, Dow −3.44%, Nasdaq −5.52%, Russell 2000 −4.45%. Nasdaq closed in correction territory, more than 10% below its October 6 record.
-- Nasdaq 100 closed at its session low, below its 200-day average (~679 on QQQ). VXN 38.09 vs VIX 28.18 — tech vol is pricing more stress than broad vol.
-- Even energy equities fell with the tape (sector −2.81%, fourth straight decline) despite crude's bounce. Defensives were the only relative shelter.
-- Asia split before the US open: Nikkei −1.79%, Kospi −5.28% on the AI-chain selloff; Hang Seng +3.67%, Shanghai +0.10%. Europe firmer (STOXX 600 +0.4–0.7%) into the Bank of England's 25 bp hike to 4.00%, its first hike since August 2023.
+- Tech +1.4% led; staples −1.3% lagged. Breadth only mildly positive: 5,460 advancers vs 4,045 decliners, but 720 new 52-week lows vs 210 new highs, and just 33% of stocks above their 50-day average. Russell 2000 +0.89%.
+- Rates and vol: 10Y +2 bp to 4.86%, 2Y +5 bp to 4.51%, 30Y ~5.26%. VIX fell 9% to 25.58 — cooler, still elevated. Dollar index 102.28 (+0.68%). Gold ~$4,071 (−0.4%), bitcoin ~$75,900 (−0.5%), oil roughly flat.
 
 ## What changed vs the morning thesis
 
-- **Wrong: "rotation, not risk-off."** The morning read was breadth holding while semis purged. By the close it was broad risk-off — every index down 3.4% or more, Wednesday's gains gone.
-- **Wrong: hyperscalers holding, "AI trade splitting, not breaking."** The split became a break: the Nasdaq is in correction and the Nasdaq 100 had its worst day since March 2020.
-- **Right: the chip purge continued, oil bounced, yields ground lower.** All three morning calls held — the purge just spread to everything else.
-- **Wrong: the vol crush.** VIX went 16.6 in the morning to 28.18 at the close — the compression reversed in one session.
-- **Unchanged: payrolls tomorrow 8:30 AM ET is the week's real event** — now into a much weaker tape.
+- **Right: the bounce was narrow and chip-led.** Semis recovered, everything else stayed heavy — the split tape the morning brief described.
+- **Right: hot jobs keeps a December hike live into Tuesday's CPI.** Yields rose and hike odds firmed, exactly the morning's read.
+- **Right: Asia finished the move overnight.** Nikkei closed in a bear market; the overnight leg is done, not pending.
+- **Softer than hoped: the bounce did not broaden.** The Dow closed lower, new lows still ran 3-to-1 over new highs, and the averages faded into the close — the morning's "no 0–1 DTE short premium on semis" caution held up.
+
+## Desk flagged
+
+- **Tuesday's CPI bar is set (LSEG Day Ahead):** headline CPI expected +0.3% m/m vs +0.6% in September; core +0.2% vs +0.3%; core y/y 2.8%. Friday's PPI expected +0.4% vs +1.3% prior.
+- **Fed speakers stack up Tuesday:** Bowman (two appearances), Waller, plus Dallas' Logan and Kansas City's Schmid at an energy conference — the hike debate gets aired the same morning as CPI.
 
 ## Book impact
 
-- **Premium repriced violently.** VIX 16.6 → 28.18 in a day — short premium written at the compressed vol is marked up hard. No new short premium into this tape tonight.
-- **One verified trade today:** RGTI 11/06 11P bought back at $0.70 vs $0.15 credit — closed at a loss ahead of expiry during the chip rout.
-- **Friday 11/06 expiries in the book (per the Robinhood order export):** IREN 20P x2, OKLO 22P x1, plus short ONDS 7.5C/8C, OPEN 2.5C and RGTI 13C — 1 DTE into a −5.5% Nasdaq tape. Check put moneyness before the open; per the Thursday-close rule, any ITM short needed handling today.
-- **Payrolls lands at 8:30 AM tomorrow into a stressed tape** — keep any new premium index-level, wide, and small; no fresh short-dated single-name premium. After-close reporters Cloudflare (+18% AH on a beat and raised guidance) and Airbnb are the overnight tape to watch, not a setup.
+- **Friday's expiries expired worthless.** IREN closed $21.64 (+20.0%) — the short 20P x2 finished out of the money, full credit kept. OKLO closed $23.55 (+22.7%) after a Q3 revenue beat ($1.9M vs ~$0.95M expected) — the short 22P finished out of the money too. (Per Thursday's Robinhood export; Mac offline, so not verified against the live book.)
+- **Premium decayed but stayed rich.** VIX 28.18 → 25.58 into the close — short premium written at Thursday's stress marked down, but 25.6 is still elevated. No chasing short puts into a semi bounce that faded from its highs.
+- **Tuesday CPI is the gate.** No new short-dated premium into it; event windows stack up right behind — CEG/KKR/OXY Monday, CRWV Tuesday after the close (same day as CPI), AMAT/CSCO Thursday, PPI Friday.
 
 ## Risk/events for tomorrow
 
-- **8:30 AM ET — October payrolls** (cons ~62–65K, unemployment 4.2%, wages +0.3%). The week's real event, now into a correction tape.
-- **10:00 AM ET — Michigan sentiment prelim** (cons 48 vs 46.3 prior).
-- **Fed's Williams speaks; Bank of Japan Governor Ueda speaks; Vistra reports.**
-- **Overnight — Asia opens into the US rout;** watch whether the Kospi/Nikkei selloff extends or stabilizes.
+- **Early Asia (Mon) — China October CPI/PPI.**
+- **Mon — US earnings: CEG, KKR, OXY.**
+- **Mon 1:00 PM ET — 3-year Treasury auction.**
+- **Tue Nov 10, 8:30 AM ET — October CPI** (cons +0.3% headline, +0.2% core); CRWV reports after the close; Fed's Bowman and Waller speak.
 
 ## Context
 
-- **S&P 500:** 7,353.73 vs 7,688.62 Wednesday and the October 6 record close of 7,818.93 — roughly 6% below the record in two sessions.
-- **10Y:** 4.84%, down ~43 bp over the past month — the yield tailwind is intact but it is falling on stress, not on a dovish turn.
-- **Brent:** $98.29 vs $94.62 Wednesday and $103.60 Tuesday — the bounce retraced less than half of the plunge; the supply-surplus overhang behind it has not changed.
+- **S&P 500:** +0.31% Friday but −2.68% on the week; Nasdaq −3.37% on the week. The S&P sits ~5.7% below its October 6 record close of 7,818.93 — the bounce recovered a fraction of Thursday's flush.
 
-Systems: Mac online, fildi API/scheduler unverified (no probe route on device); book snapshot partial — DB is Mac-local, order-export netting only.
+Systems: Mac offline — unverified
 
 ## Sources
 
-- Closes, yields, oil, gold, bitcoin, VIX: https://www.pulsafi.com/market-today · https://edgeconsultancykw.com/us-market-wrap-05-november-2026/ · https://theretest.com/brief/2026-11-05-close · https://theweekendspread.substack.com/p/the-close-thursday-november-5-2026 · https://swingfolio.com/daily/us/2026-11-05/afternoon
-- Drivers, single names, after-hours: https://www.investopedia.com/stock-market-today-dow-jones-s-and-p-500-nasdaq-11052026-12237014 · https://investinglive.com/news/investinglive-americas-fx-news-wrap-5-nov-nasdaq-100-plunges-6-36-as-ai-selloff-spreads/ · https://kbldestinations.substack.com/p/daily-market-report-11-05-26
-- Asia/Europe, BoE, claims, payrolls: https://theretest.com/brief/2026-11-05-morning · https://bankofvol.substack.com/p/rotation-holds-semis-sell-the-prints
-- Morning thesis: commentary/2026-11-05-am.md (this repo)
-- Book snapshot: Robinhood option-orders export from Jamie's Mac, pulled 2026-11-05 (partial — DB is Mac-local; see Book impact)
-- Desk: Gmail label tradedash-brief, Nov 5 — IREN items flagged in the Desk flagged — update section below (added by the 20:10 PT desk catch-up; the recap's first pass missed them)
-
-## Desk flagged — update
-
-- *IREN into Friday's expiry: Microsoft is rethinking its neocloud strategy — Bloomberg reports project delays, rising costs and execution risks at IREN, Nebius and Nscale (FactSet Technology sector summary, Nov 5). IREN closed −17% at $18.03, so the short IREN 20P x2 expiring Friday is ~$1.97 in the money.*
-- *IREN reported fiscal Q1 after the close: revenue $228M vs ~$221M expected, AI Cloud revenue $200M (+182% QoQ), but the $4B ARR target slipped to early 2027 on a customer-requested Texas data-center change tied to Microsoft. Shares bounced ~10.7% after hours to ~$19.95 — still under the $20 strike, so the puts stay in the money. Assignment risk is live into Friday's open; check the print before the bell.*
+- Closes, yields, oil, gold, bitcoin, VIX: https://edgeconsultancykw.com/us-market-wrap-06-november-2026/ · https://stockmarketwatch.com/digest/2026-11-06 · https://www.ausecure.com/gold-market-close-nov-6-2026/ · https://shunya.trade/blog/2026/11/06/nq-es-dji-gold-nasdaq-sp500-futures-analysis-afternoon-2026-11-06
+- Asia/Europe, semis, single names: https://bankofvol.substack.com/p/chip-flush-asia-6-payrolls-at-1430 · https://percysperspective.com/2026/11/07/daily-market-analysis-20261106/ · https://cappnotes.substack.com/p/closing-look-friday-november-6-2026
+- Jobs, hike odds: https://www.investopedia.com/5-things-to-know-stock-market-november-06-2026-12237638 · https://nordfx.com/market-news/market-pulse-november-06-2026
+- TSLA Cybertruck: https://www.usatoday.com/story/cars/shopping/evs/2026/11/06/tesla-cybertruck-production-ending/92639472007/ · https://www.tipranks.com/news/tesla-to-wind-down-cybertruck-production-in-2027-as-tsla-stock-rebounds
+- Fox/Roku close: https://www.financial-news.co.uk/fox-completes-22bn-roku-acquisition-closing-streaming-deal/
+- IREN/OKLO closes, OKLO Q3: https://finnhub.io/?q=%22IREN%22 · https://finnhub.io/?q=%22OKLO%22 · https://capitalsnitch.com/news/oklo-stock-forecast-price-prediction
+- Week moves: FactSet StreetAccount US Weekly Recap (via Gmail label tradedash-brief), Nov 6, 2026
+- Morning thesis: commentary/2026-11-06-am.md (this repo)
+- Desk: Gmail label tradedash-brief, Nov 6 — LSEG The Day Ahead for Monday, November 9, 2026 (CPI consensus, Fed speakers)
+- Book snapshot: Mac offline — no live snapshot; Friday expiry outcomes from public closes vs the Nov 5 recap's expiry list (Robinhood export)
