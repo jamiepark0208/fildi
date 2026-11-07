@@ -107,13 +107,14 @@ class SpreadCalibration:
         return mb, db
 
     def _fallback_bucket(self, mb: str, db: str, lb: str) -> float:
-        v = self.buckets.get((mb, db, lb))
-        if v is not None:
-            return v
-        for alt in (lb, "high", "mid", "low"):
-            v = self.buckets.get((mb, db, alt))
+        for alt_db in (db, "short", "mid", "long"):
+            v = self.buckets.get((mb, alt_db, lb))
             if v is not None:
                 return v
+            for alt_lb in (lb, "high", "mid", "low"):
+                v = self.buckets.get((mb, alt_db, alt_lb))
+                if v is not None:
+                    return v
         return DEFAULT_SPREAD_RT
 
     def round_trip_frac(
@@ -132,6 +133,17 @@ class SpreadCalibration:
         tk = ticker.upper() if ticker else ""
         if tk:
             tb = self.ticker_buckets.get((tk, mb, db))
+            if tb is None:
+                # Snapshots are weekly (dte≈2–5); reuse shorter-DTE ticker median for 7–30 DTE marks.
+                # Then the ticker's nearest moneyness bin (QQQ 0.97 = atm had no own quotes → fell to a
+                # junk global bin at 0.41 rt; own near_otm = 0.037). Own ticker beats any global bin.
+                for alt_mb in _MB_NEIGHBORS[mb]:
+                    for alt_db in (db, "short", "mid", "long"):
+                        tb = self.ticker_buckets.get((tk, alt_mb, alt_db))
+                        if tb is not None:
+                            break
+                    if tb is not None:
+                        break
             if tb is not None:
                 return tb
             lb = self.ticker_liq_bin.get(tk)
@@ -148,6 +160,11 @@ def _moneyness_bin(m: float) -> str:
     if m < 0.97:
         return "near_otm"
     return "atm"
+
+
+_MB_NEIGHBORS = {"atm": ("atm", "near_otm", "deep_otm"), "near_otm": ("near_otm", "atm", "deep_otm"),
+                 "deep_otm": ("deep_otm", "near_otm", "atm")}
+MIN_BUCKET_N = 20  # medians from < 20 quotes are noise (11-07: global atm bins of 1–3 quotes gave 0.41 rt)
 
 
 def _dte_bin(dte: int) -> str:
@@ -168,12 +185,20 @@ def _liq_bin(volume: int, oi: int) -> str:
 
 
 def load_spread_calibration(conn) -> SpreadCalibration:
-    """(ask−bid)/mid medians: per (ticker, moneyness, DTE); global by liq for ticker fallback."""
+    """(ask−bid)/mid medians: per (ticker, moneyness, DTE); global by liq for ticker fallback.
+
+    Quotes filtered to RTH (fetched_at ET), liquid (vol>0 or OI≥100), mid≥$0.10 — off-hours
+    and penny quotes inflate medians (1-tick dominates).
+    """
     rows = conn.execute(
         """SELECT ticker, strike::float8 / NULLIF(spot, 0), dte, volume, open_interest,
                   (ask::float8 - bid::float8) / NULLIF((bid::float8 + ask::float8) / 2.0, 0)
            FROM option_chain_history
-           WHERE side = 'put' AND as_of >= %s AND bid > 0 AND ask > bid AND spot > 0""",
+           WHERE side = 'put' AND as_of >= %s AND bid > 0 AND ask > bid AND spot > 0
+             AND (volume > 0 OR open_interest >= 100)
+             AND (bid::float8 + ask::float8) / 2.0 >= 0.10
+             AND (fetched_at AT TIME ZONE 'America/New_York')::time >= TIME '09:30'
+             AND (fetched_at AT TIME ZONE 'America/New_York')::time <= TIME '16:00'""",
         (OPRA_START,),
     ).fetchall()
     acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
@@ -190,15 +215,15 @@ def load_spread_calibration(conn) -> SpreadCalibration:
         tk = str(ticker).upper()
         t_acc[(tk, mb, db)].append(float(spr))
         t_liq[tk].append(float((vol or 0) + (oi or 0)))
-    buckets = {k: float(np.median(v)) for k, v in acc.items() if v}
-    ticker_buckets = {k: float(np.median(v)) for k, v in t_acc.items() if v}
+    buckets = {k: float(np.median(v)) for k, v in acc.items() if len(v) >= MIN_BUCKET_N}
+    ticker_buckets = {k: float(np.median(v)) for k, v in t_acc.items() if len(v) >= MIN_BUCKET_N}
     ticker_liq_bin = {
         tk: _liq_bin(int(np.median(v)), 0) for tk, v in t_liq.items() if v
     }
     return SpreadCalibration(
         buckets=buckets,
         n_obs=n_used,
-        source="option_chain_history≥2025-10-01",
+        source="option_chain_history≥2025-10-01 RTH liq mid≥0.10",
         ticker_buckets=ticker_buckets,
         ticker_liq_bin=ticker_liq_bin,
     )
@@ -923,13 +948,29 @@ def _rv20_iv_proxy(closes: pd.Series) -> pd.Series:
 
 
 def load_index_daily_panel(ticker: str) -> tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, np.ndarray]:
-    if not PANEL_2003.is_file():
-        raise FileNotFoundError(PANEL_2003)
-    pack = pickle.loads(PANEL_2003.read_bytes())
-    c, o = pack["c"][ticker], pack["o"][ticker]
-    dates = c.index
-    rsi14 = rsi_series(c.to_numpy(dtype=float), 14)
-    return dates, o.to_numpy(dtype=float), c.to_numpy(dtype=float), rsi14
+    """SPY/QQQ daily OHLC from lseg_research.daily_history (split-adjusted LSEG panel).
+
+    Index oversold backtests read this series — not fast_screen_bars_2003.pkl (bad ticks on some LSE days).
+    """
+    with connect() as conn:
+        hist = conn.execute(
+            """SELECT date, open::float8, close::float8 FROM lseg_research.daily_history
+               WHERE ticker = %s AND close > 0 AND open > 0 ORDER BY date""",
+            (ticker.upper(),),
+        ).fetchall()
+    if not hist:
+        if not PANEL_2003.is_file():
+            raise FileNotFoundError(PANEL_2003)
+        pack = pickle.loads(PANEL_2003.read_bytes())
+        c, o = pack["c"][ticker], pack["o"][ticker]
+        dates = c.index
+        rsi14 = rsi_series(c.to_numpy(dtype=float), 14)
+        return dates, o.to_numpy(dtype=float), c.to_numpy(dtype=float), rsi14
+    dates = pd.DatetimeIndex([r[0] for r in hist])
+    opens = np.array([r[1] for r in hist], dtype=float)
+    closes = np.array([r[2] for r in hist], dtype=float)
+    rsi14 = rsi_series(closes, 14)
+    return dates, opens, closes, rsi14
 
 
 def merge_iv_series(conn, ticker: str, dates: pd.DatetimeIndex, closes: pd.Series) -> dict[date, float]:

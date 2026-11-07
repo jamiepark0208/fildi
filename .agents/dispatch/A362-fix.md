@@ -18,3 +18,6 @@ Slice: SPY + QQQ + 3 names, last 20 sessions (≤ 2 min).
 2. Trade count differs between RSI<10 and RSI<30 (print both counts); identical → H1 not fixed, stop.
 3. One trade hand-checked: entry = next bar open, IV rises on a down path (print iv_anchor → iv_exit with spot move).
 4. Carried trade: print one overnight trade's exit bar (must be 0 when the open breaches).
+
+## Also: spread cost in dollars (Claude 11-07, from fix3b check)
+fix3b (committed by Claude, see A359) cut QQQ 0.97/30-DTE rt cost 0.41 → 0.037. Remaining bias: calibration quotes are short-DTE cheap puts (AAPL near-OTM median mid $0.48, spread $0.06 → 10 %), applied as a % to 30-DTE puts worth $2–5 → cost overstated ~3–5×. Fix: calibrate median DOLLAR spread per (ticker, moneyness); round_trip_frac(..., mid=modeled_mid) returns $spread / mid (fallback = current %). Smoke: print AAPL/QQQ/SPY 0.97 30-DTE rt — expect ~0.01–0.04.
