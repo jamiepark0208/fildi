@@ -191,6 +191,51 @@ def sync_stocktwits(conn, as_of: date, tickers: list[str], limit: int) -> tuple[
     return ok, fail, notes
 
 
+ST_MIN_N = 5  # tagged posts; below this the lean is one or two posters (A356)
+
+
+def rank_source(conn, as_of: date, source: str = "stocktwits", min_n: int = ST_MIN_N) -> int:
+    """A356: raw scores skew positive (StockTwits tagged 14-d median +0.78; call tone +0.42), so a score
+    vs 0 mislabels. Write a same-day cross-sectional percentile (rows with n ≥ min_n) + thin flag into sample."""
+    cur = conn.execute(
+        """
+        WITH base AS (
+          SELECT ticker, score, n
+          FROM watchlist_sync.media_sentiment_daily
+          WHERE as_of = %(d)s AND source = %(s)s AND score IS NOT NULL
+        ), med AS (
+          SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY score) AS med FROM base WHERE n >= %(m)s
+        ), d AS (
+          SELECT b.ticker, b.n, m.med,
+                 CASE WHEN b.n >= %(m)s THEN round((100 * percent_rank() OVER (
+                   PARTITION BY (b.n >= %(m)s) ORDER BY b.score))::numeric, 0) END AS pct
+          FROM base b CROSS JOIN med m
+        )
+        UPDATE watchlist_sync.media_sentiment_daily x
+        SET sample = coalesce(x.sample, '{}'::jsonb)
+              || jsonb_build_object('pct', d.pct, 'thin', d.n < %(m)s, 'pool_median', round(d.med::numeric, 3))
+        FROM d
+        WHERE x.as_of = %(d)s AND x.source = %(s)s AND x.ticker = d.ticker
+        """,
+        {"d": as_of, "m": min_n, "s": source},
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def meter_stocktwits(conn, calls: int) -> None:
+    if calls <= 0:
+        return
+    conn.execute(
+        """INSERT INTO api_usage (source, date, calls_made, updated_at)
+           VALUES ('stocktwits', (now() AT TIME ZONE 'America/Los_Angeles')::date, %s, now())
+           ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made,
+           updated_at = now()""",
+        (calls,),
+    )
+    conn.commit()
+
+
 def coverage(conn, as_of: date, pool: list[str]) -> tuple[int, int]:
     """Names with ≥1 non-keyword source today (stocktwits or call_tone)."""
     if not pool:
@@ -229,6 +274,9 @@ def main() -> None:
     print(f"call_tone upserted {call_n}", flush=True)
     st_ok, st_fail, notes = sync_stocktwits(conn, as_of, pool, args.limit)
     print(f"stocktwits ok={st_ok} fail={st_fail} {' '.join(notes[:8])}", flush=True)
+    meter_stocktwits(conn, st_ok + st_fail)
+    ranked = (rank_source(conn, as_of, "stocktwits", ST_MIN_N), rank_source(conn, as_of, "call_tone", 1))
+    print(f"ranked stocktwits={ranked[0]} call_tone={ranked[1]} (same-day pct; stocktwits min n {ST_MIN_N})", flush=True)
     cov_n, cov_d = coverage(conn, as_of, pool)
     pct = 100 * cov_n / cov_d if cov_d else 0
     print(f"coverage non-keyword {cov_n}/{cov_d} ({pct:.0f}%) target≥70%", flush=True)

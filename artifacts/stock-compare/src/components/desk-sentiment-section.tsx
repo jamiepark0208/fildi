@@ -15,7 +15,11 @@ type MediaSource = {
   source: string;
   score: number | null;
   n: number | null;
-  sample: { bull?: number; bear?: number; quarter?: string; guidance?: string | null } | null;
+  sample: {
+    bull?: number; bear?: number; quarter?: string; guidance?: string | null;
+    /** A356: same-day percentile across the pool (0–100); thin = < 5 tagged posts. */
+    pct?: number | null; thin?: boolean; pool_median?: number | null;
+  } | null;
   fetched_at: string;
 };
 
@@ -51,6 +55,23 @@ function scoreLabel(score: number | null | undefined): { text: string; cls: stri
   if (score > 0.25) return { text: `bullish ${score.toFixed(2)}`, cls: "text-emerald-300" };
   if (score < -0.25) return { text: `cautious ${score.toFixed(2)}`, cls: "text-red-300" };
   return { text: `mixed ${score.toFixed(2)}`, cls: "text-amber-100" };
+}
+
+/** A356: lean vs the same-day pool, not vs 0 (bottom 20 % = cautious, top 20 % = bullish). */
+function pctLabel(
+  score: number | null | undefined,
+  pct: number | null | undefined,
+  thin: boolean | null | undefined,
+  pctOnly = false,
+): { text: string; cls: string } {
+  if (score == null || !Number.isFinite(score)) return { text: "no tagged lean", cls: "text-white" };
+  const raw = pctOnly ? "" : ` ${score.toFixed(2)}`;
+  if (thin) return { text: `thin sample${raw}`, cls: "text-white" };
+  if (pct == null) return scoreLabel(score);
+  const tag = `p${pct}`;
+  if (pct >= 80) return { text: `bullish vs peers · ${tag}${raw}`, cls: "text-emerald-300" };
+  if (pct <= 20) return { text: `cautious vs peers · ${tag}${raw}`, cls: "text-red-300" };
+  return { text: `typical · ${tag}${raw}`, cls: "text-amber-100" };
 }
 
 function asOfLabel(asOf: string | undefined, fetchedAt: string | undefined): string {
@@ -93,17 +114,18 @@ export function DeskSentimentSection({
 
   const st = bySource.get("stocktwits");
   const call = bySource.get("call_tone");
-  const stL = scoreLabel(st?.score);
-  const callL = scoreLabel(call?.score);
+  // A356: raw scores skew positive (StockTwits median ≈ +0.78, call tone ≈ +0.42) → label by same-day percentile.
+  const stL = pctLabel(st?.score, st?.sample?.pct, st?.sample?.thin);
+  const callL = pctLabel(call?.score, call?.sample?.pct, false);
 
   const compositeParts: number[] = [];
-  if (st?.score != null) compositeParts.push(st.score);
-  if (call?.score != null) compositeParts.push(call.score);
-  const composite =
+  if (st?.sample?.pct != null && !st.sample.thin) compositeParts.push(st.sample.pct);
+  if (call?.sample?.pct != null) compositeParts.push(call.sample.pct);
+  const compositePct =
     compositeParts.length > 0
-      ? compositeParts.reduce((a, b) => a + b, 0) / compositeParts.length
+      ? Math.round(compositeParts.reduce((a, b) => a + b, 0) / compositeParts.length)
       : null;
-  const compL = scoreLabel(composite);
+  const compL = pctLabel(compositePct, compositePct, false, true);
 
   return (
     <div className={GRID_WRAP}>
