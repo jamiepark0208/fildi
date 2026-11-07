@@ -2,11 +2,11 @@
 around picks, so wings can't be priced for spreads / condors / strangles. This stores full strike ladders daily to fit
 skew(moneyness, DTE, IV level) and the per-leg fill cost by moneyness.
 
-Universe: ~120 names with the most open interest in option_chain_history (last 5 days). Per name: next weekly expiry ≥ 5 DTE and the
-monthly (3rd Friday) nearest 30 DTE; puts + calls; every real strike within ±12 % (weekly) / ±25 % (monthly). One Schwab /chains call
-per ticker via the API's localhost /schwab/chain-ladder (shares the app's 100-rpm throttle). → optlab.skew_survey.
+Universe: liquid OI names ∪ Model List ∪ put-edge Q4+ (default ~180). Per name: next weekly ≥ 5 DTE + monthly ~30 DTE;
+puts + calls within ±12 % (weekly) / ±25 % (monthly). One Schwab /chains call per ticker via localhost
+/schwab/chain-ladder (100-rpm throttle). → optlab.skew_survey.
 
-    .venv/bin/python skew_survey.py [--n 120]
+    .venv/bin/python skew_survey.py [--n 180]
 """
 from __future__ import annotations
 
@@ -37,17 +37,54 @@ def expiries(d: date) -> list[date]:
     return sorted({wk, mo})
 
 
+def universe(conn, n: int) -> list[dict]:
+    """Model List + put-edge Q4+ first (Structures CSP fuel), then top OI names up to n (+small overshoot)."""
+    oi = rows(conn, """SELECT ticker, MAX(spot)::float8 spot, SUM(COALESCE(open_interest, 0))::float8 oi
+                       FROM option_chain_history WHERE as_of >= CURRENT_DATE - 5
+                       GROUP BY 1 ORDER BY 3 DESC NULLS LAST LIMIT 400""")
+    by = {r["ticker"]: {"ticker": r["ticker"], "spot": r["spot"], "oi": r["oi"]} for r in oi}
+    # Index ETFs always first (A192 11-07: forced lists crowded them out from 10-28 → SPY/QQQ holdout n=0).
+    forced: list[str] = ["SPY", "QQQ", "IWM"]
+    for r in rows(conn, """SELECT DISTINCT UPPER(ticker) ticker FROM watchlist_sync.plan_items
+                           WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans) AND l1_pass"""):
+        forced.append(r["ticker"])
+    for r in rows(conn, """SELECT ticker FROM watchlist_sync.put_edge_daily
+                           WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily) AND quintile >= 4"""):
+        forced.append(r["ticker"])
+    out: list[dict] = []
+    seen: set[str] = set()
+    for t in forced:
+        if t in seen:
+            continue
+        out.append(by.get(t) or {"ticker": t, "spot": None, "oi": 0.0})
+        seen.add(t)
+    for r in sorted(by.values(), key=lambda x: (-(x["oi"] or 0), x["ticker"])):
+        if r["ticker"] in seen:
+            continue
+        if len(out) >= n:
+            break
+        out.append(r)
+        seen.add(r["ticker"])
+    need = [r["ticker"] for r in out if r.get("spot") is None]
+    if need:
+        px = {r["ticker"]: r["c"] for r in rows(conn, """SELECT DISTINCT ON (ticker) ticker, close::float8 c
+              FROM prices_historical WHERE ticker = ANY(%s) ORDER BY ticker, date DESC""", (need,))}
+        for r in out:
+            if r.get("spot") is None:
+                r["spot"] = px.get(r["ticker"])
+    return [r for r in out if r.get("spot")]
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=120)
+    ap.add_argument("--n", type=int, default=180)
     a = ap.parse_args()
     today = date.today()
     with connect() as conn:
         conn.execute(DDL)
         # ~10k rows/day (~3 MB): keep 400 days — enough for the skew/fill fit and a year of board history
         conn.execute("DELETE FROM optlab.skew_survey WHERE as_of < CURRENT_DATE - 400")
-        names = rows(conn, """SELECT ticker, MAX(spot)::float8 spot FROM option_chain_history WHERE as_of >= CURRENT_DATE - 5
-                              GROUP BY 1 ORDER BY SUM(COALESCE(open_interest, 0)) DESC LIMIT %s""", (a.n,))
+        names = universe(conn, a.n)
         exps = expiries(today)
         # one /chains call per ticker (10-19 audit: per-contract quotes = 224 calls / 138 s and ~12 % guessed strikes that don't exist)
         from concurrent.futures import ThreadPoolExecutor
