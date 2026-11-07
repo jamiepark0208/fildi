@@ -10,7 +10,7 @@ Study-level PBO (CSCV-16, all N cells monthly excess, 2023–26 window): **0.054
 
 Pass bar (verdict uses DSR@N_eff): DSR≥0.95 AND PBO<0.5 AND ≥4/5 purged month-folds same-sign excess **in both windows**; n_months<24 → underpowered (n_months shown per row).
 
-Caveat: universe = current LSEG names; survivorship biases put breach rates upward.
+Caveat: universe = current LSEG names; survivorship biases put breach rates downward (survivors flatter short puts).
 
 | signal | window | n_months | N | DSR@1050 | DSR@N_eff | DSR@K | PBO | folds same-sign | old | new |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
