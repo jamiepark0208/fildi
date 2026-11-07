@@ -5,13 +5,13 @@
 ## Built (one home — do not re-implement)
 `scripts/watchlist_sync/indicators.py` → nightly `watchlist_sync.indicators_daily` (daily.py stage "indicators", 268 names).
 Daily bars, point-in-time (pivots counted from their confirm bar). `compute(d, h, l, c, v)` returns full series for charts/tests.
-| Source guide | Fields | Notes |
-|---|---|---|
-| Luxy UT God Mode (UT Bot) | `ut_dir` `ut_bars` `ut_dist` (ATR) `ut_surv` (share of past same-side trends that ran longer) `ut_conf` (7-engine 0–100) | current guide default = Auto preset → daily Swing: sensitivity 2.0, ATR 14, filters off, Smart Chop (Kaufman ER) on; divergence RSI 14 / pivot 5. Page metadata still carries the July-16 v1 inputs (1.2 / ATR 7, swing + full-candle filters on) — superseded by the Jul-17/20 release notes. Chop widening formula approximated |
-| SuperTrend Weighted by Divergence | `stdiv_dir` `div_against` `rsi_div` | author defaults (page metadata): ATR 10, base × 3, pivot 2, sensitivity 0.3, 200 bars; MPO4 (proprietary) → RSI(14) |
-| SuperTrend Cluster (Zeiierman) | `stc_bull` (0–1 weighted agreement) `stc_regime` | author defaults: EMA3/ATR7/1.5/w1 · EMA5/10/2/1 · SMA8/14/2.5/1.2 · WMA13/21/3/1.4 · HMA21/34/4/1.6; consensus 0.6, base member 3 |
-| Liquidity Hunter PRO (SMC) | `bos_dir` `sweep_age` `sweep_low` `mss_age` `fvg_dist` `ob_dist` (ATR) | author defaults: swing 5, max 10 bars after sweep, OB search 15, ATR 14; reversal body ≥ 0.15 ATR vs the open and order blocks on close < open (opens backfilled 10-26; missing open → close vs prior close) — guide suggests 1h, we run daily |
-| Fear & Greed (BigBeluga) | `fear_greed` 0–100 | author defaults: RSI 14, SMA 50, volume flow 20, 70 / 30 (exact) |
+| Source guide | Fields | tf_default | Notes |
+|---|---|---|---|
+| Luxy UT God Mode (UT Bot) | `ut_dir` `ut_bars` `ut_dist` (ATR) `ut_surv` (share of past same-side trends that ran longer) `ut_conf` (7-engine 0–100) | 1h | current guide default = Auto preset → daily Swing: sensitivity 2.0, ATR 14, filters off, Smart Chop (Kaufman ER) on; divergence RSI 14 / pivot 5. Page metadata still carries the July-16 v1 inputs (1.2 / ATR 7, swing + full-candle filters on) — superseded by the Jul-17/20 release notes. Chop widening formula approximated |
+| SuperTrend Weighted by Divergence | `stdiv_dir` `div_against` `rsi_div` | 1h | author defaults (page metadata): ATR 10, base × 3, pivot 2, sensitivity 0.3, 200 bars; MPO4 (proprietary) → RSI(14) |
+| SuperTrend Cluster (Zeiierman) | `stc_bull` (0–1 weighted agreement) `stc_regime` | 15m | author defaults: EMA3/ATR7/1.5/w1 · EMA5/10/2/1 · SMA8/14/2.5/1.2 · WMA13/21/3/1.4 · HMA21/34/4/1.6; consensus 0.6, base member 3 |
+| Liquidity Hunter PRO (SMC) | `bos_dir` `sweep_age` `sweep_low` `mss_age` `fvg_dist` `ob_dist` (ATR) | 1h | author defaults: swing 5, max 10 bars after sweep, OB search 15, ATR 14; reversal body ≥ 0.15 ATR vs the open and order blocks on close < open (opens backfilled 10-26; missing open → close vs prior close) — guide suggests 1h, we run daily |
+| Fear & Greed (BigBeluga) | `fear_greed` 0–100 | 1d | author defaults: RSI 14, SMA 50, volume flow 20, 70 / 30 (exact) |
 Also: `sector_etfs.py` (49 sector/theme ETFs, `board`), market/sector/breadth state in `band_engine.py` (breadth = share of names with `ut_dir` > 0, from indicators_daily).
 Surfaces today: put_recs payload `tech` → Rankings › Sell Puts badge (cluster %, tooltip); `put_manage.py` → `put_manage_daily`.
 

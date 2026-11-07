@@ -36,6 +36,7 @@ from indicator_catalog import CATALOG_BY_ID  # noqa: E402
 from s045_put_retest import bs_put  # noqa: E402
 
 BAR_CACHE = Path.home() / ".fildi" / "cache" / "a359_bars_5m"
+BAR_CACHE_1M = Path.home() / ".fildi" / "cache" / "a359_bars_1m"
 PANEL_2003 = Path.home() / ".fildi" / "cache" / "fast_screen_bars_2003.pkl"
 OUT_DIR = REPO / "research" / "studies" / "out" / "conditional"
 OPRA_START = date(2025, 10, 1)
@@ -101,6 +102,8 @@ class SpreadCalibration:
     ticker_liq_bin: dict[str, str] = field(default_factory=dict)
     ticker_spread_usd: dict[tuple[str, str, str], float] = field(default_factory=dict)
     spread_usd_buckets: dict[tuple[str, str, str], float] = field(default_factory=dict)
+    ticker_median_mid: dict[tuple[str, str, str], float] = field(default_factory=dict)
+    global_median_mid: dict[tuple[str, str], float] = field(default_factory=dict)
 
     def _mb_db(self, spot: float, strike: float, dte: int) -> tuple[str, str]:
         m = strike / spot
@@ -138,6 +141,21 @@ class SpreadCalibration:
                     return v
         return self.spread_usd_buckets.get((mb, db, "mid"))
 
+    def _scale_borrowed_rt(
+        self, rt: float, *, mb: str, alt_mb: str, db: str, tk: str, contract_mid: float | None
+    ) -> float:
+        """deep_otm must not borrow tighter bins without scaling % spread by mid ratio (A359 2fdd403e)."""
+        if mb != "deep_otm" or alt_mb == mb or contract_mid is None or contract_mid <= 0:
+            return rt
+        if alt_mb not in ("near_otm", "atm"):
+            return rt
+        borrowed_mid = self.ticker_median_mid.get((tk, alt_mb, db)) if tk else None
+        if borrowed_mid is None:
+            borrowed_mid = self.global_median_mid.get((alt_mb, db))
+        if borrowed_mid is None or borrowed_mid <= 0:
+            return rt
+        return float(rt * (borrowed_mid / contract_mid))
+
     def round_trip_frac(
         self,
         spot: float,
@@ -153,21 +171,34 @@ class SpreadCalibration:
             return DEFAULT_SPREAD_RT
         mb, db = self._mb_db(spot, strike, dte)
         tk = ticker.upper() if ticker else ""
+        est_mid = mid if mid and mid > 0 else max(0.05, spot * 0.02 * (1.0 - strike / spot))
         if mid is not None and mid > 0:
             usd = self._lookup_spread_usd(tk, mb, db)
             if usd is not None and usd > 0:
                 return float(usd / mid)
+        if mb == "deep_otm":
+            lb = self.ticker_liq_bin.get(tk) if tk else "mid"
+            gl = self._fallback_bucket("deep_otm", db, lb or "mid")
+            if gl < DEFAULT_SPREAD_RT * 0.99:
+                return gl
         if tk:
             tb = self.ticker_buckets.get((tk, mb, db))
+            hit_alt: str | None = None
             if tb is None:
                 for alt_mb in _MB_NEIGHBORS[mb]:
                     for alt_db in (db, "short", "mid", "long"):
                         tb = self.ticker_buckets.get((tk, alt_mb, alt_db))
                         if tb is not None:
+                            hit_alt = alt_mb
+                            db_hit = alt_db
                             break
                     if tb is not None:
                         break
             if tb is not None:
+                if hit_alt:
+                    return self._scale_borrowed_rt(
+                        tb, mb=mb, alt_mb=hit_alt, db=db_hit, tk=tk, contract_mid=est_mid
+                    )
                 return tb
             lb = self.ticker_liq_bin.get(tk)
             if lb:
@@ -229,6 +260,8 @@ def load_spread_calibration(conn) -> SpreadCalibration:
     t_acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     u_acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     t_uacc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    mid_acc: dict[tuple[str, str], list[float]] = defaultdict(list)
+    t_mid_acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     t_liq: dict[str, list[float]] = defaultdict(list)
     n_used = 0
     for ticker, m, dte, vol, oi, spr, spr_usd in rows:
@@ -244,6 +277,10 @@ def load_spread_calibration(conn) -> SpreadCalibration:
         t_acc[(tk, mb, db)].append(float(spr))
         if spr_usd is not None and math.isfinite(spr_usd) and spr_usd > 0:
             t_uacc[(tk, mb, db)].append(float(spr_usd))
+            mid_est = spr_usd / spr if spr > 0 else None
+            if mid_est is not None and math.isfinite(mid_est) and mid_est > 0:
+                mid_acc[(mb, db)].append(float(mid_est))
+                t_mid_acc[(tk, mb, db)].append(float(mid_est))
         t_liq[tk].append(float((vol or 0) + (oi or 0)))
     buckets = {k: float(np.median(v)) for k, v in acc.items() if len(v) >= MIN_BUCKET_N}
     ticker_buckets = {k: float(np.median(v)) for k, v in t_acc.items() if len(v) >= MIN_BUCKET_N}
@@ -252,6 +289,8 @@ def load_spread_calibration(conn) -> SpreadCalibration:
     ticker_liq_bin = {
         tk: _liq_bin(int(np.median(v)), 0) for tk, v in t_liq.items() if v
     }
+    global_median_mid = {k: float(np.median(v)) for k, v in mid_acc.items() if len(v) >= MIN_BUCKET_N}
+    ticker_median_mid = {k: float(np.median(v)) for k, v in t_mid_acc.items() if len(v) >= MIN_BUCKET_N}
     return SpreadCalibration(
         buckets=buckets,
         n_obs=n_used,
@@ -260,6 +299,8 @@ def load_spread_calibration(conn) -> SpreadCalibration:
         ticker_liq_bin=ticker_liq_bin,
         ticker_spread_usd=ticker_spread_usd,
         spread_usd_buckets=spread_usd_buckets,
+        ticker_median_mid=ticker_median_mid,
+        global_median_mid=global_median_mid,
     )
 
 
@@ -333,6 +374,10 @@ def _cmp(a: float, op: CmpOp, b: float) -> bool:
     return a >= b
 
 
+def ema_series(closes: np.ndarray, span: int = 20) -> np.ndarray:
+    return pd.Series(closes, dtype=float).ewm(span=span, adjust=False).mean().to_numpy(dtype=float)
+
+
 def rsi_series(closes: np.ndarray, n: int = 14) -> np.ndarray:
     """Canonical RSI — multi-bar warm-up, min_periods=n (matches s159 grid)."""
     s = pd.Series(closes, dtype=float)
@@ -353,6 +398,10 @@ def condition_true_series(
         if r is None:
             r = rsi_series(closes, per)
         return np.array([_cmp(x, cond.op, cond.threshold) for x in r])
+    if cond.indicator == "close_above_ema20":
+        ema = ema_series(closes, 20)
+        vals = closes - ema
+        return np.array([_cmp(x, cond.op, cond.threshold) for x in vals])
     raise NotImplementedError(cond.indicator)
 
 
@@ -461,10 +510,12 @@ def _put_mark_at_bar(
     bar_i: int,
     entry_i: int,
     iv_beta: float,
+    *,
+    bar_minutes: int = 5,
 ) -> float:
     iv_j = iv_intraday_path(open_pos.iv_anchor, open_pos.spot_entry, spot, iv_beta)
     vj = iv_j / 100.0 if iv_j > 3 else iv_j
-    days_elapsed = (session_d - open_pos.entry_session).days + (bar_i - entry_i) * 5 / (24 * 60)
+    days_elapsed = (session_d - open_pos.entry_session).days + (bar_i - entry_i) * bar_minutes / (24 * 60)
     dte_rem = max(open_pos.dte_at_entry - days_elapsed, 1 / (365 * 24 * 60))
     return bs_put(spot, open_pos.strike, vj, dte_rem / 365.0)
 
@@ -481,6 +532,7 @@ def _exit_fill_from_signal(
     *,
     intrinsic: float | None = None,
     session_open_carry: bool = False,
+    bar_minutes: int = 5,
 ) -> tuple[int, float, float]:
     """Signal on bar signal_j → fill next bar open (M1); carry session-open uses bar-0 open."""
     if session_open_carry and signal_j == 0:
@@ -492,7 +544,7 @@ def _exit_fill_from_signal(
     if intrinsic is not None:
         mark = intrinsic
     else:
-        mark = _put_mark_at_bar(open_pos, spot, session_d, fill_i, entry_i, iv_beta)
+        mark = _put_mark_at_bar(open_pos, spot, session_d, fill_i, entry_i, iv_beta, bar_minutes=bar_minutes)
     return fill_i, spot, mark
 
 
@@ -510,6 +562,7 @@ def simulate_session_puts(
     carry: OpenPut | None = None,
     ticker: str = "",
     rsi14: np.ndarray | None = None,
+    bar_minutes: int = 5,
 ) -> tuple[list[dict], OpenPut | None]:
     if bars.empty:
         return [], carry
@@ -587,8 +640,8 @@ def simulate_session_puts(
             hi = float(highs[j]) if np.isfinite(highs[j]) else s
             if not np.isfinite(s):
                 continue
-            mark_c = _put_mark_at_bar(open_pos, s, session_d, j, entry_i, iv_beta)
-            mark_lo = _put_mark_at_bar(open_pos, lo, session_d, j, entry_i, iv_beta)
+            mark_c = _put_mark_at_bar(open_pos, s, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
+            mark_lo = _put_mark_at_bar(open_pos, lo, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
             pnl_c = put_pnl_frac_short(credit, mark_c)
             triggered: tuple[str, int] | None = None
             if exit_rules.close_conditions:
@@ -603,11 +656,17 @@ def simulate_session_puts(
                 if ok:
                     triggered = ("close_condition", j)
             if triggered is None and exit_rules.take_profit_frac is not None:
-                mark_hi = _put_mark_at_bar(open_pos, hi, session_d, j, entry_i, iv_beta)
+                mark_hi = _put_mark_at_bar(open_pos, hi, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
                 if put_pnl_frac_short(credit, mark_hi) >= exit_rules.take_profit_frac:
                     triggered = ("take_profit", j)
             if triggered is None and sl_level is not None and mark_lo >= sl_level:
                 triggered = ("stop_loss", j)
+            if (
+                triggered is None
+                and exit_rules.max_bars is not None
+                and (j - entry_i) >= exit_rules.max_bars
+            ):
+                triggered = ("time_stop", j)
             if triggered is None and exit_rules.time_stop == "same_day" and j == len(bars) - 1:
                 triggered = ("time_stop", j)
             if (
@@ -627,15 +686,19 @@ def simulate_session_puts(
                     len(bars), j, opens, closes, open_pos, session_d, entry_i, iv_beta,
                     intrinsic=max(strike - s, 0.0),
                     session_open_carry=open_carry,
+                    bar_minutes=bar_minutes,
                 )
             else:
                 exit_i, _, exit_mark = _exit_fill_from_signal(
                     len(bars), j, opens, closes, open_pos, session_d, entry_i, iv_beta,
                     session_open_carry=open_carry,
+                    bar_minutes=bar_minutes,
                 )
             break
         else:
-            mark_c = _put_mark_at_bar(open_pos, float(closes[-1]), session_d, len(bars) - 1, entry_i, iv_beta)
+            mark_c = _put_mark_at_bar(
+                open_pos, float(closes[-1]), session_d, len(bars) - 1, entry_i, iv_beta, bar_minutes=bar_minutes
+            )
             exit_mark = mark_c
             signal_j = len(bars) - 1
             exit_i = len(bars) - 1
@@ -675,6 +738,35 @@ def simulate_session_puts(
         i = max(exit_i + 1, i + 1)
         continue
     return trades, open_pos
+
+
+def bar_minutes_for_tf(tf: str) -> int:
+    from bar_resample import TF_MINUTES  # noqa: WPS433
+
+    return int(TF_MINUTES.get(tf, 5))
+
+
+def load_bars_for_timeframe(conn, tickers: list[str], tf: str) -> dict[str, pd.DataFrame]:
+    """5m from optlab; other TFs resample from ~/.fildi/cache/a359_bars_1m (LSE 1m)."""
+    if tf == "5m":
+        return load_bars_5m_db(conn, tickers)
+    from a359_bars_1m import fetch_range_1m, load_parquet_1m  # noqa: WPS433
+    from bar_resample import resample_bars  # noqa: WPS433
+
+    out: dict[str, pd.DataFrame] = {}
+    for tk in tickers:
+        df1 = load_parquet_1m(tk)
+        if df1.empty or df1["ts"].max().date() < OPRA_START + timedelta(days=3):
+            df1 = fetch_range_1m(conn, tk, OPRA_START, date.today())
+        if df1.empty:
+            continue
+        df = resample_bars(df1, tf)
+        if df.empty:
+            continue
+        ts = pd.to_datetime(df["ts"], utc=True)
+        df = df.assign(session_date=ts.dt.tz_convert("America/New_York").dt.tz_localize(None).dt.date)
+        out[tk] = df
+    return out
 
 
 def load_bars_5m_db(conn, tickers: list[str]) -> dict[str, pd.DataFrame]:
@@ -792,6 +884,38 @@ def _intraday_rsi_by_session(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[int, 
     return df, rsi_full
 
 
+def _align_higher_tf_entry_mask(
+    entry_mask: np.ndarray,
+    df_entry: pd.DataFrame,
+    df_hi: pd.DataFrame,
+    filt: ConditionSet,
+    *,
+    rsi_hi: dict[int, np.ndarray],
+) -> np.ndarray:
+    if not filt.conditions or df_hi.empty:
+        return entry_mask
+    ts_hi = pd.to_datetime(df_hi["ts"], utc=True)
+    hi_parts = []
+    closes_hi = df_hi["c"].to_numpy(dtype=float)
+    for c in filt.conditions:
+        hi_parts.append(condition_true_series(c, closes_hi, rsi_cache=rsi_hi))
+    hi_stack = np.vstack(hi_parts)
+    hi_ok = hi_stack.all(axis=0) if filt.logic == "and" else hi_stack.any(axis=0)
+    ts_en = pd.to_datetime(df_entry["ts"], utc=True)
+    out = entry_mask.copy()
+    for i in np.where(entry_mask)[0]:
+        t = ts_en.iloc[int(i)]
+        prior = np.where(ts_hi <= t)[0]
+        if len(prior) == 0:
+            out[i] = False
+            continue
+        j = int(prior[-1])
+        if j > 0 and ts_hi.iloc[j].date() > ts_hi.iloc[j - 1].date():
+            j -= 1
+        out[i] = bool(hi_ok[j])
+    return out
+
+
 def _run_ticker_sessions(
     tk: str,
     df: pd.DataFrame,
@@ -804,6 +928,10 @@ def _run_ticker_sessions(
     *,
     base_every_day: bool,
     rsi_full: dict[int, np.ndarray] | None = None,
+    bar_minutes: int = 5,
+    higher_df: pd.DataFrame | None = None,
+    higher_filter: ConditionSet | None = None,
+    rsi_higher: dict[int, np.ndarray] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
@@ -824,6 +952,12 @@ def _run_ticker_sessions(
             if carry is None
             else np.zeros(len(closes), dtype=bool)
         )
+        if higher_filter and higher_df is not None and rsi_higher is not None:
+            hi_sess = higher_df[higher_df["session_date"] == session]
+            if not hi_sess.empty:
+                cross = _align_higher_tf_entry_mask(
+                    cross, sess_df, hi_sess.reset_index(drop=True), higher_filter, rsi_hi=rsi_higher
+                )
         anchor = prior_business_iv(iv_series, session)
         if anchor is None:
             anchor = 30.0
@@ -832,7 +966,7 @@ def _run_ticker_sessions(
             sess_df, cross, exit_rules,
             iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
             spread=spread, listed_strikes=listed, carry=carry, ticker=tk,
-            rsi14=rsi_slice[14],
+            rsi14=rsi_slice[14], bar_minutes=bar_minutes,
         )
         cond_trades.extend(ts)
         if carry is not None and session >= carry.expiry:
@@ -843,7 +977,7 @@ def _run_ticker_sessions(
                     sess_df, np.zeros(len(closes), dtype=bool), exit_rules,
                     iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
                     spread=spread, listed_strikes=listed, carry=base_carry, ticker=tk,
-                    rsi14=rsi_slice[14],
+                    rsi14=rsi_slice[14], bar_minutes=bar_minutes,
                 )
                 base_trades.extend(bts)
             else:
@@ -851,7 +985,7 @@ def _run_ticker_sessions(
                     sess_df, np.zeros(len(closes), dtype=bool), exit_rules,
                     iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
                     spread=spread, listed_strikes=listed, force_entry_bar=0, ticker=tk,
-                    rsi14=rsi_slice[14],
+                    rsi14=rsi_slice[14], bar_minutes=bar_minutes,
                 )
                 base_trades.extend(bts[:1])
     return cond_trades, base_trades
@@ -866,11 +1000,20 @@ class ConditionalContext:
     iv_maps: dict[str, dict[date, float]]
     default_beta: float
     rsi_by_ticker: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+    bar_tf: str = "5m"
+    bar_minutes: int = 5
+    higher_bars: dict[str, pd.DataFrame] = field(default_factory=dict)
+    rsi_higher: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
 
 
-def load_conditional_context(tickers: list[str]) -> ConditionalContext:
+def load_conditional_context(
+    tickers: list[str],
+    *,
+    bar_tf: str = "5m",
+    higher_tf: str | None = None,
+) -> ConditionalContext:
     with connect() as conn:
-        bars_map = load_bars_5m_db(conn, tickers)
+        bars_map = load_bars_for_timeframe(conn, tickers, bar_tf)
         if not bars_map:
             return ConditionalContext({}, {}, SpreadCalibration({}, 0, "empty"), {}, {}, -2.0)
         sectors = load_groups(conn)
@@ -882,10 +1025,18 @@ def load_conditional_context(tickers: list[str]) -> ConditionalContext:
             all_dates.update(df["session_date"].unique())
         d0, d1 = min(all_dates), max(all_dates)
         iv_maps = load_daily_iv_series(conn, list(bars_map.keys()), d0, d1)
+        higher_bars: dict[str, pd.DataFrame] = {}
+        if higher_tf and higher_tf != bar_tf:
+            higher_bars = load_bars_for_timeframe(conn, list(bars_map.keys()), higher_tf)
     rsi_by_ticker: dict[str, dict[int, np.ndarray]] = {}
+    rsi_higher: dict[str, dict[int, np.ndarray]] = {}
+    bm = bar_minutes_for_tf(bar_tf)
     for tk, df in bars_map.items():
         _, rsi_full = _intraday_rsi_by_session(df)
         rsi_by_ticker[tk] = rsi_full
+    for tk, df in higher_bars.items():
+        _, rf = _intraday_rsi_by_session(df)
+        rsi_higher[tk] = rf
     return ConditionalContext(
         bars_map=bars_map,
         sectors=sectors,
@@ -894,6 +1045,10 @@ def load_conditional_context(tickers: list[str]) -> ConditionalContext:
         iv_maps=iv_maps,
         default_beta=default_beta,
         rsi_by_ticker=rsi_by_ticker,
+        bar_tf=bar_tf,
+        bar_minutes=bm,
+        higher_bars=higher_bars,
+        rsi_higher=rsi_higher,
     )
 
 
@@ -907,10 +1062,16 @@ def run_conditional_strategy(
     session_filter: Callable[[date], bool] | None = None,
     keep_trades: bool = False,
     ctx: ConditionalContext | None = None,
+    bar_tf: str | None = None,
+    higher_filter: ConditionSet | None = None,
+    higher_tf: str | None = None,
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
+    tf = bar_tf or (entry.conditions[0].timeframe if entry.conditions else "5m")
     if ctx is None:
-        ctx = load_conditional_context(tickers)
+        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf=higher_tf)
+    elif bar_tf and bar_tf != ctx.bar_tf:
+        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf=higher_tf)
     bars_map = ctx.bars_map
     if not bars_map:
         return {"error": "no bars_5m data", "tickers": tickers}
@@ -927,6 +1088,10 @@ def run_conditional_strategy(
             tk, df, entry, exit_rules, instrument,
             ctx.iv_maps.get(tk, {}), beta, ctx.spread, base_every_day=base_every_day,
             rsi_full=ctx.rsi_by_ticker.get(tk),
+            bar_minutes=ctx.bar_minutes,
+            higher_df=ctx.higher_bars.get(tk),
+            higher_filter=higher_filter,
+            rsi_higher=ctx.rsi_higher.get(tk),
         )
         cond_trades.extend(ct)
         base_trades.extend(bt)
@@ -1423,4 +1588,177 @@ def universe_tickers_from_db(limit: int | None = None) -> list[str]:
         rows = conn.execute("SELECT DISTINCT ticker FROM optlab.bars_5m ORDER BY ticker").fetchall()
     tickers = [r[0] for r in rows]
     return tickers[:limit] if limit else tickers
+
+
+def _scalp_exits() -> list[tuple[str, ExitRules]]:
+    return [
+        ("rsi_gt_50", ExitRules(
+            close_conditions=[IndicatorCondition("rsi14", "gt", 50.0)],
+            time_stop="same_day",
+        )),
+        ("tp25", ExitRules(take_profit_frac=0.25, time_stop="same_day")),
+        ("tp50", ExitRules(take_profit_frac=0.50, time_stop="same_day")),
+        ("tstop30m", ExitRules(time_stop="same_day", max_bars=30)),
+    ]
+
+
+def _day_exits() -> list[tuple[str, ExitRules]]:
+    xs = _scalp_exits()
+    xs.append(("tp50_overnight", ExitRules(take_profit_frac=0.50, time_stop="overnight")))
+    return xs
+
+
+def _swing_exits() -> list[tuple[str, ExitRules]]:
+    return [
+        ("tp50", ExitRules(take_profit_frac=0.50, time_stop="expiry")),
+        ("tstop_5d", ExitRules(time_stop="expiry", max_bars=5 * 78)),
+        ("expiry", ExitRules(time_stop="expiry")),
+    ]
+
+
+CONFLUENCE_FILTERS: list[tuple[str, str, ConditionSet]] = [
+    ("none", "", ConditionSet("and", [])),
+    ("ema20_15m", "15m", ConditionSet("and", [IndicatorCondition("close_above_ema20", "gt", 0.0, "15m")])),
+    ("ema20_1h", "1h", ConditionSet("and", [IndicatorCondition("close_above_ema20", "gt", 0.0, "1h")])),
+    ("rsi40_1h", "1h", ConditionSet("and", [IndicatorCondition("rsi14", "gt", 40.0, "1h")])),
+]
+
+
+def run_horizon_sweep(tickers: list[str], *, smoke: bool = False) -> dict[str, Any]:
+    """Horizon-matched grid (fix4): scalp/day/swing TFs + optional Elder confluence filter."""
+    inst = PutInstrument(target_delta=-0.15)
+    grids: list[tuple[str, str, list[float], list[tuple[str, ExitRules]]]] = [
+        ("scalp", "1m", [10.0, 20.0, 30.0], _scalp_exits()),
+        ("scalp", "2m", [10.0, 20.0, 30.0], _scalp_exits()),
+        ("day", "5m", [10.0, 20.0, 30.0], _day_exits()),
+        ("day", "15m", [10.0, 20.0, 30.0], _day_exits()),
+        ("swing", "1h", [10.0, 20.0, 30.0], _swing_exits()),
+        ("swing", "1d", [10.0, 20.0, 30.0], _swing_exits()),
+    ]
+    rows: list[dict[str, Any]] = []
+    t_load = time.perf_counter()
+    for horizon, tf, thr_list, exit_variants in grids:
+        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf="15m" if horizon in ("scalp", "day") else "1h")
+        load_s = time.perf_counter() - t_load
+        thr_use = thr_list[:1] if smoke else thr_list
+        exit_use = exit_variants[:1] if smoke else exit_variants
+        filt_use = CONFLUENCE_FILTERS[:2] if smoke else CONFLUENCE_FILTERS
+        for thr in thr_use:
+            entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, tf)])
+            for exit_name, exits in exit_use:
+                for fl_name, hi_tf, hi_cond in filt_use:
+                    if fl_name == "none":
+                        payload = run_conditional_strategy(
+                            tickers, entry, exits, inst,
+                            session_filter=lambda d: d >= OPRA_START, ctx=ctx, bar_tf=tf,
+                        )
+                        lift_f = None
+                    else:
+                        bare = run_conditional_strategy(
+                            tickers, entry, exits, inst,
+                            session_filter=lambda d: d >= OPRA_START, ctx=ctx, bar_tf=tf,
+                        )
+                        payload = run_conditional_strategy(
+                            tickers, entry, exits, inst,
+                            session_filter=lambda d: d >= OPRA_START, ctx=ctx, bar_tf=tf,
+                            higher_filter=hi_cond, higher_tf=hi_tf,
+                        )
+                        lift_f = payload.get("lift_pnl_coll", float("nan")) - bare.get("lift_pnl_coll", 0)
+                    c = payload["conditional"]
+                    row = _frontier_row("opra", thr, exit_name, "cond", c, lift=payload.get("lift_pnl_coll"))
+                    row.update({
+                        "horizon": horizon,
+                        "bar_tf": tf,
+                        "filter": fl_name,
+                        "filter_lift_bp": lift_f,
+                        "context_load_s": load_s,
+                    })
+                    rows.append(row)
+                    if smoke:
+                        break
+                if smoke:
+                    break
+            if smoke:
+                break
+        if smoke:
+            break
+    return {"horizon_grid": rows, "n_cells": len(rows)}
+
+
+def _session_bar_masks(df_1m: pd.DataFrame) -> tuple[dict[date, int], dict[date, int]]:
+    """Close ≈ 15:55 bar and next-session open ≈ 09:31 on 1m RTH bars."""
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    ts = pd.to_datetime(df_1m["ts"], utc=True).dt.tz_convert(et)
+    df = df_1m.assign(_ts=ts, session_date=ts.dt.tz_localize(None).dt.date)
+    close_i: dict[date, int] = {}
+    open_i: dict[date, int] = {}
+    for sess, grp in df.groupby("session_date"):
+        idx = grp.index.to_numpy()
+        mins = ts.loc[idx].dt.hour * 60 + ts.loc[idx].dt.minute
+        j_close = int(idx[np.argmax(mins)])
+        close_i[sess] = j_close
+        open_i[sess] = int(idx[0])
+    return close_i, open_i
+
+
+def run_overnight_carry_cells(tickers: list[str] | None = None) -> dict[str, Any]:
+    """A188 #1: short 0.15Δ put at RTH close (1m) → buy next open; mirror open→close. No trigger."""
+    from a359_bars_1m import fetch_range_1m, load_parquet_1m  # noqa: WPS433
+    from bar_resample import resample_bars  # noqa: WPS433
+
+    tickers = tickers or ["SPY", "QQQ"] + universe_tickers_from_db()[:48]
+    inst = PutInstrument(target_delta=-0.15, dte_target=7, dte_min=3, dte_max=14)
+    variants = [("close_to_open", "close"), ("open_to_close", "open")]
+    all_rows: list[dict[str, Any]] = []
+    with connect() as conn:
+        spread = load_spread_calibration(conn)
+        betas = load_iv_return_betas(conn, tickers)
+        sectors = load_groups(conn)
+        default_beta = float(np.median(list(betas.values()))) if betas else -2.0
+        iv_all = load_daily_iv_series(conn, tickers, OPRA_START, date.today())
+    for variant, side in variants:
+        trades: list[dict] = []
+        exits = ExitRules(time_stop="overnight" if side == "close" else "same_day")
+        for tk in tickers:
+            with connect() as conn:
+                df1 = load_parquet_1m(tk)
+                if df1.empty:
+                    df1 = fetch_range_1m(conn, tk, OPRA_START, date.today())
+            if df1.empty:
+                continue
+            bars = resample_bars(df1, "1m")
+            ts = pd.to_datetime(bars["ts"], utc=True)
+            bars = bars.sort_values("ts").reset_index(drop=True)
+            bars = bars.assign(session_date=ts.dt.tz_convert("America/New_York").dt.tz_localize(None).dt.date)
+            carry = None
+            beta = betas.get(tk, default_beta)
+            iv_s = iv_all.get(tk, {})
+            for session, grp in sorted(bars.groupby("session_date"), key=lambda x: x[0]):
+                if session < OPRA_START:
+                    continue
+                sess_df = grp.reset_index(drop=True)
+                if len(sess_df) < 3:
+                    continue
+                loc_close = max(0, len(sess_df) - 3)
+                loc_entry = 0 if side == "open" else loc_close
+                mask = np.zeros(len(sess_df), dtype=bool)
+                mask[loc_entry] = True
+                anchor = prior_business_iv(iv_s, session) or 30.0
+                listed = standard_listed_strikes(float(sess_df["c"].iloc[0]))
+                batch, carry = simulate_session_puts(
+                    sess_df, mask, exits,
+                    iv_anchor=anchor, iv_beta=beta, instrument=inst,
+                    spread=spread, listed_strikes=listed, carry=carry, ticker=tk,
+                    bar_minutes=1,
+                )
+                for t in batch:
+                    t["variant"] = variant
+                trades.extend(batch)
+        st = aggregate_trades(trades, sectors)
+        st["variant"] = variant
+        st["per_year_net_mid"] = st.get("per_year_net_mid", {})
+        all_rows.append(st)
+    return {"overnight_carry": all_rows, "tickers": len(tickers)}
 

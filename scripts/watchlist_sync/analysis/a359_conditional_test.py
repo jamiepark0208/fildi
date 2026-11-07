@@ -193,6 +193,16 @@ class TestSpreadLiquidity(unittest.TestCase):
         self.assertGreater(rt_illiq, rt_spy)
         self.assertAlmostEqual(rt_unknown, 0.18)  # default mid, not vol=0 → low
 
+    def test_deep_otm_neighbour_scaled_wider(self) -> None:
+        sp = SpreadCalibration(
+            buckets={},
+            n_obs=0,
+            source="test",
+            ticker_buckets={("SPY", "near_otm", "mid"): 0.04},
+            ticker_median_mid={("SPY", "near_otm", "mid"): 2.0},
+        )
+        rt = sp.round_trip_frac(500.0, 420.0, 30, ticker="SPY", mid=0.4)
+        self.assertGreater(rt, 0.15)
 
 
 class TestClusterEff(unittest.TestCase):
