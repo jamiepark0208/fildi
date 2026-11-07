@@ -176,3 +176,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A362](asks/A362.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 conditional engine correctness — RSI cold start, IV-beta sign, carried fill_bar (High) | planned |
 | [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | planned |
 | [A364](asks/A364.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A357 LSE option backfill + regrade — OCC collapse, smoke gate, inverted verdict (High) | planned |
+| [A365](asks/A365.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] Event-stack guard: warn/block short premium when vol backwardated + print/earnings in expiry | planned |
+| [A366](asks/A366.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] STUDY: 50% of max profit vs hold on Jamie's own short-put book — does SPY result survive single names? | planned |
