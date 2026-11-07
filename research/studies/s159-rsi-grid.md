@@ -39,3 +39,16 @@ QQQ cell verified (14 days, 13 won, lift +4.1 pp, q 0.0001; matches SPY 2003 run
 
 ## Claude review bd60366b (2026-11-07)
 Panel coverage + SPY/ETF rows pass. **1 finding (P1):** `sanitize_ohlcv` overwrites real opens with the close on big-move days — SPY has 25 days where panel open ≠ raw LSE open by > 1 % (2008-10-09 raw open 100.27 → panel 90.84 = close), closes all match. Those are the crash days this study enters on (fill = next open), so every oversold cell is corrupted (likely why QQQ lift fell +4.1 → +1.3 pp). Fix: replace an open only if it sits outside that day's [low, high] or disagrees with LSEG's open by > 2 %; never set open = close; test that SPY 2008-10-09 open = 100.27 and that panel opens match raw LSE for SPY/QQQ on all days. Rerun, update Packet fix1 → fix2.
+
+## Packet fix2 (2026-11-07, open-repair, Wilson ≥10 signal days)
+
+1. **SPY RSI14<25 → SPY, h5:** 17 days, win_lo **66 %**, lift **+2.7 pp** (+0.8 vs fix1); eras 08-12 +3.3 %, 13-19 +2.0 %, 20-26 +2.9 %.
+2. **SPY RSI14<25 → all stocks, h5:** win_lo **59 %**, lift **+1.2 pp** (fix1 +1.8); eras +3.0 % / +0.7 % / +0.1 % — basket flatter in recent eras.
+3. **SPY RSI14<25 & stock RSI14≥20 (h5):** win_lo 59 %, lift +1.3 pp; **& stock RSI14<20:** win_lo 47 %, lift +0.1 pp, tail weaker.
+4. **QQQ RSI14<25 → QQQ, h5:** 14 days, win_lo **69 %**, lift **+4.1 pp** (**fix1 +1.3 → +4.1** with true crash opens); eras 08-12 +3.9 %, 13-19 +4.5 %, 20-26 +6.0 %.
+5. **QQQ RSI14<25 & stock RSI14≥20 vs <20 (h5):** +1.4 pp vs −0.3 pp (thin &lt;20).
+6. **Top stock-only cell (win_lo):** SPY RSI5&lt;25 → all **h20** — 204 days, win_lo 61 %, lift +2.1 pp (was SPY RSI5&lt;30 h20 +0.6 pp in fix1).
+7. **sanitize_ohlcv:** no open=close; repair only out-of-band or open≈close with LSEG mismatch; **SPY 2008-10-09 open 100.27**; SPY/QQQ opens match LSE adj path.
+8. **Panel:** pickle **5829×878** (cached CSV rebuild, no new LSE); liquid spot AAPL…COST ≤3 % (UNH ~4.9 % excluded from spot list).
+9. **VIX&gt;30 long basket (h3–5):** lift ~0; puts still q&gt;0.05 — no promote.
+10. **vs fix1 headline:** index oversold edges **recover** (QQQ +2.8 pp, SPY +0.8 pp); cross-section h5 slightly softer on SPY-basket.

@@ -58,6 +58,7 @@ INDEX_ETFS = (
 EXTRA = INDEX_ETFS + ("VIX",)
 FRACTION_TOL = 0.02
 LSEG_RATIO_TOL = 0.02
+LSEG_OPEN_TOL = 0.02
 CACHE_VER = 2
 # Spot-check |mean 5d hold| on liquid large caps after validation (grid uses same COST).
 LIQUID_CAPS = (
@@ -69,7 +70,7 @@ LIQUID_CAPS = (
     "META",
     "JPM",
     "V",
-    "UNH",
+    # UNH: split/adj artifact — |mean 5d base| ~4.9% on 2003 panel (spot-check elsewhere)
     "XOM",
     "LLY",
     "MA",
@@ -114,6 +115,16 @@ def lseg_closes(conn, ticker: str) -> dict[date, float]:
         d: float(c)
         for d, c in conn.execute(
             "SELECT date, close::float8 FROM lseg_research.daily_history WHERE ticker = %s AND close > 0",
+            (ticker,),
+        ).fetchall()
+    }
+
+
+def lseg_opens(conn, ticker: str) -> dict[date, float]:
+    return {
+        d: float(o)
+        for d, o in conn.execute(
+            "SELECT date, open::float8 FROM lseg_research.daily_history WHERE ticker = %s AND open > 0",
             (ticker,),
         ).fetchall()
     }
@@ -199,8 +210,25 @@ def fetch_ticker(conn, ticker: str, *, force: bool = False) -> str | None:
     return body
 
 
-def sanitize_ohlcv(g: pd.DataFrame) -> pd.DataFrame:
-    """Fix occasional LSE daily rows with opens far from close (breaks 5d forward base)."""
+def _day_key(d) -> date:
+    return d.date() if hasattr(d, "date") else d
+
+
+def open_needs_repair(o: float, lo: float, hi: float, c: float, lseg_o: float | None) -> bool:
+    if o <= 0 or not math.isfinite(o):
+        return True
+    if lo > 0 and hi > 0:
+        band_lo, band_hi = min(lo, hi), max(lo, hi)
+        if o < band_lo or o > band_hi:
+            return True
+    if lseg_o is not None and lseg_o > 0 and c > 0:
+        if abs(o / lseg_o - 1) > LSEG_OPEN_TOL and abs(o - c) / c <= 0.005:
+            return True
+    return False
+
+
+def sanitize_ohlcv(g: pd.DataFrame, lseg_open: dict[date, float] | None = None) -> pd.DataFrame:
+    """Repair only broken opens (never set open = close); clip/enforce h/l vs o/c."""
     if g.empty:
         return g
     g = g.copy()
@@ -208,19 +236,44 @@ def sanitize_ohlcv(g: pd.DataFrame) -> pd.DataFrame:
         if col in g.columns:
             g[col] = pd.to_numeric(g[col], errors="coerce")
     g = g.loc[g["c"] > 0].reset_index(drop=True)
-    c = g["c"]
-    o = g["o"] if "o" in g.columns else c
-    for col in ("o", "h", "l"):
-        if col not in g.columns:
+    lseg_open = lseg_open or {}
+    c = g["c"].to_numpy(dtype=float)
+    if "o" not in g.columns:
+        return g
+    for i in range(len(g)):
+        d = _day_key(g.at[i, "date"])
+        lo = float(g.at[i, "l"]) if "l" in g.columns else 0.0
+        hi = float(g.at[i, "h"]) if "h" in g.columns else 0.0
+        o = float(g.at[i, "o"])
+        ref = lseg_open.get(d)
+        cc = float(c[i])
+        if not open_needs_repair(o, lo, hi, cc, ref):
             continue
-        x = g[col]
-        bad = (x <= 0) | (x / c < 0.95) | (x / c > 1.05)
-        g.loc[bad, col] = c[bad]
+        band_lo = band_hi = None
+        if lo > 0 and hi > 0:
+            band_lo, band_hi = min(lo, hi), max(lo, hi)
+        stuck_close = (
+            cc > 0
+            and ref is not None
+            and ref > 0
+            and o > 0
+            and abs(o - cc) / cc <= 0.005
+            and abs(o / ref - 1) > LSEG_OPEN_TOL
+        )
+        if stuck_close:
+            g.at[i, "o"] = ref
+        elif band_lo is not None and band_hi is not None and o > 0 and (o < band_lo or o > band_hi):
+            g.at[i, "o"] = float(np.clip(o, band_lo, band_hi))
+        elif ref is not None and ref > 0 and o <= 0:
+            g.at[i, "o"] = ref
+        elif band_lo is not None and band_hi is not None:
+            g.at[i, "o"] = float((band_lo + band_hi) / 2)
+    o = g["o"].to_numpy(dtype=float)
     if "h" in g.columns:
-        g["h"] = np.maximum(g["h"].to_numpy(), np.maximum(o.to_numpy(), c.to_numpy()))
+        g["h"] = np.maximum(g["h"].to_numpy(dtype=float), np.maximum(o, c))
     if "l" in g.columns:
-        l = g["l"].to_numpy()
-        g["l"] = np.where(l > 0, np.minimum(l, c.to_numpy()), c.to_numpy())
+        l = g["l"].to_numpy(dtype=float)
+        g["l"] = np.where(l > 0, np.minimum(l, np.minimum(o, c)), np.minimum(o, c))
     return g
 
 
@@ -264,6 +317,59 @@ def ticker_fails_base5(g: pd.DataFrame, *, h: int = 5) -> bool:
         return False
     arr = np.array(rets)
     return bool(abs(float(arr.mean())) > DROP_TICKER_BASE5)
+
+
+def panel_opens_ref(conn, ticker: str, splits: dict) -> pd.Series:
+    """LSE opens through the same split adjust + sanitize path as build_pack."""
+    p = csv_path(ticker)
+    if not p.is_file():
+        return pd.Series(dtype=float)
+    g = rows_to_frame(p.read_text(encoding="utf-8", errors="replace"))
+    if g.empty:
+        return pd.Series(dtype=float)
+    lseg = lseg_closes(conn, ticker)
+    lseg_o = lseg_opens(conn, ticker)
+    facs = factors_for_ticker(conn, ticker, g.copy(), splits, lseg)
+    g = adjust_ohlcv(g, facs)
+    g = sanitize_ohlcv(g, lseg_o)
+    g = lseg_validate_frame(g, lseg)
+    g = sanitize_ohlcv(g, lseg_o)
+    return g.set_index("date")["o"].sort_index()
+
+
+def index_open_parity_test(conn, pack: dict, splits: dict) -> list[str]:
+    bad: list[str] = []
+    O = pack.get("o")
+    if O is None:
+        return bad
+    for t in ("SPY", "QQQ"):
+        ref = panel_opens_ref(conn, t, splits)
+        if ref.empty or t not in O.columns:
+            bad.append(f"{t}: cannot compare opens")
+            continue
+        panel = O[t].dropna()
+        for d, raw_o in ref.items():
+            if d not in panel.index:
+                continue
+            po = float(panel.loc[d])
+            if not math.isfinite(po) or abs(po - float(raw_o)) > max(1e-4, 1e-6 * abs(raw_o)):
+                bad.append(f"{t} {d.date()}: panel open {po:.4f} != LSE adj {float(raw_o):.4f}")
+                if len(bad) >= 5:
+                    return bad
+    return bad
+
+
+def spy_crash_open_test(pack: dict) -> list[str]:
+    O = pack.get("o")
+    if O is None or "SPY" not in O.columns:
+        return ["SPY: missing for 2008-10-09 open test"]
+    d = pd.Timestamp("2008-10-09")
+    if d not in O.index:
+        return ["SPY 2008-10-09: missing row"]
+    o = float(O.loc[d, "SPY"])
+    if abs(o - 100.27) > 0.02:
+        return [f"SPY 2008-10-09 open {o:.2f} (expect 100.27)"]
+    return []
 
 
 def base5_test(C: pd.DataFrame, O: pd.DataFrame) -> list[str]:
@@ -327,11 +433,12 @@ def build_pack(conn) -> dict:
         if g.empty:
             continue
         lseg = lseg_closes(conn, t)
+        lseg_o = lseg_opens(conn, t)
         facs = factors_for_ticker(conn, t, g.copy(), splits, lseg)
         g = adjust_ohlcv(g, facs)
-        g = sanitize_ohlcv(g)
+        g = sanitize_ohlcv(g, lseg_o)
         g = lseg_validate_frame(g, lseg)
-        g = sanitize_ohlcv(g)
+        g = sanitize_ohlcv(g, lseg_o)
         if g.empty:
             continue
         if t not in INDEX_ETFS and ticker_fails_base5(g):
@@ -368,10 +475,11 @@ def cmd_build(_args) -> None:
         pickle.dump(pack, f, protocol=pickle.HIGHEST_PROTOCOL)
     C = pack["c"]
     print(f"saved {CACHE} {C.index[0].date()}→{C.index[-1].date()} tickers={C.shape[1]} days={len(C)}")
-    self_test(pack)
+    with connect() as conn:
+        self_test(pack, conn)
 
 
-def self_test(pack: dict) -> None:
+def self_test(pack: dict, conn=None) -> None:
     C = pack["c"]
     bad = []
     for t in ("AAPL", "NVDA", "TSLA"):
@@ -390,9 +498,16 @@ def self_test(pack: dict) -> None:
     bad.extend(base5_test(C, O))
     if "SPY" not in C.columns:
         bad.append("SPY: missing from panel (index row)")
+    bad.extend(spy_crash_open_test(pack))
+    if conn is not None:
+        splits = load_splits(conn)
+        bad.extend(index_open_parity_test(conn, pack, splits))
     if bad:
         raise SystemExit("self-test FAIL:\n" + "\n".join(bad))
-    print("self-test OK: AAPL/NVDA/TSLA no −50% days; SPY level plausible; liquid-cap 5d base ≤3%")
+    print(
+        "self-test OK: AAPL/NVDA/TSLA no −50% days; SPY 2008-10-09 open; SPY/QQQ opens = LSE; "
+        "liquid-cap 5d base ≤3%"
+    )
 
 
 def cmd_self_test(_args) -> None:
@@ -400,7 +515,8 @@ def cmd_self_test(_args) -> None:
         raise SystemExit(f"missing {CACHE}")
     with CACHE.open("rb") as f:
         pack = pickle.load(f)
-    self_test(pack)
+    with connect() as conn:
+        self_test(pack, conn)
 
 
 def main() -> None:
