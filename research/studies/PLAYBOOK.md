@@ -3,6 +3,7 @@
 > Claude 2026-10-18, from S041–S045. Rules = `METHODS.md`; this is the hands-on how. Read `INDEX.md` first (maybe it's answered).
 
 ## 0. Screen first, study second (A341, Jamie 11-06 "studies too slow")
+> **Gate before any edge claim (Jamie 11-06):** `.agents/skills/fildi-quant-research/trade-decision-protocol.md` Module A (A1–A9: condition fires, N_eff, same-ticker lift, neighbourhood, era split, conditional entry + exits). Deficiencies D-1…D-10 listed there.
 Any "does strategy/signal X work?" starts in the fast screen (S157) — seconds, not hours. Full study only for what it flags.
 1. Add the signal as one vectorized fn (≤ 15 lines) in `scripts/watchlist_sync/analysis/screen_signals.py` (one home; live shadow signals import it too) + a library row in `analysis/fast_screen.py`.
 2. `cd scripts/watchlist_sync && .venv/bin/python analysis/fast_screen.py self-test` then `run` (68 cells ≈ 11 s, plus the use-case grid unless `--skip-usecases`: 1,030 variants ≈ 28 s — settings grids, put-breach job, raw vs matched lenses, SPY-regime/IV/sector splits), then `puts` (same-delta short-put P&L vs peers + T-bill, 2×2 vs the live put score).
