@@ -75,5 +75,5 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
 
-Last reviewed SHA: bcb777d9 (11-07: A359 fix1–3 + A367 reviewed in-ask; A362 plan-reviewed. Before 24b7b6b3: 11-06 night: Cursor A341 S151 re-grade + A356 phase 3 reviewed in-ask; rest own/Muse docs. Before: 5a480ee8, 11-06 late: 7e113b14..5a480ee8 — A341/A352/A353/A342–A346 all reviewed in-ask; rest Claude own + Muse docs. Older history in git log of this file)
+Last reviewed SHA: c9b09224 (11-07 late: 2fdd403e fix3b pass + deep_otm fallback note in A359; rest own state/docs. Before bcb777d9, 11-07: A359 fix1–3 + A367 reviewed in-ask; A362 plan-reviewed. Before 24b7b6b3: 11-06 night: Cursor A341 S151 re-grade + A356 phase 3 reviewed in-ask; rest own/Muse docs. Before: 5a480ee8, 11-06 late: 7e113b14..5a480ee8 — A341/A352/A353/A342–A346 all reviewed in-ask; rest Claude own + Muse docs. Older history in git log of this file)
 
