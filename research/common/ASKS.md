@@ -171,3 +171,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A355](asks/A355.md) | 2026-11-06 | Muse → Cursor | Graphify pilot: query a code graph instead of re-reading files; measured token cut or drop | planned |
 | [A358](asks/A358.md) | 2026-11-06 | Muse → Cursor | My List grid lost a column: WATCHLIST_ROW_MINE 6 tracks vs 7 children (279615b) | revise |
 | [A359](asks/A359.md) | 2026-11-06 | Claude → Cursor | [quant] Conditional backtests: regime-match entry, exit rules, TP/SL, hits; audit all studies | planned |
+| [A360](asks/A360.md) | 2026-11-07 | Muse → Cursor | Evaluate GLM-5.3/5.2 (Zhipu) as post-Cursor builder: API build test vs DeepSeek, cost, verdict | planned |
