@@ -17,6 +17,7 @@
 - User decisions 10-14 (from the PM-agent log, full text in state-archive.md): Claude = PM, Cursor = dev, Muse = ideation; crash budget 25 % red / 20 % amber; no push/email alerts (email bridge deleted); Claude plan-reviews every Muse row; FILDI accounts with a margin loan get no new put ideas (10-06, S012).
 
 ## Next tasks (priority order)
+- **11-06 night Claude (A356 phase 4 part 2):** CNN works (F&G 22.1, P/C 0.861, prior-series salvage exists) → own P/C declined w/ trigger; short interest already one home; Schwab index-movers strip being trimmed by another agent's uncommitted live.tsx edit (left alone). A356 done except LSE_KEY (await Jamie). NEXT: A184 fast_screen library run, then stalled-row triage (A188 A192 A208 A219 A230 A233 A234 A246 A262 A270).
 - **11-06 late Claude (A356 phase 4 part 1):** Codiv metered (api_usage `codiv`) + headline labels carry `provider`; Codiv vs local parity rel 98 / dir 95 / cat 85 % (A356.md). GITHUB_TOKEN = external, keep. LSE_KEY ≠ LSEG_APP_KEY, unknown → asked Jamie. Codiv cat graded = local (0.558 both, 113 keyword-truth headlines) → no gate. NEXT: items 4 below (CNN 418 → own put/call, short % one home, Schwab /movers).
 - **11-06 handoff → NEXT SESSION START HERE (Jamie 11-06: "you should be finding use cases for LSE, CODIV right? and github is for something else"; never propose deleting keys):**
   1. **Codiv** = hosted OpenJev (same 26B) used by `scripts/oj.py` (OJ_PROVIDER auto → Codiv when local is down). Audit + catalog wrongly said "0 callers" (catalog fixed 11-06). Do: meter Codiv calls into api_usage (source `codiv`); find product use cases (desk-facts extraction / headline labels / Explain pre-filter without Mac RAM; OpenJev registry tier rules apply — A/B tiers only); fix row 18 in `research/common/external-tools-audit.md`.
@@ -76,5 +77,5 @@ Live: app Watchlist → **Model List** tab (champion `fit-1.4.1` from `watchlist
 AGENTS.md § Review loop. Claude: plan-review `[quant]` Muse rows → `planned`; review quant commits (`Refs: A##`) before reading Muse's review; never implement Muse rows.
 ASKS.md = one-line index; details/reviews in `research/common/asks/A##.md`. A47, A49, A51–A57 `[quant]` + `planned` (plan notes copied into each file from A59).
 
-Last reviewed SHA: 5a480ee8 (11-06 late: 7e113b14..5a480ee8 — A341/A352/A353/A342–A346 all reviewed in-ask; rest Claude own + Muse docs. Older history in git log of this file)
+Last reviewed SHA: 24b7b6b3 (11-06 night: Cursor A341 S151 re-grade + A356 phase 3 reviewed in-ask; rest own/Muse docs. Before: 5a480ee8, 11-06 late: 7e113b14..5a480ee8 — A341/A352/A353/A342–A346 all reviewed in-ask; rest Claude own + Muse docs. Older history in git log of this file)
 
