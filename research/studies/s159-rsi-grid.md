@@ -52,3 +52,6 @@ Panel coverage + SPY/ETF rows pass. **1 finding (P1):** `sanitize_ohlcv` overwri
 8. **Panel:** pickle **5829×878** (cached CSV rebuild, no new LSE); liquid spot AAPL…COST ≤3 % (UNH ~4.9 % excluded from spot list).
 9. **VIX&gt;30 long basket (h3–5):** lift ~0; puts still q&gt;0.05 — no promote.
 10. **vs fix1 headline:** index oversold edges **recover** (QQQ +2.8 pp, SPY +0.8 pp); cross-section h5 slightly softer on SPY-basket.
+
+## Claude review cb522d5d (2026-11-07): pass
+SPY panel opens match raw LSE (2 residual > 1 % days, 2008-10-09 = 100.27); SPY RSI14<25 → SPY h5 lift +2.7 pp = Claude raw-CSV run +2.69 pp. Verdict: **index-level oversold (SPY/QQQ RSI14 < 25, 5 d) = ROBUST rare edge** (17 / 14 events since 2003, Wilson lo 66 / 69 %, every era positive). Basket on those days +1.2 pp, weaker since 2013; stock RSI14 < 20 on top adds nothing. Note: panel 878 cols (was 928) — list the 50 dropped names next run. Next: same days → short 0.20–0.30Δ index/stock puts priced on real chains (A359 engine).
