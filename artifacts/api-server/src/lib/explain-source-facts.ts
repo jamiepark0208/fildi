@@ -180,14 +180,19 @@ export async function gatherSourceFacts(ticker: string): Promise<string[]> {
   });
 
   const earnP = timed("earnings", async () => {
-    const row = rowsOf<{ earnings_days_out: number | null }>(
+    // A356 review: dated calendar row, not ticker_technicals.earnings_days_out (no as-of → off-by-one when stale).
+    const row = rowsOf<{ report_date: string; is_confirmed: boolean | null; days: number }>(
       (await db.execute(sql`
-        SELECT earnings_days_out FROM ticker_technicals WHERE ticker = ${t} LIMIT 1`)) as SqlRows<never>,
+        SELECT report_date::text, is_confirmed, (report_date - CURRENT_DATE)::int AS days
+        FROM earnings_calendar
+        WHERE UPPER(ticker) = ${t} AND report_date >= CURRENT_DATE
+        ORDER BY report_date LIMIT 1`)) as SqlRows<never>,
     )[0];
-    if (row?.earnings_days_out == null) return null;
-    const d = row.earnings_days_out;
+    if (!row) return null;
+    const d = row.days;
     const when = d === 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`;
-    return `Earnings ${formatMmDd(new Date().toISOString())}: next report ${when} — context, not a signal`;
+    const conf = row.is_confirmed ? "confirmed" : "estimated";
+    return `Earnings ${formatMmDd(row.report_date)}: next report ${when} (${conf}) — context, not a signal`;
   });
 
   const tpP = timed("turning_point", async () => {
