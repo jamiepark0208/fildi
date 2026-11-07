@@ -113,20 +113,66 @@ def _get(url: str) -> dict:
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
 
 
-def companyfacts(conn, ticker: str) -> dict | None:
+def _submissions_newest_filing(conn, ticker: str, cik: str, *, fetch: bool = True) -> str | None:
+    """Cheap change signal: newest filingDate in EDGAR submissions recent block."""
+    key = ticker.upper()
+    cached = rows(conn, """SELECT payload FROM vendor_raw
+                          WHERE source = 'sec' AND endpoint = 'submissions' AND key = %s
+                          ORDER BY fetched_on DESC LIMIT 1""", (key,))
+    sub = None
+    if cached:
+        sub = cached[0]["payload"] if isinstance(cached[0]["payload"], dict) else json.loads(cached[0]["payload"])
+    elif fetch:
+        sub = _get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json")
+        body = json.dumps(sub)
+        conn.execute("""INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
+                        VALUES ('sec', 'submissions', %s, %s, %s::jsonb, %s)
+                        ON CONFLICT (source, endpoint, key, fetched_on) DO UPDATE SET
+                          payload = EXCLUDED.payload, payload_sha = EXCLUDED.payload_sha
+                        WHERE vendor_raw.payload_sha IS DISTINCT FROM EXCLUDED.payload_sha""",
+                     (key, date.today(), body, hashlib.sha256(body.encode()).hexdigest()))
+    return _newest_filing_from_sub(sub) if sub else None
+
+
+def _newest_filing_from_sub(sub: dict) -> str | None:
+    dates = (sub.get("filings") or {}).get("recent", {}).get("filingDate") or []
+    return max(dates) if dates else None
+
+
+def _stored_companyfacts_filing_signal(conn, ticker: str) -> str | None:
+    r = rows(conn, """SELECT payload FROM vendor_raw WHERE source='sec' AND endpoint='submissions' AND key=%s
+                      ORDER BY fetched_on DESC LIMIT 1""", (ticker.upper(),))
+    if not r:
+        return None
+    p = r[0]["payload"] if isinstance(r[0]["payload"], dict) else json.loads(r[0]["payload"])
+    return _newest_filing_from_sub(p)
+
+
+def companyfacts(conn, ticker: str, *, force: bool = False) -> dict | None:
     r = rows(conn, "SELECT cik FROM ticker_cik WHERE ticker = %s", (ticker,))
     if not r:
         return None
-    facts = _get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{r[0]['cik']}.json")
+    cik = str(r[0]["cik"])
+    prior = _stored_companyfacts_filing_signal(conn, ticker) if not force else None
+    newest = _submissions_newest_filing(conn, ticker, cik, fetch=True)
+    if not force and newest and prior == newest:
+        cached = rows(conn, """SELECT payload FROM vendor_raw WHERE source = 'sec' AND endpoint = 'companyfacts' AND key = %s
+                               ORDER BY fetched_on DESC LIMIT 1""", (ticker.upper(),))
+        if cached:
+            return cached[0]["payload"] if isinstance(cached[0]["payload"], dict) else json.loads(cached[0]["payload"])
+    facts = _get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json")
     used = {c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | set(WEIGHTED.values()) | set(DILUTION.values()) | {UNRECOGNIZED, CONVERT_PRICE}
     keep = {"cik": facts.get("cik"), "entityName": facts.get("entityName"), "facts": {
         "us-gaap": {k: v for k, v in (facts.get("facts", {}).get("us-gaap", {}) or {}).items() if k in used},
         "dei": (facts.get("facts", {}).get("dei", {}) or {})}}
     body = json.dumps(keep)  # whole fact series for every concept we use (full file is 5–20 MB)
+    sha = hashlib.sha256(body.encode()).hexdigest()
     conn.execute("""INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
                     VALUES ('sec', 'companyfacts', %s, %s, %s::jsonb, %s)
                     ON CONFLICT (source, endpoint, key, fetched_on) DO UPDATE SET payload = EXCLUDED.payload,
-                    payload_sha = EXCLUDED.payload_sha""", (ticker, date.today(), body, hashlib.sha256(body.encode()).hexdigest()))
+                    payload_sha = EXCLUDED.payload_sha
+                    WHERE vendor_raw.payload_sha IS DISTINCT FROM EXCLUDED.payload_sha""",
+                 (ticker, date.today(), body, sha))
     time.sleep(0.15)
     return facts
 
