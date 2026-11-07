@@ -15,20 +15,21 @@
 | Wide credit spreads → market-drop warning | S&P −5 % in 21 d: 25 % vs 13 % | S028 | display |
 | IV ÷ RV is the put edge | t 4+ | S003 / S004 | in fit score |
 
-## Dead (don't re-test without a new reason)
-| Idea | Why | Study |
-|---|---|---|
-| Per-stock RSI cutoffs | 3–12 events per name; shrunk per-stock −0.7 pp vs global 25 out of sample | S160 |
-| Intraday indicator signals (stock or options) | gross lift < spread; 0/144, 0/60, 1/221 | S152 · S155 · S156 · A362 |
-| Short-term RSI dip entries (1m…1h), 21 names | every cell ≤ 0 after spread; best 1h RSI<30 −8.6 bp | A359 fix4 |
-| Overnight carry | +10.8 bp/night gross, −5 mid / −21 cross → timing rule only | A359 |
-| Put spreads / strangles / straddles vs CSP | −$17.5k / −$12.4k vs CSP on the same entries | S020 |
-| Stops, 50/75 % profit takes | −$13.7k (stop); takes lose on real quotes | S017 · S103 |
-| Calendar / Fed / CPI / opex weeks | 0/22 | S026 |
-| Streaks, post-earnings drift, bounce after drops | 0/12; fail; no edge | S030 · S032 · S025 |
-| Sector-specific fundamental weights | 0/6 sectors better | S024 |
-| Recession odds model | no skill vs base rate | S029 |
-| Tech score totals | predict nothing | S004 |
+## Dead — as of the date tested, not forever
+Dead = don't re-run **the same test**. A variant is welcome when it names what is different (new regime, new data, new structure, fairer comparator, real costs). Kind: **cost** = gross edge smaller than the spread (durable; re-check only if costs or fills change) · **no-lift** = no edge in that sample (can change with regime → re-screen on the Re-check date with the newest data) · **framing?** = the test itself may be wrong (comparator, units, approximated dates) → audit (A371). `scripts/asks_revisit.py` lists due re-checks at session start.
+| Idea | Why | Study | Kind | Re-check |
+|---|---|---|---|---|
+| Per-stock RSI cutoffs | 3–12 events per name; shrunk per-stock −0.7 pp vs global 25 out of sample | S160 | no-lift | 2027-05-07 |
+| Intraday indicator signals (stock or options) | gross lift < spread; 0/144, 0/60, 1/221 | S152 · S155 · S156 · A362 | cost | cost |
+| Short-term RSI dip entries (1m…1h), 21 names | every cell ≤ 0 after spread; best 1h RSI<30 −8.6 bp | A359 fix4 | cost | cost |
+| Overnight carry | +10.8 bp/night gross, −5 mid / −21 cross → timing rule only | A359 | cost | cost |
+| Put spreads / strangles / straddles vs CSP | −$17.5k / −$12.4k vs CSP on the same entries | S020 | framing? | 2026-11-07 |
+| Stops, 50/75 % profit takes | −$13.7k (stop); takes lose on real quotes | S017 · S103 | no-lift | 2027-02-07 |
+| Calendar / Fed / CPI / opex weeks | 0/22 | S026 | framing? | 2027-02-07 |
+| Streaks, post-earnings drift, bounce after drops | 0/12; fail; no edge | S030 · S032 · S025 | no-lift | 2027-02-07 |
+| Sector-specific fundamental weights | 0/6 sectors better | S024 | no-lift | 2027-05-07 |
+| Recession odds model | no skill vs base rate | S029 | no-lift | 2027-05-07 |
+| Tech score totals | predict nothing | S004 | no-lift | 2027-02-07 |
 
 ## Testing / queued
 - A370 indicators as put-timing filters in the seller's universe (smoke 11-07: top-IV names, SuperTrend bear / below 200d / 5d drop → +1.8–2.5 vol pts IV−RV, t 4–9; RSI>70 and high-volume days −4.4; works when SPY > 200d, fades in broad sell-offs)
