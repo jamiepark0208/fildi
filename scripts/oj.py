@@ -28,6 +28,7 @@ queue, idle stop 10 min after anyone's last request; needs ≥ 26 GB free RAM, ~
 from __future__ import annotations
 
 import argparse
+import atexit
 import datetime as dt
 import hashlib
 import json
@@ -129,6 +130,28 @@ _last_ev = [0.0]
 WHAT = ["typed question"]   # set by each command: shown on the AI-tab beam
 
 
+_codiv_calls = [0]
+
+
+def _flush_codiv_usage() -> None:
+    """A356: one api_usage upsert per run (source 'codiv', PT date) so Settings › API meters hosted calls.
+    psql, not psycopg (this script runs on system python); 5 s cap; metering must never fail the run."""
+    n, url = _codiv_calls[0], _env_local().get("DATABASE_URL")
+    if n <= 0 or not url:
+        return
+    sql = ("INSERT INTO api_usage (source, date, calls_made, updated_at) VALUES "
+           f"('codiv', (now() AT TIME ZONE 'America/Los_Angeles')::date, {int(n)}, now()) "
+           "ON CONFLICT (source, date) DO UPDATE SET calls_made = api_usage.calls_made + excluded.calls_made, "
+           "updated_at = now()")
+    try:
+        subprocess.run(["psql", url, "-qAtc", sql], timeout=5, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+atexit.register(_flush_codiv_usage)
+
+
 def log_request_usage(response: dict, elapsed_ms: int) -> None:
     """Successful agent requests only; no question, state, answer or model text."""
     usage = response.get("usage", {})
@@ -141,7 +164,9 @@ def log_request_usage(response: dict, elapsed_ms: int) -> None:
     row = {"kind": "model_request", "at": dt.datetime.now(dt.timezone.utc).isoformat(),
            "agent": caller if caller in ("claude", "cursor", "codex", "muse", "kiro", "grok") else "?",
            "input_tokens": count("input_tokens"), "output_tokens": count("output_tokens"),
-           "elapsed_ms": max(0, elapsed_ms)}
+           "elapsed_ms": max(0, elapsed_ms), "provider": PROVIDER}
+    if PROVIDER == "codiv":
+        _codiv_calls[0] += 1
     try:
         USAGE.parent.mkdir(exist_ok=True)
         with USAGE.open("a") as f:

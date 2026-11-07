@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS watchlist_sync.openjev_headline_labels (
   UNIQUE (ticker, ts, headline)
 );
 CREATE INDEX IF NOT EXISTS oj_hl_ticker_ts ON watchlist_sync.openjev_headline_labels (ticker, ts DESC);
+-- A356 11-06: which OpenJev copy labeled the row (local | codiv). Codiv vs local on 60 same headlines:
+-- rel 98 %, dir bucket 95 %, cat 85 % (local vs local 100 %, codiv vs codiv 98 %) -> keep it splittable.
+ALTER TABLE watchlist_sync.openjev_headline_labels ADD COLUMN IF NOT EXISTS provider text;
 """
 
 
@@ -178,11 +181,11 @@ def run(limit: int | None = None, *, max_new: int | None = None, reuse: bool = F
             try:
                 conn.execute(
                     """INSERT INTO watchlist_sync.openjev_headline_labels
-                       (ticker, ts, headline, url, rel, dir, cat)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       (ticker, ts, headline, url, rel, dir, cat, provider)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                        ON CONFLICT (ticker, ts, headline) DO UPDATE SET
-                         rel = EXCLUDED.rel, dir = EXCLUDED.dir, cat = EXCLUDED.cat, labeled_at = now()""",
-                    (t, h["ts"], h["headline"], h["url"], lab["rel"], lab["dir"], lab["cat"]),
+                         rel = EXCLUDED.rel, dir = EXCLUDED.dir, cat = EXCLUDED.cat, provider = EXCLUDED.provider, labeled_at = now()""",
+                    (t, h["ts"], h["headline"], h["url"], lab["rel"], lab["dir"], lab["cat"], "codiv" if port == 0 else "local"),
                 )
                 n_lab += 1
             except Exception:

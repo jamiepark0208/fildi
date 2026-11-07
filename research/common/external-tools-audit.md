@@ -23,7 +23,7 @@ Columns match A356 Detail (1–10). Citations = file:line or query unless noted.
 | 15 | **CNN F&G** · macro | 24 | Macro charts poll | Keyless; bot risk (`catalog:124–129`) | Fear/greed + put/call → macro caches | Macro › Sentiment | Catalog yes · metered | Macro regime cache indirect | Last calls in usage table | **bug:** live **418** bot block (A263:98–99) |
 | 16 | **NY Fed** · macro | 24 | Macro charts | Keyless xlsx (`catalog:132–137`) | GSCPI → macro caches | Macro › Liquidity | Catalog yes · metered | Via macro themes not direct | 24/30d (A263) | **overlap** SOFR via FRED |
 | 17 | **Anthropic** · AI model | 4201 | Transcripts + Explain on demand | API key; no cap in repo (`catalog:140–145`) | Haiku summaries + Explain | Settings › Agents activity | Catalog yes · metered (`usageKey: anthropic`) | **Yes:** `ai-explain.ts:87–97`, `desk-facts.ts:250`, `explain.ts` routes | 4201/30d | **not in skills table** as data source; only runtime LLM |
-| 18 | **Codiv** · AI model | unmetered | — | `CODIV_API_KEY` 100M tier (`catalog:148–153`) | None | not shown | Catalog yes · unmetered | None | **0 code refs** (A263) | **dead key / unused** — OpenJev local is SoR |
+| 18 | **Codiv** · AI model | metered from 11-06 (`api_usage` source `codiv`, one upsert per `oj.py` run) | On demand: `scripts/oj.py` OJ_PROVIDER=auto → Codiv when local server is down | `CODIV_API_KEY` 100M tier | Hosted OpenJev 26B (same model as local); agent tooling answers | not shown | Catalog yes · **metered** (`usageKey: codiv`) | Agent tooling only (oj.py); not product Explain | Usage log rows carry `provider` (11-06) | **corrected 11-06:** not dead (audit missed `oj.py:56,163`); product use cases = phase 4 |
 | 19 | **OpenJev local** · AI model | unmetered | `com.fildi.openjev` 15m tick (`inventory.ts:208–213`) | Local RAM guard | Shortlist, headlines, controls | Agents/OpenJev outputs | Not in vendor catalog | Agent workflow only (`.agents/openjev/`) | DB `openjev_*` tables | **clean** for product; not Explain UI |
 | 20 | **Crawl4AI** · dev tool | unmetered | ad hoc `fetch-page.sh` | Local (`catalog:164–169`) | Research page saves → `research/sources/` | not shown | Not in catalog | `fildi-market-data` skill | — | **clean** research infra |
 | 21 | **S&P Global MCP** · market data | unmetered | — | Not authenticated (`catalog:172–177`) | None | not shown | Catalog row · unmetered | None | No callers | **unused** until auth+license |
@@ -46,8 +46,8 @@ Columns match A356 Detail (1–10). Citations = file:line or query unless noted.
 | 38 | **codegraph** · dev tool | unmetered | MCP `.cursor/mcp.json` | Local index | Code navigation | not shown | — | Rules/skills (`codegraph.mdc`, CLAUDE.md:59) | — | **clean** |
 | 39 | **Playwright** · dev tool | unmetered | Manual login helper | Local | UI audit sessions (A163) | not shown | — | state file `~/.fildi/playwright-state.json` refs in state.md | — | **not runtime data** |
 | 40 | **markitdown** · dev tool | unmetered | ad hoc | Local | PDF/md conversion | not shown | — | `startup.md` skill | — | **clean** |
-| 41 | **GITHUB_TOKEN** · dev | unmetered | — | PAT in `.env.local` | **0** `process.env.GITHUB` refs in `*.ts/mjs/py/sh` | not shown | not shown | none | — | **dead env key** in product code (sync may use gh CLI outside repo) |
-| 42 | **LSE_KEY** · ? | — | — | — | **0** repo refs (`rg LSE_KEY` → A356 only) | not shown | not shown | none | — | **dead / misnamed env** — likely typo vs LSEG app key |
+| 41 | **GITHUB_TOKEN** · dev | unmetered | — | PAT in `.env.local` | **0** `process.env.GITHUB` refs in `*.ts/mjs/py/sh` | not shown | not shown | none | — | **external use, keep** (Jamie 11-06: used outside repo code); not a product data source |
+| 42 | **LSE_KEY** · ? | — | — | — | **0** repo refs (`rg LSE_KEY` → A356 only) | not shown | not shown | none | — | **unknown service, keep** — 11-06 check: value differs from `LSEG_APP_KEY` (not a duplicate/typo); no repo doc names it → Jamie to say which service |
 
 ## Overlaps (FIELD_DEFS — `artifacts/api-server/src/scripts/merge-trusted.ts:67–174`)
 
@@ -73,4 +73,4 @@ StockTwits, call_tone, LSEG signal fields (except breakdown API), tastytrade met
 
 ## Dead keys / code
 
-`CODIV_API_KEY` (0 callers, `catalog:148–153`), `GITHUB_TOKEN` (env only, 0 code refs), `LSE_KEY` (0 refs), `S&P Global` MCP unauthenticated (`catalog:172–177`), EDGAR `efts` search (0 refs, A263).
+None dead (11-06): `CODIV_API_KEY` used by `oj.py` (metered); `GITHUB_TOKEN` external use, keep; `LSE_KEY` unknown service, distinct from `LSEG_APP_KEY` — awaiting Jamie. Still unused: `S&P Global` MCP unauthenticated (`catalog:172–177`), EDGAR `efts` search (0 refs, A263).
