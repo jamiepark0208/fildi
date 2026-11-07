@@ -1,0 +1,18 @@
+src=open(__import__('os').path.join(__import__('os').path.dirname(__file__),'a370_put_timing_smoke.py')).read()
+exec(src.split("print(f\"shift=")[0])
+spy = pd.DataFrame(c.execute("select date, close::float8 from lseg_research.daily_history where ticker='SPY' order by date").fetchall(), columns=['d','spy'])
+spy['spy_up'] = spy.spy > spy.spy.rolling(200).mean()
+vix = pd.DataFrame(c.execute("select date, close::float8 from lseg_research.daily_history where ticker in ('VIX','^VIX','.VIX') order by date").fetchall(), columns=['d','vix'])
+print('spy rows', len(spy), 'vix rows', len(vix))
+w = df.sort_values('d').groupby(['t','wk']).head(1).merge(spy[['d','spy_up']], on='d', how='left')
+# market-wide co-movement: share of names below 200d that day (breadth) 
+br = df.groupby('d').below200.mean().rename('br'); w = w.merge(br, on='d')
+if len(vix): w = w.merge(vix, on='d', how='left')
+top = w[w.ivx>=2/3].dropna(subset=['vrp']).copy()
+rel = top.vrp - top.groupby('wk').vrp.transform('mean')
+F=['st_bear','below200','drop5','squeeze','rsi_hi','relvol']
+def show(name, m):
+    print(f"{name:28} n={m.sum():6} base {top.vrp[m].mean()*100:+5.1f} | " + ' '.join(f"{f}:{rel[m & top[f]].mean()*100:+5.1f}({wt(rel[m & top[f]], top.wk[m & top[f]]):+.1f})" for f in F))
+show('SPY above 200d', top.spy_up==True); show('SPY below 200d', top.spy_up==False)
+show('breadth: <40% names below200', top.br<0.4); show('breadth: >=40% below200', top.br>=0.4)
+if 'vix' in top: show('VIX < 20', top.vix<20); show('VIX >= 20', top.vix>=20)

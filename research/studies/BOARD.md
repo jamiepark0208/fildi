@@ -10,7 +10,7 @@
 | Sharp-drop regime (SPY 3m ≤ −8 %, VIX÷VIX3M < 1) → higher put Δ | bp rises steeply with Δ, both periods | S101 | strategy_rules |
 | Buy calls: rising revisions + strong 60d return | holdout +69.6 % vs revisions +43.1 % (t 2.0) | S100 | board gate |
 | Calls: low volume + not stretched above 200d | +42.9 bp/wk OOS, t 4.6 | S046 | options-1.2.0 |
-| Index oversold: SPY/QQQ RSI14 < 25 → long 5 d | Wilson lo 66 / 69 %, all eras since 2003 (17 / 14 events) | S159 | trigger chip (A368) |
+| Index oversold: SPY/QQQ RSI14 < 25 → long 5 d | **UNDERPOWERED** (A371): 17 / 14 events since 2003; at RSI < 30 SPY 60.9 % vs 59.0 % base (46 ev), QQQ 76 % vs 60 % (39 ev, halves 64 / 94 %) | S159 | trigger chip (A368) (label underpowered) |
 | Watchlist RSI14 < 25 → buy next open, 5 d | +2.0 pp vs own avg 2019→, 242 events, up 53 % (one global cutoff) | S160 | context |
 | Wide credit spreads → market-drop warning | S&P −5 % in 21 d: 25 % vs 13 % | S028 | display |
 | IV ÷ RV is the put edge | t 4+ | S003 / S004 | in fit score |
@@ -31,6 +31,7 @@
 | Tech score totals | predict nothing | S004 |
 
 ## Testing / queued
+- A370 indicators as put-timing filters in the seller's universe (smoke 11-07: top-IV names, SuperTrend bear / below 200d / 5d drop → +1.8–2.5 vol pts IV−RV, t 4–9; RSI>70 and high-volume days −4.4; works when SPY > 200d, fades in broad sell-offs)
 - S159 → short puts on index-oversold days, real chains (A359 engine)
 - A365 event-stack guard (vol backwardation + earnings) vs S159 conflict
 - A366 50 % take vs hold on Jamie's own book
