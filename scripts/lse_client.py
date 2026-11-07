@@ -130,14 +130,21 @@ def _request(conn, url: str, *, endpoint: str, vkey: str) -> tuple[int, bytes, d
         meter(conn, 1)
         hdrs = dict(e.headers.items()) if e.headers else {}
         if e.code == 429:
-            wait = float(hdrs.get("Retry-After", "2"))
-            time.sleep(max(0, wait))
-            _BUCKET.wait()
-            req2 = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req2, timeout=DEADLINE_S) as resp:
-                body = resp.read()
-                meter(conn, 1)
-                return resp.status, body, dict(resp.headers)
+            wait = float(hdrs.get("Retry-After", "60"))
+            for attempt in range(5):
+                time.sleep(max(5, wait * (attempt + 1)))
+                _BUCKET.wait()
+                req2 = urllib.request.Request(url, headers=headers)
+                try:
+                    with urllib.request.urlopen(req2, timeout=DEADLINE_S) as resp:
+                        body = resp.read()
+                        meter(conn, 1)
+                        return resp.status, body, dict(resp.headers)
+                except urllib.error.HTTPError as e2:
+                    if e2.code != 429:
+                        return e2.code, e2.read(), dict(e2.headers.items()) if e2.headers else {}
+                    wait = float((e2.headers or {}).get("Retry-After", wait))
+            return 429, b"rate limited", hdrs
         return e.code, e.read(), hdrs
 
 
