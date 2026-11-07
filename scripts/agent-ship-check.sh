@@ -113,7 +113,8 @@ fi
 # A305: hard-fail on tab-bar revival / CDN fonts / rogue font-family in stock-compare src
 if [ "$need_ui" -eq 1 ] || echo "$files" | grep -qE '^artifacts/stock-compare/src/'; then
   echo "agent-ship-check: ui-style-guard…"
-  if ! node "$ROOT/scripts/ui-style-guard.mjs"; then
+  # 11-06: scan the commit being pushed ($TC = clean worktree when the tree is dirty), not another agent's WIP.
+  if ! node "$TC/scripts/ui-style-guard.mjs"; then
     echo "agent-ship-check: FAIL ui-style-guard — fix before push (A305)" >&2
     fail=1
   fi
