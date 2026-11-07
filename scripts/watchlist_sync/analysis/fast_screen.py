@@ -50,6 +50,7 @@ from screen_signals import (  # noqa: E402  A341 one home
 )
 
 CACHE = Path.home() / ".fildi" / "cache" / "fast_screen_bars.pkl"
+PANEL_2003 = Path.home() / ".fildi" / "cache" / "fast_screen_bars_2003.pkl"
 CACHE_VER = 2  # bumped when pack schema changes (iv)
 OUT_DIR = REPO / "research" / "studies" / "out" / "fast_screen"
 COST = 0.0005  # 5 bp / side
@@ -886,6 +887,28 @@ def self_test(pack: dict) -> list[str]:
         f"{'PASS' if ok_z else 'FAIL'} (vii) zscore20/long/21 holdout vs vol-decile peers: "
         f"{bp:.1f}bp n={nn} (ref ≈ +{REF_Z20_L21_BP}bp n≈{REF_Z20_L21_N})"
     )
+
+    # (viii) A369 per-stock threshold lens matches S160 h5 @ global 25
+    from threshold_lens import lens_rsi14_h5, s160_acceptance_ok  # noqa: WPS433
+
+    if PANEL_2003.is_file():
+        lr = lens_rsi14_h5(25)
+        ok_lens, msg = s160_acceptance_ok(lr)
+        lines.append(f"{'PASS' if ok_lens else 'FAIL'} (viii) threshold_lens S160: {msg}")
+    else:
+        lines.append("FAIL (viii) missing fast_screen_bars_2003.pkl")
+
+    from conditional_engine import run_conditional_leak_test  # noqa: WPS433
+
+    try:
+        lk = run_conditional_leak_test(["SPY", "AAPL"])
+        ok_leak = lk["planted_lookahead_flagged"] and lk["s159_pass"]
+        lines.append(
+            f"{'PASS' if ok_leak else 'FAIL'} (ix) leak planted={lk['planted_lookahead_flagged']} "
+            f"s159={lk['s159_pass']}"
+        )
+    except Exception as exc:
+        lines.append(f"FAIL (ix) leak test error: {exc}")
     return lines
 
 
@@ -1733,6 +1756,13 @@ def main() -> int:
     p_cond.add_argument("--sweep", action="store_true", help="RSI threshold × exit frontier (A359 review)")
     p_cond.add_argument("--survivor-tail", action="store_true", help="tp50_overnight tail stats × RSI 5/30 (8 cells)")
     p_cond.add_argument("--index-oversold", action="store_true", help="S159 daily SPY/QQQ RSI oversold puts")
+    p_cond.add_argument("--bench-a359", action="store_true", help="A369 legacy vs cached sweep wall time")
+    p_cond.add_argument("--staging", action="store_true", help="A369 cost-aware staging chain 1h RSI<30")
+    p_cond.add_argument("--leak-test", action="store_true", help="A369 leak test (planted + S159)")
+    p_lens = sub.add_parser("lens", help="A369 per-stock threshold lens (S160 generalised)")
+    p_lens.add_argument("--h", type=int, default=5)
+    p_lens.add_argument("--gth", type=int, default=25, help="force global threshold")
+    p_lens.add_argument("--notes", action="store_true", help="write stock notes (n>=3)")
     p_cself = sub.add_parser("conditional-self-test")
     args = ap.parse_args()
 
@@ -1760,6 +1790,16 @@ def main() -> int:
             print(ln)
         return 0 if all(ln.startswith("PASS") for ln in lines) else 1
 
+    if args.cmd == "lens":
+        from threshold_lens import lens_rsi14_h5, write_stock_notes  # noqa: WPS433
+
+        res = lens_rsi14_h5(args.gth)
+        print(json.dumps({k: v for k, v in res.items() if k != "per_stock"}, default=str, indent=2))
+        if args.notes:
+            n = write_stock_notes(res.get("per_stock") or [], src="A369", author="cursor")
+            print(f"notes_written={n}")
+        return 0
+
     if args.cmd == "conditional":
         tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] or None
         if args.survivor_tail:
@@ -1786,6 +1826,30 @@ def main() -> int:
                 "best": {k: v for k, v in best.items() if k != "worst_trade"},
                 "n_events_rsi25": len(payload.get("events") or []),
             }, indent=2, default=str))
+            return 0
+        if args.bench_a359:
+            from conditional_engine import benchmark_threshold_sweep  # noqa: WPS433
+
+            if tickers is None:
+                tickers = [
+                    t.strip() for t in
+                    "AAL,AAOI,AAPL,ABBV,ABNB,ABT,ACN,ADBE,ADI,AEP,AFRM,ALAB,AMAT,AMD,AMGN,AMT,AMZN,ANET,APA,APH,SPY".split(",")
+                ]
+            bench = benchmark_threshold_sweep(tickers, smoke=args.smoke)
+            print(json.dumps(bench, indent=2))
+            return 0
+        if args.staging:
+            from conditional_engine import run_a359_1h_rsi30_staging  # noqa: WPS433
+
+            if tickers is None:
+                tickers = ["SPY", "QQQ", "AAPL"]
+            out = run_a359_1h_rsi30_staging(tickers)
+            print(out["formatted"])
+            return 0
+        if args.leak_test:
+            from conditional_engine import run_conditional_leak_test  # noqa: WPS433
+
+            print(json.dumps(run_conditional_leak_test(tickers), indent=2, default=str))
             return 0
         if args.sweep:
             from conditional_engine import (  # noqa: WPS433
