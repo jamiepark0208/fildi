@@ -1681,9 +1681,12 @@ def conditional_self_test() -> list[str]:
         "session_date": [date.today()] * 6,
     })
     exits = ExitRules(take_profit_frac=0.5, time_stop="same_day")
-    tr = simulate_session_puts(
-        bars, np.zeros(6, dtype=bool), exits, spot_iv=25.0,
-        instrument=PutInstrument(), force_entry_bar=0,
+    from conditional_engine import SpreadCalibration  # noqa: WPS433
+
+    sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
+    tr, _ = simulate_session_puts(
+        bars, np.zeros(6, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+        instrument=PutInstrument(), spread=sp, force_entry_bar=0,
     )
     ok_la = tr and tr[0]["fill_bar"] > tr[0]["signal_bar"]
     lines.append(f"{'PASS' if ok_la else 'FAIL'} look-ahead fill_bar>{'signal_bar' if tr else '?'}")
@@ -1699,10 +1702,10 @@ def conditional_self_test() -> list[str]:
         stop_loss_mult=2.0,
         time_stop="same_day",
     )
-    tr2 = simulate_session_puts(
+    tr2, _ = simulate_session_puts(
         bars2, np.array([False, False, True, False, False, False]),
-        exits2, spot_iv=30.0, instrument=PutInstrument(), listed_strikes=[45.0, 47.5, 50.0],
-        force_entry_bar=2,
+        exits2, iv_anchor=30.0, iv_beta=-2.0, instrument=PutInstrument(),
+        spread=sp, listed_strikes=[45.0, 47.5, 50.0], force_entry_bar=2,
     )
     reason = tr2[0]["exit_reason"] if tr2 else ""
     lines.append(f"{'PASS' if reason in ('close_condition', 'take_profit', 'stop_loss', 'time_stop') else 'FAIL'} "
@@ -1727,6 +1730,7 @@ def main() -> int:
     p_cond = sub.add_parser("conditional")
     p_cond.add_argument("--tickers", default="")
     p_cond.add_argument("--smoke", action="store_true")
+    p_cond.add_argument("--sweep", action="store_true", help="RSI threshold × exit frontier (A359 review)")
     p_cself = sub.add_parser("conditional-self-test")
     args = ap.parse_args()
 
@@ -1756,13 +1760,29 @@ def main() -> int:
 
     if args.cmd == "conditional":
         tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] or None
+        if args.sweep:
+            from conditional_engine import (  # noqa: WPS433
+                format_frontier_table,
+                run_threshold_sweep,
+                universe_tickers_from_db,
+                write_report,
+            )
+
+            if tickers is None:
+                tickers = universe_tickers_from_db(50 if args.smoke else None)
+            payload = run_threshold_sweep(tickers, smoke=args.smoke)
+            write_report(payload, "frontier-smoke" if args.smoke else "frontier")
+            print(format_frontier_table(payload["frontier"]))
+            return 0
         payload = run_conditional(tickers, smoke=args.smoke)
         c = payload.get("conditional", {})
         b = payload.get("base", {})
         print(json.dumps({
             "n": c.get("n"), "win": c.get("win"), "mean_pnl_coll": c.get("mean_pnl_coll"),
+            "mean_pnl_coll_gross": c.get("mean_pnl_coll_gross"),
             "lift": payload.get("lift_pnl_coll"), "exit_mix": c.get("exit_mix"),
             "base_n": b.get("n"), "wall_s": payload.get("wall_s"),
+            "spread_n": (payload.get("spread_calibration") or {}).get("n_obs"),
         }, indent=2))
         return 0
 

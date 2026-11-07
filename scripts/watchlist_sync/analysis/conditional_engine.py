@@ -2,19 +2,22 @@
 
 Intraday: 5m bars from optlab.bars_5m (Polygon); optional LSE 1m export + resample in lse_client.
 Signal bar t → fill bar t+1 open. One entry per cross; no repeat while open.
+
+IV: prior-session iv30_put anchor only (never same-day EOD on an intraday bar).
+Intraday path: per-ticker IV-vs-return beta (stated); OPRA era uses calibrated friction from
+option_chain_history + LSE overlap window (vendor_raw via lse_client when fetched).
 """
 from __future__ import annotations
 
 import json
 import math
-import pickle
 import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import numpy as np
 import pandas as pd
@@ -33,10 +36,12 @@ from s045_put_retest import bs_put  # noqa: E402
 
 BAR_CACHE = Path.home() / ".fildi" / "cache" / "a359_bars_5m"
 OUT_DIR = REPO / "research" / "studies" / "out" / "conditional"
-COST_BP = 10  # round-trip option friction ~10 bp of collateral
+OPRA_START = date(2025, 10, 1)
+DEFAULT_SPREAD_RT = 0.40  # round-trip (ask−bid)/mid fallback when bucket empty
 
 Logic = Literal["and", "or"]
 CmpOp = Literal["lt", "lte", "gt", "gte"]
+TimeStop = Literal["same_day", "overnight", "expiry", "bars"]
 
 
 @dataclass
@@ -56,9 +61,9 @@ class ConditionSet:
 @dataclass
 class ExitRules:
     close_conditions: list[IndicatorCondition] = field(default_factory=list)
-    take_profit_frac: float | None = None  # fraction of entry credit captured
-    stop_loss_mult: float | None = None  # loss cap = mult × credit (2 → pay 3× credit to close)
-    time_stop: Literal["same_day", "bars", "expiry"] = "same_day"
+    take_profit_frac: float | None = None
+    stop_loss_mult: float | None = None
+    time_stop: TimeStop = "same_day"
     max_bars: int | None = None
 
 
@@ -68,6 +73,157 @@ class PutInstrument:
     dte_target: int = 30
     dte_min: int = 15
     dte_max: int = 45
+
+
+@dataclass
+class OpenPut:
+    strike: float
+    credit: float
+    spot_entry: float
+    iv_anchor: float
+    expiry: date
+    signal_bar: int
+    fill_bar: int
+    entry_session: date
+    dte_at_entry: int
+    listed_strikes: list[float]
+
+
+@dataclass(frozen=True)
+class SpreadCalibration:
+    """Round-trip spread/mid by (moneyness_bin, dte_bin, liq_bin)."""
+    buckets: dict[tuple[str, str, str], float]
+    n_obs: int
+    source: str
+
+    def round_trip_frac(
+        self, spot: float, strike: float, dte: int, *, volume: int = 0, open_interest: int = 0
+    ) -> float:
+        if spot <= 0 or strike <= 0:
+            return DEFAULT_SPREAD_RT
+        m = strike / spot
+        if m < 0.90:
+            mb = "deep_otm"
+        elif m < 0.97:
+            mb = "near_otm"
+        else:
+            mb = "atm"
+        if dte <= 14:
+            db = "short"
+        elif dte <= 35:
+            db = "mid"
+        else:
+            db = "long"
+        liq = volume + open_interest
+        if liq < 50:
+            lb = "low"
+        elif liq < 500:
+            lb = "mid"
+        else:
+            lb = "high"
+        return self.buckets.get((mb, db, lb), DEFAULT_SPREAD_RT)
+
+
+def _moneyness_bin(m: float) -> str:
+    if m < 0.90:
+        return "deep_otm"
+    if m < 0.97:
+        return "near_otm"
+    return "atm"
+
+
+def _dte_bin(dte: int) -> str:
+    if dte <= 14:
+        return "short"
+    if dte <= 35:
+        return "mid"
+    return "long"
+
+
+def _liq_bin(volume: int, oi: int) -> str:
+    liq = volume + oi
+    if liq < 50:
+        return "low"
+    if liq < 500:
+        return "mid"
+    return "high"
+
+
+def load_spread_calibration(conn) -> SpreadCalibration:
+    """Half-spread × 2 as % of premium from option_chain_history (OPRA overlap era)."""
+    rows = conn.execute(
+        """SELECT strike::float8 / NULLIF(spot, 0), dte, volume, open_interest,
+                  (ask::float8 - bid::float8) / NULLIF((bid::float8 + ask::float8) / 2.0, 0)
+           FROM option_chain_history
+           WHERE side = 'put' AND as_of >= %s AND bid > 0 AND ask > bid AND spot > 0""",
+        (OPRA_START,),
+    ).fetchall()
+    acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    for m, dte, vol, oi, spr in rows:
+        if spr is None or not math.isfinite(spr) or spr <= 0 or spr > 2:
+            continue
+        key = (_moneyness_bin(float(m)), _dte_bin(int(dte)), _liq_bin(int(vol or 0), int(oi or 0)))
+        acc[key].append(float(spr))
+    buckets = {k: float(np.median(v)) for k, v in acc.items() if v}
+    return SpreadCalibration(buckets=buckets, n_obs=len(rows), source="option_chain_history≥2025-10-01")
+
+
+def load_iv_return_betas(conn, tickers: list[str]) -> dict[str, float]:
+    """Per-ticker IV elasticity to same-day log return (prior bar IV → next). Stated in reports."""
+    if not tickers:
+        return {}
+    rows = conn.execute(
+        """SELECT ticker, date, close::float8, iv30_put::float8
+           FROM lseg_research.daily_history
+           WHERE ticker = ANY(%s) AND close > 0 AND iv30_put > 0
+           ORDER BY ticker, date""",
+        (tickers,),
+    ).fetchall()
+    by_t: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    prev: dict[str, tuple[date, float, float]] = {}
+    for t, d, c, iv in rows:
+        if t in prev:
+            _, pc, piv = prev[t]
+            if pc > 0 and piv > 0:
+                lr = math.log(c / pc)
+                iv_chg = math.log(iv / piv)
+                by_t[t].append((lr, iv_chg))
+        prev[t] = (d, float(c), float(iv))
+    out: dict[str, float] = {}
+    for t, pairs in by_t.items():
+        if len(pairs) < 30:
+            continue
+        x = np.array([p[0] for p in pairs], dtype=float)
+        y = np.array([p[1] for p in pairs], dtype=float)
+        vx = float(np.var(x))
+        if vx < 1e-12:
+            continue
+        beta = float(np.cov(x, y)[0, 1] / vx)
+        out[t] = max(-5.0, min(beta, 5.0))
+    return out
+
+
+def prior_business_iv(
+    iv_by_date: dict[date, float], session: date, *, allow_same_day: bool = False
+) -> float | None:
+    """IV anchor for intraday session — strictly before session unless allow_same_day (tests only)."""
+    d = session if allow_same_day else session - timedelta(days=1)
+    for _ in range(12):
+        if d in iv_by_date and iv_by_date[d] > 0:
+            if not allow_same_day and d >= session:
+                d -= timedelta(days=1)
+                continue
+            return iv_by_date[d]
+        d -= timedelta(days=1)
+    return None
+
+
+def iv_intraday_path(iv_anchor: float, spot_entry: float, spot_now: float, beta: float) -> float:
+    if spot_entry <= 0 or not math.isfinite(spot_now):
+        return iv_anchor
+    lr = math.log(max(spot_now, 1e-6) / spot_entry)
+    iv = iv_anchor * math.exp(-beta * lr)
+    return float(max(5.0, min(iv, 250.0)))
 
 
 def _cmp(a: float, op: CmpOp, b: float) -> bool:
@@ -105,24 +261,22 @@ def condition_true_series(
 
 
 def entry_cross_mask(conds: ConditionSet, closes: np.ndarray) -> np.ndarray:
-    """True on bars where the condition set newly becomes true (edge trigger)."""
     rsi_cache = {14: rsi_series(closes, 14), 5: rsi_series(closes, 5), 2: rsi_series(closes, 2)}
     parts = [condition_true_series(c, closes, rsi_cache=rsi_cache) for c in conds.conditions]
     if not parts:
         return np.zeros(len(closes), dtype=bool)
     stack = np.vstack(parts)
-    if conds.logic == "and":
-        level = stack.all(axis=0)
-    else:
-        level = stack.any(axis=0)
+    level = stack.all(axis=0) if conds.logic == "and" else stack.any(axis=0)
     prev = np.roll(level, 1)
     prev[0] = False
     return level & ~prev
 
 
 def third_friday(y: int, m: int) -> date:
+    from datetime import timedelta as td
+
     d = date(y, m, 15)
-    return d + timedelta((4 - d.weekday()) % 7)
+    return d + td((4 - d.weekday()) % 7)
 
 
 def pick_expiry(d: date, *, dte_target: int, dte_min: int, dte_max: int) -> date | None:
@@ -157,7 +311,6 @@ def strike_for_delta(spot: float, iv: float, dte_days: int, target_delta: float)
 
 
 def standard_listed_strikes(spot: float) -> list[float]:
-    """Coarse listed grid when /v3/pairs not called."""
     step = 0.5 if spot < 25 else (1.0 if spot < 200 else 5.0)
     lo = max(step, spot * 0.5)
     hi = spot * 1.02
@@ -182,35 +335,47 @@ def put_pnl_frac_short(credit: float, mark: float) -> float:
     return (credit - mark) / credit
 
 
+def _apply_friction(
+    gross_coll: float, credit: float, strike: float, spot: float, spread: SpreadCalibration, dte: int
+) -> tuple[float, float]:
+    prem = credit / strike if strike > 0 else 0.0
+    rt = spread.round_trip_frac(spot, strike, dte)
+    friction_coll = rt * prem
+    return gross_coll - friction_coll, friction_coll
+
+
 def simulate_session_puts(
     bars: pd.DataFrame,
     entry_mask: np.ndarray,
     exit_rules: ExitRules,
     *,
-    spot_iv: float,
+    iv_anchor: float,
+    iv_beta: float,
     instrument: PutInstrument,
+    spread: SpreadCalibration,
     listed_strikes: list[float] | None = None,
     force_entry_bar: int | None = None,
-) -> list[dict]:
-    """One RTH session; returns 0–1 trades (first entry only when flat)."""
+    carry: OpenPut | None = None,
+    ticker: str = "",
+) -> tuple[list[dict], OpenPut | None]:
     if bars.empty:
-        return []
+        return [], carry
     closes = bars["c"].to_numpy(dtype=float)
     opens = bars["o"].to_numpy(dtype=float)
     session_d = bars["session_date"].iloc[0]
     rsi14 = rsi_series(closes, 14)
     trades: list[dict] = []
+    open_pos = carry
+    in_pos = carry is not None
 
-    in_pos = False
-    start_i = 1
-    if force_entry_bar is not None:
-        start_i = force_entry_bar
-
-    i = 0
+    if in_pos and open_pos is not None:
+        entry_i = 0
+        i = 0
+    else:
+        i = 0
     while i < len(bars) - 1:
         if not in_pos:
-            enter_signal = (i in (force_entry_bar,) if force_entry_bar is not None
-                            else bool(entry_mask[i]))
+            enter_signal = (i in (force_entry_bar,) if force_entry_bar is not None else bool(entry_mask[i]))
             if not enter_signal:
                 i += 1
                 continue
@@ -229,9 +394,10 @@ def simulate_session_puts(
                 i += 1
                 continue
             dte = (expiry - session_d).days
-            iv = spot_iv if np.isfinite(spot_iv) and spot_iv > 0 else 30.0
-            v = iv / 100.0 if iv > 3 else iv
-            model_k = strike_for_delta(spot, iv, dte, instrument.target_delta)
+            iv0 = iv_anchor if np.isfinite(iv_anchor) and iv_anchor > 0 else 30.0
+            iv_e = iv_intraday_path(iv0, spot, spot, iv_beta)
+            v = iv_e / 100.0 if iv_e > 3 else iv_e
+            model_k = strike_for_delta(spot, iv0, dte, instrument.target_delta)
             listed = listed_strikes or standard_listed_strikes(spot)
             strike = nearest_listed_strike(model_k, listed)
             t0 = dte / 365.0
@@ -239,62 +405,89 @@ def simulate_session_puts(
             if credit <= 0:
                 i += 1
                 continue
-            entry_i = fill_i
+            open_pos = OpenPut(
+                strike=strike, credit=credit, spot_entry=spot, iv_anchor=iv0,
+                expiry=expiry, signal_bar=i, fill_bar=fill_i, entry_session=session_d,
+                dte_at_entry=dte, listed_strikes=listed,
+            )
             in_pos = True
-            exit_reason = "session_end"
-            exit_i = len(bars) - 1
-            exit_mark = bs_put(float(closes[exit_i]), strike, v, max(t0 * 0.2, 1 / 365))
-            for j in range(entry_i + 1, len(bars)):
-                s = float(closes[j])
-                if not np.isfinite(s):
-                    continue
-                mins_left = (len(bars) - 1 - j) * 5
-                t_rem = max((dte * 24 * 60 - (j - entry_i) * 5) / (365 * 24 * 60), 1 / (365 * 24 * 60))
-                mark = bs_put(s, strike, v, t_rem)
-                pnl_f = put_pnl_frac_short(credit, mark)
-                if exit_rules.close_conditions:
-                    ok = True
-                    for ec in exit_rules.close_conditions:
-                        val = rsi14[j] if ec.indicator == "rsi14" else float("nan")
-                        ok = ok and _cmp(val, ec.op, ec.threshold)
-                    if ok:
-                        exit_reason = "close_condition"
-                        exit_i, exit_mark = j, mark
-                        break
-                if exit_rules.take_profit_frac is not None and pnl_f >= exit_rules.take_profit_frac:
-                    exit_reason = "take_profit"
-                    exit_i, exit_mark = j, mark
+        assert open_pos is not None
+        if carry is not None and in_pos and open_pos.fill_bar >= len(bars):
+            entry_i = 0
+        else:
+            entry_i = open_pos.fill_bar if open_pos.fill_bar < len(bars) else 0
+        strike = open_pos.strike
+        credit = open_pos.credit
+        spot_entry = open_pos.spot_entry
+        expiry = open_pos.expiry
+        exit_reason = "session_end"
+        exit_i = len(bars) - 1
+        exit_mark = credit
+        start_j = max(entry_i + 1, i + 1)
+        for j in range(start_j, len(bars)):
+            s = float(closes[j])
+            if not np.isfinite(s):
+                continue
+            iv_j = iv_intraday_path(open_pos.iv_anchor, spot_entry, s, iv_beta)
+            vj = iv_j / 100.0 if iv_j > 3 else iv_j
+            days_elapsed = (session_d - open_pos.entry_session).days + (j - entry_i) * 5 / (24 * 60)
+            dte_rem = max(open_pos.dte_at_entry - days_elapsed, 1 / (365 * 24 * 60))
+            t_rem = dte_rem / 365.0
+            mark = bs_put(s, strike, vj, t_rem)
+            pnl_f = put_pnl_frac_short(credit, mark)
+            if exit_rules.close_conditions:
+                ok = True
+                for ec in exit_rules.close_conditions:
+                    val = rsi14[j] if ec.indicator == "rsi14" else float("nan")
+                    ok = ok and _cmp(val, ec.op, ec.threshold)
+                if ok:
+                    exit_reason, exit_i, exit_mark = "close_condition", j, mark
                     break
-                if exit_rules.stop_loss_mult is not None and mark >= credit * (1 + exit_rules.stop_loss_mult):
-                    exit_reason = "stop_loss"
-                    exit_i, exit_mark = j, mark
-                    break
-                if exit_rules.time_stop == "same_day" and j == len(bars) - 1:
-                    exit_reason = "time_stop"
-                    exit_i, exit_mark = j, mark
-                    break
-            pnl_frac = put_pnl_frac_short(credit, exit_mark)
-            coll_frac = credit / strike if strike > 0 else 0.0
-            pnl_coll = pnl_frac * coll_frac - COST_BP / 1e4
-            trades.append({
-                "session": session_d.isoformat(),
-                "signal_bar": i,
-                "fill_bar": entry_i,
-                "exit_bar": exit_i,
-                "exit_reason": exit_reason,
-                "spot_entry": spot,
-                "strike": strike,
-                "model_strike": model_k,
-                "credit": credit,
-                "pnl_frac": pnl_frac,
-                "pnl_coll_frac": pnl_coll,
-                "win": pnl_coll > 0,
-            })
-            in_pos = False
-            i = exit_i + 1
-            continue
-        i += 1
-    return trades
+            if exit_rules.take_profit_frac is not None and pnl_f >= exit_rules.take_profit_frac:
+                exit_reason, exit_i, exit_mark = "take_profit", j, mark
+                break
+            if exit_rules.stop_loss_mult is not None and mark >= credit * (1 + exit_rules.stop_loss_mult):
+                exit_reason, exit_i, exit_mark = "stop_loss", j, mark
+                break
+            if exit_rules.time_stop == "same_day" and j == len(bars) - 1:
+                exit_reason, exit_i, exit_mark = "time_stop", j, mark
+                break
+            if exit_rules.time_stop == "expiry" and session_d >= expiry and j == len(bars) - 1:
+                exit_reason, exit_i, exit_mark = "expiry", j, mark
+                break
+        pnl_frac = put_pnl_frac_short(credit, exit_mark)
+        coll_frac = credit / strike if strike > 0 else 0.0
+        gross_coll = pnl_frac * coll_frac
+        net_coll, friction = _apply_friction(
+            gross_coll, credit, strike, spot_entry, spread, open_pos.dte_at_entry,
+        )
+        closed = exit_reason != "session_end" or exit_rules.time_stop == "same_day"
+        if not closed and exit_rules.time_stop in ("overnight", "expiry"):
+            return trades, open_pos
+        trades.append({
+            "session": session_d.isoformat(),
+            "ticker": ticker,
+            "signal_bar": open_pos.signal_bar,
+            "fill_bar": entry_i,
+            "exit_bar": exit_i,
+            "exit_reason": exit_reason,
+            "spot_entry": spot_entry,
+            "strike": strike,
+            "credit": credit,
+            "pnl_frac": pnl_frac,
+            "pnl_coll_frac_gross": gross_coll,
+            "pnl_coll_frac": net_coll,
+            "friction_coll_frac": friction,
+            "win": net_coll > 0,
+            "iv_anchor": open_pos.iv_anchor,
+            "iv_beta": iv_beta,
+            "in_opra_window": session_d >= OPRA_START,
+        })
+        in_pos = False
+        open_pos = None
+        i = exit_i + 1
+        continue
+    return trades, open_pos
 
 
 def load_bars_5m_db(conn, tickers: list[str]) -> dict[str, pd.DataFrame]:
@@ -313,23 +506,27 @@ def load_bars_5m_db(conn, tickers: list[str]) -> dict[str, pd.DataFrame]:
     return out
 
 
-def load_daily_iv(conn, tickers: list[str], d0: date, d1: date) -> dict[tuple[str, date], float]:
-    iv: dict[tuple[str, date], float] = {}
+def load_daily_iv_series(conn, tickers: list[str], d0: date, d1: date) -> dict[str, dict[date, float]]:
+    out: dict[str, dict[date, float]] = defaultdict(dict)
     rows = conn.execute(
         """SELECT ticker, date, iv30_put::float8
            FROM lseg_research.daily_history
            WHERE ticker = ANY(%s) AND date BETWEEN %s AND %s AND iv30_put > 0""",
-        (tickers, d0, d1),
+        (tickers, d0 - timedelta(days=30), d1),
     ).fetchall()
     for t, d, v in rows:
-        iv[(t, d)] = float(v)
-    return iv
+        out[t][d] = float(v)
+    return dict(out)
 
 
 def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, Any]:
     if not trades:
-        return {"n": 0, "n_eff": 0.0, "win": np.nan, "mean_pnl_coll": np.nan, "exit_mix": {}}
+        return {
+            "n": 0, "n_eff": 0.0, "win": np.nan,
+            "mean_pnl_coll": np.nan, "mean_pnl_coll_gross": np.nan, "exit_mix": {},
+        }
     pnls = np.array([t["pnl_coll_frac"] for t in trades], dtype=float)
+    gross = np.array([t.get("pnl_coll_frac_gross", t["pnl_coll_frac"]) for t in trades], dtype=float)
     mix: dict[str, int] = defaultdict(int)
     for t in trades:
         mix[t["exit_reason"]] += 1
@@ -344,9 +541,52 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
         "n_eff": float(n_eff),
         "win": float(np.mean([t["win"] for t in trades])),
         "mean_pnl_coll": float(np.mean(pnls)),
+        "mean_pnl_coll_gross": float(np.mean(gross)),
         "median_pnl_coll": float(np.median(pnls)),
         "exit_mix": dict(mix),
     }
+
+
+def _run_ticker_sessions(
+    tk: str,
+    df: pd.DataFrame,
+    entry: ConditionSet,
+    exit_rules: ExitRules,
+    instrument: PutInstrument,
+    iv_series: dict[date, float],
+    iv_beta: float,
+    spread: SpreadCalibration,
+    *,
+    base_every_day: bool,
+) -> tuple[list[dict], list[dict]]:
+    cond_trades: list[dict] = []
+    base_trades: list[dict] = []
+    carry: OpenPut | None = None
+    for session, sess_df in sorted(df.groupby("session_date"), key=lambda x: x[0]):
+        sess_df = sess_df.reset_index(drop=True)
+        closes = sess_df["c"].to_numpy(dtype=float)
+        cross = entry_cross_mask(entry, closes) if carry is None else np.zeros(len(closes), dtype=bool)
+        anchor = prior_business_iv(iv_series, session)
+        if anchor is None:
+            anchor = 30.0
+        listed = standard_listed_strikes(float(closes[0]))
+        ts, carry = simulate_session_puts(
+            sess_df, cross, exit_rules,
+            iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
+            spread=spread, listed_strikes=listed, carry=carry, ticker=tk,
+        )
+        cond_trades.extend(ts)
+        if carry is not None and session >= carry.expiry:
+            carry = None
+        if base_every_day and carry is None and len(sess_df) > 2:
+            bts, _ = simulate_session_puts(
+                sess_df, cross, exit_rules,
+                iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
+                spread=spread, listed_strikes=listed, force_entry_bar=0, ticker=tk,
+            )
+            for t in bts[:1]:
+                base_trades.append(t)
+    return cond_trades, base_trades
 
 
 def run_conditional_strategy(
@@ -356,6 +596,7 @@ def run_conditional_strategy(
     instrument: PutInstrument,
     *,
     base_every_day: bool = True,
+    session_filter: Callable[[date], bool] | None = None,
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
     with connect() as conn:
@@ -363,38 +604,29 @@ def run_conditional_strategy(
         if not bars_map:
             return {"error": "no bars_5m data", "tickers": tickers}
         sectors = load_groups(conn)
+        spread = load_spread_calibration(conn)
+        betas = load_iv_return_betas(conn, list(bars_map.keys()))
+        default_beta = float(np.median(list(betas.values()))) if betas else -2.0
         all_dates = set()
         for df in bars_map.values():
             all_dates.update(df["session_date"].unique())
         d0, d1 = min(all_dates), max(all_dates)
-        iv_map = load_daily_iv(conn, list(bars_map.keys()), d0, d1)
+        iv_maps = load_daily_iv_series(conn, list(bars_map.keys()), d0, d1)
 
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
-    calls_used = 0
-
     for tk, df in bars_map.items():
-        for session, sess_df in df.groupby("session_date"):
-            sess_df = sess_df.reset_index(drop=True)
-            closes = sess_df["c"].to_numpy(dtype=float)
-            cross = entry_cross_mask(entry, closes)
-            iv = iv_map.get((tk, session), 30.0)
-            listed = standard_listed_strikes(float(closes[0]))
-            ts = simulate_session_puts(
-                sess_df, cross, exit_rules, spot_iv=iv, instrument=instrument,
-                listed_strikes=listed,
-            )
-            for t in ts:
-                t["ticker"] = tk
-                cond_trades.append(t)
-            if base_every_day and len(sess_df) > 2:
-                bts = simulate_session_puts(
-                    sess_df, cross, exit_rules, spot_iv=iv, instrument=instrument,
-                    listed_strikes=listed, force_entry_bar=0,
-                )
-                for t in bts[:1]:
-                    t["ticker"] = tk
-                    base_trades.append(t)
+        if session_filter is not None:
+            df = df[df["session_date"].map(session_filter)].copy()
+            if df.empty:
+                continue
+        beta = betas.get(tk, default_beta)
+        ct, bt = _run_ticker_sessions(
+            tk, df, entry, exit_rules, instrument,
+            iv_maps.get(tk, {}), beta, spread, base_every_day=base_every_day,
+        )
+        cond_trades.extend(ct)
+        base_trades.extend(bt)
 
     cond_stats = aggregate_trades(cond_trades, sectors)
     base_stats = aggregate_trades(base_trades, sectors)
@@ -410,18 +642,16 @@ def run_conditional_strategy(
         "lift_pnl_coll": lift,
         "tickers": len(bars_map),
         "wall_s": wall,
-        "lse_calls": calls_used,
+        "spread_calibration": {"n_obs": spread.n_obs, "source": spread.source, "n_buckets": len(spread.buckets)},
+        "iv_beta_median": default_beta,
         "trades_sample": cond_trades[:5],
     }
 
 
 def jamie_example_spec() -> tuple[ConditionSet, ExitRules, PutInstrument]:
     entry = ConditionSet(
-        logic="or",
-        conditions=[
-            IndicatorCondition("rsi14", "lt", 10.0, "5m"),
-            IndicatorCondition("rsi14", "lt", 15.0, "5m"),
-        ],
+        logic="and",
+        conditions=[IndicatorCondition("rsi14", "lt", 10.0, "5m")],
     )
     exit_rules = ExitRules(
         close_conditions=[IndicatorCondition("rsi14", "gt", 50.0, "5m")],
@@ -432,18 +662,75 @@ def jamie_example_spec() -> tuple[ConditionSet, ExitRules, PutInstrument]:
     return entry, exit_rules, PutInstrument(target_delta=-0.15)
 
 
+def frontier_exit_variants() -> list[tuple[str, ExitRules]]:
+    return [
+        ("rsi_gt_50", ExitRules(close_conditions=[IndicatorCondition("rsi14", "gt", 50.0, "5m")], time_stop="same_day")),
+        ("rsi_gt_60", ExitRules(close_conditions=[IndicatorCondition("rsi14", "gt", 60.0, "5m")], time_stop="same_day")),
+        ("rsi_gt_70", ExitRules(close_conditions=[IndicatorCondition("rsi14", "gt", 70.0, "5m")], time_stop="same_day")),
+        ("tp50_overnight", ExitRules(take_profit_frac=0.50, time_stop="overnight")),
+        ("hold_expiry", ExitRules(time_stop="expiry")),
+    ]
+
+
+def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, Any]:
+    inst = PutInstrument(target_delta=-0.15)
+    rows: list[dict[str, Any]] = []
+    thresholds = [5.0 + 2.5 * i for i in range(int((30.0 - 5.0) / 2.5) + 1)]
+    for thr in thresholds:
+        entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
+        for exit_name, exits in frontier_exit_variants():
+            full = run_conditional_strategy(tickers, entry, exits, inst, session_filter=None)
+            opra = run_conditional_strategy(
+                tickers, entry, exits, inst, session_filter=lambda d: d >= OPRA_START,
+            )
+            for win_label, payload in (("full", full), ("opra", opra)):
+                c, b = payload["conditional"], payload["base"]
+                rows.append({
+                    "window": win_label,
+                    "rsi_lt": thr,
+                    "exit": exit_name,
+                    "n": c["n"],
+                    "n_eff": c.get("n_eff"),
+                    "win": c.get("win"),
+                    "gross_pnl_coll": c.get("mean_pnl_coll_gross"),
+                    "net_pnl_coll": c.get("mean_pnl_coll"),
+                    "lift": payload.get("lift_pnl_coll"),
+                    "base_n": b.get("n"),
+                })
+            if smoke:
+                break
+        if smoke:
+            break
+    return {"frontier": rows, "thresholds": thresholds}
+
+
 def write_report(payload: dict[str, Any], tag: str) -> Path:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    day = date.today().isoformat()
+    from datetime import date as dt
+
+    day = dt.today().isoformat()
     path = OUT_DIR / f"{day}-{tag}.json"
     path.write_text(json.dumps(payload, indent=2, default=str))
     return path
 
 
+def format_frontier_table(rows: list[dict[str, Any]]) -> str:
+    lines = [
+        "window | rsi_lt | exit | n | N_eff | win | gross | net | lift | base_n",
+        "---|---|---:|---:|---:|---:|---:|---:|---:|---:",
+    ]
+    for r in rows:
+        lines.append(
+            f"{r['window']} | {r['rsi_lt']:.1f} | {r['exit']} | {r['n']} | {r.get('n_eff', 0):.0f} | "
+            f"{r.get('win', float('nan')):.1%} | {r.get('gross_pnl_coll', float('nan')):.4%} | "
+            f"{r.get('net_pnl_coll', float('nan')):.4%} | {r.get('lift', float('nan')):.4%} | {r.get('base_n', 0)}"
+        )
+    return "\n".join(lines)
+
+
 def universe_tickers_from_db(limit: int | None = None) -> list[str]:
     with connect() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT ticker FROM optlab.bars_5m ORDER BY ticker"
-        ).fetchall()
+        rows = conn.execute("SELECT DISTINCT ticker FROM optlab.bars_5m ORDER BY ticker").fetchall()
     tickers = [r[0] for r in rows]
     return tickers[:limit] if limit else tickers
+
