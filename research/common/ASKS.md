@@ -178,3 +178,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A364](asks/A364.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A357 LSE option backfill + regrade — OCC collapse, smoke gate, inverted verdict (High) | planned |
 | [A365](asks/A365.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] Event-stack guard: warn/block short premium when vol backwardated + print/earnings in expiry | planned |
 | [A366](asks/A366.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] STUDY: 50% of max profit vs hold on Jamie's own short-put book — does SPY result survive single names? | planned |
+| [A367](asks/A367.md) | 2026-11-07 | Jamie → Claude → Cursor | Fetch hygiene: backfill once, then fetch only the new tail; guard every heavy fetch/process (watermark, change signal, distinct-only upsert, fetch_runs meter) | planned |
