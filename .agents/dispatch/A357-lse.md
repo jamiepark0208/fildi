@@ -1,0 +1,4 @@
+Build A357 steps 1–3 exactly as written in research/common/asks/A357.md (read it first; it names every file, table, endpoint and test). Then step 4 only after the 20-contract smoke check passes and the full backfill finishes.
+Key: LSE_KEY in .env.local, header X-API-Key, base https://download.londonstrategicedge.com/v3. Never print the key.
+Files: scripts/lse_client.py, scripts/watchlist_sync/analysis/a357_lse_option_backfill.py, a357_regrade.py, s059_option_factors.py (read trades()), a352_score_rank.py (same contract set + grading), artifacts/api-server/src/lib/data-sources-catalog.ts, lib/api-logger.ts, stock-compare/src/components/settings/ApiMonitorTab.tsx.
+Commit with trailers Refs: A357 / Agent: cursor; run scripts/agent-ship-check.sh for TS edits; sync with scripts/agent-git-sync.sh only. Append the ≤ 20-line packet under ## Reviews in A357.md.
