@@ -1739,6 +1739,29 @@ export const enrichmentRuns = pgTable('enrichment_runs', {
 
 export type EnrichmentRunRow = typeof enrichmentRuns.$inferSelect
 
+// ── fetch_runs (A367) ─────────────────────────────────────────────────────────
+export const fetchRuns = pgTable('fetch_runs', {
+  id:            serial('id').primaryKey(),
+  startedAt:     timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  finishedAt:    timestamp('finished_at', { withTimezone: true }),
+  source:        text('source').notNull(),
+  job:           text('job').notNull(),
+  mode:          text('mode'),
+  keysPlanned:   integer('keys_planned'),
+  keysSkipped:   integer('keys_skipped'),
+  keysFetched:   integer('keys_fetched'),
+  vendorCalls:   integer('vendor_calls'),
+  rowsInserted:  integer('rows_inserted'),
+  rowsChanged:   integer('rows_changed'),
+  seconds:       numeric('seconds'),
+  meta:          jsonb('meta'),
+}, (t) => ({
+  startedAtIdx: index('fetch_runs_started_at_idx').on(t.startedAt),
+  jobIdx:       index('fetch_runs_job_idx').on(t.job),
+}));
+
+export type FetchRunRow = typeof fetchRuns.$inferSelect
+
 // ── fetch_queue ───────────────────────────────────────────────────────────────
 // Ad-hoc re-fetch requests queued from the Stock DB tab popup (e.g. admin sees a
 // null/suspect cell and wants a specific source refetched now, without waiting
