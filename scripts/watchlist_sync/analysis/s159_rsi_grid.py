@@ -266,18 +266,25 @@ def main():
                 if s and s["days"] >= 3:
                     out.append(dict(cond=f"VIX>{th} → all stocks", h=h, **s))
 
-    if spy_r14 is not None and "SPY" in C.columns:
-        spy_weak = spy_r14 < 30
-        R14 = C.apply(lambda s: rsi(s, 14)).to_numpy()
-        prev14 = np.vstack([np.full((1, R14.shape[1]), np.nan), R14[:-1]])
-        for th in STOCK_RSI_TH:
-            cross = (R14 < th) & ~(prev14 < th) & valid
-            for tag, extra in (("SPY RSI14<30", spy_weak), ("SPY RSI14≥30", ~spy_weak)):
-                m = cross & extra[:, None]
+    R14 = C.apply(lambda s: rsi(s, 14)).to_numpy()
+    prev14 = np.vstack([np.full((1, R14.shape[1]), np.nan), R14[:-1]])
+    stock_os = R14 < 20
+    stock_not_os = ~stock_os
+    for sym in [s for s in ("SPY", "QQQ") if s in C.columns]:
+        mrs = rsi(C[sym], 14).to_numpy()
+        for mth in MKT_RSI_TH:
+            mkt_day = cross_mask(mrs, mth)
+            if mkt_day.sum() < 2:
+                continue
+            for tag, stk_mask in (
+                (f"{sym} RSI14<{mth} & stock RSI14<20", stock_os),
+                (f"{sym} RSI14<{mth} & stock RSI14≥20", stock_not_os),
+            ):
+                m = mkt_day[:, None] & stk_mask & valid
                 for h in HOLDS:
                     s = cell(m, h)
                     if s and s["days"] >= MIN_DAYS:
-                        out.append(dict(cond=f"stock RSI14<{th} & {tag}", h=h, **s))
+                        out.append(dict(cond=tag, h=h, **s))
 
     # Original SPY RSI grid (periods 2,5,14)
     if "SPY" in C.columns:

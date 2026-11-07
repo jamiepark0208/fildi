@@ -38,9 +38,48 @@ from lse_client import export_stock_csv, parse_stock_minute_rows  # noqa: E402
 CACHE = Path.home() / ".fildi" / "cache" / "fast_screen_bars_2003.pkl"
 RAW_DIR = Path.home() / ".fildi" / "cache" / "s159_lse_raw"
 DATE_FROM = date(2003, 1, 1)
-EXTRA = ("SPY", "QQQ", "VIX")
+# Index rows outside source_fundamentals universe (always fetched + built).
+INDEX_ETFS = (
+    "SPY",
+    "QQQ",
+    "IWM",
+    "XLB",
+    "XLC",
+    "XLE",
+    "XLF",
+    "XLI",
+    "XLK",
+    "XLP",
+    "XLRE",
+    "XLU",
+    "XLV",
+    "XLY",
+)
+EXTRA = INDEX_ETFS + ("VIX",)
 FRACTION_TOL = 0.02
-CACHE_VER = 1
+LSEG_RATIO_TOL = 0.02
+CACHE_VER = 2
+# Spot-check |mean 5d hold| on liquid large caps after validation (grid uses same COST).
+LIQUID_CAPS = (
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "NVDA",
+    "META",
+    "JPM",
+    "V",
+    "UNH",
+    "XOM",
+    "LLY",
+    "MA",
+    "HD",
+    "PG",
+    "COST",
+)
+MAX_BASE5_ABS = 0.03
+DROP_TICKER_BASE5 = 0.50
+COST_BP = 0.001
 
 
 def universe(conn) -> list[str]:
@@ -160,6 +199,88 @@ def fetch_ticker(conn, ticker: str, *, force: bool = False) -> str | None:
     return body
 
 
+def sanitize_ohlcv(g: pd.DataFrame) -> pd.DataFrame:
+    """Fix occasional LSE daily rows with opens far from close (breaks 5d forward base)."""
+    if g.empty:
+        return g
+    g = g.copy()
+    for col in ("o", "h", "l", "c"):
+        if col in g.columns:
+            g[col] = pd.to_numeric(g[col], errors="coerce")
+    g = g.loc[g["c"] > 0].reset_index(drop=True)
+    c = g["c"]
+    o = g["o"] if "o" in g.columns else c
+    for col in ("o", "h", "l"):
+        if col not in g.columns:
+            continue
+        x = g[col]
+        bad = (x <= 0) | (x / c < 0.95) | (x / c > 1.05)
+        g.loc[bad, col] = c[bad]
+    if "h" in g.columns:
+        g["h"] = np.maximum(g["h"].to_numpy(), np.maximum(o.to_numpy(), c.to_numpy()))
+    if "l" in g.columns:
+        l = g["l"].to_numpy()
+        g["l"] = np.where(l > 0, np.minimum(l, c.to_numpy()), c.to_numpy())
+    return g
+
+
+def lseg_validate_frame(g: pd.DataFrame, lseg: dict[date, float]) -> pd.DataFrame:
+    """Overlap lseg_research.daily_history: repair systematic scale, drop bad days (>2 %)."""
+    if g.empty or not lseg:
+        return g
+    g = g.sort_values("date").reset_index(drop=True)
+    dd = [x.date() if hasattr(x, "date") else x for x in g["date"]]
+    ratios: list[float] = []
+    for i, d in enumerate(dd):
+        if d in lseg and g.at[i, "c"] > 0:
+            ratios.append(lseg[d] / float(g.at[i, "c"]))
+    if len(ratios) < 20:
+        return g
+    med = float(median(ratios))
+    if abs(med - 1) > LSEG_RATIO_TOL:
+        for col in ("o", "h", "l", "c"):
+            if col in g.columns:
+                g[col] = g[col] * med
+    keep = []
+    for i, d in enumerate(dd):
+        if d not in lseg or g.at[i, "c"] <= 0:
+            keep.append(True)
+            continue
+        r = lseg[d] / float(g.at[i, "c"])
+        keep.append(abs(r - 1) <= 0.10)
+    g = g.loc[keep].reset_index(drop=True)
+    return g
+
+
+def ticker_fails_base5(g: pd.DataFrame, *, h: int = 5) -> bool:
+    if len(g) < h + 55:
+        return False
+    o, c = g["o"].to_numpy(dtype=float), g["c"].to_numpy(dtype=float)
+    rets: list[float] = []
+    for i in range(len(c) - h - 1):
+        if o[i + 1] > 0 and c[i + h] > 0:
+            rets.append(c[i + h] / o[i + 1] - 1 - COST_BP)
+    if len(rets) < 50:
+        return False
+    arr = np.array(rets)
+    return bool(abs(float(arr.mean())) > DROP_TICKER_BASE5)
+
+
+def base5_test(C: pd.DataFrame, O: pd.DataFrame) -> list[str]:
+    bad: list[str] = []
+    h = 5
+    for t in LIQUID_CAPS:
+        if t not in C.columns or t not in O.columns:
+            continue
+        fwd = (C[t].shift(-h) / O[t].shift(-1) - 1 - COST_BP).replace([np.inf, -np.inf], np.nan).dropna()
+        if len(fwd) < 50:
+            continue
+        m = float(fwd.mean())
+        if abs(m) > MAX_BASE5_ABS:
+            bad.append(f"{t}: |mean 5d fwd| {m:.2%} > {MAX_BASE5_ABS:.0%}")
+    return bad
+
+
 def rows_to_frame(csv_text: str) -> pd.DataFrame:
     raw = parse_stock_minute_rows(csv_text)
     if not raw:
@@ -208,6 +329,13 @@ def build_pack(conn) -> dict:
         lseg = lseg_closes(conn, t)
         facs = factors_for_ticker(conn, t, g.copy(), splits, lseg)
         g = adjust_ohlcv(g, facs)
+        g = sanitize_ohlcv(g)
+        g = lseg_validate_frame(g, lseg)
+        g = sanitize_ohlcv(g)
+        if g.empty:
+            continue
+        if t not in INDEX_ETFS and ticker_fails_base5(g):
+            continue
         g["ticker"] = t
         frames.append(g)
     if not frames:
@@ -240,6 +368,7 @@ def cmd_build(_args) -> None:
         pickle.dump(pack, f, protocol=pickle.HIGHEST_PROTOCOL)
     C = pack["c"]
     print(f"saved {CACHE} {C.index[0].date()}→{C.index[-1].date()} tickers={C.shape[1]} days={len(C)}")
+    self_test(pack)
 
 
 def self_test(pack: dict) -> None:
@@ -257,9 +386,13 @@ def self_test(pack: dict) -> None:
         spy03 = C["SPY"].dropna().iloc[0] if "SPY" in C.columns else None
         if spy03 and spy03 < 80:
             bad.append(f"SPY 2003 close {spy03:.1f} looks unadjusted (expect ~90–110 adj)")
+    O = pack.get("o", C)
+    bad.extend(base5_test(C, O))
+    if "SPY" not in C.columns:
+        bad.append("SPY: missing from panel (index row)")
     if bad:
         raise SystemExit("self-test FAIL:\n" + "\n".join(bad))
-    print("self-test OK: AAPL/NVDA/TSLA no −50% days; SPY level plausible")
+    print("self-test OK: AAPL/NVDA/TSLA no −50% days; SPY level plausible; liquid-cap 5d base ≤3%")
 
 
 def cmd_self_test(_args) -> None:

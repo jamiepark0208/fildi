@@ -1,6 +1,6 @@
 # S159 — RSI extreme grid (2003→ LSE panel)
 
-**Panel:** `~/.fildi/cache/fast_screen_bars_2003.pkl` — LSE `export_stock_csv` 1d 2003-01-01→, split-adjusted (optlab.splits + LSEG overlap + jump detect); **674 survivors** (names with CSV today); VIX from `wrds_research.cboe_daily`. Fetch: `s159_lse_panel.py` · log `logs/s159-lse-2003.log`.
+**Panel:** `~/.fildi/cache/fast_screen_bars_2003.pkl` — LSE `export_stock_csv` 1d 2003-01-01→, split-adjusted (optlab.splits + LSEG overlap + jump detect) + OHLC sanity; **928 tickers** (927 fundamentals + SPY/QQQ/IWM/XL* index rows −30 failed LSE fetches); VIX from `wrds_research.cboe_daily`. Fetch: `s159_lse_panel.py` · log `logs/s159-lse-2003.log`.
 
 **Run:** `analysis/s159_rsi_grid.py --panel ~/.fildi/cache/fast_screen_bars_2003.pkl` → `out/s159_rsi_grid.csv`. Put legs: short 0.20/0.30Δ, 10 DTE, BS marks, **IV = prior-day RV20×1.2** (labelled). Eras 03-07 / 08-12 / 13-19 / 20-26 on day-clustered lift.
 
@@ -23,3 +23,16 @@ QQQ cell verified (14 days, 13 won, lift +4.1 pp, q 0.0001; matches SPY 2003 run
 2. **SPY missing from the panel** (674 cols, no SPY). Add SPY, QQQ, IWM, sector ETFs as index rows outside the universe.
 3. **Panel incomplete:** 674 / ~940; the background fetch is dead (no process, log quiet). Finish it, then rebuild.
 4. Packet item 6 "see CSV" → report the SPY row. After 1–3, rerun and lead with the top cells by Wilson lower bound (≥ 10 days), plus market-oversold → each stock split by the stock's own RSI.
+
+## Packet fix1 (2026-11-07, 928-ticker panel, Wilson ≥10 signal days)
+
+1. **SPY RSI14<25 → SPY, h5:** 17 days, win_lo **66 %**, lift **+1.9 pp**; eras 08-12 +2.1 %, 13-19 +2.0 %, 20-26 +1.6 % (03-07 n=0).
+2. **SPY RSI14<25 → all stocks, h5:** win_lo **66 %**, lift **+1.8 pp**; same era signs (+2.5 % / +2.5 % / +0.3 %). Basket no longer −3 pp artifact (LSEG ratio + OHLC repair).
+3. **SPY RSI14<25 & stock RSI14≥20 (h5):** win_lo 66 %, lift +1.9 pp — bulk of basket; **& stock RSI14<20:** win_lo 53 %, lift +1.9 pp but p5 worse (−29 %), 03-07 thin.
+4. **QQQ RSI14<25 → QQQ, h5:** 14 days, win_lo 45 %, lift +1.3 pp; 08-12 +0.8 %, 13-19 +2.7 %, 20-26 +2.6 % — shallower than pre-fix but sign intact.
+5. **QQQ RSI14<25 & stock RSI14<20 vs ≥20 (h5):** both lift ~+1.0–1.1 pp; stock &lt;20 smaller n (811 trades / 14 days), higher tail risk.
+6. **Top stock-only cell (win_lo):** SPY RSI5&lt;30 → all h20 — 286 days, win_lo 63 %, lift +0.6 pp; four eras all positive (+0.3–0.7 %).
+7. **Liquid-cap guard:** self-test \|mean 5d base\| ≤3 % on AAPL…COST; tickers with \|mean\|&gt;50 % dropped at build; **64** overlap outliers &gt;100 % |5d ret| gone (was 63+ bad names).
+8. **Panel build:** 957 universe fetched (927 ok), pickle **5829×928**; index rows SPY/QQQ/IWM/XL* present.
+9. **VIX&gt;30 long basket (h3–5):** lift ~0 after repair (was noise); puts still q&gt;0.05 — no promote.
+10. **Self-test:** AAPL/NVDA/TSLA no −50 % gap days; SPY 2003 level plausible.
