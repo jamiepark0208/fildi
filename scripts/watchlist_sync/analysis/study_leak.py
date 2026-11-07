@@ -1,6 +1,8 @@
 """A369 leak tests — shift-one-bar, shuffle placebo, planted look-ahead."""
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -60,7 +62,65 @@ def is_planted_lookahead(entry: np.ndarray, rets: np.ndarray) -> bool:
     shifted = rets[shift_entry_one_bar(entry) & np.isfinite(rets)]
     if clean.size < 5 or shifted.size < 5:
         return False
-    return float(np.mean(clean)) > float(np.mean(shifted)) + 0.002
+    mc, ms = float(np.mean(clean)), float(np.mean(shifted))
+    gap = mc - ms
+    return gap > 0 and (gap > 0.002 or (ms != 0 and gap / abs(ms) > 0.5))
+
+
+def leak_from_trade_frames(
+    cond: pd.DataFrame,
+    base: pd.DataFrame,
+    rng: np.random.Generator,
+    *,
+    n_placebo: int = 100,
+) -> dict[str, Any]:
+    """Shift-one-bar + within-month shuffle placebo on a frontier cond cell."""
+    if cond is None or cond.empty:
+        return {
+            "shift_bp": float("nan"),
+            "placebo_p": float("nan"),
+            "leak_flag": False,
+        }
+    cross = cond["pnl_coll_frac_cross"].to_numpy(dtype=float)
+    clean_mean = float(np.nanmean(cross))
+    b_mean = float(np.nanmean(base["pnl_coll_frac_cross"])) if base is not None and len(base) else 0.0
+    lift = clean_mean - b_mean
+
+    idx = cond.set_index(["ticker", "session", "signal_bar"], drop=False)
+    shifted_pnls: list[float] = []
+    for _, t in cond.iterrows():
+        key = (t["ticker"], t["session"], int(t["signal_bar"]) + 1)
+        if key in idx.index:
+            shifted_pnls.append(float(idx.loc[key, "pnl_coll_frac_cross"]))
+    shifted_mean = float(np.nanmean(shifted_pnls)) if shifted_pnls else float("nan")
+    shift_bp = (clean_mean - shifted_mean) * 1e4 if np.isfinite(shifted_mean) else float("nan")
+
+    months = cond["session"].astype(str).str[:7]
+    actual = clean_mean
+    hits = 0
+    n_ok = 0
+    for mo in months.unique():
+        sub = cross[months == mo]
+        if sub.size < 3:
+            continue
+        for _ in range(max(1, n_placebo // max(1, len(months.unique())))):
+            sh = rng.permutation(sub)
+            n_ok += 1
+            if float(np.mean(sh)) >= actual:
+                hits += 1
+    placebo_p = hits / n_ok if n_ok else float("nan")
+
+    shift_kill = False
+    if np.isfinite(lift) and lift > 0 and np.isfinite(shifted_mean):
+        shifted_lift = shifted_mean - b_mean
+        lifted_ratio = shifted_lift / lift
+        shift_kill = np.isfinite(lifted_ratio) and lifted_ratio < 0.2
+    leak_flag = shift_kill or (np.isfinite(placebo_p) and placebo_p > 0.10)
+    return {
+        "shift_bp": shift_bp,
+        "placebo_p": float(placebo_p),
+        "leak_flag": bool(leak_flag),
+    }
 
 
 def sma_cross_below(x: np.ndarray, level: float) -> np.ndarray:

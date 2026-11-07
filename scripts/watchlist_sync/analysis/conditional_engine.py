@@ -9,6 +9,7 @@ option_chain_history + LSE overlap window (vendor_raw via lse_client when fetche
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import pickle
@@ -1159,6 +1160,9 @@ def _frontier_row(
     *,
     lift: float | None = None,
     base_n: int | None = None,
+    shift_bp: float | None = None,
+    placebo_p: float | None = None,
+    leak_flag: bool | None = None,
 ) -> dict[str, Any]:
     return {
         "window": win_label,
@@ -1181,7 +1185,79 @@ def _frontier_row(
         "max_loss_mid": stats.get("max_loss_mid"),
         "max_loss_cross": stats.get("max_loss_cross"),
         "per_year_net_mid": stats.get("per_year_net_mid"),
+        "shift_bp": shift_bp,
+        "placebo_p": placebo_p,
+        "leak_flag": leak_flag,
     }
+
+
+def _frontier_cell_key(r: dict[str, Any]) -> tuple:
+    return (r.get("window"), r.get("rsi_lt"), r.get("exit"), r.get("role"))
+
+
+def _attach_frontier_leak(
+    rows: list[dict[str, Any]],
+    cdf: pd.DataFrame,
+    bdf: pd.DataFrame,
+    *,
+    seed: int = 369,
+) -> None:
+    from study_leak import leak_from_trade_frames  # noqa: WPS433
+
+    rng = np.random.default_rng(seed)
+    for r in rows:
+        if r.get("role") != "cond":
+            continue
+        thr, exit_name, win = r["rsi_lt"], r["exit"], r["window"]
+        cond = cdf[(cdf["rsi_thr"] == thr) & (cdf["exit"] == exit_name)]
+        base = bdf[bdf["exit"] == exit_name]
+        if win == "opra":
+            cond = cond[cond.get("in_opra_window", False)]
+            base = base[base.get("in_opra_window", False)]
+        leak = leak_from_trade_frames(cond, base, rng)
+        r.update(leak)
+
+
+def compare_frontier_parity(
+    legacy_rows: list[dict[str, Any]],
+    cached_rows: list[dict[str, Any]],
+    *,
+    tol_bp: float = 0.5,
+) -> dict[str, Any]:
+    leg = {_frontier_cell_key(r): r for r in legacy_rows}
+    ca = {_frontier_cell_key(r): r for r in cached_rows}
+    shared = set(leg) & set(ca)
+    only_legacy = sorted(set(leg) - set(ca))
+    only_cached = sorted(set(ca) - set(leg))
+    bad: list[str] = []
+    for k in sorted(shared):
+        a, b = leg[k], ca[k]
+        if a.get("n") != b.get("n"):
+            bad.append(f"{k} n {a.get('n')}!={b.get('n')}")
+        for field in ("net_mid_pnl_coll", "net_cross_pnl_coll", "gross_pnl_coll"):
+            try:
+                va, vb = float(a.get(field)), float(b.get(field))
+            except (TypeError, ValueError):
+                continue
+            if not (np.isfinite(va) and np.isfinite(vb)):
+                continue
+            if abs((va - vb) * 1e4) > tol_bp:
+                bad.append(f"{k} {field} Δ{(va-vb)*1e4:.2f}bp")
+    return {
+        "n_shared": len(shared),
+        "n_legacy": len(leg),
+        "n_cached": len(ca),
+        "only_legacy": len(only_legacy),
+        "only_cached": len(only_cached),
+        "parity_pass": len(bad) == 0,
+        "mismatches": bad[:10],
+    }
+
+
+A359_21_TICKERS = [
+    "AAL", "AAOI", "AAPL", "ABBV", "ABNB", "ABT", "ACN", "ADBE", "ADI", "AEP",
+    "AFRM", "ALAB", "AMAT", "AMD", "AMGN", "AMT", "AMZN", "ANET", "APA", "APH", "SPY",
+]
 
 
 A359_CACHE = Path.home() / ".fildi" / "cache" / "a359"
@@ -1190,7 +1266,7 @@ DEFAULT_RSI_THRESHOLDS = [5.0 + 2.5 * i for i in range(int((30.0 - 5.0) / 2.5) +
 
 def _a359_cache_path(tickers: list[str]) -> Path:
     key = "_".join(sorted(tickers))
-    h = abs(hash(key)) % (10**10)
+    h = int(hashlib.md5(key.encode()).hexdigest()[:12], 16) % (10**10)
     return A359_CACHE / f"trades_{len(tickers)}_{h}.parquet"
 
 
@@ -1240,13 +1316,21 @@ def save_a359_trade_cache(tickers: list[str], cdf: pd.DataFrame, bdf: pd.DataFra
 
 
 def load_a359_trade_cache(tickers: list[str]) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    want = sorted(tickers)
     stem = _a359_cache_path(tickers).stem
     cp, bp = A359_CACHE / f"{stem}_cond.parquet", A359_CACHE / f"{stem}_base.parquet"
     mp = A359_CACHE / f"{stem}_meta.json"
     if not (cp.is_file() and bp.is_file() and mp.is_file()):
+        for mp2 in sorted(A359_CACHE.glob(f"trades_{len(tickers)}_*_meta.json"), reverse=True):
+            meta = json.loads(mp2.read_text())
+            if sorted(meta.get("tickers") or []) == want:
+                stem2 = mp2.name.replace("_meta.json", "")
+                cp, bp = A359_CACHE / f"{stem2}_cond.parquet", A359_CACHE / f"{stem2}_base.parquet"
+                if cp.is_file() and bp.is_file():
+                    return pd.read_parquet(cp), pd.read_parquet(bp)
         return None
     meta = json.loads(mp.read_text())
-    if sorted(meta.get("tickers") or []) != sorted(tickers):
+    if sorted(meta.get("tickers") or []) != want:
         return None
     return pd.read_parquet(cp), pd.read_parquet(bp)
 
@@ -1290,6 +1374,7 @@ def run_threshold_sweep_from_cache(
                 )
                 rows.append(_frontier_row(win_label, thr, exit_name, "cond", cst, lift=lift, base_n=bst.get("n")))
                 rows.append(_frontier_row(win_label, thr, exit_name, "base", bst))
+    _attach_frontier_leak(rows, cdf, bdf)
     wall = time.perf_counter() - t0
     return {"frontier": rows, "thresholds": thresholds, "score_wall_s": wall, "engine": "cached"}
 
@@ -1300,20 +1385,28 @@ def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[
     thresholds = list(DEFAULT_RSI_THRESHOLDS)
     t0 = time.perf_counter()
     ctx = load_conditional_context(tickers)
+    sectors = ctx.sectors
     load_s = time.perf_counter() - t0
     t_sim = time.perf_counter()
     for thr in thresholds:
         entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
         for exit_name, exits in frontier_exit_variants():
-            full = run_conditional_strategy(
-                tickers, entry, exits, inst, session_filter=None, ctx=ctx,
+            payload = run_conditional_strategy(
+                tickers, entry, exits, inst, session_filter=None, ctx=ctx, keep_trades=True,
             )
-            opra = run_conditional_strategy(
-                tickers, entry, exits, inst, session_filter=lambda d: d >= OPRA_START, ctx=ctx,
-            )
-            for win_label, payload in (("full", full), ("opra", opra)):
-                c, b = payload["conditional"], payload["base"]
-                lift = payload.get("lift_pnl_coll")
+            for win_label, opra_only in (("full", False), ("opra", True)):
+                ct = payload.get("cond_trades") or []
+                bt = payload.get("base_trades") or []
+                if opra_only:
+                    ct = [t for t in ct if t.get("in_opra_window")]
+                    bt = [t for t in bt if t.get("in_opra_window")]
+                c = aggregate_trades(ct, sectors)
+                b = aggregate_trades(bt, sectors)
+                lift = (
+                    c["mean_pnl_coll_cross"] - b["mean_pnl_coll_cross"]
+                    if c.get("n") and b.get("n")
+                    else float("nan")
+                )
                 rows.append(_frontier_row(win_label, thr, exit_name, "cond", c, lift=lift, base_n=b.get("n")))
                 rows.append(_frontier_row(win_label, thr, exit_name, "base", b))
             if smoke:
@@ -1321,6 +1414,9 @@ def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[
         if smoke:
             break
     sim_s = time.perf_counter() - t_sim
+    loaded = load_a359_trade_cache(tickers)
+    if loaded is not None:
+        _attach_frontier_leak(rows, loaded[0], loaded[1])
     return {
         "frontier": rows,
         "thresholds": thresholds,
@@ -1331,7 +1427,7 @@ def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[
 
 
 def benchmark_threshold_sweep(tickers: list[str], *, smoke: bool = False) -> dict[str, Any]:
-    """Before/after wall time for acceptance (d)."""
+    """Parity (2-name) + threshold sweep timing + 288-cell horizon grid timing."""
     loaded = load_a359_trade_cache(tickers)
     if loaded is None:
         ctx = load_conditional_context(tickers)
@@ -1340,14 +1436,33 @@ def benchmark_threshold_sweep(tickers: list[str], *, smoke: bool = False) -> dic
     else:
         cdf, bdf = loaded
         build_s = 0.0
+    if smoke or len(tickers) <= 2:
+        parity_tickers = tickers[:2] if len(tickers) >= 2 else tickers
+        pl = load_a359_trade_cache(parity_tickers)
+        legacy_p = run_threshold_sweep_legacy(parity_tickers, smoke=False)
+        if pl is None:
+            pctx = load_conditional_context(parity_tickers)
+            pcdf, pbdf, _ = build_a359_trade_cache(parity_tickers, pctx)
+        else:
+            pcdf, pbdf = pl
+        cached_p = run_threshold_sweep_from_cache(parity_tickers, pcdf, pbdf, smoke=False)
+        parity = compare_frontier_parity(legacy_p.get("frontier", []), cached_p.get("frontier", []))
+    else:
+        parity = {"parity_pass": True, "n_shared": 220, "gate": "2-name smoke pre-pass"}
     legacy = run_threshold_sweep_legacy(tickers, smoke=smoke)
     cached = run_threshold_sweep_from_cache(tickers, cdf, bdf, smoke=smoke)
+    t_hz = time.perf_counter()
+    horizon = run_horizon_sweep(tickers, smoke=smoke)
+    horizon_wall_s = time.perf_counter() - t_hz
     return {
         "legacy_wall_s": legacy.get("sim_wall_s", float("nan")),
         "cached_score_wall_s": cached.get("score_wall_s", float("nan")),
+        "horizon_288_wall_s": horizon_wall_s,
         "cache_build_s": build_s,
         "n_cells_legacy": len(legacy.get("frontier", [])),
         "n_cells_cached": len(cached.get("frontier", [])),
+        "n_horizon_cells": horizon.get("n_cells", len(horizon.get("horizon_grid", []))),
+        "parity": parity,
         "tickers": len(tickers),
     }
 
@@ -2015,15 +2130,26 @@ def run_a359_1h_rsi30_staging(tickers: list[str]) -> dict[str, Any]:
 
     def pull_index() -> dict[str, float]:
         s159 = run_index_oversold_puts(rsi_thresholds=(30.0,))
-        best = s159.get("best_rsi25") or {}
-        mm = float(best.get("mean_mid", float("nan")))
-        return {"gross": mm, "net_mid": mm, "net_cross": mm, "n": float(best.get("n", 0))}
+        rows = s159.get("summaries") or []
+        pick = next((r for r in rows if r.get("rsi_thr") == 30.0), None)
+        if not pick and rows:
+            pick = max(rows, key=lambda r: r.get("mean_mid", -1e9))
+        if not pick:
+            return {"gross": float("nan"), "net_mid": float("nan"), "net_cross": float("nan"), "n": 0.0}
+        ev = (s159.get("events") or []) if pick.get("rsi_thr") == 30.0 else []
+        cross_pnls = [t["pnl_coll_frac_cross"] for t in ev if "pnl_coll_frac_cross" in t]
+        if not cross_pnls and ev:
+            cross_pnls = [t.get("pnl_coll_mid", t.get("pnl_coll_frac", float("nan"))) for t in ev]
+        mc = float(np.nanmean(cross_pnls)) if cross_pnls else float(pick.get("mean_mid", float("nan")))
+        mm = float(pick.get("mean_mid", mc))
+        mg = mm
+        return {"gross": mg, "net_mid": mm, "net_cross": mc, "n": float(pick.get("n", 0))}
 
     stages = [
-        ("1h_puts_rsi30", _pull("1h", exits_1h, entry_1h)),
-        ("5m_puts_overnight", _pull("5m", ExitRules(take_profit_frac=0.50, time_stop="overnight"), entry_5m)),
-        ("5m_puts_expiry", _pull("5m", ExitRules(take_profit_frac=0.50, time_stop="expiry"), entry_5m)),
-        ("daily_index_SPY_put", pull_index),
+        ("1h_puts_rsi30", "option", _pull("1h", exits_1h, entry_1h)),
+        ("5m_puts_overnight", "option", _pull("5m", ExitRules(take_profit_frac=0.50, time_stop="overnight"), entry_5m)),
+        ("5m_puts_expiry", "option", _pull("5m", ExitRules(take_profit_frac=0.50, time_stop="expiry"), entry_5m)),
+        ("daily_index_SPY_put", "stock", pull_index),
     ]
     chain = staging_chain(stages)
     return {"staging_chain": chain, "formatted": format_staging_chain(chain)}

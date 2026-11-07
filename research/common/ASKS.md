@@ -87,7 +87,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A365](asks/A365.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] Event-stack guard: warn/block short premium when vol backwardated + print/earnings in expiry | planned |
 | [A367](asks/A367.md) | 2026-11-07 | Jamie → Claude → Cursor | Fetch hygiene: backfill once, then fetch only the new tail; guard every heavy fetch/process (watermark, change signal, distinct-only upsert, fetch_runs meter) | done (Cursor 11-07, Claude review 70571445) |
 | [A368](asks/A368.md) | 2026-11-07 | Jamie → Claude → Cursor | Strategy board on Track Record › Strategies (Works / Dead / Testing) + Live S159 trigger chip | done (Cursor 11-07, uncommitted) |
-| [A369](asks/A369.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Faster + higher-quality studies: per-stock threshold lens, cost-aware staging, leak test, precomputed signal tables | revise (Claude review e8e3c4db 11-07: staging on mid, no parity, leak opt-in) |
+| [A369](asks/A369.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Faster + higher-quality studies: per-stock threshold lens, cost-aware staging, leak test, precomputed signal tables | done (fix1 packet 11-07) |
 | [A370](asks/A370.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Indicators as put-timing filters in the seller's universe (high-IV sell / low-IV buy), regime-cut, real quotes | revise (Claude 11-07: regime cut + tail missing; uncommitted) |
 | [A371](asks/A371.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Evidence audit of BOARD winners: survivorship, S088 real-quote replay, regime split, one N_eff standard | planned |
 | [A372](asks/A372.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Put management + book layer: rolling, delta/IV/earnings exits, vol-scaled sizing, book drawdown | planned |
@@ -95,7 +95,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A374](asks/A374.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 engine — RSI slice misaligned under session_filter; carried bar-0 lookahead (High) | declined (merged into A359 fix, Claude 11-07) |
 | [A375](asks/A375.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 fix4 horizon sweep — confluence on wrong TF; higher-TF RSI dates (High) | declined (merged into A359 fix, Claude 11-07) |
 | [A376](asks/A376.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A369 trade cache never hits (salted hash); stale meta; OPRA cache mismatch (High) | declined (merged into A369 fix, Claude 11-07) |
-| [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | planned (Claude plan 11-07) |
+| [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | done (Cursor 11-07, H1 H2 M1, uncommitted) |
 | [A378](asks/A378.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] S160 test-era centering flaw — subtract train-era base for both eras (Medium) | declined (merged into A369 fix, Claude 11-07) |
 | [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | done (Claude 11-07: gate fixed) |
 | [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |

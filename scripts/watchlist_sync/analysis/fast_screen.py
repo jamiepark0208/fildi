@@ -1828,21 +1828,18 @@ def main() -> int:
             }, indent=2, default=str))
             return 0
         if args.bench_a359:
-            from conditional_engine import benchmark_threshold_sweep  # noqa: WPS433
+            from conditional_engine import A359_21_TICKERS, benchmark_threshold_sweep  # noqa: WPS433
 
             if tickers is None:
-                tickers = [
-                    t.strip() for t in
-                    "AAL,AAOI,AAPL,ABBV,ABNB,ABT,ACN,ADBE,ADI,AEP,AFRM,ALAB,AMAT,AMD,AMGN,AMT,AMZN,ANET,APA,APH,SPY".split(",")
-                ]
+                tickers = A359_21_TICKERS
             bench = benchmark_threshold_sweep(tickers, smoke=args.smoke)
-            print(json.dumps(bench, indent=2))
+            print(json.dumps(bench, indent=2, default=str))
             return 0
         if args.staging:
-            from conditional_engine import run_a359_1h_rsi30_staging  # noqa: WPS433
+            from conditional_engine import A359_21_TICKERS, run_a359_1h_rsi30_staging  # noqa: WPS433
 
             if tickers is None:
-                tickers = ["SPY", "QQQ", "AAPL"]
+                tickers = A359_21_TICKERS
             out = run_a359_1h_rsi30_staging(tickers)
             print(out["formatted"])
             return 0
@@ -1864,6 +1861,14 @@ def main() -> int:
             payload = run_threshold_sweep(tickers, smoke=args.smoke)
             write_report(payload, "frontier-smoke" if args.smoke else "frontier")
             print(format_frontier_table(payload["frontier"]))
+            frontier = payload.get("frontier") or []
+            cond = [r for r in frontier if r.get("role") == "cond" and np.isfinite(r.get("net_mid_pnl_coll", float("nan")))]
+            cond.sort(key=lambda r: r.get("net_mid_pnl_coll", -1e9), reverse=True)
+            for r in cond[:5]:
+                print(
+                    f"leak top rsi<{r.get('rsi_lt')} {r.get('exit')} {r.get('window')}: "
+                    f"shift_bp={r.get('shift_bp')} placebo_p={r.get('placebo_p')} flag={r.get('leak_flag')}"
+                )
             return 0
         payload = run_conditional(tickers, smoke=args.smoke)
         c = payload.get("conditional", {})
