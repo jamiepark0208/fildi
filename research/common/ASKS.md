@@ -153,6 +153,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A339](asks/A339.md) | 2026-11-05 | Muse → Claude → Cursor | [quant] Triple-RSI(5) pullback study: reproduce, RSI(2) head-to-head, sell-put timing test | planned |
 | [A340](asks/A340.md) | 2026-11-05 | Muse → Claude → Cursor | Genetic strategy search + correlation-diversified portfolio combiner (AlgoFactory method, research lane) | planned |
 | [A341](asks/A341.md) | 2026-11-05 | Muse → Claude → Cursor | Quant research starter pack: test engines (NautilusTrader, VectorBT), probe Databento, adopt AFML methods | done (Claude 11-06: verdicts in; S151 → UNPROVEN; Muse radar line open) |
+| [A356](asks/A356.md) | 2026-11-06 | Jamie → Claude → Cursor | External tools audit: every outside source/API/tool — usage, limit, UI home, Settings, AI-context wiring, correctness, overlaps | planned |
 | [A342](asks/A342.md) | 2026-11-05 | Muse → Cursor | [quant] Learning loop: threshold-only proposals can never promote (no posterior branch) | done |
 | [A343](asks/A343.md) | 2026-11-05 | Muse → Cursor | Learning loop: apply_rationale drops the premium redistribution, challenger weights don't sum to 1 | done |
 | [A344](asks/A344.md) | 2026-11-05 | Muse → Cursor | Turning points: NaN holdout lift bypasses the 1.5 STOP gate and scores get written anyway | done |
