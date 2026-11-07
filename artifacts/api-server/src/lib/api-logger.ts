@@ -12,7 +12,8 @@ export type ApiSource =
   | "cnn"
   | "nyfed"
   | "anthropic"
-  | "factset";
+  | "factset"
+  | "lse";
 
 export interface ApiCallParams {
   source: ApiSource;

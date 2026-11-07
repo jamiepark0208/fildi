@@ -45,13 +45,14 @@ const SOURCE_META: Record<string, SourceMeta> = {
   cnn:    { label: "CNN",          limitKind: "none",    rateNote: "no hard limit" },
   nyfed:  { label: "NY Fed",       limitKind: "none",    rateNote: "no hard limit" },
   anthropic: { label: "Anthropic (Haiku)", limitKind: "none", rateNote: "30 req/15min per user" },
+  lse:    { label: "London Strategic Edge", limitKind: "per-min", rateNote: "60 req/min · script gate 55/min (A357 backfill)" },
   lseg:   { label: "LSEG Workspace", limitKind: "daily", dailyLimit: 10000, rateNote: "10k req/day · binding cap = 10M datapoints/month (LSEG chip)" },
   wrds:   { label: "WRDS",         limitKind: "none",    rateNote: "CLI sync only · counts when you pull" },
   tastytrade: { label: "tastytrade", limitKind: "none",  rateNote: "no published cap · ~3 calls/day (daily.py) + backtests" },
 };
 
 // Show these sources always (even with 0 calls); others shown only if they have data.
-const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "polygon_429", "schwab", "finnhub", "yahoo", "edgar", "anthropic", "lseg", "wrds", "tastytrade"];
+const PRIMARY_SOURCES = ["factset", "fmp", "av", "polygon", "polygon_429", "schwab", "finnhub", "yahoo", "edgar", "anthropic", "lse", "lseg", "wrds", "tastytrade"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

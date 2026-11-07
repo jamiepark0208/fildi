@@ -47,7 +47,7 @@ Columns match A356 Detail (1–10). Citations = file:line or query unless noted.
 | 39 | **Playwright** · dev tool | unmetered | Manual login helper | Local | UI audit sessions (A163) | not shown | — | state file `~/.fildi/playwright-state.json` refs in state.md | — | **not runtime data** |
 | 40 | **markitdown** · dev tool | unmetered | ad hoc | Local | PDF/md conversion | not shown | — | `startup.md` skill | — | **clean** |
 | 41 | **GITHUB_TOKEN** · dev | unmetered | — | PAT in `.env.local` | **0** `process.env.GITHUB` refs in `*.ts/mjs/py/sh` | not shown | not shown | none | — | **external use, keep** (Jamie 11-06: used outside repo code); not a product data source |
-| 42 | **LSE_KEY** · ? | — | — | — | **0** repo refs (`rg LSE_KEY` → A356 only) | not shown | not shown | none | — | **unknown service, keep** — 11-06 check: value differs from `LSEG_APP_KEY` (not a duplicate/typo); no repo doc names it → Jamie to say which service |
+| 42 | **London Strategic Edge** · market data | metered `lse` | `a357_lse_option_backfill.py` (no parallel LSE jobs) | 60/min free (`catalog`) · scripts gate 55/min | OPRA option trade exports · US stock bars · macro (unused) | not shown | Settings › API Monitor | Catalog yes · metered | `scripts/lse_client.py` · `lse_option_daily` | Backfill A352 put OCCs since 2025-10-15 + model_recs puts | **wired A357** — traded prices before `option_chain_history` (10-08) |
 
 ## Overlaps (FIELD_DEFS — `artifacts/api-server/src/scripts/merge-trusted.ts:67–174`)
 
@@ -73,4 +73,4 @@ StockTwits, call_tone, LSEG signal fields (except breakdown API), tastytrade met
 
 ## Dead keys / code
 
-None dead (11-06): `CODIV_API_KEY` used by `oj.py` (metered); `GITHUB_TOKEN` external use, keep; `LSE_KEY` unknown service, distinct from `LSEG_APP_KEY` — awaiting Jamie. Still unused: `S&P Global` MCP unauthenticated (`catalog:172–177`), EDGAR `efts` search (0 refs, A263).
+None dead (11-06): `CODIV_API_KEY` used by `oj.py` (metered); `GITHUB_TOKEN` external use, keep; `LSE_KEY` = London Strategic Edge (wired A357). Still unused: `S&P Global` MCP unauthenticated (`catalog:172–177`), EDGAR `efts` search (0 refs, A263).

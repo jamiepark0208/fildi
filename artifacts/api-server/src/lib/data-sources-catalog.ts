@@ -57,6 +57,14 @@ export const DATA_SOURCES_CATALOG: DataSourceCatalogRow[] = [
     dailyLimit: 500,
   },
   {
+    id: "lse", usageKey: "lse", name: "London Strategic Edge",
+    plan: "Free · 60/min · 12.5M rows/day · 2.5M/export",
+    feeds: "US options OPRA trades (daily export) · US stock bars · macro",
+    tables: "lse_option_daily · lse_option_fetch_log · vendor_raw (source lse)",
+    unusedAvailable: "1m US stock bars (A184 ORB) · macro 41k series · options flow",
+    dailyLimit: 12_500_000,
+  },
+  {
     id: "lseg", usageKey: "lseg", name: "LSEG Workspace",
     plan: "10k datapoints/day (research guard 80%)",
     feeds: "signals, StarMine, holders, events, option mids (research)",
