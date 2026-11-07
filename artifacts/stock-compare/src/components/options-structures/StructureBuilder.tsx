@@ -175,7 +175,7 @@ export function StructureBuilder() {
             <DataTip tip="Contract fills (23 % spread); mid shown for context only.">
               <span className="text-white font-semibold">Fill ${priced.netFill.toFixed(2)}</span>
             </DataTip>
-            <span className="ml-2 text-zinc-400">mid ctx ${priced.netMid.toFixed(2)}</span>
+            <span className="ml-2 text-amber-100">mid ctx ${priced.netMid.toFixed(2)}</span>
             <div>Max loss ${priced.maxLoss.toFixed(0)} · POP {(priced.pop * 100).toFixed(0)}%</div>
             <div>BE: {priced.breakevens.map((x) => x.toFixed(2)).join(", ") || "—"}</div>
           </div>
