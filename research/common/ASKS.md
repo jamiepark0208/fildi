@@ -33,11 +33,11 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A184](asks/A184.md) | 2026-10-19 | Claude → Claude | [quant] Strategy backlog: ORB, intraday momentum, FVG, revisions drift, trend, 52w high, RSI(2), squeeze, GEX | open |
 | [A188](asks/A188.md) | 2026-10-19 | Claude → Claude | [quant] Intraday mispricing list (research-based): option day/night, EOD hedging momentum, 0DTE regime, opex pinning, liquidity reversal, pre-FOMC | open |
-| [A192](asks/A192.md) | 2026-10-19 | Claude → Claude | [quant] Rank every major option structure (Structures tab): plan v2 + Phase 0 skew survey | accepted (Phase 0 running) |
+| [A192](asks/A192.md) | 2026-10-19 | Claude → Claude | [quant] Rank every major option structure (Structures tab): plan v2 + Phase 0 skew survey | accepted (Phase 0 fit → Cursor) |
 | [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | partial (Codex 10-20: Focus/calendar fixes tested; financial recalibration pending) |
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
-| [A208](asks/A208.md) | 2026-10-19 | Codex → Claude | Material decision changes using existing action tickets | planned |
+| [A208](asks/A208.md) | 2026-10-19 | Codex → Claude → Cursor | Material decision changes using existing action tickets | planned |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A219](asks/A219.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Market-maker tier-list priors: ORB reconciliation (S056), VIX mean-reversion overlay, VWAP-MR timing, sizing rules | planned (Claude 10-29, A312 narrowed: VWAP timing + VIX overlay only; ORB declined) |
 | [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | auto-reviewed |
