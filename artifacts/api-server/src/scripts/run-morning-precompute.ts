@@ -12,8 +12,12 @@ async function main() {
   const started = Date.now();
   logger.info("morning-precompute: start");
   // Skips jobs already stamped today (ET) — e.g. by the API fallback — so nothing runs twice. --force re-runs all.
-  const ran = await runMorningPrecomputeIfDue(process.argv.includes("--force"));
-  logger.info({ ms: Date.now() - started, ran }, "morning-precompute: complete");
+  const { ran, failed } = await runMorningPrecomputeIfDue(process.argv.includes("--force"));
+  logger.info({ ms: Date.now() - started, ran, failed }, "morning-precompute: complete");
+  if (failed.length) {
+    logger.error({ failed }, "morning-precompute: jobs failed or busy (no success stamp)");
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {

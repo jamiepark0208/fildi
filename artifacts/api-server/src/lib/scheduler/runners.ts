@@ -151,23 +151,28 @@ export async function runOptionScoreJob() {
 /** Maintain's morning chain: run each precompute job unless it already ran today (ET day — a 6 PM PT run must not count
  *  for tomorrow). Returns the jobs that ran. Used by scripts/run-morning-precompute.ts so maintain + the API fallback
  *  never run the same job twice. */
-export async function runMorningPrecomputeIfDue(force = false): Promise<string[]> {
+export async function runMorningPrecomputeIfDue(force = false): Promise<{ ran: string[]; failed: string[] }> {
   const jobs: [string, () => Promise<void>][] = [
     [LAST_EVENT_BULLETS_RUN_KEY, runEventBulletsJob],
     [LAST_EARNINGS_BACKFILL_RUN_KEY, runEarningsBackfillJob],
     [LAST_FMP_ANALYST_FEED_RUN_KEY, runFmpAnalystFeedJob],
   ];
   const ran: string[] = [];
+  const failed: string[] = [];
   for (const [key, job] of jobs) {
     const last = await loadDate(key);
     if (!force && last && etDateKey(last) === etDateKey()) {
       logger.info({ key, last }, "morning-precompute: already ran today (ET) — skip");
       continue;
     }
+    const startedAt = Date.now();
     await job();
-    ran.push(key);
+    // A236: jobs swallow their own errors and return early when busy; only a fresh success stamp counts as ran.
+    const stamp = await loadDate(key);
+    if (stamp && stamp.getTime() >= startedAt) ran.push(key);
+    else failed.push(key);
   }
-  return ran;
+  return { ran, failed };
 }
 
 /** Maintain's retention prune: stamps the same key the API uses (Settings shows one last-run), skips if done today (ET). */
