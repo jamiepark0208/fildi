@@ -82,6 +82,24 @@ STALL_MIN="${DISPATCH_STALL_MIN:-20}"     # no new output AND < 2 s CPU in the a
 MAX_MIN="${DISPATCH_MAX_MIN:-120}"        # hard cap per run
 # Claim the first ASKS row the prompt names (.agents/claims/ convention) so the IDE Cursor doesn't run it too (10-22: S081/A245 ran twice).
 ASK_ID=$(grep -oE '\bA[0-9]{3}\b' "$PROMPT_FILE" | head -1 || true)
+# Jamie 11-07 (A359 fix3/fix3b ran 40+ min on an engine with open High review findings → wasted).
+# Gate 1: an open REVIEW row naming this ask must be handled by the prompt (cite its id), else refuse.
+if [[ -n "$ASK_ID" && -z "${DISPATCH_IGNORE_REVIEWS:-}" ]]; then
+  ASKS_MD="$(dirname "$0")/../research/common/ASKS.md"
+  OPEN_REV=$(grep -E "^\| \[A[0-9]{3}\]" "$ASKS_MD" 2>/dev/null | grep -i "REVIEW" | grep -w "$ASK_ID" \
+    | grep -viE "\| *(done|verified|declined|parked)[^|]*\| *$" | grep -oE "^\| \[A[0-9]{3}\]" | grep -oE "A[0-9]{3}" | grep -vx "$ASK_ID" || true)
+  for r in $OPEN_REV; do
+    if ! grep -qw "$r" "$PROMPT_FILE"; then
+      echo "agent-dispatch: REFUSED — open review $r has findings on $ASK_ID; fix those first or name $r in the prompt (override DISPATCH_IGNORE_REVIEWS=1)." >&2
+      exit 3
+    fi
+  done
+fi
+# Gate 2: build runs need a smoke gate (small slice + sanity checks before any long run).
+if [[ -z "$ASK" ]] && ! grep -qi "smoke gate" "$PROMPT_FILE"; then
+  echo "agent-dispatch: REFUSED — prompt has no 'Smoke gate' section (≤ 2-min slice, sanity checks that must pass before the full run)." >&2
+  exit 3
+fi
 CLAIM=""
 if [[ -n "$ASK_ID" ]]; then
   CLAIM="$(cd "$(dirname "$0")/.." && pwd)/.agents/claims/dispatch-$ASK_ID.json"
@@ -125,6 +143,7 @@ FULL="$(mktemp -t agent-dispatch-prompt)"
   [[ -n "$BUSY" ]] && echo "Busy files (another agent edited in the last 30 min — do not edit unless the task below names them; the dispatching agent edited those for you): $BUSY"
   # 11-06: a run read its own dispatcher's claim + task files as another agent's work and quit.
   [[ -n "${ASK_ID:-}" ]] && echo "The claim .agents/claims/dispatch-$ASK_ID.json is THIS run's own (agent-dispatch pid $$) — not a collision; proceed."
+  echo "Smoke gate (mandatory): before any command that runs > 5 min, run the smallest slice (≤ 2 min) and print SANITY lines — trade/row count plausible, output CHANGES when the main parameter changes, one trade/row hand-checked against raw data. Any SANITY fail → stop, write the failure in the packet, do NOT start the full run. Print the first full-run result line within 10 min."
   echo
   cat "$PROMPT_FILE"
 } > "$FULL"
