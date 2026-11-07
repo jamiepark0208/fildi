@@ -99,6 +99,8 @@ class SpreadCalibration:
     source: str
     ticker_buckets: dict[tuple[str, str, str], float] = field(default_factory=dict)
     ticker_liq_bin: dict[str, str] = field(default_factory=dict)
+    ticker_spread_usd: dict[tuple[str, str, str], float] = field(default_factory=dict)
+    spread_usd_buckets: dict[tuple[str, str, str], float] = field(default_factory=dict)
 
     def _mb_db(self, spot: float, strike: float, dte: int) -> tuple[str, str]:
         m = strike / spot
@@ -117,6 +119,25 @@ class SpreadCalibration:
                     return v
         return DEFAULT_SPREAD_RT
 
+    def _lookup_spread_usd(self, tk: str, mb: str, db: str) -> float | None:
+        if tk:
+            u = self.ticker_spread_usd.get((tk, mb, db))
+            if u is None:
+                for alt_mb in _MB_NEIGHBORS[mb]:
+                    for alt_db in (db, "short", "mid", "long"):
+                        u = self.ticker_spread_usd.get((tk, alt_mb, alt_db))
+                        if u is not None:
+                            return u
+            else:
+                return u
+        lb = self.ticker_liq_bin.get(tk) if tk else None
+        if lb:
+            for alt_db in (db, "short", "mid", "long"):
+                v = self.spread_usd_buckets.get((mb, alt_db, lb))
+                if v is not None:
+                    return v
+        return self.spread_usd_buckets.get((mb, db, "mid"))
+
     def round_trip_frac(
         self,
         spot: float,
@@ -126,17 +147,19 @@ class SpreadCalibration:
         ticker: str = "",
         volume: int = 0,
         open_interest: int = 0,
+        mid: float | None = None,
     ) -> float:
         if spot <= 0 or strike <= 0:
             return DEFAULT_SPREAD_RT
         mb, db = self._mb_db(spot, strike, dte)
         tk = ticker.upper() if ticker else ""
+        if mid is not None and mid > 0:
+            usd = self._lookup_spread_usd(tk, mb, db)
+            if usd is not None and usd > 0:
+                return float(usd / mid)
         if tk:
             tb = self.ticker_buckets.get((tk, mb, db))
             if tb is None:
-                # Snapshots are weekly (dte≈2–5); reuse shorter-DTE ticker median for 7–30 DTE marks.
-                # Then the ticker's nearest moneyness bin (QQQ 0.97 = atm had no own quotes → fell to a
-                # junk global bin at 0.41 rt; own near_otm = 0.037). Own ticker beats any global bin.
                 for alt_mb in _MB_NEIGHBORS[mb]:
                     for alt_db in (db, "short", "mid", "long"):
                         tb = self.ticker_buckets.get((tk, alt_mb, alt_db))
@@ -192,7 +215,8 @@ def load_spread_calibration(conn) -> SpreadCalibration:
     """
     rows = conn.execute(
         """SELECT ticker, strike::float8 / NULLIF(spot, 0), dte, volume, open_interest,
-                  (ask::float8 - bid::float8) / NULLIF((bid::float8 + ask::float8) / 2.0, 0)
+                  (ask::float8 - bid::float8) / NULLIF((bid::float8 + ask::float8) / 2.0, 0),
+                  (ask::float8 - bid::float8)
            FROM option_chain_history
            WHERE side = 'put' AND as_of >= %s AND bid > 0 AND ask > bid AND spot > 0
              AND (volume > 0 OR open_interest >= 100)
@@ -203,20 +227,28 @@ def load_spread_calibration(conn) -> SpreadCalibration:
     ).fetchall()
     acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     t_acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    u_acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    t_uacc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     t_liq: dict[str, list[float]] = defaultdict(list)
     n_used = 0
-    for ticker, m, dte, vol, oi, spr in rows:
+    for ticker, m, dte, vol, oi, spr, spr_usd in rows:
         if spr is None or not math.isfinite(spr) or spr <= 0 or spr > 2:
             continue
         n_used += 1
         mb, db = _moneyness_bin(float(m)), _dte_bin(int(dte))
         lb = _liq_bin(int(vol or 0), int(oi or 0))
         acc[(mb, db, lb)].append(float(spr))
+        if spr_usd is not None and math.isfinite(spr_usd) and spr_usd > 0:
+            u_acc[(mb, db, lb)].append(float(spr_usd))
         tk = str(ticker).upper()
         t_acc[(tk, mb, db)].append(float(spr))
+        if spr_usd is not None and math.isfinite(spr_usd) and spr_usd > 0:
+            t_uacc[(tk, mb, db)].append(float(spr_usd))
         t_liq[tk].append(float((vol or 0) + (oi or 0)))
     buckets = {k: float(np.median(v)) for k, v in acc.items() if len(v) >= MIN_BUCKET_N}
     ticker_buckets = {k: float(np.median(v)) for k, v in t_acc.items() if len(v) >= MIN_BUCKET_N}
+    spread_usd_buckets = {k: float(np.median(v)) for k, v in u_acc.items() if len(v) >= MIN_BUCKET_N}
+    ticker_spread_usd = {k: float(np.median(v)) for k, v in t_uacc.items() if len(v) >= MIN_BUCKET_N}
     ticker_liq_bin = {
         tk: _liq_bin(int(np.median(v)), 0) for tk, v in t_liq.items() if v
     }
@@ -226,6 +258,8 @@ def load_spread_calibration(conn) -> SpreadCalibration:
         source="option_chain_history≥2025-10-01 RTH liq mid≥0.10",
         ticker_buckets=ticker_buckets,
         ticker_liq_bin=ticker_liq_bin,
+        ticker_spread_usd=ticker_spread_usd,
+        spread_usd_buckets=spread_usd_buckets,
     )
 
 
@@ -283,7 +317,7 @@ def iv_intraday_path(iv_anchor: float, spot_entry: float, spot_now: float, beta:
     if spot_entry <= 0 or not math.isfinite(spot_now):
         return iv_anchor
     lr = math.log(max(spot_now, 1e-6) / spot_entry)
-    iv = iv_anchor * math.exp(-beta * lr)
+    iv = iv_anchor * math.exp(beta * lr)
     return float(max(5.0, min(iv, 250.0)))
 
 
@@ -300,10 +334,11 @@ def _cmp(a: float, op: CmpOp, b: float) -> bool:
 
 
 def rsi_series(closes: np.ndarray, n: int = 14) -> np.ndarray:
+    """Canonical RSI — multi-bar warm-up, min_periods=n (matches s159 grid)."""
     s = pd.Series(closes, dtype=float)
     d = s.diff()
-    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
     return (100 - 100 / (1 + up / dn.replace(0, np.nan))).to_numpy(dtype=float)
 
 
@@ -321,8 +356,14 @@ def condition_true_series(
     raise NotImplementedError(cond.indicator)
 
 
-def entry_cross_mask(conds: ConditionSet, closes: np.ndarray) -> np.ndarray:
-    rsi_cache = {14: rsi_series(closes, 14), 5: rsi_series(closes, 5), 2: rsi_series(closes, 2)}
+def entry_cross_mask(
+    conds: ConditionSet,
+    closes: np.ndarray,
+    *,
+    rsi_cache: dict[int, np.ndarray] | None = None,
+) -> np.ndarray:
+    if rsi_cache is None:
+        rsi_cache = {14: rsi_series(closes, 14), 5: rsi_series(closes, 5), 2: rsi_series(closes, 2)}
     parts = [condition_true_series(c, closes, rsi_cache=rsi_cache) for c in conds.conditions]
     if not parts:
         return np.zeros(len(closes), dtype=bool)
@@ -407,10 +448,52 @@ def _apply_friction(
     ticker: str = "",
 ) -> tuple[float, float, float, float]:
     prem = credit / strike if strike > 0 else 0.0
-    rt = spread.round_trip_frac(spot, strike, dte, ticker=ticker)
+    rt = spread.round_trip_frac(spot, strike, dte, ticker=ticker, mid=credit if credit > 0 else None)
     friction_cross = rt * prem
     friction_mid = 0.5 * rt * prem
     return gross_coll - friction_mid, gross_coll - friction_cross, friction_mid, friction_cross
+
+
+def _put_mark_at_bar(
+    open_pos: OpenPut,
+    spot: float,
+    session_d: date,
+    bar_i: int,
+    entry_i: int,
+    iv_beta: float,
+) -> float:
+    iv_j = iv_intraday_path(open_pos.iv_anchor, open_pos.spot_entry, spot, iv_beta)
+    vj = iv_j / 100.0 if iv_j > 3 else iv_j
+    days_elapsed = (session_d - open_pos.entry_session).days + (bar_i - entry_i) * 5 / (24 * 60)
+    dte_rem = max(open_pos.dte_at_entry - days_elapsed, 1 / (365 * 24 * 60))
+    return bs_put(spot, open_pos.strike, vj, dte_rem / 365.0)
+
+
+def _exit_fill_from_signal(
+    bars_len: int,
+    signal_j: int,
+    opens: np.ndarray,
+    closes: np.ndarray,
+    open_pos: OpenPut,
+    session_d: date,
+    entry_i: int,
+    iv_beta: float,
+    *,
+    intrinsic: float | None = None,
+    session_open_carry: bool = False,
+) -> tuple[int, float, float]:
+    """Signal on bar signal_j → fill next bar open (M1); carry session-open uses bar-0 open."""
+    if session_open_carry and signal_j == 0:
+        fill_i = 0
+        spot = float(opens[0])
+    else:
+        fill_i = signal_j + 1 if signal_j + 1 < bars_len else signal_j
+        spot = float(opens[fill_i]) if fill_i > signal_j else float(closes[signal_j])
+    if intrinsic is not None:
+        mark = intrinsic
+    else:
+        mark = _put_mark_at_bar(open_pos, spot, session_d, fill_i, entry_i, iv_beta)
+    return fill_i, spot, mark
 
 
 def simulate_session_puts(
@@ -426,24 +509,27 @@ def simulate_session_puts(
     force_entry_bar: int | None = None,
     carry: OpenPut | None = None,
     ticker: str = "",
+    rsi14: np.ndarray | None = None,
 ) -> tuple[list[dict], OpenPut | None]:
     if bars.empty:
         return [], carry
     closes = bars["c"].to_numpy(dtype=float)
     opens = bars["o"].to_numpy(dtype=float)
+    highs = bars["h"].to_numpy(dtype=float) if "h" in bars.columns else closes.copy()
+    lows = bars["l"].to_numpy(dtype=float) if "l" in bars.columns else closes.copy()
     session_d = bars["session_date"].iloc[0]
-    rsi14 = rsi_series(closes, 14)
+    if rsi14 is None:
+        rsi14 = rsi_series(closes, 14)
+    elif len(rsi14) != len(closes):
+        raise ValueError("rsi14 length must match bars")
     trades: list[dict] = []
     open_pos = carry
     in_pos = carry is not None
-
-    if in_pos and open_pos is not None:
-        entry_i = 0
-        i = 0
-    else:
-        i = 0
-    while i < len(bars) - 1:
+    i = 0
+    while i < len(bars):
         if not in_pos:
+            if i >= len(bars) - 2:
+                break
             enter_signal = (i in (force_entry_bar,) if force_entry_bar is not None else bool(entry_mask[i]))
             if not enter_signal:
                 i += 1
@@ -481,55 +567,78 @@ def simulate_session_puts(
             )
             in_pos = True
         assert open_pos is not None
-        if carry is not None and in_pos and open_pos.fill_bar >= len(bars):
+        carried_overnight = open_pos.entry_session < session_d
+        entry_i = 0 if carried_overnight else open_pos.fill_bar
+        if entry_i >= len(bars):
             entry_i = 0
-        else:
-            entry_i = open_pos.fill_bar if open_pos.fill_bar < len(bars) else 0
         strike = open_pos.strike
         credit = open_pos.credit
         spot_entry = open_pos.spot_entry
         expiry = open_pos.expiry
         exit_reason = "session_end"
+        signal_j = len(bars) - 1
         exit_i = len(bars) - 1
         exit_mark = credit
-        start_j = max(entry_i + 1, i + 1)
+        start_j = entry_i if carried_overnight else max(entry_i, i)
+        sl_level = credit * (1 + exit_rules.stop_loss_mult) if exit_rules.stop_loss_mult is not None else None
         for j in range(start_j, len(bars)):
             s = float(closes[j])
+            lo = float(lows[j]) if np.isfinite(lows[j]) else s
+            hi = float(highs[j]) if np.isfinite(highs[j]) else s
             if not np.isfinite(s):
                 continue
-            iv_j = iv_intraday_path(open_pos.iv_anchor, spot_entry, s, iv_beta)
-            vj = iv_j / 100.0 if iv_j > 3 else iv_j
-            days_elapsed = (session_d - open_pos.entry_session).days + (j - entry_i) * 5 / (24 * 60)
-            dte_rem = max(open_pos.dte_at_entry - days_elapsed, 1 / (365 * 24 * 60))
-            t_rem = dte_rem / 365.0
-            mark = bs_put(s, strike, vj, t_rem)
-            pnl_f = put_pnl_frac_short(credit, mark)
+            mark_c = _put_mark_at_bar(open_pos, s, session_d, j, entry_i, iv_beta)
+            mark_lo = _put_mark_at_bar(open_pos, lo, session_d, j, entry_i, iv_beta)
+            pnl_c = put_pnl_frac_short(credit, mark_c)
+            triggered: tuple[str, int] | None = None
             if exit_rules.close_conditions:
                 ok = True
                 for ec in exit_rules.close_conditions:
-                    val = rsi14[j] if ec.indicator == "rsi14" else float("nan")
+                    ind = ec.indicator
+                    if not ind.startswith("rsi"):
+                        ok = False
+                        break
+                    val = rsi14[j] if j < len(rsi14) else float("nan")
                     ok = ok and _cmp(val, ec.op, ec.threshold)
                 if ok:
-                    exit_reason, exit_i, exit_mark = "close_condition", j, mark
-                    break
-            if exit_rules.take_profit_frac is not None and pnl_f >= exit_rules.take_profit_frac:
-                exit_reason, exit_i, exit_mark = "take_profit", j, mark
-                break
-            if exit_rules.stop_loss_mult is not None and mark >= credit * (1 + exit_rules.stop_loss_mult):
-                exit_reason, exit_i, exit_mark = "stop_loss", j, mark
-                break
-            if exit_rules.time_stop == "same_day" and j == len(bars) - 1:
-                exit_reason, exit_i, exit_mark = "time_stop", j, mark
-                break
-            # Claude 11-07: "overnight" = close on the first bar of the next session if TP not hit
-            # (before, the position carried until TP fired — past expiry — so losers waited for recovery).
-            if exit_rules.time_stop == "overnight" and session_d > open_pos.entry_session:
-                exit_reason, exit_i, exit_mark = "time_stop", j, mark
-                break
-            # Hard close at expiry for every rule, at intrinsic.
-            if session_d >= expiry and j == len(bars) - 1:
-                exit_reason, exit_i, exit_mark = "expiry", j, max(strike - s, 0.0)
-                break
+                    triggered = ("close_condition", j)
+            if triggered is None and exit_rules.take_profit_frac is not None:
+                mark_hi = _put_mark_at_bar(open_pos, hi, session_d, j, entry_i, iv_beta)
+                if put_pnl_frac_short(credit, mark_hi) >= exit_rules.take_profit_frac:
+                    triggered = ("take_profit", j)
+            if triggered is None and sl_level is not None and mark_lo >= sl_level:
+                triggered = ("stop_loss", j)
+            if triggered is None and exit_rules.time_stop == "same_day" and j == len(bars) - 1:
+                triggered = ("time_stop", j)
+            if (
+                triggered is None
+                and exit_rules.time_stop == "overnight"
+                and session_d > open_pos.entry_session
+            ):
+                triggered = ("time_stop", j)
+            if triggered is None and session_d >= expiry and j == len(bars) - 1:
+                triggered = ("expiry", j)
+            if triggered is None:
+                continue
+            exit_reason, signal_j = triggered
+            open_carry = carried_overnight and session_d > open_pos.entry_session
+            if exit_reason == "expiry":
+                exit_i, _, exit_mark = _exit_fill_from_signal(
+                    len(bars), j, opens, closes, open_pos, session_d, entry_i, iv_beta,
+                    intrinsic=max(strike - s, 0.0),
+                    session_open_carry=open_carry,
+                )
+            else:
+                exit_i, _, exit_mark = _exit_fill_from_signal(
+                    len(bars), j, opens, closes, open_pos, session_d, entry_i, iv_beta,
+                    session_open_carry=open_carry,
+                )
+            break
+        else:
+            mark_c = _put_mark_at_bar(open_pos, float(closes[-1]), session_d, len(bars) - 1, entry_i, iv_beta)
+            exit_mark = mark_c
+            signal_j = len(bars) - 1
+            exit_i = len(bars) - 1
         pnl_frac = put_pnl_frac_short(credit, exit_mark)
         coll_frac = credit / strike if strike > 0 else 0.0
         gross_coll = pnl_frac * coll_frac
@@ -551,18 +660,19 @@ def simulate_session_puts(
             "credit": credit,
             "pnl_frac": pnl_frac,
             "pnl_coll_frac_gross": gross_coll,
-            "pnl_coll_frac": net_mid,
+            "pnl_coll_frac": net_cross,
+            "pnl_coll_frac_mid": net_mid,
             "pnl_coll_frac_cross": net_cross,
             "friction_coll_frac": friction_mid,
             "friction_coll_frac_cross": friction_cross,
-            "win": net_mid > 0,
+            "win": net_cross > 0,
             "iv_anchor": open_pos.iv_anchor,
             "iv_beta": iv_beta,
             "in_opra_window": session_d >= OPRA_START,
         })
         in_pos = False
         open_pos = None
-        i = exit_i + 1
+        i = max(exit_i + 1, i + 1)
         continue
     return trades, open_pos
 
@@ -612,7 +722,7 @@ def tail_stats_coll(trades: list[dict]) -> dict[str, Any]:
             "max_loss_mid": np.nan, "max_loss_cross": np.nan,
             "per_year_net_mid": {},
         }
-    mid = np.array([t["pnl_coll_frac"] for t in trades], dtype=float)
+    mid = np.array([t.get("pnl_coll_frac_mid", t["pnl_coll_frac"]) for t in trades], dtype=float)
     cross = np.array([t.get("pnl_coll_frac_cross", t["pnl_coll_frac"]) for t in trades], dtype=float)
 
     def _tail_metrics(x: np.ndarray) -> tuple[float, float, float]:
@@ -649,8 +759,8 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
             "mean_pnl_coll_gross": np.nan, "exit_mix": {},
             **tail_stats_coll([]),
         }
-    pnls = np.array([t["pnl_coll_frac"] for t in trades], dtype=float)
     cross = np.array([t.get("pnl_coll_frac_cross", t["pnl_coll_frac"]) for t in trades], dtype=float)
+    mid = np.array([t.get("pnl_coll_frac_mid", t["pnl_coll_frac"]) for t in trades], dtype=float)
     gross = np.array([t.get("pnl_coll_frac_gross", t["pnl_coll_frac"]) for t in trades], dtype=float)
     mix: dict[str, int] = defaultdict(int)
     for t in trades:
@@ -660,18 +770,26 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
         sec = sectors.get(t.get("ticker", ""), "UNK")
         key = (t["session"], sec)
         clusters[key] += 1
-    n_eff = sum(1.0 / clusters[k] for k in clusters)
+    n_eff = float(len(clusters))
     return {
         "n": len(trades),
-        "n_eff": float(n_eff),
+        "n_eff": n_eff,
         "win": float(np.mean([t["win"] for t in trades])),
-        "mean_pnl_coll": float(np.mean(pnls)),
+        "mean_pnl_coll": float(np.mean(cross)),
+        "mean_pnl_coll_mid": float(np.mean(mid)),
         "mean_pnl_coll_cross": float(np.mean(cross)),
         "mean_pnl_coll_gross": float(np.mean(gross)),
-        "median_pnl_coll": float(np.median(pnls)),
+        "median_pnl_coll": float(np.median(cross)),
         "exit_mix": dict(mix),
         **tail_stats_coll(trades),
     }
+
+
+def _intraday_rsi_by_session(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[int, np.ndarray]]:
+    df = df.sort_values(["session_date", "ts"]).reset_index(drop=True)
+    closes = df["c"].to_numpy(dtype=float)
+    rsi_full = {p: rsi_series(closes, p) for p in (2, 5, 14)}
+    return df, rsi_full
 
 
 def _run_ticker_sessions(
@@ -685,15 +803,27 @@ def _run_ticker_sessions(
     spread: SpreadCalibration,
     *,
     base_every_day: bool,
+    rsi_full: dict[int, np.ndarray] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
     carry: OpenPut | None = None
-    base_carry: OpenPut | None = None  # Claude 11-07: base keeps its open position across sessions (was dropped → only same-day winners counted)
-    for session, sess_df in sorted(df.groupby("session_date"), key=lambda x: x[0]):
-        sess_df = sess_df.reset_index(drop=True)
+    base_carry: OpenPut | None = None
+    if rsi_full is None:
+        df, rsi_full = _intraday_rsi_by_session(df)
+    else:
+        df = df.sort_values(["session_date", "ts"]).reset_index(drop=True)
+    for session, grp in sorted(df.groupby("session_date"), key=lambda x: x[0]):
+        idx = grp.index.to_numpy(dtype=int)
+        i0, i1 = int(idx[0]), int(idx[-1]) + 1
+        sess_df = df.iloc[i0:i1].reset_index(drop=True)
         closes = sess_df["c"].to_numpy(dtype=float)
-        cross = entry_cross_mask(entry, closes) if carry is None else np.zeros(len(closes), dtype=bool)
+        rsi_slice = {p: rsi_full[p][i0:i1] for p in rsi_full}
+        cross = (
+            entry_cross_mask(entry, closes, rsi_cache=rsi_slice)
+            if carry is None
+            else np.zeros(len(closes), dtype=bool)
+        )
         anchor = prior_business_iv(iv_series, session)
         if anchor is None:
             anchor = 30.0
@@ -702,6 +832,7 @@ def _run_ticker_sessions(
             sess_df, cross, exit_rules,
             iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
             spread=spread, listed_strikes=listed, carry=carry, ticker=tk,
+            rsi14=rsi_slice[14],
         )
         cond_trades.extend(ts)
         if carry is not None and session >= carry.expiry:
@@ -712,18 +843,58 @@ def _run_ticker_sessions(
                     sess_df, np.zeros(len(closes), dtype=bool), exit_rules,
                     iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
                     spread=spread, listed_strikes=listed, carry=base_carry, ticker=tk,
+                    rsi14=rsi_slice[14],
                 )
-                base_trades.extend(bts[:1])
-            elif carry is None:
+                base_trades.extend(bts)
+            else:
                 bts, base_carry = simulate_session_puts(
-                    sess_df, cross, exit_rules,
+                    sess_df, np.zeros(len(closes), dtype=bool), exit_rules,
                     iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
                     spread=spread, listed_strikes=listed, force_entry_bar=0, ticker=tk,
+                    rsi14=rsi_slice[14],
                 )
                 base_trades.extend(bts[:1])
-                if bts:
-                    base_carry = None
     return cond_trades, base_trades
+
+
+@dataclass
+class ConditionalContext:
+    bars_map: dict[str, pd.DataFrame]
+    sectors: dict[str, str]
+    spread: SpreadCalibration
+    betas: dict[str, float]
+    iv_maps: dict[str, dict[date, float]]
+    default_beta: float
+    rsi_by_ticker: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+
+
+def load_conditional_context(tickers: list[str]) -> ConditionalContext:
+    with connect() as conn:
+        bars_map = load_bars_5m_db(conn, tickers)
+        if not bars_map:
+            return ConditionalContext({}, {}, SpreadCalibration({}, 0, "empty"), {}, {}, -2.0)
+        sectors = load_groups(conn)
+        spread = load_spread_calibration(conn)
+        betas = load_iv_return_betas(conn, list(bars_map.keys()))
+        default_beta = float(np.median(list(betas.values()))) if betas else -2.0
+        all_dates = set()
+        for df in bars_map.values():
+            all_dates.update(df["session_date"].unique())
+        d0, d1 = min(all_dates), max(all_dates)
+        iv_maps = load_daily_iv_series(conn, list(bars_map.keys()), d0, d1)
+    rsi_by_ticker: dict[str, dict[int, np.ndarray]] = {}
+    for tk, df in bars_map.items():
+        _, rsi_full = _intraday_rsi_by_session(df)
+        rsi_by_ticker[tk] = rsi_full
+    return ConditionalContext(
+        bars_map=bars_map,
+        sectors=sectors,
+        spread=spread,
+        betas=betas,
+        iv_maps=iv_maps,
+        default_beta=default_beta,
+        rsi_by_ticker=rsi_by_ticker,
+    )
 
 
 def run_conditional_strategy(
@@ -735,21 +906,14 @@ def run_conditional_strategy(
     base_every_day: bool = True,
     session_filter: Callable[[date], bool] | None = None,
     keep_trades: bool = False,
+    ctx: ConditionalContext | None = None,
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
-    with connect() as conn:
-        bars_map = load_bars_5m_db(conn, tickers)
-        if not bars_map:
-            return {"error": "no bars_5m data", "tickers": tickers}
-        sectors = load_groups(conn)
-        spread = load_spread_calibration(conn)
-        betas = load_iv_return_betas(conn, list(bars_map.keys()))
-        default_beta = float(np.median(list(betas.values()))) if betas else -2.0
-        all_dates = set()
-        for df in bars_map.values():
-            all_dates.update(df["session_date"].unique())
-        d0, d1 = min(all_dates), max(all_dates)
-        iv_maps = load_daily_iv_series(conn, list(bars_map.keys()), d0, d1)
+    if ctx is None:
+        ctx = load_conditional_context(tickers)
+    bars_map = ctx.bars_map
+    if not bars_map:
+        return {"error": "no bars_5m data", "tickers": tickers}
 
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
@@ -758,18 +922,19 @@ def run_conditional_strategy(
             df = df[df["session_date"].map(session_filter)].copy()
             if df.empty:
                 continue
-        beta = betas.get(tk, default_beta)
+        beta = ctx.betas.get(tk, ctx.default_beta)
         ct, bt = _run_ticker_sessions(
             tk, df, entry, exit_rules, instrument,
-            iv_maps.get(tk, {}), beta, spread, base_every_day=base_every_day,
+            ctx.iv_maps.get(tk, {}), beta, ctx.spread, base_every_day=base_every_day,
+            rsi_full=ctx.rsi_by_ticker.get(tk),
         )
         cond_trades.extend(ct)
         base_trades.extend(bt)
 
-    cond_stats = aggregate_trades(cond_trades, sectors)
-    base_stats = aggregate_trades(base_trades, sectors)
+    cond_stats = aggregate_trades(cond_trades, ctx.sectors)
+    base_stats = aggregate_trades(base_trades, ctx.sectors)
     lift = (
-        cond_stats["mean_pnl_coll"] - base_stats["mean_pnl_coll"]
+        cond_stats["mean_pnl_coll_cross"] - base_stats["mean_pnl_coll_cross"]
         if cond_trades and base_trades
         else float("nan")
     )
@@ -780,8 +945,12 @@ def run_conditional_strategy(
         "lift_pnl_coll": lift,
         "tickers": len(bars_map),
         "wall_s": wall,
-        "spread_calibration": {"n_obs": spread.n_obs, "source": spread.source, "n_buckets": len(spread.buckets)},
-        "iv_beta_median": default_beta,
+        "spread_calibration": {
+            "n_obs": ctx.spread.n_obs,
+            "source": ctx.spread.source,
+            "n_buckets": len(ctx.spread.buckets),
+        },
+        "iv_beta_median": ctx.default_beta,
         "trades_sample": cond_trades[:5],
     }
     if keep_trades:
@@ -852,12 +1021,17 @@ def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, An
     inst = PutInstrument(target_delta=-0.15)
     rows: list[dict[str, Any]] = []
     thresholds = [5.0 + 2.5 * i for i in range(int((30.0 - 5.0) / 2.5) + 1)]
+    t_load = time.perf_counter()
+    ctx = load_conditional_context(tickers)
+    load_s = time.perf_counter() - t_load
     for thr in thresholds:
         entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
         for exit_name, exits in frontier_exit_variants():
-            full = run_conditional_strategy(tickers, entry, exits, inst, session_filter=None)
+            full = run_conditional_strategy(
+                tickers, entry, exits, inst, session_filter=None, ctx=ctx,
+            )
             opra = run_conditional_strategy(
-                tickers, entry, exits, inst, session_filter=lambda d: d >= OPRA_START,
+                tickers, entry, exits, inst, session_filter=lambda d: d >= OPRA_START, ctx=ctx,
             )
             for win_label, payload in (("full", full), ("opra", opra)):
                 c, b = payload["conditional"], payload["base"]
@@ -868,7 +1042,7 @@ def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, An
                 break
         if smoke:
             break
-    return {"frontier": rows, "thresholds": thresholds}
+    return {"frontier": rows, "thresholds": thresholds, "context_load_s": load_s}
 
 
 def run_survivor_tail_cells(tickers: list[str]) -> dict[str, Any]:
@@ -876,16 +1050,19 @@ def run_survivor_tail_cells(tickers: list[str]) -> dict[str, Any]:
     inst = PutInstrument(target_delta=-0.15)
     exits = dict(frontier_exit_variants())["tp50_overnight"]
     rows: list[dict[str, Any]] = []
+    t_load = time.perf_counter()
+    ctx = load_conditional_context(tickers)
+    load_s = time.perf_counter() - t_load
     for thr in (30.0, 5.0):
         entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
         for win_label, filt in (("full", None), ("opra", lambda d: d >= OPRA_START)):
             payload = run_conditional_strategy(
-                tickers, entry, exits, inst, session_filter=filt, keep_trades=True,
+                tickers, entry, exits, inst, session_filter=filt, keep_trades=True, ctx=ctx,
             )
             c, b = payload["conditional"], payload["base"]
             rows.append(_frontier_row(win_label, thr, "tp50_overnight", "cond", c, lift=payload.get("lift_pnl_coll"), base_n=b.get("n")))
             rows.append(_frontier_row(win_label, thr, "tp50_overnight", "base", b))
-    return {"survivor_tail": rows, "exit": "tp50_overnight"}
+    return {"survivor_tail": rows, "exit": "tp50_overnight", "context_load_s": load_s}
 
 
 def write_report(payload: dict[str, Any], tag: str) -> Path:

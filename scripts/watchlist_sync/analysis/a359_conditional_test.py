@@ -21,10 +21,13 @@ from conditional_engine import (  # noqa: E402
     OpenPut,
     PutInstrument,
     SpreadCalibration,
+    aggregate_trades,
     daily_entry_cross_mask,
     entry_cross_mask,
+    iv_intraday_path,
     nearest_listed_strike,
     prior_business_iv,
+    rsi_series,
     simulate_session_puts,
     standard_listed_strikes,
 )
@@ -36,6 +39,7 @@ class TestEntryCross(unittest.TestCase):
         entry = ConditionSet("or", [IndicatorCondition("rsi14", "lt", 25.0, "5m")])
         cross = entry_cross_mask(entry, closes)
         idx = np.where(cross)[0]
+        self.assertEqual(len(idx), 1)
         for i in range(1, len(idx)):
             self.assertGreater(idx[i], idx[i - 1])
 
@@ -47,12 +51,28 @@ class TestNearestStrike(unittest.TestCase):
         self.assertAlmostEqual(nearest_listed_strike(92.6, listed), 95.0)
 
 
+class TestRsiWarmup(unittest.TestCase):
+    def test_nan_before_n_bars(self) -> None:
+        closes = 100 + np.sin(np.linspace(0, 4, 40))
+        r = rsi_series(closes, 14)
+        self.assertTrue(np.all(np.isnan(r[:13])))
+        self.assertGreater(np.sum(np.isfinite(r[13:])), 10)
+
+
+class TestIvBetaSign(unittest.TestCase):
+    def test_iv_rises_when_spot_falls(self) -> None:
+        iv0 = iv_intraday_path(30.0, 100.0, 99.0, -2.0)
+        self.assertGreater(iv0, 30.0)
+
+
 class TestLookAhead(unittest.TestCase):
     def test_fill_after_signal(self) -> None:
         bars = pd.DataFrame({
-            "o": [100, 99, 98, 99, 100],
-            "c": [100, 99, 98, 99, 100],
-            "session_date": [date(2025, 6, 2)] * 5,
+            "o": [100, 99, 98, 99, 100, 101],
+            "h": [100, 99, 98, 99, 100, 101],
+            "l": [100, 99, 98, 99, 100, 101],
+            "c": [100, 99, 98, 99, 100, 101],
+            "session_date": [date(2025, 6, 2)] * 6,
         })
         exits = ExitRules(time_stop="same_day")
         sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
@@ -64,17 +84,38 @@ class TestLookAhead(unittest.TestCase):
         self.assertGreater(tr[0]["fill_bar"], tr[0]["signal_bar"])
 
 
+class TestFillOpenNotClose(unittest.TestCase):
+    def test_entry_uses_next_open(self) -> None:
+        bars = pd.DataFrame({
+            "o": [100.0, 88.0, 98.0, 99.0, 100.0, 101.0],
+            "h": [100.0, 88.0, 98.0, 99.0, 100.0, 101.0],
+            "l": [100.0, 88.0, 98.0, 99.0, 100.0, 101.0],
+            "c": [100.0, 100.0, 98.0, 99.0, 100.0, 101.0],
+            "session_date": [date(2025, 6, 4)] * 6,
+        })
+        sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
+        tr, _ = simulate_session_puts(
+            bars, np.zeros(6, dtype=bool), ExitRules(time_stop="same_day"),
+            iv_anchor=25.0, iv_beta=-2.0, instrument=PutInstrument(), spread=sp,
+            force_entry_bar=0,
+        )
+        self.assertEqual(tr[0]["fill_bar"], 1)
+        self.assertAlmostEqual(tr[0]["spot_entry"], 88.0)
+
+
 class TestFirstHitExit(unittest.TestCase):
     def test_tp_beats_later_rules(self) -> None:
         bars = pd.DataFrame({
-            "o": [100.0, 100.0, 100.0, 100.0],
-            "c": [100.0, 95.0, 130.0, 130.0],
-            "session_date": [date(2025, 6, 3)] * 4,
+            "o": [100.0, 100.0, 108.0, 108.0, 108.0],
+            "h": [100.0, 100.0, 108.0, 108.0, 108.0],
+            "l": [100.0, 100.0, 108.0, 108.0, 108.0],
+            "c": [100.0, 100.0, 108.0, 108.0, 108.0],
+            "session_date": [date(2025, 6, 3)] * 5,
         })
-        exits = ExitRules(take_profit_frac=0.01, stop_loss_mult=2.0, time_stop="same_day")
+        exits = ExitRules(take_profit_frac=0.01, stop_loss_mult=50.0, time_stop="same_day")
         sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
         tr, _ = simulate_session_puts(
-            bars, np.zeros(4, dtype=bool), exits, iv_anchor=40.0, iv_beta=-2.0,
+            bars, np.zeros(5, dtype=bool), exits, iv_anchor=40.0, iv_beta=-2.0,
             instrument=PutInstrument(), spread=sp, force_entry_bar=0,
         )
         self.assertEqual(tr[0]["exit_reason"], "take_profit")
@@ -154,20 +195,65 @@ class TestSpreadLiquidity(unittest.TestCase):
 
 
 
+class TestClusterEff(unittest.TestCase):
+    def test_n_eff_distinct_clusters(self) -> None:
+        trades = [
+            {"session": "2025-06-01", "ticker": "AAPL", "pnl_coll_frac": 0.01, "pnl_coll_frac_cross": 0.01, "win": True, "exit_reason": "tp"},
+        ] * 10
+        stats = aggregate_trades(trades, {"AAPL": "TECH"})
+        self.assertEqual(stats["n"], 10)
+        self.assertAlmostEqual(stats["n_eff"], 1.0)
+
+
+class TestCloseConditionExit(unittest.TestCase):
+    def test_rsi_close_exit_fires(self) -> None:
+        warmup = np.linspace(100, 70, 20)
+        session = np.array([70, 68, 66, 72, 80, 85, 90, 55])
+        closes = np.concatenate([warmup, session])
+        rsi = rsi_series(closes, 14)
+        rsi_sess = rsi[-len(session) :]
+        bars = pd.DataFrame({
+            "o": session.astype(float),
+            "h": session.astype(float) + 1,
+            "l": session.astype(float) - 1,
+            "c": session.astype(float),
+            "session_date": [date(2025, 6, 5)] * len(session),
+        })
+        sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
+        exits = ExitRules(
+            close_conditions=[IndicatorCondition("rsi14", "gt", 50.0)],
+            take_profit_frac=5.0,
+            stop_loss_mult=50.0,
+            time_stop="same_day",
+        )
+        tr, _ = simulate_session_puts(
+            bars, np.zeros(len(session), dtype=bool), exits,
+            iv_anchor=25.0, iv_beta=-2.0, instrument=PutInstrument(), spread=sp,
+            force_entry_bar=0, rsi14=rsi_sess,
+        )
+        self.assertEqual(tr[0]["exit_reason"], "close_condition")
+
+
 class TestOvernightCloses(unittest.TestCase):
     """Claude 11-07: tp50_overnight must close next session if TP not hit (was: carried until TP, past expiry)."""
     def test_loser_closes_next_session(self) -> None:
         d1, d2 = date(2025, 6, 2), date(2025, 6, 3)
         sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
         exits = ExitRules(take_profit_frac=0.50, time_stop="overnight")
-        day1 = pd.DataFrame({"o": [100.0] * 4, "c": [100.0, 100.0, 99.0, 98.0], "session_date": [d1] * 4})
+        day1 = pd.DataFrame({
+            "o": [100.0] * 4, "h": [100.0] * 4, "l": [100.0] * 4,
+            "c": [100.0, 100.0, 99.0, 98.0], "session_date": [d1] * 4,
+        })
         tr, carry = simulate_session_puts(
             day1, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
             instrument=PutInstrument(), spread=sp, force_entry_bar=0,
         )
         self.assertEqual(tr, [])
         self.assertIsNotNone(carry)
-        day2 = pd.DataFrame({"o": [90.0] * 4, "c": [90.0, 91.0, 99.0, 104.0], "session_date": [d2] * 4})
+        day2 = pd.DataFrame({
+            "o": [90.0] * 4, "h": [92.0] * 4, "l": [89.0] * 4,
+            "c": [90.0, 91.0, 99.0, 104.0], "session_date": [d2] * 4,
+        })
         tr2, carry2 = simulate_session_puts(
             day2, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
             instrument=PutInstrument(), spread=sp, carry=carry,
@@ -176,6 +262,36 @@ class TestOvernightCloses(unittest.TestCase):
         self.assertEqual(len(tr2), 1)
         self.assertEqual(tr2[0]["exit_reason"], "time_stop")
         self.assertLess(tr2[0]["pnl_frac"], 0)
+        self.assertEqual(tr2[0]["exit_bar"], 0)
+
+
+class TestCarriedStopBarZero(unittest.TestCase):
+    def test_gap_stop_at_open_bar0(self) -> None:
+        d1, d2 = date(2025, 6, 2), date(2025, 6, 3)
+        sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
+        exits = ExitRules(stop_loss_mult=0.1, time_stop="overnight")
+        day1 = pd.DataFrame({
+            "o": [100.0] * 4, "h": [100.0] * 4, "l": [100.0] * 4,
+            "c": [100.0, 100.0, 100.0, 100.0], "session_date": [d1] * 4,
+        })
+        _, carry = simulate_session_puts(
+            day1, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+            instrument=PutInstrument(), spread=sp, force_entry_bar=0,
+        )
+        self.assertIsNotNone(carry)
+        day2 = pd.DataFrame({
+            "o": [70.0, 71.0, 72.0, 73.0], "h": [71.0, 72.0, 73.0, 74.0],
+            "l": [69.0, 70.0, 71.0, 72.0], "c": [70.5, 71.5, 72.5, 73.5],
+            "session_date": [d2] * 4,
+        })
+        tr2, _ = simulate_session_puts(
+            day2, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+            instrument=PutInstrument(), spread=sp, carry=carry,
+        )
+        self.assertTrue(tr2)
+        self.assertEqual(tr2[0]["exit_bar"], 0)
+        self.assertEqual(tr2[0]["exit_reason"], "stop_loss")
+
 
 if __name__ == "__main__":
     unittest.main()
