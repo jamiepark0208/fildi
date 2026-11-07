@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import pickle
 import sys
 import time
 from collections import defaultdict
@@ -29,12 +30,13 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(WATCH))
 sys.path.insert(0, str(REPO / "scripts"))
 
-from a352_score_rank import load_groups, put_delta  # noqa: E402
+from a352_score_rank import load_groups, load_tbill, put_delta, tbill_at  # noqa: E402
 from build_plan import connect  # noqa: E402
 from indicator_catalog import CATALOG_BY_ID  # noqa: E402
 from s045_put_retest import bs_put  # noqa: E402
 
 BAR_CACHE = Path.home() / ".fildi" / "cache" / "a359_bars_5m"
+PANEL_2003 = Path.home() / ".fildi" / "cache" / "fast_screen_bars_2003.pkl"
 OUT_DIR = REPO / "research" / "studies" / "out" / "conditional"
 OPRA_START = date(2025, 10, 1)
 DEFAULT_SPREAD_RT = 0.40  # round-trip (ask−bid)/mid fallback when bucket empty
@@ -563,12 +565,58 @@ def load_daily_iv_series(conn, tickers: list[str], d0: date, d1: date) -> dict[s
     return dict(out)
 
 
+def wilson_lo(k: int, n: int, z: float = 1.96) -> float:
+    if n <= 0:
+        return float("nan")
+    p = k / n
+    return (p + z * z / (2 * n) - z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
+
+
+def tail_stats_coll(trades: list[dict]) -> dict[str, Any]:
+    """Worst 5 % mean, CVaR 1 %, max loss, per-year mean net_mid — all in collateral frac."""
+    if not trades:
+        return {
+            "worst5_mean_mid": np.nan, "worst5_mean_cross": np.nan,
+            "cvar1_mid": np.nan, "cvar1_cross": np.nan,
+            "max_loss_mid": np.nan, "max_loss_cross": np.nan,
+            "per_year_net_mid": {},
+        }
+    mid = np.array([t["pnl_coll_frac"] for t in trades], dtype=float)
+    cross = np.array([t.get("pnl_coll_frac_cross", t["pnl_coll_frac"]) for t in trades], dtype=float)
+
+    def _tail_metrics(x: np.ndarray) -> tuple[float, float, float]:
+        x = x[np.isfinite(x)]
+        if len(x) == 0:
+            return float("nan"), float("nan"), float("nan")
+        k5 = max(1, math.ceil(0.05 * len(x)))
+        k1 = max(1, math.ceil(0.01 * len(x)))
+        worst5 = np.partition(x, k5 - 1)[:k5]
+        worst1 = np.partition(x, k1 - 1)[:k1]
+        return float(worst5.mean()), float(worst1.mean()), float(np.min(x))
+
+    w5m, c1m, maxm = _tail_metrics(mid)
+    w5c, c1c, maxc = _tail_metrics(cross)
+    by_y: dict[str, list[float]] = defaultdict(list)
+    for t in trades:
+        sess = t.get("session", "")[:4]
+        if sess.isdigit():
+            by_y[sess].append(float(t["pnl_coll_frac"]))
+    per_year = {y: float(np.mean(v)) for y, v in sorted(by_y.items())}
+    return {
+        "worst5_mean_mid": w5m, "worst5_mean_cross": w5c,
+        "cvar1_mid": c1m, "cvar1_cross": c1c,
+        "max_loss_mid": maxm, "max_loss_cross": maxc,
+        "per_year_net_mid": per_year,
+    }
+
+
 def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, Any]:
     if not trades:
         return {
             "n": 0, "n_eff": 0.0, "win": np.nan,
             "mean_pnl_coll": np.nan, "mean_pnl_coll_cross": np.nan,
             "mean_pnl_coll_gross": np.nan, "exit_mix": {},
+            **tail_stats_coll([]),
         }
     pnls = np.array([t["pnl_coll_frac"] for t in trades], dtype=float)
     cross = np.array([t.get("pnl_coll_frac_cross", t["pnl_coll_frac"]) for t in trades], dtype=float)
@@ -591,6 +639,7 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
         "mean_pnl_coll_gross": float(np.mean(gross)),
         "median_pnl_coll": float(np.median(pnls)),
         "exit_mix": dict(mix),
+        **tail_stats_coll(trades),
     }
 
 
@@ -644,6 +693,7 @@ def run_conditional_strategy(
     *,
     base_every_day: bool = True,
     session_filter: Callable[[date], bool] | None = None,
+    keep_trades: bool = False,
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
     with connect() as conn:
@@ -683,7 +733,7 @@ def run_conditional_strategy(
         else float("nan")
     )
     wall = time.perf_counter() - t0
-    return {
+    out: dict[str, Any] = {
         "conditional": cond_stats,
         "base": base_stats,
         "lift_pnl_coll": lift,
@@ -693,6 +743,10 @@ def run_conditional_strategy(
         "iv_beta_median": default_beta,
         "trades_sample": cond_trades[:5],
     }
+    if keep_trades:
+        out["cond_trades"] = cond_trades
+        out["base_trades"] = base_trades
+    return out
 
 
 def jamie_example_spec() -> tuple[ConditionSet, ExitRules, PutInstrument]:
@@ -719,6 +773,40 @@ def frontier_exit_variants() -> list[tuple[str, ExitRules]]:
     ]
 
 
+def _frontier_row(
+    win_label: str,
+    thr: float,
+    exit_name: str,
+    role: str,
+    stats: dict[str, Any],
+    *,
+    lift: float | None = None,
+    base_n: int | None = None,
+) -> dict[str, Any]:
+    return {
+        "window": win_label,
+        "rsi_lt": thr,
+        "exit": exit_name,
+        "role": role,
+        "n": stats.get("n"),
+        "n_eff": stats.get("n_eff"),
+        "win": stats.get("win"),
+        "gross_pnl_coll": stats.get("mean_pnl_coll_gross"),
+        "net_mid_pnl_coll": stats.get("mean_pnl_coll"),
+        "net_cross_pnl_coll": stats.get("mean_pnl_coll_cross"),
+        "lift": lift,
+        "base_n": base_n,
+        "exit_mix": stats.get("exit_mix"),
+        "worst5_mean_mid": stats.get("worst5_mean_mid"),
+        "worst5_mean_cross": stats.get("worst5_mean_cross"),
+        "cvar1_mid": stats.get("cvar1_mid"),
+        "cvar1_cross": stats.get("cvar1_cross"),
+        "max_loss_mid": stats.get("max_loss_mid"),
+        "max_loss_cross": stats.get("max_loss_cross"),
+        "per_year_net_mid": stats.get("per_year_net_mid"),
+    }
+
+
 def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, Any]:
     inst = PutInstrument(target_delta=-0.15)
     rows: list[dict[str, Any]] = []
@@ -732,24 +820,31 @@ def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, An
             )
             for win_label, payload in (("full", full), ("opra", opra)):
                 c, b = payload["conditional"], payload["base"]
-                rows.append({
-                    "window": win_label,
-                    "rsi_lt": thr,
-                    "exit": exit_name,
-                    "n": c["n"],
-                    "n_eff": c.get("n_eff"),
-                    "win": c.get("win"),
-                    "gross_pnl_coll": c.get("mean_pnl_coll_gross"),
-                    "net_mid_pnl_coll": c.get("mean_pnl_coll"),
-                    "net_cross_pnl_coll": c.get("mean_pnl_coll_cross"),
-                    "lift": payload.get("lift_pnl_coll"),
-                    "base_n": b.get("n"),
-                })
+                lift = payload.get("lift_pnl_coll")
+                rows.append(_frontier_row(win_label, thr, exit_name, "cond", c, lift=lift, base_n=b.get("n")))
+                rows.append(_frontier_row(win_label, thr, exit_name, "base", b))
             if smoke:
                 break
         if smoke:
             break
     return {"frontier": rows, "thresholds": thresholds}
+
+
+def run_survivor_tail_cells(tickers: list[str]) -> dict[str, Any]:
+    """Re-run tp50_overnight × RSI {5,30} × {full,opra} × {cond,base} — 8 rows."""
+    inst = PutInstrument(target_delta=-0.15)
+    exits = dict(frontier_exit_variants())["tp50_overnight"]
+    rows: list[dict[str, Any]] = []
+    for thr in (30.0, 5.0):
+        entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
+        for win_label, filt in (("full", None), ("opra", lambda d: d >= OPRA_START)):
+            payload = run_conditional_strategy(
+                tickers, entry, exits, inst, session_filter=filt, keep_trades=True,
+            )
+            c, b = payload["conditional"], payload["base"]
+            rows.append(_frontier_row(win_label, thr, "tp50_overnight", "cond", c, lift=payload.get("lift_pnl_coll"), base_n=b.get("n")))
+            rows.append(_frontier_row(win_label, thr, "tp50_overnight", "base", b))
+    return {"survivor_tail": rows, "exit": "tp50_overnight"}
 
 
 def write_report(payload: dict[str, Any], tag: str) -> Path:
@@ -760,6 +855,24 @@ def write_report(payload: dict[str, Any], tag: str) -> Path:
     path = OUT_DIR / f"{day}-{tag}.json"
     path.write_text(json.dumps(payload, indent=2, default=str))
     return path
+
+
+def format_survivor_tail_table(rows: list[dict[str, Any]]) -> str:
+    lines = [
+        "window | rsi | role | n | win | net_mid | w5_mid | cvar1_mid | maxL_mid | net_cross | w5_cross | lift",
+        "---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:",
+    ]
+    for r in rows:
+        lift = r.get("lift")
+        lift_v = float(lift) if lift is not None and lift == lift else float("nan")
+        lines.append(
+            f"{r['window']} | {r['rsi_lt']:.0f} | {r['role']} | {r['n']} | {r.get('win', float('nan')):.1%} | "
+            f"{r.get('net_mid_pnl_coll', float('nan')):.4%} | {r.get('worst5_mean_mid', float('nan')):.4%} | "
+            f"{r.get('cvar1_mid', float('nan')):.4%} | {r.get('max_loss_mid', float('nan')):.4%} | "
+            f"{r.get('net_cross_pnl_coll', float('nan')):.4%} | {r.get('worst5_mean_cross', float('nan')):.4%} | "
+            f"{lift_v:.4%}"
+        )
+    return "\n".join(lines)
 
 
 def format_frontier_table(rows: list[dict[str, Any]]) -> str:
@@ -776,6 +889,300 @@ def format_frontier_table(rows: list[dict[str, Any]]) -> str:
             f"{r.get('lift', float('nan')):.4%} | {r.get('base_n', 0)}"
         )
     return "\n".join(lines)
+
+
+def daily_entry_cross_mask(rsi: np.ndarray, threshold: float) -> np.ndarray:
+    """First bar per downward cross into RSI < threshold (daily close series)."""
+    level = rsi < threshold
+    level = level & np.isfinite(rsi)
+    prev = np.roll(level, 1)
+    prev[0] = False
+    return level & ~prev
+
+
+def _rv20_iv_proxy(closes: pd.Series) -> pd.Series:
+    lr = np.log(closes / closes.shift(1))
+    rv = lr.rolling(20).std() * math.sqrt(252)
+    return (rv * 1.2 * 100.0).clip(lower=5.0, upper=120.0)
+
+
+def load_index_daily_panel(ticker: str) -> tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, np.ndarray]:
+    if not PANEL_2003.is_file():
+        raise FileNotFoundError(PANEL_2003)
+    pack = pickle.loads(PANEL_2003.read_bytes())
+    c, o = pack["c"][ticker], pack["o"][ticker]
+    dates = c.index
+    rsi14 = rsi_series(c.to_numpy(dtype=float), 14)
+    return dates, o.to_numpy(dtype=float), c.to_numpy(dtype=float), rsi14
+
+
+def merge_iv_series(conn, ticker: str, dates: pd.DatetimeIndex, closes: pd.Series) -> dict[date, float]:
+    proxy = _rv20_iv_proxy(closes)
+    out: dict[date, float] = {}
+    for i, ts in enumerate(dates):
+        d = ts.date() if hasattr(ts, "date") else ts
+        v = float(proxy.iloc[i]) if np.isfinite(proxy.iloc[i]) else 25.0
+        out[d] = v
+    rows = conn.execute(
+        """SELECT date, iv30_put::float8 FROM lseg_research.daily_history
+           WHERE ticker = %s AND iv30_put > 0 ORDER BY date""",
+        (ticker,),
+    ).fetchall()
+    for d, iv in rows:
+        out[d] = float(iv)
+    return out
+
+
+def chain_put_mid(conn, ticker: str, as_of: date, strike: float, expiry: date) -> float | None:
+    row = conn.execute(
+        """SELECT (bid::float8 + ask::float8) / 2.0
+           FROM option_chain_history
+           WHERE ticker = %s AND side = 'put' AND as_of = %s
+             AND expiry = %s AND abs(strike::float8 - %s) < 0.51
+             AND bid > 0 AND ask > bid
+           ORDER BY abs(strike::float8 - %s) LIMIT 1""",
+        (ticker, as_of, expiry, strike, strike),
+    ).fetchone()
+    if row and row[0] and math.isfinite(row[0]):
+        return float(row[0])
+    row2 = conn.execute(
+        """SELECT (bid::float8 + ask::float8) / 2.0, strike::float8
+           FROM option_chain_history
+           WHERE ticker = %s AND side = 'put' AND as_of = %s AND expiry = %s
+             AND bid > 0 AND ask > bid
+           ORDER BY abs(strike::float8 - %s) LIMIT 1""",
+        (ticker, as_of, expiry, strike),
+    ).fetchone()
+    if row2 and row2[0]:
+        return float(row2[0])
+    return None
+
+
+def mark_put(
+    conn,
+    ticker: str,
+    as_of: date,
+    spot: float,
+    strike: float,
+    dte_rem: float,
+    iv_pct: float,
+    expiry: date,
+) -> tuple[float, str]:
+    mid = (
+        chain_put_mid(conn, ticker, as_of, strike, expiry)
+        if conn is not None and as_of >= OPRA_START
+        else None
+    )
+    if mid is not None and mid > 0:
+        return mid, "chain"
+    v = iv_pct / 100.0 if iv_pct > 3 else iv_pct
+    return bs_put(spot, strike, v, max(dte_rem / 365.0, 1 / (365 * 24 * 60))), "bs"
+
+
+INDEX_EXIT_SPECS: list[tuple[str, dict[str, Any]]] = [
+    ("tp50", {"take_profit_frac": 0.50}),
+    ("time_5d", {"max_hold_days": 5}),
+    ("expiry", {"hold_expiry": True}),
+    ("rsi_gt_50", {"index_rsi_exit": 50.0}),
+]
+
+
+def _instrument_for_dte(delta: float, dte: int) -> PutInstrument:
+    return PutInstrument(target_delta=-delta, dte_target=dte, dte_min=max(3, dte - 3), dte_max=dte + 3)
+
+
+def simulate_daily_index_put(
+    dates: list[date],
+    opens: np.ndarray,
+    closes: np.ndarray,
+    rsi14: np.ndarray,
+    signal_i: int,
+    *,
+    ticker: str,
+    dte_days: int,
+    target_delta: float,
+    exit_spec: dict[str, Any],
+    iv_by_date: dict[date, float],
+    spread: SpreadCalibration,
+    conn,
+) -> dict[str, Any] | None:
+    fill_i = signal_i + 1
+    if fill_i >= len(dates):
+        return None
+    spot = float(opens[fill_i])
+    if not np.isfinite(spot) or spot <= 0:
+        return None
+    anchor = prior_business_iv(iv_by_date, dates[fill_i])
+    if anchor is None:
+        anchor = 30.0
+    dte = dte_days
+    expiry = dates[fill_i] + timedelta(days=dte)
+    v = anchor / 100.0 if anchor > 3 else anchor
+    model_k = strike_for_delta(spot, anchor, dte, -target_delta)
+    listed = standard_listed_strikes(spot)
+    strike = nearest_listed_strike(model_k, listed)
+    credit, _ = mark_put(conn, ticker, dates[fill_i], spot, strike, dte, anchor, expiry)
+    if credit <= 0:
+        return None
+    exit_reason = "hold_end"
+    exit_i = fill_i
+    exit_mark = credit
+    for j in range(fill_i + 1, len(dates)):
+        sess = dates[j]
+        if sess > expiry:
+            exit_reason = "expiry"
+            exit_i = j - 1
+            s = float(closes[exit_i])
+            iv_d = prior_business_iv(iv_by_date, sess) or anchor
+            dte_rem = max((expiry - sess).days, 0)
+            exit_mark, _ = mark_put(conn, ticker, sess, s, strike, dte_rem, iv_d, expiry)
+            break
+        s = float(closes[j])
+        if not np.isfinite(s):
+            continue
+        iv_d = prior_business_iv(iv_by_date, sess) or anchor
+        dte_rem = max((expiry - sess).days, 0)
+        mark, _ = mark_put(conn, ticker, sess, s, strike, dte_rem, iv_d, expiry)
+        pnl_f = put_pnl_frac_short(credit, mark)
+        held = j - fill_i
+        if exit_spec.get("take_profit_frac") is not None and pnl_f >= exit_spec["take_profit_frac"]:
+            exit_reason, exit_i, exit_mark = "take_profit", j, mark
+            break
+        if exit_spec.get("max_hold_days") is not None and held >= exit_spec["max_hold_days"]:
+            exit_reason, exit_i, exit_mark = "time_stop", j, mark
+            break
+        if exit_spec.get("index_rsi_exit") is not None and np.isfinite(rsi14[j]) and rsi14[j] > exit_spec["index_rsi_exit"]:
+            exit_reason, exit_i, exit_mark = "index_rsi", j, mark
+            break
+        if exit_spec.get("hold_expiry") and sess >= expiry:
+            exit_reason, exit_i, exit_mark = "expiry", j, mark
+            break
+        exit_i, exit_mark = j, mark
+    pnl_frac = put_pnl_frac_short(credit, exit_mark)
+    coll_frac = credit / strike if strike > 0 else 0.0
+    gross_coll = pnl_frac * coll_frac
+    net_mid, net_cross, _, _ = _apply_friction(
+        gross_coll, credit, strike, spot, spread, dte, ticker=ticker,
+    )
+    return {
+        "date": dates[signal_i].isoformat(),
+        "index": ticker,
+        "rsi14": float(rsi14[signal_i]),
+        "strike": strike,
+        "credit": credit,
+        "exit": dates[exit_i].isoformat(),
+        "reason": exit_reason,
+        "pnl_coll_mid": net_mid,
+        "pnl_coll_cross": net_cross,
+        "win": net_mid > 0,
+    }
+
+
+def _precompute_daily_puts(
+    conn,
+    *,
+    ticker: str,
+    date_list: list[date],
+    opens: np.ndarray,
+    closes: np.ndarray,
+    rsi14: np.ndarray,
+    iv_map: dict[date, float],
+    spread: SpreadCalibration,
+    delta: float,
+    dte: int,
+    exit_spec: dict[str, Any],
+) -> dict[int, dict[str, Any]]:
+    hi = len(date_list) - dte - 2
+    out: dict[int, dict[str, Any]] = {}
+    for di in range(20, hi):
+        tr = simulate_daily_index_put(
+            date_list, opens, closes, rsi14, di,
+            ticker=ticker, dte_days=dte, target_delta=delta,
+            exit_spec=exit_spec, iv_by_date=iv_map, spread=spread, conn=conn,
+        )
+        if tr:
+            out[di] = tr
+    return out
+
+
+def run_index_oversold_puts(*, rsi_thresholds: tuple[float, ...] = (20.0, 25.0, 30.0)) -> dict[str, Any]:
+    """S159 daily index RSI oversold → short SPY/QQQ puts; rare-event descriptive."""
+    tbill = load_tbill()
+    with connect() as conn:
+        spread = load_spread_calibration(conn)
+        summaries: list[dict[str, Any]] = []
+        best: dict[str, Any] | None = None
+        for idx in ("SPY", "QQQ"):
+            dates_idx, opens, closes, rsi14 = load_index_daily_panel(idx)
+            date_list = [d.date() if hasattr(d, "date") else d for d in dates_idx]
+            iv_map = merge_iv_series(conn, idx, dates_idx, pd.Series(closes, index=dates_idx))
+            for delta in (0.15, 0.20, 0.30):
+                for dte in (7, 30):
+                    for exit_name, exit_spec in INDEX_EXIT_SPECS:
+                        by_day = _precompute_daily_puts(
+                            conn, ticker=idx, date_list=date_list, opens=opens, closes=closes,
+                            rsi14=rsi14, iv_map=iv_map, spread=spread, delta=delta, dte=dte, exit_spec=exit_spec,
+                        )
+                        if not by_day:
+                            continue
+                        base_pnls = [t["pnl_coll_mid"] for t in by_day.values()]
+                        base_mean = float(np.nanmean(base_pnls))
+                        pool = list(by_day.keys())
+                        for rsi_thr in rsi_thresholds:
+                            cross = daily_entry_cross_mask(rsi14, rsi_thr)
+                            event_idx = [int(i) for i in np.where(cross)[0] if int(i) in by_day]
+                            if not event_idx:
+                                continue
+                            trades = []
+                            for si in event_idx:
+                                tr = dict(by_day[si])
+                                tr["exit_rule"] = exit_name
+                                tr["delta"] = delta
+                                tr["dte"] = dte
+                                tr["rsi_thr"] = rsi_thr
+                                trades.append(tr)
+                            pnls = np.array([t["pnl_coll_mid"] for t in trades], dtype=float)
+                            wins = sum(1 for t in trades if t["win"])
+                            n = len(trades)
+                            rng = np.random.default_rng(42 + hash((idx, delta, dte, exit_name, rsi_thr)) % 10_000)
+                            rand_means: list[float] = []
+                            for _ in range(min(1000, max(1, len(pool)))):
+                                pick = rng.choice(pool, size=min(n, len(pool)), replace=False)
+                                rand_means.append(float(np.nanmean([by_day[i]["pnl_coll_mid"] for i in pick])))
+                            rand_mean = float(np.nanmean(rand_means)) if rand_means else float("nan")
+                            hold = dte if exit_name == "expiry" else min(dte, 5)
+                            tb = tbill_at(tbill, date_list[event_idx[0]])
+                            coll_avg = float(np.mean([t["credit"] / t["strike"] for t in trades]))
+                            tbill_coll = (tb * hold / 365.0 * coll_avg) if tb else float("nan")
+                            worst = trades[int(np.argmin(pnls))]
+                            row = {
+                                "index": idx,
+                                "rsi_thr": rsi_thr,
+                                "delta": delta,
+                                "dte": dte,
+                                "exit": exit_name,
+                                "n": n,
+                                "win": wins / n,
+                                "win_lo": wilson_lo(wins, n),
+                                "mean_mid": float(np.nanmean(pnls)),
+                                "worst_mid": float(np.nanmin(pnls)),
+                                "lift_vs_base": float(np.nanmean(pnls) - base_mean),
+                                "lift_vs_random": float(np.nanmean(pnls) - rand_mean),
+                                "base_mean": base_mean,
+                                "random_mean": rand_mean,
+                                "tbill_coll_mean": tbill_coll,
+                                "worst_trade": worst,
+                                "note": "rare-event, descriptive",
+                            }
+                            summaries.append(row)
+                            if rsi_thr == 25.0 and (best is None or row["mean_mid"] > best.get("mean_mid", -1e9)):
+                                best = {**row, "events": trades}
+        return {
+            "summaries": summaries,
+            "events": (best or {}).get("events") or [],
+            "best_rsi25": {k: v for k, v in (best or {}).items() if k != "events"},
+            "indices": ("SPY", "QQQ"),
+        }
 
 
 def universe_tickers_from_db(limit: int | None = None) -> list[str]:

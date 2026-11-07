@@ -1731,6 +1731,8 @@ def main() -> int:
     p_cond.add_argument("--tickers", default="")
     p_cond.add_argument("--smoke", action="store_true")
     p_cond.add_argument("--sweep", action="store_true", help="RSI threshold × exit frontier (A359 review)")
+    p_cond.add_argument("--survivor-tail", action="store_true", help="tp50_overnight tail stats × RSI 5/30 (8 cells)")
+    p_cond.add_argument("--index-oversold", action="store_true", help="S159 daily SPY/QQQ RSI oversold puts")
     p_cself = sub.add_parser("conditional-self-test")
     args = ap.parse_args()
 
@@ -1760,6 +1762,31 @@ def main() -> int:
 
     if args.cmd == "conditional":
         tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] or None
+        if args.survivor_tail:
+            from conditional_engine import (  # noqa: WPS433
+                format_survivor_tail_table,
+                run_survivor_tail_cells,
+                universe_tickers_from_db,
+                write_report,
+            )
+
+            if tickers is None:
+                tickers = universe_tickers_from_db(50 if args.smoke else None)
+            payload = run_survivor_tail_cells(tickers)
+            write_report(payload, "survivor-tail-smoke" if args.smoke else "survivor-tail")
+            print(format_survivor_tail_table(payload["survivor_tail"]))
+            return 0
+        if args.index_oversold:
+            from conditional_engine import run_index_oversold_puts, write_report  # noqa: WPS433
+
+            payload = run_index_oversold_puts()
+            write_report(payload, "index-oversold-smoke" if args.smoke else "index-oversold")
+            best = payload.get("best_rsi25") or {}
+            print(json.dumps({
+                "best": {k: v for k, v in best.items() if k != "worst_trade"},
+                "n_events_rsi25": len(payload.get("events") or []),
+            }, indent=2, default=str))
+            return 0
         if args.sweep:
             from conditional_engine import (  # noqa: WPS433
                 format_frontier_table,

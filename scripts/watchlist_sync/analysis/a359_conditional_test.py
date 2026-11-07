@@ -21,6 +21,7 @@ from conditional_engine import (  # noqa: E402
     OpenPut,
     PutInstrument,
     SpreadCalibration,
+    daily_entry_cross_mask,
     entry_cross_mask,
     nearest_listed_strike,
     prior_business_iv,
@@ -111,6 +112,23 @@ class TestNoSameDayEodIv(unittest.TestCase):
         self.assertTrue(tr)
         self.assertEqual(tr[0]["iv_anchor"], 25.0)
         self.assertNotEqual(tr[0]["iv_anchor"], 99.0)
+
+
+class TestDailyIndexEntry(unittest.TestCase):
+    def test_one_cross_per_event(self) -> None:
+        rsi = np.array([50.0, 40.0, 24.0, 22.0, 30.0, 24.0, 35.0])
+        cross = daily_entry_cross_mask(rsi, 25.0)
+        self.assertEqual(cross.sum(), 2)
+        self.assertTrue(cross[2])
+        self.assertTrue(cross[5])
+
+    def test_fill_day_after_signal(self) -> None:
+        rsi = np.array([60.0, 50.0, 24.0, 28.0, 40.0])
+        cross = daily_entry_cross_mask(rsi, 25.0)
+        sig = int(np.where(cross)[0][0])
+        fill = sig + 1
+        self.assertEqual(sig, 2)
+        self.assertEqual(fill, 3)
 
 
 class TestSpreadLiquidity(unittest.TestCase):
