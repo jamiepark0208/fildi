@@ -126,3 +126,19 @@ No repo caller, no env key. Local Claude plugin `sp-global` is installed (Kensho
 - 10-26 Polygon /v2/aggs day (adjusted) for 35 theme ETFs → vendor_raw (source polygon, endpoint aggs/day) + watchlist_sync.sector_etf_daily close (sector_etfs.py, A277). CRSP dsf for the same ETFs 2017–2024 (sync_crsp.py --force now does a full --days backfill).
 
 - **optlab.bars_5m (10-26, Claude):** Polygon 5-minute aggs, 2 years, shared by s078 / intraday_1m_backfill / T1. Stores OHLCV only; Polygon's `vw` and `n` fields are dropped to fit the existing 7-column table (not used by any study).
+
+## Fetch mode (A367 — scheduled jobs)
+
+| Job | Source | Mode | Guard |
+|---|---|---|---|
+| `schwab-1m-poll.ts` (API 5m RTH) | Schwab 1m | tail (−2 bars) | yes · `fetch_runs` |
+| `backfill-stale-prices.ts` (maintain 08:00 ET) | Schwab→Yahoo→LSEG | tail | yes |
+| `session-bar-fill.ts` (maintain) | Polygon grouped | tail (missing session only) | yes (insert-only) |
+| `research/lseg/sync_daily_history.py` | LSEG | tail | yes · `--backfill` for new names |
+| `research/wrds/sync_ibes.py` | WRDS IBES | tail (`statpers` watermark) | yes |
+| `research/wrds/sync_crsp.py` | WRDS CRSP | tail (`sync_state`) | yes |
+| `analysis/lab_fund_features.py` (monthly) | local IBES | tail (new `lab_outcomes` dates) | yes · skip if IBES wm+code unchanged |
+| `dcf/financials.py` companyfacts | EDGAR | change-signal (submissions filingDate) | yes · vendor_raw hash dedupe |
+| `split_repair.py` (daily.py) | local prices | full scan | no — must detect splits universe-wide; touches split tickers only |
+| `watchlist_sync/daily.py` option scan | Polygon/Schwab | tail / capped | partial — pre-existing caps |
+| API `nightly-enrichment` | multi | tail per source | partial — uses enrichment_runs not fetch_runs yet |
