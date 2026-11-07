@@ -41,8 +41,9 @@ describe("technicalHash", () => {
     const a = "TP prob 12.4% vs base 8.0% (decile 9)";
     const b = "TP prob 13.4% vs base 8.0% (decile 9)";
     assert.equal(a.length, b.length);
-    const ha = technicalHash(tech(a));
-    const hb = technicalHash(tech(b));
+    const emptyCtx = { ticker: "T", stockEvent: null, marketEvent: null, sourceFacts: [] as string[] };
+    const ha = technicalHash(emptyCtx, tech(a));
+    const hb = technicalHash(emptyCtx, tech(b));
     assert.notEqual(ha, hb);
     assert.match(ha, /_tp[0-9a-f]{12}$/);
     assert.match(hb, /_tp[0-9a-f]{12}$/);
@@ -50,10 +51,11 @@ describe("technicalHash", () => {
 
   it("matches for identical payloads and omits _tp when the line is absent", () => {
     const line = "TP prob 12.4% vs base 8.0% (decile 9)";
-    assert.equal(technicalHash(tech(line)), technicalHash(tech(line)));
-    const absent = technicalHash(tech(null));
-    assert.equal(absent, technicalHash({ ...tech(null), turningPointLine: undefined }));
+    const emptyCtx = { ticker: "T", stockEvent: null, marketEvent: null, sourceFacts: [] as string[] };
+    assert.equal(technicalHash(emptyCtx, tech(line)), technicalHash(emptyCtx, tech(line)));
+    const absent = technicalHash(emptyCtx, tech(null));
+    assert.equal(absent, technicalHash(emptyCtx, { ...tech(null), turningPointLine: undefined }));
     assert.equal(absent.includes("_tp"), false);
-    assert.notEqual(absent, technicalHash(tech(line)));
+    assert.notEqual(absent, technicalHash(emptyCtx, tech(line)));
   });
 });

@@ -3,6 +3,7 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { assembleContext, type ContextBundle } from "../lib/explain-context.js";
+import { sourceFactsBlock, sourceFactsKey } from "../lib/explain-source-facts.js";
 import { bookGroupPromptLine, engineAwarenessFromContract, newsPromptLine } from "../lib/model-list-awareness.js";
 import { generateExplanation, type ExplainSurface } from "../lib/ai-explain.js";
 import { validate } from "../middleware/validate.js";
@@ -82,8 +83,9 @@ interface ExplainRequest {
 // Increment PROMPT_VERSION when prompt copy changes to bust the cache globally.
 const PROMPT_VERSION = "v6"; // v6: side-aware technical prompt (put/call lens)
 
-function fundamentalHash(d: FundamentalData): string {
+function fundamentalHash(b: ContextBundle, d: FundamentalData): string {
   const fs = d.familyScores;
+  const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
   // Strength/weakness names are what the 3 bullets are about — when they change, the
   // explanation is stale even if the rounded pillar scores didn't move. Raw percentiles
   // stay out of the key so daily drift doesn't force a fresh Haiku call.
@@ -91,20 +93,26 @@ function fundamentalHash(d: FundamentalData): string {
   // Fair value enters the prompt, so a ~10% move in fair/price (or a value-trap flip) refreshes the explanation.
   const fv = d.fairValueSnapshot;
   const fvKey = fv?.fairValue && fv.price ? `_fv${Math.round(Math.log(fv.fairValue / fv.price) * 10)}${fv.valueTrap ? "t" : ""}` : "";
-  return `${PROMPT_VERSION}_${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}_${story}${fvKey}`;
+  return `${PROMPT_VERSION}_${dayBucket}_${notesKey(b)}_${sourceFactsKey(b.sourceFacts)}_${d.totalScore.toFixed(1)}_${fs.value.toFixed(0)}_${fs.growth.toFixed(0)}_${fs.quality.toFixed(0)}_${fs.safety.toFixed(0)}_${story}${fvKey}`;
 }
 
 /** Cache key for technical explain. Turning-point line is hashed by content (A346):
  *  same-length lines with different probabilities must not collide. `_tp` is absent when the line is null. */
-export function technicalHash(d: TechnicalData): string {
+export function technicalHash(b: ContextBundle, d: TechnicalData): string {
+  const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
   const line = d.turningPointLine;
   const tp = line
     ? `_tp${createHash("sha1").update(line).digest("hex").slice(0, 12)}`
     : "";
-  return `${PROMPT_VERSION}_${d.side ?? "put"}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}${tp}`;
+  return `${PROMPT_VERSION}_${dayBucket}_${notesKey(b)}_${sourceFactsKey(b.sourceFacts)}_${d.side ?? "put"}_${d.totalScore.toFixed(1)}_${d.signal}_${d.regime}${tp}`;
 }
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
+
+function withTickerContext(prompt: string, b: ContextBundle): string {
+  const extra = [sourceFactsBlock(b.sourceFacts), notesBlock(b)].filter(Boolean);
+  return extra.length ? `${prompt}\n\n${extra.join("\n\n")}` : prompt;
+}
 
 function buildFundamentalPrompt(ticker: string, d: FundamentalData): string {
   const suspectNote = d.suspectMetrics?.length
@@ -220,14 +228,14 @@ No intro. No outro. No investment advice.`;
 const fundamentalSurface: ExplainSurface<FundamentalData> = {
   surfaceType:   "fundamental",
   promptVersion: PROMPT_VERSION,
-  buildPrompt:   (b, d) => buildFundamentalPrompt(b.ticker, d),
-  hashInputs:    (_b, d) => fundamentalHash(d),
+  buildPrompt:   (b, d) => withTickerContext(buildFundamentalPrompt(b.ticker, d), b),
+  hashInputs:    (b, d) => fundamentalHash(b, d),
 };
 const technicalPutSurface: ExplainSurface<TechnicalData> = {
   surfaceType:   "technical",
   promptVersion: PROMPT_VERSION,
-  buildPrompt:   (b, d) => buildTechnicalPrompt(b.ticker, d),
-  hashInputs:    (_b, d) => technicalHash(d),
+  buildPrompt:   (b, d) => withTickerContext(buildTechnicalPrompt(b.ticker, d), b),
+  hashInputs:    (b, d) => technicalHash(b, d),
 };
 const technicalCallSurface: ExplainSurface<TechnicalData> = {
   ...technicalPutSurface,
@@ -242,9 +250,8 @@ router.post("/explain/score", validate(explainScoreSchema), async (req, res) => 
 
   const userId = req.session.userId!;
   const log = req.log.child({ ticker, scoreType, userId });
-  const bundle: ContextBundle = { ticker, stockEvent: null, marketEvent: null };
-
   try {
+    const bundle = await assembleContext(ticker, { include: [] });
     let result;
     if (scoreType === "fundamental") {
       if (!fundamentalData) return res.status(400).json({ error: "fundamentalData required" });
@@ -291,7 +298,7 @@ function optionsHash(bundle: ContextBundle, e: OptionsExtra): string {
   // Round to the UTC day so market/sector context regenerates at most once a day —
   // this is a daily-summary surface, not a live feed (see plan risk #2).
   const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
-  return `v1_${dayBucket}_${notesKey(bundle)}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.keyThemes?.marketState ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
+  return `v1_${dayBucket}_${notesKey(bundle)}_${sourceFactsKey(bundle.sourceFacts)}_${e.rsi.toFixed(1)}_${e.mfi.toFixed(1)}_${e.signal}_${bundle.stockEvent?.priceZScore ?? "na"}_${bundle.marketEvent?.volRegime ?? "na"}_${bundle.marketEvent?.keyThemes?.marketState ?? "na"}_${bundle.marketEvent?.sector?.quadrant ?? "na"}`;
 }
 
 /** Notes change → the cached explanation must regenerate. */
@@ -338,6 +345,7 @@ ${zscoreLine}
 ${sectorLine}
 ${volLine}
 ${themesLine}
+${sourceFactsBlock(bundle.sourceFacts)}
 ${notesBlock(bundle)}
 Recent news:
 ${newsLines}
@@ -466,7 +474,8 @@ interface ModelPickExtra {
 
 function modelPickHash(b: ContextBundle, e: ModelPickExtra): string {
   const c = e.item.contract ?? {};
-  return `v4_${e.runId}_${e.item.folder_key}_${c.type ?? ""}_${c.account ?? ""}_${notesKey(b)}`;
+  const dayBucket = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+  return `v4_${dayBucket}_${e.runId}_${e.item.folder_key}_${c.type ?? ""}_${c.account ?? ""}_${notesKey(b)}_${sourceFactsKey(b.sourceFacts)}`;
 }
 
 function fmtPct(x: unknown): string {
@@ -510,6 +519,8 @@ function buildModelPickPrompt(b: ContextBundle, e: ModelPickExtra): string {
   const newsLine = newsPromptLine(awareness.news);
   if (newsLine) facts.push(newsLine);
   for (const n of b.notes ?? []) facts.push(`Desk note (dated history, not a forecast): ${n}`);
+  const sf = sourceFactsBlock(b.sourceFacts);
+  if (sf) facts.push(sf.replace(/\n/g, " "));
 
   return `You explain one recommendation from the Fildi Model List to its owner, an experienced options seller who decides every trade themselves. Use ONLY the facts below. Never invent numbers, prices or events; if something isn't in the facts, don't mention it.
 Rules: use the pricing label exactly as given (never call FAIR or CHEAP an edge). Give each adjustment's reason as written; don't add causes.
@@ -562,5 +573,13 @@ router.post("/explain/model-pick", async (req, res) => {
     return res.status(500).json({ error: String(err) });
   }
 });
+
+/** @internal tests */
+export const explainSurfacesForTest = {
+  fundamental: fundamentalSurface,
+  technicalPut: technicalPutSurface,
+  options: optionsSurface,
+  modelPick: modelPickSurface,
+};
 
 export default router;

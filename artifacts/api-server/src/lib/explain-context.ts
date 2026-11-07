@@ -12,6 +12,7 @@ import { TTLCache } from "./ttl-cache.js";
 import { logger } from "./logger.js";
 import { noteLines, readStockNotes } from "./stock-notes.js";
 import { themesBrief, type ThemesBrief } from "./macro/macro-themes.js";
+import { gatherSourceFacts } from "./explain-source-facts.js";
 
 export const tickerNewsCache = new TTLCache<NewsItem[]>(30 * 60 * 1000, "ticker-news", 500);
 
@@ -53,6 +54,8 @@ export interface ContextBundle {
   marketEvent: MarketEventContext | null;
   /** Dated desk notes on this ticker (newest first) — past context, not a forecast. */
   notes?: string[];
+  /** Synthesized source lines (A356) — always filled when assembleContext runs. */
+  sourceFacts?: string[];
 }
 
 export type ContextQuadrant = "stockEvent" | "marketEvent";
@@ -67,6 +70,10 @@ export async function assembleContext(
   const tasks: Promise<void>[] = [];
   tasks.push(readStockNotes(upper).then(n => { bundle.notes = noteLines(n); }).catch(err => {
     logger.warn({ ticker: upper, err: String(err) }, "explain-context: stock notes failed");
+  }));
+  tasks.push(gatherSourceFacts(upper).then(f => { bundle.sourceFacts = f; }).catch(err => {
+    logger.warn({ ticker: upper, err: String(err) }, "explain-context: source facts failed");
+    bundle.sourceFacts = [];
   }));
 
   if (opts.include.includes("stockEvent")) {
