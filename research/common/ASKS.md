@@ -167,14 +167,16 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A352](asks/A352.md) | 2026-11-06 | Claude → Grok | [quant] Put picks fall more than universe; option score ranks backwards — fix grade, test history | verified |
 | [A353](asks/A353.md) | 2026-11-06 | Claude → Cursor | [quant] Signals catch swing starts, lose on exits — exit-rule menu + mirror side of S152/S154/S155 | verified |
 | [A354](asks/A354.md) | 2026-11-06 | Muse → Cursor | Volume profile chart overlay (POC + value area) + TPO from minute bars; delta out | planned |
-| [A355](asks/A355.md) | 2026-11-06 | Muse → Cursor | Graphify pilot: query a code graph instead of re-reading files; measured token cut or drop | planned |
+| [A355](asks/A355.md) | 2026-11-06 | Muse → Cursor | Graphify pilot: query a code graph instead of re-reading files; measured token cut or drop | done (Cursor 11-07, drop, uncommitted) |
 | [A358](asks/A358.md) | 2026-11-06 | Muse → Cursor | My List grid lost a column: WATCHLIST_ROW_MINE 6 tracks vs 7 children (279615b) | revise |
 | [A359](asks/A359.md) | 2026-11-06 | Claude → Cursor | [quant] Conditional backtests: regime-match entry, exit rules, TP/SL, hits; audit all studies | planned |
 | [A360](asks/A360.md) | 2026-11-07 | Muse → Cursor | Evaluate GLM-5.3/5.2 (Zhipu) as post-Cursor builder: API build test vs DeepSeek, cost, verdict | planned |
 | [A361](asks/A361.md) | 2026-11-07 | Muse → Cursor | Evaluate OpenCode as the post-Cursor harness: provider-agnostic terminal agent, same fixed build task, verdict | planned |
 | [A362](asks/A362.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 conditional engine correctness — RSI cold start, IV-beta sign, carried fill_bar (High) | done |
-| [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | planned |
+| [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | done (Cursor 11-07, uncommitted) |
 | [A364](asks/A364.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A357 LSE option backfill + regrade — OCC collapse, smoke gate, inverted verdict (High) | planned |
 | [A365](asks/A365.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] Event-stack guard: warn/block short premium when vol backwardated + print/earnings in expiry | planned |
 | [A366](asks/A366.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] STUDY: 50% of max profit vs hold on Jamie's own short-put book — does SPY result survive single names? | planned |
 | [A367](asks/A367.md) | 2026-11-07 | Jamie → Claude → Cursor | Fetch hygiene: backfill once, then fetch only the new tail; guard every heavy fetch/process (watermark, change signal, distinct-only upsert, fetch_runs meter) | done (Cursor 11-07, Claude review 70571445) |
+| [A368](asks/A368.md) | 2026-11-07 | Jamie → Claude → Cursor | Strategy board on Track Record › Strategies (Works / Dead / Testing) + Live S159 trigger chip | planned |
+| [A369](asks/A369.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Faster + higher-quality studies: per-stock threshold lens, cost-aware staging, leak test, precomputed signal tables | planned |

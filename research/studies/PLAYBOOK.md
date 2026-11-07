@@ -4,6 +4,9 @@
 
 ## 0. Screen first, study second (A341, Jamie 11-06 "studies too slow")
 > **Gate before any edge claim (Jamie 11-06):** `.agents/skills/fildi-quant-research/trade-decision-protocol.md` Module A (A1–A9: condition fires, N_eff, same-ticker lift, neighbourhood, era split, conditional entry + exits). Deficiencies D-1…D-10 listed there.
+> **Cost-aware staging (Jamie 11-07 — optimize, never just stop):** report gross and net (mid + cross) side by side from the first screen. When gross lift < cost, don't kill the idea — move it to the cheapest structure that keeps the lift (longer hold, daily bars, options at mid/limit, fewer trades, the signal as a put-timing/sizing filter instead of an entry) and re-screen there. Kill only when every structure is net ≤ 0.
+> **Thresholds:** every threshold signal (RSI, IV, IV÷RV …) is screened with the per-stock lens (S160 / A369): global vs shrunk per-stock, walk-forward. Per-stock cutoffs ship only if they beat global out of sample; per-name results always go to stock notes.
+> **Before any full run:** shift-one-bar + shuffle leak test, 2-ticker smoke, then full. Board of verdicts: `BOARD.md`.
 Any "does strategy/signal X work?" starts in the fast screen (S157) — seconds, not hours. Full study only for what it flags.
 1. Add the signal as one vectorized fn (≤ 15 lines) in `scripts/watchlist_sync/analysis/screen_signals.py` (one home; live shadow signals import it too) + a library row in `analysis/fast_screen.py`.
 2. `cd scripts/watchlist_sync && .venv/bin/python analysis/fast_screen.py self-test` then `run` (68 cells ≈ 11 s, plus the use-case grid unless `--skip-usecases`: 1,030 variants ≈ 28 s — settings grids, put-breach job, raw vs matched lenses, SPY-regime/IV/sector splits), then `puts` (same-delta short-put P&L vs peers + T-bill, 2×2 vs the live put score).
