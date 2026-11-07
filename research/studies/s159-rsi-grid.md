@@ -16,3 +16,10 @@
 8. **Neighbours:** QQQ RSI14<22.5/<27.5 hold 5 similar sign; SPY/QQQ put-on-stress cells q>0.05 — do not promote puts on RSI alone.
 9. **Survivorship:** universe = today's `source_fundamentals` members only; delisted losers absent → stock-level rare-RSI lifts upward biased vs true 2003 cross-section.
 10. **Self-test:** AAPL/NVDA/TSLA split-adj series: no −50 %+ gap days; SPY 2003 level plausible post-adjust.
+
+## Claude review c8aeda53 (2026-11-07)
+QQQ cell verified (14 days, 13 won, lift +4.1 pp, q 0.0001; matches SPY 2003 run, ROBUST). 4 findings:
+1. **Bad prices break every lift.** Per-ticker 5 d base is +100 % for KMB / CL / GIS / PNC / GWW / MLM (should be ~0.3 %); 63 days with |ret| > 100 %. Cause is likely open/close mis-scaled or a bad adjustment window. "All stocks" lift −3.1 pp (mean +3.0 %) is an artifact. Fix: per-ticker check vs lseg_research.daily_history overlap (close ratio within 2 %), drop/repair bad rows, add a test that no liquid large cap has |base 5 d| > 3 %.
+2. **SPY missing from the panel** (674 cols, no SPY). Add SPY, QQQ, IWM, sector ETFs as index rows outside the universe.
+3. **Panel incomplete:** 674 / ~940; the background fetch is dead (no process, log quiet). Finish it, then rebuild.
+4. Packet item 6 "see CSV" → report the SPY row. After 1–3, rerun and lead with the top cells by Wilson lower bound (≥ 10 days), plus market-oversold → each stock split by the stock's own RSI.
