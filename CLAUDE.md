@@ -77,5 +77,5 @@ Keep verbatim: every user message, decisions/approvals (and what was NOT approve
 
 ## Key facts
 - All caches use `lib/ttl-cache.ts` (TTL table + registry: caching-patterns skill). Field priority: `scripts/merge-trusted.ts` FIELD_DEFS. API catalog: `.agents/context/api-endpoints.md`.
-- Universe = `fmp_fundamentals` table. Never hardcode a ticker count.
+- Universe = `source_fundamentals` distinct tickers (~940; `loadTickerUniverse()` in desk-facts.ts unions it). `fmp_fundamentals` is the FMP subset (~270) — never a denominator (A356). Never hardcode a ticker count.
 - Hooks live in `.claude/settings.local.json` only: Read guard (codegraph-precheck), shield snap/check on Bash+Write, agent-event on every tool + prompt, context-nudge on prompt (> 150k ctx → close task). `.claude/hooks/` json files are not read.
