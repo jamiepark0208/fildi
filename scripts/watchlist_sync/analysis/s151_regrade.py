@@ -13,6 +13,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import fcluster, linkage
+from scipy.spatial.distance import squareform
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -34,6 +36,8 @@ from fast_screen import deflated_sharpe, pbo_cscv  # noqa: E402
 ROOT = HERE.parents[2]
 OUT_MD = ROOT / "research" / "studies" / "out" / "opt" / "S151-regrade.md"
 WIN_2326_END = date(2026, 11, 2)
+MIN_MONTHS_CORR = 12
+CORR_CUT = 0.5
 
 TARGETS = [
     {
@@ -187,6 +191,58 @@ def excess_matrix(cells: list[dict]) -> tuple[np.ndarray, list[date]]:
     return mat, months
 
 
+def trim_matrix_min_months(mat: np.ndarray, min_months: int) -> tuple[np.ndarray, int]:
+    """Drop rows with fewer than min_months finite monthly excess values."""
+    keep = np.array([np.sum(np.isfinite(row)) >= min_months for row in mat], dtype=bool)
+    dropped = int((~keep).sum())
+    return mat[keep, :], dropped
+
+
+def participation_ratio_eigen(corr: np.ndarray) -> float:
+    """N_eff = (Σλ)² / Σλ² on the correlation spectrum (λ from symmetric PSD matrix)."""
+    w = np.linalg.eigvalsh(corr)
+    w = np.clip(w, 0.0, None)
+    s = w.sum()
+    s2 = (w**2).sum()
+    if s2 <= 0 or not np.isfinite(s2):
+        return float("nan")
+    return float((s**2) / s2)
+
+
+def cluster_count_corr_cut(corr: np.ndarray, corr_cut: float) -> int:
+    """Average linkage on distance 1−r; flat clusters at linkage distance (1−corr_cut)."""
+    c = np.asarray(corr, dtype=float)
+    np.fill_diagonal(c, 1.0)
+    d = 1.0 - c
+    np.fill_diagonal(d, 0.0)
+    d = (d + d.T) / 2.0
+    d = np.clip(d, 0.0, 2.0)
+    n = d.shape[0]
+    if n <= 1:
+        return n
+    condensed = squareform(d, checks=False)
+    Z = linkage(condensed, method="average")
+    t_cut = 1.0 - corr_cut
+    labs = fcluster(Z, t=t_cut, criterion="distance")
+    return int(len(set(labs)))
+
+
+def n_eff_and_clusters_from_cells(cells: list[dict]) -> tuple[float, int, int, int]:
+    """PBO-window correlation: trim rows with fewer than MIN_MONTHS_CORR months; return N_eff, K, n_all, n_dropped."""
+    mat_all, _ = excess_matrix(cells)
+    n_all = mat_all.shape[0]
+    mat, dropped = trim_matrix_min_months(mat_all, MIN_MONTHS_CORR)
+    if mat.shape[0] < 2:
+        return float(max(1, mat.shape[0])), max(1, mat.shape[0]), n_all, dropped
+    df = pd.DataFrame(mat)
+    corr = df.T.corr().to_numpy()
+    corr = np.nan_to_num(corr, nan=0.0)
+    np.fill_diagonal(corr, 1.0)
+    neff = participation_ratio_eigen(corr)
+    kcl = cluster_count_corr_cut(corr, CORR_CUT)
+    return neff, kcl, n_all, dropped
+
+
 def purged_kfold_metrics(sig_tr, base_tr, win_start: date, win_end: date, k: int = 5, embargo: int = 1) -> dict:
     ex_series = monthly_excess_series(sig_tr, base_tr, win_start, win_end)
     ex_by_ym = {(d.year, d.month): v for d, v in ex_series}
@@ -249,7 +305,7 @@ def placebo_dsr_passes(cell: dict, win_start: date, win_end: date, n_trials: int
         xs = np.array([v for _, v in ex], dtype=float)
         if xs.size < 10:
             continue
-        dsr = deflated_sharpe(xs, n_trials)
+        dsr = deflated_sharpe(xs, max(1, int(n_trials)))
         if dsr == dsr and dsr >= DSR_GATE:
             ok += 1
     return ok
@@ -302,6 +358,11 @@ def main():
 
     pbo_val = float("nan")
     all_check_cells: list[dict] = []
+    n_eff = float("nan")
+    n_clust = 0
+    n_corr_full = 0
+    n_corr_drop = 0
+    n_trials_neff_i = max(1, 1)
 
     results = []
     placebo_lines = []
@@ -315,6 +376,8 @@ def main():
             all_check_cells = cells
             mat, _ = excess_matrix(cells)
             pbo_val = pbo_cscv(mat)
+            n_eff, n_clust, n_corr_full, n_corr_drop = n_eff_and_clusters_from_cells(cells)
+            n_trials_neff_i = max(1, int(round(n_eff))) if n_eff == n_eff else max(1, n_corr_full - n_corr_drop)
 
         for spec in TARGETS:
             cell = find_target_cell(cells, spec)
@@ -324,9 +387,12 @@ def main():
                         "signal": spec["label"],
                         "window": win_label,
                         "N": n_trials,
-                        "DSR": float("nan"),
+                        "DSR_1050": float("nan"),
+                        "DSR_neff": float("nan"),
+                        "DSR_K": float("nan"),
                         "PBO": pbo_val,
                         "folds_same": 0,
+                        "n_months": 0,
                         "old_verdict": "PASS",
                         "new_verdict": "missing cell",
                     }
@@ -334,15 +400,19 @@ def main():
                 continue
             ex = monthly_excess_series(cell["sig_tr"], cell["base_tr"], win_start, win_end)
             xs = np.array([v for _, v in ex], dtype=float)
-            dsr = deflated_sharpe(xs, n_trials) if xs.size >= 10 else float("nan")
+            dsr_1050 = deflated_sharpe(xs, n_trials) if xs.size >= 10 else float("nan")
+            dsr_neff = deflated_sharpe(xs, n_trials_neff_i) if xs.size >= 10 else float("nan")
+            dsr_k = deflated_sharpe(xs, max(1, n_clust)) if xs.size >= 10 else float("nan")
             pk = purged_kfold_metrics(cell["sig_tr"], cell["base_tr"], win_start, win_end)
-            new_v = gate_verdict(dsr, pbo_val, pk["same_sign"], pk["n_months"])
+            new_v = gate_verdict(dsr_neff, pbo_val, pk["same_sign"], pk["n_months"])
             results.append(
                 {
                     "signal": spec["label"],
                     "window": win_label,
                     "N": n_trials,
-                    "DSR": dsr,
+                    "DSR_1050": dsr_1050,
+                    "DSR_neff": dsr_neff,
+                    "DSR_K": dsr_k,
                     "PBO": pbo_val,
                     "folds_same": pk["same_sign"],
                     "n_months": pk["n_months"],
@@ -352,8 +422,8 @@ def main():
                 }
             )
             if win_label == "2023-26":
-                n_pl = placebo_dsr_passes(cell, win_start, win_end, n_trials)
-                placebo_lines.append(f"{spec['label']}: {n_pl}/{PLACEBO_SEEDS} seeds DSR≥{DSR_GATE}")
+                n_pl = placebo_dsr_passes(cell, win_start, win_end, n_trials_neff_i)
+                placebo_lines.append(f"{spec['label']}: {n_pl}/{PLACEBO_SEEDS} seeds DSR≥{DSR_GATE} (n_trials=N_eff round)")
 
     # Overall per signal: both windows must pass
     overall = {}
@@ -361,7 +431,10 @@ def main():
         rows = [r for r in results if r["signal"] == spec["label"]]
         surv = all(r["new_verdict"] == "survives" for r in rows) and len(rows) == 2
         if any(r["new_verdict"] == "underpowered" for r in rows):
-            overall[spec["label"]] = "underpowered (window)"
+            by_win = {r["window"]: r for r in rows}
+            n26 = by_win.get("2023-26", {}).get("n_months", "—")
+            n18 = by_win.get("2018-22", {}).get("n_months", "—")
+            overall[spec["label"]] = f"underpowered (window; n_months 2023-26={n26}, 2018-22={n18})"
         elif surv:
             overall[spec["label"]] = "survives"
         else:
@@ -369,23 +442,36 @@ def main():
             overall[spec["label"]] = "downgraded (" + "; ".join(reasons) + ")"
 
     OUT_MD.parent.mkdir(parents=True, exist_ok=True)
+    neff_s = f"{n_eff:.2f}" if n_eff == n_eff else "—"
     lines = [
         "# S151 Phase 4 — AFML re-grade (A341 P4)",
         "",
         n_formula,
         "",
+        f"PBO matrix (2023–26 monthly excess): **N={n_corr_full}** cells in grid; **{n_corr_drop}** dropped (fewer than {MIN_MONTHS_CORR} finite months).",
+        f"N_eff (participation ratio on cell correlation): **{neff_s}** (DSR n_trials = round N_eff = {n_trials_neff_i}).",
+        f"Cross-check: average linkage on 1−r, cut at correlation {CORR_CUT:g} → **{n_clust}** clusters.",
+        "",
         f"Study-level PBO (CSCV-16, all N cells monthly excess, 2023–26 window): **{pbo_val:.3f}**",
         "",
-        "Pass bar: DSR≥0.95 AND PBO<0.5 AND ≥4/5 purged month-folds same-sign excess **in both windows**; n_months<24 → underpowered.",
+        "Pass bar (verdict uses DSR@N_eff): DSR≥0.95 AND PBO<0.5 AND ≥4/5 purged month-folds same-sign excess **in both windows**; n_months<24 → underpowered (n_months shown per row).",
         "",
-        "| signal | window | N | DSR | PBO | folds same-sign | old | new |",
-        "|---|---|---:|---:|---:|---:|---|---|",
+        "Caveat: universe = current LSEG names; survivorship biases put breach rates upward.",
+        "",
+        "| signal | window | n_months | N | DSR@1050 | DSR@N_eff | DSR@K | PBO | folds same-sign | old | new |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
     ]
-    for r in sorted(results, key=lambda x: (-(x["DSR"] if x["DSR"] == x["DSR"] else -1), x["signal"])):
-        dsr_s = f"{r['DSR']:.3f}" if r["DSR"] == r["DSR"] else "—"
+    for r in sorted(
+        results,
+        key=lambda x: (-(x["DSR_neff"] if x["DSR_neff"] == x["DSR_neff"] else -1), x["signal"]),
+    ):
+        d1050 = f"{r['DSR_1050']:.3f}" if r["DSR_1050"] == r["DSR_1050"] else "—"
+        dneff = f"{r['DSR_neff']:.3f}" if r["DSR_neff"] == r["DSR_neff"] else "—"
+        dk = f"{r['DSR_K']:.3f}" if r["DSR_K"] == r["DSR_K"] else "—"
         pbo_s = f"{r['PBO']:.3f}" if r["PBO"] == r["PBO"] else "—"
+        nm = r.get("n_months", 0)
         lines.append(
-            f"| {r['signal']} | {r['window']} | {r['N']} | {dsr_s} | {pbo_s} | {r['folds_same']}/5 | {r['old_verdict']} | {r['new_verdict']} |"
+            f"| {r['signal']} | {r['window']} | {nm} | {r['N']} | {d1050} | {dneff} | {dk} | {pbo_s} | {r['folds_same']}/5 | {r['old_verdict']} | {r['new_verdict']} |"
         )
     lines += ["", "**Overall (both windows):**"]
     for spec in TARGETS:
