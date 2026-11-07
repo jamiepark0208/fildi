@@ -909,6 +909,61 @@ def self_test(pack: dict) -> list[str]:
         )
     except Exception as exc:
         lines.append(f"FAIL (ix) leak test error: {exc}")
+
+    from study_leak import leak_from_trade_frames  # noqa: WPS433
+
+    rng_leak = np.random.default_rng(369_369)
+    n_bar = 120
+    sessions = [f"2020-03-{1 + (i // 8):02d}" for i in range(n_bar)]
+    planted_pnl = np.array([0.012 if i % 10 == 0 else -0.0005 for i in range(n_bar)])
+    cond_planted = pd.DataFrame({
+        "ticker": ["SPY"] * n_bar,
+        "session": sessions,
+        "signal_bar": list(range(n_bar)),
+        "pnl_coll_frac_cross": planted_pnl,
+        "pnl_coll_frac_fill": planted_pnl - 0.0002,
+    })
+    base_long = rng_leak.normal(-0.0005, 0.0015, n_bar + 80)
+    base_planted = pd.DataFrame({
+        "ticker": ["SPY"] * (n_bar + 80),
+        "session": [f"2020-03-{1 + (i // 8):02d}" for i in range(n_bar + 80)],
+        "signal_bar": list(range(n_bar + 80)),
+        "pnl_coll_frac_cross": base_long,
+        "pnl_coll_frac_fill": base_long - 0.0002,
+    })
+    lk_plant = leak_from_trade_frames(cond_planted, base_planted, np.random.default_rng(42))
+    ok_plant = bool(lk_plant.get("leak_flag"))
+    lines.append(
+        f"{'PASS' if ok_plant else 'FAIL'} (x) leak planted frame: flag={ok_plant} "
+        f"shift_bp={lk_plant.get('shift_bp')} placebo_p={lk_plant.get('placebo_p')}"
+    )
+
+    n_rand = 200
+    base_n = 500
+    rng_b = np.random.default_rng(123_456)
+    base_pnls = rng_b.normal(0.0, 0.002, base_n)
+    cond_pnls = base_pnls[:n_rand]
+    cond_rand = pd.DataFrame({
+        "ticker": ["QQQ"] * n_rand,
+        "session": [f"2021-06-{1 + (i // 12):02d}" for i in range(n_rand)],
+        "signal_bar": list(range(n_rand)),
+        "pnl_coll_frac_cross": cond_pnls,
+        "pnl_coll_frac_fill": cond_pnls,
+    })
+    base_rand = pd.DataFrame({
+        "ticker": ["QQQ"] * base_n,
+        "session": [f"2021-06-{1 + (i // 12):02d}" for i in range(base_n)],
+        "signal_bar": list(range(base_n)),
+        "pnl_coll_frac_cross": base_pnls,
+        "pnl_coll_frac_fill": base_pnls,
+    })
+    lk_rand = leak_from_trade_frames(cond_rand, base_rand, np.random.default_rng(77), n_placebo=200)
+    pp = lk_rand.get("placebo_p", float("nan"))
+    ok_rand = (not lk_rand.get("leak_flag")) and np.isfinite(pp) and 0.3 <= float(pp) <= 0.7
+    lines.append(
+        f"{'PASS' if ok_rand else 'FAIL'} (xi) leak random frame: flag={lk_rand.get('leak_flag')} "
+        f"placebo_p={pp:.3f}"
+    )
     return lines
 
 
@@ -1867,7 +1922,9 @@ def main() -> int:
             for r in cond[:5]:
                 print(
                     f"leak top rsi<{r.get('rsi_lt')} {r.get('exit')} {r.get('window')}: "
-                    f"shift_bp={r.get('shift_bp')} placebo_p={r.get('placebo_p')} flag={r.get('leak_flag')}"
+                    f"shift_bp={r.get('shift_bp')} cov={r.get('shift_coverage')} "
+                    f"placebo_p={r.get('placebo_p')} flag={r.get('leak_flag')} "
+                    f"net_fill={r.get('net_fill_pnl_coll')}"
                 )
             return 0
         payload = run_conditional(tickers, smoke=args.smoke)

@@ -496,12 +496,23 @@ def _apply_friction(
     dte: int,
     *,
     ticker: str = "",
-) -> tuple[float, float, float, float]:
+) -> tuple[float, float, float, float, float, float]:
+    from cost_staging import FILL_SHARE  # noqa: WPS433
+
     prem = credit / strike if strike > 0 else 0.0
     rt = spread.round_trip_frac(spot, strike, dte, ticker=ticker, mid=credit if credit > 0 else None)
     friction_cross = rt * prem
     friction_mid = 0.5 * rt * prem
-    return gross_coll - friction_mid, gross_coll - friction_cross, friction_mid, friction_cross
+    fill_rt = (1.0 - 2.0 * FILL_SHARE) * rt * prem
+    net_fill = gross_coll - fill_rt
+    return (
+        gross_coll - friction_mid,
+        gross_coll - friction_cross,
+        net_fill,
+        friction_mid,
+        friction_cross,
+        fill_rt,
+    )
 
 
 def _put_mark_at_bar(
@@ -706,7 +717,7 @@ def simulate_session_puts(
         pnl_frac = put_pnl_frac_short(credit, exit_mark)
         coll_frac = credit / strike if strike > 0 else 0.0
         gross_coll = pnl_frac * coll_frac
-        net_mid, net_cross, friction_mid, friction_cross = _apply_friction(
+        net_mid, net_cross, net_fill, friction_mid, friction_cross, friction_fill = _apply_friction(
             gross_coll, credit, strike, spot_entry, spread, open_pos.dte_at_entry, ticker=ticker,
         )
         closed = exit_reason != "session_end" or exit_rules.time_stop == "same_day"
@@ -729,8 +740,10 @@ def simulate_session_puts(
             "pnl_coll_frac": net_cross,
             "pnl_coll_frac_mid": net_mid,
             "pnl_coll_frac_cross": net_cross,
+            "pnl_coll_frac_fill": net_fill,
             "friction_coll_frac": friction_mid,
             "friction_coll_frac_cross": friction_cross,
+            "friction_coll_frac_fill": friction_fill,
             "win": net_cross > 0,
             "iv_anchor": open_pos.iv_anchor,
             "iv_beta": iv_beta,
@@ -857,6 +870,10 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
     cross = np.array([t.get("pnl_coll_frac_cross", t["pnl_coll_frac"]) for t in trades], dtype=float)
     mid = np.array([t.get("pnl_coll_frac_mid", t["pnl_coll_frac"]) for t in trades], dtype=float)
     gross = np.array([t.get("pnl_coll_frac_gross", t["pnl_coll_frac"]) for t in trades], dtype=float)
+    fill = np.array(
+        [t.get("pnl_coll_frac_fill", t.get("pnl_coll_frac_cross", t["pnl_coll_frac"])) for t in trades],
+        dtype=float,
+    )
     mix: dict[str, int] = defaultdict(int)
     for t in trades:
         mix[t["exit_reason"]] += 1
@@ -874,6 +891,7 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
         "mean_pnl_coll_mid": float(np.mean(mid)),
         "mean_pnl_coll_cross": float(np.mean(cross)),
         "mean_pnl_coll_gross": float(np.mean(gross)),
+        "mean_pnl_coll_fill": float(np.mean(fill)),
         "median_pnl_coll": float(np.median(cross)),
         "exit_mix": dict(mix),
         **tail_stats_coll(trades),
@@ -930,6 +948,7 @@ def _run_ticker_sessions(
     spread: SpreadCalibration,
     *,
     base_every_day: bool,
+    shift_bars: set[tuple[str, str, int]] | None = None,
     rsi_full: dict[int, np.ndarray] | None = None,
     bar_minutes: int = 5,
     higher_df: pd.DataFrame | None = None,
@@ -974,6 +993,29 @@ def _run_ticker_sessions(
         cond_trades.extend(ts)
         if carry is not None and session >= carry.expiry:
             carry = None
+        if shift_bars and len(sess_df) > 2:
+            sess_s = session.isoformat()
+            for bar_i in {b for t, s, b in shift_bars if t == tk and s == sess_s}:
+                if bar_i < 0 or bar_i > len(closes) - 2:
+                    continue
+                bts, _ = simulate_session_puts(
+                    sess_df,
+                    np.zeros(len(closes), dtype=bool),
+                    exit_rules,
+                    iv_anchor=anchor,
+                    iv_beta=iv_beta,
+                    instrument=instrument,
+                    spread=spread,
+                    listed_strikes=listed,
+                    force_entry_bar=bar_i,
+                    ticker=tk,
+                    rsi14=rsi_slice[14],
+                    bar_minutes=bar_minutes,
+                )
+                if bts:
+                    tr = dict(bts[0])
+                    tr["signal_bar"] = bar_i
+                    base_trades.append(tr)
         if base_every_day and len(sess_df) > 2:
             if base_carry is not None:
                 bts, base_carry = simulate_session_puts(
@@ -1064,6 +1106,7 @@ def run_conditional_strategy(
     base_every_day: bool = True,
     session_filter: Callable[[date], bool] | None = None,
     keep_trades: bool = False,
+    shift_bars: set[tuple[str, str, int]] | None = None,
     ctx: ConditionalContext | None = None,
     bar_tf: str | None = None,
     higher_filter: ConditionSet | None = None,
@@ -1089,7 +1132,9 @@ def run_conditional_strategy(
         beta = ctx.betas.get(tk, ctx.default_beta)
         ct, bt = _run_ticker_sessions(
             tk, df, entry, exit_rules, instrument,
-            ctx.iv_maps.get(tk, {}), beta, ctx.spread, base_every_day=base_every_day,
+            ctx.iv_maps.get(tk, {}), beta, ctx.spread,
+            base_every_day=base_every_day,
+            shift_bars=shift_bars,
             rsi_full=ctx.rsi_by_ticker.get(tk),
             bar_minutes=ctx.bar_minutes,
             higher_df=ctx.higher_bars.get(tk),
@@ -1175,6 +1220,7 @@ def _frontier_row(
         "gross_pnl_coll": stats.get("mean_pnl_coll_gross"),
         "net_mid_pnl_coll": stats.get("mean_pnl_coll_mid"),
         "net_cross_pnl_coll": stats.get("mean_pnl_coll_cross"),
+        "net_fill_pnl_coll": stats.get("mean_pnl_coll_fill"),
         "lift": lift,
         "base_n": base_n,
         "exit_mix": stats.get("exit_mix"),
@@ -1215,6 +1261,9 @@ def _attach_frontier_leak(
             cond = cond[cond.get("in_opra_window", False)]
             base = base[base.get("in_opra_window", False)]
         leak = leak_from_trade_frames(cond, base, rng)
+        for k in ("shift_coverage", "shift_note"):
+            if k in leak:
+                r[k] = leak[k]
         r.update(leak)
 
 
@@ -1284,20 +1333,28 @@ def build_a359_trade_cache(
     inst = PutInstrument(target_delta=-0.15)
     cond_rows: list[dict[str, Any]] = []
     base_rows: list[dict[str, Any]] = []
-    entry_probe = ConditionSet("and", [IndicatorCondition("rsi14", "lt", 5.0, "5m")])
     for exit_name, exits in frontier_exit_variants():
-        pay_probe = run_conditional_strategy(
-            tickers, entry_probe, exits, inst, ctx=ctx, keep_trades=True, base_every_day=True,
-        )
-        for tr in pay_probe.get("base_trades") or []:
-            base_rows.append({**tr, "exit": exit_name, "rsi_thr": float("nan")})
+        shift_keys: set[tuple[str, str, int]] = set()
         for thr in thresholds:
             entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
             pay = run_conditional_strategy(
-                tickers, entry, exits, inst, ctx=ctx, keep_trades=True, base_every_day=True,
+                tickers, entry, exits, inst, ctx=ctx, keep_trades=True, base_every_day=False,
             )
             for tr in pay.get("cond_trades") or []:
                 cond_rows.append({**tr, "exit": exit_name, "rsi_thr": thr})
+                shift_keys.add((tr["ticker"], tr["session"], int(tr["signal_bar"]) + 1))
+        pay_base = run_conditional_strategy(
+            tickers,
+            ConditionSet("and", [IndicatorCondition("rsi14", "lt", 5.0, "5m")]),
+            exits,
+            inst,
+            ctx=ctx,
+            keep_trades=True,
+            base_every_day=True,
+            shift_bars=shift_keys,
+        )
+        for tr in pay_base.get("base_trades") or []:
+            base_rows.append({**tr, "exit": exit_name, "rsi_thr": float("nan")})
     wall = time.perf_counter() - t0
     cdf = pd.DataFrame(cond_rows)
     bdf = pd.DataFrame(base_rows)
@@ -1755,7 +1812,7 @@ def simulate_daily_index_put(
     pnl_frac = put_pnl_frac_short(credit, exit_mark)
     coll_frac = credit / strike if strike > 0 else 0.0
     gross_coll = pnl_frac * coll_frac
-    net_mid, net_cross, _, _ = _apply_friction(
+    net_mid, net_cross, net_fill, _, _, _ = _apply_friction(
         gross_coll, credit, strike, spot, spread, dte, ticker=ticker,
     )
     return {
@@ -1768,6 +1825,7 @@ def simulate_daily_index_put(
         "reason": exit_reason,
         "pnl_coll_mid": net_mid,
         "pnl_coll_cross": net_cross,
+        "pnl_coll_fill": net_fill,
         "win": net_mid > 0,
     }
 
@@ -2121,6 +2179,7 @@ def run_a359_1h_rsi30_staging(tickers: list[str]) -> dict[str, Any]:
                 "gross": c.get("mean_pnl_coll_gross", float("nan")),
                 "net_mid": c.get("mean_pnl_coll_mid", float("nan")),
                 "net_cross": c.get("mean_pnl_coll_cross", float("nan")),
+                "net_fill": c.get("mean_pnl_coll_fill", float("nan")),
                 "n": float(c.get("n", 0)),
             }
 

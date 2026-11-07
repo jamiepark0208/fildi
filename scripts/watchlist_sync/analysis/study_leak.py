@@ -67,57 +67,95 @@ def is_planted_lookahead(entry: np.ndarray, rets: np.ndarray) -> bool:
     return gap > 0 and (gap > 0.002 or (ms != 0 and gap / abs(ms) > 0.5))
 
 
+def _pnl_series(df: pd.DataFrame) -> str:
+    if "pnl_coll_frac_fill" in df.columns and df["pnl_coll_frac_fill"].notna().any():
+        return "pnl_coll_frac_fill"
+    return "pnl_coll_frac_cross"
+
+
 def leak_from_trade_frames(
     cond: pd.DataFrame,
     base: pd.DataFrame,
     rng: np.random.Generator,
     *,
-    n_placebo: int = 100,
+    n_placebo: int = 200,
 ) -> dict[str, Any]:
-    """Shift-one-bar + within-month shuffle placebo on a frontier cond cell."""
+    """Shift-one-bar (base bar+1) + base-draw placebo on a frontier cond cell."""
     if cond is None or cond.empty:
         return {
             "shift_bp": float("nan"),
+            "shift_coverage": float("nan"),
+            "shift_note": "",
             "placebo_p": float("nan"),
             "leak_flag": False,
         }
-    cross = cond["pnl_coll_frac_cross"].to_numpy(dtype=float)
+    pnl_col = _pnl_series(cond)
+    cross = cond[pnl_col].to_numpy(dtype=float)
     clean_mean = float(np.nanmean(cross))
-    b_mean = float(np.nanmean(base["pnl_coll_frac_cross"])) if base is not None and len(base) else 0.0
+    b_mean = float(np.nanmean(base[pnl_col])) if base is not None and len(base) else 0.0
     lift = clean_mean - b_mean
 
-    idx = cond.set_index(["ticker", "session", "signal_bar"], drop=False)
     shifted_pnls: list[float] = []
+    base_idx = None
+    if base is not None and len(base):
+        base_idx = base.set_index(["ticker", "session", "signal_bar"], drop=False)
     for _, t in cond.iterrows():
+        if base_idx is None:
+            break
         key = (t["ticker"], t["session"], int(t["signal_bar"]) + 1)
-        if key in idx.index:
-            shifted_pnls.append(float(idx.loc[key, "pnl_coll_frac_cross"]))
-    shifted_mean = float(np.nanmean(shifted_pnls)) if shifted_pnls else float("nan")
-    shift_bp = (clean_mean - shifted_mean) * 1e4 if np.isfinite(shifted_mean) else float("nan")
+        if key in base_idx.index:
+            row = base_idx.loc[key]
+            val = row[pnl_col] if pnl_col in row.index else row.get("pnl_coll_frac_cross", float("nan"))
+            if isinstance(val, pd.Series):
+                val = float(val.iloc[0])
+            shifted_pnls.append(float(val))
+
+    shift_coverage = len(shifted_pnls) / len(cond) if len(cond) else 0.0
+    shift_note = ""
+    if shift_coverage < 0.80:
+        shift_bp = float("nan")
+        shift_note = f"shift coverage {shift_coverage:.1%}<80%"
+        shifted_mean = float("nan")
+    else:
+        shifted_mean = float(np.nanmean(shifted_pnls))
+        shift_bp = (clean_mean - shifted_mean) * 1e4 if np.isfinite(shifted_mean) else float("nan")
 
     months = cond["session"].astype(str).str[:7]
-    actual = clean_mean
     hits = 0
-    n_ok = 0
-    for mo in months.unique():
-        sub = cross[months == mo]
-        if sub.size < 3:
-            continue
-        for _ in range(max(1, n_placebo // max(1, len(months.unique())))):
-            sh = rng.permutation(sub)
-            n_ok += 1
-            if float(np.mean(sh)) >= actual:
-                hits += 1
-    placebo_p = hits / n_ok if n_ok else float("nan")
+    n_draws = 0
+    target = max(int(n_placebo), 200)
+    if base is not None and len(base):
+        for mo in months.unique():
+            cond_m = cond[months == mo]
+            n_m = len(cond_m)
+            if n_m < 3:
+                continue
+            tickers_m = set(cond_m["ticker"])
+            pool = base.loc[base["ticker"].isin(tickers_m), pnl_col].dropna().to_numpy(dtype=float)
+            if pool.size < n_m:
+                continue
+            per_mo = max(1, target // max(1, len(months.unique())))
+            for _ in range(per_mo):
+                if n_draws >= target:
+                    break
+                pick = rng.choice(pool, size=n_m, replace=False)
+                n_draws += 1
+                if float(np.mean(pick)) >= clean_mean:
+                    hits += 1
+            if n_draws >= target:
+                break
+    placebo_p = hits / n_draws if n_draws else float("nan")
 
     shift_kill = False
-    if np.isfinite(lift) and lift > 0 and np.isfinite(shifted_mean):
+    if np.isfinite(lift) and lift > 1e-4 and np.isfinite(shifted_mean):
         shifted_lift = shifted_mean - b_mean
-        lifted_ratio = shifted_lift / lift
-        shift_kill = np.isfinite(lifted_ratio) and lifted_ratio < 0.2
-    leak_flag = shift_kill or (np.isfinite(placebo_p) and placebo_p > 0.10)
+        if shifted_lift >= 0:
+            shift_kill = bool(shifted_lift < 0.2 * lift)
+    leak_flag = bool(shift_kill)
     return {
         "shift_bp": shift_bp,
+        "shift_coverage": float(shift_coverage),
+        "shift_note": shift_note,
         "placebo_p": float(placebo_p),
         "leak_flag": bool(leak_flag),
     }

@@ -7,10 +7,15 @@ FILL_SHARE = 0.23  # bid + 23 % of spread (put_edge / state.md)
 
 
 def tradable_net(stats: dict[str, float], *, leg: str) -> float:
-    """Realistic net: option/stock legs priced at cross (bid+23 % spread ≈ full friction vs mid)."""
-    cross = float(stats.get("net_cross", float("nan")))
-    if cross == cross:
-        return cross
+    """Realistic net: stock = cross; option = bid±23 % of spread round-trip (FILL_SHARE)."""
+    if leg == "stock":
+        cross = float(stats.get("net_cross", float("nan")))
+        if cross == cross:
+            return cross
+    else:
+        fill = float(stats.get("net_fill", float("nan")))
+        if fill == fill:
+            return fill
     return float(stats.get("net_mid", float("nan")))
 
 
