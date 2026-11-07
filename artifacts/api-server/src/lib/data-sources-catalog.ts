@@ -146,10 +146,10 @@ export const DATA_SOURCES_CATALOG: DataSourceCatalogRow[] = [
   },
   {
     id: "codiv", usageKey: null, name: "Codiv (hosted OpenJev)",
-    plan: "unused — 0 callers (A356)",
-    feeds: "—",
-    tables: "—",
-    unusedAvailable: "0 code references — local OpenJev is SoR",
+    plan: "Hosted OpenJev 26B (same model as local) · api.codiv.ai/v1/systemone",
+    feeds: "Agent tooling via scripts/oj.py (OJ_PROVIDER=auto → Codiv when local server is down; no 22 GB load)",
+    tables: "~/.fildi/openjev-usage.jsonl (not api_usage yet)",
+    unusedAvailable: "Not metered in api_usage; product surfaces (Explain/desk labels) still use local only — A356 phase 4 use-case review",
     dailyLimit: null,
   },
   {
