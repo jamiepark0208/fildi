@@ -92,11 +92,11 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A371](asks/A371.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Evidence audit of BOARD winners: survivorship, S088 real-quote replay, regime split, one N_eff standard | planned |
 | [A372](asks/A372.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Put management + book layer: rolling, delta/IV/earnings exits, vol-scaled sizing, book drawdown | planned |
 | [A373](asks/A373.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Borrow from agentic-trading-desk: macro pillar regime test, 3-pillar backtest, TV-convention indicator tests, invalidation line | planned |
-| [A374](asks/A374.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 engine — RSI slice misaligned under session_filter; carried bar-0 lookahead (High) | open |
-| [A375](asks/A375.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 fix4 horizon sweep — confluence on wrong TF; higher-TF RSI dates (High) | open |
-| [A376](asks/A376.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A369 trade cache never hits (salted hash); stale meta; OPRA cache mismatch (High) | open |
-| [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | open |
-| [A378](asks/A378.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] S160 test-era centering flaw — subtract train-era base for both eras (Medium) | open |
-| [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | open |
+| [A374](asks/A374.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 engine — RSI slice misaligned under session_filter; carried bar-0 lookahead (High) | planned (Claude plan 11-07) |
+| [A375](asks/A375.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 fix4 horizon sweep — confluence on wrong TF; higher-TF RSI dates (High) | planned (Claude plan 11-07) |
+| [A376](asks/A376.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A369 trade cache never hits (salted hash); stale meta; OPRA cache mismatch (High) | planned (Claude plan 11-07) |
+| [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | planned (Claude plan 11-07) |
+| [A378](asks/A378.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] S160 test-era centering flaw — subtract train-era base for both eras (Medium) | planned (Claude plan 11-07) |
+| [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | done (Claude 11-07: gate fixed) |
 | [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |
 | [A381](asks/A381.md) | 2026-11-07 | Jamie → Claude → Cursor | Repo + instruction diet: archive finished study scripts, split study engines, one rulebook | planned |

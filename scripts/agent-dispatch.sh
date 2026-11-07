@@ -96,7 +96,7 @@ if [[ -n "$ASK_ID" && -z "${DISPATCH_IGNORE_REVIEWS:-}" ]]; then
   done
 fi
 # Gate 2: build runs need a smoke gate (small slice + sanity checks before any long run).
-if [[ -z "$ASK" ]] && ! grep -qi "smoke gate" "$PROMPT_FILE"; then
+if [[ "$ASK" == 0 ]] && ! grep -qi "smoke gate" "$PROMPT_FILE"; then
   echo "agent-dispatch: REFUSED — prompt has no 'Smoke gate' section (≤ 2-min slice, sanity checks that must pass before the full run)." >&2
   exit 3
 fi
