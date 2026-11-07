@@ -153,5 +153,29 @@ class TestSpreadLiquidity(unittest.TestCase):
         self.assertAlmostEqual(rt_unknown, 0.18)  # default mid, not vol=0 → low
 
 
+
+class TestOvernightCloses(unittest.TestCase):
+    """Claude 11-07: tp50_overnight must close next session if TP not hit (was: carried until TP, past expiry)."""
+    def test_loser_closes_next_session(self) -> None:
+        d1, d2 = date(2025, 6, 2), date(2025, 6, 3)
+        sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
+        exits = ExitRules(take_profit_frac=0.50, time_stop="overnight")
+        day1 = pd.DataFrame({"o": [100.0] * 4, "c": [100.0, 100.0, 99.0, 98.0], "session_date": [d1] * 4})
+        tr, carry = simulate_session_puts(
+            day1, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+            instrument=PutInstrument(), spread=sp, force_entry_bar=0,
+        )
+        self.assertEqual(tr, [])
+        self.assertIsNotNone(carry)
+        day2 = pd.DataFrame({"o": [90.0] * 4, "c": [90.0, 91.0, 99.0, 104.0], "session_date": [d2] * 4})
+        tr2, carry2 = simulate_session_puts(
+            day2, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+            instrument=PutInstrument(), spread=sp, carry=carry,
+        )
+        self.assertIsNone(carry2)
+        self.assertEqual(len(tr2), 1)
+        self.assertEqual(tr2[0]["exit_reason"], "time_stop")
+        self.assertLess(tr2[0]["pnl_frac"], 0)
+
 if __name__ == "__main__":
     unittest.main()

@@ -496,8 +496,14 @@ def simulate_session_puts(
             if exit_rules.time_stop == "same_day" and j == len(bars) - 1:
                 exit_reason, exit_i, exit_mark = "time_stop", j, mark
                 break
-            if exit_rules.time_stop == "expiry" and session_d >= expiry and j == len(bars) - 1:
-                exit_reason, exit_i, exit_mark = "expiry", j, mark
+            # Claude 11-07: "overnight" = close on the first bar of the next session if TP not hit
+            # (before, the position carried until TP fired — past expiry — so losers waited for recovery).
+            if exit_rules.time_stop == "overnight" and session_d > open_pos.entry_session:
+                exit_reason, exit_i, exit_mark = "time_stop", j, mark
+                break
+            # Hard close at expiry for every rule, at intrinsic.
+            if session_d >= expiry and j == len(bars) - 1:
+                exit_reason, exit_i, exit_mark = "expiry", j, max(strike - s, 0.0)
                 break
         pnl_frac = put_pnl_frac_short(credit, exit_mark)
         coll_frac = credit / strike if strike > 0 else 0.0
@@ -658,6 +664,7 @@ def _run_ticker_sessions(
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
     carry: OpenPut | None = None
+    base_carry: OpenPut | None = None  # Claude 11-07: base keeps its open position across sessions (was dropped → only same-day winners counted)
     for session, sess_df in sorted(df.groupby("session_date"), key=lambda x: x[0]):
         sess_df = sess_df.reset_index(drop=True)
         closes = sess_df["c"].to_numpy(dtype=float)
@@ -674,14 +681,23 @@ def _run_ticker_sessions(
         cond_trades.extend(ts)
         if carry is not None and session >= carry.expiry:
             carry = None
-        if base_every_day and carry is None and len(sess_df) > 2:
-            bts, _ = simulate_session_puts(
-                sess_df, cross, exit_rules,
-                iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
-                spread=spread, listed_strikes=listed, force_entry_bar=0, ticker=tk,
-            )
-            for t in bts[:1]:
-                base_trades.append(t)
+        if base_every_day and len(sess_df) > 2:
+            if base_carry is not None:
+                bts, base_carry = simulate_session_puts(
+                    sess_df, np.zeros(len(closes), dtype=bool), exit_rules,
+                    iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
+                    spread=spread, listed_strikes=listed, carry=base_carry, ticker=tk,
+                )
+                base_trades.extend(bts[:1])
+            elif carry is None:
+                bts, base_carry = simulate_session_puts(
+                    sess_df, cross, exit_rules,
+                    iv_anchor=anchor, iv_beta=iv_beta, instrument=instrument,
+                    spread=spread, listed_strikes=listed, force_entry_bar=0, ticker=tk,
+                )
+                base_trades.extend(bts[:1])
+                if bts:
+                    base_carry = None
     return cond_trades, base_trades
 
 
@@ -1034,8 +1050,7 @@ def simulate_daily_index_put(
             exit_i = j - 1
             s = float(closes[exit_i])
             iv_d = prior_business_iv(iv_by_date, sess) or anchor
-            dte_rem = max((expiry - sess).days, 0)
-            exit_mark, _ = mark_put(conn, ticker, sess, s, strike, dte_rem, iv_d, expiry)
+            exit_mark = max(strike - s, 0.0)  # Claude 11-07: expiry = intrinsic (was BS w/ 1-day floor + next-day IV)
             break
         s = float(closes[j])
         if not np.isfinite(s):
@@ -1055,7 +1070,7 @@ def simulate_daily_index_put(
             exit_reason, exit_i, exit_mark = "index_rsi", j, mark
             break
         if exit_spec.get("hold_expiry") and sess >= expiry:
-            exit_reason, exit_i, exit_mark = "expiry", j, mark
+            exit_reason, exit_i, exit_mark = "expiry", j, max(strike - s, 0.0)
             break
         exit_i, exit_mark = j, mark
     pnl_frac = put_pnl_frac_short(credit, exit_mark)
