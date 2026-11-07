@@ -5,7 +5,6 @@ import {
   ptMinutesOfDay,
   schwab1mUniverse,
 } from "./schwab-1m-poll.js";
-
 describe("schwab1mUniverse", () => {
   it("starts with SPY and caps at 20", () => {
     const u = schwab1mUniverse();

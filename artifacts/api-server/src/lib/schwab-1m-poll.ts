@@ -16,15 +16,15 @@ import {
   type SchwabMinuteBar,
 } from "./schwab-client.js";
 import { refreshLiveBreadthFromSchwabBars } from "./live-breadth-5m.js";
+import { distinctConflictWhere, startFetchRun } from "./fetch-guard.js";
+import { pollStartMsForSymbol } from "./schwab-1m-window.js";
+export { pollStartMsForSymbol } from "./schwab-1m-window.js";
 
 const POLL_MS = 5 * 60_000;
 const JITTER_MS = 30_000;
 const SYMBOL_CAP = 20;
 /** Soft bar-lane ceiling — pause a cycle if the shared window is already this hot. */
 const BAR_RPM_SOFT_CAP = 60;
-/** Lookback on each live poll (enough to heal gaps without re-pulling 10d). */
-const LIVE_LOOKBACK_MS = 2 * 60 * 60 * 1000;
-
 export let schwab1mPollRunning = false;
 export let lastSchwab1mPollRun: Date | null = null;
 
@@ -70,12 +70,14 @@ export async function storeSchwabMinuteBars(ticker: string, bars: SchwabMinuteBa
     placeholders.push(`($${i++}, to_timestamp($${i++} / 1000.0), $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, 'schwab')`);
     values.push(t, b.ts, b.open, b.high, b.low, b.close, b.volume);
   }
+  const cols = ["o", "h", "l", "c", "v", "source"];
   const { rowCount } = await pool.query(
     `INSERT INTO watchlist_sync.intraday_bars_1m (ticker, ts, o, h, l, c, v, source)
      VALUES ${placeholders.join(",")}
      ON CONFLICT (ticker, ts) DO UPDATE SET
        o = EXCLUDED.o, h = EXCLUDED.h, l = EXCLUDED.l, c = EXCLUDED.c, v = EXCLUDED.v,
-       source = 'schwab'`,
+       source = EXCLUDED.source
+     ${distinctConflictWhere(cols, "intraday_bars_1m")}`,
     values,
   );
   return rowCount ?? bars.length;
@@ -101,6 +103,18 @@ export type Schwab1mPollResult = {
  * One poll cycle (or admin/manual run). Advances lastRun even on empty so we
  * don't hammer a missing token / closed session.
  */
+async function lastStoredBarMsByTicker(tickers: string[]): Promise<Map<string, number>> {
+  if (!tickers.length) return new Map();
+  const { rows } = await pool.query<{ ticker: string; ms: string }>(
+    `SELECT ticker, (EXTRACT(EPOCH FROM MAX(ts)) * 1000)::bigint::text AS ms
+     FROM watchlist_sync.intraday_bars_1m
+     WHERE ticker = ANY($1::text[]) AND source = 'schwab'
+     GROUP BY ticker`,
+    [tickers],
+  );
+  return new Map(rows.map((r) => [r.ticker, Number(r.ms)]));
+}
+
 export async function runSchwab1mPoll(opts?: {
   force?: boolean;
   lookbackMs?: number;
@@ -127,25 +141,29 @@ export async function runSchwab1mPoll(opts?: {
   schwab1mPollRunning = true;
   const symbols = schwab1mUniverse();
   let bars = 0;
+  const meter = await startFetchRun("schwab", "schwab-1m-poll", { routine: opts?.days == null });
+  meter.bump({ keysPlanned: symbols.length });
   try {
     const endMs = Date.now();
-    const startMs =
-      opts?.days != null
-        ? endMs - opts.days * 24 * 60 * 60 * 1000
-        : endMs - (opts?.lookbackMs ?? LIVE_LOOKBACK_MS);
+    const lastBySym = opts?.days != null ? new Map<string, number>() : await lastStoredBarMsByTicker(symbols);
     for (const sym of symbols) {
       try {
-        bars += await fetchAndStoreSchwab1m(sym, startMs, endMs);
+        const startMs = pollStartMsForSymbol(sym, endMs, lastBySym.get(sym), opts);
+        const n = await fetchAndStoreSchwab1m(sym, startMs, endMs);
+        bars += n;
+        meter.bump({ keysFetched: n > 0 ? 1 : 0, vendorCalls: 1, rowsInserted: n });
       } catch (err) {
         logger.warn({ err, sym }, "schwab-1m: symbol failed");
       }
     }
     lastSchwab1mPollRun = new Date();
     await refreshLiveBreadthFromSchwabBars();
+    await meter.finish(opts?.days != null ? "backfill" : "tail");
     logger.info({ symbols: symbols.length, bars }, "schwab-1m: poll complete");
     return { symbols: symbols.length, bars };
   } catch (err) {
     logger.error({ err }, "schwab-1m: poll failed");
+    await meter.finish("error");
     return { symbols: symbols.length, bars, skipped: "error" };
   } finally {
     schwab1mPollRunning = false;
