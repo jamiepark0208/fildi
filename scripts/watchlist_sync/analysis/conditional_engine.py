@@ -91,37 +91,53 @@ class OpenPut:
 
 @dataclass(frozen=True)
 class SpreadCalibration:
-    """Round-trip spread/mid by (moneyness_bin, dte_bin, liq_bin)."""
+    """Spread/mid: per-ticker (moneyness, DTE) medians; global fallback by ticker typical liq."""
     buckets: dict[tuple[str, str, str], float]
     n_obs: int
     source: str
+    ticker_buckets: dict[tuple[str, str, str], float] = field(default_factory=dict)
+    ticker_liq_bin: dict[str, str] = field(default_factory=dict)
+
+    def _mb_db(self, spot: float, strike: float, dte: int) -> tuple[str, str]:
+        m = strike / spot
+        mb = _moneyness_bin(m)
+        db = _dte_bin(dte)
+        return mb, db
+
+    def _fallback_bucket(self, mb: str, db: str, lb: str) -> float:
+        v = self.buckets.get((mb, db, lb))
+        if v is not None:
+            return v
+        for alt in (lb, "high", "mid", "low"):
+            v = self.buckets.get((mb, db, alt))
+            if v is not None:
+                return v
+        return DEFAULT_SPREAD_RT
 
     def round_trip_frac(
-        self, spot: float, strike: float, dte: int, *, volume: int = 0, open_interest: int = 0
+        self,
+        spot: float,
+        strike: float,
+        dte: int,
+        *,
+        ticker: str = "",
+        volume: int = 0,
+        open_interest: int = 0,
     ) -> float:
         if spot <= 0 or strike <= 0:
             return DEFAULT_SPREAD_RT
-        m = strike / spot
-        if m < 0.90:
-            mb = "deep_otm"
-        elif m < 0.97:
-            mb = "near_otm"
-        else:
-            mb = "atm"
-        if dte <= 14:
-            db = "short"
-        elif dte <= 35:
-            db = "mid"
-        else:
-            db = "long"
-        liq = volume + open_interest
-        if liq < 50:
-            lb = "low"
-        elif liq < 500:
-            lb = "mid"
-        else:
-            lb = "high"
-        return self.buckets.get((mb, db, lb), DEFAULT_SPREAD_RT)
+        mb, db = self._mb_db(spot, strike, dte)
+        tk = ticker.upper() if ticker else ""
+        if tk:
+            tb = self.ticker_buckets.get((tk, mb, db))
+            if tb is not None:
+                return tb
+            lb = self.ticker_liq_bin.get(tk)
+            if lb:
+                return self._fallback_bucket(mb, db, lb)
+        if volume or open_interest:
+            return self._fallback_bucket(mb, db, _liq_bin(volume, open_interest))
+        return self._fallback_bucket(mb, db, "mid")
 
 
 def _moneyness_bin(m: float) -> str:
@@ -150,22 +166,40 @@ def _liq_bin(volume: int, oi: int) -> str:
 
 
 def load_spread_calibration(conn) -> SpreadCalibration:
-    """Half-spread × 2 as % of premium from option_chain_history (OPRA overlap era)."""
+    """(ask−bid)/mid medians: per (ticker, moneyness, DTE); global by liq for ticker fallback."""
     rows = conn.execute(
-        """SELECT strike::float8 / NULLIF(spot, 0), dte, volume, open_interest,
+        """SELECT ticker, strike::float8 / NULLIF(spot, 0), dte, volume, open_interest,
                   (ask::float8 - bid::float8) / NULLIF((bid::float8 + ask::float8) / 2.0, 0)
            FROM option_chain_history
            WHERE side = 'put' AND as_of >= %s AND bid > 0 AND ask > bid AND spot > 0""",
         (OPRA_START,),
     ).fetchall()
     acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
-    for m, dte, vol, oi, spr in rows:
+    t_acc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    t_liq: dict[str, list[float]] = defaultdict(list)
+    n_used = 0
+    for ticker, m, dte, vol, oi, spr in rows:
         if spr is None or not math.isfinite(spr) or spr <= 0 or spr > 2:
             continue
-        key = (_moneyness_bin(float(m)), _dte_bin(int(dte)), _liq_bin(int(vol or 0), int(oi or 0)))
-        acc[key].append(float(spr))
+        n_used += 1
+        mb, db = _moneyness_bin(float(m)), _dte_bin(int(dte))
+        lb = _liq_bin(int(vol or 0), int(oi or 0))
+        acc[(mb, db, lb)].append(float(spr))
+        tk = str(ticker).upper()
+        t_acc[(tk, mb, db)].append(float(spr))
+        t_liq[tk].append(float((vol or 0) + (oi or 0)))
     buckets = {k: float(np.median(v)) for k, v in acc.items() if v}
-    return SpreadCalibration(buckets=buckets, n_obs=len(rows), source="option_chain_history≥2025-10-01")
+    ticker_buckets = {k: float(np.median(v)) for k, v in t_acc.items() if v}
+    ticker_liq_bin = {
+        tk: _liq_bin(int(np.median(v)), 0) for tk, v in t_liq.items() if v
+    }
+    return SpreadCalibration(
+        buckets=buckets,
+        n_obs=n_used,
+        source="option_chain_history≥2025-10-01",
+        ticker_buckets=ticker_buckets,
+        ticker_liq_bin=ticker_liq_bin,
+    )
 
 
 def load_iv_return_betas(conn, tickers: list[str]) -> dict[str, float]:
@@ -336,12 +370,20 @@ def put_pnl_frac_short(credit: float, mark: float) -> float:
 
 
 def _apply_friction(
-    gross_coll: float, credit: float, strike: float, spot: float, spread: SpreadCalibration, dte: int
-) -> tuple[float, float]:
+    gross_coll: float,
+    credit: float,
+    strike: float,
+    spot: float,
+    spread: SpreadCalibration,
+    dte: int,
+    *,
+    ticker: str = "",
+) -> tuple[float, float, float, float]:
     prem = credit / strike if strike > 0 else 0.0
-    rt = spread.round_trip_frac(spot, strike, dte)
-    friction_coll = rt * prem
-    return gross_coll - friction_coll, friction_coll
+    rt = spread.round_trip_frac(spot, strike, dte, ticker=ticker)
+    friction_cross = rt * prem
+    friction_mid = 0.5 * rt * prem
+    return gross_coll - friction_mid, gross_coll - friction_cross, friction_mid, friction_cross
 
 
 def simulate_session_puts(
@@ -458,8 +500,8 @@ def simulate_session_puts(
         pnl_frac = put_pnl_frac_short(credit, exit_mark)
         coll_frac = credit / strike if strike > 0 else 0.0
         gross_coll = pnl_frac * coll_frac
-        net_coll, friction = _apply_friction(
-            gross_coll, credit, strike, spot_entry, spread, open_pos.dte_at_entry,
+        net_mid, net_cross, friction_mid, friction_cross = _apply_friction(
+            gross_coll, credit, strike, spot_entry, spread, open_pos.dte_at_entry, ticker=ticker,
         )
         closed = exit_reason != "session_end" or exit_rules.time_stop == "same_day"
         if not closed and exit_rules.time_stop in ("overnight", "expiry"):
@@ -476,9 +518,11 @@ def simulate_session_puts(
             "credit": credit,
             "pnl_frac": pnl_frac,
             "pnl_coll_frac_gross": gross_coll,
-            "pnl_coll_frac": net_coll,
-            "friction_coll_frac": friction,
-            "win": net_coll > 0,
+            "pnl_coll_frac": net_mid,
+            "pnl_coll_frac_cross": net_cross,
+            "friction_coll_frac": friction_mid,
+            "friction_coll_frac_cross": friction_cross,
+            "win": net_mid > 0,
             "iv_anchor": open_pos.iv_anchor,
             "iv_beta": iv_beta,
             "in_opra_window": session_d >= OPRA_START,
@@ -523,9 +567,11 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
     if not trades:
         return {
             "n": 0, "n_eff": 0.0, "win": np.nan,
-            "mean_pnl_coll": np.nan, "mean_pnl_coll_gross": np.nan, "exit_mix": {},
+            "mean_pnl_coll": np.nan, "mean_pnl_coll_cross": np.nan,
+            "mean_pnl_coll_gross": np.nan, "exit_mix": {},
         }
     pnls = np.array([t["pnl_coll_frac"] for t in trades], dtype=float)
+    cross = np.array([t.get("pnl_coll_frac_cross", t["pnl_coll_frac"]) for t in trades], dtype=float)
     gross = np.array([t.get("pnl_coll_frac_gross", t["pnl_coll_frac"]) for t in trades], dtype=float)
     mix: dict[str, int] = defaultdict(int)
     for t in trades:
@@ -541,6 +587,7 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
         "n_eff": float(n_eff),
         "win": float(np.mean([t["win"] for t in trades])),
         "mean_pnl_coll": float(np.mean(pnls)),
+        "mean_pnl_coll_cross": float(np.mean(cross)),
         "mean_pnl_coll_gross": float(np.mean(gross)),
         "median_pnl_coll": float(np.median(pnls)),
         "exit_mix": dict(mix),
@@ -693,7 +740,8 @@ def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, An
                     "n_eff": c.get("n_eff"),
                     "win": c.get("win"),
                     "gross_pnl_coll": c.get("mean_pnl_coll_gross"),
-                    "net_pnl_coll": c.get("mean_pnl_coll"),
+                    "net_mid_pnl_coll": c.get("mean_pnl_coll"),
+                    "net_cross_pnl_coll": c.get("mean_pnl_coll_cross"),
                     "lift": payload.get("lift_pnl_coll"),
                     "base_n": b.get("n"),
                 })
@@ -716,14 +764,16 @@ def write_report(payload: dict[str, Any], tag: str) -> Path:
 
 def format_frontier_table(rows: list[dict[str, Any]]) -> str:
     lines = [
-        "window | rsi_lt | exit | n | N_eff | win | gross | net | lift | base_n",
-        "---|---|---:|---:|---:|---:|---:|---:|---:|---:",
+        "window | rsi_lt | exit | n | N_eff | win | gross | net_mid | net_cross | lift | base_n",
+        "---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:",
     ]
     for r in rows:
         lines.append(
             f"{r['window']} | {r['rsi_lt']:.1f} | {r['exit']} | {r['n']} | {r.get('n_eff', 0):.0f} | "
             f"{r.get('win', float('nan')):.1%} | {r.get('gross_pnl_coll', float('nan')):.4%} | "
-            f"{r.get('net_pnl_coll', float('nan')):.4%} | {r.get('lift', float('nan')):.4%} | {r.get('base_n', 0)}"
+            f"{r.get('net_mid_pnl_coll', r.get('net_pnl_coll', float('nan'))):.4%} | "
+            f"{r.get('net_cross_pnl_coll', float('nan')):.4%} | "
+            f"{r.get('lift', float('nan')):.4%} | {r.get('base_n', 0)}"
         )
     return "\n".join(lines)
 

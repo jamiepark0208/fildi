@@ -113,5 +113,27 @@ class TestNoSameDayEodIv(unittest.TestCase):
         self.assertNotEqual(tr[0]["iv_anchor"], 99.0)
 
 
+class TestSpreadLiquidity(unittest.TestCase):
+    def test_high_oi_ticker_uses_high_liq_spread(self) -> None:
+        buckets = {
+            ("near_otm", "short", "low"): 0.72,
+            ("near_otm", "short", "high"): 0.06,
+            ("near_otm", "short", "mid"): 0.18,
+        }
+        sp = SpreadCalibration(
+            buckets=buckets,
+            n_obs=3,
+            source="test",
+            ticker_liq_bin={"SPY": "high", "ILLIQ": "low"},
+        )
+        rt_spy = sp.round_trip_frac(100.0, 95.0, 7, ticker="SPY")
+        rt_illiq = sp.round_trip_frac(100.0, 95.0, 7, ticker="ILLIQ")
+        rt_unknown = sp.round_trip_frac(100.0, 95.0, 7, ticker="", volume=0, open_interest=0)
+        self.assertAlmostEqual(rt_spy, 0.06)
+        self.assertAlmostEqual(rt_illiq, 0.72)
+        self.assertGreater(rt_illiq, rt_spy)
+        self.assertAlmostEqual(rt_unknown, 0.18)  # default mid, not vol=0 → low
+
+
 if __name__ == "__main__":
     unittest.main()
