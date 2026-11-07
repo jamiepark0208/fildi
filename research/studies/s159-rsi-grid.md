@@ -36,3 +36,6 @@ QQQ cell verified (14 days, 13 won, lift +4.1 pp, q 0.0001; matches SPY 2003 run
 8. **Panel build:** 957 universe fetched (927 ok), pickle **5829×928**; index rows SPY/QQQ/IWM/XL* present.
 9. **VIX&gt;30 long basket (h3–5):** lift ~0 after repair (was noise); puts still q&gt;0.05 — no promote.
 10. **Self-test:** AAPL/NVDA/TSLA no −50 % gap days; SPY 2003 level plausible.
+
+## Claude review bd60366b (2026-11-07)
+Panel coverage + SPY/ETF rows pass. **1 finding (P1):** `sanitize_ohlcv` overwrites real opens with the close on big-move days — SPY has 25 days where panel open ≠ raw LSE open by > 1 % (2008-10-09 raw open 100.27 → panel 90.84 = close), closes all match. Those are the crash days this study enters on (fill = next open), so every oversold cell is corrupted (likely why QQQ lift fell +4.1 → +1.3 pp). Fix: replace an open only if it sits outside that day's [low, high] or disagrees with LSEG's open by > 2 %; never set open = close; test that SPY 2008-10-09 open = 100.27 and that panel opens match raw LSE for SPY/QQQ on all days. Rerun, update Packet fix1 → fix2.
