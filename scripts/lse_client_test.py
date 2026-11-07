@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lse_client import occ_symbol, parse_export_rows, snap_put_strike
+from lse_client import nearest_listed_strike, occ_symbol, parse_export_rows, snap_put_strike
 
 
 class TestOcc(unittest.TestCase):
@@ -39,6 +39,13 @@ class TestCsv(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["date"], date(2025, 10, 8))
         self.assertAlmostEqual(rows[0]["close"], 0.08)
+
+
+class TestNearest(unittest.TestCase):
+    def test_absolute_nearest(self) -> None:
+        listed = [90.0, 95.0, 100.0, 105.0]
+        self.assertAlmostEqual(nearest_listed_strike(102.3, listed), 100.0)
+        self.assertAlmostEqual(nearest_listed_strike(107.0, listed), 105.0)
 
 
 class TestSnap(unittest.TestCase):

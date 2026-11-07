@@ -17,6 +17,7 @@ Out: research/studies/out/fast_screen/<date>.csv + .md + <date>-usecases.md
 from __future__ import annotations
 
 import argparse
+import json
 import pickle
 import sys
 import time
@@ -1632,6 +1633,83 @@ def write_outputs(df: pd.DataFrame, cold_s: float, warm_s: float | None) -> tupl
     return csv_p, md_p
 
 
+# ── A359 conditional engine (intraday condition sets + short puts) ─────────────
+
+def run_conditional(tickers: list[str] | None, smoke: bool) -> dict:
+    from conditional_engine import (  # noqa: WPS433
+        jamie_example_spec,
+        run_conditional_strategy,
+        universe_tickers_from_db,
+        write_report,
+    )
+
+    if tickers is None:
+        tickers = universe_tickers_from_db(50 if smoke else None)
+    entry, exits, inst = jamie_example_spec()
+    payload = run_conditional_strategy(tickers, entry, exits, inst)
+    tag = "jamie-smoke" if smoke else "jamie-universe"
+    write_report(payload, tag)
+    return payload
+
+
+def conditional_self_test() -> list[str]:
+    from conditional_engine import (  # noqa: WPS433
+        ConditionSet,
+        ExitRules,
+        IndicatorCondition,
+        PutInstrument,
+        entry_cross_mask,
+        nearest_listed_strike,
+        simulate_session_puts,
+        standard_listed_strikes,
+    )
+
+    lines: list[str] = []
+    closes = np.array([50.0, 48.0, 44.0, 43.0, 46.0, 55.0, 52.0])
+    entry = ConditionSet("or", [IndicatorCondition("rsi14", "lt", 20.0, "5m")])
+    cross = entry_cross_mask(entry, closes)
+    n_cross = int(cross.sum())
+    lines.append(f"{'PASS' if n_cross <= 2 else 'FAIL'} entry cross count={n_cross} (expect sparse edges)")
+
+    listed = standard_listed_strikes(100.0)
+    k = nearest_listed_strike(99.2, listed)
+    lines.append(f"{'PASS' if k in listed else 'FAIL'} nearest listed strike={k}")
+
+    bars = pd.DataFrame({
+        "o": [100, 99, 98, 99, 100, 101],
+        "c": [100, 99, 98, 99, 100, 101],
+        "session_date": [date.today()] * 6,
+    })
+    exits = ExitRules(take_profit_frac=0.5, time_stop="same_day")
+    tr = simulate_session_puts(
+        bars, np.zeros(6, dtype=bool), exits, spot_iv=25.0,
+        instrument=PutInstrument(), force_entry_bar=0,
+    )
+    ok_la = tr and tr[0]["fill_bar"] > tr[0]["signal_bar"]
+    lines.append(f"{'PASS' if ok_la else 'FAIL'} look-ahead fill_bar>{'signal_bar' if tr else '?'}")
+
+    bars2 = pd.DataFrame({
+        "o": [50, 49, 48, 47, 60, 60],
+        "c": [50, 49, 48, 47, 60, 60],
+        "session_date": [date.today()] * 6,
+    })
+    exits2 = ExitRules(
+        close_conditions=[IndicatorCondition("rsi14", "gt", 50.0, "5m")],
+        take_profit_frac=0.99,
+        stop_loss_mult=2.0,
+        time_stop="same_day",
+    )
+    tr2 = simulate_session_puts(
+        bars2, np.array([False, False, True, False, False, False]),
+        exits2, spot_iv=30.0, instrument=PutInstrument(), listed_strikes=[45.0, 47.5, 50.0],
+        force_entry_bar=2,
+    )
+    reason = tr2[0]["exit_reason"] if tr2 else ""
+    lines.append(f"{'PASS' if reason in ('close_condition', 'take_profit', 'stop_loss', 'time_stop') else 'FAIL'} "
+                 f"first-hit exit={reason}")
+    return lines
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -1646,6 +1724,10 @@ def main() -> int:
     p_st.add_argument("--rebuild", action="store_true")
     p_puts = sub.add_parser("puts")
     p_puts.add_argument("--rebuild", action="store_true")
+    p_cond = sub.add_parser("conditional")
+    p_cond.add_argument("--tickers", default="")
+    p_cond.add_argument("--smoke", action="store_true")
+    p_cself = sub.add_parser("conditional-self-test")
     args = ap.parse_args()
 
     if not a350_iv_wall_daily_ok():
@@ -1664,6 +1746,24 @@ def main() -> int:
         pack = load_bars(None, rebuild=args.rebuild)
         md = run_puts(pack)
         print(f"wrote {md}")
+        return 0
+
+    if args.cmd == "conditional-self-test":
+        lines = conditional_self_test()
+        for ln in lines:
+            print(ln)
+        return 0 if all(ln.startswith("PASS") for ln in lines) else 1
+
+    if args.cmd == "conditional":
+        tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] or None
+        payload = run_conditional(tickers, smoke=args.smoke)
+        c = payload.get("conditional", {})
+        b = payload.get("base", {})
+        print(json.dumps({
+            "n": c.get("n"), "win": c.get("win"), "mean_pnl_coll": c.get("mean_pnl_coll"),
+            "lift": payload.get("lift_pnl_coll"), "exit_mix": c.get("exit_mix"),
+            "base_n": b.get("n"), "wall_s": payload.get("wall_s"),
+        }, indent=2))
         return 0
 
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()] or None

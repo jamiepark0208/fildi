@@ -204,6 +204,13 @@ def list_put_strikes(conn, ticker: str, expiry: date) -> list[float]:
     return sorted(set(strikes))
 
 
+def nearest_listed_strike(model_strike: float, listed: list[float]) -> float | None:
+    """Listed strike with smallest |strike − model| (A359; no downward bias)."""
+    if model_strike <= 0 or not listed:
+        return None
+    return min(listed, key=lambda s: abs(s - model_strike))
+
+
 def snap_put_strike(model_strike: float, listed: list[float], *, max_gap_frac: float = 0.05) -> float | None:
     """Nearest listed strike at or below model_strike; None if gap > max_gap_frac."""
     if model_strike <= 0 or not listed:
@@ -215,6 +222,85 @@ def snap_put_strike(model_strike: float, listed: list[float], *, max_gap_frac: f
     if (model_strike - snapped) / model_strike > max_gap_frac:
         return None
     return snapped
+
+
+def export_stock_csv(
+    conn,
+    ticker: str,
+    *,
+    date_from: date,
+    date_to: date,
+    timeframe: str = "1m",
+) -> tuple[int, str]:
+    """GET /v3/export for us_stocks. Returns (http_status, csv_text or error body)."""
+    q = urllib.parse.urlencode(
+        {
+            "market": "us_stocks",
+            "symbol": ticker.upper(),
+            "timeframe": timeframe,
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+            "format": "csv",
+        }
+    )
+    path = f"export?{q}"
+    vkey = f"stock|{ticker.upper()}|{timeframe}|{date_from}|{date_to}"
+    status, body, _ = _request(conn, f"{BASE}/{path}", endpoint="export", vkey=vkey)
+    text = body.decode("utf-8", errors="replace")
+    if status == 200 and '"time"' in text.lstrip()[:80].lower():
+        _save_vendor_csv(conn, "export", vkey, text)
+    return status, text
+
+
+def parse_stock_minute_rows(csv_text: str) -> list[dict[str, Any]]:
+    """Parse LSE stock export CSV into minute rows (ts, o, h, l, c, v)."""
+    lines = [ln for ln in csv_text.strip().splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return []
+    header = [h.strip().strip('"') for h in lines[0].split(",")]
+    idx = {h: i for i, h in enumerate(header)}
+
+    def parse_ts(parts: list[str]) -> str | None:
+        for key in ("time", "timestamp", "datetime"):
+            if key not in idx:
+                continue
+            v = parts[idx[key]].strip().strip('"')
+            return v if v else None
+        if "date" in idx:
+            return parts[idx["date"]].strip().strip('"')
+        return None
+
+    out: list[dict[str, Any]] = []
+    for ln in lines[1:]:
+        parts = [p.strip().strip('"') for p in re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', ln)]
+        if len(parts) < len(header):
+            continue
+        ts = parse_ts(parts)
+        if not ts:
+            continue
+
+        def num(name: str) -> float | None:
+            if name not in idx:
+                return None
+            try:
+                v = float(parts[idx[name]])
+                return v if math.isfinite(v) else None
+            except ValueError:
+                return None
+
+        vol = idx.get("volume")
+        volume = int(float(parts[vol])) if vol is not None and parts[vol] else None
+        out.append(
+            {
+                "ts": ts,
+                "open": num("open"),
+                "high": num("high"),
+                "low": num("low"),
+                "close": num("close"),
+                "volume": volume,
+            }
+        )
+    return out
 
 
 def export_options_csv(

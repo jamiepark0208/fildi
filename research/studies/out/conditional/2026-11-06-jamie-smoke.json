@@ -1,0 +1,110 @@
+{
+  "conditional": {
+    "n": 11263,
+    "n_eff": 6348.269047619047,
+    "win": 0.2991210157151736,
+    "mean_pnl_coll": -0.0012645648367934988,
+    "median_pnl_coll": -0.0006510389407574373,
+    "exit_mix": {
+      "close_condition": 10700,
+      "stop_loss": 116,
+      "time_stop": 325,
+      "take_profit": 106,
+      "session_end": 16
+    }
+  },
+  "base": {
+    "n": 21115,
+    "n_eff": 8118.9,
+    "win": 0.18868103244139237,
+    "mean_pnl_coll": -0.001206853629159458,
+    "median_pnl_coll": -0.0009365608926817808,
+    "exit_mix": {
+      "close_condition": 20609,
+      "stop_loss": 115,
+      "take_profit": 157,
+      "time_stop": 234
+    }
+  },
+  "lift_pnl_coll": -5.7711207634040824e-05,
+  "tickers": 50,
+  "wall_s": 37.6790030420525,
+  "lse_calls": 0,
+  "trades_sample": [
+    {
+      "session": "2024-10-23",
+      "signal_bar": 2,
+      "fill_bar": 3,
+      "exit_bar": 21,
+      "exit_reason": "close_condition",
+      "spot_entry": 12.9399995803833,
+      "strike": 11.5,
+      "model_strike": 11.357497726850749,
+      "credit": 0.17189100277103853,
+      "pnl_frac": -0.006550199240515334,
+      "pnl_coll_frac": -0.0010979061144175892,
+      "win": false,
+      "ticker": "AAL"
+    },
+    {
+      "session": "2024-10-25",
+      "signal_bar": 10,
+      "fill_bar": 11,
+      "exit_bar": 14,
+      "exit_reason": "close_condition",
+      "spot_entry": 12.720000267028809,
+      "strike": 11.5,
+      "model_strike": 11.430741931736776,
+      "credit": 0.12577198661952194,
+      "pnl_frac": 0.06382973101736392,
+      "pnl_coll_frac": -0.0003019137325701236,
+      "win": false,
+      "ticker": "AAL"
+    },
+    {
+      "session": "2024-10-30",
+      "signal_bar": 1,
+      "fill_bar": 2,
+      "exit_bar": 40,
+      "exit_reason": "close_condition",
+      "spot_entry": 13.800000190734863,
+      "strike": 12.5,
+      "model_strike": 12.614384477265569,
+      "credit": 0.08299235472045385,
+      "pnl_frac": -0.010175084408648883,
+      "pnl_coll_frac": -0.001067556337164252,
+      "win": false,
+      "ticker": "AAL"
+    },
+    {
+      "session": "2024-10-31",
+      "signal_bar": 1,
+      "fill_bar": 2,
+      "exit_bar": 20,
+      "exit_reason": "close_condition",
+      "spot_entry": 13.869999885559082,
+      "strike": 12.5,
+      "model_strike": 12.6973541864074,
+      "credit": 0.07020314503849279,
+      "pnl_frac": 0.14225725135646283,
+      "pnl_coll_frac": -0.00020104748401959317,
+      "win": false,
+      "ticker": "AAL"
+    },
+    {
+      "session": "2024-11-11",
+      "signal_bar": 13,
+      "fill_bar": 14,
+      "exit_bar": 29,
+      "exit_reason": "close_condition",
+      "spot_entry": 13.75,
+      "strike": 12.0,
+      "model_strike": 12.104395883052504,
+      "credit": 0.13078293453616707,
+      "pnl_frac": 0.04256399256369912,
+      "pnl_coll_frac": -0.0005361130122453197,
+      "win": false,
+      "ticker": "AAL"
+    }
+  ]
+}
