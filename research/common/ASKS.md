@@ -173,3 +173,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A359](asks/A359.md) | 2026-11-06 | Claude → Cursor | [quant] Conditional backtests: regime-match entry, exit rules, TP/SL, hits; audit all studies | planned |
 | [A360](asks/A360.md) | 2026-11-07 | Muse → Cursor | Evaluate GLM-5.3/5.2 (Zhipu) as post-Cursor builder: API build test vs DeepSeek, cost, verdict | planned |
 | [A361](asks/A361.md) | 2026-11-07 | Muse → Cursor | Evaluate OpenCode as the post-Cursor harness: provider-agnostic terminal agent, same fixed build task, verdict | planned |
+| [A362](asks/A362.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 conditional engine correctness — RSI cold start, IV-beta sign, carried fill_bar (High) | planned |
+| [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | planned |
+| [A364](asks/A364.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A357 LSE option backfill + regrade — OCC collapse, smoke gate, inverted verdict (High) | planned |
