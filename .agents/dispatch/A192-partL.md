@@ -1,0 +1,13 @@
+A192 Part L (Refs: A192) — any-structure builder + view ranker. Spec: "Claude 2026-11-07 (eve) — re-scope" block in research/common/asks/A192.md. Build Part L only; Part B (backtest ranking) is out of scope.
+
+Files:
+- NEW artifacts/api-server/src/lib/structures/legs.ts — Leg = {kind: 'stock'|'call'|'put', side: 'long'|'short', qty, strike?, expiry?}; price(legs, chain) at contract fills (sell = bid + 0.23×(ask−bid), buy = ask − 0.23×(ask−bid); stock at bid/ask) + mid as context; payoff at expiry and at a date (BS via bsGreeks in lib/options-greeks.ts, per-leg IV from the chain); max loss/gain, breakevens, POP (lognormal at each leg's IV), buying power (cash-secured / Reg-T spread width), net greeks.
+- NEW artifacts/api-server/src/lib/structures/templates.ts — long/short stock, CSP, covered call, collar, long call/put, bull put, bear call, debit call/put vertical, iron condor, long/short strangle + straddle, calendar, diagonal, PMCC; each built from (ticker chain, expiry, target deltas/width).
+- NEW artifacts/api-server/src/lib/structures/rank.ts — input view (bull|bear|neutral|vol_up|vol_down) × horizon days × max loss $ → candidate templates for that view → expected P&L at fill per $ buying power under one distribution (ATM IV from the chain; earnings move from lib/earnings-history.ts if an earnings date is inside the horizon), POP, worst case; evidence chip from research/studies/BOARD.md verdicts (static map file is fine). Label rank "model estimate — not backtested".
+- Routes in artifacts/api-server/src/routes/options.ts next to /options/structures: POST /options/structures/price (legs → priced), GET /options/:ticker/structures/rank?view&horizon&maxLoss. Chain from readChainSnapshot (lib/options-chain-store.ts); no new vendor calls.
+- UI: artifacts/stock-compare/src/components/options-structures/ — add Builder (legs table + payoff chart) and Ranker (view/horizon/max-loss inputs → table) tabs inside StructureLab.tsx; follow .claude/skills/ui-components.md GRID_* styles; tooltips concise.
+- Update .agents/context/api-endpoints.md (node .claude/scripts/check-api-endpoints.js --write).
+
+Smoke gate: before any UI, unit tests in legs.test.ts must pass — put-call parity (|C−P−(S−K·e^{−rT})| < 0.01 on synthetic inputs); CSP payoff = short put; iron condor max loss = width − credit; calendar value at front expiry vs hand calc; then price 3 sample trades on AAPL from the stored chain and print them.
+
+Acceptance: tests above green; scripts/agent-ship-check.sh green; tsc 0 errors (baseline 0); packet (≤ 15 lines) appended to A192.md: test results, 3 sample trades (legs, fill price, max loss, POP, breakevens), one ranker output for AAPL view=neutral horizon=30 maxLoss=1000. Commit with Refs: A192, Agent: cursor.
