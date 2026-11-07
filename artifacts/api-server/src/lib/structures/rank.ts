@@ -4,7 +4,7 @@
 import type { OptionsChainResult } from "../options.js";
 import { getUpcomingEarningsDates } from "../earnings-history.js";
 import { STRUCTURE_EVIDENCE } from "./evidence-map.js";
-import { type ChainContext, priceStructure, payoffAtSpot, type Leg } from "./legs.js";
+import { type ChainContext, pickExpiry, priceStructure, payoffAtSpot, type Leg } from "./legs.js";
 import { TEMPLATE_LABELS, buildTemplate, type TemplateId } from "./templates.js";
 
 export type MarketView = "bull" | "bear" | "neutral" | "vol_up" | "vol_down";
@@ -72,6 +72,12 @@ function invNorm(p: number): number {
     (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
 }
 
+function chainsForHorizon(chains: OptionsChainResult[], horizonDays: number): OptionsChainResult[] {
+  const minDte = Math.max(0, horizonDays - 7);
+  const eligible = chains.filter((c) => c.daysToExpiry >= minDte);
+  return eligible.length ? eligible : chains;
+}
+
 export async function rankStructuresForView(opts: {
   ticker: string;
   chains: OptionsChainResult[];
@@ -79,8 +85,10 @@ export async function rankStructuresForView(opts: {
   horizonDays: number;
   maxLoss: number;
 }): Promise<{ ticker: string; view: MarketView; horizonDays: number; maxLoss: number; label: string; rows: RankRow[] }> {
-  const spot = opts.chains[0]?.spot ?? 0;
-  const ctx: ChainContext = { spot, chains: opts.chains };
+  const horizonChains = chainsForHorizon(opts.chains, opts.horizonDays);
+  const anchor = pickExpiry(horizonChains, opts.horizonDays) ?? horizonChains[0] ?? opts.chains[0];
+  const spot = anchor?.spot ?? opts.chains[0]?.spot ?? 0;
+  const ctx: ChainContext = { spot, chains: horizonChains.length ? horizonChains : opts.chains };
   const iv = atmIv(opts.chains);
   let earningsBump = 0;
   const upcoming = await getUpcomingEarningsDates([opts.ticker]);
@@ -94,7 +102,10 @@ export async function rankStructuresForView(opts: {
   const rows: RankRow[] = [];
 
   for (const id of ids) {
-    const legs = buildTemplate(id, { chains: opts.chains, horizonDays: opts.horizonDays });
+    const legs = buildTemplate(id, {
+      chains: horizonChains.length ? horizonChains : opts.chains,
+      horizonDays: opts.horizonDays,
+    });
     if (!legs?.length) continue;
     const priced = priceStructure(legs, ctx, opts.horizonDays);
     if (priced.maxLoss > opts.maxLoss && priced.maxLoss > 0) continue;

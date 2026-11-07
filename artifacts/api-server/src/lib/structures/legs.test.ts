@@ -9,6 +9,7 @@ import {
   OPTION_MULT,
   priceLegs,
   DEFAULT_RISK_FREE,
+  pickExpiry,
 } from "./legs.js";
 import { buildTemplate } from "./templates.js";
 import type { OptionsChainResult } from "../options.js";
@@ -49,6 +50,66 @@ describe("legs — put-call parity", () => {
   it("|C−P−(S−K·e^{-rT})| < 0.01", () => {
     const err = putCallParityError(100, 100, 0.5, 0.05, 0.25);
     assert.ok(Math.abs(err) < 0.01, `parity err=${err}`);
+  });
+});
+
+describe("legs — CSP max loss", () => {
+  it("max loss = 100·K − credit", () => {
+    const chain = synthChain(100, "2026-12-19", 40);
+    const K = 95;
+    const legs: Leg[] = [{ kind: "put", side: "short", qty: 1, strike: K, expiry: chain.expiry }];
+    const ctx: ChainContext = { spot: 100, chains: [chain] };
+    const priced = priceStructure(legs, ctx, 40);
+    const expected = K * OPTION_MULT - priced.netFill;
+    assert.ok(Math.abs(priced.maxLoss - expected) < 1, `maxLoss=${priced.maxLoss} expected=${expected}`);
+  });
+});
+
+describe("legs — naked short call", () => {
+  it("max loss is unbounded", () => {
+    const chain = synthChain(100, "2026-12-19", 30);
+    const legs: Leg[] = [{ kind: "call", side: "short", qty: 1, strike: 100, expiry: chain.expiry }];
+    const ctx: ChainContext = { spot: 100, chains: [chain] };
+    const priced = priceStructure(legs, ctx, 30);
+    assert.ok(priced.maxLoss >= 1e14, `maxLoss=${priced.maxLoss}`);
+  });
+});
+
+describe("legs — POP", () => {
+  it("ATM short straddle POP < 50%", () => {
+    const spot = 100;
+    const chain = synthChain(spot, "2026-12-19", 30);
+    const legs: Leg[] = [
+      { kind: "call", side: "short", qty: 1, strike: spot, expiry: chain.expiry },
+      { kind: "put", side: "short", qty: 1, strike: spot, expiry: chain.expiry },
+    ];
+    const ctx: ChainContext = { spot, chains: [chain], riskFree: DEFAULT_RISK_FREE };
+    const priced = priceStructure(legs, ctx, 30);
+    assert.ok(priced.pop < 0.5, `short straddle POP=${priced.pop}`);
+  });
+
+  it("deep OTM short put POP > 90%", () => {
+    const spot = 100;
+    const chain = synthChain(spot, "2026-12-19", 45);
+    const legs: Leg[] = [{ kind: "put", side: "short", qty: 1, strike: 90, expiry: chain.expiry }];
+    const ctx: ChainContext = { spot, chains: [chain], riskFree: DEFAULT_RISK_FREE };
+    const priced = priceStructure(legs, ctx, 45);
+    assert.ok(priced.pop > 0.9, `deep OTM CSP POP=${priced.pop}`);
+  });
+});
+
+describe("pickExpiry — horizon", () => {
+  it("DTE ≥ horizon − 7 and nearest target", () => {
+    const chains = [
+      synthChain(100, "2026-11-11", 4),
+      synthChain(100, "2026-11-21", 14),
+      synthChain(100, "2026-12-19", 42),
+      synthChain(100, "2027-01-16", 70),
+    ];
+    const picked = pickExpiry(chains, 30);
+    assert.ok(picked, "picked");
+    assert.ok(picked!.daysToExpiry >= 23, `DTE=${picked!.daysToExpiry}`);
+    assert.ok(Math.abs(picked!.daysToExpiry - 30) <= Math.abs(42 - 30), "nearest among eligible");
   });
 });
 
@@ -128,7 +189,7 @@ describe("legs — AAPL stored chain samples", () => {
     const ctx: ChainContext = { spot: snap.chains[0].spot, chains: snap.chains };
     const samples: { name: string; legs: Leg[] | null }[] = [
       { name: "CSP", legs: buildTemplate("cash_secured_put", { chains: snap.chains, horizonDays: 30 }) },
-      { name: "Iron condor", legs: buildTemplate("iron_condor", { chains: snap.chains, horizonDays: 37 }) },
+      { name: "Iron condor", legs: buildTemplate("iron_condor", { chains: snap.chains, horizonDays: 30 }) },
       { name: "Covered call", legs: buildTemplate("covered_call", { chains: snap.chains, horizonDays: 30 }) },
     ];
     for (const s of samples) {
@@ -142,5 +203,24 @@ describe("legs — AAPL stored chain samples", () => {
       );
     }
     assert.ok(samples.some((s) => s.legs), "at least one template built");
+  });
+});
+
+describe("ranker — horizon DTE", () => {
+  it("template legs use expiry with DTE ≥ horizon − 7", () => {
+    const chains = [
+      synthChain(225, "2026-11-11", 4),
+      synthChain(225, "2026-11-21", 14),
+      synthChain(225, "2026-12-19", 42),
+    ];
+    const minDte = 23;
+    const horizonChains = chains.filter((c) => c.daysToExpiry >= minDte);
+    const legs = buildTemplate("iron_condor", { chains: horizonChains, horizonDays: 30 });
+    assert.ok(legs?.length, "legs");
+    const exp = legs!.find((l) => l.expiry)?.expiry;
+    const chain = chains.find((c) => c.expiry === exp);
+    assert.ok(chain && chain.daysToExpiry >= minDte, `template DTE=${chain?.daysToExpiry}`);
+    const picked = pickExpiry(horizonChains, 30);
+    assert.ok(picked && picked.daysToExpiry >= minDte);
   });
 });

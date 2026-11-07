@@ -75,11 +75,15 @@ export function findChain(chains: OptionsChainResult[], expiry: string): Options
   return chains.find((c) => c.expiry === expiry) ?? null;
 }
 
+/** Nearest expiry to target; only expiries with DTE ≥ target − 7 (A192 review 29a95eb9). */
 export function pickExpiry(chains: OptionsChainResult[], targetDte: number): OptionsChainResult | null {
-  if (!chains.length) return null;
-  let best = chains[0];
+  const minDte = Math.max(0, targetDte - 7);
+  const eligible = chains.filter((c) => c.daysToExpiry >= minDte);
+  const pool = eligible.length ? eligible : chains;
+  if (!pool.length) return null;
+  let best = pool[0];
   let bestDiff = Math.abs(best.daysToExpiry - targetDte);
-  for (const c of chains) {
+  for (const c of pool) {
     const d = Math.abs(c.daysToExpiry - targetDte);
     if (d < bestDiff) {
       best = c;
@@ -192,19 +196,45 @@ export function payoffCurve(
   return out;
 }
 
+function expiryPayoffSlopeAtInfinity(legs: Leg[]): number {
+  let slope = 0;
+  for (const leg of legs) {
+    if (leg.kind === "stock") {
+      slope += leg.side === "long" ? leg.qty : -leg.qty;
+      continue;
+    }
+    if (leg.kind === "call") {
+      const mult = OPTION_MULT * leg.qty;
+      slope += leg.side === "long" ? mult : -mult;
+    }
+  }
+  return slope;
+}
+
 export function maxLossGain(
   legs: Leg[],
   ctx: ChainContext,
   netFill: number,
 ): { maxLoss: number; maxGain: number } {
-  const curve = payoffCurve(legs, ctx, netFill);
-  let minP = Infinity;
-  let maxP = -Infinity;
-  for (const p of curve) {
-    minP = Math.min(minP, p.pnl);
-    maxP = Math.max(maxP, p.pnl);
+  const slopeInf = expiryPayoffSlopeAtInfinity(legs);
+  const spots = new Set<number>([0]);
+  for (const leg of legs) {
+    if (leg.strike != null) spots.add(leg.strike);
   }
-  return { maxLoss: -minP, maxGain: maxP };
+  let minP = payoffAtSpot(legs, ctx, 0, netFill, true);
+  let maxP = minP;
+  for (const S of spots) {
+    if (S === 0) continue;
+    const p = payoffAtSpot(legs, ctx, S, netFill, true);
+    minP = Math.min(minP, p);
+    maxP = Math.max(maxP, p);
+  }
+  const UNBOUNDED = 1e15;
+  let maxLoss = minP < 0 ? -minP : 0;
+  let maxGain = maxP > 0 ? maxP : 0;
+  if (slopeInf < 0) maxLoss = UNBOUNDED;
+  if (slopeInf > 0) maxGain = UNBOUNDED;
+  return { maxLoss, maxGain };
 }
 
 export function breakevens(legs: Leg[], ctx: ChainContext, netFill: number): number[] {
@@ -221,7 +251,27 @@ export function breakevens(legs: Leg[], ctx: ChainContext, netFill: number): num
   return out;
 }
 
-/** Probability of profit at horizon (lognormal, per-leg IV averaged). */
+function legIvAtStrike(ctx: ChainContext, leg: Leg): number {
+  if (leg.kind === "stock" || leg.strike == null) return 0.25;
+  const chain = leg.expiry ? findChain(ctx.chains, leg.expiry) : ctx.chains[0];
+  const row = chain ? findStrikeRow(chain, leg.kind, leg.strike) : null;
+  if (row && row.iv > 0) return row.iv;
+  const atm = ctx.chains[0];
+  const putIv = atm?.puts.find((p) => p.strike <= ctx.spot)?.iv ?? 0.25;
+  const callIv = atm?.calls.find((c) => c.strike >= ctx.spot)?.iv ?? putIv;
+  return (putIv + callIv) / 2;
+}
+
+function blendedHorizonIv(legs: Leg[], ctx: ChainContext): number {
+  const ivs = legs
+    .filter((l) => l.kind !== "stock")
+    .map((l) => legIvAtStrike(ctx, l))
+    .filter((v) => v > 0);
+  if (!ivs.length) return 0.25;
+  return ivs.reduce((a, b) => a + b, 0) / ivs.length;
+}
+
+/** POP at horizon: P(payoff > 0) under lognormal S_T (drift r, IV from legs). */
 export function popAtHorizon(
   legs: Leg[],
   ctx: ChainContext,
@@ -229,24 +279,32 @@ export function popAtHorizon(
   horizonDays: number,
 ): number {
   const spot = ctx.spot;
-  const atm = ctx.chains[0];
-  const putIv = atm?.puts.find((p) => p.strike <= spot)?.iv ?? 0.25;
-  const callIv = atm?.calls.find((c) => c.strike >= spot)?.iv ?? putIv;
-  const sigma = (putIv + callIv) / 2;
+  const sigma = blendedHorizonIv(legs, ctx);
   const T = horizonDays / 365;
   const r = ctx.riskFree ?? DEFAULT_RISK_FREE;
-  const samples: number[] = [];
-  for (let i = 0; i < 400; i++) {
-    const u = (i + 0.5) / 400;
-    const z = rationalApproxInvNorm(u);
-    const ST = spot * Math.exp((r - 0.5 * sigma * sigma) * T + sigma * Math.sqrt(T) * z);
-    samples.push(ST);
+  if (T <= 0) {
+    return payoffAtSpot(legs, ctx, spot, netFill, true) > 0 ? 1 : 0;
+  }
+  const bes = breakevens(legs, ctx, netFill);
+  if (bes.length === 1) {
+    const BE = bes[0];
+    const sqrtT = Math.sqrt(T);
+    const d =
+      (Math.log(BE / spot) + (r - 0.5 * sigma * sigma) * T) / (sigma * sqrtT);
+    const stockHeavy = legs.some((l) => l.kind === "stock" && l.side === "long");
+    if (stockHeavy && legs.some((l) => l.kind === "call" && l.side === "short")) {
+      return normCDF(d);
+    }
   }
   let w = 0;
-  for (const ST of samples) {
+  const n = 400;
+  for (let i = 0; i < n; i++) {
+    const u = (i + 0.5) / n;
+    const z = rationalApproxInvNorm(u);
+    const ST = spot * Math.exp((r - 0.5 * sigma * sigma) * T + sigma * Math.sqrt(T) * z);
     if (payoffAtSpot(legs, ctx, ST, netFill, true) > 0) w++;
   }
-  return w / samples.length;
+  return w / n;
 }
 
 /** Acklam inverse normal approximation */
