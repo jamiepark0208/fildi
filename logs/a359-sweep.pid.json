@@ -1,0 +1,10 @@
+{
+  "pid": 48711,
+  "pgid": 48711,
+  "note": "pid is the process-group leader (pnpm/sh). lsof shows the node child that holds the port.",
+  "port": null,
+  "cmd": ".venv/bin/python -u analysis/fast_screen.py conditional --sweep",
+  "cwd": "/Users/jamiepark/Cursor/fildi/scripts/watchlist_sync",
+  "log": "/Users/jamiepark/Cursor/fildi/logs/a359-sweep.log",
+  "startedAt": "2026-11-07T09:36:14.937Z"
+}
