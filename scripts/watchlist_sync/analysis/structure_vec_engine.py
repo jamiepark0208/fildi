@@ -1,4 +1,4 @@
-"""S164 — A192 Part B1 v2: vectorised structure backtest (PLAN §9).
+"""S164/S165 — A192 vectorised structure backtest (PLAN §9).
 
 Layer 1 leg paths (numpy), layer 2 structure sums, layer 3 exit argmax. Per-leg Δ re-bucketed
 each path day (not the stopped B1 cache bug). Pricing: s076 Pricer + S075 skew; fills bid+23 %/ask−23 %.
@@ -6,6 +6,7 @@ SpreadCalibration loaded for contract parity with conditional engine (LSEG era u
 
     cd scripts/watchlist_sync && .venv/bin/python analysis/structure_vec_engine.py --gates
     .venv/bin/python analysis/structure_vec_engine.py --stage1
+    .venv/bin/python analysis/structure_vec_engine.py --b2 [--smoke-n 30]
 """
 from __future__ import annotations
 
@@ -49,6 +50,13 @@ from s076_structures_backtest import (  # noqa: E402
     strike_for,
     summarize as s076_summarize,
 )
+
+OUT_B2 = HERE.parent / "out" / "opt" / "S165.md"
+CSP_SHORT_D = 0.09  # S088 PUT_TARGET_ABS_DELTA (rules.py)
+B2_DTE = 45
+B2_EXITS = ("tp50", "time21")
+B2_SHAPES = ("csp_control", "put_spread", "jade_lizard", "put_front_ratio", "put_bwb")
+CAP_FLOOR_WING_FRAC = 0.05
 from s045_put_retest import bs_put  # noqa: E402
 
 OUT = HERE.parent / "out" / "opt" / "S164.md"
@@ -94,6 +102,127 @@ def leg_specs(sid: str, short_d: float, wing_d: float = 0.10) -> tuple[LegSpec, 
     )
 
 FAMILY = {"iron_condor": "A", "call_spread": "C", "naive_csp": "B"}
+
+
+def legs_b2(sid: str, S: float, ivp: float, ivc: float, dte: int) -> list[tuple[str, float, int]]:
+    """Family B payoff shapes on the CSP short put at S088 |Δ| (PLAN §9.3 row B)."""
+    T = dte / 365.0
+    sd = CSP_SHORT_D
+
+    def P(d: float) -> float:
+        return strike_for(S, ivp, T, d, "put")
+
+    def C(d: float) -> float:
+        return strike_for(S, ivc, T, d, "call")
+
+    if sid == "csp_control":
+        return [("put", P(sd), -1)]
+    if sid == "put_spread":
+        Ks = P(sd)
+        Kl = max(Ks - 0.05 * S, max(S * 0.5, 1.0))
+        return [("put", Ks, -1), ("put", Kl, 1)]
+    if sid == "jade_lizard":
+        return [("put", P(sd), -1), ("call", C(0.25), -1), ("call", C(0.10), 1)]
+    if sid == "put_front_ratio":
+        return [("put", P(0.15), 1), ("put", P(sd), -2)]
+    if sid == "put_bwb":
+        Kc = P(sd)
+        w = 0.05 * S
+        Kh = min(Kc + w, S * 0.995)
+        Kl = max(Kc - 2 * w, max(S * 0.5, 1.0))
+        return [("put", Kh, 1), ("put", Kc, -2), ("put", Kl, 1)]
+    raise KeyError(sid)
+
+
+def cap_sid_b2(sid: str) -> str:
+    if sid == "csp_control":
+        return "csp"
+    if sid == "put_spread":
+        return "put_spread"
+    return "jade_lizard" if sid == "jade_lizard" else "iron_condor"
+
+
+def wing_width_dollars(legs: list[tuple[str, float, int]], S: float) -> float:
+    puts = sorted(K for side, K, _ in legs if side == "put")
+    if len(puts) >= 2:
+        return (max(puts) - min(puts)) * 100
+    return 0.10 * S * 100
+
+
+def defined_risk_cap_b2(sid: str, S: float, legs: list[tuple[str, float, int]], credit: float) -> float:
+    if sid == "csp_control":
+        return legs[0][1] * 100
+    puts = [(K, q) for side, K, q in legs if side == "put"]
+    if sid == "put_spread":
+        ks = max(K for K, q in puts if q < 0)
+        kl = min(K for K, q in puts if q > 0)
+        return max((ks - kl) * 100 - credit * 100, 0.01)
+    if sid == "put_bwb":
+        strikes = sorted(K for K, _ in puts)
+        width = strikes[0] - strikes[-1]
+        return max(abs(width) * 100 - credit * 100, 0.01)
+    if sid == "put_front_ratio":
+        return max(capital(cap_sid_b2(sid), S, legs, credit), 0.01)
+    return max(capital("jade_lizard", S, legs, credit), 0.01)
+
+
+def cap_with_floor(sid: str, S: float, legs: list[tuple[str, float, int]], credit: float) -> float | None:
+    cap = defined_risk_cap_b2(sid, S, legs, credit)
+    floor = CAP_FLOOR_WING_FRAC * wing_width_dollars(legs, S)
+    if cap < floor:
+        return None
+    return cap
+
+
+def csp_bp(S: float, legs: list[tuple[str, float, int]]) -> float:
+    put_k = next(K for side, K, q in legs if side == "put" and q < 0)
+    return put_k * 100
+
+
+def price_paths_from_legs(
+    pricer: Pricer,
+    rows: list,
+    entry_i: int,
+    j_exp: int,
+    legs: list[tuple[str, float, int]],
+    sid: str,
+    scen: str = "base",
+) -> tuple[float, float | None, np.ndarray, list]:
+    d, S0, ivp0, ivc0 = rows[entry_i]
+    e, Se = rows[j_exp][0], rows[j_exp][1]
+    dte0 = max((e - d).days, 1)
+    credit = 0.0
+    for side, K, qty in legs:
+        iv = ivp0 if side == "put" else ivc0
+        m, spr = pricer.mid(side, S0, K, iv, dte0, d, scen)
+        credit += -qty * fill(m, spr, qty)
+    cap = cap_with_floor(sid, S0, legs, credit)
+    if cap is None:
+        return credit, None, np.zeros(1), legs
+    H = j_exp - entry_i + 1
+    unreal = np.zeros(H, dtype=np.float64)
+    for h in range(1, H):
+        ki = entry_i + h
+        if ki >= j_exp:
+            pay = sum(
+                qty * (max(Se - K, 0) if side == "call" else max(K - Se, 0)) for side, K, qty in legs
+            )
+            unreal[h] = credit + pay
+            break
+        dd, Sd, ivp_d, ivc_d = rows[ki]
+        dte_l = max((e - dd).days, 0)
+        cost_to_close = 0.0
+        for side, K, qty in legs:
+            iv_a = ivp_d if side == "put" else ivc_d
+            if not iv_a:
+                continue
+            mid, spr = pricer.mid(side, Sd, K, iv_a, dte_l, dd, scen)
+            if qty < 0:
+                cost_to_close += fill(mid, spr, 1)
+            else:
+                cost_to_close -= fill(mid, spr, -1)
+        unreal[h] = credit - cost_to_close
+    return credit, cap, unreal, legs
 
 
 def ic_buying_power(legs: list[tuple[str, float, int]], credit: float) -> float:
@@ -528,6 +657,8 @@ def collect_mp(conn, tickers: list[str], cfgs: list[dict], end: date) -> tuple[l
 
 def cell_key(t: dict) -> str:
     c = t["cfg"]
+    if "entry" not in c:
+        return b2_cell_key(t)
     return f"{c['sid']}|e{c['entry']}|d{c['dte']}|sd{c['short_d']:.2f}|{c['exit']}"
 
 
@@ -601,6 +732,220 @@ def best_cell_test(
     }
 
 
+_G_EDGEQ: dict | None = None
+
+
+def csp_entry_ok(rows, i: int, edgeq: dict, t: str, d: date) -> bool:
+    if i < 60:
+        return False
+    logc = [math.log(r[1]) for r in rows]
+    rets = [logc[k] - logc[k - 1] for k in range(i - 19, i + 1)]
+    rv20 = statistics.pstdev(rets) * math.sqrt(252)
+    if rv20 <= 0:
+        return False
+    ma50 = sum(r[1] for r in rows[i - 49 : i + 1]) / 50
+    S = rows[i][1]
+    iv_atm = (rows[i][2] + rows[i][3]) / 2
+    return fit("csp", iv_atm / rv20, S > ma50, edgeq.get((t, d)))
+
+
+def b2_cfgs() -> list[dict]:
+    return [{"sid": sid, "dte": B2_DTE, "exit": ex} for sid in B2_SHAPES for ex in B2_EXITS]
+
+
+def b2_cell_key(t: dict) -> str:
+    c = t["cfg"]
+    return f"{c['sid']}|d{c['dte']}|{c['exit']}"
+
+
+def run_ticker_b2(args: tuple) -> tuple[list[dict], int]:
+    ticker, rows, rep, tb, cfgs, end_d, edgeq = args
+    pricer = _G_PRICER
+    assert pricer is not None
+    tbd = [d for d, _ in tb]
+    trades: list[dict] = []
+    marks = 0
+    rd = rep.get(ticker, [])
+    n = len(rows)
+    shape_sids = {c["sid"] for c in cfgs}
+    j_cache: dict[int, int | None] = {}
+    for entry_i in range(60, n - H_MAX):
+        d, S, ivp, ivc = rows[entry_i]
+        if d < START or d > end_d or not ivp or not ivc:
+            continue
+        if d.weekday() != 0:
+            continue
+        if not csp_entry_ok(rows, entry_i, edgeq, ticker, d):
+            continue
+        if entry_i not in j_cache:
+            j_cache[entry_i] = expiry_index(rows, entry_i, B2_DTE)
+        j = j_cache[entry_i]
+        if j is None:
+            continue
+        e = rows[j][0]
+        if any(d < x <= e for x in rd):
+            continue
+        dte0 = (e - d).days
+        priced: dict[str, tuple] = {}
+        for sid in shape_sids:
+            legs = legs_b2(sid, S, ivp, ivc, dte0)
+            credit, cap, unreal, legs = price_paths_from_legs(pricer, rows, entry_i, j, legs, sid)
+            if cap is None:
+                continue
+            marks += (j - entry_i + 1) * len(legs)
+            priced[sid] = (credit, cap, unreal, legs, j, dte0)
+        if "csp_control" not in priced:
+            continue
+        _, _, _, csp_legs, _, _ = priced["csp_control"]
+        bp_ref = csp_bp(S, csp_legs)
+        r_tb = tb[bisect_right(tbd, d) - 1][1] if tbd and d >= tbd[0] else 0.0
+        for cfg in cfgs:
+            sid = cfg["sid"]
+            if sid not in priced:
+                continue
+            credit, cap, unreal, legs, jx, dte0 = priced[sid]
+            if cfg["exit"] == "time21" and dte0 <= 21:
+                continue
+            k = exit_day(unreal, credit, cfg["exit"], dte0)
+            pnl = unreal[k]
+            days = max((rows[entry_i + k][0] - d).days, 1)
+            exc = pnl / bp_ref - r_tb * days / 365.0 if bp_ref > 0 else float("nan")
+            xpd = exc / days if bp_ref > 0 else float("nan")
+            trades.append(
+                {
+                    "t": ticker,
+                    "d": d,
+                    "sid": sid,
+                    "family": "B",
+                    "cfg": cfg,
+                    "pnl": pnl,
+                    "cap": cap,
+                    "bp_ref": bp_ref,
+                    "credit": credit,
+                    "days": days,
+                    "exc": exc,
+                    "xpd": xpd,
+                    "legs": legs,
+                    "exit_k": k,
+                    "mark_day": rows[entry_i + k][0],
+                }
+            )
+    return trades, marks
+
+
+def summarize_b2(trades: list[dict]) -> dict | None:
+    sm = summarize(trades)
+    if not sm:
+        return None
+    exvs = [t["exc"] for t in trades if math.isfinite(t["exc"])]
+    sm["median_exc"] = statistics.median(exvs) if exvs else float("nan")
+    den = sum(t["bp_ref"] * t["days"] for t in trades if t["bp_ref"] > 0)
+    sm["pooled_xpd_bp"] = sum(t["pnl"] for t in trades) / den if den > 0 else float("nan")
+    return sm
+
+
+def shift_placebo_b2(
+    conn, tickers: list[str], trades: list[dict], edgeq: dict
+) -> tuple[float, float]:
+    """One-bar delayed entry + shuffled-signal placebo on csp_control tp50 train cell."""
+    ck = f"csp_control|d{B2_DTE}|tp50"
+    sub = [t for t in trades if b2_cell_key(t) == ck and t["d"] <= TRAIN_END]
+    if len(sub) < 10:
+        return float("nan"), float("nan")
+    bars, rep, tb = load(conn, set(tickers))
+    _pool_init()
+    base_pool = pooled_xpd_bp(sub)
+    delayed: list[dict] = []
+    for t in sub:
+        rows = bars.get(t["t"], [])
+        if not rows:
+            continue
+        i = next((k for k, r in enumerate(rows) if r[0] == t["d"]), None)
+        if i is None or i + 1 >= len(rows):
+            continue
+        rd = rep.get(t["t"], [])
+        d2, S2, ivp2, ivc2 = rows[i + 1]
+        j = expiry_index(rows, i + 1, B2_DTE)
+        if j is None or any(d2 < x <= rows[j][0] for x in rd):
+            continue
+        if not csp_entry_ok(rows, i + 1, edgeq, t["t"], d2):
+            continue
+        legs = legs_b2("csp_control", S2, ivp2, ivc2, (rows[j][0] - d2).days)
+        credit, cap, unreal, legs = price_paths_from_legs(_G_PRICER, rows, i + 1, j, legs, "csp_control")
+        if cap is None:
+            continue
+        k = exit_day(unreal, credit, "tp50", (rows[j][0] - d2).days)
+        pnl = unreal[k]
+        days = max((rows[i + 1 + k][0] - d2).days, 1)
+        bp = csp_bp(S2, legs)
+        delayed.append({"pnl": pnl, "bp_ref": bp, "days": days})
+    shift_pool = (
+        sum(x["pnl"] for x in delayed) / sum(x["bp_ref"] * x["days"] for x in delayed)
+        if delayed and sum(x["bp_ref"] * x["days"] for x in delayed) > 0
+        else float("nan")
+    )
+    shift_bp = (shift_pool - base_pool) * 10000 if math.isfinite(shift_pool) and math.isfinite(base_pool) else float("nan")
+    pools: list[float] = []
+    days_by = list({(t["d"].year, t["d"].month) for t in sub})
+    for _ in range(200):
+        shuf = sub.copy()
+        rng.shuffle(shuf)
+        for t, mo in zip(shuf, days_by * (len(shuf) // len(days_by) + 1)):
+            t = dict(t)
+            t["d"] = date(mo[0], mo[1], min(t["d"].day, 28))
+        pools.append(pooled_xpd_bp(shuf))
+    real = base_pool
+    beat = sum(1 for p in pools if p >= real) / len(pools)
+    placebo_p = 2 * min(beat, 1 - beat)
+    return shift_bp, placebo_p
+
+
+def pooled_xpd_bp(trades: list[dict]) -> float:
+    den = sum(t["bp_ref"] * t["days"] for t in trades if t["bp_ref"] > 0)
+    if den <= 0:
+        return float("nan")
+    return sum(t["pnl"] for t in trades) / den
+
+
+def smoke_b2(conn) -> bool:
+    tickers = ["AAPL", "MSFT", "JPM"]
+    edgeq = edge_quintiles(conn)
+    cfgs = b2_cfgs()
+    bars, rep, tb = load(conn, set(tickers))
+    _pool_init()
+    trades: list[dict] = []
+    marks = 0
+    for t in tickers:
+        rows = bars.get(t)
+        if not rows:
+            continue
+        chunk, m = run_ticker_b2((t, rows, rep, tb, cfgs, TRAIN_END, edgeq))
+        trades.extend(chunk)
+        marks += m
+    csp = [t for t in trades if t["sid"] == "csp_control" and t["cfg"]["exit"] == "tp50"]
+    pool = pooled_xpd_bp(csp)
+    sign_ok = pool > 0 if csp else False
+    print(f"SANITY B2 csp_control tp50 n={len(csp)} pooled_xpd_bp={pool:.6f} sign={'+' if pool > 0 else '-'}")
+    if not sign_ok:
+        print("SANITY FAIL: CSP control pooled sign")
+        return False
+    jade = next((t for t in trades if t["sid"] == "jade_lizard"), None)
+    if jade:
+        d10 = min(10, jade["exit_k"])
+        rows = bars[jade["t"]]
+        i = next(k for k, r in enumerate(rows) if r[0] == jade["d"])
+        j = expiry_index(rows, i, B2_DTE)
+        legs = legs_b2("jade_lizard", rows[i][1], rows[i][2], rows[i][3], (rows[j][0] - jade["d"]).days)
+        _, cap, unreal, _ = price_paths_from_legs(_G_PRICER, rows, i, j, legs, "jade_lizard")
+        print(
+            f"SANITY jade {jade['t']} entry={jade['d']} credit={jade['credit']:.2f} BP={cap:.0f} "
+            f"bp_ref={jade['bp_ref']:.0f} day10_pnl={unreal[min(10,len(unreal)-1)]:.2f} "
+            f"legs={[(s,round(K,2),q) for s,K,q in jade['legs']]}"
+        )
+    print(f"SANITY B2 trades={len(trades)} marks={marks}")
+    return True
+
+
 def smoke_b1_review(conn) -> bool:
     """AAPL/MSFT/JPM Mon 2021–23: time21 dte≤21, pooled vs mean call_spread 30d 0.30Δ tp25."""
     tickers = ["AAPL", "MSFT", "JPM"]
@@ -632,14 +977,27 @@ def smoke_b1_review(conn) -> bool:
     return ok
 
 
+def b2_halves(trades: list[dict], sid: str, exit: str) -> tuple[float, float]:
+    ck = f"{sid}|d{B2_DTE}|{exit}"
+    sub = [t for t in trades if b2_cell_key(t) == ck and t["d"] <= TRAIN_END]
+    if not sub:
+        return float("nan"), float("nan")
+    mid = date(2022, 7, 1)
+    h1 = [t for t in sub if t["d"] < mid]
+    h2 = [t for t in sub if t["d"] >= mid]
+    return pooled_xpd_bp(h1), pooled_xpd_bp(h2)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gates", action="store_true", help="Run verification gates 1–5")
     ap.add_argument("--stage1", action="store_true")
+    ap.add_argument("--b2", action="store_true", help="A192 Part B2 family B shapes on CSP entries")
+    ap.add_argument("--b2-smoke", action="store_true", help="B2 smoke only (3 names, ≤2 min)")
     ap.add_argument("--smoke-n", type=int, default=30, help="Gate sample; stage1 uses this count unless 0=full")
     ap.add_argument("--full", action="store_true", help="Stage1 on full LSEG universe")
     args = ap.parse_args()
-    if not args.gates and not args.stage1:
+    if not args.gates and not args.stage1 and not args.b2 and not args.b2_smoke:
         args.gates = True
 
     conn = connect()
@@ -735,9 +1093,107 @@ def main() -> int:
         )
         print(f"STAGE1 stop_rule={stop} best_pool={best_key} DSR={dsr:.3f}")
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("\n".join(lines) + "\n")
-    print(f"Wrote {OUT}")
+    if args.b2_smoke or args.b2:
+        print("CONTRACT 1-7: ok|missing 4,5 partial (FILL/comparator ok; shift_bp+placebo on head cell; halves on best)")
+        if not run_gates(conn, 5):
+            print("B2 gates FAIL")
+            return 2
+        if not smoke_b2(conn):
+            return 2
+        if args.b2_smoke:
+            return 0
+        edgeq = edge_quintiles(conn)
+        cfgs = b2_cfgs()
+        all_tk = pick_tickers(conn, args.smoke_n)
+        end = date(2025, 12, 31)
+        bars, rep, tb = load(conn, set(all_tk))
+        work = [
+            (t, bars[t], rep, tb, cfgs, end, edgeq)
+            for t in all_tk
+            if bars.get(t) and len(bars[t]) >= 120
+        ]
+        t0 = time.time()
+        marks = 0
+        trades: list[dict] = []
+        nproc = min(8, max(1, cpu_count() - 1))
+        with Pool(nproc, initializer=_pool_init) as pool:
+            for chunk, m in pool.map(run_ticker_b2, work, chunksize=4):
+                trades.extend(chunk)
+                marks += m
+        mps = marks / max(time.time() - t0, 1e-6)
+        train = [t for t in trades if t["d"] <= TRAIN_END]
+        test = [t for t in trades if t["d"] >= TEST_START]
+        print(f"FIRST_RESULT B2 trades={len(trades)} train={len(train)} test={len(test)} marks/s={mps:,.0f}")
+        b2_lines = [
+            "# S165 — A192 Part B2 family B shapes on CSP entries (PLAN §8–9.3 row B)",
+            "",
+            "## Gates + smoke",
+            "Gates 1–5 PASS; CSP control 3-name sign check; cap floor ≥5% wing width; pooled Σpnl/Σ(CSP_BP·days)",
+            f"entries=S059 fit (iv/rv≥1.15, put-edge Q4+) · strike |Δ|={CSP_SHORT_D} S088 · Mon · DTE {B2_DTE}",
+            f"exits={','.join(B2_EXITS)} · shapes={','.join(B2_SHAPES)}",
+            "",
+            f"## Run (train 2021–23 / test 2024→, n_tickers={len(all_tk)})",
+            f"trades={len(trades)} marks/s≈{mps:,.0f}",
+        ]
+        best_sid, best_ex, best_pool = "", "", float("-inf")
+        for sid in B2_SHAPES:
+            for ex in B2_EXITS:
+                sub = [t for t in train if t["sid"] == sid and t["cfg"]["exit"] == ex]
+                sm = summarize_b2(sub)
+                if not sm:
+                    continue
+                print(
+                    f"FIRST_RESULT {sid}|{ex} n={sm['n']} pool_bp={sm['pooled_xpd_bp']:.6f} "
+                    f"median_exc={sm['median_exc']*100:+.2f}% t={sm['t']:.2f}"
+                )
+                b2_lines.append(
+                    f"### {sid} · {ex}\n"
+                    f"- train n={sm['n']} pooled $/CSP_BP/day={sm['pooled_xpd_bp']:.6f} "
+                    f"median exc={sm['median_exc']*100:+.2f}% mean exc={sm['mean_exc']*100:+.2f}% "
+                    f"win={sm['win']:.0%} month_t={sm['t']:.2f}"
+                )
+                if (
+                    sid != "csp_control"
+                    and math.isfinite(sm["pooled_xpd_bp"])
+                    and sm["pooled_xpd_bp"] > best_pool
+                    and sm["n"] >= 30
+                ):
+                    best_pool, best_sid, best_ex = sm["pooled_xpd_bp"], sid, ex
+        csp_pool = pooled_xpd_bp(
+            [t for t in train if t["sid"] == "csp_control" and t["cfg"]["exit"] == "tp50"]
+        )
+        b2_lines.append(f"csp_control tp50 train pooled $/CSP_BP/day={csp_pool:.6f} (comparator)")
+        test_sub = deoverlap([t for t in test if t["sid"] == best_sid and t["cfg"]["exit"] == best_ex])
+        test_pool = pooled_xpd_bp(test_sub) if test_sub else float("nan")
+        test_t = month_t_pooled([{**t, "cap": t["bp_ref"], "xpd": t["xpd"]} for t in test_sub]) if test_sub else float("nan")
+        n_events = len(test_sub)
+        shift_bp, placebo_p = shift_placebo_b2(conn, all_tk, trades, edgeq)
+        h1, h2 = b2_halves(trades, best_sid or "jade_lizard", best_ex or "tp50")
+        verdict = "UNDERPOWERED"
+        lift_bp = (test_pool - csp_pool) * 10000 if math.isfinite(test_pool) and math.isfinite(csp_pool) else float("nan")
+        if n_events < 30:
+            verdict = "UNDERPOWERED"
+        elif math.isfinite(test_pool) and math.isfinite(test_t):
+            if test_pool > csp_pool and test_t >= 2 and not (h1 > 0 > h2 or h2 > 0 > h1):
+                verdict = "WORKS" if lift_bp >= 0.5 else "UNDERPOWERED"
+            elif test_pool < csp_pool and test_t <= -2:
+                verdict = "FAIL"
+            else:
+                verdict = "FAIL" if test_pool < csp_pool else "NO_LIFT"
+        b2_lines.append(
+            f"best_variant={best_sid}|{best_ex} train_pool={best_pool:.6f} vs CSP "
+            f"test_n_deov={n_events} test_pool={test_pool:.6f} test_t={test_t:.2f} verdict={verdict}"
+        )
+        b2_lines.append(f"leak head=csp_control|tp50 shift_bp={shift_bp:.1f} placebo_p={placebo_p:.3f}")
+        b2_lines.append(f"halves best_variant h1={h1:.6f} h2={h2:.6f}")
+        OUT_B2.parent.mkdir(parents=True, exist_ok=True)
+        OUT_B2.write_text("\n".join(b2_lines) + "\n")
+        print(f"Wrote {OUT_B2} verdict={verdict}")
+
+    if args.stage1 or (args.gates and not args.b2 and not args.b2_smoke):
+        OUT.parent.mkdir(parents=True, exist_ok=True)
+        OUT.write_text("\n".join(lines) + "\n")
+        print(f"Wrote {OUT}")
     return 0
 
 
