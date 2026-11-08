@@ -26,7 +26,7 @@ from multiprocessing import Pool, cpu_count
 from pathlib import Path
 
 import numpy as np
-from scipy.special import ndtr, ndtri
+from scipy.special import ndtr
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent.parent
@@ -35,7 +35,6 @@ sys.path.insert(0, str(HERE))
 from build_plan import connect  # noqa: E402
 from conditional_engine import load_spread_calibration  # noqa: E402
 from fast_screen import deflated_sharpe  # noqa: E402
-from s075_skew_calibration import DELTA_B, DTE_B, bucket  # noqa: E402
 from s076_structures_backtest import (  # noqa: E402
     FILL_K,
     START,
@@ -47,11 +46,10 @@ from s076_structures_backtest import (  # noqa: E402
     fit,
     legs_for,
     load,
-    month_t,
     strike_for,
     summarize as s076_summarize,
 )
-from s045_put_retest import bs_put, ncdf  # noqa: E402
+from s045_put_retest import bs_put  # noqa: E402
 
 OUT = HERE.parent / "out" / "opt" / "S164.md"
 CACHE_DIR = HERE.parent / ".cache" / "structure_vec"
@@ -76,27 +74,6 @@ def bs_call_py(S, K, v, t, r=0.0):
     return bs_put(S, K, v, t) + S - K * math.exp(-r * t)
 
 
-def bs_vec(S, K, v, T, call: bool) -> np.ndarray:
-    T = np.maximum(T, 1 / 365)
-    sd = v * np.sqrt(T)
-    d1 = (np.log(S / K) + 0.5 * sd * sd) / np.maximum(sd, 1e-12)
-    d2 = d1 - sd
-    if call:
-        return S * ndtr(d1) - K * ndtr(d2)
-    return K * ndtr(-d2) - S * ndtr(-d1)
-
-
-def delta_vec(S, K, v, T, call: bool) -> np.ndarray:
-    sd = v * np.sqrt(np.maximum(T, 1 / 365))
-    d1 = (np.log(S / K) + 0.5 * sd * sd) / np.maximum(sd, 1e-12)
-    return ndtr(d1) if call else 1.0 - ndtr(d1)
-
-
-def leg_fill_vec(mid: np.ndarray, spread: np.ndarray, qty: int) -> np.ndarray:
-    k = (0.5 - FILL_FRAC) if qty < 0 else (0.5 + FILL_FRAC)
-    return mid * (1 - k * spread) if qty < 0 else mid * (1 + k * spread)
-
-
 @dataclass(frozen=True)
 class LegSpec:
     side: str
@@ -117,56 +94,6 @@ def leg_specs(sid: str, short_d: float, wing_d: float = 0.10) -> tuple[LegSpec, 
     )
 
 FAMILY = {"iron_condor": "A", "call_spread": "C", "naive_csp": "B"}
-
-
-class SkewPricer:
-    """Vector-friendly wrapper on s076 Pricer (ratio from Δ curve per path point)."""
-
-    def __init__(self, pricer: Pricer):
-        self.p = pricer
-        self._curve = {}
-        for dtb, pts in pricer.curve.items():
-            xs = np.array([p[0] for p in pts], dtype=np.float32)
-            rs = np.array([p[1] for p in pts], dtype=np.float32)
-            ss = np.array([p[2] for p in pts], dtype=np.float32)
-            self._curve[dtb] = (xs, rs, ss)
-
-    def mid_vec(
-        self,
-        side: str,
-        S: np.ndarray,
-        K: float,
-        iv: np.ndarray,
-        dte: np.ndarray,
-        on: date,
-        scen: str = "base",
-    ) -> tuple[np.ndarray, np.ndarray]:
-        T = np.maximum(dte, 1) / 365.0
-        model = bs_vec(S, K, iv, T, side == "call")
-        dl = np.abs(delta_vec(S, K, iv, T, side == "call"))
-        dtb_i = np.array([bucket(int(max(d, 1)), DTE_B) or DTE_B[-1] for d in np.ravel(dte)])
-        dtb_i = dtb_i.reshape(dte.shape)
-        ratio = np.ones_like(model, dtype=np.float64)
-        spread = np.full_like(model, 0.15, dtype=np.float64)
-        flat_m = model.ravel()
-        flat_r = ratio.ravel()
-        flat_s = spread.ravel()
-        flat_dl = dl.ravel()
-        flat_dt = dte.ravel()
-        for i in range(flat_m.size):
-            dtb = bucket(int(max(flat_dt[i], 1)), DTE_B) or DTE_B[-1]
-            st = self.p.static.get(side, {}).get(f"{dtb[0]}-{dtb[1]}", {}).get(
-                (bucket(flat_dl[i], DELTA_B) or DELTA_B[-1])[0]  # noqa — need db tuple
-            )
-            # scalar path (accurate): delegate one point
-            flat_r[i], flat_s[i] = self.p.mid(side, float(S.ravel()[i]), K, float(iv.ravel()[i]),
-                                                int(flat_dt[i]), on, scen)[1] * 0 + self.p.mid(
-                side, float(S.ravel()[i]), K, float(iv.ravel()[i]), int(flat_dt[i]), on, scen
-            )
-        ratio = flat_r.reshape(model.shape)
-        spread = flat_s.reshape(model.shape)
-        mid = np.maximum(model * ratio, 0.0)
-        return mid, spread
 
 
 def ic_buying_power(legs: list[tuple[str, float, int]], credit: float) -> float:
@@ -292,24 +219,10 @@ def price_paths_scalar(
         dte_l = max((e - dd).days, 0)
         cost_to_close = 0.0
         for side, K, qty in legs:
-            ivp_a = rows[ki - 1][2] if ki > 0 else ivp0
-            ivc_a = rows[ki - 1][3] if ki > 0 else ivc0
-            iv_a = ivp_a if side == "put" else ivc_a
-            sd = iv_a if iv_a else (ivp_d if side == "put" else ivc_d)
-            if not sd:
+            iv_a = ivp_d if side == "put" else ivc_d
+            if not iv_a:
                 continue
-            Tl = max(dte_l, 1) / 365
-            da = abs(
-                1
-                - (
-                    math.log(Sd / K) + 0.5 * (sd or 0.2) ** 2 * Tl
-                )
-                / (((sd or 0.2) * math.sqrt(Tl)) + 1e-9)
-            )
-            if side == "call":
-                d1 = (math.log(Sd / K) + 0.5 * (sd or 0.2) ** 2 * Tl) / (((sd or 0.2) * math.sqrt(Tl)) + 1e-9)
-                da = abs(ncdf(d1))
-            mid, spr = pricer.mid(side, Sd, K, sd or iv_a, dte_l, dd, scen)
+            mid, spr = pricer.mid(side, Sd, K, iv_a, dte_l, dd, scen)
             if qty < 0:
                 cost_to_close += fill(mid, spr, 1)
             else:
@@ -331,7 +244,7 @@ def exit_day(unreal: np.ndarray, credit: float, mode: str, dte0: int) -> int:
             return h
         if mode == "stop2x" and credit > 0 and u <= -2 * credit:
             return h
-        if mode == "time21" and dte_l <= 21:
+        if mode == "time21" and dte0 > 21 and dte_l <= 21:
             return h
     return H - 1
 
@@ -382,6 +295,8 @@ def run_ticker(args: tuple) -> tuple[list[dict], int]:
             if pk not in priced:
                 continue
             credit, cap, unreal, legs, j, dte0 = priced[pk]
+            if cfg["exit"] == "time21" and dte0 <= 21:
+                continue
             k = exit_day(unreal, credit, cfg["exit"], dte0)
             pnl = unreal[k]
             days = max((rows[entry_i + k][0] - d).days, 1)
@@ -611,19 +526,110 @@ def collect_mp(conn, tickers: list[str], cfgs: list[dict], end: date) -> tuple[l
     return trades, marks / max(dt, 1e-6)
 
 
-def summarize(trades: list[dict], key: str = "xpd") -> dict | None:
-    v = [t[key] for t in trades if math.isfinite(t.get(key, float("nan")))]
-    if not v:
+def cell_key(t: dict) -> str:
+    c = t["cfg"]
+    return f"{c['sid']}|e{c['entry']}|d{c['dte']}|sd{c['short_d']:.2f}|{c['exit']}"
+
+
+def pooled_xpd(trades: list[dict]) -> float:
+    den = sum(t["cap"] * t["days"] for t in trades if t["cap"] > 0)
+    if den <= 0:
+        return float("nan")
+    return sum(t["pnl"] for t in trades) / den
+
+
+def month_t_pooled(trades: list[dict]) -> float:
+    by: dict[tuple[int, int], list[float]] = defaultdict(lambda: [0.0, 0.0])
+    for t in trades:
+        k = (t["d"].year, t["d"].month)
+        by[k][0] += t["pnl"]
+        by[k][1] += t["cap"] * t["days"]
+    monthly = [v[0] / v[1] for v in by.values() if v[1] > 0]
+    if len(monthly) < 6:
+        return float("nan")
+    obs = statistics.mean(monthly)
+    bs = [statistics.mean([rng.choice(monthly) for _ in monthly]) for _ in range(400)]
+    sd = statistics.pstdev(bs)
+    return obs / sd if sd else float("nan")
+
+
+def deoverlap(trades: list[dict]) -> list[dict]:
+    """One open trade per ticker per cell (skip entry while prior mark_day not passed)."""
+    last_exit: dict[tuple[str, str], date] = {}
+    out: list[dict] = []
+    for t in sorted(trades, key=lambda x: (x["t"], cell_key(x), x["d"])):
+        ck = (t["t"], cell_key(t))
+        if ck in last_exit and t["d"] <= last_exit[ck]:
+            continue
+        out.append(t)
+        last_exit[ck] = t["mark_day"]
+    return out
+
+
+def summarize(trades: list[dict]) -> dict | None:
+    if not trades:
         return None
-    n = len(v)
+    n = len(trades)
+    vx = [t["xpd"] for t in trades if math.isfinite(t.get("xpd", float("nan")))]
     return {
         "n": n,
-        "mean_xpd": statistics.mean(v),
+        "mean_xpd": statistics.mean(vx) if vx else float("nan"),
+        "pooled_xpd": pooled_xpd(trades),
         "mean_exc": statistics.mean(t["exc"] for t in trades if math.isfinite(t["exc"])),
         "win": sum(1 for t in trades if t["pnl"] > 0) / n,
-        "t": month_t(trades, "exc") if n >= 30 else float("nan"),
+        "t": month_t_pooled(trades),
         "reasons": {},
     }
+
+
+def best_cell_test(
+    train_by_cell: dict[str, list[dict]], test_trades: list[dict], family: str
+) -> dict | None:
+    cells = {k: xs for k, xs in train_by_cell.items() if xs and xs[0]["family"] == family}
+    if not cells:
+        return None
+    best_k = max(cells, key=lambda k: pooled_xpd(cells[k]) if math.isfinite(pooled_xpd(cells[k])) else -1e18)
+    train_pool = pooled_xpd(cells[best_k])
+    test_sub = deoverlap([t for t in test_trades if cell_key(t) == best_k])
+    return {
+        "cell": best_k,
+        "train_pool": train_pool,
+        "train_mean_xpd": statistics.mean([t["xpd"] for t in cells[best_k] if math.isfinite(t["xpd"])]),
+        "test_n": len(test_sub),
+        "test_pool": pooled_xpd(test_sub),
+        "test_t": month_t_pooled(test_sub),
+    }
+
+
+def smoke_b1_review(conn) -> bool:
+    """AAPL/MSFT/JPM Mon 2021–23: time21 dte≤21, pooled vs mean call_spread 30d 0.30Δ tp25."""
+    tickers = ["AAPL", "MSFT", "JPM"]
+    cfgs = stage1_cfgs()
+    bars, rep, tb = load(conn, set(tickers))
+    _ = load_spread_calibration(conn)
+    _pool_init()
+    trades: list[dict] = []
+    for t in tickers:
+        rows = bars.get(t)
+        if not rows:
+            continue
+        chunk, _ = run_ticker((t, rows, rep, tb, cfgs, TRAIN_END, (0,)))
+        trades.extend(chunk)
+    bad = [
+        t
+        for t in trades
+        if t["cfg"]["exit"] == "time21" and t["cfg"]["dte"] <= 21
+    ]
+    ck = "call_spread|enone|d30|sd0.30|tp25"
+    sub = [t for t in trades if cell_key(t) == ck]
+    pool = pooled_xpd(sub)
+    mean_x = statistics.mean([t["xpd"] for t in sub]) if sub else float("nan")
+    print(f"SANITY time21_dte_le21_n={len(bad)} (expect 0)")
+    print(f"SANITY {ck} n={len(sub)} pooled_xpd={pool:.6f} mean_xpd={mean_x:.6f}")
+    ok = len(bad) == 0
+    if not ok:
+        print("SANITY FAIL: time21 emitted for dte≤21")
+    return ok
 
 
 def main() -> int:
@@ -650,64 +656,84 @@ def main() -> int:
         lines.append("known-answer, legs.ts parity, S076 regression, hand-check, runtime — PASS")
 
     if args.stage1:
-        print("SANITY stage1 slice: 5 tickers …")
+        if not run_gates(conn, args.smoke_n):
+            lines.append("Gates: FAIL — see stdout")
+            OUT.parent.mkdir(parents=True, exist_ok=True)
+            OUT.write_text("\n".join(lines) + "\n")
+            return 2
+        lines.append("## Gates 1–5")
+        lines.append("known-answer, legs.ts parity, S076 regression, hand-check, runtime — PASS")
+        lines.append("fix1: time21 only if dte0>21; rank pooled_xpd; test de-overlap stop; same-day IV marks")
+        if not smoke_b1_review(conn):
+            print("SANITY FAIL — abort stage1")
+            return 2
         cfgs = stage1_cfgs()
-        # filter entries in run_ticker via cfg — simplify: use all weekdays + post-filter
         all_tk = pick_tickers(conn, None if args.full else args.smoke_n)
         end = date(2025, 12, 31)
-        print(f"STAGE1 tickers={len(all_tk)} cells={len(cfgs)*3} window={START}..{end}")
+        print(f"STAGE1 tickers={len(all_tk)} cells={len(cfgs)} window={START}..{end}")
         trades, mps = collect_mp(conn, all_tk, cfgs, end)
         train = [t for t in trades if t["d"] <= TRAIN_END]
         test = [t for t in trades if t["d"] >= TEST_START]
         print(f"FIRST_RESULT stage1_trades={len(trades)} train={len(train)} test={len(test)} marks/s={mps:,.0f}")
-        n_trials = len(cfgs) * 2
         lines.append("")
         lines.append(f"## Stage 1 (families A+C + naive CSP, train 2021–23 / test 2024→)")
         lines.append(f"trades={len(trades)} marks/s≈{mps:,.0f}")
+        lines.append("rank=pooled Σpnl/Σ(cap·days); mean_xpd=per-trade mean exc/days (context only)")
         for fam, sids in (("A", ("iron_condor",)), ("C", ("call_spread",)), ("B", ("naive_csp",))):
             lines.append(f"### Family {fam}")
             sub = [t for t in train if t["sid"] in sids]
             sm = summarize(sub)
             if sm:
-                print(f"FIRST_RESULT family_{fam} n={sm['n']} mean_xpd={sm['mean_xpd']:.6f}")
+                print(
+                    f"FIRST_RESULT family_{fam} n={sm['n']} pooled_xpd={sm['pooled_xpd']:.6f} "
+                    f"mean_xpd={sm['mean_xpd']:.6f} t={sm['t']:.2f}"
+                )
                 lines.append(
-                    f"- train n={sm['n']} mean $/BP/day={sm['mean_xpd']:.5f} mean excess={sm['mean_exc']*100:+.2f}% "
-                    f"win={sm['win']:.0%} t={sm['t']:.2f}"
+                    f"- train n={sm['n']} pooled $/BP/day={sm['pooled_xpd']:.5f} "
+                    f"mean_xpd={sm['mean_xpd']:.5f} mean exc/trade={sm['mean_exc']*100:+.2f}% "
+                    f"win={sm['win']:.0%} month_t={sm['t']:.2f}"
                 )
         by_cell: dict[str, list[dict]] = defaultdict(list)
         for t in train:
-            c = t["cfg"]
-            ck = f"{c['sid']}|e{c['entry']}|d{c['dte']}|sd{c['short_d']:.2f}|{c['exit']}"
-            by_cell[ck].append(t)
-        best_exc = float("-inf")
+            by_cell[cell_key(t)].append(t)
+        best_pool = float("-inf")
         best_key = ""
         for ck, xs in by_cell.items():
-            m = statistics.mean([x["xpd"] for x in xs if math.isfinite(x["xpd"])])
-            if m > best_exc:
-                best_exc, best_key = m, ck
-        stop_a = any(
-            statistics.mean([x["xpd"] for x in xs if math.isfinite(x["xpd"])]) > 0
-            for k, xs in by_cell.items()
-            if xs and xs[0]["family"] == "A"
+            if xs[0]["family"] not in ("A", "C"):
+                continue
+            p = pooled_xpd(xs)
+            if math.isfinite(p) and p > best_pool:
+                best_pool, best_key = p, ck
+        bt_a = best_cell_test(by_cell, test, "A")
+        bt_c = best_cell_test(by_cell, test, "C")
+        stop_a = bool(
+            bt_a
+            and math.isfinite(bt_a["test_pool"])
+            and bt_a["test_pool"] > 0
+            and math.isfinite(bt_a["test_t"])
+            and bt_a["test_t"] >= 2
         )
-        stop_c = any(
-            statistics.mean([x["xpd"] for x in xs if math.isfinite(x["xpd"])]) > 0
-            for k, xs in by_cell.items()
-            if xs and xs[0]["family"] == "C"
+        stop_c = bool(
+            bt_c
+            and math.isfinite(bt_c["test_pool"])
+            and bt_c["test_pool"] > 0
+            and math.isfinite(bt_c["test_t"])
+            and bt_c["test_t"] >= 2
         )
-        stop = (
-            "CONTINUE"
-            if (stop_a or stop_c)
-            else "STOP per §8.2 (no anchor cell > 0 per $BP/day in train)"
-        )
-        lines.append(f"stop_rule={stop} family_A_pos={stop_a} family_C_pos={stop_c}")
-        lines.append(f"best_train_cell={best_key} mean_xpd={best_exc:.6f}")
+        stop = "CONTINUE" if (stop_a or stop_c) else "STOP per §8.2 (best train cell fails test pooled t≥2)"
+        lines.append(f"stop_rule={stop} test_pass_A={stop_a} test_pass_C={stop_c}")
+        for label, bt in (("A", bt_a), ("C", bt_c)):
+            if bt:
+                lines.append(
+                    f"- best_{label} train={bt['cell']} train_pool={bt['train_pool']:.6f} "
+                    f"test_n_deov={bt['test_n']} test_pool={bt['test_pool']:.6f} test_t={bt['test_t']:.2f}"
+                )
+        lines.append(f"best_train_cell_global={best_key} train_pooled={best_pool:.6f}")
         dsr = deflated_sharpe(
             np.array([t["xpd"] for t in train if math.isfinite(t["xpd"])]),
             len(cfgs) * 3,
         )
-        print(f"STAGE1 stop_rule={stop} best={best_key} mean_xpd={best_exc:.6f} DSR={dsr:.3f}")
-        print(f"FIRST_RESULT best_cell={best_key} n={len(by_cell.get(best_key, []))} mean_xpd={best_exc:.6f}")
+        print(f"STAGE1 stop_rule={stop} best_pool={best_key} DSR={dsr:.3f}")
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(lines) + "\n")
