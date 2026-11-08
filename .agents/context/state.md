@@ -8,6 +8,14 @@
 ## Active work
 
 ## Standing (pinned — state_rotate never moves these; edit by hand, remove when done)
+- **FIRST THING NEXT SESSION (Jamie 11-08, very unhappy): show Jamie bullets 1–7 below verbatim before anything else, then start Part S1.** Full plan: A192 "Jamie 2026-11-08". Remove this entry after showing.
+  1. Per-stock skew: all A192 backtests (S076→S167) priced legs with Black-Scholes at one ATM IV × a market-wide skew ratio — not per-stock skew. Fix = S1 `optlab.stock_skew_daily` (10/25Δ put, ATM, 25/10Δ call IV; slopes, risk-reversal, term; own percentile + cross-stock rank → "most extreme skew" list) and S2 = engine prices each leg off that stock's own surface; model-priced cells never get a verdict.
+  2. Entry conditions: same mistake as sell-puts. Rule now: every trade row carries a structure-specific entry snapshot + daily path, or the A369 harness packet() fails. Lesson saved to memory (design per trade type: purpose, rich/cheap leg on this stock, snapshot, exit path, fair comparator).
+  3. Stops (S166): 55 % stopped; of those 22 % would have finished profitable (17 % > +50 %), 66 % would have gone to full loss. Part X = per-structure exit study (daily path; stop −50/−65/−80/none × time stop × TP; $ saved vs $ forgone; pick on train, verify test).
+  4. "2 quotes/day": backtests did NOT use real chains at all — model prices only; that table only calibrated the skew ratio. Real full chains: option_chain_history 807 names since 2026-10-08; LSE OPRA trades+greeks since 2025-10; skew_survey 638 names × 14 days. All structure verdicts so far = modeled.
+  5. Gaps: LSE OPRA history starts 2025-10 (can't backfill earlier); WRDS = OptionMetrics sample only (not full IvyDB); LSEG IV feed has no skew (put IV = call IV). S3 probe: LSE depth, LSEG full chains top-N (10k/day), WRDS sample, Polygon option aggs → cheapest giving ≥ 3 y per-strike for ≥ 100 names.
+  6. Moderate move: not found — none of our features predicted it out of sample. Candidates (need S1 first): implied move vs realized-vol forecast, term structure, skew percentile, distance to resistance/target.
+  7. Hedge vs spec: re-grade as cheap hedge = skew-cheap puts, cheap spec = skew-cheap calls, risk reversals/spreads = sell the rich leg / buy the cheap leg per stock, entered only when pricing says so.
 - **Unfinished, partial work uncommitted in tree (agents died at session limit):** cache monitor rebuild (ttl-cache.ts counters, cache-registry.ts, new cache-overview.ts) · A126 charts (early) · finish one at a time, inline or ONE sonnet agent (CLAUDE.md subagent budget rule). Not mine: GROK.md, A140, CONVENTIONS.md, cursor-usage-snap.mjs, A131/A122 edits.
 - Cache: keep Mac caches (Jamie 10-16). S033 (HAR vs RV20) still the biggest score lever, not started.
 - **Model List live grades** — first expiries 2026-10-09..12: grade vs win-rate table, then A24 (RH trade tiers → learn.py).
