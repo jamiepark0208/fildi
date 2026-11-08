@@ -1,5 +1,5 @@
 # Plan: rank every major option structure (A192) — v3 (Claude 2026-11-07; v2 2026-10-19)
-> **Rules moved (11-08): `research/studies/OPTIONS-FRAMEWORK.md` is the rulebook.** This file = strategy menu + history; all verdicts below are MODELED (BS × market skew).
+> **Rules moved (11-08): `.agents/dispatch/_study-contract.md` rules 8–10 + `.agents/skills/fildi-quant-research/options.md`.** This file = strategy menu + history; all verdicts below are MODELED (BS × market skew).
 > Jamie 10-19: rank the famous structures (straddles, iron condors, …), each with a description, the regimes it suits, and its own
 > ranking. Efficient, fast, verified, and less confusing than today's 100+ names per list. v1 → red-team → v2 → Phase 0 → **v3 (§ 7 overrides §§ 2, 4, 5 where they differ)**.
 

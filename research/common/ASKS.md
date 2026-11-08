@@ -100,4 +100,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | done (Claude 11-07: gate fixed) |
 | [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |
 | [A381](asks/A381.md) | 2026-11-07 | Jamie → Claude → Cursor | Repo + instruction diet: archive finished study scripts, split study engines, one rulebook | planned |
+| [A383](asks/A383.md) | 2026-11-08 | Jamie → Claude → Cursor | Stock-specific context layer: one nightly table → Breakdown tooltips/colours, option params, agents | planned |
 | [A382](asks/A382.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: structure_vec_engine Part D earnings guard uses run-end date, not expiry (Medium) | declined (merged into A192 Part D fix1; High — S166 biased, re-run, Claude 11-08) |

@@ -1,7 +1,6 @@
-# Options framework — the one rulebook for option studies and recs (Claude 2026-11-08, Jamie review)
+# Options module of fildi-quant-research (Claude 2026-11-08) — how to apply `_study-contract.md` rules 8–10 to options
 
-> **Read this before any option study, structure rec or option backtest.** It replaces the scattered rules in PLAN-option-structures.md
-> (now history + menu), A192 review notes and memory lessons. Change rules **here**, one home. Each rule names the incident that taught it.
+> Rules (one line each) live in `.agents/dispatch/_study-contract.md`; this file is the options how-to. PLAN-option-structures.md = strategy menu + history.
 > Per-stock numbers live in tables (§ 3), per-stock judgment lives in stock notes (§ 9). Agents get defaults + the right to re-assess (§ 6.0).
 
 ## 0. Order of work (every option question)
@@ -13,32 +12,21 @@
 6. **Stock params + notes** (§ 3, § 9) → stock-specific entry, strikes, TP, stop, time stop, fill.
 7. **Price with real quotes** (§ 1) → grade vs the fair comparator (§ 8).
 
-## 1. Pricing policy (11-08 incident: every A192 verdict S076→S167 was Black-Scholes × a market-wide skew ratio)
-| Use | Allowed price source | Verdict allowed? |
-|---|---|---|
-| Backtest P&L, entry credit/debit, exit marks | **Real quote** (bid/ask/mid from a chain or LSEG RIC history); fill = stock's own measured fill (§ 3) | yes |
-| Leg with no real quote that day | Interpolate the **stock's own fitted surface that day** (§ 4), tag `priced_by='surface'` | yes, if ≤ 20 % of legs are surface-priced and the result holds on real-only legs |
-| No surface for this stock/day | Model (BS at iv × ratio), tag `priced_by='model'` | **no** — exploratory only, report says "MODELED" in the title |
-| Stress / scenario (pm_alerts what-if, "SPY −10 %") | Model repricing is correct here (future prices don't exist) | n/a |
-| Fair-value comparison (put_recs `fair` = BS at realized vol) | Model as a *benchmark*, never as the price | n/a |
-Every trade row carries `priced_by`. The packet prints the share per source. `packet()` fails a verdict if model share > 0 (A369 harness).
-Model pricing is **not** why backtests are slow (vectorised BS ≈ 18M marks/s); slowness is Python path loops. Real quotes = a table join, faster.
-
-## 2. Data we have (real) — check before saying "we don't have it"
-| Source | What | Depth | Use |
+## 1. Pricing (contract rule 8): real quotes, and if missing, **source them** — never settle for a model verdict
+Order when a leg has no real quote: (1) our tables (§ 2) → (2) fetch it (§ 2 sources, cheapest first, sized in calls/rows) → (3) the stock's own fitted surface that day (`optlab.stock_surface_daily`) → (4) only if 1–3 are impossible: model, tagged `priced_by='model'`, share printed, and the gap goes into the fetch queue. Every trade row carries `priced_by`.
+Model repricing is right only for stress/scenario (future prices don't exist) and as a fair-value benchmark.
+## 2. Real option data — sources (check here before ever saying "we don't have it")
+| Source | What | Depth | Cost to fill |
 |---|---|---|---|
-| `public.option_chain_history` (Schwab) | full chains: bid/ask/IV/Δ/OI, all strikes | 807 names, **2026-10-08→** (≈ 1 month) | surfaces, fills, live-era tests |
-| `optlab.skew_survey` (Schwab) | full chains, 7–45 DTE | 638 names, 2026-10-19→ | same |
-| `optlab.lseg_opt_daily` (LSEG RICs) | per-contract bid/ask/mid/IV, daily | 307 names, **2019-12→**, median 2 contracts/name/day, 95 % puts | **real-quote CSP/put backtests now**; put-side skew where ≥ 3 strikes |
-| LSE OPRA (`scripts/lse_client.py`) | every trade + IV/greeks per minute, no quotes | all names, 2025-10→ | 13-month trade-IV surfaces; fill = not usable (trades) |
-| `lseg_research.daily_history` | iv30 put/call (put = call: **no skew**), RV | 2020→ | ATM level only |
-| `lseg_research.earnings_moves` | realized earnings moves | 10.9k rows | per-stock earnings move vs implied |
-| WRDS | CRSP, IBES only. **No OptionMetrics** (A194: `optionm` permission denied; samples = 2014 only) | — | not an options source; no Duo pings because no option job uses it |
-| Polygon free | option aggs, 5 calls/min | 2 y | too slow per contract — last resort |
-**History gap conclusion (bullet 5):** the path to ≥ 3 y per-strike history is **LSEG expired-RIC backfill**: one call per RIC returns its whole life (the table already holds 2019 RICs). ≈ 150 liquid names × 36 monthly expiries × 12 strikes (10–50 Δ, both sides) ≈ 65k RICs ≈ 7 days at the 10k/day cap. Part S3 measures how far back LSEG keeps expired RICs per name, then runs it. LSE OPRA covers the last 13 months for every name. Full history beyond that = OptionMetrics IvyDB via a university WRDS subscription — Jamie's call (cost), not available today.
-
+| `option_chain_history`, `optlab.skew_survey` (Schwab) | full chains bid/ask/IV/Δ/OI | 807 / 638 names, 2026-10-08→ (grows daily) | free, nightly |
+| `optlab.lseg_opt_daily` (LSEG RICs) | per contract bid/ask/mid/IV daily | 307 names 2019-12→ but only ~2 contracts/name/day (picked strikes) | **expand**: expired-RIC history, 1 code = whole life, 10k codes/day; needs Workspace open (proxy :9000) |
+| London Strategic Edge `/v3/export?market=us_options&symbol=<OCC padded, e.g. "AAPL  251219P00230000">` | every trade, OHLCV + trade count, 1m/1d | all names, 2025-10→ | 60 calls/min ≈ 86k contracts/day; **no IV field → compute IV from the 1m trade price vs the 1m stock bar** (same source). Live chain `/v3/options/chain?underlying=` has IV/greeks but is today only |
+| Polygon free option aggs | per contract daily/minute bars | 2 y | 5 calls/min ≈ 7k/day — gap filler |
+| tastytrade | IV rank/percentile/IV per expiry snapshots (`tasty_metrics_daily`), server-side backtester | 2026-10-24→ snapshots | free |
+| WRDS | 279 libraries (list 10-24: research/sources/a263/wrds-libraries.txt). **OptionMetrics not in the entitlement** (only `optionmsamp_*` 2014 samples); `cboe*` = index/VIX data; TAQ = stocks. Full IvyDB = ask the university library to add it | — | — |
+Plan of record (A192 S3): LSE per-contract backfill 2025-10→ with computed IV for the liquid universe (≈ 300k contracts ≈ 4 days) + LSEG expired-RIC backfill 2019→ for ≥ 150 names (≈ 65k codes ≈ 7 days) → per-stock surfaces back to 2019.
 ## 3. Stock-specific parameters — what must not be a global constant
-Rule: a threshold applied to every stock must be a **percentile of that stock's own history** or a **stock-measured quantity**, shrunk toward its cluster (sector × vol tier) when the stock has little data: `p_used = (n·p_stock + k·p_cluster)/(n + k)`, k = 20 obs. Global constants allowed only for account policy (max items, collateral rules) and data sanity (IV_SANE).
+Rule (contract 9): a threshold applied to every stock must be a **percentile of that stock's own history** or a **stock-measured quantity**, shrunk toward its cluster (sector × vol tier) when the stock has little data: `p_used = (n·p_stock + k·p_cluster)/(n + k)`, k = 20 obs. Global constants allowed only for account policy (max items, collateral rules) and data sanity (IV_SANE).
 Home: `optlab.stock_params_daily` (one row per ticker × date; built nightly after S1). Agents read it; never retype a number into a script.
 
 | Today (hardcoded, all stocks) | Where | Stock-specific replacement |
@@ -101,19 +89,13 @@ Each card must record in its result row: **entry snapshot** (state, term gap, sk
 5. Edge = our odds − market odds per bucket. A structure is a payoff over buckets: buy the underpriced buckets, sell the overpriced ones; bull call debit = buys "moderate up".
 6. Risk control, not prediction: defined max loss per trade, size so a wrong bucket call costs ≤ the plan's per-trade risk, and **grade the bucket odds** (Brier per stock/cluster; calibration plot). Odds that don't beat the market's on test → that state carries no edge → no trade.
 
-## 8. Grading (unchanged rules, here so they're in one place)
-Return per $ at risk per day; train 2021–23 / test 2024→ (real-quote era adds 2025-10→ check); month-clustered t; placebo random days same months; T-bill + Δ-matched stock on the same capital; Holm across cells. Verdict words per REVIEW.md.
+## 8. Grading
+`_study-contract.md` rules 1–7 (fill, comparator, power, leak, halves, inputs, same job). Option-specific comparator per card in § 6.
 
 ## 9. Stock notes (save context per stock; Breakdown › Notes)
 - **Before** any option work on T: `scripts/stock_notes.py show T` + read T's row in `optlab.stock_params_daily`.
 - **After**: ≤ 2 notes, one fact each. Option kinds to use: `character` (e.g. "put skew top-decile 80 % of days; CSPs priced rich structurally — judge vs own pct"), `earnings` (realized/implied ratio), `backtest` (structure × cell result with study id), `lesson` (a stock-specific override that worked/failed, with numbers).
 - Notes are history and judgment; numbers that change daily belong in stock_params, not notes.
 
-## 10. Study pre-flight (copy into every dispatch; reviewer checks each)
-1. Price source per leg = real quote? share by `priced_by`? (§ 1)
-2. Every threshold: stock-own percentile/measure or `# global: reason`? (§ 3)
-3. Strikes chosen by own-move quantile, not fixed Δ? (§ 3, § 7)
-4. Entry snapshot + daily path stored? Exit grid (TP × stop × time) tested on train? (§ 6)
-5. Equal effort across compared structures? (§ 6.0)
-6. Fair comparator on the same capital? (§ 8)
-7. Earnings handled with expiry dates, not run dates (A382)?
+## 10. Pre-flight
+Reviewer checks `_study-contract.md` 1–10 on every option dispatch; rules 8–10 are explained above (§ 1–3, § 6).
