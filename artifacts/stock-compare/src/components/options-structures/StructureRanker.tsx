@@ -61,7 +61,7 @@ export function StructureRanker() {
         <p className="text-amber-200/80 text-[10px]">{q.data.expiryNote}</p>
       ) : null}
       {q.data?.chainCoverage?.length ? (
-        <p className="text-zinc-400 text-[9px] font-mono leading-tight">
+        <p className="text-amber-100 text-[9px] font-mono leading-tight">
           Chain:{" "}
           {q.data.chainCoverage
             .map((c) => `${c.daysToExpiry}d${c.puts ? "P" : ""}${c.calls ? "C" : ""}`)
