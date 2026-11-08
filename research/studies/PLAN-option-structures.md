@@ -150,3 +150,41 @@ Families (what has to happen for the trade to win):
 
 ### 8.3 Structures UI (Part C)
 Catalog 17 → 31 (+ long options, collar), grouped by the guide's six views. Each strategy opens a card in the guide's layout: header strip (view · IV · DTE · guide POP) → setup legs → payoff diagram from `legs.ts` (green profit / red loss zones, strikes tagged P/C, spot marker) → max profit / max loss / breakeven / profit target / Greeks → how it works (ideal / not ideal) → if IV expands / contracts → at expiry → defence → takeaways → **Fildi evidence** (verdict badge, study id, live vs backtest) → **Build this** (opens the Part L builder pre-filled). Text is ours, ≤ 2 lines per box, method in tooltips (UI style rule).
+
+## 9. v5: fast engine + per-family test design (Jamie 2026-11-07)
+**Need (Jamie):** "31 strategy cards → optimise the backtest engine so it's efficient and fast … iron condor / covered call win rates are low because our tests are poorly designed — improve the tests per strategy, since conditions, structures and market views differ."
+
+### 9.1 Why the current engines are slow (and one was wrong)
+- S076 + the stopped B1 draft are per-trade Python loops: ticker × Monday × structure × grid cell × each path day × each leg. Each **exit rule** and each **entry filter** re-prices the same path, about 15× redundant work on the Stage 1 grid.
+- **B1 draft bug (stopped 11-07):** the daily re-mark cache key had no strike and hard-coded |Δ| 0.25. So the short and long legs on one side got the same mark, the spread cost ≈ 0 to close, and TP fired almost at once. Same bug class as recurring-bugs "stand-in values": **re-bucket every leg's Δ every day from its own strike.**
+
+### 9.2 Design: price each leg path once, everything else is array maths
+1. **Layer 1, leg paths.** A leg = (ticker, entry day, side, |Δ| target, DTE). For each ticker, one numpy call prices all entries × path days: arrays (entries × ≤ 32 trading days). Strike is fixed at entry, rounded to the listed increment; IV = prior-day iv30 × S075 skew ratio looked up by **that day's** Δ bucket (vectorised `searchsorted`); last day = intrinsic; fills = per-leg spread cell at entry **and** at exit.
+2. **Layer 2, structures = Σ qty × leg path.** All 31 strategies are leg sums: about 36 leg types (2 sides × 6 Δ × 3 DTE) cover every template, so 31 strategies cost the same as about 8 legs. Templates come from one config table that mirrors `templates.ts` (one home).
+3. **Layer 3, rules = masks.** Entry filters are boolean masks on the entry panel. Exits (hold / TP 25 / 50 % / stop 2× / 21 DTE / half-life / tested-side roll) are first-hit `argmax` on the P&L path. No re-pricing.
+4. **Entries every day, not Mondays** (A9): conditions pick days; overlap handled by N_eff = distinct signal days (D-5) and P&L per $ BP per day.
+5. **Speed plumbing:** one process per ticker (multiprocessing, 8 cores); leg paths cached to parquet keyed by (pricer version, data watermark), so re-runs only price new days (rule 8c); float32.
+**Measured (prototype `research/studies/proto/structure_vec_bench.py`, 30 tickers 2021–23, iron condor, 5 exits):** 508k leg marks in 0.03 s = **17.7M marks/s vs 1.3M/s** for the scalar loop (13×), parity exact (1.1473 = 1.1473). Full menu estimate: about 1M daily entries × 36 leg types × 32 days ≈ 1.2B marks ≈ 70 s single core / about 10 s on 8 cores; all 31 strategies × all exits ≈ minutes, not hours.
+*(Prototype is flat IV, no skew, no fills: hold +1.27 % / BP win 74 % vs TP50 +1.87 % win 85 % vs TP25 +1.45 % win 91 %. It shows TP raising win rate faster than the mean. **Not evidence**: S076 at real skew + fills had IC at −2.4 %.)*
+
+### 9.3 Per-family test design (what each view needs to win)
+| Family | Wins when | Entry conditions to test | Strikes | Exits | Comparator / grade | Known traps |
+|---|---|---|---|---|---|---|
+| A neutral short premium (IC, strangle, straddle, iron fly, dyn IC) | realized < implied **and** price stays in range | IV rank ≥ 50, iv30 / RV20 > 1.2, range regime (ADX14 < 20, 20-d range width pct, BB width low), no earnings / FOMC / CPI in window | S088 zone on each side; dynamic width = narrower call wing (calls cheap on skew) | TP 50 % (25 % fly / straddle), 21 DTE, stop 2×, roll untested side in | T-bill on BP, CSP at same BP; worst 5 %, max DD | S076 hold-to-expiry; trending tape; gap risk; 4 legs = 4 spreads |
+| B neutral-bull short put (CSP, put vertical, jade, big lizard, put ratio / BWB / broken heart) | stock holds above the strike | **reuse** CSP signals as-is (S059 factors, S087 timing, S088 strikes, rich-put lane) | CSP strike; wing by width or Δ | CSP's live rules + TP 50 % / 21 DTE | same entries' CSP at same BP (S020 per-BP fix) | the shape is the only variable; don't re-search entries |
+| C neutral-bear short call (call vertical, naked call, reverse jade, call ratio / BWB, covered call) | stock stalls / fades after strength | after a rally (S011), RSI14 > 70 / > 2 ATR over MA20, call IV rich vs put (skew), post-earnings IV crush; S004 #9 "don't sell into 20-d strength" vs S011 is **tested, not assumed** | S088 resistance zone | TP 50 %, roll up-and-out when tested, 21 DTE, ex-dividend exit (early assignment) | covered call vs holding; verticals vs T-bill on BP | S046 call tech wrong-way; upside give-up in bull tapes (2024→) |
+| D directional debit (verticals, ZEBRA, butterflies) | direction right before expiry | trend MTF + pullback / breakout; low IV rank (cheap debit) | ATM / 1σ | TP 50 % of max, stop at 50 % of debit, time stop | stock with the same Δ (ZEBRA vs 100 shares); budget-capped | S126 direction call failed; expect weak, test once |
+| E term structure (calendars, PMCC, PMCP) | front decays faster / IV rises | low IV rank, back-month IV > front, no event before front expiry | ATM / long ITM 0.70–0.80Δ | TP 10–25 % of debit, close before front expiry | T-bill on debit; real prices only | per-expiry IV needed: `lse_option_daily` / `option_chain_history` (2025-10→); fixed-IV pricer gave +155 % (S062) → **underpowered** label until n grows |
+| F stock + option (covered call / put, collar) | parity twins of B / C | — | — | — | vs holding the stock | graded from B / C results, not re-run |
+Common to all: earnings-window split (D-8), era split pre/post-2022 + SPY vs SMA200 (D-7), train 2021–23 / test 2024→, DSR over the count of cells tested, guide default cell pre-registered, must hold at the −2.7 vol pt pricing edge.
+
+### 9.4 Review of this plan (Claude red team, 11-07): risks → fixes added
+1. Daily closes miss intraday TP / stop touches → TP results are conservative, stop results optimistic; add a high / low bound run where bars have H/L.
+2. Managed exits pay the spread twice; TP25 trades more often → exit fills mandatory, and report gross vs net.
+3. Capital recycling: TP frees BP early → grade per $ BP **per day** (not per trade) plus a portfolio equity curve at a fixed BP budget.
+4. Short calls: ex-dividend early assignment → force-exit day before ex-date when the call's extrinsic < dividend.
+5. Vectorised engine ≠ live builder risk → **parity test vs `legs.ts`** on 20 random trades (marks within 1 %).
+6. Engine equivalence → **regression gate:** the new engine, set to S076's design (Monday, hold, same Δ), must reproduce S076's headline per-structure means within ±0.1 pp before any new cell runs.
+7. Grid explosion → families + anchors + Stage 2 inherits top-3; DSR counts every cell; the BOARD only changes on test-period results.
+8. Look-ahead: entry at day-t close uses IV from t−1 and signals ≤ t; exits use day-k data only.
+**Verification checklist before results count:** (a) parity vs legs.ts, (b) S076 regression gate, (c) hand-check 1 trade per family (legs, credit, BP, day-10 mark, exit day), (d) known-answer tests (IC max loss = wider wing − credit; put-call parity), (e) runtime + marks/s printed.
