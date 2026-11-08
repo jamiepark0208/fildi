@@ -82,9 +82,11 @@ def snapshot_as_of(conn, now: datetime) -> str | None:
     slack: on 10-20 and 10-22 the as_of day was missing entirely while MAX(computed_at) with maxLag 1 still read fresh (A243).
     Expected = today once the morning build has run in an open session (maintain builds the list at 10:00 ET), else last close."""
     expect = now.date() if (R.market_open(now) and now.hour >= 10) else R.last_close_date(now)
-    v = conn.execute("SELECT MAX(as_of) FROM public.option_score_snapshots").fetchone()[0]
-    if v == expect:
+    # Existence, not MAX == expect: weekend/holiday runs stamp the calendar date on purpose (live chain; re-dating would
+    # overwrite Friday), so MAX can sit past the expected session while that session is present (11-08 false alarm).
+    if conn.execute("SELECT 1 FROM public.option_score_snapshots WHERE as_of = %s LIMIT 1", (expect,)).fetchone():
         return None
+    v = conn.execute("SELECT MAX(as_of) FROM public.option_score_snapshots").fetchone()[0]
     return (f"✗ public.option_score_snapshots: newest as_of {v or 'none'} ≠ {expect} (session the list is checked against) "
             f"— drift checks measure our staleness, not the market")
 
