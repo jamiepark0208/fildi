@@ -150,11 +150,12 @@ export async function rankStructuresForView(opts: {
   const rows: RankRow[] = [];
 
   for (const id of ids) {
-    const legs = buildTemplate(id, {
+    const built = buildTemplate(id, {
       chains: opts.chains,
       horizonDays: opts.horizonDays,
     });
-    if (!legs?.length) continue;
+    if (!built?.legs.length) continue;
+    const legs = built.legs;
     const priced = priceStructure(legs, ctx, opts.horizonDays);
     if (priced.maxLoss > opts.maxLoss && priced.maxLoss > 0) continue;
     const expectedPnl = mcExpectedPnl(legs, ctx, priced.netFill, opts.horizonDays, iv, earningsBump);

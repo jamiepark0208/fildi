@@ -28,6 +28,7 @@ type PriceResp = {
   pop: number;
   payoff: { spot: number; pnl: number }[];
   templateId: string;
+  noCredit?: boolean;
 };
 
 type BacktestSlice = { id: string; verdict: Verdict; why?: string } | undefined;
@@ -104,7 +105,12 @@ export function StrategyCard({
               Fill ${priced.netFill.toFixed(2)} · max loss ${priced.maxLoss.toFixed(0)} · max gain{" "}
               {priced.maxGain >= 1e12 ? "unlimited" : `$${priced.maxGain.toFixed(0)}`}
             </div>
-            <div>POP {(priced.pop * 100).toFixed(0)}% · BE {priced.breakevens.map((x) => x.toFixed(2)).join(", ") || "—"}</div>
+            <div>
+              POP {(priced.pop * 100).toFixed(0)}% · BE {priced.breakevens.map((x) => x.toFixed(2)).join(", ") || "—"}
+              {priced.noCredit ? (
+                <span className="text-amber-300"> · chain has no net credit at fill — shape is closest match</span>
+              ) : null}
+            </div>
             <div>Profit target (guide default): {entry.guide.target}</div>
           </div>
           <div className="h-36">

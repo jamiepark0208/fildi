@@ -210,14 +210,21 @@ router.post("/options/structures/template", async (req, res) => {
     return res.status(404).json({ error: "no stored chain — refresh chain first" });
   }
   const horizon = typeof horizonDays === "number" ? horizonDays : 45;
-  const legs = buildTemplate(templateId as TemplateId, { chains: snap.chains, horizonDays: horizon });
-  if (!legs?.length) {
+  const built = buildTemplate(templateId as TemplateId, { chains: snap.chains, horizonDays: horizon });
+  if (!built?.legs.length) {
     return res.status(404).json({ error: "template could not be built from stored chain" });
   }
   try {
     const spot = snap.chains[0].spot;
-    const result = priceStructure(legs, { spot, chains: snap.chains }, horizon);
-    return res.json({ ticker: ticker.toUpperCase(), templateId, legs, spot, ...result });
+    const result = priceStructure(built.legs, { spot, chains: snap.chains }, horizon);
+    return res.json({
+      ticker: ticker.toUpperCase(),
+      templateId,
+      legs: built.legs,
+      noCredit: built.noCredit ?? false,
+      spot,
+      ...result,
+    });
   } catch (err: unknown) {
     return res.status(500).json({ error: String((err as Error)?.message ?? err) });
   }

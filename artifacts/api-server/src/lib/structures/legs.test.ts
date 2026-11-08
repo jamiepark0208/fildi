@@ -14,6 +14,10 @@ import {
 } from "./legs.js";
 import { bsGreeks } from "../options-greeks.js";
 import { buildTemplate, type TemplateId } from "./templates.js";
+
+function tplLegs(id: TemplateId, opts: Parameters<typeof buildTemplate>[1]): Leg[] | null {
+  return buildTemplate(id, opts)?.legs ?? null;
+}
 import type { OptionsChainResult } from "../options.js";
 
 const SYNTH_IV = 0.25;
@@ -270,7 +274,7 @@ describe("legs — AAPL stored chain samples", () => {
     if (!process.env.DATABASE_URL) {
       const chain = synthChain(225, "2026-12-19", 30);
       const ctx: ChainContext = { spot: chain.spot, chains: [chain] };
-      const legs = buildTemplate("cash_secured_put", { chains: [chain], horizonDays: 30 });
+      const legs = tplLegs("cash_secured_put", { chains: [chain], horizonDays: 30 });
       assert.ok(legs);
       const p = priceStructure(legs!, ctx, 30);
       console.log(`SANITY (no DB): synthetic CSP maxLoss=${p.maxLoss.toFixed(2)} POP=${(p.pop * 100).toFixed(1)}%`);
@@ -284,9 +288,9 @@ describe("legs — AAPL stored chain samples", () => {
     }
     const ctx: ChainContext = { spot: snap.chains[0].spot, chains: snap.chains };
     const samples: { name: string; legs: Leg[] | null }[] = [
-      { name: "CSP", legs: buildTemplate("cash_secured_put", { chains: snap.chains, horizonDays: 30 }) },
-      { name: "Iron condor", legs: buildTemplate("iron_condor", { chains: snap.chains, horizonDays: 30 }) },
-      { name: "Covered call", legs: buildTemplate("covered_call", { chains: snap.chains, horizonDays: 30 }) },
+      { name: "CSP", legs: tplLegs("cash_secured_put", { chains: snap.chains, horizonDays: 30 }) },
+      { name: "Iron condor", legs: tplLegs("iron_condor", { chains: snap.chains, horizonDays: 30 }) },
+      { name: "Covered call", legs: tplLegs("covered_call", { chains: snap.chains, horizonDays: 30 }) },
     ];
     for (const s of samples) {
       if (!s.legs) {
@@ -333,7 +337,7 @@ describe("ranker — horizon DTE", () => {
     ];
     const minDte = 23;
     const horizonChains = chains.filter((c) => c.daysToExpiry >= minDte);
-    const legs = buildTemplate("iron_condor", { chains: horizonChains, horizonDays: 30 });
+    const legs = tplLegs("iron_condor", { chains: horizonChains, horizonDays: 30 });
     assert.ok(legs?.length, "legs");
     const exp = legs!.find((l) => l.expiry)?.expiry;
     const chain = chains.find((c) => c.expiry === exp);
@@ -360,7 +364,7 @@ describe("Part C — template spot-check on $100 synth", () => {
   for (const tid of spotIds) {
     it(`${tid}: priceStructure maxLoss/BE self-consistent`, () => {
       const chains = tid === "calendar" ? twoExp : [chain45];
-      const legs = buildTemplate(tid, { chains, horizonDays: 45, width: 5 });
+      const legs = tplLegs(tid, { chains, horizonDays: 45, width: 5 });
       assert.ok(legs?.length, "legs");
       const ctx: ChainContext = { spot, chains };
       const p = priceStructure(legs!, ctx, 45);
@@ -373,9 +377,9 @@ describe("Part C — template spot-check on $100 synth", () => {
 
   it("SANITY: IC, jade lizard, call calendar card numbers", () => {
     const rows: { name: string; legs: Leg[] | null }[] = [
-      { name: "iron_condor", legs: buildTemplate("iron_condor", { chains: [chain45], horizonDays: 45 }) },
-      { name: "jade_lizard", legs: buildTemplate("jade_lizard", { chains: [chain45], horizonDays: 45 }) },
-      { name: "calendar", legs: buildTemplate("calendar", { chains: twoExp, horizonDays: 45 }) },
+      { name: "iron_condor", legs: tplLegs("iron_condor", { chains: [chain45], horizonDays: 45 }) },
+      { name: "jade_lizard", legs: tplLegs("jade_lizard", { chains: [chain45], horizonDays: 45 }) },
+      { name: "calendar", legs: tplLegs("calendar", { chains: twoExp, horizonDays: 45 }) },
     ];
     const ctx: ChainContext = { spot, chains: twoExp };
     for (const r of rows) {
@@ -407,14 +411,14 @@ describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
   }
 
   it("iron condor is a credit on realistic marks", () => {
-    const legs = buildTemplate("iron_condor", { chains: [chain45], horizonDays: 45, width: 5 });
+    const legs = tplLegs("iron_condor", { chains: [chain45], horizonDays: 45, width: 5 });
     assert.ok(legs);
     const p = priceStructure(legs!, ctxSingle, 45);
     assert.ok(p.netFill > 0, `IC fill=${p.netFill}`);
   });
 
   it("put front-ratio: best payoff near short strike, worst far below", () => {
-    const legs = buildTemplate("put_front_ratio", { chains: [chain45], horizonDays: 45, width: 5 });
+    const legs = tplLegs("put_front_ratio", { chains: [chain45], horizonDays: 45, width: 5 });
     assert.ok(legs);
     const p = priceStructure(legs!, ctxSingle, 45);
     const shortK = legs!.find((l) => l.side === "short")!.strike!;
@@ -425,7 +429,7 @@ describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
   });
 
   it("call_zebra net delta ≈ +100 shares", () => {
-    const legs = buildTemplate("call_zebra", { chains: [chain45], horizonDays: 45 });
+    const legs = tplLegs("call_zebra", { chains: [chain45], horizonDays: 45 });
     assert.ok(legs);
     const p = priceStructure(legs!, ctxSingle, 45);
     assert.ok(p.greeks.delta > 70, `zebra Δ=${p.greeks.delta}`);
@@ -435,7 +439,7 @@ describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
     it(`${tid}: priced shape (credit/debit, Δ, max loss, BEs)`, () => {
       const chains = chainsFor(tid);
       const ctx: ChainContext = { spot, chains };
-      const legs = buildTemplate(tid, { chains, horizonDays: 45, width: 5 });
+      const legs = tplLegs(tid, { chains, horizonDays: 45, width: 5 });
       assert.ok(legs?.length, `build ${tid}`);
       const p = priceStructure(legs!, ctx, 45);
       assert.ok(Number.isFinite(p.maxLoss) && p.maxLoss > 0, `maxLoss=${p.maxLoss}`);
@@ -453,4 +457,51 @@ describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
       }
     });
   }
+});
+
+const CREDIT_BY_DESIGN: TemplateId[] = [
+  "put_front_ratio",
+  "call_front_ratio",
+  "put_broken_wing_butterfly",
+  "call_broken_wing_butterfly",
+  "put_broken_heart",
+  "call_broken_heart",
+  "jade_lizard",
+  "reverse_jade_lizard",
+];
+
+describe("Part C fix2 — credit-by-design templates on BS synth", () => {
+  const spot = 100;
+  const chain45 = synthChain(spot, "2026-12-19", 45);
+  const ctx: ChainContext = { spot, chains: [chain45] };
+
+  for (const tid of CREDIT_BY_DESIGN) {
+    it(`${tid}: net credit on synth (no noCredit flag)`, () => {
+      const built = buildTemplate(tid, { chains: [chain45], horizonDays: 45, width: 5 });
+      assert.ok(built?.legs.length, "legs");
+      assert.ok(!built!.noCredit, `noCredit set for ${tid}`);
+      const p = priceStructure(built!.legs, ctx, 45);
+      assert.ok(p.netFill > 0, `${tid} fill=${p.netFill}`);
+      if (tid === "jade_lizard" || tid === "reverse_jade_lizard") {
+        const wingPts =
+          tid === "jade_lizard"
+            ? (built!.legs.find((l) => l.kind === "call" && l.side === "long")!.strike! -
+                built!.legs.find((l) => l.kind === "call" && l.side === "short")!.strike!)
+            : (built!.legs.find((l) => l.kind === "put" && l.side === "short")!.strike! -
+                built!.legs.find((l) => l.kind === "put" && l.side === "long")!.strike!);
+        assert.ok(p.netFill >= wingPts * OPTION_MULT, `lizard credit ${p.netFill} < wing ${wingPts * OPTION_MULT}`);
+      }
+      console.log(
+        `TEMPLATE ${tid}: credit fill=${p.netFill.toFixed(2)} Δ=${p.greeks.delta.toFixed(1)} BE=${p.breakevens.map((x) => x.toFixed(2)).join("/") || "—"}`,
+      );
+    });
+  }
+
+  it("jade lizard: single downside breakeven (no upside BE)", () => {
+    const built = buildTemplate("jade_lizard", { chains: [chain45], horizonDays: 45, width: 5 });
+    assert.ok(built?.legs.length);
+    const p = priceStructure(built!.legs, ctx, 45);
+    assert.equal(p.breakevens.length, 1, `BEs=${p.breakevens.join(",")}`);
+    assert.ok(p.breakevens[0] < spot, "BE below spot");
+  });
 });

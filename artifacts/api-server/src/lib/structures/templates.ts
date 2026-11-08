@@ -2,8 +2,311 @@
  * A192 Part L — named templates from stored chain (deltas / width).
  */
 import type { OptionsChainResult } from "../options.js";
-import type { Leg } from "./legs.js";
-import { pickExpiry } from "./legs.js";
+import {
+  OPTION_MULT,
+  pickExpiry,
+  priceLegs,
+  priceStructure,
+  type ChainContext,
+  type Leg,
+} from "./legs.js";
+
+export type TemplateBuild = { legs: Leg[]; noCredit?: boolean };
+
+const CREDIT_OPT_IDS = new Set<TemplateId>([
+  "put_front_ratio",
+  "call_front_ratio",
+  "put_broken_wing_butterfly",
+  "call_broken_wing_butterfly",
+  "put_broken_heart",
+  "call_broken_heart",
+  "jade_lizard",
+  "reverse_jade_lizard",
+]);
+
+const CREDIT_WIDTHS = [3, 5, 7, 10, 15];
+const RATIO_SHORT_DELTA = [0.08, 0.1, 0.12, 0.16, 0.2, 0.25];
+const RATIO_LONG_DELTA = [0.25, 0.3, 0.35, 0.4, 0.45];
+
+function lizardWingDollars(id: "jade_lizard" | "reverse_jade_lizard", legs: Leg[]): number {
+  if (id === "jade_lizard") {
+    const sCall = legs.find((l) => l.kind === "call" && l.side === "short");
+    const lCall = legs.find((l) => l.kind === "call" && l.side === "long");
+    if (!sCall?.strike || !lCall?.strike) return 0;
+    return Math.max(0, lCall.strike - sCall.strike) * OPTION_MULT;
+  }
+  const sPut = legs.find((l) => l.kind === "put" && l.side === "short");
+  const lPut = legs.find((l) => l.kind === "put" && l.side === "long");
+  if (!sPut?.strike || !lPut?.strike) return 0;
+  return Math.max(0, sPut.strike - lPut.strike) * OPTION_MULT;
+}
+
+function creditSatisfied(id: TemplateId, legs: Leg[], netFill: number): boolean {
+  if (netFill <= 0) return false;
+  if (id === "jade_lizard" || id === "reverse_jade_lizard") {
+    return netFill >= lizardWingDollars(id, legs);
+  }
+  return true;
+}
+
+function lizardShapeOk(id: "jade_lizard" | "reverse_jade_lizard", legs: Leg[], ctx: ChainContext, horizon: number): boolean {
+  const priced = priceStructure(legs, ctx, horizon);
+  if (id === "jade_lizard") {
+    return (
+      priced.breakevens.length === 1
+      && priced.breakevens[0]! < ctx.spot
+      && priced.greeks.delta > 5
+    );
+  }
+  return (
+    priced.breakevens.length === 1
+    && priced.breakevens[0]! > ctx.spot
+    && priced.greeks.delta < -5
+  );
+}
+
+function pickBestCreditCandidate(
+  id: TemplateId,
+  candidates: Leg[][],
+  ctx: ChainContext,
+  horizon: number,
+): TemplateBuild {
+  let bestOk: Leg[] | null = null;
+  let bestOkFill = -Infinity;
+  let bestAny: Leg[] | null = null;
+  let bestAnyFill = -Infinity;
+  for (const legs of candidates) {
+    const { netFill } = priceLegs(legs, ctx);
+    if (netFill > bestAnyFill) {
+      bestAnyFill = netFill;
+      bestAny = legs;
+    }
+    if (!creditSatisfied(id, legs, netFill)) continue;
+    if (id === "jade_lizard" || id === "reverse_jade_lizard") {
+      if (!lizardShapeOk(id, legs, ctx, horizon)) continue;
+    }
+    if (netFill > bestOkFill) {
+      bestOkFill = netFill;
+      bestOk = legs;
+    }
+  }
+  if (!bestAny) return { legs: [], noCredit: true };
+  const legs = bestOk ?? bestAny;
+  const { netFill } = priceLegs(legs, ctx);
+  const noCredit =
+    !creditSatisfied(id, legs, netFill)
+    || ((id === "jade_lizard" || id === "reverse_jade_lizard") && !lizardShapeOk(id, legs, ctx, horizon));
+  return noCredit ? { legs, noCredit: true } : { legs };
+}
+
+function strikeLadder(chain: OptionsChainResult, side: "call" | "put"): number[] {
+  const rows = side === "call" ? chain.calls : chain.puts;
+  return [...new Set(rows.map((r) => r.strike))].sort((a, b) => a - b);
+}
+
+function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: number): Leg[][] {
+  const out: Leg[][] = [];
+  const centerDeltas = [0.3, 0.35, 0.4, 0.45, 0.5];
+  const widths = [...new Set([width, ...CREDIT_WIDTHS])];
+  const exp = chain.expiry;
+
+  if (id === "put_front_ratio") {
+    const puts = strikeLadder(chain, "put");
+    for (let li = 0; li < puts.length; li++) {
+      for (let si = 0; si < li; si++) {
+        out.push([
+          { kind: "put", side: "long", qty: 1, strike: puts[li], expiry: exp },
+          { kind: "put", side: "short", qty: 2, strike: puts[si], expiry: exp },
+        ]);
+      }
+    }
+    for (const shortD of RATIO_SHORT_DELTA) {
+      for (const longD of RATIO_LONG_DELTA) {
+        const short = nearestByDelta(chain, "put", shortD);
+        const lng = nearestByDelta(chain, "put", longD);
+        if (!short || !lng || lng.strike <= short.strike) continue;
+        out.push([
+          { kind: "put", side: "long", qty: 1, strike: lng.strike, expiry: lng.expiry },
+          { kind: "put", side: "short", qty: 2, strike: short.strike, expiry: short.expiry },
+        ]);
+      }
+    }
+    return out;
+  }
+  if (id === "call_front_ratio") {
+    const calls = strikeLadder(chain, "call");
+    for (let lo = 0; lo < calls.length; lo++) {
+      for (let hi = lo + 1; hi < calls.length; hi++) {
+        out.push([
+          { kind: "call", side: "long", qty: 1, strike: calls[lo], expiry: exp },
+          { kind: "call", side: "short", qty: 2, strike: calls[hi], expiry: exp },
+        ]);
+      }
+    }
+    for (const shortD of RATIO_SHORT_DELTA) {
+      for (const longD of RATIO_LONG_DELTA) {
+        const short = nearestByDelta(chain, "call", shortD);
+        const lng = nearestByDelta(chain, "call", longD);
+        if (!short || !lng || lng.strike >= short.strike) continue;
+        out.push([
+          { kind: "call", side: "long", qty: 1, strike: lng.strike, expiry: lng.expiry },
+          { kind: "call", side: "short", qty: 2, strike: short.strike, expiry: short.expiry },
+        ]);
+      }
+    }
+    return out;
+  }
+  if (id === "put_broken_wing_butterfly") {
+    for (const d of centerDeltas) {
+      const center = nearestByDelta(chain, "put", d);
+      if (!center) continue;
+      for (const w of widths) {
+        const hi = pickWidth(chain, "put", center.strike, -w);
+        const lo = pickWidth(chain, "put", center.strike, w * 2);
+        out.push([
+          { kind: "put", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+          { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
+          { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
+        ]);
+      }
+    }
+    return out;
+  }
+  if (id === "call_broken_wing_butterfly") {
+    for (const d of centerDeltas) {
+      const center = nearestByDelta(chain, "call", d);
+      if (!center) continue;
+      for (const w of widths) {
+        const lo = pickWidth(chain, "call", center.strike, -w);
+        const hi = pickWidth(chain, "call", center.strike, w * 2);
+        out.push([
+          { kind: "call", side: "long", qty: 1, strike: lo, expiry: center.expiry },
+          { kind: "call", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
+          { kind: "call", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+        ]);
+      }
+    }
+    return out;
+  }
+  if (id === "put_broken_heart") {
+    const puts = strikeLadder(chain, "put");
+    const n = puts.length;
+    for (let a = 0; a < n - 3; a++) {
+      for (let b = a + 1; b < n - 2; b++) {
+        for (let c = b + 1; c < n - 1; c++) {
+          for (let d = c + 1; d < n; d++) {
+            const [kFarLo, kMidLo, center, kHi] = [puts[a], puts[b], puts[c], puts[d]];
+            out.push([
+              { kind: "put", side: "long", qty: 1, strike: kHi, expiry: exp },
+              { kind: "put", side: "short", qty: 1, strike: center, expiry: exp },
+              { kind: "put", side: "short", qty: 1, strike: kMidLo, expiry: exp },
+              { kind: "put", side: "long", qty: 1, strike: kFarLo, expiry: exp },
+            ]);
+          }
+        }
+      }
+    }
+    for (const d of centerDeltas) {
+      const center = nearestByDelta(chain, "put", d);
+      if (!center) continue;
+      for (const w of widths) {
+        const kHi = pickWidth(chain, "put", center.strike, -w);
+        const kMidLo = pickWidth(chain, "put", center.strike, w);
+        const kFarLo = pickWidth(chain, "put", center.strike, w * 2);
+        out.push([
+          { kind: "put", side: "long", qty: 1, strike: kHi, expiry: center.expiry },
+          { kind: "put", side: "short", qty: 1, strike: center.strike, expiry: center.expiry },
+          { kind: "put", side: "short", qty: 1, strike: kMidLo, expiry: center.expiry },
+          { kind: "put", side: "long", qty: 1, strike: kFarLo, expiry: center.expiry },
+        ]);
+      }
+    }
+    return out;
+  }
+  if (id === "call_broken_heart") {
+    const calls = strikeLadder(chain, "call");
+    const n = calls.length;
+    for (let a = 0; a < n - 3; a++) {
+      for (let b = a + 1; b < n - 2; b++) {
+        for (let c = b + 1; c < n - 1; c++) {
+          for (let d = c + 1; d < n; d++) {
+            const [kLo, center, kMidHi, kFarHi] = [calls[a], calls[b], calls[c], calls[d]];
+            out.push([
+              { kind: "call", side: "long", qty: 1, strike: kLo, expiry: exp },
+              { kind: "call", side: "short", qty: 1, strike: center, expiry: exp },
+              { kind: "call", side: "short", qty: 1, strike: kMidHi, expiry: exp },
+              { kind: "call", side: "long", qty: 1, strike: kFarHi, expiry: exp },
+            ]);
+          }
+        }
+      }
+    }
+    for (const d of centerDeltas) {
+      const center = nearestByDelta(chain, "call", d);
+      if (!center) continue;
+      for (const w of widths) {
+        const kLo = pickWidth(chain, "call", center.strike, -w);
+        const kMidHi = pickWidth(chain, "call", center.strike, w);
+        const kFarHi = pickWidth(chain, "call", center.strike, w * 2);
+        out.push([
+          { kind: "call", side: "long", qty: 1, strike: kLo, expiry: center.expiry },
+          { kind: "call", side: "short", qty: 1, strike: center.strike, expiry: center.expiry },
+          { kind: "call", side: "short", qty: 1, strike: kMidHi, expiry: center.expiry },
+          { kind: "call", side: "long", qty: 1, strike: kFarHi, expiry: center.expiry },
+        ]);
+      }
+    }
+    return out;
+  }
+  const puts = strikeLadder(chain, "put");
+  const calls = strikeLadder(chain, "call");
+  if (id === "jade_lizard") {
+    for (const sPut of puts) {
+      for (const sCall of calls) {
+        for (const longCall of calls) {
+          if (longCall <= sCall) continue;
+          out.push([
+            { kind: "put", side: "short", qty: 1, strike: sPut, expiry: exp },
+            { kind: "call", side: "short", qty: 1, strike: sCall, expiry: exp },
+            { kind: "call", side: "long", qty: 1, strike: longCall, expiry: exp },
+          ]);
+        }
+      }
+    }
+    return out;
+  }
+  if (id === "reverse_jade_lizard") {
+    for (const sCall of calls) {
+      for (const sPut of puts) {
+        for (const longPut of puts) {
+          if (longPut >= sPut) continue;
+          out.push([
+            { kind: "call", side: "short", qty: 1, strike: sCall, expiry: exp },
+            { kind: "put", side: "short", qty: 1, strike: sPut, expiry: exp },
+            { kind: "put", side: "long", qty: 1, strike: longPut, expiry: exp },
+          ]);
+        }
+      }
+    }
+    return out;
+  }
+  return out;
+}
+
+function buildCreditOptimizedTemplate(
+  id: TemplateId,
+  opts: BuildOpts,
+  chain: OptionsChainResult,
+  width: number,
+): TemplateBuild {
+  const ctx: ChainContext = { spot: chain.spot, chains: opts.chains };
+  const horizon = opts.horizonDays ?? 37;
+  const candidates = creditCandidates(id, chain, width);
+  const fallback = buildTemplateLegs(id, opts);
+  if (fallback) candidates.push(fallback);
+  if (!candidates.length) return { legs: fallback ?? [], noCredit: true };
+  return pickBestCreditCandidate(id, candidates, ctx, horizon);
+}
 
 export type TemplateId =
   | "long_stock"
@@ -197,7 +500,21 @@ const TEMPLATE_CHAIN_SIDE: Partial<Record<TemplateId, "put" | "call" | "both">> 
   reverse_jade_lizard: "both",
 };
 
-export function buildTemplate(id: TemplateId, opts: BuildOpts): Leg[] | null {
+export function buildTemplate(id: TemplateId, opts: BuildOpts): TemplateBuild | null {
+  const legsOnly = buildTemplateLegs(id, opts);
+  if (!legsOnly) return null;
+  if (!CREDIT_OPT_IDS.has(id)) return { legs: legsOnly };
+  const horizon = opts.horizonDays ?? 37;
+  const chainSide = TEMPLATE_CHAIN_SIDE[id] ?? "both";
+  const chain =
+    id === "long_stock" || id === "short_stock"
+      ? opts.chains[0]
+      : chainForHorizon(opts.chains, horizon, chainSide);
+  if (!chain) return { legs: legsOnly, noCredit: true };
+  return buildCreditOptimizedTemplate(id, opts, chain, opts.width ?? 5);
+}
+
+function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
   const horizon = opts.horizonDays ?? 37;
   const chainSide = TEMPLATE_CHAIN_SIDE[id] ?? "both";
   const chain = id === "long_stock" || id === "short_stock"
