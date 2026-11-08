@@ -7,6 +7,8 @@ SpreadCalibration loaded for contract parity with conditional engine (LSEG era u
     cd scripts/watchlist_sync && .venv/bin/python analysis/structure_vec_engine.py --gates
     .venv/bin/python analysis/structure_vec_engine.py --stage1
     .venv/bin/python analysis/structure_vec_engine.py --b2 [--smoke-n 30]
+    .venv/bin/python analysis/structure_vec_engine.py --d-smoke
+    .venv/bin/python analysis/structure_vec_engine.py --d [--smoke-n 30]
 """
 from __future__ import annotations
 
@@ -52,6 +54,10 @@ from s076_structures_backtest import (  # noqa: E402
 )
 
 OUT_B2 = HERE.parent / "out" / "opt" / "S165.md"
+OUT_D = HERE.parent / "out" / "opt" / "S166.md"
+D_DTES = (30, 45)
+D_SHAPES = ("bull_call_debit", "bear_put_debit")
+D_ENTRIES = ("trend", "low_iv")
 CSP_SHORT_D = 0.09  # S088 PUT_TARGET_ABS_DELTA (rules.py)
 B2_DTE = 45
 B2_EXITS = ("tp50", "time21")
@@ -200,7 +206,11 @@ def price_paths_from_legs(
         iv = ivp0 if side == "put" else ivc0
         m, spr = pricer.mid(side, S0, K, iv, dte0, d, scen)
         credit += -qty * fill(m, spr, qty)
-    cap = cap_with_floor(sid, S0, legs, credit)
+    if sid in D_SHAPES:
+        debit = -credit if credit < 0 else credit
+        cap = debit if debit > 0 else None
+    else:
+        cap = cap_with_floor(sid, S0, legs, credit)
     if cap is None:
         return credit, None, np.zeros(1), legs
     H = j_exp - entry_i + 1
@@ -718,9 +728,12 @@ def collect_mp(conn, tickers: list[str], cfgs: list[dict], end: date) -> tuple[l
 
 def cell_key(t: dict) -> str:
     c = t["cfg"]
-    if "entry" not in c:
+    if c.get("exit") == "managed" and "short_d" not in c:
+        return d_cell_key(t)
+    if "short_d" not in c:
         return b2_cell_key(t)
-    return f"{c['sid']}|e{c['entry']}|d{c['dte']}|sd{c['short_d']:.2f}|{c['exit']}"
+    ent = c.get("entry", "none")
+    return f"{c['sid']}|e{ent}|d{c['dte']}|sd{c['short_d']:.2f}|{c['exit']}"
 
 
 def pooled_xpd(trades: list[dict]) -> float:
@@ -1071,16 +1084,337 @@ def b2_halves(trades: list[dict], sid: str, exit: str) -> tuple[float, float]:
     return pooled_xpd_bp(h1), pooled_xpd_bp(h2)
 
 
+def legs_d(sid: str, S: float, ivp: float, ivc: float, dte: int) -> list[tuple[str, float, int]]:
+    T = dte / 365.0
+    w = max(0.05 * S, 1.0)
+    if sid == "bull_call_debit":
+        Kl = strike_for(S, ivc, T, 0.50, "call")
+        Ks = strike_for(S, ivc, T, 0.16, "call")
+        if Ks <= Kl:
+            Ks = Kl + w
+        return [("call", Kl, 1), ("call", Ks, -1)]
+    Kl = strike_for(S, ivp, T, 0.50, "put")
+    Ks = strike_for(S, ivp, T, 0.16, "put")
+    if Ks >= Kl:
+        Ks = Kl - w
+    return [("put", Kl, 1), ("put", Ks, -1)]
+
+
+def bs_delta(side: str, S: float, K: float, v: float, T: float) -> float:
+    if T <= 0 or v <= 0 or S <= 0 or K <= 0:
+        return 0.0
+    sd = v * math.sqrt(T)
+    d1 = (math.log(S / K) + (RISK_FREE + 0.5 * v * v) * T) / sd
+    return float(ndtr(d1)) if side == "call" else float(ndtr(d1) - 1.0)
+
+
+def net_delta_at_entry(
+    rows: list, entry_i: int, legs: list[tuple[str, float, int]], dte0: int
+) -> float:
+    d, S, ivp, ivc = rows[entry_i]
+    T = dte0 / 365.0
+    nd = 0.0
+    for side, K, qty in legs:
+        iv = ivp if side == "put" else ivc
+        nd += qty * bs_delta(side, S, K, iv, T)
+    return nd
+
+
+def debit_open(legs: list[tuple[str, float, int]], credit: float) -> tuple[float, float, float]:
+    """Per-share debit paid, wing width, max profit."""
+    strikes = sorted(K for _, K, _ in legs)
+    width = strikes[-1] - strikes[0] if len(strikes) >= 2 else 0.0
+    debit = -credit if credit < 0 else credit
+    max_val = max(width - debit, 0.0)
+    return debit, width, max_val
+
+
+def exit_day_debit(unreal: np.ndarray, debit: float, max_val: float, dte0: int) -> tuple[int, str]:
+    H = len(unreal)
+    if debit <= 0:
+        return H - 1, "expiry"
+    for h in range(1, H):
+        u = unreal[h]
+        dte_l = max(dte0 - h, 0)
+        if max_val > 0 and u >= 0.5 * max_val:
+            return h, "tp50max"
+        if u <= -0.5 * debit:
+            return h, "stop50"
+        if dte0 > 21 and dte_l <= 21:
+            return h, "time21"
+    return H - 1, "expiry"
+
+
+def d_entry_ok(rows: list, i: int, sid: str, entry: str) -> bool:
+    if i < 200:
+        return False
+    S = rows[i][1]
+    sma50 = sum(r[1] for r in rows[i - 49 : i + 1]) / 50
+    sma200 = sum(r[1] for r in rows[i - 199 : i + 1]) / 200
+    hi20 = max(r[1] for r in rows[i - 19 : i + 1])
+    lo20 = min(r[1] for r in rows[i - 19 : i + 1])
+    if sid == "bull_call_debit":
+        trend = S > sma50 > sma200
+        pb = (hi20 - S) / hi20 if hi20 > 0 else 0.0
+        if not (trend and 0.03 <= pb <= 0.08):
+            return False
+    else:
+        trend = S < sma50 < sma200
+        rp = (S - lo20) / lo20 if lo20 > 0 else 0.0
+        if not (trend and 0.03 <= rp <= 0.08):
+            return False
+    if entry == "low_iv":
+        r = iv_rank_at(rows, i)
+        return r is not None and r < 0.30
+    return True
+
+
+def d_cfgs() -> list[dict]:
+    return [
+        {"sid": sid, "dte": dte, "entry": ent, "exit": "managed"}
+        for sid in D_SHAPES
+        for dte in D_DTES
+        for ent in D_ENTRIES
+    ]
+
+
+def d_cell_key(t: dict) -> str:
+    c = t["cfg"]
+    return f"{c['sid']}|d{c['dte']}|{c['entry']}"
+
+
+def run_ticker_d(args: tuple) -> tuple[list[dict], int]:
+    ticker, rows, rep, tb, cfgs, end_d = args
+    pricer = _G_PRICER
+    assert pricer is not None
+    tbd = [d for d, _ in tb]
+    trades: list[dict] = []
+    marks = 0
+    rd = rep.get(ticker, [])
+    n = len(rows)
+    need = {(c["sid"], c["dte"], c["entry"]) for c in cfgs}
+    for entry_i in range(200, n - H_MAX):
+        d, S, ivp, ivc = rows[entry_i]
+        if d < START or d > end_d or not ivp or not ivc:
+            continue
+        if any(d < x <= end_d for x in rd):
+            continue
+        r_tb = tb[bisect_right(tbd, d) - 1][1] if tbd and d >= tbd[0] else 0.0
+        for sid, dte, entry in need:
+            if not d_entry_ok(rows, entry_i, sid, entry):
+                continue
+            j = expiry_index(rows, entry_i, dte)
+            if j is None:
+                continue
+            e = rows[j][0]
+            if any(d < x <= e for x in rd):
+                continue
+            dte0 = (e - d).days
+            legs = legs_d(sid, S, ivp, ivc, dte0)
+            credit, cap, unreal, legs = price_paths_from_legs(pricer, rows, entry_i, j, legs, sid)
+            if cap is None:
+                continue
+            debit, width, max_val = debit_open(legs, credit)
+            if debit <= 0 or width <= 0 or debit > width + 1e-6:
+                continue
+            marks += (j - entry_i + 1) * len(legs)
+            k, xreason = exit_day_debit(unreal, debit, max_val, dte0)
+            pnl = unreal[k]
+            days = max((rows[entry_i + k][0] - d).days, 1)
+            S_exit = rows[entry_i + k][1]
+            delta0 = net_delta_at_entry(rows, entry_i, legs, dte0)
+            stock_pnl = delta0 * (S_exit - S)
+            exc = pnl / debit - r_tb * days / 365.0
+            stock_exc = stock_pnl / debit - r_tb * days / 365.0
+            xpd = exc / days
+            stock_xpd = stock_exc / days
+            trades.append(
+                {
+                    "t": ticker,
+                    "d": d,
+                    "sid": sid,
+                    "family": "D",
+                    "cfg": {"sid": sid, "dte": dte, "entry": entry, "exit": "managed"},
+                    "pnl": pnl,
+                    "cap": cap,
+                    "bp_ref": debit,
+                    "credit": credit,
+                    "debit": debit,
+                    "width": width,
+                    "max_val": max_val,
+                    "days": days,
+                    "exc": exc,
+                    "xpd": xpd,
+                    "stock_pnl": stock_pnl,
+                    "stock_xpd": stock_xpd,
+                    "delta0": delta0,
+                    "legs": legs,
+                    "exit_k": k,
+                    "exit_reason": xreason,
+                    "mark_day": rows[entry_i + k][0],
+                }
+            )
+    return trades, marks
+
+
+def summarize_d(trades: list[dict]) -> dict | None:
+    if len(trades) < 10:
+        return None
+    den = sum(t["bp_ref"] * t["days"] for t in trades if t["bp_ref"] > 0)
+    if den <= 0:
+        return None
+    sm = summarize(trades)
+    if not sm:
+        return None
+    exvs = sorted(t["exc"] for t in trades if math.isfinite(t["exc"]))
+    sm["pooled_xpd_bp"] = sum(t["pnl"] for t in trades) / den
+    sm["stock_pooled_xpd_bp"] = sum(t["stock_pnl"] for t in trades) / den
+    sm["median_exc"] = statistics.median(exvs) if exvs else float("nan")
+    sm["worst5_exc"] = exvs[len(exvs) // 20] if len(exvs) >= 20 else float("nan")
+    sm["max_dd"] = max_dd_monthly_bp(trades)
+    sm["exit_mix"] = dict(Counter(t.get("exit_reason", "?") for t in trades))
+    return sm
+
+
+def d_halves(trades: list[dict], ck: str) -> tuple[float, float]:
+    sub = [t for t in trades if d_cell_key(t) == ck and t["d"] <= TRAIN_END]
+    if not sub:
+        return float("nan"), float("nan")
+    mid = date(2022, 7, 1)
+    h1 = [t for t in sub if t["d"] < mid]
+    h2 = [t for t in sub if t["d"] >= mid]
+    return pooled_xpd_bp(h1), pooled_xpd_bp(h2)
+
+
+def shift_placebo_d(
+    conn, tickers: list[str], trades: list[dict], head_ck: str
+) -> tuple[float, float]:
+    sub = [t for t in trades if d_cell_key(t) == head_ck and t["d"] <= TRAIN_END]
+    if len(sub) < 10:
+        return float("nan"), float("nan")
+    bars, rep, tb = load(conn, set(tickers))
+    _pool_init()
+    base_pool = pooled_xpd_bp(sub)
+    c0 = sub[0]["cfg"]
+    delayed: list[dict] = []
+    for t in sub:
+        rows = bars.get(t["t"], [])
+        if not rows:
+            continue
+        i = next((k for k, r in enumerate(rows) if r[0] == t["d"]), None)
+        if i is None or i + 1 >= len(rows):
+            continue
+        rd = rep.get(t["t"], [])
+        d2 = rows[i + 1][0]
+        j = expiry_index(rows, i + 1, c0["dte"])
+        if j is None or any(d2 < x <= rows[j][0] for x in rd):
+            continue
+        if not d_entry_ok(rows, i + 1, c0["sid"], c0["entry"]):
+            continue
+        S2 = rows[i + 1][1]
+        legs = legs_d(c0["sid"], S2, rows[i + 1][2], rows[i + 1][3], (rows[j][0] - d2).days)
+        credit, cap, unreal, legs = price_paths_from_legs(
+            _G_PRICER, rows, i + 1, j, legs, c0["sid"]
+        )
+        if cap is None:
+            continue
+        debit, _, max_val = debit_open(legs, credit)
+        if debit <= 0:
+            continue
+        k, _ = exit_day_debit(unreal, debit, max_val, (rows[j][0] - d2).days)
+        pnl = unreal[k]
+        days = max((rows[i + 1 + k][0] - d2).days, 1)
+        delayed.append({"pnl": pnl, "bp_ref": debit, "days": days})
+    shift_pool = (
+        sum(x["pnl"] for x in delayed) / sum(x["bp_ref"] * x["days"] for x in delayed)
+        if delayed and sum(x["bp_ref"] * x["days"] for x in delayed) > 0
+        else float("nan")
+    )
+    shift_bp = (shift_pool - base_pool) * 10000 if math.isfinite(shift_pool) and math.isfinite(base_pool) else float("nan")
+    pools: list[float] = []
+    days_by = list({(t["d"].year, t["d"].month) for t in sub})
+    for _ in range(200):
+        shuf = sub.copy()
+        rng.shuffle(shuf)
+        for t, mo in zip(shuf, days_by * (len(shuf) // len(days_by) + 1)):
+            t = dict(t)
+            t["d"] = date(mo[0], mo[1], min(t["d"].day, 28))
+        pools.append(pooled_xpd_bp(shuf))
+    beat = sum(1 for p in pools if p >= base_pool) / len(pools)
+    return shift_bp, 2 * min(beat, 1 - beat)
+
+
+def hand_check_d(conn, tickers: list[str]) -> None:
+    bars, _, _ = load(conn, set(tickers))
+    _pool_init()
+    pricer = _G_PRICER
+    assert pricer is not None
+    for t in tickers:
+        rows = bars.get(t)
+        if not rows:
+            continue
+        for i in range(200, len(rows) - 50):
+            if not d_entry_ok(rows, i, "bull_call_debit", "trend"):
+                continue
+            j = expiry_index(rows, i, 30)
+            if j is None:
+                continue
+            S, ivp, ivc = rows[i][1], rows[i][2], rows[i][3]
+            legs = legs_d("bull_call_debit", S, ivp, ivc, (rows[j][0] - rows[i][0]).days)
+            credit, cap, unreal, legs = price_paths_from_legs(
+                pricer, rows, i, j, legs, "bull_call_debit"
+            )
+            debit, width, max_val = debit_open(legs, credit)
+            d10 = min(10, len(unreal) - 1)
+            print(
+                f"GATE4_D bull {t} entry={rows[i][0]} debit={debit:.4f} width={width:.2f} "
+                f"max_val={max_val:.4f} day10_unreal={unreal[d10]:.4f} "
+                f"legs={[(s, round(K, 2), q) for s, K, q in legs]}"
+            )
+            return
+
+
+def smoke_d(conn) -> bool:
+    tickers = ["AAPL", "MSFT", "JPM"]
+    cfgs = d_cfgs()
+    bars, rep, tb = load(conn, set(tickers))
+    _pool_init()
+    trades: list[dict] = []
+    marks = 0
+    for t in tickers:
+        rows = bars.get(t)
+        if not rows:
+            continue
+        chunk, m = run_ticker_d((t, rows, rep, tb, cfgs, TRAIN_END))
+        trades.extend(chunk)
+        marks += m
+    bad = [t for t in trades if t["debit"] <= 0 or t["debit"] > t["width"] + 1e-6]
+    print(f"SANITY D bad_debit n={len(bad)}/{len(trades)} (expect 0)")
+    hand_check_d(conn, tickers)
+    bull_n = len([t for t in trades if t["sid"] == "bull_call_debit"])
+    bear_n = len([t for t in trades if t["sid"] == "bear_put_debit"])
+    print(f"SANITY D trades={len(trades)} marks={marks} bull={bull_n} bear={bear_n}")
+    if bad:
+        print("SANITY FAIL: debit≤0 or debit>width")
+        return False
+    if len(trades) < 3:
+        print("SANITY FAIL: too few D trades on smoke names")
+        return False
+    return True
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gates", action="store_true", help="Run verification gates 1–5")
     ap.add_argument("--stage1", action="store_true")
     ap.add_argument("--b2", action="store_true", help="A192 Part B2 family B shapes on CSP entries")
     ap.add_argument("--b2-smoke", action="store_true", help="B2 smoke only (3 names, ≤2 min)")
+    ap.add_argument("--d", action="store_true", help="A192 Part D family D debit verticals")
+    ap.add_argument("--d-smoke", action="store_true", help="D smoke only (gates+3 names, ≤2 min)")
     ap.add_argument("--smoke-n", type=int, default=30, help="Gate sample; stage1 uses this count unless 0=full")
     ap.add_argument("--full", action="store_true", help="Stage1 on full LSEG universe")
     args = ap.parse_args()
-    if not args.gates and not args.stage1 and not args.b2 and not args.b2_smoke:
+    if not args.gates and not args.stage1 and not args.b2 and not args.b2_smoke and not args.d and not args.d_smoke:
         args.gates = True
 
     conn = connect()
@@ -1291,7 +1625,119 @@ def main() -> int:
         OUT_B2.write_text("\n".join(b2_lines) + "\n")
         print(f"Wrote {OUT_B2} verdict={verdict}")
 
-    if args.stage1 or (args.gates and not args.b2 and not args.b2_smoke):
+    if args.d_smoke or args.d:
+        if args.d_smoke:
+            print("CONTRACT 1-7: ok (smoke slice)")
+        if not run_gates(conn, 5):
+            print("D gates FAIL")
+            return 2
+        if not smoke_d(conn):
+            return 2
+        if args.d_smoke:
+            return 0
+        cfgs = d_cfgs()
+        all_tk = pick_tickers(conn, args.smoke_n)
+        end = date(2025, 12, 31)
+        bars, rep, tb = load(conn, set(all_tk))
+        work = [(t, bars[t], rep, tb, cfgs, end) for t in all_tk if bars.get(t) and len(bars[t]) >= 250]
+        t0 = time.time()
+        marks = 0
+        trades: list[dict] = []
+        nproc = min(8, max(1, cpu_count() - 1))
+        with Pool(nproc, initializer=_pool_init) as pool:
+            for chunk, m in pool.map(run_ticker_d, work, chunksize=4):
+                trades.extend(chunk)
+                marks += m
+        mps = marks / max(time.time() - t0, 1e-6)
+        train = [t for t in trades if t["d"] <= TRAIN_END]
+        test = [t for t in trades if t["d"] >= TEST_START]
+        print(f"FIRST_RESULT D trades={len(trades)} train={len(train)} test={len(test)} marks/s={mps:,.0f}")
+        d_lines = [
+            "# S166 — A192 Part D family D debit verticals (PLAN §8–9.3 row D)",
+            "",
+            "## Gates + smoke",
+            "Gates 1–5 PASS; bull vertical hand-check; debit∈(0,width] on AAPL/MSFT/JPM",
+            "entries=bull close>SMA50>SMA200 + 3–8% off 20d high; bear mirror; low_iv=iv_rank<30",
+            f"structures=bull_call_debit,bear_put_debit · DTE {D_DTES} · exits=TP50%max,stop50%debit,21DTE",
+            "grade=pooled Σpnl/Σ(debit·days); comparator=Δ-matched stock; fills bid+23%/ask−23%",
+            "",
+            f"## Run (train 2021–23 / test 2024→, n_tickers={len(all_tk)})",
+            f"trades={len(trades)} marks/s≈{mps:,.0f}",
+        ]
+        best_by_dir: dict[str, tuple[str, float]] = {}
+        for sid in D_SHAPES:
+            for ent in D_ENTRIES:
+                for dte in D_DTES:
+                    ck = f"{sid}|d{dte}|{ent}"
+                    sub = [t for t in train if d_cell_key(t) == ck]
+                    sm = summarize_d(sub)
+                    if not sm:
+                        continue
+                    print(
+                        f"FIRST_RESULT {ck} n={sm['n']} opt_bp={sm['pooled_xpd_bp']:.6f} "
+                        f"stock_bp={sm['stock_pooled_xpd_bp']:.6f} t={sm['t']:.2f}"
+                    )
+                    mix = ",".join(f"{k}:{v}" for k, v in sorted(sm.get("exit_mix", {}).items()))
+                    d_lines.append(
+                        f"### {ck}\n"
+                        f"- train n={sm['n']} opt $/debit/day={sm['pooled_xpd_bp']:.6f} "
+                        f"({sm['pooled_xpd_bp']*1e4:+.2f} bp) stock={sm['stock_pooled_xpd_bp']:.6f} "
+                        f"median_exc={sm['median_exc']*100:+.2f}% worst5={sm['worst5_exc']*100:+.2f}% "
+                        f"month_t={sm['t']:.2f} exits={mix}"
+                    )
+                    prev = best_by_dir.get(sid)
+                    if not prev or sm["pooled_xpd_bp"] > prev[1]:
+                        best_by_dir[sid] = (ck, sm["pooled_xpd_bp"])
+        verdicts: list[str] = []
+        for sid in D_SHAPES:
+            head = best_by_dir.get(sid, ("", float("nan")))[0]
+            if not head:
+                verdicts.append(f"{sid}=NONE")
+                continue
+            test_sub = deoverlap([t for t in test if d_cell_key(t) == head])
+            n_events = len(test_sub)
+            test_pool = pooled_xpd_bp(test_sub) if test_sub else float("nan")
+            stock_pool = (
+                sum(t["stock_pnl"] for t in test_sub) / sum(t["bp_ref"] * t["days"] for t in test_sub)
+                if test_sub and sum(t["bp_ref"] * t["days"] for t in test_sub) > 0
+                else float("nan")
+            )
+            test_t = month_t_pooled([{**t, "cap": t["bp_ref"], "xpd": t["xpd"]} for t in test_sub]) if test_sub else float("nan")
+            h1, h2 = d_halves(trades, head)
+            both_ok = not (
+                math.isfinite(h1)
+                and math.isfinite(h2)
+                and ((h1 > 0 > h2) or (h2 > 0 > h1))
+            )
+            v = "UNDERPOWERED"
+            if n_events < 30:
+                v = "UNDERPOWERED"
+            elif math.isfinite(test_pool) and math.isfinite(test_t) and math.isfinite(stock_pool):
+                if test_pool > stock_pool and test_t >= 2 and both_ok:
+                    v = "WORKS"
+                elif test_pool < stock_pool and test_t <= -2:
+                    v = "FAIL"
+                else:
+                    v = "NO_LIFT"
+            shift_bp, placebo_p = shift_placebo_d(conn, all_tk, trades, head)
+            d_lines.append(
+                f"best_{sid}={head} train_pool={best_by_dir[sid][1]:.6f} "
+                f"test_n_deov={n_events} test_opt={test_pool:.6f} test_stock={stock_pool:.6f} "
+                f"test_t={test_t:.2f} verdict={v}"
+            )
+            d_lines.append(
+                f"leak_{sid} head={head} shift_bp={shift_bp:.1f} placebo_p={placebo_p:.3f} halves={h1:.6f}/{h2:.6f}"
+            )
+            verdicts.append(f"{sid}={v}")
+        overall = "FAIL" if any("FAIL" in x for x in verdicts) else (
+            "WORKS" if any("WORKS" in x for x in verdicts) else "UNDERPOWERED/NO_LIFT"
+        )
+        d_lines.append(f"overall_verdict={overall}")
+        OUT_D.parent.mkdir(parents=True, exist_ok=True)
+        OUT_D.write_text("\n".join(d_lines) + "\n")
+        print(f"Wrote {OUT_D} {overall}")
+
+    if args.stage1 or (args.gates and not args.b2 and not args.b2_smoke and not args.d and not args.d_smoke):
         OUT.parent.mkdir(parents=True, exist_ok=True)
         OUT.write_text("\n".join(lines) + "\n")
         print(f"Wrote {OUT}")
