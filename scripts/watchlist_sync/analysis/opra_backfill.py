@@ -43,6 +43,18 @@ NY = ZoneInfo("America/New_York")
 START = date(2025, 10, 17)
 CHAIN_OVERLAP = date(2026, 10, 8)
 ROWS_DAILY_CAP = 11_000_000
+WINDOW_DAYS = 60  # Claude 11-08: entries are ≤ 45 DTE; 120 d doubled vendor rows for no use
+# Claude 11-08: nearest strike to these |Δ| per expiry (was every strike 0.05–0.60 → 285 NVDA contracts ≈ a day's quota)
+TARGETS = {"put": (0.10, 0.20, 0.25, 0.30, 0.50), "call": (0.10, 0.25, 0.50)}
+
+
+def _nearest_targets(cands: list[tuple[str, float, float]]) -> list[tuple[str, float]]:
+    out = set()
+    for side, tg in ((s, t) for s, ts in TARGETS.items() for t in ts):
+        pool = [(abs(ad - tg), k) for sd, k, ad in cands if sd[0] == side[0]]
+        if pool:
+            out.add((side, min(pool)[1]))
+    return sorted(out)
 CALLS_LOG_EVERY = 1000
 TARGET_1600 = 16 * 60  # minutes from midnight NY
 
@@ -253,22 +265,19 @@ def strikes_for_expiry(conn, ticker: str, exp: date, ref: date) -> list[tuple[st
                WHERE ticker = %s AND expiry = %s AND as_of >= %s AND strike > 0""",
             (ticker, exp, CHAIN_OVERLAP),
         ).fetchall()
-        out = []
-        for side, k, delt in rows:
-            ad = abs(delt) if delt is not None else None
-            if ad is not None and lo_d <= ad <= hi_d:
-                out.append((str(side).lower(), float(k)))
-        if out:
-            return out
+        cands = [(str(side).lower(), float(k), abs(delt)) for side, k, delt in rows
+                 if delt is not None and lo_d <= abs(delt) <= hi_d]
+        if cands:
+            return _nearest_targets(cands)
     listed = OH.chain(conn, ticker, exp, spot)
-    out = []
+    cands = []
     for c in listed:
         side = c["type"]
         k = float(c["strike"])
         d_abs = abs(bs_delta_fn(spot, k, iv, T, side))
         if lo_d <= d_abs <= hi_d:
-            out.append((side, k))
-    return out
+            cands.append((str(side).lower(), k, d_abs))
+    return _nearest_targets(cands)
 
 
 def build_contracts(conn, tickers: list[str], d1: date) -> list[Contract]:
@@ -343,10 +352,10 @@ def fetch_contract(conn, c: Contract, tb: dict[date, float], rows_today: int, ca
         """SELECT status FROM optlab.opra_fetch_log WHERE occ = %s AND date_from = %s AND date_to = %s""",
         (c.occ, START, c.expiry),
     ).fetchone()
-    if done and done[0] in ("ok", "no_data", "rows_cap", "rows_exhausted"):
+    if done and done[0] in ("ok", "no_data"):  # Claude 11-08: quota stops must retry next day
         return done[0], rows_today, calls
 
-    d0 = max(START, c.expiry - timedelta(days=120))
+    d0 = max(START, c.expiry - timedelta(days=WINDOW_DAYS))
     status, body = export_options_csv(conn, c.occ, date_from=d0, date_to=c.expiry, timeframe="30m")
     calls += 1
     if status == 429 and b"rows-exhausted" in body.encode():
@@ -375,9 +384,7 @@ def fetch_contract(conn, c: Contract, tb: dict[date, float], rows_today: int, ca
 
     bars = parse_options_bars(body, intraday=True)
     rows_today += len(bars)
-    if bars:
-        d0b, d1b = min(b["day"] for b in bars), max(b["day"] for b in bars)
-        cache_stock_30m(conn, c.ticker, d0b, d1b)
+    # Claude 11-08: stock 30m bars are cached once per ticker in main() (was re-exported per contract)
 
     n_ins = 0
     for b in bars:
@@ -560,8 +567,15 @@ def main() -> None:
         calls = 0
         planned = 0
         t0 = time.time()
+        stop = False
         for t in tickers:
+            if stop:
+                break
             batch = build_contracts(conn, [t], date.today())
+            have = conn.execute("SELECT count(*) FROM optlab.bars_5m WHERE ticker = %s AND ts >= %s",
+                                (t.upper(), START)).fetchone()[0]
+            if batch and have < 2000:  # ~13 months × 13 bars/day ≈ 3.3k when complete
+                cache_stock_30m(conn, t.upper(), START, date.today())
             if args.limit_contracts and planned >= args.limit_contracts:
                 break
             for c in batch:
@@ -574,6 +588,7 @@ def main() -> None:
                 st, rows_today, calls = fetch_contract(conn, c, tb, rows_today, calls)
                 if st == "rows_exhausted":
                     print("STOP rows_exhausted until UTC midnight", flush=True)
+                    stop = True
                     break
                 if calls == 1:
                     print(
