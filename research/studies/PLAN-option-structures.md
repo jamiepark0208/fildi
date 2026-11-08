@@ -91,3 +91,62 @@ Changes vs v2:
 8. **Re-fit check:** re-run `analysis/skew_fit.py` after 10 more survey days incl. SPY/QQQ/IWM — only to confirm the ±2.7 band, never to re-open the Phase 0 bar.
 
 **Next:** Phase 1 → Cursor after A359 fix4 lands (same engine file, one code edit at a time). Spec: leg pricer on the A359 engine + LSE OPRA call/put marks for 5 names × 20 weeks, S020 regression sign, gate 5 above.
+
+## 8. v4: full strategy menu, one shared engine (Jamie 2026-11-07)
+**Need (Jamie):** "Covered calls and iron condors are not the only backtests and trade ideas we need to improve entry/close conditions for … a lot of these legs and market views are similar, so optimise the studies so we don't do duplicate work." Plus Structures should explain every trade type the way the tastylive *Options Strategy Guide* (2023, `~/Downloads/options-strategy-guide.pdf`, 31 strategies) does.
+**Licence note:** the guide is © tastylive, reproduction prohibited. We copy the **layout** (header strip, setup legs, payoff zones, ideal / not ideal, vol, expiry, defence, takeaways), not their text, art or brand. Our cards use our own words, payoff diagrams drawn from `legs.ts`, and add what the guide lacks: **our backtest verdict + a live pick**. Their numbers (DTE, IV, POP, profit target) are the *claims we test*, cited as "guide default".
+
+### 8.1 The 31 strategies (guide defaults = baseline cell to test)
+| # | Strategy | Family | View | IV | DTE | Guide POP | Guide profit target | In Fildi catalog |
+|---|---|---|---|---|---|---|---|---|
+| 5 | Covered call | F | Bullish | High | 45 | 50% to 70% | 50% of Max Profit | covered_call |
+| 6 | Long call vertical | D | Bullish | Any | 45 | 40% to 60% | 50% of Max Profit | bull_call_spread |
+| 7 | Call ZEBRA | D | Bullish | Any | Any | 50% | 25% of Debit Paid | — |
+| 8 | Poor man's covered call (call diagonal) | E | Bullish | Low | 45 to 60 | 50% to 60% | 50% of Estimated Max Profit | (builder pmcc only) |
+| 9 | Call calendar | E | Bullish | Low | 45 | N/A | 10-25% of Debit Paid | calendar |
+| 10 | Call butterfly | D | Bullish | Any | 15 to 45 | 20% to 40% | 25% of Long Spread Width | — |
+| 11 | Big lizard | B | Bullish | High | 45 | 60% to 80% | 25% Max Profit | — |
+| 12 | Covered put | F | Bearish | High | 45 | 50% to 70% | 50% of Max Profit | — |
+| 13 | Long put vertical | D | Bearish | Any | 45 | 50% to 60% | 50% of Max Profit | bear_put_spread |
+| 14 | Put ZEBRA | D | Bearish | Any | Any | 50% | 25% of Debit Paid | — |
+| 15 | Poor man's covered put (put diagonal) | E | Bearish | Low | 45 to 60 | 50% to 60% | 50% of est. max profit | — |
+| 16 | Put calendar | E | Bearish | Low | 45 | N/A | 10-25% of Debit Paid | — |
+| 17 | Put butterfly | D | Bearish | Any | 15 to 45 | 20% to 40% | 25% of Long Spread Width | — |
+| 18 | Reverse big lizard | C | Bearish | High | 45 | 60% to 80% | 25% Max Profit | — |
+| 19 | Put front-ratio | B | Omnidirectional | High | 15 to 45 | 60% to 80% | 50% of Credit Received or 25% of Long Spread Width | — |
+| 20 | Call front-ratio | C | Omnidirectional | High | 15 to 45 | 60% to 80% | 50% of Credit Received or 25% of Long Spread Width | — |
+| 21 | Put broken-wing butterfly | B | Omnidirectional | High | 15 to 45 | 60% to 80% | 50% of Credit Received or 25% of Long Spread Width | — |
+| 22 | Call broken-wing butterfly | C | Omnidirectional | High | 15 to 45 | 60% to 80% | 50% of Credit Received or 25% of Long Spread Width | — |
+| 23 | Call broken-heart butterfly | C | Omnidirectional | High | 45 | 60% to 80% | 25%-50% of Long Spread Width | — |
+| 24 | Put broken-heart butterfly | B | Omnidirectional | High | 45 | 60% to 80% | 25%-50% of Long Spread Width | — |
+| 25 | Short strangle | A | Neutral | High | 45 | 60% to 80% | 50% of Max Profit | short_strangle |
+| 26 | Short straddle | A | Neutral | High | 45 | 50% to 60% | 25% of Max Profit | short_straddle |
+| 27 | Iron condor | A | Neutral | High | 45 | 60% to 80% | 50% of Max Profit | iron_condor |
+| 28 | Dynamic-width iron condor | A | Neutral | High | 45 | 60% to 80% | 50% of Max Profit | — |
+| 29 | Iron fly | A | Neutral | High | 45 | 60% to 80% | 25% of Max Profit | iron_fly |
+| 30 | Short naked put | B | Neutral-Bullish | High | 45 | 60% to 80% | 50% of Max Profit | csp |
+| 31 | Short put vertical | B | Neutral-Bullish | High | 45 | 60% to 80% | 50% of Max Profit | put_spread |
+| 32 | Jade lizard | B | Neutral-Bullish | High | 45 | 60% to 80% | 50% of Max Profit | jade_lizard |
+| 33 | Short naked call | C | Neutral-Bearish | High | 45 | 60% to 80% | 50% of Max Profit | — |
+| 34 | Short call vertical | C | Neutral-Bearish | High | 45 | 60% to 80% | 50% of Max Profit | call_spread |
+| 35 | Reverse jade lizard | C | Neutral-Bearish | High | 45 | 60% to 80% | 50% of Max Profit | — |
+Fildi catalog today: 17 entries (13 of these 31 + long call/put/straddle/strangle, collar). Missing 18: ZEBRAs, PMCP, put calendar, call/put butterflies, big / reverse big lizard, covered put, front-ratios, broken-wing and broken-heart butterflies, dynamic-width IC, naked call, reverse jade lizard.
+
+### 8.2 Dedup: 6 families, 2 stages, parity skips
+Families (what has to happen for the trade to win):
+- **A. Neutral, short premium both sides** (strangle, straddle, IC, dynamic IC, iron fly) — anchor **iron condor**.
+- **B. Neutral-bullish, short put risk** (naked put / CSP, put vertical, jade lizard, big lizard, put front-ratio, put BWB, put broken-heart) — anchor **CSP, already tuned** (S059 / S087 / S088): reuse its entry signals as-is, only test the payoff shape.
+- **C. Neutral-bearish, short call risk** (naked call, call vertical, reverse jade, reverse big lizard, call front-ratio, call BWB, call broken-heart, covered call) — anchor **short call vertical**; seed entries with S046 / S061 call signals.
+- **D. Directional debit** (long call / put verticals, ZEBRAs, call / put butterflies) — anchor **debit vertical**; entry = a direction signal (S126: our market-direction call failed; S158/S159 dips weak) → expect weak, test once per direction.
+- **E. Term structure / low IV** (call / put calendar, PMCC, PMCP) — needs a per-expiry IV term structure (LSEG = iv30 only → `option_chain_history` / LSE OPRA 2025-10→); anchor **call calendar**; real prices only (the fixed-IV pricer gave +155 %, S062).
+- **F. Stock + option** (covered call, covered put, collar) — graded vs holding the stock; covered call ≈ short put by parity → **graded on family B results**, not re-run.
+
+**Stage 1 (per family, anchor only):** full grid on the anchor = entry filters × DTE {7, 30, 45} × short |Δ| × exits {hold, TP 25 / 50 %, stop 2× credit, close 21 DTE}. The guide default (45 DTE, 50 % TP — 25 % for straddle / iron fly) is one pre-registered cell, so the guide's own claim is graded. Train 2021–23, test 2024→.
+**Stage 2 (variants):** inherit the anchor's top-3 train cells (entry + exit); vary only shape (wing width, ratio, broken wing). ~3 cells per variant instead of ~200 → about 85 % fewer runs. A variant beats its anchor per $ BP in test or it's dropped.
+**Parity skips (no run, note the twin):** covered call ≡ short put same strike; covered put ≡ short call; ZEBRA ≈ 100 shares with a debit floor (graded vs stock + married put); put credit vertical ≡ call debit vertical same strikes; iron fly = short straddle + wings (fly run gives both).
+**One leg-mark cache:** each (ticker, day, side, |Δ| bucket, DTE bucket) is marked once (S075 skew pricer now; OPRA marks where present) and every structure reads it, so 31 strategies cost the same data pass as one. Managed exits re-mark from the cache daily.
+**Grading (all families):** mean per $ BP per day, month-block t, worst 5 %, max DD, win %, exit-reason mix; vs T-bill on BP and vs the family B anchor (enhanced CSP) at the same BP. Must hold at the −2.7 vol pt pricing edge. Win rate never alone.
+**Stop rule:** Stage 1 smoke = families A + C anchors + naive-CSP control, 30 tickers, train years. A family whose anchor has no cell > 0 per $ BP net of fills in train skips Stage 2 (variants can't fix a wrong view).
+
+### 8.3 Structures UI (Part C)
+Catalog 17 → 31 (+ long options, collar), grouped by the guide's six views. Each strategy opens a card in the guide's layout: header strip (view · IV · DTE · guide POP) → setup legs → payoff diagram from `legs.ts` (green profit / red loss zones, strikes tagged P/C, spot marker) → max profit / max loss / breakeven / profit target / Greeks → how it works (ideal / not ideal) → if IV expands / contracts → at expiry → defence → takeaways → **Fildi evidence** (verdict badge, study id, live vs backtest) → **Build this** (opens the Part L builder pre-filled). Text is ours, ≤ 2 lines per box, method in tooltips (UI style rule).
