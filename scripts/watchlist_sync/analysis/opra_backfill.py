@@ -231,28 +231,14 @@ def _spot_iv(conn, ticker: str, d: date) -> tuple[float | None, float | None]:
 
 
 def list_expiries(ticker: str, d0: date, d1: date) -> list[date]:
-    """Monthly third-Friday-ish + weekly nearest each Friday's +30d target."""
-    exps: set[date] = set()
-    d = d0
-    while d <= d1:
-        if d.weekday() == 4:  # Friday
-            target = d + timedelta(days=30)
-            exps.add(target.replace(day=min(target.day, 28)))
-        d += timedelta(days=1)
-    # standard monthlies: 3rd Friday approximation — take Fridays in month
-    cur = d0.replace(day=1)
+    """Standard monthly expiries (3rd Friday) in [d0, d1]. Claude review 450cedca: old weekly logic produced non-Fridays."""
+    out, cur = [], d0.replace(day=1)
     while cur <= d1:
-        fri = [cur + timedelta(days=i) for i in range(31) if (cur + timedelta(days=i)).month == cur.month]
-        fris = [x for x in fri if x.weekday() == 4]
-        if len(fris) >= 3:
-            exps.add(fris[2])
-        elif fris:
-            exps.add(fris[-1])
-        if cur.month == 12:
-            cur = date(cur.year + 1, 1, 1)
-        else:
-            cur = date(cur.year, cur.month + 1, 1)
-    return sorted(e for e in exps if d0 <= e <= d1 + timedelta(days=60))
+        fris = [cur + timedelta(days=i) for i in range(31) if (cur + timedelta(days=i)).month == cur.month and (cur + timedelta(days=i)).weekday() == 4]
+        if len(fris) >= 3 and d0 <= fris[2] <= d1:
+            out.append(fris[2])
+        cur = date(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
+    return out
 
 
 def strikes_for_expiry(conn, ticker: str, exp: date, ref: date) -> list[tuple[str, float]]:
@@ -289,14 +275,14 @@ def build_contracts(conn, tickers: list[str], d1: date) -> list[Contract]:
     out: list[Contract] = []
     seen: set[str] = set()
     for t in tickers:
-        exps = conn.execute(
+        # Claude review 450cedca: chain_history only has expiries ≥ 2026-10 → union the monthlies back to START
+        ch = {r[0] for r in conn.execute(
             """SELECT DISTINCT expiry FROM option_chain_history
-               WHERE ticker = %s AND expiry >= %s AND expiry <= %s ORDER BY expiry DESC""",
+               WHERE ticker = %s AND expiry >= %s AND expiry <= %s""",
             (t, START, d1),
-        ).fetchall()
-        if not exps:
-            exps = [(e,) for e in list_expiries(t, START, d1)]
-        for (exp,) in exps[:24]:
+        ).fetchall()}
+        exps = [(e,) for e in sorted(ch | set(list_expiries(t, START, d1)), reverse=True)]
+        for (exp,) in exps:
             ref = min(exp - timedelta(days=14), d1)
             for side, strike in strikes_for_expiry(conn, t, exp, ref):
                 occ = occ_symbol(t, exp, strike, side)
