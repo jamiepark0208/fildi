@@ -24,7 +24,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 | Short-term RSI dip entries (1m…1h), 21 names | every cell ≤ 0 after spread; best 1h RSI<30 −8.6 bp | A359 fix4 | framing? (A374/A375 engine bugs) | after A359 fix5 |
 | Overnight carry | +10.8 bp/night gross, −5 mid / −21 cross → timing rule only | A359 | framing? (A374/A375 engine bugs) | after A359 fix5 |
 | Iron condor / short call vertical, tuned (entry filter × DTE × Δ × exit, 30 names) | best train cell fails test 2024→: IC −21 bp/$BP/day t −0.77, call vert −15 bp t −1.11; naive CSP +1.6 bp t 4.0 (train) | S164 | no-lift | after B2 |
-| Family B shapes on CSP entries (put vert, jade, front-ratio, BWB vs CSP control, 30 names) | fix1: CSP +2.4 bp train; no shape beats CSP on test (best front-ratio +0.04 bp de-ov) | S165 | testing | after B2 fix1 verify |
+| Family B shapes on CSP entries (put vert, jade, front-ratio, BWB, 30 names) | all trail plain CSP at same BP: CSP +2.4 bp/$BP/day vs front-ratio +1.0, vert +0.8, jade +0.3, BWB −0.3; best test lift +0.04 bp t 1.35 | S165 | no-lift | if CSP entry rules change |
 | Put spreads / strangles / straddles vs CSP | −$17.5k / −$12.4k vs CSP on the same entries | S020 | framing? | 2026-11-07 |
 | Stops, 50/75 % profit takes | −$13.7k (stop); takes lose on real quotes | S017 · S103 | no-lift | 2027-02-07 |
 | Calendar / Fed / CPI / opex weeks | 0/22 | S026 | framing? | 2027-02-07 |

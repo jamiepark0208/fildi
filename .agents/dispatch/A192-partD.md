@@ -1,0 +1,6 @@
+A192 Part D (Refs: A192): family D directional debit, tested once per direction. Spec: research/studies/PLAN-option-structures.md § 8 family D + § 9.3 row D; review notes at the end of research/common/asks/A192.md.
+Engine: scripts/watchlist_sync/analysis/structure_vec_engine.py (add --d; keep gates, per-share BP, |qty| marks, pooled rank, de-overlap, same-day IV).
+Anchor: debit call vertical (bull) and debit put vertical (bear), long ATM / short 1σ, DTE 30 and 45. Entries (pre-registered, no search): bull = close > SMA50 > SMA200 and a 3–8 % pullback from the 20-d high; bear = the mirror; plus a low-IV-rank arm (iv_rank < 30). Exits: TP 50 % of max value, stop at 50 % of debit, 21 DTE.
+Grade: pooled pnl / Σ(debit·days); comparator = stock with the same entry Δ over the same days (and T-bill on the debit); month-block t; worst 5 %; exit mix; train 2021–23 / test 2024→ de-overlapped. Pass = test pooled > comparator, t ≥ 2, both halves.
+Smoke gate: gates 1–5 pass; hand-check 1 bull vertical (legs, debit, max value, day-10 mark); on AAPL/MSFT/JPM no trade with debit ≤ 0 or > width.
+Then run 30 names. Write out/opt/S166.md + INDEX row + BOARD row. Packet ≤ 8 lines appended to A192.md. Commit Refs: A192, Agent: cursor.
