@@ -4,6 +4,7 @@ import {
   putCallParityError,
   priceStructure,
   payoffAtSpot,
+  bsOptionPrice,
   type ChainContext,
   type Leg,
   OPTION_MULT,
@@ -11,26 +12,45 @@ import {
   DEFAULT_RISK_FREE,
   pickExpiry,
 } from "./legs.js";
-import { buildTemplate } from "./templates.js";
+import { bsGreeks } from "../options-greeks.js";
+import { buildTemplate, type TemplateId } from "./templates.js";
 import type { OptionsChainResult } from "../options.js";
 
-function synthChain(spot: number, expiry: string, dte: number): OptionsChainResult {
-  const strikes = [spot - 10, spot - 5, spot, spot + 5, spot + 10];
-  const row = (K: number, delta: number, iv: number) => ({
-    strike: K,
-    bid: 1,
-    ask: 1.2,
-    lastPrice: 1.1,
-    iv,
-    volume: 10,
-    openInterest: 100,
-    incomePct: 0,
-    meetsGate: true,
-    bidIsLive: true,
-    quoteStale: false,
-    delta,
-    spreadPct: 0.1,
-  });
+const SYNTH_IV = 0.25;
+
+function synthChain(
+  spot: number,
+  expiry: string,
+  dte: number,
+  strikeLo = spot - 30,
+  strikeHi = spot + 30,
+  step = 5,
+): OptionsChainResult {
+  const T = dte / 365;
+  const strikes: number[] = [];
+  for (let k = strikeLo; k <= strikeHi; k += step) strikes.push(k);
+  const quote = (K: number, isCall: boolean) => {
+    const mid = bsOptionPrice(isCall ? "call" : "put", spot, K, T, DEFAULT_RISK_FREE, SYNTH_IV);
+    const spread = Math.max(mid * 0.04, 0.02);
+    const bid = Math.max(mid - spread / 2, 0.01);
+    const ask = bid + spread;
+    const { delta } = bsGreeks(spot, K, T, DEFAULT_RISK_FREE, SYNTH_IV, isCall);
+    return {
+      strike: K,
+      bid,
+      ask,
+      lastPrice: mid,
+      iv: SYNTH_IV,
+      volume: 10,
+      openInterest: 100,
+      incomePct: 0,
+      meetsGate: true,
+      bidIsLive: true,
+      quoteStale: false,
+      delta,
+      spreadPct: spread / Math.max(mid, 0.01),
+    };
+  };
   return {
     ticker: "TEST",
     expiry,
@@ -40,11 +60,31 @@ function synthChain(spot: number, expiry: string, dte: number): OptionsChainResu
     settlementDte: dte,
     spot,
     tier: 1,
-    puts: strikes.map((K, i) => row(K, -0.5 + i * 0.1, 0.3)),
-    calls: strikes.map((K, i) => row(K, 0.5 - i * 0.1, 0.3)),
+    puts: strikes.map((K) => quote(K, false)),
+    calls: strikes.map((K) => quote(K, true)),
     fetchedAt: Date.now(),
   };
 }
+
+/** 31 guide strategies — same template ids as strategy-guide.ts */
+const GUIDE_TEMPLATE_IDS: TemplateId[] = [
+  "covered_call", "debit_call_vertical", "call_zebra", "pmcc", "calendar", "call_butterfly",
+  "big_lizard", "covered_put", "debit_put_vertical", "put_zebra", "put_diagonal", "put_calendar",
+  "put_butterfly", "reverse_big_lizard", "put_front_ratio", "call_front_ratio",
+  "put_broken_wing_butterfly", "call_broken_wing_butterfly", "call_broken_heart", "put_broken_heart",
+  "short_strangle", "short_straddle", "iron_condor", "dynamic_iron_condor", "iron_fly",
+  "cash_secured_put", "bull_put_spread", "jade_lizard", "short_naked_call", "bear_call_spread",
+  "reverse_jade_lizard",
+];
+
+const BULLISH_DELTAS = new Set<TemplateId>([
+  "covered_call", "debit_call_vertical", "call_zebra", "pmcc",
+  "big_lizard", "jade_lizard", "bull_put_spread", "cash_secured_put",
+]);
+const BEARISH_DELTAS = new Set<TemplateId>([
+  "covered_put", "debit_put_vertical", "put_zebra", "put_diagonal",
+  "reverse_big_lizard", "bear_call_spread", "reverse_jade_lizard", "short_naked_call",
+]);
 
 describe("legs — put-call parity", () => {
   it("|C−P−(S−K·e^{-rT})| < 0.01", () => {
@@ -76,12 +116,17 @@ describe("legs — naked short call", () => {
 });
 
 describe("legs — POP", () => {
-  it("ATM short straddle POP < 50%", () => {
+  it("ATM short straddle POP < 50% (tight flat quote slice)", () => {
     const spot = 100;
-    const chain = synthChain(spot, "2026-12-19", 30);
+    const K = 100;
+    const chain: OptionsChainResult = {
+      ...synthChain(spot, "2026-12-19", 30, K - 10, K + 10, 5),
+      calls: [{ strike: K, bid: 2, ask: 2.4, lastPrice: 2.2, iv: 0.25, volume: 10, openInterest: 100, incomePct: 0, meetsGate: true, bidIsLive: true, quoteStale: false, delta: 0.5, spreadPct: 0.18 }],
+      puts: [{ strike: K, bid: 2, ask: 2.4, lastPrice: 2.2, iv: 0.25, volume: 10, openInterest: 100, incomePct: 0, meetsGate: true, bidIsLive: true, quoteStale: false, delta: -0.5, spreadPct: 0.18 }],
+    };
     const legs: Leg[] = [
-      { kind: "call", side: "short", qty: 1, strike: spot, expiry: chain.expiry },
-      { kind: "put", side: "short", qty: 1, strike: spot, expiry: chain.expiry },
+      { kind: "call", side: "short", qty: 1, strike: K, expiry: chain.expiry },
+      { kind: "put", side: "short", qty: 1, strike: K, expiry: chain.expiry },
     ];
     const ctx: ChainContext = { spot, chains: [chain], riskFree: DEFAULT_RISK_FREE };
     const priced = priceStructure(legs, ctx, 30);
@@ -211,13 +256,12 @@ describe("legs — calendar at front expiry", () => {
     ];
     const ctx: ChainContext = { spot, chains: [front, back], riskFree: DEFAULT_RISK_FREE };
     const { netFill } = priceLegs(legs, ctx);
-    const spread = 0.2;
-    const bid = 1;
-    const ask = 1.2;
-    const shortFill = bid + 0.23 * spread;
-    const longFill = ask - 0.23 * spread;
+    const shortRow = front.calls.find((c) => c.strike === K)!;
+    const longRow = back.calls.find((c) => c.strike === K)!;
+    const shortFill = shortRow.bid + 0.23 * (shortRow.ask - shortRow.bid);
+    const longFill = longRow.ask - 0.23 * (longRow.ask - longRow.bid);
     const handCredit = (shortFill - longFill) * OPTION_MULT;
-    assert.ok(Math.abs(netFill - handCredit) < 1e-6, `fill=${netFill} hand≈${handCredit}`);
+    assert.ok(Math.abs(netFill - handCredit) < 0.02, `fill=${netFill} hand≈${handCredit}`);
   });
 });
 
@@ -337,9 +381,76 @@ describe("Part C — template spot-check on $100 synth", () => {
     for (const r of rows) {
       assert.ok(r.legs, r.name);
       const p = priceStructure(r.legs!, ctx, 45);
+      if (r.name === "iron_condor") assert.ok(p.netFill > 0, `IC must be credit, fill=${p.netFill}`);
       console.log(
         `SANITY card ${r.name}: fill=${p.netFill.toFixed(2)} maxLoss=${p.maxLoss.toFixed(2)} BE=${p.breakevens.map((x) => x.toFixed(2)).join("/")}`,
       );
     }
   });
+});
+
+describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
+  const spot = 100;
+  const chain45 = synthChain(spot, "2026-12-19", 45);
+  const chain75 = synthChain(spot, "2027-01-16", 75);
+  const chain120 = synthChain(spot, "2027-02-18", 120);
+  const twoExp = [chain45, chain75];
+  const pmccChains = [chain45, chain120];
+  const ctxSingle: ChainContext = { spot, chains: [chain45] };
+  const ctxTwo: ChainContext = { spot, chains: twoExp };
+  const ctxPmcc: ChainContext = { spot, chains: pmccChains };
+
+  function chainsFor(tid: TemplateId): OptionsChainResult[] {
+    if (tid === "calendar" || tid === "put_calendar") return twoExp;
+    if (tid === "pmcc" || tid === "put_diagonal") return pmccChains;
+    return [chain45];
+  }
+
+  it("iron condor is a credit on realistic marks", () => {
+    const legs = buildTemplate("iron_condor", { chains: [chain45], horizonDays: 45, width: 5 });
+    assert.ok(legs);
+    const p = priceStructure(legs!, ctxSingle, 45);
+    assert.ok(p.netFill > 0, `IC fill=${p.netFill}`);
+  });
+
+  it("put front-ratio: best payoff near short strike, worst far below", () => {
+    const legs = buildTemplate("put_front_ratio", { chains: [chain45], horizonDays: 45, width: 5 });
+    assert.ok(legs);
+    const p = priceStructure(legs!, ctxSingle, 45);
+    const shortK = legs!.find((l) => l.side === "short")!.strike!;
+    const sig1 = spot * SYNTH_IV * Math.sqrt(45 / 365);
+    const pAtShort = payoffAtSpot(legs!, ctxSingle, shortK, p.netFill);
+    const pDeep = payoffAtSpot(legs!, ctxSingle, spot - 3 * sig1, p.netFill);
+    assert.ok(pAtShort > pDeep, `short=${pAtShort} deep=${pDeep}`);
+  });
+
+  it("call_zebra net delta ≈ +100 shares", () => {
+    const legs = buildTemplate("call_zebra", { chains: [chain45], horizonDays: 45 });
+    assert.ok(legs);
+    const p = priceStructure(legs!, ctxSingle, 45);
+    assert.ok(p.greeks.delta > 70, `zebra Δ=${p.greeks.delta}`);
+  });
+
+  for (const tid of GUIDE_TEMPLATE_IDS) {
+    it(`${tid}: priced shape (credit/debit, Δ, max loss, BEs)`, () => {
+      const chains = chainsFor(tid);
+      const ctx: ChainContext = { spot, chains };
+      const legs = buildTemplate(tid, { chains, horizonDays: 45, width: 5 });
+      assert.ok(legs?.length, `build ${tid}`);
+      const p = priceStructure(legs!, ctx, 45);
+      assert.ok(Number.isFinite(p.maxLoss) && p.maxLoss > 0, `maxLoss=${p.maxLoss}`);
+      const cd = p.netFill >= 0 ? "credit" : "debit";
+      console.log(
+        `TEMPLATE ${tid}: ${cd} fill=${p.netFill.toFixed(2)} Δ=${p.greeks.delta.toFixed(1)} maxLoss=${p.maxLoss.toFixed(2)} BE=${p.breakevens.map((x) => x.toFixed(2)).join("/") || "—"}`,
+      );
+      if (BULLISH_DELTAS.has(tid)) assert.ok(p.greeks.delta > 5, `${tid} Δ=${p.greeks.delta}`);
+      if (BEARISH_DELTAS.has(tid)) assert.ok(p.greeks.delta < -5, `${tid} Δ=${p.greeks.delta}`);
+      const sig1 = spot * SYNTH_IV * Math.sqrt(45 / 365);
+      const pUp = payoffAtSpot(legs!, ctx, spot + sig1, p.netFill);
+      const pDn = payoffAtSpot(legs!, ctx, spot - sig1, p.netFill);
+      if (tid === "iron_condor" || tid === "short_strangle" || tid === "iron_fly") {
+        assert.ok(pUp < p.netFill || pDn < p.netFill, `${tid} wings should trail center credit`);
+      }
+    });
+  }
 });

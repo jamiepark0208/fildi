@@ -414,14 +414,22 @@ export function buildTemplate(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "call_zebra": {
-      const deep = nearestByDelta(chain!, "call", 0.85);
-      if (!deep) return null;
-      return [{ kind: "call", side: "long", qty: 1, strike: deep.strike, expiry: deep.expiry }];
+      const deep = nearestByDelta(chain!, "call", 0.7);
+      const atm = nearestByDelta(chain!, "call", 0.5);
+      if (!deep || !atm) return null;
+      return [
+        { kind: "call", side: "long", qty: 2, strike: deep.strike, expiry: deep.expiry },
+        { kind: "call", side: "short", qty: 1, strike: atm.strike, expiry: atm.expiry },
+      ];
     }
     case "put_zebra": {
-      const deep = nearestByDelta(chain!, "put", 0.85);
-      if (!deep) return null;
-      return [{ kind: "put", side: "long", qty: 1, strike: deep.strike, expiry: deep.expiry }];
+      const deep = nearestByDelta(chain!, "put", 0.7);
+      const atm = nearestByDelta(chain!, "put", 0.5);
+      if (!deep || !atm) return null;
+      return [
+        { kind: "put", side: "long", qty: 2, strike: deep.strike, expiry: deep.expiry },
+        { kind: "put", side: "short", qty: 1, strike: atm.strike, expiry: atm.expiry },
+      ];
     }
     case "put_calendar": {
       const sorted = [...opts.chains].sort((a, b) => a.daysToExpiry - b.daysToExpiry);
@@ -459,21 +467,25 @@ export function buildTemplate(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "big_lizard": {
-      const sPut = nearestByDelta(chain!, "put", 0.25);
-      const sCall = nearestByDelta(chain!, "call", 0.16);
-      if (!sPut || !sCall) return null;
+      const atm = chain!.puts.reduce((a, b) =>
+        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
+      );
+      const longCall = pickWidth(chain!, "call", atm.strike, width);
       return [
-        { kind: "put", side: "short", qty: 1, strike: sPut.strike, expiry: sPut.expiry },
-        { kind: "call", side: "short", qty: 1, strike: sCall.strike, expiry: sCall.expiry },
+        { kind: "put", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
+        { kind: "call", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
+        { kind: "call", side: "long", qty: 1, strike: longCall, expiry: chain!.expiry },
       ];
     }
     case "reverse_big_lizard": {
-      const sCall = nearestByDelta(chain!, "call", 0.25);
-      const sPut = nearestByDelta(chain!, "put", 0.16);
-      if (!sCall || !sPut) return null;
+      const atm = chain!.puts.reduce((a, b) =>
+        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
+      );
+      const longPut = pickWidth(chain!, "put", atm.strike, width);
       return [
-        { kind: "call", side: "short", qty: 1, strike: sCall.strike, expiry: sCall.expiry },
-        { kind: "put", side: "short", qty: 1, strike: sPut.strike, expiry: sPut.expiry },
+        { kind: "call", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
+        { kind: "put", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
+        { kind: "put", side: "long", qty: 1, strike: longPut, expiry: chain!.expiry },
       ];
     }
     case "covered_put": {
@@ -498,39 +510,39 @@ export function buildTemplate(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "put_front_ratio": {
-      const short = nearestByDelta(chain!, "put", 0.25);
-      if (!short) return null;
-      const longK = pickWidth(chain!, "put", short.strike, width * 2);
+      const short = nearestByDelta(chain!, "put", 0.16);
+      const lng = nearestByDelta(chain!, "put", 0.3);
+      if (!short || !lng) return null;
       return [
+        { kind: "put", side: "long", qty: 1, strike: lng.strike, expiry: lng.expiry },
         { kind: "put", side: "short", qty: 2, strike: short.strike, expiry: short.expiry },
-        { kind: "put", side: "long", qty: 1, strike: longK, expiry: short.expiry },
       ];
     }
     case "call_front_ratio": {
-      const short = nearestByDelta(chain!, "call", 0.25);
-      if (!short) return null;
-      const longK = pickWidth(chain!, "call", short.strike, width * 2);
+      const short = nearestByDelta(chain!, "call", 0.16);
+      const lng = nearestByDelta(chain!, "call", 0.3);
+      if (!short || !lng) return null;
       return [
+        { kind: "call", side: "long", qty: 1, strike: lng.strike, expiry: lng.expiry },
         { kind: "call", side: "short", qty: 2, strike: short.strike, expiry: short.expiry },
-        { kind: "call", side: "long", qty: 1, strike: longK, expiry: short.expiry },
       ];
     }
     case "put_broken_wing_butterfly": {
       const center = nearestByDelta(chain!, "put", 0.45);
       if (!center) return null;
-      const lo = pickWidth(chain!, "put", center.strike, width);
-      const hi = pickWidth(chain!, "put", center.strike, width * 2);
+      const hi = pickWidth(chain!, "put", center.strike, -width);
+      const lo = pickWidth(chain!, "put", center.strike, width * 2);
       return [
-        { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
-        { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
         { kind: "put", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+        { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
+        { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
       ];
     }
     case "call_broken_wing_butterfly": {
       const center = nearestByDelta(chain!, "call", 0.45);
       if (!center) return null;
-      const lo = pickWidth(chain!, "call", center.strike, width * 2);
-      const hi = pickWidth(chain!, "call", center.strike, width);
+      const lo = pickWidth(chain!, "call", center.strike, -width);
+      const hi = pickWidth(chain!, "call", center.strike, width * 2);
       return [
         { kind: "call", side: "long", qty: 1, strike: lo, expiry: center.expiry },
         { kind: "call", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
@@ -540,23 +552,27 @@ export function buildTemplate(id: TemplateId, opts: BuildOpts): Leg[] | null {
     case "put_broken_heart": {
       const center = nearestByDelta(chain!, "put", 0.4);
       if (!center) return null;
-      const lo = pickWidth(chain!, "put", center.strike, width);
-      const hi = pickWidth(chain!, "put", center.strike, width * 1.5);
+      const kHi = pickWidth(chain!, "put", center.strike, -width);
+      const kMidLo = pickWidth(chain!, "put", center.strike, width);
+      const kFarLo = pickWidth(chain!, "put", center.strike, width * 2);
       return [
-        { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
-        { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
-        { kind: "put", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+        { kind: "put", side: "long", qty: 1, strike: kHi, expiry: center.expiry },
+        { kind: "put", side: "short", qty: 1, strike: center.strike, expiry: center.expiry },
+        { kind: "put", side: "short", qty: 1, strike: kMidLo, expiry: center.expiry },
+        { kind: "put", side: "long", qty: 1, strike: kFarLo, expiry: center.expiry },
       ];
     }
     case "call_broken_heart": {
       const center = nearestByDelta(chain!, "call", 0.4);
       if (!center) return null;
-      const lo = pickWidth(chain!, "call", center.strike, width * 1.5);
-      const hi = pickWidth(chain!, "call", center.strike, width);
+      const kLo = pickWidth(chain!, "call", center.strike, -width);
+      const kMidHi = pickWidth(chain!, "call", center.strike, width);
+      const kFarHi = pickWidth(chain!, "call", center.strike, width * 2);
       return [
-        { kind: "call", side: "long", qty: 1, strike: lo, expiry: center.expiry },
-        { kind: "call", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
-        { kind: "call", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+        { kind: "call", side: "long", qty: 1, strike: kLo, expiry: center.expiry },
+        { kind: "call", side: "short", qty: 1, strike: center.strike, expiry: center.expiry },
+        { kind: "call", side: "short", qty: 1, strike: kMidHi, expiry: center.expiry },
+        { kind: "call", side: "long", qty: 1, strike: kFarHi, expiry: center.expiry },
       ];
     }
     case "short_naked_call": {

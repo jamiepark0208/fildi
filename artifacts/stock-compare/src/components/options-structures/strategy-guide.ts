@@ -79,9 +79,9 @@ export const STRATEGY_GUIDE: StrategyGuideEntry[] = [
     notIdeal: "Deep ITM liquidity dries up; wide spreads on LEAPS.",
     ivUp: "Long call marks up; good for trimming winners.",
     ivDown: "Mark-to-market pain even if direction right.",
-    atExpiry: "Behaves like stock above strike minus debit paid.",
+    atExpiry: "Two deep ITM calls minus one short ATM ≈ 100-share delta above the short strike.",
     defence: "Treat as stock delta — add shares or trim if conviction fades.",
-    takeaways: ["Synthetic stock with a long-call floor.", "Dividends and borrow not replicated."],
+    takeaways: ["2× long ~0.70Δ call + 1× short ATM call.", "Stock-like delta with less capital than 100 shares."],
   },
   {
     id: "pmcc",
@@ -141,7 +141,7 @@ export const STRATEGY_GUIDE: StrategyGuideEntry[] = [
     ivDown: "Premium thin; not worth the call tail.",
     atExpiry: "Happy zone between put assignment and call pain.",
     defence: "Cover the call or roll put side if stock accelerates.",
-    takeaways: ["Jade variant without call spread cap.", "Upside risk is the trade."],
+    takeaways: ["ATM short strangle plus a long call wing above.", "Upside still open past the long call."],
   },
   {
     id: "covered_put",
@@ -184,9 +184,9 @@ export const STRATEGY_GUIDE: StrategyGuideEntry[] = [
     notIdeal: "Illiquid LEAPS puts on small caps.",
     ivUp: "Long put marks higher — trim into fear.",
     ivDown: "Drawdown on mark even if stock falls slowly.",
-    atExpiry: "Stock-like payoff below the strike.",
+    atExpiry: "Two deep ITM puts minus one short ATM ≈ −100-share delta below the short strike.",
     defence: "Size like shares; exit if bear thesis clears.",
-    takeaways: ["Short stock with a long-put floor in one line.", "No automatic stock borrow savings."],
+    takeaways: ["2× long ~0.70Δ put + 1× short ATM put.", "Bearish stock replacement in one line."],
   },
   {
     id: "pmcp",
@@ -246,7 +246,7 @@ export const STRATEGY_GUIDE: StrategyGuideEntry[] = [
     ivDown: "Skip — edge too thin for naked put risk.",
     atExpiry: "Range between call pain and put assignment.",
     defence: "Roll put down or cover call if momentum shifts.",
-    takeaways: ["Mirror of the big lizard for bearish skew.", "Downside tail is uncapped on the put."],
+    takeaways: ["ATM short strangle plus a long put wing below.", "Downside tail capped; upside still naked short call."],
   },
   {
     id: "put_front_ratio",
