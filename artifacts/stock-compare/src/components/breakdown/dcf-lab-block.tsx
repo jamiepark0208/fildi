@@ -13,6 +13,7 @@ type Dcf = {
   scenarios?: Record<string, number>;
   assumptions?: Assum[];
   risk?: { expensive?: boolean; read?: string };
+  drivers?: { key: string; label: string; low: number; high: number; mid: number }[];
 };
 
 const SCENARIO_LABEL: Record<string, string> = {
@@ -111,6 +112,18 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
                 {SCENARIO_LABEL[k] ?? k} <span className="font-mono text-amber-100/80">{formatCurrency(scenarios[k]!)}</span>
               </span>
             ) : null
+          ))}
+        </div>
+      )}
+
+      {data.drivers && data.drivers.length > 0 && (
+        <div className="space-y-0.5" title="One assumption at a time at its low / high setting, everything else unchanged (same random draws). Largest swing first.">
+          <div className="text-[9px] uppercase tracking-wide text-amber-100/80">What moves the value</div>
+          {data.drivers.map((d) => (
+            <div key={d.key} className="flex justify-between gap-2" title={d.label}>
+              <span className="text-amber-100 truncate">{d.label}</span>
+              <span className="font-mono text-white shrink-0">{formatCurrency(d.low)} – {formatCurrency(d.high)}</span>
+            </div>
           ))}
         </div>
       )}

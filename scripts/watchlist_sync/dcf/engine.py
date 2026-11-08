@@ -172,6 +172,19 @@ def reinv_rates(h: dict, tax: float, ttm: dict | None = None) -> tuple[list[floa
     return rates, nopats
 
 
+def trough_margin(h: dict, m0: float) -> float | None:
+    """Mirror of peak_cycle (Claude 11-08): trailing margin ≥ 5 pp below the company's own fiscal-year median (≥ 3 years,
+    median > 0) → the margin endpoint (year 5 / year 10 path) is floored at that median instead of reverting from the
+    trough. Start margin and street years 1–3 stay as reported, so a consensus recovery is not counted twice.
+    Measured 11-08 on the 30 valued watchlist names: TSLA 15 → 24.5, BABA 59 → 90 (of 31; rest unchanged) (out/trough_margin_1108.md)."""
+    rev, oi = h.get("revenue") or {}, h.get("operating_income") or {}
+    ms = [oi[e] / rev[e] for e in sorted(rev) if oi.get(e) is not None and rev[e]]
+    if len(ms) < 3:
+        return None
+    med = float(np.median(ms))
+    return med if med > 0 and m0 < med - 0.05 else None
+
+
 def peak_cycle(h: dict, m0: float) -> str | None:
     """Trailing margin at a cycle peak → no cash-flow value until a mid-cycle rule exists (A283 it2; S111: peak earnings
     were 14 of the 91 huge gaps). Peak = a demonstrated cycle (a positive-margin year later fell ≥ 20 pp) and the margin
@@ -443,6 +456,7 @@ def inputs(conn, t: str, base: dict | None = None, pit: dict | None = None) -> d
             "claims": claims, "assets": assets, "rev": rev, "rev_fy": rev_fy, "g1": g1,
             "fy1_end": str(s.get("fy1_period_end")), "ttm_end": (base.get("revenue") or {}).get("end"),
             "m0": oi / rev if rev else 0.0, "peak": peak_cycle(base.get("history") or {}, oi / rev if rev else 0.0),
+            "m_mid": trough_margin(base.get("history") or {}, oi / rev if rev else 0.0),
             "gm": (v("gross_profit") or (rev - v("cost_of_revenue") if v("cost_of_revenue") else 0)) / rev if rev and (v("gross_profit") or v("cost_of_revenue")) else None, "tax0": min(max(eff, 0.05), 0.30), "debt": debt, "cash": cash,
             "minority": v("minority"), "roic0": (oi * (1 - min(max(eff, 0.05), 0.30))) / ic if ic > 0 else 0.3,
             "beta": float(f["beta"] or 1.0), "sector": sec, "group": gid, "rating": letter, "rating_why": why,
@@ -536,6 +550,9 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
             gr[:, k] = ga + (g_T - ga) * ((k - 4) / 6)
     rev = x["rev"] * np.cumprod(1 + gr, axis=1)
     m_t = np.full(n, x["m0"]) if fx.get("hold_margin") else qm(u_m)
+    m_mid = None if fx.get("hold_margin") else x.get("m_mid")  # trough floor: see trough_margin()
+    if m_mid is not None:
+        m_t = np.maximum(m_t, m_mid)
     w = np.clip(years / 5, 0, 1)
     margin = x["m0"] + (m_t[:, None] - x["m0"]) * w[None, :]
     if cons is not None and cons["dm"] is not None and not fx.get("hold_margin"):
@@ -548,6 +565,8 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         m3 = margin[:, 2]
         qm3, _ = br.margin(x["sector"], float(np.median(m3)), x.get("gm"), (x["g1"] or 0) > 0.20)  # base rate from the yr-3 level
         m_t = 0.75 * m3 + 0.25 * qm3(u_m)
+        if m_mid is not None:
+            m_t = np.maximum(m_t, m_mid)
         margin[:, 3:] = m3[:, None] + (m_t - m3)[:, None] * ((years[3:] - 3) / 7)[None, :]
     sbc_T = next(tg for hi, tg in SBC_10Y if x.get("sbc0", 0) < hi)
     if sbc_T is not None and x.get("sbc0", 0) > sbc_T and not fx.get("hold_margin"):  # S114: stock pay shrinks → GAAP margin gains

@@ -23,6 +23,23 @@ DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.dcf_detail (ticker text NOT N
          valued boolean NOT NULL, detail jsonb NOT NULL, PRIMARY KEY (ticker, as_of))"""
 
 
+def drivers(x: dict, br) -> list[dict]:
+    """What moves the value (Claude 11-08, Jamie: scenarios should explain the gaps): one driver at a time at its own P25 /
+    P75 (ERP and terminal g at their CMA min / max), everything else drawn as in the base run, same seed → common random
+    numbers, so the low/high difference is the driver alone. 11-08 test on 16 names: growth and margin percentiles closed
+    most gaps to StarMine; ERP ±1 pt about half; the persist scenario ≤ 10 % → listed largest swing first."""
+    pair = x["cma"]["pairs"]["base"]
+    d, gd = pair["erp_dist"], pair["g_dist"]
+    spec = [("growth", "Revenue growth P25 / P75 of base rates", {"u_g": 0.25}, {"u_g": 0.75}),
+            ("margin", "Margin endpoint P25 / P75 of sector peers", {"u_m": 0.25}, {"u_m": 0.75}),
+            ("erp", f"Equity risk premium {d['max']:.1%} / {d['min']:.1%}", {"erp": d["max"]}, {"erp": d["min"]}),
+            ("g_T", f"Terminal growth {gd['min']:.1%} / {gd['max']:.1%}", {"g_T": gd["min"]}, {"g_T": gd["max"]})]
+    med = lambda fx: float(np.median(simulate(x, br, n=1500, seed=7, fixed=fx)["vps"]))
+    mid = med({"u_g": 0.5})  # same no-noise convention as the fixed runs (fixed turns year-1 noise off)
+    out = [{"key": k, "label": lab, "low": med(lo), "high": med(hi), "mid": mid} for k, lab, lo, hi in spec]
+    return sorted(out, key=lambda r: -abs(r["high"] - r["low"]))
+
+
 def store(c, t: str, valued: bool, d: dict) -> None:
     if "--store" not in sys.argv:
         return
@@ -103,6 +120,7 @@ with connect() as c:
             v = sim["vps"]
             sc = {k: float(np.median(simulate(x, br, n=1500, scenario=k)["vps"])) for k in ("normal", "base", "implied", "ltcma")}
             sc["persist"] = float(np.median(simulate(x, br, n=1500, fixed={"persist": True})["vps"]))  # capped S113 decile line (Grok it3)
+            drv = drivers(x, br)
             p10, p50, p90 = np.percentile(v, [10, 50, 90])
             u = reverse(x, br)
             vv = lambda k: (b.get(k) or {}).get("value") or 0.0
@@ -113,7 +131,7 @@ with connect() as c:
             act_m = float(np.median(rates)) if len(rates) >= 2 else act  # one year swings with working capital (PLTR, NOW deferred revenue)
             if abs(mod - act_m) > 0.15:  # A283 it2 bar → flag, not unvalued: as a gate it unvalued 26 of 31 names (10-29)
                 x["flags"] = (x.get("flags") or []) + [f"reinvestment check: year-1 model {mod:.0%} of NOPAT vs {act_m:.0%} own {len(rates)}-y median in the filings (> 15 pts)"]
-            store(c, t, True, detail(x, b, sim, v, sc, u))
+            store(c, t, True, {**detail(x, b, sim, v, sc, u), "drivers": drv})
             print(f"{t:6s} {x['price']:7.2f} | {p10:6.0f} {p50:6.0f} {p90:6.0f} P{(v < x['price']).mean() * 100:02.0f} | "
                   f"{sc['normal']:6.0f} {sc['base']:5.0f} {sc['implied']:7.0f} {sc['ltcma']:6.0f} | "
                   f"{'> P98' if u is None else f'P{u * 100:.0f}':>18s} | {mod:5.0%} / {act_m:4.0%}" + (f"  cons y1–3 {'/'.join(f'{g:+.0%}' for g in x['cons']['g'])}" if x.get("cons") else "  no consensus") + (f"  ⚠ {x['flags']}" if x.get("flags") else ""))
