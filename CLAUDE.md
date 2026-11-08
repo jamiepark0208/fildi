@@ -23,6 +23,7 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 | Any Yahoo Finance / TTLCache work | .claude/skills/caching-patterns.md |
 | New API route or middleware | .claude/skills/api-design-patterns.md |
 | Options chain fetch | .claude/skills/options-pricer.md |
+| Any option study / structure rec | research/studies/OPTIONS-FRAMEWORK.md |
 | RSI/MFI scanner tiers (not Model List) | .claude/skills/signal-filters.md |
 | Model List / fit / watchlist_sync scoring | .claude/skills/model-list.md |
 | Fildi app UI tables/chrome (GRID_*) | .claude/skills/ui-components.md |

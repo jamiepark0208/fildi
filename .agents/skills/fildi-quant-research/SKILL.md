@@ -10,6 +10,7 @@ The how-to lives in `research/studies/PLAYBOOK.md` (data tables, harnesses, chec
 This file is the **judgment layer** on top: what Jamie expects a good study to do. Read it once, then open those two as needed.
 
 ## 0. Before you start (≤ 2 min)
+- **Any option study/rec: read `research/studies/OPTIONS-FRAMEWORK.md` first** (real-quote pricing, stock-specific params, structure cards, pre-flight § 10).
 - `python3 scripts/oj.py studies "<question>"` + `research/studies/INDEX.md`: it may be answered; re-run its script instead of a new one.
 - `scripts/watchlist_sync/FACTOR_MAP.md`: what live engines already score. Never propose a score that already exists under another name.
 - Claim an ID in INDEX (`scripts/md_rows.py upsert …`, never a hand-rolled rewrite) with question, target, baseline, stop rule = **pre-registration**.
