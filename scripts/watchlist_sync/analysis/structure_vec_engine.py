@@ -175,8 +175,12 @@ def cap_with_floor(sid: str, S: float, legs: list[tuple[str, float, int]], credi
 
 
 def csp_bp(S: float, legs: list[tuple[str, float, int]]) -> float:
+    """Per-share CSP buying power (matches per-share pnl; s076 capital('csp') = short strike)."""
     put_k = next(K for side, K, q in legs if side == "put" and q < 0)
-    return put_k * 100
+    return put_k
+
+
+B1_NAIVE_CSP_POOL_PER_DAY = 1.6e-4  # B1 fix1 packet: naive CSP train pooled $/BP/day ≈ +1.6 bp
 
 
 def price_paths_from_legs(
@@ -217,10 +221,11 @@ def price_paths_from_legs(
             if not iv_a:
                 continue
             mid, spr = pricer.mid(side, Sd, K, iv_a, dte_l, dd, scen)
+            q = abs(qty)
             if qty < 0:
-                cost_to_close += fill(mid, spr, 1)
+                cost_to_close += q * fill(mid, spr, 1)
             else:
-                cost_to_close -= fill(mid, spr, -1)
+                cost_to_close -= q * fill(mid, spr, -1)
         unreal[h] = credit - cost_to_close
     return credit, cap, unreal, legs
 
@@ -352,10 +357,11 @@ def price_paths_scalar(
             if not iv_a:
                 continue
             mid, spr = pricer.mid(side, Sd, K, iv_a, dte_l, dd, scen)
+            q = abs(qty)
             if qty < 0:
-                cost_to_close += fill(mid, spr, 1)
+                cost_to_close += q * fill(mid, spr, 1)
             else:
-                cost_to_close -= fill(mid, spr, -1)
+                cost_to_close -= q * fill(mid, spr, -1)
         unreal[h] = credit - cost_to_close
     return credit, cap, unreal, legs
 
@@ -376,6 +382,61 @@ def exit_day(unreal: np.ndarray, credit: float, mode: str, dte0: int) -> int:
         if mode == "time21" and dte0 > 21 and dte_l <= 21:
             return h
     return H - 1
+
+
+def exit_reason(mode: str, k: int, H: int, credit: float, unreal: np.ndarray, dte0: int) -> str:
+    u = unreal[k]
+    dte_l = max(dte0 - k, 0)
+    if mode == "tp50" and credit > 0 and u >= 0.5 * credit and k < H - 1:
+        return "tp50"
+    if mode == "time21" and dte0 > 21 and dte_l <= 21:
+        return "time21"
+    return "expiry"
+
+
+def max_dd_monthly_bp(trades: list[dict]) -> float:
+    by: dict[tuple[int, int], list[float]] = defaultdict(lambda: [0.0, 0.0])
+    for t in trades:
+        k = (t["d"].year, t["d"].month)
+        by[k][0] += t["pnl"]
+        by[k][1] += t["bp_ref"] * t["days"]
+    months = sorted(by.keys())
+    if not months:
+        return float("nan")
+    eq = 1.0
+    peak = 1.0
+    mdd = 0.0
+    for mo in months:
+        den = by[mo][1]
+        if den <= 0:
+            continue
+        eq *= 1.0 + by[mo][0] / den
+        peak = max(peak, eq)
+        mdd = max(mdd, (peak - eq) / peak if peak > 0 else 0.0)
+    return mdd
+
+
+def front_ratio_credit_report(trades: list[dict], label: str) -> None:
+    sub = [t for t in trades if t["sid"] == "put_front_ratio" and t["cfg"]["exit"] == "tp50"]
+    if not sub:
+        print(f"SANITY front_ratio {label}: no trades")
+        return
+    credits = np.array([t["credit"] for t in sub])
+    n_nonpos = int((credits <= 0).sum())
+    print(
+        f"SANITY front_ratio {label} n={len(sub)} credit<=0={n_nonpos}/{len(sub)} "
+        f"p10={np.percentile(credits, 10):.3f} p50={np.percentile(credits, 50):.3f} "
+        f"p90={np.percentile(credits, 90):.3f}"
+    )
+    excs = sorted((t["exc"], t) for t in sub if math.isfinite(t["exc"]))
+    if len(excs) >= 20:
+        w5 = excs[len(excs) // 20][0]
+        print(f"SANITY front_ratio {label} worst5_exc={w5*100:+.2f}%")
+    for _, t in excs[:5]:
+        print(
+            f"  worst {t['t']} {t['d']} credit={t['credit']:.3f} exc={t['exc']*100:+.2f}% "
+            f"pnl={t['pnl']:.3f} exit={t.get('exit_reason', '?')}"
+        )
 
 
 _G_PRICER: Pricer | None = None
@@ -807,6 +868,7 @@ def run_ticker_b2(args: tuple) -> tuple[list[dict], int]:
             if cfg["exit"] == "time21" and dte0 <= 21:
                 continue
             k = exit_day(unreal, credit, cfg["exit"], dte0)
+            H = len(unreal)
             pnl = unreal[k]
             days = max((rows[entry_i + k][0] - d).days, 1)
             exc = pnl / bp_ref - r_tb * days / 365.0 if bp_ref > 0 else float("nan")
@@ -827,6 +889,7 @@ def run_ticker_b2(args: tuple) -> tuple[list[dict], int]:
                     "xpd": xpd,
                     "legs": legs,
                     "exit_k": k,
+                    "exit_reason": exit_reason(cfg["exit"], k, H, credit, unreal, dte0),
                     "mark_day": rows[entry_i + k][0],
                 }
             )
@@ -834,13 +897,18 @@ def run_ticker_b2(args: tuple) -> tuple[list[dict], int]:
 
 
 def summarize_b2(trades: list[dict]) -> dict | None:
+    if len(trades) < 30:
+        return None
     sm = summarize(trades)
     if not sm:
         return None
-    exvs = [t["exc"] for t in trades if math.isfinite(t["exc"])]
+    exvs = sorted(t["exc"] for t in trades if math.isfinite(t["exc"]))
     sm["median_exc"] = statistics.median(exvs) if exvs else float("nan")
+    sm["worst5_exc"] = exvs[len(exvs) // 20] if len(exvs) >= 20 else float("nan")
     den = sum(t["bp_ref"] * t["days"] for t in trades if t["bp_ref"] > 0)
     sm["pooled_xpd_bp"] = sum(t["pnl"] for t in trades) / den if den > 0 else float("nan")
+    sm["max_dd"] = max_dd_monthly_bp(trades)
+    sm["exit_mix"] = dict(Counter(t.get("exit_reason", "?") for t in trades))
     return sm
 
 
@@ -925,10 +993,25 @@ def smoke_b2(conn) -> bool:
     csp = [t for t in trades if t["sid"] == "csp_control" and t["cfg"]["exit"] == "tp50"]
     pool = pooled_xpd_bp(csp)
     sign_ok = pool > 0 if csp else False
-    print(f"SANITY B2 csp_control tp50 n={len(csp)} pooled_xpd_bp={pool:.6f} sign={'+' if pool > 0 else '-'}")
+    # Pre-fix unit bug pooled ~2e-6 (0.02 bp); B1 naive Mon ≈1.6 bp; S059-filtered entries run hotter.
+    buggy = 5e-6
+    lo, hi = B1_NAIVE_CSP_POOL_PER_DAY / 2, B1_NAIVE_CSP_POOL_PER_DAY * 2
+    units_ok = pool > 50 * buggy if csp else False
+    band_ok = lo <= pool <= hi if csp else False
+    widen_ok = (B1_NAIVE_CSP_POOL_PER_DAY / 2) <= pool <= (B1_NAIVE_CSP_POOL_PER_DAY * 2.5) if csp else False
+    b1_ok = units_ok and (band_ok or widen_ok)
+    print(
+        f"SANITY B2 csp_control tp50 n={len(csp)} pooled_xpd_bp={pool:.6f} "
+        f"({pool*1e4:+.2f} bp/day) B1_2x=[{lo*1e4:.2f},{hi*1e4:.2f}]bp "
+        f"units={'OK' if units_ok else 'FAIL'} band={'OK' if band_ok else ('widen' if widen_ok else 'FAIL')}"
+    )
     if not sign_ok:
         print("SANITY FAIL: CSP control pooled sign")
         return False
+    if not b1_ok:
+        print("SANITY FAIL: CSP control pool not plausible vs B1 naive CSP (+1.6 bp/day)")
+        return False
+    front_ratio_credit_report(trades, "smoke_train")
     jade = next((t for t in trades if t["sid"] == "jade_lizard"), None)
     if jade:
         d10 = min(10, jade["exit_k"])
@@ -1146,11 +1229,14 @@ def main() -> int:
                     f"FIRST_RESULT {sid}|{ex} n={sm['n']} pool_bp={sm['pooled_xpd_bp']:.6f} "
                     f"median_exc={sm['median_exc']*100:+.2f}% t={sm['t']:.2f}"
                 )
+                mix = ",".join(f"{k}:{v}" for k, v in sorted(sm.get("exit_mix", {}).items()))
                 b2_lines.append(
                     f"### {sid} · {ex}\n"
                     f"- train n={sm['n']} pooled $/CSP_BP/day={sm['pooled_xpd_bp']:.6f} "
-                    f"median exc={sm['median_exc']*100:+.2f}% mean exc={sm['mean_exc']*100:+.2f}% "
-                    f"win={sm['win']:.0%} month_t={sm['t']:.2f}"
+                    f"({sm['pooled_xpd_bp']*1e4:+.2f} bp) median exc={sm['median_exc']*100:+.2f}% "
+                    f"mean exc={sm['mean_exc']*100:+.2f}% worst5 exc={sm['worst5_exc']*100:+.2f}% "
+                    f"max_dd={sm['max_dd']:.1%} win={sm['win']:.0%} month_t={sm['t']:.2f} "
+                    f"exits={mix}"
                 )
                 if (
                     sid != "csp_control"
@@ -1169,17 +1255,32 @@ def main() -> int:
         n_events = len(test_sub)
         shift_bp, placebo_p = shift_placebo_b2(conn, all_tk, trades, edgeq)
         h1, h2 = b2_halves(trades, best_sid or "jade_lizard", best_ex or "tp50")
-        verdict = "UNDERPOWERED"
         lift_bp = (test_pool - csp_pool) * 10000 if math.isfinite(test_pool) and math.isfinite(csp_pool) else float("nan")
+        both_halves_ok = not (
+            math.isfinite(h1)
+            and math.isfinite(h2)
+            and ((h1 > 0 > h2) or (h2 > 0 > h1))
+        )
+        verdict = "UNDERPOWERED"
         if n_events < 30:
             verdict = "UNDERPOWERED"
         elif math.isfinite(test_pool) and math.isfinite(test_t):
-            if test_pool > csp_pool and test_t >= 2 and not (h1 > 0 > h2 or h2 > 0 > h1):
-                verdict = "WORKS" if lift_bp >= 0.5 else "UNDERPOWERED"
+            if test_pool > csp_pool and test_t >= 2 and both_halves_ok:
+                verdict = "WORKS" if lift_bp >= 0.5 else "NO_LIFT"
             elif test_pool < csp_pool and test_t <= -2:
                 verdict = "FAIL"
             else:
-                verdict = "FAIL" if test_pool < csp_pool else "NO_LIFT"
+                verdict = "NO_LIFT" if test_pool >= csp_pool else "FAIL"
+        print("--- front_ratio train ---")
+        front_ratio_credit_report(
+            [t for t in train if t["sid"] == "put_front_ratio" and t["cfg"]["exit"] == "tp50"],
+            "train_tp50",
+        )
+        print("--- front_ratio test (overlap) ---")
+        front_ratio_credit_report(
+            [t for t in test if t["sid"] == "put_front_ratio" and t["cfg"]["exit"] == "tp50"],
+            "test_tp50",
+        )
         b2_lines.append(
             f"best_variant={best_sid}|{best_ex} train_pool={best_pool:.6f} vs CSP "
             f"test_n_deov={n_events} test_pool={test_pool:.6f} test_t={test_t:.2f} verdict={verdict}"
