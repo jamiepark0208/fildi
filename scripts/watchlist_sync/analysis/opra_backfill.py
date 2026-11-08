@@ -218,7 +218,7 @@ def _spot_iv(conn, ticker: str, d: date) -> tuple[float | None, float | None]:
     ).fetchone()
     if not row:
         row = conn.execute(
-            """SELECT close::float8, iv30::float8 FROM lseg_research.daily_history
+            """SELECT close::float8, iv30_call::float8 FROM lseg_research.daily_history
                WHERE ticker = %s AND date <= %s AND close > 0 ORDER BY date DESC LIMIT 1""",
             (ticker, d),
         ).fetchone()
