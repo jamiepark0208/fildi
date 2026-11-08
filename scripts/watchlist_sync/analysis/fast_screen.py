@@ -53,7 +53,9 @@ CACHE = Path.home() / ".fildi" / "cache" / "fast_screen_bars.pkl"
 PANEL_2003 = Path.home() / ".fildi" / "cache" / "fast_screen_bars_2003.pkl"
 CACHE_VER = 2  # bumped when pack schema changes (iv)
 OUT_DIR = REPO / "research" / "studies" / "out" / "fast_screen"
-COST = 0.0005  # 5 bp / side
+from study_contract import STOCK_CROSS_PER_SIDE  # noqa: E402
+
+COST = STOCK_CROSS_PER_SIDE
 HOLDS = (1, 5, 10, 21)
 N_RAND = 200
 SEED = 42
@@ -889,12 +891,23 @@ def self_test(pack: dict) -> list[str]:
     )
 
     # (viii) A369 per-stock threshold lens matches S160 h5 @ global 25
-    from threshold_lens import lens_rsi14_h5, s160_acceptance_ok  # noqa: WPS433
+    import subprocess
+    from study_contract import s160_h5_matches_reference  # noqa: WPS433
 
     if PANEL_2003.is_file():
-        lr = lens_rsi14_h5(25)
-        ok_lens, msg = s160_acceptance_ok(lr)
-        lines.append(f"{'PASS' if ok_lens else 'FAIL'} (viii) threshold_lens S160: {msg}")
+        proc = subprocess.run(
+            [sys.executable, str(HERE / "s160_rsi_per_stock.py"), "--h", "5", "--gth", "25"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(ROOT),
+        )
+        if proc.returncode != 0:
+            lines.append(f"FAIL (viii) S160 harness: exit {proc.returncode}")
+        else:
+            lr = json.loads(proc.stdout.strip().splitlines()[-1])
+            ok_lens, msg = s160_h5_matches_reference(lr)
+            lines.append(f"{'PASS' if ok_lens else 'FAIL'} (viii) S160 harness: {msg}")
     else:
         lines.append("FAIL (viii) missing fast_screen_bars_2003.pkl")
 
@@ -910,7 +923,7 @@ def self_test(pack: dict) -> list[str]:
     except Exception as exc:
         lines.append(f"FAIL (ix) leak test error: {exc}")
 
-    from study_leak import leak_from_trade_frames  # noqa: WPS433
+    from study_contract import leak_cell  # noqa: WPS433
 
     rng_leak = np.random.default_rng(369_369)
     n_bar = 120
@@ -931,7 +944,7 @@ def self_test(pack: dict) -> list[str]:
         "pnl_coll_frac_cross": base_long,
         "pnl_coll_frac_fill": base_long - 0.0002,
     })
-    lk_plant = leak_from_trade_frames(cond_planted, base_planted, np.random.default_rng(42))
+    lk_plant = leak_cell(cond_planted, base_planted, np.random.default_rng(42))
     ok_plant = bool(lk_plant.get("leak_flag"))
     lines.append(
         f"{'PASS' if ok_plant else 'FAIL'} (x) leak planted frame: flag={ok_plant} "
@@ -957,7 +970,7 @@ def self_test(pack: dict) -> list[str]:
         "pnl_coll_frac_cross": base_pnls,
         "pnl_coll_frac_fill": base_pnls,
     })
-    lk_rand = leak_from_trade_frames(cond_rand, base_rand, np.random.default_rng(77), n_placebo=200)
+    lk_rand = leak_cell(cond_rand, base_rand, np.random.default_rng(77), n_placebo=200)
     pp = lk_rand.get("placebo_p", float("nan"))
     ok_rand = (not lk_rand.get("leak_flag")) and np.isfinite(pp) and 0.3 <= float(pp) <= 0.7
     lines.append(

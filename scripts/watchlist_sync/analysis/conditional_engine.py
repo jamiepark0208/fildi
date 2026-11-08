@@ -487,34 +487,6 @@ def put_pnl_frac_short(credit: float, mark: float) -> float:
     return (credit - mark) / credit
 
 
-def _apply_friction(
-    gross_coll: float,
-    credit: float,
-    strike: float,
-    spot: float,
-    spread: SpreadCalibration,
-    dte: int,
-    *,
-    ticker: str = "",
-) -> tuple[float, float, float, float, float, float]:
-    from cost_staging import FILL_SHARE  # noqa: WPS433
-
-    prem = credit / strike if strike > 0 else 0.0
-    rt = spread.round_trip_frac(spot, strike, dte, ticker=ticker, mid=credit if credit > 0 else None)
-    friction_cross = rt * prem
-    friction_mid = 0.5 * rt * prem
-    fill_rt = (1.0 - 2.0 * FILL_SHARE) * rt * prem
-    net_fill = gross_coll - fill_rt
-    return (
-        gross_coll - friction_mid,
-        gross_coll - friction_cross,
-        net_fill,
-        friction_mid,
-        friction_cross,
-        fill_rt,
-    )
-
-
 def _put_mark_at_bar(
     open_pos: OpenPut,
     spot: float,
@@ -717,8 +689,14 @@ def simulate_session_puts(
         pnl_frac = put_pnl_frac_short(credit, exit_mark)
         coll_frac = credit / strike if strike > 0 else 0.0
         gross_coll = pnl_frac * coll_frac
-        net_mid, net_cross, net_fill, friction_mid, friction_cross, friction_fill = _apply_friction(
-            gross_coll, credit, strike, spot_entry, spread, open_pos.dte_at_entry, ticker=ticker,
+        from study_contract import apply_put_collateral_friction  # noqa: WPS433
+
+        prem = credit / strike if strike > 0 else 0.0
+        rt = spread.round_trip_frac(
+            spot_entry, strike, open_pos.dte_at_entry, ticker=ticker, mid=credit if credit > 0 else None,
+        )
+        net_mid, net_cross, net_fill, friction_mid, friction_cross, friction_fill = apply_put_collateral_friction(
+            gross_coll, round_trip_frac=rt, collateral_prem_frac=prem,
         )
         closed = exit_reason != "session_end" or exit_rules.time_stop == "same_day"
         if not closed and exit_rules.time_stop in ("overnight", "expiry"):
@@ -959,6 +937,7 @@ def _run_ticker_sessions(
     base_trades: list[dict] = []
     carry: OpenPut | None = None
     base_carry: OpenPut | None = None
+    shift_pending: dict[tuple[str, str, int], OpenPut | None] = {}
     if rsi_full is None:
         df, rsi_full = _intraday_rsi_by_session(df)
     else:
@@ -995,10 +974,38 @@ def _run_ticker_sessions(
             carry = None
         if shift_bars and len(sess_df) > 2:
             sess_s = session.isoformat()
+            for sk, sc in list(shift_pending.items()):
+                if sk[0] != tk or sc is None:
+                    continue
+                bts, sc2 = simulate_session_puts(
+                    sess_df,
+                    np.zeros(len(closes), dtype=bool),
+                    exit_rules,
+                    iv_anchor=anchor,
+                    iv_beta=iv_beta,
+                    instrument=instrument,
+                    spread=spread,
+                    listed_strikes=listed,
+                    carry=sc,
+                    ticker=tk,
+                    rsi14=rsi_slice[14],
+                    bar_minutes=bar_minutes,
+                )
+                if bts:
+                    tr = dict(bts[-1])
+                    tr["signal_bar"] = sk[2]
+                    base_trades.append(tr)
+                if sc2 is None:
+                    shift_pending.pop(sk, None)
+                else:
+                    shift_pending[sk] = sc2
             for bar_i in {b for t, s, b in shift_bars if t == tk and s == sess_s}:
                 if bar_i < 0 or bar_i > len(closes) - 2:
                     continue
-                bts, _ = simulate_session_puts(
+                sk = (tk, sess_s, bar_i)
+                if sk in shift_pending and shift_pending[sk] is not None:
+                    continue
+                bts, sc = simulate_session_puts(
                     sess_df,
                     np.zeros(len(closes), dtype=bool),
                     exit_rules,
@@ -1016,6 +1023,8 @@ def _run_ticker_sessions(
                     tr = dict(bts[0])
                     tr["signal_bar"] = bar_i
                     base_trades.append(tr)
+                if sc is not None:
+                    shift_pending[sk] = sc
         if base_every_day and len(sess_df) > 2:
             if base_carry is not None:
                 bts, base_carry = simulate_session_puts(
@@ -1250,23 +1259,9 @@ def _attach_frontier_leak(
     *,
     seed: int = 369,
 ) -> None:
-    from study_leak import leak_from_trade_frames  # noqa: WPS433
+    from study_contract import attach_leak_to_rows  # noqa: WPS433
 
-    rng = np.random.default_rng(seed)
-    for r in rows:
-        if r.get("role") != "cond":
-            continue
-        thr, exit_name, win = r["rsi_lt"], r["exit"], r["window"]
-        cond = cdf[(cdf["rsi_thr"] == thr) & (cdf["exit"] == exit_name)]
-        base = bdf[bdf["exit"] == exit_name]
-        if win == "opra":
-            cond = cond[cond.get("in_opra_window", False)]
-            base = base[base.get("in_opra_window", False)]
-        leak = leak_from_trade_frames(cond, base, rng)
-        for k in ("shift_coverage", "shift_note"):
-            if k in leak:
-                r[k] = leak[k]
-        r.update(leak)
+    attach_leak_to_rows(rows, cdf, bdf, seed=seed)
 
 
 def _cache_fingerprint_from_ctx(
@@ -1335,7 +1330,7 @@ A359_21_TICKERS = [
 
 A359_CACHE = Path.home() / ".fildi" / "cache" / "a359"
 DEFAULT_RSI_THRESHOLDS = [5.0 + 2.5 * i for i in range(int((30.0 - 5.0) / 2.5) + 1)]
-A359_CACHE_VERSION = "fix2a-spread-v1"
+A359_CACHE_VERSION = "fix2b-shift-carry-v1"
 SAME_DAY_EXIT_NAMES = frozenset({"rsi_gt_50", "rsi_gt_60", "rsi_gt_70"})
 MULTI_SESSION_EXIT_NAMES = frozenset({"tp50_overnight", "hold_expiry"})
 
@@ -1593,9 +1588,9 @@ def run_threshold_sweep_legacy(
                 base = base[base.get("in_opra_window", False)]
             if win == "opra" and len(cond):
                 cond = cond[cond.get("in_opra_window", False)]
-            from study_leak import leak_from_trade_frames  # noqa: WPS433
+            from study_contract import leak_cell  # noqa: WPS433
 
-            leak = leak_from_trade_frames(cond, base, np.random.default_rng(369))
+            leak = leak_cell(cond, base, np.random.default_rng(369))
             r.update(leak)
     return {
         "frontier": rows,
@@ -1954,8 +1949,12 @@ def simulate_daily_index_put(
     pnl_frac = put_pnl_frac_short(credit, exit_mark)
     coll_frac = credit / strike if strike > 0 else 0.0
     gross_coll = pnl_frac * coll_frac
-    net_mid, net_cross, net_fill, _, _, _ = _apply_friction(
-        gross_coll, credit, strike, spot, spread, dte, ticker=ticker,
+    from study_contract import apply_put_collateral_friction  # noqa: WPS433
+
+    prem = credit / strike if strike > 0 else 0.0
+    rt = spread.round_trip_frac(spot, strike, dte, ticker=ticker, mid=credit if credit > 0 else None)
+    net_mid, net_cross, net_fill, _, _, _ = apply_put_collateral_friction(
+        gross_coll, round_trip_frac=rt, collateral_prem_frac=prem,
     )
     return {
         "date": dates[signal_i].isoformat(),
