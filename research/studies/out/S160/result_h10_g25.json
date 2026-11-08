@@ -1,8 +1,9 @@
 {
  "h": 10,
  "names": 58,
- "names_scored": 50,
+ "names_scored": 20,
  "global_th": 25,
+ "excluded_no_train_base": 36,
  "pooled_train": {
   "10": {
    "mean_pp": 7.721,
@@ -31,51 +32,51 @@
  },
  "pooled_test": {
   "15": {
-   "mean_pp": -1.426,
-   "n": 12,
-   "hit": 0.5
+   "mean_pp": -6.003,
+   "n": 4,
+   "hit": 0.25
   },
   "20": {
-   "mean_pp": 2.654,
-   "n": 55,
-   "hit": 0.527
+   "mean_pp": 2.171,
+   "n": 30,
+   "hit": 0.6
   },
   "25": {
-   "mean_pp": 1.533,
-   "n": 241,
-   "hit": 0.556
+   "mean_pp": 0.153,
+   "n": 107,
+   "hit": 0.607
   },
   "30": {
-   "mean_pp": 1.24,
-   "n": 694,
-   "hit": 0.513
+   "mean_pp": 0.858,
+   "n": 315,
+   "hit": 0.524
   },
   "35": {
-   "mean_pp": -0.731,
-   "n": 1496,
-   "hit": 0.464
+   "mean_pp": -0.088,
+   "n": 681,
+   "hit": 0.489
   }
  },
  "test_G": {
-  "mean_ex_pp": 1.527,
-  "events": 240
+  "mean_ex_pp": 0.113,
+  "events": 106
  },
  "test_R": {
-  "mean_ex_pp": 0.827,
-  "events": 452
+  "mean_ex_pp": -1.381,
+  "events": 318
  },
  "test_S": {
-  "mean_ex_pp": 0.54,
-  "events": 445
+  "mean_ex_pp": -0.847,
+  "events": 311
  },
  "S_minus_G_pp": [
-  -0.987,
-  -1.698,
-  -0.177
+  -0.96,
+  -2.134,
+  0.37
  ],
  "R_minus_G_pp": [
-  -0.7,
-  -1.398,
+  -1.494,
+  -3.148,
   0.122
  ],
  "shrunk_th_counts": {

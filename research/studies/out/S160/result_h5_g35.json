@@ -1,0 +1,88 @@
+{
+ "h": 5,
+ "names": 58,
+ "names_scored": 56,
+ "global_th": 35,
+ "pooled_train": {
+  "10": {
+   "mean_pp": 4.395,
+   "n": 1
+  },
+  "15": {
+   "mean_pp": -3.727,
+   "n": 7
+  },
+  "20": {
+   "mean_pp": -0.934,
+   "n": 35
+  },
+  "25": {
+   "mean_pp": -0.032,
+   "n": 167
+  },
+  "30": {
+   "mean_pp": -0.894,
+   "n": 464
+  },
+  "35": {
+   "mean_pp": -0.883,
+   "n": 984
+  }
+ },
+ "pooled_test": {
+  "15": {
+   "mean_pp": -5.772,
+   "n": 4,
+   "hit": 0.167
+  },
+  "20": {
+   "mean_pp": 1.729,
+   "n": 30,
+   "hit": 0.309
+  },
+  "25": {
+   "mean_pp": 0.357,
+   "n": 107,
+   "hit": 0.244
+  },
+  "30": {
+   "mean_pp": 0.544,
+   "n": 316,
+   "hit": 0.232
+  },
+  "35": {
+   "mean_pp": -0.03,
+   "n": 682,
+   "hit": 0.221
+  }
+ },
+ "test_G": {
+  "mean_ex_pp": -0.019,
+  "events": 657
+ },
+ "test_R": {
+  "mean_ex_pp": -0.226,
+  "events": 353
+ },
+ "test_S": {
+  "mean_ex_pp": 0.61,
+  "events": 330
+ },
+ "S_minus_G_pp": [
+  0.629,
+  -0.249,
+  1.806
+ ],
+ "R_minus_G_pp": [
+  -0.207,
+  -1.137,
+  0.737
+ ],
+ "shrunk_th_counts": {
+  "25": 8,
+  "30": 7,
+  "35": 6
+ },
+ "shrunk_th_moved_from_global": 15,
+ "verdict": "FAIL (global threshold stays)"
+}

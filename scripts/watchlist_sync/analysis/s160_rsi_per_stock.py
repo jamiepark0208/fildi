@@ -76,10 +76,13 @@ def main() -> None:
     fwd = np.full_like(C, np.nan)
     fwd[: n - h - 1] = C[h + 1:] / O[1: n - h] - 1
     base_tr = np.nanmean(np.where(~test_mask[:, None], fwd, np.nan), axis=0)
-    base_te = np.nanmean(np.where(test_mask[:, None], fwd, np.nan), axis=0)
+    # A369 fix2a review: names listed after SPLIT have no train-era base → excluded (reported), never NaN rows
+    no_base = [t for j, t in enumerate(tick) if np.isnan(base_tr[j])]
 
     rows = []  # ticker, th, era, excess
     for j, t in enumerate(tick):
+        if t in no_base:
+            continue
         for th in THS:
             for i in events(R[:, j], th):
                 x = fwd[i, j]
@@ -135,6 +138,7 @@ def main() -> None:
 
     res = {
         "h": h, "names": len(tick), "names_scored": len(common), "global_th": g_th,
+        "excluded_no_train_base": len(no_base),
         "pooled_train": {int(k): {"mean_pp": round(100 * v["mean"], 3), "n": int(v["count"])}
                          for k, v in pooled.iterrows()},
         "pooled_test": {int(k): {"mean_pp": round(100 * v["mean"], 3), "n": int(v["count"]),

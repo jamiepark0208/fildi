@@ -11,7 +11,7 @@
 | Buy calls: rising revisions + strong 60d return | holdout +69.6 % vs revisions +43.1 % (t 2.0) | S100 | board gate |
 | Calls: low volume + not stretched above 200d | +42.9 bp/wk OOS, t 4.6 | S046 | options-1.2.0 |
 | Index oversold: SPY/QQQ RSI14 < 25 → long 5 d | **UNDERPOWERED** (A371): 17 / 14 events since 2003; at RSI < 30 SPY 60.9 % vs 59.0 % base (46 ev), QQQ 76 % vs 60 % (39 ev, halves 64 / 94 %) | S159 | trigger chip (A368) (label underpowered) |
-| Watchlist RSI14 < 25 → buy next open, 5 d | +2.0 pp vs own avg 2019→, 242 events, up 53 % (one global cutoff) | S160 | context (pending A378 re-run: test-era centering) |
+| Watchlist RSI14 < 25 → buy next open, 5 d | names with pre-2019 history: +0.36 pp vs own avg, t 0.35, hit 55 % (n 107); the old +2.0 pp came from 30 post-2019 IPOs (135 events, +3.3 pp, no train era) | S160 | dead (IPO-name effect untested) | if a recent-IPO RSI study passes out of sample |
 | Wide credit spreads → market-drop warning | S&P −5 % in 21 d: 25 % vs 13 % | S028 | display |
 | IV ÷ RV is the put edge | t 4+ | S003 / S004 | in fit score |
 
@@ -19,7 +19,7 @@
 Dead = don't re-run **the same test**. A variant is welcome when it names what is different (new regime, new data, new structure, fairer comparator, real costs). Kind: **cost** = gross edge smaller than the spread (durable; re-check only if costs or fills change) · **no-lift** = no edge in that sample (can change with regime → re-screen on the Re-check date with the newest data) · **framing?** = the test itself may be wrong (comparator, units, approximated dates) → audit (A371). `scripts/asks_revisit.py` lists due re-checks at session start.
 | Idea | Why | Study | Kind | Re-check |
 |---|---|---|---|---|
-| Per-stock RSI cutoffs | 3–12 events per name; shrunk per-stock −0.7 pp vs global 25 out of sample | S160 | framing? (A378 centering) | after A378 |
+| Per-stock RSI cutoffs | 3–12 events per name; shrunk per-stock −0.23 pp [−1.33, +0.90] h5, −0.96 h10 vs global 25 out of sample (A378 centering fixed) | S160 | dead | if event count per name ≥ 30 |
 | Intraday indicator signals (stock or options) | gross lift < spread; 0/144, 0/60, 1/221 | S152 · S155 · S156 · A362 | cost | cost |
 | Short-term RSI dip entries (1m…1h), 21 names | every cell ≤ 0 after spread; best 1h RSI<30 −8.6 bp | A359 fix4 | framing? (A374/A375 engine bugs) | after A359 fix5 |
 | Overnight carry | +10.8 bp/night gross, −5 mid / −21 cross → timing rule only | A359 | framing? (A374/A375 engine bugs) | after A359 fix5 |
