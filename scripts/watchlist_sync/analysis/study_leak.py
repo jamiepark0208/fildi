@@ -1,6 +1,7 @@
 """A369 leak tests — shift-one-bar, shuffle placebo, planted look-ahead."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 import numpy as np
@@ -48,18 +49,73 @@ def planted_lookahead_rsi_entry(rsi: np.ndarray, thr: float = 30.0) -> np.ndarra
     return level & ~prev
 
 
-def planted_lookahead_entry(c: np.ndarray, thr: float = 0.0) -> np.ndarray:
+def planted_lookahead_entry(c: np.ndarray, thr: float | None = None) -> np.ndarray:
     """Uses next-bar close in signal — must be flagged as look-ahead."""
     nxt = np.roll(c, -1, axis=0)
     nxt[-1, :] = np.nan
+    if thr is None or thr <= 0:
+        level = np.nanmedian(c, axis=0, keepdims=True)
+        below = nxt < level
+        prev = np.roll(below, 1, axis=0)
+        prev[0, :] = False
+        return below & ~prev & np.isfinite(nxt)
     m = sma_cross_below(nxt, thr)
     return m
 
 
-def is_planted_lookahead(entry: np.ndarray, rets: np.ndarray) -> bool:
-    """Planted signals align with same-bar return; one-bar shift destroys edge → flag."""
-    clean = rets[entry & np.isfinite(rets)]
-    shifted = rets[shift_entry_one_bar(entry) & np.isfinite(rets)]
+def shift_entry_lookup_key(
+    ticker: str,
+    session: str,
+    signal_bar: int,
+    bars_map: dict[str, pd.DataFrame] | None = None,
+) -> tuple[str, str, int]:
+    """Delayed entry bar: signal_bar+1, or first bar of next session if signal was last bar."""
+    if bars_map is None:
+        return ticker, session, signal_bar + 1
+    df = bars_map.get(ticker)
+    if df is None or "session_date" not in df.columns:
+        return ticker, session, signal_bar + 1
+    try:
+        sd = date.fromisoformat(session[:10])
+    except ValueError:
+        return ticker, session, signal_bar + 1
+    g = df[df["session_date"] == sd]
+    if g.empty:
+        return ticker, session, signal_bar + 1
+    if signal_bar < len(g) - 1:
+        return ticker, session, signal_bar + 1
+    sessions = sorted(df["session_date"].unique())
+    try:
+        idx = sessions.index(sd)
+    except ValueError:
+        return ticker, session, signal_bar + 1
+    if idx + 1 >= len(sessions):
+        return ticker, session, signal_bar + 1
+    nxt = sessions[idx + 1]
+    return ticker, nxt.isoformat(), 0
+
+
+def timing_verdict(placebo_p: float, leak_flag: bool) -> str:
+    if np.isfinite(placebo_p) and placebo_p > 0.10:
+        return "NO-TIMING-EDGE"
+    if leak_flag:
+        return "LEAK"
+    return ""
+
+
+def is_planted_lookahead(
+    entry: np.ndarray,
+    rets: np.ndarray,
+    *,
+    short_puts: bool = False,
+) -> bool:
+    """Planted signal at i uses bar i+1 info → edge is in forward return rets[i+1]."""
+    fwd = np.roll(rets, -1, axis=0)
+    fwd[-1, ...] = np.nan
+    if short_puts:
+        fwd = -fwd
+    clean = fwd[entry & np.isfinite(fwd)]
+    shifted = fwd[shift_entry_one_bar(entry) & np.isfinite(fwd)]
     if clean.size < 5 or shifted.size < 5:
         return False
     mc, ms = float(np.mean(clean)), float(np.mean(shifted))
@@ -102,7 +158,10 @@ def leak_from_trade_frames(
     for _, t in cond.iterrows():
         if base_idx is None:
             break
-        key = (t["ticker"], t["session"], int(t["signal_bar"]) + 1)
+        if "shift_session" in t.index and pd.notna(t.get("shift_session")):
+            key = (t["ticker"], str(t["shift_session"]), int(t["shift_signal_bar"]))
+        else:
+            key = (t["ticker"], t["session"], int(t["signal_bar"]) + 1)
         if key in base_idx.index:
             row = base_idx.loc[key]
             val = row[pnl_col] if pnl_col in row.index else row.get("pnl_coll_frac_cross", float("nan"))
@@ -152,12 +211,14 @@ def leak_from_trade_frames(
         if shifted_lift >= 0:
             shift_kill = bool(shifted_lift < 0.2 * lift)
     leak_flag = bool(shift_kill)
+    verdict = timing_verdict(float(placebo_p), leak_flag)
     return {
         "shift_bp": shift_bp,
         "shift_coverage": float(shift_coverage),
         "shift_note": shift_note,
         "placebo_p": float(placebo_p),
         "leak_flag": bool(leak_flag),
+        "verdict": verdict,
     }
 
 

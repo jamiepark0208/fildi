@@ -86,7 +86,7 @@ def main() -> None:
                 if np.isnan(x):
                     continue
                 te = bool(test_mask[i])
-                rows.append((t, th, te, x - (base_te[j] if te else base_tr[j]), str(dates[i].date())))
+                rows.append((t, th, te, x - base_tr[j], str(dates[i].date())))
     ev = pd.DataFrame(rows, columns=["t", "th", "test", "ex", "date"])
     tr, te = ev[~ev.test], ev[ev.test]
 

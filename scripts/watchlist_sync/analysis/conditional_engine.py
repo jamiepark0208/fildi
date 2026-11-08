@@ -1208,6 +1208,7 @@ def _frontier_row(
     shift_bp: float | None = None,
     placebo_p: float | None = None,
     leak_flag: bool | None = None,
+    verdict: str | None = None,
 ) -> dict[str, Any]:
     return {
         "window": win_label,
@@ -1234,6 +1235,7 @@ def _frontier_row(
         "shift_bp": shift_bp,
         "placebo_p": placebo_p,
         "leak_flag": leak_flag,
+        "verdict": verdict,
     }
 
 
@@ -1265,6 +1267,28 @@ def _attach_frontier_leak(
             if k in leak:
                 r[k] = leak[k]
         r.update(leak)
+
+
+def _cache_fingerprint_from_ctx(
+    tickers: list[str],
+    ctx: ConditionalContext,
+    *,
+    thresholds: list[float] | None = None,
+) -> dict[str, Any]:
+    return _a359_cache_fingerprint(
+        tickers,
+        thresholds=thresholds or list(DEFAULT_RSI_THRESHOLDS),
+        spread=ctx.spread,
+        data_max_date=_bars_data_max_date(ctx.bars_map),
+    )
+
+
+def _merge_cached_legacy_frontier(cached: dict[str, Any], legacy_ms: dict[str, Any]) -> dict[str, Any]:
+    out = dict(cached)
+    out["frontier"] = (cached.get("frontier") or []) + (legacy_ms.get("frontier") or [])
+    out["legacy_ms_wall_s"] = legacy_ms.get("sim_wall_s")
+    out["engine"] = "cached+legacy"
+    return out
 
 
 def compare_frontier_parity(
@@ -1311,11 +1335,45 @@ A359_21_TICKERS = [
 
 A359_CACHE = Path.home() / ".fildi" / "cache" / "a359"
 DEFAULT_RSI_THRESHOLDS = [5.0 + 2.5 * i for i in range(int((30.0 - 5.0) / 2.5) + 1)]
+A359_CACHE_VERSION = "fix2a-spread-v1"
+SAME_DAY_EXIT_NAMES = frozenset({"rsi_gt_50", "rsi_gt_60", "rsi_gt_70"})
+MULTI_SESSION_EXIT_NAMES = frozenset({"tp50_overnight", "hold_expiry"})
 
 
-def _a359_cache_path(tickers: list[str]) -> Path:
-    key = "_".join(sorted(tickers))
-    h = int(hashlib.md5(key.encode()).hexdigest()[:12], 16) % (10**10)
+def _bars_data_max_date(bars_map: dict[str, pd.DataFrame]) -> str:
+    dates: list[date] = []
+    for df in bars_map.values():
+        if df is not None and not df.empty and "session_date" in df.columns:
+            dates.extend(df["session_date"].unique())
+    return max(dates).isoformat() if dates else ""
+
+
+def _spread_calibration_tag(spread: SpreadCalibration) -> str:
+    return f"{spread.source}:{spread.n_obs}:{len(spread.buckets)}"
+
+
+def _a359_cache_fingerprint(
+    tickers: list[str],
+    *,
+    thresholds: list[float] | None = None,
+    spread: SpreadCalibration | None = None,
+    data_max_date: str = "",
+) -> dict[str, Any]:
+    thresholds = thresholds or list(DEFAULT_RSI_THRESHOLDS)
+    exit_names = [n for n, _ in frontier_exit_variants()]
+    return {
+        "cache_version": A359_CACHE_VERSION,
+        "tickers": sorted(tickers),
+        "thresholds": thresholds,
+        "exits": exit_names,
+        "spread_calibration": _spread_calibration_tag(spread or SpreadCalibration({}, 0, "empty")),
+        "data_max_date": data_max_date,
+    }
+
+
+def _a359_cache_path(tickers: list[str], fingerprint: dict[str, Any]) -> Path:
+    material = json.dumps(fingerprint, sort_keys=True, separators=(",", ":"))
+    h = hashlib.sha256(material.encode()).hexdigest()[:16]
     return A359_CACHE / f"trades_{len(tickers)}_{h}.parquet"
 
 
@@ -1340,9 +1398,20 @@ def build_a359_trade_cache(
             pay = run_conditional_strategy(
                 tickers, entry, exits, inst, ctx=ctx, keep_trades=True, base_every_day=False,
             )
+            from study_leak import shift_entry_lookup_key  # noqa: WPS433
+
             for tr in pay.get("cond_trades") or []:
-                cond_rows.append({**tr, "exit": exit_name, "rsi_thr": thr})
-                shift_keys.add((tr["ticker"], tr["session"], int(tr["signal_bar"]) + 1))
+                sk = shift_entry_lookup_key(
+                    tr["ticker"], tr["session"], int(tr["signal_bar"]), ctx.bars_map,
+                )
+                cond_rows.append({
+                    **tr,
+                    "exit": exit_name,
+                    "rsi_thr": thr,
+                    "shift_session": sk[1],
+                    "shift_signal_bar": sk[2],
+                })
+                shift_keys.add(sk)
         pay_base = run_conditional_strategy(
             tickers,
             ConditionSet("and", [IndicatorCondition("rsi14", "lt", 5.0, "5m")]),
@@ -1361,35 +1430,44 @@ def build_a359_trade_cache(
     return cdf, bdf, wall
 
 
-def save_a359_trade_cache(tickers: list[str], cdf: pd.DataFrame, bdf: pd.DataFrame) -> Path:
+def save_a359_trade_cache(
+    tickers: list[str],
+    cdf: pd.DataFrame,
+    bdf: pd.DataFrame,
+    *,
+    fingerprint: dict[str, Any],
+) -> Path:
     A359_CACHE.mkdir(parents=True, exist_ok=True)
-    stem = _a359_cache_path(tickers).stem
+    stem = _a359_cache_path(tickers, fingerprint).stem
     cp = A359_CACHE / f"{stem}_cond.parquet"
     cdf.to_parquet(cp)
     bdf.to_parquet(A359_CACHE / f"{stem}_base.parquet")
-    meta = {"tickers": tickers, "n_cond": len(cdf), "n_base": len(bdf)}
-    (A359_CACHE / f"{stem}_meta.json").write_text(json.dumps(meta))
+    meta = {**fingerprint, "n_cond": len(cdf), "n_base": len(bdf)}
+    (A359_CACHE / f"{stem}_meta.json").write_text(json.dumps(meta, sort_keys=True))
     return cp
 
 
-def load_a359_trade_cache(tickers: list[str]) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+def load_a359_trade_cache(
+    tickers: list[str],
+    *,
+    fingerprint: dict[str, Any] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, str] | None:
+    """Returns (cond, base, hit|miss). fingerprint required for deterministic path."""
+    if fingerprint is None:
+        return None
     want = sorted(tickers)
-    stem = _a359_cache_path(tickers).stem
+    stem = _a359_cache_path(tickers, fingerprint).stem
     cp, bp = A359_CACHE / f"{stem}_cond.parquet", A359_CACHE / f"{stem}_base.parquet"
     mp = A359_CACHE / f"{stem}_meta.json"
     if not (cp.is_file() and bp.is_file() and mp.is_file()):
-        for mp2 in sorted(A359_CACHE.glob(f"trades_{len(tickers)}_*_meta.json"), reverse=True):
-            meta = json.loads(mp2.read_text())
-            if sorted(meta.get("tickers") or []) == want:
-                stem2 = mp2.name.replace("_meta.json", "")
-                cp, bp = A359_CACHE / f"{stem2}_cond.parquet", A359_CACHE / f"{stem2}_base.parquet"
-                if cp.is_file() and bp.is_file():
-                    return pd.read_parquet(cp), pd.read_parquet(bp)
         return None
     meta = json.loads(mp.read_text())
     if sorted(meta.get("tickers") or []) != want:
         return None
-    return pd.read_parquet(cp), pd.read_parquet(bp)
+    for k, v in fingerprint.items():
+        if meta.get(k) != v:
+            return None
+    return pd.read_parquet(cp), pd.read_parquet(bp), "hit"
 
 
 def _stats_from_trade_frame(df: pd.DataFrame, sectors: dict[str, str]) -> dict[str, Any]:
@@ -1417,6 +1495,8 @@ def run_threshold_sweep_from_cache(
         thresholds, exits = thresholds[:1], exits[:1]
     for thr in thresholds:
         for exit_name, _ in exits:
+            if exit_name not in SAME_DAY_EXIT_NAMES:
+                continue
             cond = cdf[(cdf["rsi_thr"] == thr) & (cdf["exit"] == exit_name)]
             base = bdf[bdf["exit"] == exit_name]
             for win_label, filt in (("full", None), ("opra", "opra")):
@@ -1436,7 +1516,13 @@ def run_threshold_sweep_from_cache(
     return {"frontier": rows, "thresholds": thresholds, "score_wall_s": wall, "engine": "cached"}
 
 
-def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[str, Any]:
+def run_threshold_sweep_legacy(
+    tickers: list[str],
+    smoke: bool = False,
+    *,
+    exit_names: frozenset[str] | None = None,
+    leak_base_bdf: pd.DataFrame | None = None,
+) -> dict[str, Any]:
     inst = PutInstrument(target_delta=-0.15)
     rows: list[dict[str, Any]] = []
     thresholds = list(DEFAULT_RSI_THRESHOLDS)
@@ -1445,9 +1531,15 @@ def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[
     sectors = ctx.sectors
     load_s = time.perf_counter() - t0
     t_sim = time.perf_counter()
+    cond_parts: list[dict[str, Any]] = []
+    base_parts: list[dict[str, Any]] = []
+    from study_leak import shift_entry_lookup_key  # noqa: WPS433
+
     for thr in thresholds:
         entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
         for exit_name, exits in frontier_exit_variants():
+            if exit_names is not None and exit_name not in exit_names:
+                continue
             payload = run_conditional_strategy(
                 tickers, entry, exits, inst, session_filter=None, ctx=ctx, keep_trades=True,
             )
@@ -1466,14 +1558,45 @@ def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[
                 )
                 rows.append(_frontier_row(win_label, thr, exit_name, "cond", c, lift=lift, base_n=b.get("n")))
                 rows.append(_frontier_row(win_label, thr, exit_name, "base", b))
+                if exit_names is not None:
+                    for tr in ct:
+                        sk = shift_entry_lookup_key(
+                            tr["ticker"], tr["session"], int(tr["signal_bar"]), ctx.bars_map,
+                        )
+                        cond_parts.append({
+                            **tr,
+                            "exit": exit_name,
+                            "rsi_thr": thr,
+                            "shift_session": sk[1],
+                            "shift_signal_bar": sk[2],
+                            "window": win_label,
+                        })
+                    for tr in bt:
+                        base_parts.append({**tr, "exit": exit_name, "window": win_label})
             if smoke:
                 break
         if smoke:
             break
     sim_s = time.perf_counter() - t_sim
-    loaded = load_a359_trade_cache(tickers)
-    if loaded is not None:
-        _attach_frontier_leak(rows, loaded[0], loaded[1])
+    if cond_parts and exit_names is not None:
+        cdf = pd.DataFrame(cond_parts)
+        bdf = leak_base_bdf if leak_base_bdf is not None else pd.DataFrame(base_parts)
+        for r in rows:
+            if r.get("role") != "cond":
+                continue
+            thr, exit_name, win = r["rsi_lt"], r["exit"], r["window"]
+            cond = cdf[
+                (cdf["rsi_thr"] == thr) & (cdf["exit"] == exit_name) & (cdf["window"] == win)
+            ]
+            base = bdf[bdf["exit"] == exit_name] if len(bdf) else pd.DataFrame()
+            if win == "opra" and len(base):
+                base = base[base.get("in_opra_window", False)]
+            if win == "opra" and len(cond):
+                cond = cond[cond.get("in_opra_window", False)]
+            from study_leak import leak_from_trade_frames  # noqa: WPS433
+
+            leak = leak_from_trade_frames(cond, base, np.random.default_rng(369))
+            r.update(leak)
     return {
         "frontier": rows,
         "thresholds": thresholds,
@@ -1485,28 +1608,32 @@ def run_threshold_sweep_legacy(tickers: list[str], smoke: bool = False) -> dict[
 
 def benchmark_threshold_sweep(tickers: list[str], *, smoke: bool = False) -> dict[str, Any]:
     """Parity (2-name) + threshold sweep timing + 288-cell horizon grid timing."""
-    loaded = load_a359_trade_cache(tickers)
+    ctx = load_conditional_context(tickers)
+    fp = _cache_fingerprint_from_ctx(tickers, ctx)
+    loaded = load_a359_trade_cache(tickers, fingerprint=fp)
+    cache_status = "miss"
     if loaded is None:
-        ctx = load_conditional_context(tickers)
         cdf, bdf, build_s = build_a359_trade_cache(tickers, ctx)
-        save_a359_trade_cache(tickers, cdf, bdf)
+        save_a359_trade_cache(tickers, cdf, bdf, fingerprint=fp)
     else:
-        cdf, bdf = loaded
+        cdf, bdf, cache_status = loaded
         build_s = 0.0
     if smoke or len(tickers) <= 2:
         parity_tickers = tickers[:2] if len(tickers) >= 2 else tickers
-        pl = load_a359_trade_cache(parity_tickers)
-        legacy_p = run_threshold_sweep_legacy(parity_tickers, smoke=False)
+        pctx = load_conditional_context(parity_tickers)
+        pfp = _cache_fingerprint_from_ctx(parity_tickers, pctx)
+        pl = load_a359_trade_cache(parity_tickers, fingerprint=pfp)
+        legacy_p = run_threshold_sweep_legacy(parity_tickers, smoke=False, exit_names=SAME_DAY_EXIT_NAMES)
         if pl is None:
-            pctx = load_conditional_context(parity_tickers)
             pcdf, pbdf, _ = build_a359_trade_cache(parity_tickers, pctx)
+            save_a359_trade_cache(parity_tickers, pcdf, pbdf, fingerprint=pfp)
         else:
-            pcdf, pbdf = pl
+            pcdf, pbdf, _ = pl
         cached_p = run_threshold_sweep_from_cache(parity_tickers, pcdf, pbdf, smoke=False)
         parity = compare_frontier_parity(legacy_p.get("frontier", []), cached_p.get("frontier", []))
     else:
         parity = {"parity_pass": True, "n_shared": 220, "gate": "2-name smoke pre-pass"}
-    legacy = run_threshold_sweep_legacy(tickers, smoke=smoke)
+    legacy = run_threshold_sweep_legacy(tickers, smoke=smoke, exit_names=MULTI_SESSION_EXIT_NAMES)
     cached = run_threshold_sweep_from_cache(tickers, cdf, bdf, smoke=smoke)
     t_hz = time.perf_counter()
     horizon = run_horizon_sweep(tickers, smoke=smoke)
@@ -1521,26 +1648,41 @@ def benchmark_threshold_sweep(tickers: list[str], *, smoke: bool = False) -> dic
         "n_horizon_cells": horizon.get("n_cells", len(horizon.get("horizon_grid", []))),
         "parity": parity,
         "tickers": len(tickers),
+        "cache_status": cache_status,
     }
 
 
 def run_threshold_sweep(tickers: list[str], smoke: bool = False) -> dict[str, Any]:
-    loaded = load_a359_trade_cache(tickers)
-    if loaded is not None and not smoke:
-        cdf, bdf = loaded
-        return run_threshold_sweep_from_cache(tickers, cdf, bdf, smoke=smoke)
-    inst = PutInstrument(target_delta=-0.15)
-    rows: list[dict[str, Any]] = []
     thresholds = list(DEFAULT_RSI_THRESHOLDS)
     t_load = time.perf_counter()
     ctx = load_conditional_context(tickers)
     load_s = time.perf_counter() - t_load
+    fp = _cache_fingerprint_from_ctx(tickers, ctx, thresholds=thresholds)
+    loaded = load_a359_trade_cache(tickers, fingerprint=fp)
+    cache_status = "miss"
+    if loaded is not None and not smoke:
+        cdf, bdf, cache_status = loaded
+        cached = run_threshold_sweep_from_cache(tickers, cdf, bdf, smoke=smoke, thresholds=thresholds)
+        legacy_ms = run_threshold_sweep_legacy(
+            tickers, smoke=smoke, exit_names=MULTI_SESSION_EXIT_NAMES, leak_base_bdf=bdf,
+        )
+        out = _merge_cached_legacy_frontier(cached, legacy_ms)
+        out["context_load_s"] = load_s
+        out["cache_status"] = cache_status
+        return out
+    inst = PutInstrument(target_delta=-0.15)
+    rows: list[dict[str, Any]] = []
     if not smoke and len(tickers) <= 30:
         cdf, bdf, build_s = build_a359_trade_cache(tickers, ctx, thresholds=thresholds)
-        save_a359_trade_cache(tickers, cdf, bdf)
-        out = run_threshold_sweep_from_cache(tickers, cdf, bdf, smoke=smoke)
+        save_a359_trade_cache(tickers, cdf, bdf, fingerprint=fp)
+        cached = run_threshold_sweep_from_cache(tickers, cdf, bdf, smoke=smoke, thresholds=thresholds)
+        legacy_ms = run_threshold_sweep_legacy(
+            tickers, smoke=smoke, exit_names=MULTI_SESSION_EXIT_NAMES, leak_base_bdf=bdf,
+        )
+        out = _merge_cached_legacy_frontier(cached, legacy_ms)
         out["context_load_s"] = load_s
         out["cache_build_s"] = build_s
+        out["cache_status"] = "miss"
         return out
     for thr in thresholds:
         entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, "5m")])
@@ -2135,16 +2277,18 @@ def run_conditional_leak_test(tickers: list[str] | None = None) -> dict[str, Any
     df = ctx.bars_map.get(tk0)
     planted_flag = False
     if df is not None and len(df) > 80:
-        sub = df.iloc[:800].copy()
+        sub = df.iloc[:2500].copy()
         _, rsi_full = _intraday_rsi_by_session(sub)
         r14 = rsi_full[14]
-        rets = np.diff(sub["c"].to_numpy(dtype=float), prepend=np.nan)
-        rets = np.where(np.isfinite(rets), rets, 0.0)
-        good = entry_cross_mask(entry, sub["c"].to_numpy(dtype=float), rsi_cache=rsi_full)
+        c_arr = sub["c"].to_numpy(dtype=float)
+        rets = np.empty_like(c_arr)
+        rets[:-1] = c_arr[1:] / c_arr[:-1] - 1.0
+        rets[-1] = np.nan
+        good = entry_cross_mask(entry, c_arr, rsi_cache=rsi_full)
         bad = planted_lookahead_rsi_entry(r14, 30.0)
         rets_2d = rets.reshape(-1, 1)
-        planted_flag = is_planted_lookahead(bad.reshape(-1, 1), rets_2d) and not is_planted_lookahead(
-            good.reshape(-1, 1), rets_2d
+        planted_flag = is_planted_lookahead(bad.reshape(-1, 1), rets_2d, short_puts=True) and not is_planted_lookahead(
+            good.reshape(-1, 1), rets_2d, short_puts=True
         )
 
     s159 = run_index_oversold_puts(rsi_thresholds=(25.0, 30.0))
