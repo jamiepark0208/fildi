@@ -293,6 +293,8 @@ def fit_group(
     iv_c25 = _iv_at_strike(F, Kc, T, atm_iv, a, b, c)
     rr25 = iv_p25 - iv_c25
     bf25 = 0.5 * (iv_p25 + iv_c25) - atm_iv
+    if put_only:  # Claude review cd34fbcf #1: call wing is extrapolated from puts → no RR/BF
+        rr25 = bf25 = None
 
     iv10p = iv10c = None
     for q in with_iv:
@@ -514,15 +516,16 @@ def ex_earn_iv(as_of: date, tenor: int, atm: float, earn: list[date], bracket: l
         return None
     T = tenor / 365.0
     total_var = atm**2 * T
+    # Claude review cd34fbcf #2: ex-event IV = diffusive vol from the last expiry before the event;
+    # event variance = total − diffusive·T (kept implicit). No pre-event expiry → unknown, not atm.
     pre = [r for r in bracket if r.key.expiry < nxt and r.atm_iv]
     if not pre:
-        return atm
+        return None
     pre.sort(key=lambda r: r.key.expiry, reverse=True)
-    rex = pre[0]
-    T_pre = max((nxt - as_of).days - 1, 0) / 365.0
-    event_var = rex.atm_iv**2 * T_pre
-    adj = max(total_var - event_var, 1e-10)
-    return math.sqrt(adj / T) if T > 0 else atm
+    sig_d = pre[0].atm_iv
+    if total_var - sig_d**2 * T <= 0:  # no event premium visible → front already ≥ term vol
+        return atm
+    return sig_d
 
 
 def build_realized(conn, tickers: set[str] | None) -> list[tuple]:
