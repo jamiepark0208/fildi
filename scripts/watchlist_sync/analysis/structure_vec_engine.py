@@ -1197,8 +1197,6 @@ def run_ticker_d(args: tuple) -> tuple[list[dict], int]:
         d, S, ivp, ivc = rows[entry_i]
         if d < START or d > end_d or not ivp or not ivc:
             continue
-        if any(d < x <= end_d for x in rd):
-            continue
         r_tb = tb[bisect_right(tbd, d) - 1][1] if tbd and d >= tbd[0] else 0.0
         for sid, dte, entry in need:
             if not d_entry_ok(rows, entry_i, sid, entry):
