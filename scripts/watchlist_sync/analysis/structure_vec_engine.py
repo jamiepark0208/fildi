@@ -1312,6 +1312,8 @@ def shift_placebo_d(
         if not d_entry_ok(rows, i + 1, c0["sid"], c0["entry"]):
             continue
         S2 = rows[i + 1][1]
+        if not rows[i + 1][2] or not rows[i + 1][3]:
+            continue
         legs = legs_d(c0["sid"], S2, rows[i + 1][2], rows[i + 1][3], (rows[j][0] - d2).days)
         credit, cap, unreal, legs = price_paths_from_legs(
             _G_PRICER, rows, i + 1, j, legs, c0["sid"]
