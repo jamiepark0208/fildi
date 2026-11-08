@@ -129,3 +129,8 @@ All `portfolio_*` · `positions` · `user_portfolio_names` · `trade_posts` · `
 
 ## Status
 A211 stage 1 deliverables (a)(c)(d)(e) complete; (b) partial (api-server + vite measured; daily/monthly/lab/transcripts/option-history pending next fire). No scheduler code changed.
+
+## RH ingest path (moved from workflow.md, A381 Part C 11-08)
+- `portfolio_*` tables are also written from outside the app: `~/rbh_scripts/` (separate project) → `export_robinhood.py` / `export_rbh_transactions.py` → launchd `com.fildi.rbh-daily-export` (weekdays ~3 pm PT, `daily_export.sh`) → `scripts/ingest-portfolio-csv.mts` (same parsers as `/portfolio/ingest`).
+- Collection is manual (Robinhood MCP lives in `~/Claude/fildi`; headless sessions can't get Bash). No collection that day → the launchd job is a no-op.
+- `portfolio_*` rows with no API log line: check `~/rbh_scripts/check_export_status.sh` or `~/rbh_scripts/logs/daily_export.log` first.

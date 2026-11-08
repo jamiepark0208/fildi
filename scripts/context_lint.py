@@ -22,13 +22,13 @@ SKIP = ("/archive", "/sessions", "/ai-workflow-reviews/", "/plans/")
 # Rule docs where a rule should live exactly once. Skills may link to a rule, not restate it.
 RULE_FILES = [  # .agents/rules.md excluded: one-line UI mirror of AGENTS.md by design
               ".agents/context/jamie-rules.md", ".agents/context/agentic-floors.md",
-              ".agents/AGENT_OPS.md", ".agents/context/workflow.md", ".cursor/rules/lessons-learned.mdc",
+              ".agents/AGENT_OPS.md", ".cursor/rules/lessons-learned.mdc",
               "research/studies/PLAYBOOK.md", "research/studies/REVIEW.md", ".agents/dispatch/_study-contract.md",
               ".agents/skills/fildi-quant-research/SKILL.md"]
 PHRASES = {"T-bill comparator": r"(comparator|same.risk).*t-?bill", "23 % fill": r"23\s?%", "placebo": r"placebo",
            "one home per logic": r"one home per", "train/test split": r"train\s?/\s?test"}
 MAX_HOMES = 2  # one home + one pointer is fine
-BUDGET_CHARS = 78_000  # ratchet: 11-08 baseline 77k (entry files + INDEX + state). Lower it after each trim, never raise.
+BUDGET_CHARS = 70_000  # ratchet: 11-08 77k → 69k after state.md trim (entry files + INDEX + state). Lower it after each trim, never raise.
 
 
 def _read(p: Path) -> str:

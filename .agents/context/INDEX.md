@@ -40,7 +40,7 @@
 | **TradingView indicators (UT Bot, SuperTrend cluster/div, SMC, Fear & Greed): built, tested, use-case map** | `.agents/context/indicators.md` | Re-implementing indicators; rules from S102 alone |
 | **Unique features + how to synthesize overlapping analysis** | `.agents/context/fildi-feature-synthesis.md` | `FACTOR_MAP.md` (factors only); reels → ASKS |
 | API catalog | `.agents/context/api-endpoints.md` | — |
-| Workflow / build | `.agents/context/workflow.md` | — |
+| Workflow / build | `.claude/skills/build-and-run.md` (routes, rebuild) · `db-patterns.md` · `ui-components.md` | `.agents/archive/2026-11-08/workflow.md` |
 | Agent routing | `.agents/AGENTS.md` | — |
 | Muse AI (live remote; Cursor owns handoffs) | `MUSE.md` · ASKS `Muse → Cursor` · pull `origin/cursor/mac-dev` | Cursor implements Muse rows (2026-10-07); Claude plan-reviews every Muse row (2026-10-14) + reviews quant commits (AGENTS.md § Review loop). ASKS = index + `research/common/asks/A##.md` |
 | Weekly ops checklist | `.cursor/skills/weekly-data-ops-check.md` | — |

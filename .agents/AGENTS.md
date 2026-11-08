@@ -63,7 +63,7 @@ If stuck for >15 min or hitting an architectural decision: stop, write current s
 | Agentic floors | `.agents/context/agentic-floors.md` |
 | Stock DB / cadence / earnings ops | `.agents/context/stock-db-best-realistic.md`, `fundamentals-refresh-cadence.md`, `event-driven-refresh.md` |
 | Sector scoring plan | `.agents/context/plans/fundamental-sector-scoring.md` |
-| Workflow + build rules | `.agents/context/workflow.md` |
+| Workflow + build rules | `.claude/skills/build-and-run.md` · db-patterns · ui-components (workflow.md archived 11-08) |
 | Current phase (Claude) | `.agents/context/state.md` — Claude writes; Cursor read-only |
 | Current phase (Cursor) | `.cursor/context/cursor-state.md` — Cursor writes |
 | Technical lessons (Claude) | `.agents/memory/` (see MEMORY.md) |
