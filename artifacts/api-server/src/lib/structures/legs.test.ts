@@ -96,6 +96,47 @@ describe("legs — POP", () => {
     const priced = priceStructure(legs, ctx, 45);
     assert.ok(priced.pop > 0.9, `deep OTM CSP POP=${priced.pop}`);
   });
+
+  it("OTM short put POP higher at 4 DTE than 30 DTE (T = leg expiry)", () => {
+    const spot = 100;
+    const strike = 98;
+    const extraStrikes = [spot - 10, spot - 5, strike, spot, spot + 5, spot + 10];
+    const row = (K: number) => ({
+      strike: K,
+      bid: 1.5,
+      ask: 1.9,
+      lastPrice: 1.7,
+      iv: 0.28,
+      volume: 10,
+      delta: -0.25,
+      gamma: 0.01,
+      theta: -0.05,
+      vega: 0.1,
+      openInterest: 100,
+      expiry: "",
+    });
+    const chain4: OptionsChainResult = {
+      expiry: "2026-11-11",
+      spot,
+      daysToExpiry: 4,
+      puts: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-11-11" })),
+      calls: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-11-11", delta: 0.25 })),
+    };
+    const chain30: OptionsChainResult = {
+      expiry: "2026-12-19",
+      spot,
+      daysToExpiry: 30,
+      puts: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-12-19" })),
+      calls: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-12-19", delta: 0.25 })),
+    };
+    const legs4: Leg[] = [{ kind: "put", side: "short", qty: 1, strike, expiry: chain4.expiry }];
+    const legs30: Leg[] = [{ kind: "put", side: "short", qty: 1, strike, expiry: chain30.expiry }];
+    const ctx4: ChainContext = { spot, chains: [chain4], riskFree: DEFAULT_RISK_FREE };
+    const ctx30: ChainContext = { spot, chains: [chain30], riskFree: DEFAULT_RISK_FREE };
+    const pop4 = priceStructure(legs4, ctx4, 30).pop;
+    const pop30 = priceStructure(legs30, ctx30, 30).pop;
+    assert.ok(pop4 > pop30, `4 DTE POP=${pop4} vs 30 DTE POP=${pop30}`);
+  });
 });
 
 describe("pickExpiry — horizon", () => {
@@ -207,6 +248,28 @@ describe("legs — AAPL stored chain samples", () => {
 });
 
 describe("ranker — horizon DTE", () => {
+  it("AAPL neutral rank returns rows under $1000 max loss", async () => {
+    if (!process.env.DATABASE_URL) return;
+    const { readChainSnapshot } = await import("../options-chain-store.js");
+    const { rankStructuresForView } = await import("./rank.js");
+    const snap = await readChainSnapshot("AAPL").catch(() => null);
+    if (!snap?.chains?.length) {
+      console.log("SANITY: AAPL chain missing — skip rank");
+      return;
+    }
+    const r = await rankStructuresForView({
+      ticker: "AAPL",
+      chains: snap.chains,
+      view: "neutral",
+      horizonDays: 30,
+      maxLoss: 1000,
+    });
+    console.log(
+      `SANITY rank: rows=${r.rows.length} note=${r.expiryNote ?? "—"} coverage=${r.chainCoverage.length}`,
+    );
+    assert.ok(r.rows.length > 0, `rows=${r.rows.length}`);
+  });
+
   it("template legs use expiry with DTE ≥ horizon − 7", () => {
     const chains = [
       synthChain(225, "2026-11-11", 4),

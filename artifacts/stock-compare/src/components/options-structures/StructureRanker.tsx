@@ -43,7 +43,13 @@ export function StructureRanker() {
         { credentials: "include" },
       );
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "rank failed");
-      return r.json() as Promise<{ rows: RankRow[]; label: string; spot: number }>;
+      return r.json() as Promise<{
+        rows: RankRow[];
+        label: string;
+        spot: number;
+        expiryNote?: string | null;
+        chainCoverage?: { expiry: string; daysToExpiry: number; puts: boolean; calls: boolean }[];
+      }>;
     },
     staleTime: 60_000,
   });
@@ -51,6 +57,17 @@ export function StructureRanker() {
   return (
     <div className="space-y-2 text-xs">
       <p className="text-yellow-300/90">{q.data?.label ?? "model estimate — not backtested"}</p>
+      {q.data?.expiryNote ? (
+        <p className="text-amber-200/80 text-[10px]">{q.data.expiryNote}</p>
+      ) : null}
+      {q.data?.chainCoverage?.length ? (
+        <p className="text-zinc-400 text-[9px] font-mono leading-tight">
+          Chain:{" "}
+          {q.data.chainCoverage
+            .map((c) => `${c.daysToExpiry}d${c.puts ? "P" : ""}${c.calls ? "C" : ""}`)
+            .join(" · ")}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5">
           <span className="text-amber-100">Ticker</span>

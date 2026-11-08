@@ -271,7 +271,24 @@ function blendedHorizonIv(legs: Leg[], ctx: ChainContext): number {
   return ivs.reduce((a, b) => a + b, 0) / ivs.length;
 }
 
-/** POP at horizon: P(payoff > 0) under lognormal S_T (drift r, IV from legs). */
+/** Shortest option-leg DTE (front expiry for calendars/diagonals); stock-only → 30. */
+export function popExpiryDays(legs: Leg[], ctx: ChainContext): number {
+  const optionLegs = legs.filter((l) => l.kind !== "stock" && l.expiry);
+  if (!optionLegs.length) return 30;
+  let minDays = Infinity;
+  const asOf = ctx.asOf ?? Date.now();
+  for (const leg of optionLegs) {
+    const chain = findChain(ctx.chains, leg.expiry!);
+    const days =
+      chain != null
+        ? chain.daysToExpiry
+        : Math.max(Math.round(yearsToExpiry(leg.expiry!, asOf) * 365), 0);
+    if (days < minDays) minDays = days;
+  }
+  return minDays === Infinity ? 30 : minDays;
+}
+
+/** POP at leg expiry: P(payoff > 0) under lognormal S_T (drift r, IV from legs). */
 export function popAtHorizon(
   legs: Leg[],
   ctx: ChainContext,
@@ -280,7 +297,8 @@ export function popAtHorizon(
 ): number {
   const spot = ctx.spot;
   const sigma = blendedHorizonIv(legs, ctx);
-  const T = horizonDays / 365;
+  const expiryDays = popExpiryDays(legs, ctx);
+  const T = expiryDays / 365;
   const r = ctx.riskFree ?? DEFAULT_RISK_FREE;
   if (T <= 0) {
     return payoffAtSpot(legs, ctx, spot, netFill, true) > 0 ? 1 : 0;
@@ -412,7 +430,7 @@ export function priceStructure(legs: Leg[], ctx: ChainContext, horizonDays = 30)
     maxLoss,
     maxGain,
     breakevens: breakevens(legs, ctx, priced.netFill),
-    pop: popAtHorizon(legs, ctx, priced.netFill, horizonDays),
+    pop: popAtHorizon(legs, ctx, priced.netFill, popExpiryDays(legs, ctx)),
     buyingPower: buyingPower(legs, ctx, priced),
     greeks: netGreeks(legs, ctx),
     payoff: payoffCurve(legs, ctx, priced.netFill),

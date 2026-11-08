@@ -72,10 +72,49 @@ function invNorm(p: number): number {
     (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
 }
 
-function chainsForHorizon(chains: OptionsChainResult[], horizonDays: number): OptionsChainResult[] {
+export interface ChainExpiryCoverage {
+  expiry: string;
+  daysToExpiry: number;
+  puts: boolean;
+  calls: boolean;
+}
+
+export function chainCoverageSummary(chains: OptionsChainResult[]): ChainExpiryCoverage[] {
+  return [...chains]
+    .sort((a, b) => a.daysToExpiry - b.daysToExpiry)
+    .map((c) => ({
+      expiry: c.expiry,
+      daysToExpiry: c.daysToExpiry,
+      puts: c.puts.length > 0,
+      calls: c.calls.length > 0,
+    }));
+}
+
+/** Nearest expiry to horizon with both sides; else nearest both-sided in full chain. */
+export function pickExpiryWithFallback(
+  chains: OptionsChainResult[],
+  horizonDays: number,
+): { chain: OptionsChainResult | null; expiryNote: string | null } {
   const minDte = Math.max(0, horizonDays - 7);
-  const eligible = chains.filter((c) => c.daysToExpiry >= minDte);
-  return eligible.length ? eligible : chains;
+  const bothSides = (list: OptionsChainResult[]) =>
+    list.filter((c) => c.puts.length > 0 && c.calls.length > 0);
+
+  let pool = bothSides(chains.filter((c) => c.daysToExpiry >= minDte));
+  let usedFallback = false;
+  if (!pool.length) {
+    pool = bothSides(chains);
+    usedFallback = pool.length > 0;
+  }
+  if (!pool.length) {
+    const anchor = pickExpiry(chains, horizonDays) ?? chains[0] ?? null;
+    return { chain: anchor, expiryNote: anchor ? `horizon not available — used ${anchor.daysToExpiry} DTE` : null };
+  }
+  const chain = pickExpiry(pool, horizonDays) ?? pool[0];
+  const inWindow = chain.daysToExpiry >= minDte && !usedFallback;
+  const expiryNote = inWindow
+    ? null
+    : `horizon not available — used ${chain.daysToExpiry} DTE`;
+  return { chain, expiryNote };
 }
 
 export async function rankStructuresForView(opts: {
@@ -84,11 +123,20 @@ export async function rankStructuresForView(opts: {
   view: MarketView;
   horizonDays: number;
   maxLoss: number;
-}): Promise<{ ticker: string; view: MarketView; horizonDays: number; maxLoss: number; label: string; rows: RankRow[] }> {
-  const horizonChains = chainsForHorizon(opts.chains, opts.horizonDays);
-  const anchor = pickExpiry(horizonChains, opts.horizonDays) ?? horizonChains[0] ?? opts.chains[0];
+}): Promise<{
+  ticker: string;
+  view: MarketView;
+  horizonDays: number;
+  maxLoss: number;
+  label: string;
+  expiryNote: string | null;
+  chainCoverage: ChainExpiryCoverage[];
+  rows: RankRow[];
+}> {
+  const { chain: anchor, expiryNote } = pickExpiryWithFallback(opts.chains, opts.horizonDays);
   const spot = anchor?.spot ?? opts.chains[0]?.spot ?? 0;
-  const ctx: ChainContext = { spot, chains: horizonChains.length ? horizonChains : opts.chains };
+  const ctx: ChainContext = { spot, chains: opts.chains };
+  const chainCoverage = chainCoverageSummary(opts.chains);
   const iv = atmIv(opts.chains);
   let earningsBump = 0;
   const upcoming = await getUpcomingEarningsDates([opts.ticker]);
@@ -103,7 +151,7 @@ export async function rankStructuresForView(opts: {
 
   for (const id of ids) {
     const legs = buildTemplate(id, {
-      chains: horizonChains.length ? horizonChains : opts.chains,
+      chains: opts.chains,
       horizonDays: opts.horizonDays,
     });
     if (!legs?.length) continue;
@@ -129,12 +177,19 @@ export async function rankStructuresForView(opts: {
 
   rows.sort((a, b) => b.pnlPerBp - a.pnlPerBp);
 
+  const label =
+    expiryNote != null
+      ? `model estimate — not backtested · ${expiryNote}`
+      : "model estimate — not backtested";
+
   return {
     ticker: opts.ticker,
     view: opts.view,
     horizonDays: opts.horizonDays,
     maxLoss: opts.maxLoss,
-    label: "model estimate — not backtested",
+    label,
+    expiryNote,
+    chainCoverage,
     rows,
   };
 }
