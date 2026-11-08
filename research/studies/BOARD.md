@@ -26,6 +26,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 | Iron condor / short call vertical, tuned (entry filter × DTE × Δ × exit, 30 names) | best train cell fails test 2024→: IC −21 bp/$BP/day t −0.77, call vert −15 bp t −1.11; naive CSP +1.6 bp t 4.0 (train) | S164 | no-lift | after B2 |
 | Family B shapes on CSP entries (put vert, jade, front-ratio, BWB, 30 names) | all trail plain CSP at same BP: CSP +2.4 bp/$BP/day vs front-ratio +1.0, vert +0.8, jade +0.3, BWB −0.3; best test lift +0.04 bp t 1.35 | S165 | no-lift | if CSP entry rules change |
 | Debit call/put verticals on MTF pullback, −50 % stop (238 names) | S166 loss was mostly the stop (fired 67–72 %); held to expiry ≈ Δ-stock (−0.04…−0.07 per $debit); entry has no direction edge (P 0.48/0.52); spreads beat stock only on +0.5…1.5σ moves | S166 | framing (stop + no-edge entry; skew not modelled) | A192 Part D2 (S100/S046 entries, no stop) |
+| Bull call debit on S100/S046 entries, no stop (32 cells) | train 2021–23 every cell trails Δ-stock on same $debit (best −36 vs −17 bp/day); entries themselves negative that era; beats long call in 14/16 hold cells (−36 vs −39) | S167 | no-lift (vs stock); spread > long call | Part R skew-priced entries; dte7 exit bug |
 | Put spreads / strangles / straddles vs CSP | −$17.5k / −$12.4k vs CSP on the same entries | S020 | framing? | 2026-11-07 |
 | Stops, 50/75 % profit takes | −$13.7k (stop); takes lose on real quotes | S017 · S103 | no-lift | 2027-02-07 |
 | Calendar / Fed / CPI / opex weeks | 0/22 | S026 | framing? | 2027-02-07 |

@@ -272,6 +272,10 @@ def run_entry(
         "pnl_st": stock_pnl,
         "xpd_st": xpd_st,
         "cap_st": stock_risk,
+        # Claude 11-08: Δ-matched stock on the SAME $ debit (same exposure, same capital denominator) = primary comparator
+        "pnl_sd": stock_pnl,
+        "cap_sd": debit,
+        "xpd_sd": (stock_pnl / debit - r_tb * days / 365.0) / days,
         "pnl_ca": call_pnl,
         "xpd_ca": xpd_ca,
         "exc_ca": exc_ca,
@@ -436,9 +440,9 @@ def main() -> int:
             p = pooled_xpd(xs, "sp")
             if math.isfinite(p) and p > best_pool:
                 best_pool, best_cell = p, ck
-        stock_pool_best = pooled_xpd(by_cell.get(best_cell, []), "st")
+        stock_pool_best = pooled_xpd(by_cell.get(best_cell, []), "sd")
         every_trails = all(
-            pooled_xpd(xs, "sp") < pooled_xpd(xs, "st")
+            pooled_xpd(xs, "sp") < pooled_xpd(xs, "sd")
             for xs in by_cell.values()
             if len(xs) >= 10
         )
@@ -456,6 +460,10 @@ def main() -> int:
                 n = sum(1 for e in entries if e["source"] == src and cut(e["d"]))
                 lines.append(f"- {src} {era}: {n} entries")
         lines.append("")
+        lines.append("## Train cells (bp per $debit/day): spread · Δ-stock same debit · stock per notional · long call")
+        for ck, xs in sorted(by_cell.items()):
+            lines.append(f"- {ck} n={len(xs)} sp={pooled_xpd(xs, 'sp')*1e4:+.1f} sd={pooled_xpd(xs, 'sd')*1e4:+.1f} st={pooled_xpd(xs, 'st')*1e4:+.1f} ca={pooled_xpd(xs, 'ca')*1e4:+.1f}")
+        lines.append("")
 
         verdict = "INCOMPLETE"
         stop_test = every_trails and len(by_cell) > 0
@@ -469,7 +477,7 @@ def main() -> int:
         else:
             test_sub = E.deoverlap([t for t in test if t["cell"] == best_cell])
             test_sp = pooled_xpd(test_sub, "sp") * 1e4
-            test_st = pooled_xpd(test_sub, "st") * 1e4
+            test_st = pooled_xpd(test_sub, "sd") * 1e4
             test_ca = pooled_xpd(test_sub, "ca") * 1e4
             sm_t = E.summarize(
                 [{**r, "pnl": r["pnl_sp"], "cap": r["cap_sp"], "xpd": r["xpd_sp"]} for r in test_sub]
