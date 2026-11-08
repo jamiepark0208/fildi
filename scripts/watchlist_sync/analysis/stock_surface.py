@@ -86,6 +86,7 @@ class Quote:
     iv: float | None
     delta: float | None
     oi: int
+    trades: int = 0
 
 
 @dataclass(frozen=True)
@@ -281,7 +282,11 @@ def fit_group(
         spr = max(q.ask - q.bid, 1e-4)
         xs.append(x)
         ys.append(q.iv)
-        ws.append(1.0 / spr**2)
+        if source == "lse_trades":
+            tr = max(q.trades or 1, 1)
+            ws.append(1.0 / float(tr))
+        else:
+            ws.append(1.0 / spr**2)
 
     linear_only = put_only and len(with_iv) < MIN_QUOTES
     a, b, c, rmse = _wls_quad(np.array(xs), np.array(ys), np.array(ws), linear_only)
@@ -388,6 +393,31 @@ def load_skew(conn, tickers: set[str] | None, d0: date | None, d1: date | None) 
     return out
 
 
+def load_lse_trades(conn, tickers: set[str] | None, d0: date | None, d1: date | None) -> dict[GroupKey, list[Quote]]:
+    q = (
+        "SELECT date, ticker, expiry, side, strike::float, opt_px::float, iv::float, delta::float,"
+        " COALESCE(trades, volume, 1)::int FROM optlab.opra_daily_iv WHERE opt_px > 0 AND iv > 0"
+    )
+    args: list = []
+    if d0:
+        q += " AND date >= %s"
+        args.append(d0)
+    if d1:
+        q += " AND date <= %s"
+        args.append(d1)
+    if tickers:
+        q += " AND ticker = ANY(%s)"
+        args.append(list(tickers))
+    out: dict[GroupKey, list[Quote]] = defaultdict(list)
+    for d, t, exp, side, K, px, iv, delt, tr in conn.execute(q, args):
+        side = "call" if str(side).lower().startswith("c") else "put"
+        ivn = _iv_unit(iv) if iv else None
+        out[GroupKey(t, d, exp)].append(
+            Quote(side, float(K), float(px), float(px), ivn, float(delt) if delt else None, 0, int(tr or 1))
+        )
+    return out
+
+
 def load_lseg_puts(conn, tickers: set[str] | None, d0: date | None, d1: date | None) -> dict[GroupKey, list[Quote]]:
     q = "SELECT ric, date, bid::float, ask::float, mid::float FROM optlab.lseg_opt_daily WHERE bid>0"
     args: list = []
@@ -422,6 +452,7 @@ def load_lseg_puts(conn, tickers: set[str] | None, d0: date | None, d1: date | N
 def merge_sources(
     chain: dict[GroupKey, list[Quote]],
     survey: dict[GroupKey, list[Quote]],
+    lse: dict[GroupKey, list[Quote]],
     lseg: dict[GroupKey, list[Quote]],
 ) -> list[tuple[GroupKey, str, list[Quote], bool]]:
     picked: dict[GroupKey, tuple[str, list[Quote], bool]] = {}
@@ -431,6 +462,10 @@ def merge_sources(
         if key in picked and len(qs) <= len(picked[key][1]):
             continue
         picked[key] = ("skew_survey", qs, False)
+    for key, qs in lse.items():
+        if key in picked and len(qs) <= len(picked[key][1]):
+            continue
+        picked[key] = ("lse_trades", qs, False)
     for key, qs in lseg.items():
         if key in picked:
             continue
@@ -558,13 +593,15 @@ def build_realized(conn, tickers: set[str] | None) -> list[tuple]:
     return out
 
 
-def run_build(conn, tickers: set[str] | None, write: bool) -> dict:
+def run_build(conn, tickers: set[str] | None, write: bool, since: date | None = None) -> dict:
     tb = _load_tb()
     t0 = time.time()
-    chain = load_chain(conn, tickers, None, None)
-    survey = load_skew(conn, tickers, None, None)
-    lseg = load_lseg_puts(conn, tickers, None, None)
-    merged = merge_sources(chain, survey, lseg)
+    d0 = since
+    chain = load_chain(conn, tickers, d0, None)
+    survey = load_skew(conn, tickers, d0, None)
+    lse = load_lse_trades(conn, tickers, d0, None)
+    lseg = load_lseg_puts(conn, tickers, d0, None)
+    merged = merge_sources(chain, survey, lse, lseg)
     fits: list[FitRow] = []
     for key, src, qs, put_only in merged:
         spot = spot_for_group(conn, key, qs)
@@ -599,12 +636,25 @@ def run_build(conn, tickers: set[str] | None, write: bool) -> dict:
 
     if write:
         cur = conn.cursor()
-        if tickers:
-            cur.execute("DELETE FROM optlab.stock_surface_daily WHERE ticker = ANY(%s)", (list(tickers),))
-            cur.execute("DELETE FROM optlab.stock_surface_cm WHERE ticker = ANY(%s)", (list(tickers),))
-            cur.execute("DELETE FROM optlab.stock_realized_daily WHERE ticker = ANY(%s)", (list(tickers),))
+        if since is None:
+            if tickers:
+                cur.execute("DELETE FROM optlab.stock_surface_daily WHERE ticker = ANY(%s)", (list(tickers),))
+                cur.execute("DELETE FROM optlab.stock_surface_cm WHERE ticker = ANY(%s)", (list(tickers),))
+                cur.execute("DELETE FROM optlab.stock_realized_daily WHERE ticker = ANY(%s)", (list(tickers),))
+            else:
+                cur.execute("TRUNCATE optlab.stock_surface_daily, optlab.stock_surface_cm, optlab.stock_realized_daily")
+        elif tickers:
+            cur.execute(
+                "DELETE FROM optlab.stock_surface_daily WHERE ticker = ANY(%s) AND as_of >= %s",
+                (list(tickers), since),
+            )
+            cur.execute(
+                "DELETE FROM optlab.stock_surface_cm WHERE ticker = ANY(%s) AND as_of >= %s",
+                (list(tickers), since),
+            )
         else:
-            cur.execute("TRUNCATE optlab.stock_surface_daily, optlab.stock_surface_cm, optlab.stock_realized_daily")
+            cur.execute("DELETE FROM optlab.stock_surface_daily WHERE as_of >= %s", (since,))
+            cur.execute("DELETE FROM optlab.stock_surface_cm WHERE as_of >= %s", (since,))
         for f in fits:
             cur.execute(
                 """INSERT INTO optlab.stock_surface_daily VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
@@ -642,14 +692,15 @@ def run_build(conn, tickers: set[str] | None, write: bool) -> dict:
         )
         conn.commit()
 
-    stats = summarize(fits, chain, survey, lseg, cm_rows, time.time() - t0)
+    stats = summarize(fits, chain, survey, lse, lseg, cm_rows, time.time() - t0)
     return stats
 
 
-def summarize(fits, chain, survey, lseg, cm_rows, elapsed) -> dict:
+def summarize(fits, chain, survey, lse, lseg, cm_rows, elapsed) -> dict:
     src_cov = {
         "option_chain_history": len({(f.key.ticker, f.key.as_of) for f in fits if f.source == "option_chain_history"}),
         "skew_survey": len({(f.key.ticker, f.key.as_of) for f in fits if f.source == "skew_survey"}),
+        "lse_trades": len({(f.key.ticker, f.key.as_of) for f in fits if f.source == "lse_trades"}),
         "lseg_opt_daily": len({(f.key.ticker, f.key.as_of) for f in fits if f.source == "lseg_opt_daily"}),
     }
     ge5 = sum(1 for f in fits if f.n_quotes >= 5) / max(len(fits), 1)
@@ -676,8 +727,9 @@ def smoke_gate(conn) -> tuple[bool, str]:
     parts = []
     chain = load_chain(conn, tickers, None, None)
     survey = load_skew(conn, tickers, None, None)
+    lse = load_lse_trades(conn, tickers, None, None)
     lseg = load_lseg_puts(conn, tickers, SMOKE_LSEG_DATE, SMOKE_LSEG_DATE)
-    merged = merge_sources(chain, survey, lseg)
+    merged = merge_sources(chain, survey, lse, lseg)
     fits = []
     for key, src, qs, po in merged:
         row = fit_group(key, src, qs, spot_for_group(conn, key, qs), _r_at(tb, key.as_of), po)
@@ -766,7 +818,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--write", action="store_true", help="persist to optlab tables")
+    ap.add_argument("--since", type=str, default="", help="incremental watermark YYYY-MM-DD (no full rebuild)")
     args = ap.parse_args()
+    since = date.fromisoformat(args.since) if args.since else None
     conn = connect()
     ensure_schema(conn)
 
@@ -777,7 +831,7 @@ def main() -> None:
             sys.exit(2)
         # small slice timing check
         t0 = time.time()
-        stats = run_build(conn, set(SMOKE_TICKERS), write=False)
+        stats = run_build(conn, set(SMOKE_TICKERS), write=False, since=since)
         print(f"smoke build {stats['n_fits']} fits in {time.time()-t0:.1f}s")
         return
 
@@ -788,7 +842,7 @@ def main() -> None:
         OUT.write_text("# S1 smoke FAIL\n\n" + smoke_txt)
         sys.exit(2)
 
-    stats = run_build(conn, None, write=args.write or True)
+    stats = run_build(conn, None, write=args.write or True, since=since)
     print(f"FIRST full-run line: n_fits={stats['n_fits']} ge5={stats['ge5_share']:.1%} rmse_p50={stats['rmse_p50']} elapsed={stats['elapsed']:.1f}s")
     write_report(stats, smoke_txt)
   # rank if written
