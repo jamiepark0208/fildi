@@ -1,0 +1,4 @@
+A192 Part C fix1 (Refs: A192). Fix findings 1–6 of "Claude review 45a12e7d" at the end of research/common/asks/A192.md.
+Files: artifacts/api-server/src/lib/structures/templates.ts (call_zebra, put_zebra, big_lizard, reverse_big_lizard, put/call_front_ratio, put/call_broken_wing_butterfly, put/call_broken_heart; pickWidth: + = further OTM for both sides), legs.test.ts (synthChain → BS prices per strike from one IV; shape tests for all 31 templates per finding 6). If a card text in artifacts/stock-compare/src/components/options-structures/strategy-guide.ts describes the old shape, fix the text.
+Smoke gate: new shape tests fail on the old templates first, then pass. Print one line per template: credit/debit, net Δ, max loss, BEs.
+Packet ≤ 8 lines appended to A192.md. scripts/agent-ship-check.sh must pass. Commit Refs: A192, Agent: cursor.
