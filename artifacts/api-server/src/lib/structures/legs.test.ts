@@ -183,6 +183,20 @@ describe("legs — iron condor max loss", () => {
     assert.ok(Math.abs(priced.maxLoss - expectedMax) < width * OPTION_MULT * 0.15 + 50,
       `maxLoss=${priced.maxLoss} vs ${expectedMax}`);
   });
+
+  it("buying power = wider wing × 100 − credit (not full strike range)", () => {
+    const spot = 100;
+    const chain = synthChain(spot, "2026-12-19", 30);
+    const legs: Leg[] = [
+      { kind: "put", side: "short", qty: 1, strike: 95, expiry: chain.expiry },
+      { kind: "put", side: "long", qty: 1, strike: 85, expiry: chain.expiry },
+      { kind: "call", side: "short", qty: 1, strike: 105, expiry: chain.expiry },
+      { kind: "call", side: "long", qty: 1, strike: 110, expiry: chain.expiry },
+    ];
+    const priced = priceStructure(legs, { spot, chains: [chain] });
+    const expected = 10 * OPTION_MULT - priced.netFill;
+    assert.ok(Math.abs(priced.buyingPower - expected) < 1, `bp=${priced.buyingPower} vs ${expected}`);
+  });
 });
 
 describe("legs — calendar at front expiry", () => {

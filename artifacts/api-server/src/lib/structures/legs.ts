@@ -363,8 +363,14 @@ function rationalApproxInvNorm(p: number): number {
 }
 
 export function buyingPower(legs: Leg[], ctx: ChainContext, priced: ReturnType<typeof priceLegs>): number {
-  let bp = 0;
   const spot = ctx.spot;
+  // Defined-risk option-only structures (spreads, condors, flies, CSP, long options): broker BP = max loss
+  // (condor: wider wing × 100 − credit, not the full strike range).
+  if (legs.length && legs.every((l) => l.kind !== "stock")) {
+    const { maxLoss } = maxLossGain(legs, ctx, priced.netFill);
+    if (maxLoss > 0 && maxLoss < 1e14) return maxLoss;
+  }
+  let bp = 0;
   for (const { leg, fill } of priced.fills) {
     if (leg.kind === "stock" && leg.side === "long") bp += spot * leg.qty;
     if (leg.kind === "stock" && leg.side === "short") bp += spot * leg.qty * 0.5;
