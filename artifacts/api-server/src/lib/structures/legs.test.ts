@@ -88,13 +88,13 @@ describe("legs — POP", () => {
     assert.ok(priced.pop < 0.5, `short straddle POP=${priced.pop}`);
   });
 
-  it("deep OTM short put POP > 90%", () => {
+  it("deep OTM short put POP > 85% (10% OTM, 45 DTE, IV 25%)", () => {
     const spot = 100;
     const chain = synthChain(spot, "2026-12-19", 45);
-    const legs: Leg[] = [{ kind: "put", side: "short", qty: 1, strike: 80, expiry: chain.expiry }];
+    const legs: Leg[] = [{ kind: "put", side: "short", qty: 1, strike: 90, expiry: chain.expiry }];
     const ctx: ChainContext = { spot, chains: [chain], riskFree: DEFAULT_RISK_FREE };
     const priced = priceStructure(legs, ctx, 45);
-    assert.ok(priced.pop > 0.9, `deep OTM CSP POP=${priced.pop}`);
+    assert.ok(priced.pop > 0.85, `deep OTM CSP POP=${priced.pop}`);
   });
 
   it("OTM short put POP higher at 4 DTE than 30 DTE (T = leg expiry)", () => {
@@ -109,25 +109,22 @@ describe("legs — POP", () => {
       iv: 0.28,
       volume: 10,
       delta: -0.25,
-      gamma: 0.01,
-      theta: -0.05,
-      vega: 0.1,
       openInterest: 100,
-      expiry: "",
+      incomePct: 0,
+      meetsGate: true,
+      bidIsLive: true,
+      quoteStale: false,
+      spreadPct: 0.2,
     });
     const chain4: OptionsChainResult = {
-      expiry: "2026-11-11",
-      spot,
-      daysToExpiry: 4,
-      puts: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-11-11" })),
-      calls: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-11-11", delta: 0.25 })),
+      ...synthChain(spot, "2026-11-11", 4),
+      puts: extraStrikes.map((K) => row(K)),
+      calls: extraStrikes.map((K) => ({ ...row(K), delta: 0.25 })),
     };
     const chain30: OptionsChainResult = {
-      expiry: "2026-12-19",
-      spot,
-      daysToExpiry: 30,
-      puts: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-12-19" })),
-      calls: extraStrikes.map((K) => ({ ...row(K), expiry: "2026-12-19", delta: 0.25 })),
+      ...synthChain(spot, "2026-12-19", 30),
+      puts: extraStrikes.map((K) => row(K)),
+      calls: extraStrikes.map((K) => ({ ...row(K), delta: 0.25 })),
     };
     const legs4: Leg[] = [{ kind: "put", side: "short", qty: 1, strike, expiry: chain4.expiry }];
     const legs30: Leg[] = [{ kind: "put", side: "short", qty: 1, strike, expiry: chain30.expiry }];
