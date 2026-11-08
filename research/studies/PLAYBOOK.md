@@ -11,7 +11,7 @@
 Any "does strategy/signal X work?" starts in the fast screen (S157) — seconds, not hours. Full study only for what it flags.
 1. Add the signal as one vectorized fn (≤ 15 lines) in `scripts/watchlist_sync/analysis/screen_signals.py` (one home; live shadow signals import it too) + a library row in `analysis/fast_screen.py`.
 2. `cd scripts/watchlist_sync && .venv/bin/python analysis/fast_screen.py self-test` then `run` (68 cells ≈ 11 s, plus the use-case grid unless `--skip-usecases`: 1,030 variants ≈ 28 s — settings grids, put-breach job, raw vs matched lenses, SPY-regime/IV/sector splits), then `puts` (same-delta short-put P&L vs peers + T-bill, 2×2 vs the live put score).
-3. Gate is built in: comparator = **same-day, same 20d-vol-decile peers** (leave-one-out); t, deflated Sharpe and PBO on **monthly excess**; placebo must give 0 survivors ≥ 19/20.
+3. Gate is built in: comparator = **same-day, same 20d-vol-decile peers** (leave-one-out); t, deflated Sharpe and PBO on **monthly excess**; placebo must give 0 survivors ≥ 19/20 (study contract §4).
 4. Report "best version + its job" (stock entry / put timing / avoid / sizing), never a drop list. Put use found → shadow challenger in `strategy_signals.py` + chip, promotion trigger pre-registered (A341 decision block); the agent decides the score change (AGENTS 7).
 5. Needs minute bars, option marks beyond the trade pool, or Δ outside 0.08–0.20 → that's when a full study (§ 1–5) is worth it.
 
@@ -58,14 +58,14 @@ controls; `quint()` = top/bottom quintile breach + pnl bp; `ts_test()` = week-le
 ## 4. Checks every result must pass (in this order)
 1. **IV fixed:** strike scales with IV + residualize on iv_rv, iv30, earnings_21 within week. Raw pnl IC re-learns IV (S045: 0.26 → 0.03).
 2. **Extra controls:** mom_12_1, dist_ma200, dd_52w, beta, idio_vol, rev5 — does it survive? (oversoldDepth didn't.)
-3. **Mechanical / placebo:** if the label depends on distance or vol, a random level/shuffled feature must score ≈ 0 (S041 "PASS" was distance-to-floor; random lines scored 0.624).
+3. **Mechanical / placebo:** if the label depends on distance or vol, a random level/shuffled feature must score ≈ 0 (S041 "PASS" was distance-to-floor; random lines scored 0.624) (study contract §4).
 4. **Out of sample:** fit weights on the first half of weeks, test on the second; both halves same sign.
 5. **Bar:** |t| ≥ 3 after controls (≥ 2 for a pre-registered single feature), economic size in bp/week of collateral.
 6. **Ties:** binary/discrete features need average ranks (`rank()` in the harness) — argsort ranks garbled S045 v1.
 7. **Dates:** check the weekday before calling a day "missed" (10-17-2026 is a Saturday).
 
 **4b. "Everything loses" is never a verdict (Jamie 11-06, said many times).** A loss is a trade for the other side. Every packet ends with:
-1. **Comparator:** universe-relative (excess vs same-window median) + random same-delta/same-week pick + T-bill. Raw P&L alone = invalid packet. Random pool = **same day, vol-matched**; never "same ticker, same month" (the pool carries the drop the signal waits for → fake +300 bp on every fade, A341 11-06).
+1. **Comparator** (study contract §2): universe-relative (excess vs same-window median) + random same-delta/same-week pick + T-bill. Raw P&L alone = invalid packet. Random pool = **same day, vol-matched**; never "same ticker, same month" (the pool carries the drop the signal waits for → fake +300 bp on every fade, A341 11-06).
 2. **Mirror:** the opposite side on the same rows (short ↔ long, sell put ↔ buy put / avoid). Worse than random at |t| ≥ 2 = a fade signal → test it as one.
 3. **What works:** the best cell found (state × structure × side) with n, bp/week, worst week, vs comparator. If both sides ≈ random, say "X carries no information — trade the base", name the base and its number.
 4. Lead the packet with (3); "fail" lines ≤ 1.

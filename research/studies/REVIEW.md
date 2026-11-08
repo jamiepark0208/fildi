@@ -19,7 +19,7 @@
 2. **Reproduce** one headline number from the script, not the card.
 3. **Look-ahead:** every input known at entry (point-in-time joins, `≤ as_of`, earnings timing per `CONVENTIONS.md`)?
 4. **Cash flows:** fills + T-bill per [study contract](../../.agents/dispatch/_study-contract.md) §1–2, splits, assignment handling.
-5. **Mechanics/placebo:** could the result come from IV or distance by construction (METHODS 2–3)?
+5. **Mechanics/placebo** (study contract §4): could the result come from IV or distance by construction (METHODS 2–3)?
 6. **Inference:** clustering/overlap handled (expiry weeks, overlapping holds → block bootstrap), multiple testing (Holm), both halves + holdout. t / DSR / PBO on **excess** (not raw return — every long passes in a rising market) and on the **monthly** series (DSR on 24k overlapping trades = 1.000 for everything). Comparator pool must not include days before the signal (A341). DSR trial count = **effective N** (participation ratio of the cell×month excess correlation), not raw cell count (S151: 1,050 cells → N_eff 20.5), and rerun the shuffled-date placebo at that N — if placebo passes, the edge is ticker/month mix, not timing (A341). A placebo signal run is the cheapest proof the gate works.
 7. **Amendments after seeing data:** labelled? Do they change the verdict?
 8. **Wording:** is the benefit stated plainly and separately from the pass bar (skill `fildi-quant-research` §1.5)? Overclaiming or underclaiming are both findings.

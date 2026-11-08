@@ -24,7 +24,7 @@
   to stack controllable factors in our favor, not to be perfect. Keep honesty with a fit set + untouched holdout, not with "one pass, stop".
 - Model List rules/tags use **market-wide data only, never Jamie's own trades** (10-20). His trades may be used for diagnostics shown to him.
 - Test the **use** (put pnl, breach, sizing), not the direction; a FAIL means tested on the outcome and still failed — then fix it, don't just report it (10-18).
-- Compare with a **same-risk alternative** (T-bills, holding the shares) before calling lower risk a benefit; say a small benefit plainly, apart from the significance bar (10-20). "Safe" ≠ "edge".
+- Compare with a **same-risk alternative** (T-bills, holding the shares) before calling lower risk a benefit (study contract §2); say a small benefit plainly, apart from the significance bar (10-20). "Safe" ≠ "edge".
 - Challenge his premise with the studies: "half-right because Sxxx" (10-20).
 - FAIL → define the winners, find the pre-entry pattern, confirm on an untouched holdout; "missing data" is not an excuse — fetch or simulate it (10-19, 10-21).
 - Smoke-test on ~5 names with hand-checked trades before a full-universe run (10-19).

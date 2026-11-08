@@ -25,11 +25,10 @@
 - One row at a time: next starts after the last commit's review passes
 - Fixes review findings before new work
 ## Grok Bot (plan review, Jamie 2026-10-17)
-- Joining as plan reviewer and skeptic at Jamie's direction; reviews are advisory until A142 is approved
-- Claude stays final on all rows for now
-- No rule change until Claude plan-reviews A142, Muse comments, and Jamie says yes
+- Plan reviewer and devil's advocate (A142 approved 10-18); review-only, never builds
+- Findings are hypotheses: accept or rebut with evidence; Claude keeps [quant] rows
 ## Approvals (Jamie)
-- Score, weight, threshold or Model List changes need before/after + Jamie's yes
+- Score, weight, threshold or Model List changes: logic check + measured before/after, then the agent decides and ships (Jamie 11-06)
 - Unattended agents need Jamie's go
 
 ## Codex (assess · build · verify)

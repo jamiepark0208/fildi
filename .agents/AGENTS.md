@@ -13,7 +13,7 @@ Canonical reference for all agents working on TradeDash. Read this before spawni
 | **data-agent** | haiku | Fetch wrappers, cron scaffolding | Scorer logic, UI decisions | `.claude/agents/data-agent.md` |
 | **ui-agent** | sonnet | React components (props-driven) | Data fetching, API design | `.claude/agents/ui-agent.md` |
 | **Codex** | user-selected | Assessment, plans, claimed builds and verification | Auto-trading, unbounded spend, taking another live claim | `CODEX.md` |
-| **Kiro** | varies | Parallel feature work, code generation | Claude Code hooks, session state | `.kiro/steering/` |
+| **Kiro** | varies | Parallel feature work, code generation | Claude Code hooks, session state | archived 11-08 (`.agents/archive/2026-11-08/kiro`) |
 
 ## Decision Tree: Which Agent for What
 

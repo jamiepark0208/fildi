@@ -24,7 +24,6 @@
 | Codex / ChatGPT coding | [`CODEX.md`](CODEX.md) — session startup and compact context |
 | Cursor | [`CURSOR.md`](CURSOR.md) + `.cursor/rules/` |
 | Muse AI (live remote) | [`MUSE.md`](MUSE.md) — git bus `cursor/mac-dev`; ASKS handoffs **to Cursor only** |
-| Kiro (WIP) | `.kiro/steering/` — pointers to this file only |
 | Grok Bot (devil’s advocate) | [`GROK.md`](GROK.md). Rules: [Grok Bot plan review](#grok-bot-plan-review-jamie-2026-10-17). |
 
 **Codex/Astra session start:** read `CODEX.md` and `.agents/context/codex-state.md` once. Restore the saved goal/constraints; follow the current user request. “Continue” means resume the checkpoint's next action. No pasted kickoff prompt required. Do not adopt other agents' duties or start work merely because a terminal opened.

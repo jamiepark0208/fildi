@@ -59,9 +59,18 @@ Full catch-up engine: `nightly-enrichment.ts` only when ≥4d (via maintain) —
 Technicals/options: **not** scheduled (ad-hoc on click).  
 Weekly agent skill: `.cursor/skills/weekly-data-ops-check.md` — prefer digest / Maintain-covered skip over re-drain.
 
+## Reference (open only for that task)
+| Path | What |
+|---|---|
+| `.agents/context/job-host-split.md` | A211 which jobs run on which host |
+| `.agents/context/plan-review-rubric.md` | rubric read by `scripts/plan-review-queue.py` |
+| `.agents/context/resource-report.md` | output of `scripts/resource-audit.py` |
+| `.agents/skills/fildi-workflow/SKILL.md` · `.agents/skills/frontend-design` · `.agents/skills/ui-ux-pro-max` (+ `references/pro-rules.md`, `references/quick-reference.md`) · `.agents/skills/web-design-guidelines` | shared skills (Codex/Cursor discover them by folder) |
+
 ## Ignore / archive
 | Path | Why |
 |---|---|
+| `.agents/archive/<date>/` | Retired context docs (A381 Part C, 11-08): REPLIT.md, .kiro, old .claude/docs handoffs, old .agents/tasks |
 | `.cursor/plans/archive/` | Stale snapshots + duplicate plan export |
 | `.cursor/context/archive/` | Old v1 plan stub |
 | `.cursor/tasks/**` | PM backlog — not runtime SoT |
