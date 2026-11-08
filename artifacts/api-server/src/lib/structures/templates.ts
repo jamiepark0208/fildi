@@ -25,8 +25,92 @@ const CREDIT_OPT_IDS = new Set<TemplateId>([
 ]);
 
 const CREDIT_WIDTHS = [3, 5, 7, 10, 15];
-const RATIO_SHORT_DELTA = [0.08, 0.1, 0.12, 0.16, 0.2, 0.25];
-const RATIO_LONG_DELTA = [0.25, 0.3, 0.35, 0.4, 0.45];
+const RATIO_SHORT_DELTA = [0.08, 0.1, 0.12, 0.16, 0.2, 0.25, 0.3, 0.35];
+const RATIO_LONG_DELTA = [0.2, 0.25, 0.3, 0.35];
+const LIZARD_SHORT_DELTAS = [0.2, 0.25, 0.3, 0.35];
+const JADE_PUT_SHORT_DELTAS = [0.25, 0.3, 0.35];
+const JADE_CALL_SHORT_DELTAS = [0.2, 0.25, 0.3];
+const MAX_SHORT_ABS_DELTA = 0.35;
+const LIZARD_SHORT_DELTA_LO = 0.2;
+const MAX_NET_STRUCTURE_DELTA = 35;
+const CREDIT_SEARCH_CENTER_DELTAS = [0.04, 0.08, 0.12, 0.16, 0.2, 0.25, 0.3, 0.35];
+
+const STRUCTURE_DELTA_CAP_IDS = new Set<TemplateId>([
+  "put_front_ratio",
+  "call_front_ratio",
+  "put_broken_wing_butterfly",
+  "call_broken_wing_butterfly",
+  "put_broken_heart",
+  "call_broken_heart",
+]);
+
+function chainRow(chain: OptionsChainResult, side: "call" | "put", strike: number) {
+  const rows = side === "call" ? chain.calls : chain.puts;
+  return rows.find((r) => r.strike === strike) ?? null;
+}
+
+function isOtmStrike(chain: OptionsChainResult, side: "call" | "put", strike: number): boolean {
+  return side === "put" ? strike < chain.spot : strike > chain.spot;
+}
+
+function absRowDelta(chain: OptionsChainResult, side: "call" | "put", strike: number): number | null {
+  const row = chainRow(chain, side, strike);
+  if (!row || row.delta == null) return null;
+  return Math.abs(row.delta);
+}
+
+function shortLegDeltaOk(chain: OptionsChainResult, leg: Leg, lizardShort: boolean): boolean {
+  if (leg.strike == null || (leg.kind !== "call" && leg.kind !== "put")) return true;
+  const side = leg.kind;
+  if (!isOtmStrike(chain, side, leg.strike)) return false;
+  const ad = absRowDelta(chain, side, leg.strike);
+  if (ad == null) return false;
+  if (ad > MAX_SHORT_ABS_DELTA) return false;
+  if (lizardShort && ad < LIZARD_SHORT_DELTA_LO) return false;
+  return true;
+}
+
+/** A192 fix3 — credit search only inside OTM + Δ box (Claude review 7e4a142b). */
+function creditOtmShapeOk(
+  id: TemplateId,
+  legs: Leg[],
+  chain: OptionsChainResult,
+  ctx: ChainContext,
+  horizon: number,
+): boolean {
+  const lizard = id === "jade_lizard" || id === "reverse_jade_lizard";
+  for (const leg of legs) {
+    if (leg.strike == null || (leg.kind !== "call" && leg.kind !== "put")) continue;
+    if (!isOtmStrike(chain, leg.kind, leg.strike)) return false;
+  }
+  for (const leg of legs) {
+    if (leg.side === "short" && (leg.kind === "call" || leg.kind === "put")) {
+      if (!shortLegDeltaOk(chain, leg, lizard)) return false;
+    }
+  }
+  if (STRUCTURE_DELTA_CAP_IDS.has(id)) {
+    const priced = priceStructure(legs, ctx, horizon);
+    if (Math.abs(priced.greeks.delta) > MAX_NET_STRUCTURE_DELTA) return false;
+  }
+  return true;
+}
+
+function otmStrikeLadder(chain: OptionsChainResult, side: "call" | "put"): number[] {
+  return strikeLadder(chain, side).filter((k) => isOtmStrike(chain, side, k));
+}
+
+function allOptionLegsOtm(chain: OptionsChainResult, legs: Leg[]): boolean {
+  for (const leg of legs) {
+    if (leg.strike == null || (leg.kind !== "call" && leg.kind !== "put")) continue;
+    if (!isOtmStrike(chain, leg.kind, leg.strike)) return false;
+  }
+  return true;
+}
+
+function pushCreditCandidate(out: Leg[][], chain: OptionsChainResult, legs: Leg[]) {
+  if (!allOptionLegsOtm(chain, legs)) return;
+  out.push(legs);
+}
 
 function lizardWingDollars(id: "jade_lizard" | "reverse_jade_lizard", legs: Leg[]): number {
   if (id === "jade_lizard") {
@@ -67,6 +151,7 @@ function lizardShapeOk(id: "jade_lizard" | "reverse_jade_lizard", legs: Leg[], c
 
 function pickBestCreditCandidate(
   id: TemplateId,
+  chain: OptionsChainResult,
   candidates: Leg[][],
   ctx: ChainContext,
   horizon: number,
@@ -76,6 +161,7 @@ function pickBestCreditCandidate(
   let bestAny: Leg[] | null = null;
   let bestAnyFill = -Infinity;
   for (const legs of candidates) {
+    if (!creditOtmShapeOk(id, legs, chain, ctx, horizon)) continue;
     const { netFill } = priceLegs(legs, ctx);
     if (netFill > bestAnyFill) {
       bestAnyFill = netFill;
@@ -106,17 +192,20 @@ function strikeLadder(chain: OptionsChainResult, side: "call" | "put"): number[]
 
 function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: number): Leg[][] {
   const out: Leg[][] = [];
-  const centerDeltas = [0.3, 0.35, 0.4, 0.45, 0.5];
+  const centerDeltas = CREDIT_SEARCH_CENTER_DELTAS;
   const widths = [...new Set([width, ...CREDIT_WIDTHS])];
   const exp = chain.expiry;
 
   if (id === "put_front_ratio") {
-    const puts = strikeLadder(chain, "put");
+    const puts = otmStrikeLadder(chain, "put");
     for (let li = 0; li < puts.length; li++) {
       for (let si = 0; si < li; si++) {
+        const shortK = puts[si]!;
+        const longK = puts[li]!;
+        if (absRowDelta(chain, "put", shortK)! > MAX_SHORT_ABS_DELTA) continue;
         out.push([
-          { kind: "put", side: "long", qty: 1, strike: puts[li], expiry: exp },
-          { kind: "put", side: "short", qty: 2, strike: puts[si], expiry: exp },
+          { kind: "put", side: "long", qty: 1, strike: longK, expiry: exp },
+          { kind: "put", side: "short", qty: 2, strike: shortK, expiry: exp },
         ]);
       }
     }
@@ -125,6 +214,9 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
         const short = nearestByDelta(chain, "put", shortD);
         const lng = nearestByDelta(chain, "put", longD);
         if (!short || !lng || lng.strike <= short.strike) continue;
+        if (!isOtmStrike(chain, "put", short.strike) || !isOtmStrike(chain, "put", lng.strike)) continue;
+        const sAd = absRowDelta(chain, "put", short.strike);
+        if (sAd == null || sAd > MAX_SHORT_ABS_DELTA) continue;
         out.push([
           { kind: "put", side: "long", qty: 1, strike: lng.strike, expiry: lng.expiry },
           { kind: "put", side: "short", qty: 2, strike: short.strike, expiry: short.expiry },
@@ -134,12 +226,15 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
     return out;
   }
   if (id === "call_front_ratio") {
-    const calls = strikeLadder(chain, "call");
+    const calls = otmStrikeLadder(chain, "call");
     for (let lo = 0; lo < calls.length; lo++) {
       for (let hi = lo + 1; hi < calls.length; hi++) {
+        const longK = calls[lo]!;
+        const shortK = calls[hi]!;
+        if (absRowDelta(chain, "call", shortK)! > MAX_SHORT_ABS_DELTA) continue;
         out.push([
-          { kind: "call", side: "long", qty: 1, strike: calls[lo], expiry: exp },
-          { kind: "call", side: "short", qty: 2, strike: calls[hi], expiry: exp },
+          { kind: "call", side: "long", qty: 1, strike: longK, expiry: exp },
+          { kind: "call", side: "short", qty: 2, strike: shortK, expiry: exp },
         ]);
       }
     }
@@ -148,6 +243,9 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
         const short = nearestByDelta(chain, "call", shortD);
         const lng = nearestByDelta(chain, "call", longD);
         if (!short || !lng || lng.strike >= short.strike) continue;
+        if (!isOtmStrike(chain, "call", short.strike) || !isOtmStrike(chain, "call", lng.strike)) continue;
+        const sAd = absRowDelta(chain, "call", short.strike);
+        if (sAd == null || sAd > MAX_SHORT_ABS_DELTA) continue;
         out.push([
           { kind: "call", side: "long", qty: 1, strike: lng.strike, expiry: lng.expiry },
           { kind: "call", side: "short", qty: 2, strike: short.strike, expiry: short.expiry },
@@ -159,11 +257,15 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
   if (id === "put_broken_wing_butterfly") {
     for (const d of centerDeltas) {
       const center = nearestByDelta(chain, "put", d);
-      if (!center) continue;
+      if (!center || !isOtmStrike(chain, "put", center.strike)) continue;
+      const cAd = absRowDelta(chain, "put", center.strike);
+      if (cAd == null || cAd > MAX_SHORT_ABS_DELTA) continue;
       for (const w of widths) {
+        if (center.strike + w >= chain.spot) continue;
         const hi = pickWidth(chain, "put", center.strike, -w);
         const lo = pickWidth(chain, "put", center.strike, w * 2);
-        out.push([
+        if (hi >= chain.spot) continue;
+        pushCreditCandidate(out, chain, [
           { kind: "put", side: "long", qty: 1, strike: hi, expiry: center.expiry },
           { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
           { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
@@ -175,11 +277,14 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
   if (id === "call_broken_wing_butterfly") {
     for (const d of centerDeltas) {
       const center = nearestByDelta(chain, "call", d);
-      if (!center) continue;
+      if (!center || !isOtmStrike(chain, "call", center.strike)) continue;
+      const cAd = absRowDelta(chain, "call", center.strike);
+      if (cAd == null || cAd > MAX_SHORT_ABS_DELTA) continue;
       for (const w of widths) {
+        if (center.strike - w <= chain.spot) continue;
         const lo = pickWidth(chain, "call", center.strike, -w);
         const hi = pickWidth(chain, "call", center.strike, w * 2);
-        out.push([
+        pushCreditCandidate(out, chain, [
           { kind: "call", side: "long", qty: 1, strike: lo, expiry: center.expiry },
           { kind: "call", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
           { kind: "call", side: "long", qty: 1, strike: hi, expiry: center.expiry },
@@ -189,7 +294,7 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
     return out;
   }
   if (id === "put_broken_heart") {
-    const puts = strikeLadder(chain, "put");
+    const puts = otmStrikeLadder(chain, "put");
     const n = puts.length;
     for (let a = 0; a < n - 3; a++) {
       for (let b = a + 1; b < n - 2; b++) {
@@ -224,7 +329,7 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
     return out;
   }
   if (id === "call_broken_heart") {
-    const calls = strikeLadder(chain, "call");
+    const calls = otmStrikeLadder(chain, "call");
     const n = calls.length;
     for (let a = 0; a < n - 3; a++) {
       for (let b = a + 1; b < n - 2; b++) {
@@ -258,17 +363,24 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
     }
     return out;
   }
-  const puts = strikeLadder(chain, "put");
-  const calls = strikeLadder(chain, "call");
   if (id === "jade_lizard") {
-    for (const sPut of puts) {
-      for (const sCall of calls) {
-        for (const longCall of calls) {
-          if (longCall <= sCall) continue;
-          out.push([
-            { kind: "put", side: "short", qty: 1, strike: sPut, expiry: exp },
-            { kind: "call", side: "short", qty: 1, strike: sCall, expiry: exp },
-            { kind: "call", side: "long", qty: 1, strike: longCall, expiry: exp },
+    for (const pd of JADE_PUT_SHORT_DELTAS) {
+      const sPut = nearestByDelta(chain, "put", pd);
+      if (!sPut || !isOtmStrike(chain, "put", sPut.strike)) continue;
+      const putAd = absRowDelta(chain, "put", sPut.strike);
+      if (putAd == null || putAd < LIZARD_SHORT_DELTA_LO || putAd > MAX_SHORT_ABS_DELTA) continue;
+      for (const cd of JADE_CALL_SHORT_DELTAS) {
+        const sCall = nearestByDelta(chain, "call", cd);
+        if (!sCall || !isOtmStrike(chain, "call", sCall.strike)) continue;
+        const callAd = absRowDelta(chain, "call", sCall.strike);
+        if (callAd == null || callAd < LIZARD_SHORT_DELTA_LO || callAd > MAX_SHORT_ABS_DELTA) continue;
+        for (const w of widths) {
+          const longCall = pickWidth(chain, "call", sCall.strike, w);
+          if (!isOtmStrike(chain, "call", longCall) || longCall <= sCall.strike) continue;
+          pushCreditCandidate(out, chain, [
+            { kind: "put", side: "short", qty: 1, strike: sPut.strike, expiry: sPut.expiry },
+            { kind: "call", side: "short", qty: 1, strike: sCall.strike, expiry: sCall.expiry },
+            { kind: "call", side: "long", qty: 1, strike: longCall, expiry: sCall.expiry },
           ]);
         }
       }
@@ -276,14 +388,23 @@ function creditCandidates(id: TemplateId, chain: OptionsChainResult, width: numb
     return out;
   }
   if (id === "reverse_jade_lizard") {
-    for (const sCall of calls) {
-      for (const sPut of puts) {
-        for (const longPut of puts) {
-          if (longPut >= sPut) continue;
-          out.push([
-            { kind: "call", side: "short", qty: 1, strike: sCall, expiry: exp },
-            { kind: "put", side: "short", qty: 1, strike: sPut, expiry: exp },
-            { kind: "put", side: "long", qty: 1, strike: longPut, expiry: exp },
+    for (const cd of JADE_CALL_SHORT_DELTAS) {
+      const sCall = nearestByDelta(chain, "call", cd);
+      if (!sCall || !isOtmStrike(chain, "call", sCall.strike)) continue;
+      const callAd = absRowDelta(chain, "call", sCall.strike);
+      if (callAd == null || callAd < LIZARD_SHORT_DELTA_LO || callAd > MAX_SHORT_ABS_DELTA) continue;
+      for (const pd of JADE_PUT_SHORT_DELTAS) {
+        const sPut = nearestByDelta(chain, "put", pd);
+        if (!sPut || !isOtmStrike(chain, "put", sPut.strike)) continue;
+        const putAd = absRowDelta(chain, "put", sPut.strike);
+        if (putAd == null || putAd < LIZARD_SHORT_DELTA_LO || putAd > MAX_SHORT_ABS_DELTA) continue;
+        for (const w of widths) {
+          const longPut = pickWidth(chain, "put", sPut.strike, -w);
+          if (!isOtmStrike(chain, "put", longPut) || longPut >= sPut.strike) continue;
+          pushCreditCandidate(out, chain, [
+            { kind: "call", side: "short", qty: 1, strike: sCall.strike, expiry: sCall.expiry },
+            { kind: "put", side: "short", qty: 1, strike: sPut.strike, expiry: sPut.expiry },
+            { kind: "put", side: "long", qty: 1, strike: longPut, expiry: sPut.expiry },
           ]);
         }
       }
@@ -305,7 +426,9 @@ function buildCreditOptimizedTemplate(
   const fallback = buildTemplateLegs(id, opts);
   if (fallback) candidates.push(fallback);
   if (!candidates.length) return { legs: fallback ?? [], noCredit: true };
-  return pickBestCreditCandidate(id, candidates, ctx, horizon);
+  const picked = pickBestCreditCandidate(id, chain, candidates, ctx, horizon);
+  if (!picked.legs.length && fallback?.length) return { legs: fallback, noCredit: true };
+  return picked;
 }
 
 export type TemplateId =
@@ -845,26 +968,40 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "put_broken_wing_butterfly": {
-      const center = nearestByDelta(chain!, "put", 0.45);
-      if (!center) return null;
-      const hi = pickWidth(chain!, "put", center.strike, -width);
-      const lo = pickWidth(chain!, "put", center.strike, width * 2);
-      return [
-        { kind: "put", side: "long", qty: 1, strike: hi, expiry: center.expiry },
-        { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
-        { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
-      ];
+      for (const d of CREDIT_SEARCH_CENTER_DELTAS) {
+        const center = nearestByDelta(chain!, "put", d);
+        if (!center) continue;
+        if (center.strike + width >= chain!.spot) continue;
+        const hi = pickWidth(chain!, "put", center.strike, -width);
+        const lo = pickWidth(chain!, "put", center.strike, width * 2);
+        if (hi >= chain!.spot) continue;
+        const legs: Leg[] = [
+          { kind: "put", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+          { kind: "put", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
+          { kind: "put", side: "long", qty: 1, strike: lo, expiry: center.expiry },
+        ];
+        const cAd = absRowDelta(chain!, "put", center.strike);
+        if (cAd != null && cAd <= MAX_SHORT_ABS_DELTA && allOptionLegsOtm(chain!, legs)) return legs;
+      }
+      return null;
     }
     case "call_broken_wing_butterfly": {
-      const center = nearestByDelta(chain!, "call", 0.45);
-      if (!center) return null;
-      const lo = pickWidth(chain!, "call", center.strike, -width);
-      const hi = pickWidth(chain!, "call", center.strike, width * 2);
-      return [
-        { kind: "call", side: "long", qty: 1, strike: lo, expiry: center.expiry },
-        { kind: "call", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
-        { kind: "call", side: "long", qty: 1, strike: hi, expiry: center.expiry },
-      ];
+      for (const d of CREDIT_SEARCH_CENTER_DELTAS) {
+        const center = nearestByDelta(chain!, "call", d);
+        if (!center) continue;
+        if (center.strike - width <= chain!.spot) continue;
+        const lo = pickWidth(chain!, "call", center.strike, -width);
+        const hi = pickWidth(chain!, "call", center.strike, width * 2);
+        if (lo <= chain!.spot) continue;
+        const legs: Leg[] = [
+          { kind: "call", side: "long", qty: 1, strike: lo, expiry: center.expiry },
+          { kind: "call", side: "short", qty: 2, strike: center.strike, expiry: center.expiry },
+          { kind: "call", side: "long", qty: 1, strike: hi, expiry: center.expiry },
+        ];
+        const cAd = absRowDelta(chain!, "call", center.strike);
+        if (cAd != null && cAd <= MAX_SHORT_ABS_DELTA && allOptionLegsOtm(chain!, legs)) return legs;
+      }
+      return null;
     }
     case "put_broken_heart": {
       const center = nearestByDelta(chain!, "put", 0.4);

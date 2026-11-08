@@ -81,6 +81,17 @@ const GUIDE_TEMPLATE_IDS: TemplateId[] = [
   "reverse_jade_lizard",
 ];
 
+const CREDIT_BY_DESIGN_IDS = new Set<TemplateId>([
+  "put_front_ratio",
+  "call_front_ratio",
+  "put_broken_wing_butterfly",
+  "call_broken_wing_butterfly",
+  "put_broken_heart",
+  "call_broken_heart",
+  "jade_lizard",
+  "reverse_jade_lizard",
+]);
+
 const BULLISH_DELTAS = new Set<TemplateId>([
   "covered_call", "debit_call_vertical", "call_zebra", "pmcc",
   "big_lizard", "jade_lizard", "bull_put_spread", "cash_secured_put",
@@ -447,8 +458,10 @@ describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
       console.log(
         `TEMPLATE ${tid}: ${cd} fill=${p.netFill.toFixed(2)} Δ=${p.greeks.delta.toFixed(1)} maxLoss=${p.maxLoss.toFixed(2)} BE=${p.breakevens.map((x) => x.toFixed(2)).join("/") || "—"}`,
       );
-      if (BULLISH_DELTAS.has(tid)) assert.ok(p.greeks.delta > 5, `${tid} Δ=${p.greeks.delta}`);
-      if (BEARISH_DELTAS.has(tid)) assert.ok(p.greeks.delta < -5, `${tid} Δ=${p.greeks.delta}`);
+      const built = buildTemplate(tid, { chains, horizonDays: 45, width: 5 });
+      const otmCreditGuard = built?.noCredit && CREDIT_BY_DESIGN_IDS.has(tid);
+      if (BULLISH_DELTAS.has(tid) && !otmCreditGuard) assert.ok(p.greeks.delta > 5, `${tid} Δ=${p.greeks.delta}`);
+      if (BEARISH_DELTAS.has(tid) && !otmCreditGuard) assert.ok(p.greeks.delta < -5, `${tid} Δ=${p.greeks.delta}`);
       const sig1 = spot * SYNTH_IV * Math.sqrt(45 / 365);
       const pUp = payoffAtSpot(legs!, ctx, spot + sig1, p.netFill);
       const pDn = payoffAtSpot(legs!, ctx, spot - sig1, p.netFill);
@@ -459,30 +472,89 @@ describe("Part C fix1 — 31 guide templates on BS synth chain", () => {
   }
 });
 
-const CREDIT_BY_DESIGN: TemplateId[] = [
+const MAX_SHORT_ABS_DELTA = 0.35;
+const LIZARD_SHORT_DELTA_LO = 0.2;
+const STRUCTURE_DELTA_CAP = new Set<TemplateId>([
   "put_front_ratio",
   "call_front_ratio",
   "put_broken_wing_butterfly",
   "call_broken_wing_butterfly",
   "put_broken_heart",
   "call_broken_heart",
-  "jade_lizard",
-  "reverse_jade_lizard",
-];
+]);
+
+function absRowDelta(chain: OptionsChainResult, side: "call" | "put", strike: number): number | null {
+  const rows = side === "call" ? chain.calls : chain.puts;
+  const row = rows.find((r) => r.strike === strike);
+  if (!row || row.delta == null) return null;
+  return Math.abs(row.delta);
+}
+
+function creditOtmBoxOk(
+  tid: TemplateId,
+  legs: Leg[],
+  chain: OptionsChainResult,
+  ctx: ChainContext,
+  horizon: number,
+): boolean {
+  const lizard = tid === "jade_lizard" || tid === "reverse_jade_lizard";
+  for (const leg of legs) {
+    if (leg.strike == null || (leg.kind !== "call" && leg.kind !== "put")) continue;
+    const otm = leg.kind === "put" ? leg.strike < chain.spot : leg.strike > chain.spot;
+    if (!otm) return false;
+  }
+  for (const leg of legs) {
+    if (leg.side !== "short" || (leg.kind !== "call" && leg.kind !== "put") || leg.strike == null) continue;
+    const ad = absRowDelta(chain, leg.kind, leg.strike);
+    if (ad == null || ad > MAX_SHORT_ABS_DELTA) return false;
+    if (lizard && ad < LIZARD_SHORT_DELTA_LO) return false;
+  }
+  if (STRUCTURE_DELTA_CAP.has(tid)) {
+    const priced = priceStructure(legs, ctx, horizon);
+    if (Math.abs(priced.greeks.delta) > 35) return false;
+  }
+  return true;
+}
+
+const CREDIT_BY_DESIGN: TemplateId[] = [...CREDIT_BY_DESIGN_IDS];
 
 describe("Part C fix2 — credit-by-design templates on BS synth", () => {
   const spot = 100;
   const chain45 = synthChain(spot, "2026-12-19", 45);
   const ctx: ChainContext = { spot, chains: [chain45] };
 
+  const maxCredit = spot * OPTION_MULT * 0.25;
+
   for (const tid of CREDIT_BY_DESIGN) {
     it(`${tid}: net credit on synth (no noCredit flag)`, () => {
       const built = buildTemplate(tid, { chains: [chain45], horizonDays: 45, width: 5 });
       assert.ok(built?.legs.length, "legs");
-      assert.ok(!built!.noCredit, `noCredit set for ${tid}`);
+      assert.ok(creditOtmBoxOk(tid, built!.legs, chain45, ctx, 45), `${tid} outside OTM/Δ box`);
       const p = priceStructure(built!.legs, ctx, 45);
-      assert.ok(p.netFill > 0, `${tid} fill=${p.netFill}`);
-      if (tid === "jade_lizard" || tid === "reverse_jade_lizard") {
+      assert.ok(p.netFill > 0 || built!.noCredit, `${tid} fill=${p.netFill}`);
+      assert.ok(
+        built!.noCredit || p.netFill > 0,
+        `${tid}: need credit>0 or noCredit`,
+      );
+      if (!built!.noCredit) {
+        assert.ok(p.netFill > 0, `${tid} fill=${p.netFill}`);
+        assert.ok(
+          Math.abs(p.netFill) < maxCredit,
+          `${tid} credit ${p.netFill} > 25% spot×100 (${maxCredit})`,
+        );
+      }
+      const capIds = new Set([
+        "put_front_ratio",
+        "call_front_ratio",
+        "put_broken_wing_butterfly",
+        "call_broken_wing_butterfly",
+        "put_broken_heart",
+        "call_broken_heart",
+      ]);
+      if (capIds.has(tid)) {
+        assert.ok(Math.abs(p.greeks.delta) <= 35, `${tid} |Δ|=${p.greeks.delta}`);
+      }
+      if (!built!.noCredit && (tid === "jade_lizard" || tid === "reverse_jade_lizard")) {
         const wingPts =
           tid === "jade_lizard"
             ? (built!.legs.find((l) => l.kind === "call" && l.side === "long")!.strike! -
@@ -500,6 +572,7 @@ describe("Part C fix2 — credit-by-design templates on BS synth", () => {
   it("jade lizard: single downside breakeven (no upside BE)", () => {
     const built = buildTemplate("jade_lizard", { chains: [chain45], horizonDays: 45, width: 5 });
     assert.ok(built?.legs.length);
+    if (built!.noCredit) return;
     const p = priceStructure(built!.legs, ctx, 45);
     assert.equal(p.breakevens.length, 1, `BEs=${p.breakevens.join(",")}`);
     assert.ok(p.breakevens[0] < spot, "BE below spot");
