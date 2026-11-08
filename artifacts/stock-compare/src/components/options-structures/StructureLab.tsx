@@ -19,6 +19,7 @@ import { StructurePicksTable, useStructuresBoard, type StructurePick } from "./s
 import { LongOptionBoard } from "./LongOptionBoard";
 import { StructureBuilder } from "./StructureBuilder";
 import { StructureRanker } from "./StructureRanker";
+import { StrategyGuide } from "./StrategyGuide";
 import { blendScores, deskAction } from "./structure-desk";
 
 type Sum = {
@@ -426,10 +427,19 @@ function WhenWorks({ s }: { s: S }) {
 }
 
 /* ---------- main ---------- */
-type LabTab = "backtest" | "builder" | "ranker";
+type LabTab = "backtest" | "guide" | "builder" | "ranker";
+
+type BuilderLeg = {
+  kind: "stock" | "call" | "put";
+  side: "long" | "short";
+  qty: number;
+  strike?: number;
+  expiry?: string;
+};
 
 export function StructureLab() {
   const [labTab, setLabTab] = useState<LabTab>("backtest");
+  const [builderSeed, setBuilderSeed] = useState<{ ticker: string; legs: BuilderLeg[] } | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["structures-backtest"],
     queryFn: async (): Promise<Resp> => {
@@ -489,7 +499,7 @@ export function StructureLab() {
 
   const tabBar = (
     <div className="flex gap-1 border-b border-zinc-800 pb-1 mb-1">
-      {(["backtest", "builder", "ranker"] as const).map((t) => (
+      {(["backtest", "guide", "builder", "ranker"] as const).map((t) => (
         <button
           key={t}
           type="button"
@@ -499,17 +509,30 @@ export function StructureLab() {
           )}
           onClick={() => setLabTab(t)}
         >
-          {t === "backtest" ? "Backtest" : t === "builder" ? "Builder" : "Ranker"}
+          {t === "backtest" ? "Backtest" : t === "guide" ? "Guide" : t === "builder" ? "Builder" : "Ranker"}
         </button>
       ))}
     </div>
   );
 
+  if (labTab === "guide") {
+    return (
+      <div className="space-y-1.5 text-xs">
+        {tabBar}
+        <StrategyGuide
+          onBuild={(ticker, legs) => {
+            setBuilderSeed({ ticker, legs });
+            setLabTab("builder");
+          }}
+        />
+      </div>
+    );
+  }
   if (labTab === "builder") {
     return (
       <div className="space-y-1.5 text-xs">
         {tabBar}
-        <StructureBuilder />
+        <StructureBuilder seedTicker={builderSeed?.ticker} seedLegs={builderSeed?.legs ?? undefined} />
       </div>
     );
   }

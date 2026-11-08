@@ -12,6 +12,7 @@ import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js
 import { chainIsFresh, chainUniverse, engineExpiry, inMarketHours, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
 import { type Leg, priceStructure } from "../lib/structures/legs.js";
 import { rankStructuresForView, type MarketView } from "../lib/structures/rank.js";
+import { buildTemplate, type TemplateId } from "../lib/structures/templates.js";
 import { getSchwabChainForExpiry } from "../lib/schwab-client.js";
 import { logger } from "../lib/logger.js";
 
@@ -190,6 +191,33 @@ router.post("/options/structures/price", async (req, res) => {
   try {
     const result = priceStructure(legs as Leg[], { spot, chains: snap.chains }, horizon);
     return res.json({ ticker: ticker.toUpperCase(), spot, asOf: snap.fetchedAt, ...result });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: String((err as Error)?.message ?? err) });
+  }
+});
+
+// POST /api/options/structures/template — A192 Part C: build template + price at fill
+router.post("/options/structures/template", async (req, res) => {
+  const { ticker, templateId, horizonDays } = req.body ?? {};
+  if (typeof ticker !== "string" || !/^[A-Z]{1,10}$/i.test(ticker)) {
+    return res.status(400).json({ error: "ticker required" });
+  }
+  if (typeof templateId !== "string") {
+    return res.status(400).json({ error: "templateId required" });
+  }
+  const snap = await readChainSnapshot(ticker.toUpperCase()).catch(() => null);
+  if (!snap?.chains?.length) {
+    return res.status(404).json({ error: "no stored chain — refresh chain first" });
+  }
+  const horizon = typeof horizonDays === "number" ? horizonDays : 45;
+  const legs = buildTemplate(templateId as TemplateId, { chains: snap.chains, horizonDays: horizon });
+  if (!legs?.length) {
+    return res.status(404).json({ error: "template could not be built from stored chain" });
+  }
+  try {
+    const spot = snap.chains[0].spot;
+    const result = priceStructure(legs, { spot, chains: snap.chains }, horizon);
+    return res.json({ ticker: ticker.toUpperCase(), templateId, legs, spot, ...result });
   } catch (err: unknown) {
     return res.status(500).json({ error: String((err as Error)?.message ?? err) });
   }

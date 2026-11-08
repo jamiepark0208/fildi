@@ -1,7 +1,7 @@
 /**
  * A192 Part L — free-form legs + payoff (stored chain).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Line, LineChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, ReferenceLine,
@@ -34,9 +34,23 @@ const DEFAULT_LEGS: Leg[] = [
   { kind: "put", side: "short", qty: 1, strike: 0, expiry: "" },
 ];
 
-export function StructureBuilder() {
-  const [ticker, setTicker] = useState("AAPL");
-  const [legs, setLegs] = useState<Leg[]>(DEFAULT_LEGS);
+export function StructureBuilder({
+  seedTicker,
+  seedLegs,
+}: {
+  seedTicker?: string;
+  seedLegs?: Leg[] | null;
+} = {}) {
+  const [ticker, setTicker] = useState(seedTicker ?? "AAPL");
+  const [legs, setLegs] = useState<Leg[]>(seedLegs?.length ? seedLegs : DEFAULT_LEGS);
+
+  useEffect(() => {
+    if (seedTicker) setTicker(seedTicker);
+  }, [seedTicker]);
+
+  useEffect(() => {
+    if (seedLegs?.length) setLegs(seedLegs);
+  }, [seedLegs]);
 
   const chainQ = useQuery({
     queryKey: ["options-chain-builder", ticker],

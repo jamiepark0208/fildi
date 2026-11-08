@@ -298,3 +298,48 @@ describe("ranker — horizon DTE", () => {
     assert.ok(picked && picked.daysToExpiry >= minDte);
   });
 });
+
+describe("Part C — template spot-check on $100 synth", () => {
+  const spot = 100;
+  const chain45 = synthChain(spot, "2026-12-19", 45);
+  const chain75 = synthChain(spot, "2027-01-16", 75);
+  const twoExp = [chain45, chain75];
+
+  const spotIds = [
+    "iron_condor",
+    "jade_lizard",
+    "calendar",
+    "put_broken_wing_butterfly",
+    "put_front_ratio",
+  ] as const;
+
+  for (const tid of spotIds) {
+    it(`${tid}: priceStructure maxLoss/BE self-consistent`, () => {
+      const chains = tid === "calendar" ? twoExp : [chain45];
+      const legs = buildTemplate(tid, { chains, horizonDays: 45, width: 5 });
+      assert.ok(legs?.length, "legs");
+      const ctx: ChainContext = { spot, chains };
+      const p = priceStructure(legs!, ctx, 45);
+      const p2 = priceStructure(legs!, ctx, 45);
+      assert.equal(p.maxLoss, p2.maxLoss);
+      assert.equal(p.breakevens.length, p2.breakevens.length);
+      assert.ok(Number.isFinite(p.maxLoss) && p.maxLoss > 0, `maxLoss=${p.maxLoss}`);
+    });
+  }
+
+  it("SANITY: IC, jade lizard, call calendar card numbers", () => {
+    const rows: { name: string; legs: Leg[] | null }[] = [
+      { name: "iron_condor", legs: buildTemplate("iron_condor", { chains: [chain45], horizonDays: 45 }) },
+      { name: "jade_lizard", legs: buildTemplate("jade_lizard", { chains: [chain45], horizonDays: 45 }) },
+      { name: "calendar", legs: buildTemplate("calendar", { chains: twoExp, horizonDays: 45 }) },
+    ];
+    const ctx: ChainContext = { spot, chains: twoExp };
+    for (const r of rows) {
+      assert.ok(r.legs, r.name);
+      const p = priceStructure(r.legs!, ctx, 45);
+      console.log(
+        `SANITY card ${r.name}: fill=${p.netFill.toFixed(2)} maxLoss=${p.maxLoss.toFixed(2)} BE=${p.breakevens.map((x) => x.toFixed(2)).join("/")}`,
+      );
+    }
+  });
+});
