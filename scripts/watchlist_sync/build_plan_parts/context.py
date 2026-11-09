@@ -340,8 +340,9 @@ def restrike_puts(conn, ctx: dict) -> None:
         return
     ctx["band_market"] = next(iter(eng.values()))["market_state"]
     for r in ctx["recs"]:
-        if r["side"] == "put" and ctx["band_market"] == "panic":
-            r["engine_pause"] = next(iter(eng.values()))["why"]
+        # 11-09: names where S054 fires carry their own band from put_recs (s054) — the panic pause is for everyone else
+        if r["side"] == "put" and ctx["band_market"] == "panic" and not (eng.get(r["ticker"]) or {}).get("s054"):
+            r["engine_pause"] = next((e["why"] for e in eng.values() if not e.get("s054")), next(iter(eng.values()))["why"])
     hot = [r for r in ctx["recs"] if r["side"] == "put" and not r.get("restruck") and (
         r.get("carried") or not r.get("strategy") or (r["delta"] is not None and -r["delta"] > -R.PUT_DELTA[0]))]
     cs = rows(conn, """SELECT ticker, expiry, strike::float8, dte::float8, bid::float8, delta::float8

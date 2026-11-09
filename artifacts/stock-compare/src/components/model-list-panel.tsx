@@ -82,6 +82,7 @@ function metricTone(
 
 const DEFAULT_OPEN: Record<string, boolean> = {
   sell_puts: true,
+  rich_puts: true, // 11-09: the S109 lane is where the ≥ 0.9 %/wk puts are — collapsed, the list looked empty
   sell_calls: true,
   trim_risk: true,
   manage: true,
@@ -793,8 +794,8 @@ export function ModelListPanel({
         <FolderTable
           key={f.key}
           folder={f}
-          open={openMap[f.key] ?? false}
-          onToggle={() => setOpenMap({ ...openMap, [f.key]: !(openMap[f.key] ?? false) })}
+          open={openMap[f.key] ?? DEFAULT_OPEN[f.key] ?? false}
+          onToggle={() => setOpenMap({ ...openMap, [f.key]: !(openMap[f.key] ?? DEFAULT_OPEN[f.key] ?? false) })}
           selectedKey={selectedKey}
           onSelect={onSelectThesis}
         />

@@ -279,6 +279,9 @@ def rich_context(conn, recs: list[dict]) -> None:
                             "strike": "below" if K <= sup[-1]["lo"] else "inside" if K <= sup[-1]["hi"] else "above"} if sup else None
 
 
+S054_BAND = "0.15-0.20"   # panic-puts-hiv sells the ~0.20Δ put (strategy_signals default delta)
+
+
 def compute(conn) -> tuple[date, list[dict], dict]:
     as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
     chain = rows(conn, """SELECT ticker, expiry, strike::float8, dte, spot::float8, bid::float8, ask::float8, iv::float8, delta::float8,
@@ -314,6 +317,14 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     tech = {t: x for t, x in conn.execute("""SELECT DISTINCT ON (ticker) ticker, payload FROM watchlist_sync.indicators_daily
                                              WHERE ticker = ANY(%s) ORDER BY ticker, as_of DESC""", (names,)).fetchall()} if conn.execute(
         "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else {}   # display only (S102: no put edge)
+    # 11-09: market panic (VIX ÷ VIX3M ≥ 1, S101) blocked every put while S054 fired on 176 names — the one rule built for
+    # these days (panic drop + IV30 > 48.7: kept +4.05 % vs +0.26 %; S054 grid: stressed SPY vol lifted all puts). S101 panic
+    # cells ≈ 0 bp 2023→. → names with an open/priced panic-puts-hiv signal (last 3 sessions) keep S054's own 0.15–0.20Δ band;
+    # every other gate still applies. Everyone else stays blocked in panic.
+    s054 = {t for (t,) in conn.execute("""SELECT DISTINCT UPPER(ticker) FROM watchlist_sync.strategy_signals
+                                         WHERE strategy_id = 'panic-puts-hiv' AND status IN ('open', 'priced')
+                                           AND as_of IN (SELECT DISTINCT as_of FROM watchlist_sync.strategy_signals
+                                                         WHERE strategy_id = 'panic-puts-hiv' ORDER BY as_of DESC LIMIT 3)""").fetchall()}
     out = []
     for t in names:
         exp = pick_expiry(sorted({p["expiry"] for p in by[t]}), as_of, ctx.get("earnings", {}).get(t))
@@ -326,6 +337,10 @@ def compute(conn) -> tuple[date, list[dict], dict]:
             rich["credit"] = (ctx.get("lseg", {}).get(t) or {}).get("credit_combined_rank")
             rec["rich"] = rich
         band, why = SE.engine_put_band(market, states.get(t), pref=pref)
+        if band is None and ms == "panic" and t.upper() in s054:
+            band, why = S054_BAND, (f"market panic (VIX ÷ VIX3M {market['vix_ratio']:.2f}) blocks other puts; S054 panic put fires on {t} "
+                                   f"(≥ 2σ 5-day drop, IV30 > 48.7) → its own {S054_BAND}Δ band")
+            rec["s054"] = True
         far = BP.put_far_reason(t, exp, ctx) if exp else None
         if band and far and SE.band_bounds(band)[0] >= SE.band_bounds(FAR_BAND)[1]:
             band, why = FAR_BAND, f"{why} · {far} → {FAR_BAND}Δ (farther, not smaller)"

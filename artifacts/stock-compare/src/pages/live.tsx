@@ -27,6 +27,8 @@ import {
 import { MoverHeatmapGrid, type MoversResponse } from "@/components/live/movers";
 import { IndexMoversStrip } from "@/components/live/index-movers-strip";
 import { TopOptionsTable } from "@/components/live/top-options-table";
+import { ProvenPutsTable } from "@/components/live/proven-puts-table";
+import { LongOptionBoard } from "@/components/options-structures/LongOptionBoard";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { MarketContextStrip } from "@/components/live/market-context-strip";
 import { PortfolioAlertsPanel } from "@/components/live/portfolio-alerts-panel";
@@ -640,15 +642,17 @@ export default function Live() {
                 </span>
               )}
               {subTab === "sell" ? (
-                <TopOptionsTable
-                  side={isRally ? "call" : "put"}
-                  n={7}
-                  conflictsByTicker={conflictsByTicker}
-                  regimeRisk={
-                    [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.risk != null)?.risk ?? null
-                  }
-                />
-              ) : sortedHotlist.length === 0 ? (
+                <div className="space-y-2">
+                  {isRally ? (
+                    <TopOptionsTable
+                      side="call"
+                      n={7}
+                      conflictsByTicker={conflictsByTicker}
+                      regimeRisk={
+                        [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.risk != null)?.risk ?? null
+                      }
+                    />
+                  ) : sortedHotlist.length === 0 ? (
                 !isLoading && (
                   <p className="text-[11px] text-amber-200/40">
                     Waiting for scanner data — click Refresh once rankings are cached.
