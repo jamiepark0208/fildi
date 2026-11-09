@@ -34,6 +34,9 @@ else
   )"
 fi
 
+# 11-08: negative study verdicts need a winner pass + rule-named verdict + independent n (S169 repeat).
+"$ROOT/scripts/verdict-check.sh" "$base" "$head" || exit 1
+
 # 11-04: A332 t1 split of maintain.mjs dropped two imports (maybePlanReviews, LOG_DIR) → nightly job crashed for a day.
 # .mjs has no typecheck, so lint changed scripts/**/*.mjs for undefined names.
 mjs="$(echo "$files" | grep -E '^scripts/.*\.mjs$' | while read -r f; do [ -f "$f" ] && echo "$f"; done || true)"
