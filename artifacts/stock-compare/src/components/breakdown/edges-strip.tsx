@@ -16,7 +16,7 @@ const STATUS_CLASS: Record<EdgeRow["status"], string> = {
   signal: "border-amber-500/60 bg-amber-500/15 text-amber-300",
   shadow: "border-sky-500/40 bg-sky-500/10 text-sky-300",
   paper: "border-violet-500/40 bg-violet-500/10 text-violet-300",
-  gated: "border-zinc-600 bg-zinc-800/60 text-zinc-400",
+  gated: "border-zinc-600 bg-zinc-800/60 text-white",
 };
 const STATUS_LABEL: Record<EdgeRow["status"], string> = {
   pick: "pick", signal: "signal", shadow: "shadow", paper: "paper", gated: "gated",
@@ -59,10 +59,10 @@ export function EdgesStrip({ ticker }: { ticker: string }) {
   const edges = data?.edges ?? [];
   return (
     <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px]" data-testid="edges-strip">
-      <span className="text-muted-foreground shrink-0" title="Proven rules (BOARD 'works' rows) that fire on this name today. Same rows as Model List / Rankings / Strategy Library; hover a chip for method, study and record.">
+      <span className="text-amber-100 shrink-0" title="Proven rules (BOARD 'works' rows) that fire on this name today. Same rows as Model List / Rankings / Strategy Library; hover a chip for method, study and record.">
         Rules today
       </span>
-      {edges.length === 0 && <span className="text-muted-foreground/70">no proven rule fires on {ticker} today</span>}
+      {edges.length === 0 && <span className="text-amber-100">no proven rule fires on {ticker} today</span>}
       {edges.map((e, i) => (
         <span
           key={`${e.rule}-${i}`}
