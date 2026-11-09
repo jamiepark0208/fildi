@@ -39,6 +39,7 @@ import {
   type ClassificationTagType, type WatchlistTagEntry,
 } from "./breakdown/stock-breakdown-parts";
 import { MemoHeader } from "./breakdown/memo-header";
+import { EdgesStrip } from "./breakdown/edges-strip";
 import { BreakdownMetaProvider } from "./breakdown/breakdown-meta-context";
 import { formatDerivedTip, formatProvenanceTip } from "@/lib/provenance-display";
 import { DataTip } from "./data-tip";
@@ -474,6 +475,8 @@ export function StockBreakdown({
                 />
               )}
             </div>
+
+            {m.ticker && <EdgesStrip ticker={m.ticker} />}
 
             {m.fairValueEstimate != null && m.ticker && (
               <OutsideValuesBox ticker={m.ticker} price={m.currentPrice} votes={m.fairValueVotes} />

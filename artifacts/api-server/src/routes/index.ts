@@ -56,6 +56,7 @@ import researchOpsRouter from "./research-ops";
 import scoreOutliersRouter from "./score-outliers";
 import moverFactsRouter from "./mover-facts";
 import longOptionBoardRouter from "./long-option-board";
+import stockEdgesRouter from "./stock-edges";
 import fundScoreNotesRouter from "./fund-score-notes";
 import backtestRouter from "./backtest";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -122,6 +123,7 @@ router.use(optionsHistoryRouter);
 router.use(volMetricsRouter);
 router.use(strategyRulesRouter); // Rankings › Rules (strategy_rules.json)
 router.use(putBandRouter); // sold-put band setting (Jamie 10-28), under /strategies → requireAuth
+router.use(stockEdgesRouter); // Breakdown › Rules firing today (/stocks/:t/edges); before stocksRouter
 router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);
