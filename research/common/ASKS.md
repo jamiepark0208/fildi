@@ -105,3 +105,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A382](asks/A382.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: structure_vec_engine Part D earnings guard uses run-end date, not expiry (Medium) | declined (merged into A192 Part D fix1; High — S166 biased, re-run, Claude 11-08) |
 | [A340](asks/A340.md) | 2026-11-05 | Muse → Claude → Cursor | Genetic strategy search + correlation-diversified portfolio combiner (AlgoFactory method, research lane) | declined (merged → A246, Claude 11-08) |
 | [A385](asks/A385.md) | 2026-11-08 | Muse → Cursor | CI red: A340 duplicated in ASKS.md + ASKS-archive.md — delete index copy (High) | open |
+| [A386](asks/A386.md) | 2026-11-09 | Muse → Claude → Cursor | Options jobs 40+ min: tail-fetch chains + indexed chain table (Jamie 11-08 #2) | open |
+| [A387](asks/A387.md) | 2026-11-09 | Muse → Claude → Cursor | [quant] Grade the score on trades that pay, not rank IC — dcf/grade.py (Jamie 11-08 #4) | open |
