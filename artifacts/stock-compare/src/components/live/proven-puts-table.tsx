@@ -129,7 +129,7 @@ export function ProvenPutsTable({
                     <td className={cn(TD, "text-right text-green-500 font-semibold")}>{wk != null ? wk.toFixed(2) : "—"}</td>
                     <td className={cn(TD, "text-right text-white/80")}>{otm != null ? otm.toFixed(1) : "—"}</td>
                     <td className={cn(TD, "text-right text-sky-300/70")}>{delta != null ? delta.toFixed(2) : "—"}</td>
-                    <td className={cn(TD, "text-right text-white/70")}>{r.off_high_pct != null ? `${Math.abs(r.off_high_pct).toFixed(0)}%` : "—"}</td>
+                    <td className={cn(TD, "text-right text-amber-100")}>{r.off_high_pct != null ? `${Math.abs(r.off_high_pct).toFixed(0)}%` : "—"}</td>
                   </tr>
                 );
               })}
