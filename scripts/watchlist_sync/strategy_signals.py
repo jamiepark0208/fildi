@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
@@ -176,31 +177,60 @@ def detect_screen_shadow(conn, asof: date) -> list[tuple[str, str, dict]]:
     return out
 
 
-def price_open(conn):
-    """Once LSEG has the next session's close: pick the put at strategy delta and record entry mid."""
-    opens = conn.execute("SELECT strategy_id, as_of, ticker FROM watchlist_sync.strategy_signals WHERE status = 'open'").fetchall()
+PRICE_BUDGET_S = 300   # 11-09: 260 open shadow fires × ~16 s of LSEG strike probes = 71 min → the step timed out and the
+                       # whole Model List build (plan, publish) never ran. Live rule first; the rest waits for the next run.
+
+
+def price_open(conn, budget_s: float = PRICE_BUDGET_S):
+    """Once LSEG has the next session's close: pick the put at strategy delta and record entry mid.
+    Live panic-puts-hiv first, then shadow ids oldest first, inside budget_s; unpriced rows stay open for the next run
+    (mid_on reads the entry day from history, so pricing late gives the same entry)."""
+    opens = conn.execute("""SELECT strategy_id, as_of, ticker FROM watchlist_sync.strategy_signals WHERE status = 'open'
+                            ORDER BY (strategy_id <> 'panic-puts-hiv'), as_of, md5(ticker || as_of::text)""").fetchall()
     if not opens or P.OP is None:
         return
     P.OP.ensure(conn)
+    t0, done, errs = time.time(), 0, 0
     with P.lseg_session() as ld:
         for sid, asof, t in opens:
-            nxt = conn.execute("""SELECT date, close::float, iv30_put::float FROM lseg_research.daily_history
-                                  WHERE ticker = %s AND date > %s ORDER BY date LIMIT 1""", (t, asof)).fetchone()
-            if not nxt:
+            if time.time() - t0 > budget_s:
+                print(f"price_open: budget {budget_s:.0f}s hit — tried {done}, {len(opens) - done} left open for the next run")
+                break
+            done += 1
+            try:
+                _price_one(conn, ld, sid, asof, t)
+            except Exception as e:  # noqa: BLE001 — one vendor error must not drop the whole pass (or the Model List)
+                conn.rollback()
+                errs += 1
+                print(f"price_open: {sid} {t} {asof} skipped: {type(e).__name__}: {str(e)[:120]}")
+                if errs >= 5:
+                    print("price_open: 5 vendor errors — stop, retry next run")
+                    break
                 continue
-            d, S, iv = nxt
-            td = SHADOW.get(sid, {}).get("delta", -0.20)
-            got = P.pick_contract(ld, conn, t, d, S, iv, live=True, target_delta=td)
-            mid = P.mid_on(got[2], d) if got else None
-            if not mid:
-                conn.execute("UPDATE watchlist_sync.strategy_signals SET status = 'no_contract' WHERE strategy_id = %s "
-                             "AND as_of = %s AND ticker = %s", (sid, asof, t))
-                continue
-            e, K, _ = got
-            conn.execute("""UPDATE watchlist_sync.strategy_signals SET status = 'priced', occ = %s, expiry = %s, strike = %s,
-                            entry_mid = %s, entry_date = %s WHERE strategy_id = %s AND as_of = %s AND ticker = %s""",
-                         (f"{t} {e:%m/%d/%y} {K:g}P", e, K, mid, d, sid, asof, t))
     conn.commit()
+
+
+def _price_one(conn, ld, sid, asof, t):
+    """Price one open signal; commits per row so a later vendor error keeps the work done."""
+    nxt = conn.execute("""SELECT date, close::float, iv30_put::float FROM lseg_research.daily_history
+                          WHERE ticker = %s AND date > %s ORDER BY date LIMIT 1""", (t, asof)).fetchone()
+    if not nxt:
+        return None
+    d, S, iv = nxt
+    td = SHADOW.get(sid, {}).get("delta", -0.20)
+    got = P.pick_contract(ld, conn, t, d, S, iv, live=True, target_delta=td)
+    mid = P.mid_on(got[2], d) if got else None
+    if not mid:
+        conn.execute("UPDATE watchlist_sync.strategy_signals SET status = 'no_contract' WHERE strategy_id = %s "
+                     "AND as_of = %s AND ticker = %s", (sid, asof, t))
+        conn.commit()
+        return False
+    e, K, _ = got
+    conn.execute("""UPDATE watchlist_sync.strategy_signals SET status = 'priced', occ = %s, expiry = %s, strike = %s,
+                    entry_mid = %s, entry_date = %s WHERE strategy_id = %s AND as_of = %s AND ticker = %s""",
+                 (f"{t} {e:%m/%d/%y} {K:g}P", e, K, mid, d, sid, asof, t))
+    conn.commit()
+    return True
 
 
 def _grade_row(conn, sid, asof, t, expiry, strike, entry_mid, entry_date, settle_px, exit_mode: str):

@@ -23,6 +23,7 @@ import argparse
 import fcntl
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -182,12 +183,26 @@ def cause_of(r: dict) -> str:
 def run(name, py, cwd, args) -> dict:
     t0 = time.time()
     try:
-        p = subprocess.run([str(py), *args], cwd=cwd, capture_output=True, text=True, timeout=STEP_TIMEOUT_S,
-                           env={**os.environ, "LSEG_PRIORITY": "1"})  # production: LSEG reserve over research pulls
-        code, raw = p.returncode, p.stdout + p.stderr
-    except subprocess.TimeoutExpired as e:   # 11-03: was uncaught → daily.py died with no run log
-        code = 124
-        raw = ((e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")) + f"\ntimeout after {STEP_TIMEOUT_S}s"
+        # own process group: 11-09 a timed-out step ran 4,242 s past its 1,800 s cap — kill() hit only the direct child and
+        # communicate() then waited on pipes a grandchild still held. killpg ends the whole tree at the cap.
+        p = subprocess.Popen([str(py), *args], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                             env={**os.environ, "LSEG_PRIORITY": "1"}, start_new_session=True)  # production: LSEG reserve
+        try:
+            so, se = p.communicate(timeout=STEP_TIMEOUT_S)
+            code, raw = p.returncode, (so or "") + (se or "")
+        except subprocess.TimeoutExpired:   # 11-03: was uncaught → daily.py died with no run log
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                so, se = p.communicate(timeout=30)
+            except subprocess.TimeoutExpired:
+                so, se = "", ""
+            code = 124
+            raw = (so or "") + (se or "") + f"\ntimeout after {STEP_TIMEOUT_S}s"
+    except OSError as e:
+        code, raw = 127, f"could not start: {e}"
     out = "\n".join(l for l in raw.splitlines() if "Warning" not in l)
     tail = "\n".join(out.splitlines()[-4:])
     r = {"step": name, "ok": code == 0, "code": code, "seconds": round(time.time() - t0, 1), "tail": tail, "full": out[-6000:]}

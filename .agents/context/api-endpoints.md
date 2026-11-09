@@ -396,6 +396,7 @@ routes/watchlist.ts        → /api/watchlist/*
 | GET | /api/stocks/:ticker/media-sentiment | stock-context.ts |
 | GET | /api/stocks/:ticker/insiders | stock-context.ts |
 | GET | /api/stocks/:ticker/events | stock-context.ts |
+| GET | /api/stocks/:ticker/edges | stock-edges.ts |
 | GET | /api/stocks/quotes | stocks.ts |
 | POST | /api/stocks/news-summary | stocks.ts |
 | GET | /api/stocks/edgar-statements/:ticker | stocks.ts |
