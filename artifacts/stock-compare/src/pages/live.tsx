@@ -652,7 +652,19 @@ export default function Live() {
                         [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.risk != null)?.risk ?? null
                       }
                     />
-                  ) : sortedHotlist.length === 0 ? (
+                  ) : (
+                    <ProvenPutsTable
+                      n={12}
+                      conflictsByTicker={conflictsByTicker}
+                      regimeRisk={
+                        [...(regime ?? [])].reverse().find((c) => c.status === "resolved" && c.risk != null)?.risk ?? null
+                      }
+                    />
+                  )}
+                  {/* 11-09: long calls / long puts lived only under Rankings › Structures — Jamie saw no long structures anywhere */}
+                  <LongOptionBoard side={isRally ? "put" : "call"} />
+                </div>
+              ) : sortedHotlist.length === 0 ? (
                 !isLoading && (
                   <p className="text-[11px] text-amber-200/40">
                     Waiting for scanner data — click Refresh once rankings are cached.
