@@ -1185,13 +1185,21 @@ def main() -> int:
 
         model_share = sum(1 for t in sig_tr if t["priced_by"] == "skew_model") / max(len(sig_tr), 1)
 
+        rule_tag = f"({'+'.join(feats)} Q5) × {ex_rule} × {cell}"
+        if verdict == "PASS":
+            vline = f"**Verdict:** RULE PASS: {rule_tag} — bits={bits}"
+        else:
+            vline = (
+                f"**Verdict:** RULE {verdict}: {rule_tag} — "
+                f"vsE0≥+10bp / vsΔ>0 / cluster t≥2 / both TEST halves>0. bits={bits}"
+            )
         lines = [
             "CONTRACT 1-7: ok",
             "# S170 — loss-maker long-call entry/exit timing (A244)",
             "",
             f"fills bid+23% · priced_by=skew_model share={model_share:.0%} · train<{TEST_START} test≥{TEST_START}",
             f"tickers={len(tickers)} loss_train_panel={len(panel)} signal_train={len(rule_entries)} "
-            f"edgar_always_loss_n={len(always_loss)}",
+            f"n_indep={sm['nd']} (distinct entry dates) edgar_always_loss_n={len(always_loss)}",
             "inputs: OHLCV+IV=lseg_research.daily_history; VIX/VIX3M=wrds_research.cboe_daily; "
             "sector=ticker_registry; groups=OM+NI avg; tbill=out/opt/dtb3.csv",
             "",
@@ -1200,7 +1208,7 @@ def main() -> int:
             "",
             "## Part C TEST (loss primary)",
             (
-                f"- SIG {cell}|{ex_rule} n={sm['n']} ndates={sm['nd']} bp={sm['bp']:+.1f} "
+                f"- SIG {cell}|{ex_rule} n={sm['n']} n_indep={sm['nd']} bp={sm['bp']:+.1f} "
                 f"vsE0={vs_e0:+.1f} vsΔ={vs_sd:+.1f} vsStock$={vs_st:+.1f} "
                 f"ct={sm['ct']:.2f} hit100={sm['hit']:.1%} med={sm['med']:+.2%} "
                 f"halves={h1:+.1f}/{h2:+.1f} shift_bp={lk['shift_bp']:.1f} placebo_p={lk['placebo_p']:.3f}"
@@ -1208,7 +1216,16 @@ def main() -> int:
             f"- E0 n={sm_e0['n']} bp={sm_e0['bp']:+.1f} · prof SIG n={sm_p['n']} bp={sm_p['bp']:+.1f}",
             f"- anatomy {dict(anat)} · call>stock by move: {' · '.join(beat_stock)}",
             "",
-            f"**Verdict:** {verdict} — PASS needs vsE0≥+10bp AND vsΔ>0 AND cluster t≥2 AND both TEST halves>0. bits={bits}",
+            "## Winner pass",
+            (
+                f"Winners = +100% MTM ≤10d (train base {base_rate:.1%}). Pre-entry: "
+                f"{'/'.join(feats)} Q5 lifts both halves — not crash dips. "
+                "This rule loses to Δ-stock. Next rule: gate SIG to ex-ante P(stock ≥+10% in hold) "
+                "via own-move quantile, or trail after +50% instead of flat ts3 "
+                "(calls beat $stock only when move≥10%)."
+            ),
+            "",
+            vline,
         ]
         OUT.parent.mkdir(parents=True, exist_ok=True)
         packet = "\n".join(lines) + "\n"
