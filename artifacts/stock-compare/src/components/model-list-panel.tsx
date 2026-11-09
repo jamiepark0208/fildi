@@ -17,8 +17,10 @@ import { PutBandSelector } from "@/components/put-band-selector";
 import { bookGroupChip, engineAwareness, newsChip } from "@/lib/model-list-awareness";
 import {
   SHADOW_STRATEGY_META,
+  useActivePanicPutBadges,
   useActiveShadowStrategyBadges,
   type StrategySignal,
+  type StrategySignalsLive,
 } from "@/hooks/use-strategy-signals";
 
 /** Shared Model value cols — VIEW chip + SCR/RANK (universe put score or section confidence). */
@@ -155,6 +157,8 @@ function ItemRow({
   selected,
   onSelect,
   shadowSignals,
+  panicSignal,
+  panicLive,
 }: {
   item: ModelListItem;
   folderKey: string;
@@ -162,6 +166,9 @@ function ItemRow({
   selected: boolean;
   onSelect: () => void;
   shadowSignals?: StrategySignal[];
+  /** S054 panic + hi-IV put signal open on this name (last 3 sessions). */
+  panicSignal?: StrategySignal;
+  panicLive?: StrategySignalsLive;
 }) {
   const view = VERDICT_CHIPS[item.verdict] ?? VERDICT_CHIPS[""]!;
   const chgPct = item.close != null && item.prevClose ? (item.close / item.prevClose - 1) * 100 : null;
@@ -287,6 +294,27 @@ function ItemRow({
             <TooltipContent className="max-w-xs text-xs whitespace-pre-wrap">{putAware.news.tip}</TooltipContent>
           </Tooltip>
         ) : null}
+        {panicSignal ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[7px] px-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 cursor-help">
+                panic
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs whitespace-pre-wrap">
+              {[
+                `S054 panic put firing ${panicSignal.asOf}: ${panicSignal.trigger}`,
+                panicSignal.strike != null && panicSignal.expiry
+                  ? `Signal contract P${panicSignal.strike} ${panicSignal.expiry}${panicSignal.entryMid != null ? ` @${panicSignal.entryMid.toFixed(2)}` : ""}`
+                  : "Not priced yet",
+                "Backtest: premium kept +4.05 % vs +0.26 % (2025: +3.15 vs +1.63 %)",
+                panicLive?.graded
+                  ? `Live: n ${panicLive.graded}, hit ${panicLive.hitRate != null ? `${Math.round(panicLive.hitRate * 100)} %` : "—"}`
+                  : "Live: no graded signals yet",
+              ].join("\n")}
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
         {(shadowSignals ?? []).map((s) => {
           const meta = SHADOW_STRATEGY_META[s.strategyId];
           if (!meta) return null;
@@ -367,6 +395,8 @@ function FolderTable({
   const items = hasTrades && lens !== "model" ? [...folder.items].sort((a, b) => LENSES[lens].value(b) - LENSES[lens].value(a)) : folder.items;
   const { byTicker: shadowByTicker } = useActiveShadowStrategyBadges(3);
   const showShadow = folder.key === "sell_puts";
+  const { byTicker: panicByTicker, data: panicData } = useActivePanicPutBadges(3);
+  const showPanic = folder.key === "sell_puts" || folder.key === "rich_puts";
   const emptyHint =
     folder.key === "sell_calls"
       ? `${folder.description} Different from Rankings › Structures covered-call study rows (S076 fail / research board) — Model List only shows calls on free shares that passed L1+L2 live checks.`
@@ -477,6 +507,8 @@ function FolderTable({
                     folderSize={folder.items.length}
                     selected={selectedKey === key}
                     shadowSignals={showShadow ? shadowByTicker.get(item.ticker.toUpperCase()) : undefined}
+                    panicSignal={showPanic && item.contract?.type !== "call" ? panicByTicker.get(item.ticker.toUpperCase()) : undefined}
+                    panicLive={panicData?.live}
                     onSelect={() =>
                       onSelect({
                         folderKey: folder.key,

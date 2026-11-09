@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|
 | S088/S047 top-10 puts, P(kept) ≥ 90 % | shown (sell_puts lane) | shown (Ladder tab) | — | — | Breakdown: is this name a pick today? |
 | S109 rich-put lane | shown (rich_puts lane) | — | — | — | Breakdown + Live chip |
-| S054 panic puts (IV30 > 48.7) | — (no chip) | — | shown (hotlist chip, put side) | — | Model List chip; Breakdown |
+| S054 panic puts (IV30 > 48.7) | shown (panic chip, sell_puts + rich_puts, 11-09) | — | shown (hotlist chip, put side) | — | Model List chip; Breakdown |
 | S101 sharp-drop → higher put Δ | shown (engine strike band, in why text) | shown (Rules tab) | — | — | Breakdown band line |
 | S100 revisions + 60d calls | — (no long-call lane) | shown (Structures › Long options) | — | — | Breakdown; claim not yet vs ±25 % cost (A244 parked) |
 | S046 calls, options-1.2.0 | in option score | Options tab (score) | — | — | ok as a score input |
@@ -28,3 +28,5 @@
 ## Step 2 DONE (Claude 11-08 late)
 Breakdown header "Rules today" strip shipped: `GET /api/stocks/:t/edges` (routes/stock-edges.ts, 5-min TTL) reads model_items latest run (sell_puts / rich_puts / sell_calls = the Model List rows), put_recs_daily engine decision (why not a pick), put_ladder P(kept) ≥ 90 % (S088), Strategy Library open signals (library ids only; unproven paper ids dropped) with live graded n, long-options board collapsed to one row per side. Each chip's tooltip says backtest vs live. Verified Playwright 11-08: LCID rich #1 P2.50 11/20 @0.19 blocked (panic) = Model List row; INTC rich #57 + ladder 1w + long boards; ADI panic-puts signal; KO empty state. No Model List put pick exists today (11-06 panic gate → 0 pass), so that chip type is untested live.
 Gaps left: live record per rule still n 0 everywhere (A380 not built); panic-puts signal has no priced contract until the pricer runs. Next: S054 chip on Model List, S109 chip on Live.
+
+**11-09:** S054 'panic' chip on Model List put rows (model-list-panel.tsx, reuses useActivePanicPutBadges = Live hotlist source; tooltip = trigger, signal contract, backtest, live n). Playwright: 81 chips on rich_puts = DB count 81/151. Conflict open: band_engine market panic (VIX÷VIX3M ≥ 1) blocks all new puts while S054 fires on 176 names → Model List banner 'ANOMALY'. Next: S109 chip on Live.
