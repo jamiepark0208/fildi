@@ -174,6 +174,29 @@ export function useModelList() {
   });
 }
 
+/** S109 rich-put lane picks (Model List rich_puts folder, latest run) by ticker — Live hotlist chip. */
+export function useRichPutBadges() {
+  const q = useModelList();
+  const byTicker = new Map<string, ModelListItem>();
+  const folder = q.data?.folders.find((f) => f.key === "rich_puts");
+  for (const i of folder?.items ?? []) byTicker.set(i.ticker.toUpperCase(), i);
+  return { byTicker, runAt: q.data?.run?.createdAt ?? null };
+}
+
+/** Tooltip for the S109 chip: the lane's contract, the backtest claim, live status. */
+export function richPutTip(item: ModelListItem, runAt: string | null): string {
+  const c = item.contract as (ModelListItem["contract"] & { weekly_income_pct?: number }) | null;
+  const leg = c
+    ? `${c.strike}p ${c.expiry.slice(5)} @ ${c.premium ?? "?"}${c.weekly_income_pct != null ? ` (${c.weekly_income_pct.toFixed(2)} %/wk)` : ""}`
+    : "no contract";
+  return [
+    `S109 rich-put lane #${item.rank}: ${leg}`,
+    "Rule: ≥ 0.9 %/wk, ≥ 10 % OTM, ≥ 25 % off high",
+    "Backtest: +101 bp/wk vs +34 same weeks, t 5.7",
+    `Shadow lane — live record not graded yet (A380)${runAt ? ` · run ${runAt.slice(0, 10)}` : ""}`,
+  ].join("\n");
+}
+
 /** Tickers the latest Model List run marks red (Avoid: risk flags). Other surfaces defer to these. */
 export function modelAvoidTickers(model: ModelList | undefined): string[] {
   const out = new Set<string>();

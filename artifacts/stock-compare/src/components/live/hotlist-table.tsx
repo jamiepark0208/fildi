@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TechnicalRow } from "@/lib/technical-rankings";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
+import { richPutTip, useRichPutBadges } from "@/hooks/use-model-list";
 import type { RegimeDirection } from "./regime-banner";
 import { TickerRecordBadge } from "./ticker-record-badge";
 import { SignalAccuracyChip } from "./signal-accuracy-chip";
@@ -53,7 +54,7 @@ export const VERDICT_LABEL: Record<EntryVerdict, string> = { enter: "Enter", wai
 
 /** Entry-timing verdict pill + click-to-open factor breakdown, mirroring the regime banner popover. */
 export function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; asOf: string | null }) {
-  if (!signal) return <span className="text-amber-200/40">—</span>;
+  if (!signal) return <span className="text-amber-100">—</span>;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -68,7 +69,7 @@ export function EntryCell({ signal, asOf }: { signal: EntrySignal | undefined; a
       <PopoverContent className="w-72 p-0 text-xs bg-zinc-950 border-[#d4af37]/25" align="center">
         <div className="px-3 py-2 border-b border-amber-500/20 bg-black flex items-center justify-between gap-2">
           <span className="font-semibold text-[#d4af37]">{signal.ticker} entry timing</span>
-          {asOf && <span className="text-amber-200/40 font-mono text-[10px]">as of {asOf}</span>}
+          {asOf && <span className="text-amber-100 font-mono text-[10px]">as of {asOf}</span>}
         </div>
         <div className="p-3 flex flex-col gap-1.5">
           {signal.factors.map((f, i) => (
@@ -138,6 +139,8 @@ export function HotlistTable({
   // S054 panic+hiIV — shown on Oversold (put) side only.
   const { byTicker: panicByTicker } = useActivePanicPutBadges(3);
   const { byTicker: shadowByTicker } = useActiveShadowStrategyBadges(3);
+  // S109 rich-put lane — Model List rich_puts folder, put side only.
+  const { byTicker: richByTicker, runAt: richRunAt } = useRichPutBadges();
   const levelTitle = isRally
     ? "Nearest resistance above price (swing highs / pivot R1)."
     : "Nearest support below price (swing lows / pivot S1).";
@@ -189,6 +192,14 @@ export function HotlistTable({
                       title={panicByTicker.get(e.ticker.toUpperCase())?.trigger || "Panic put (S054 hi-IV)"}
                     >
                       panic
+                    </span>
+                  )}
+                  {!isRally && richByTicker.get(e.ticker.toUpperCase()) && (
+                    <span
+                      className="ml-1 text-[9px] font-semibold text-emerald-300 border border-emerald-400/40 rounded px-0.5"
+                      title={richPutTip(richByTicker.get(e.ticker.toUpperCase())!, richRunAt)}
+                    >
+                      rich
                     </span>
                   )}
                   {!isRally &&

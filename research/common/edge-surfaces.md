@@ -5,7 +5,7 @@
 | Edge (BOARD) | Model List | Rankings | Live | Breakdown | Gap |
 |---|---|---|---|---|---|
 | S088/S047 top-10 puts, P(kept) ≥ 90 % | shown (sell_puts lane) | shown (Ladder tab) | — | — | Breakdown: is this name a pick today? |
-| S109 rich-put lane | shown (rich_puts lane) | — | — | — | Breakdown + Live chip |
+| S109 rich-put lane | shown (rich_puts lane) | — | shown (Oversold 'rich' chip, 11-09) | shown (Rules today) | live record (A380) |
 | S054 panic puts (IV30 > 48.7) | shown (panic chip, sell_puts + rich_puts, 11-09) | — | shown (hotlist chip, put side) | — | Model List chip; Breakdown |
 | S101 sharp-drop → higher put Δ | shown (engine strike band, in why text) | shown (Rules tab) | — | — | Breakdown band line |
 | S100 revisions + 60d calls | — (no long-call lane) | shown (Structures › Long options) | — | — | Breakdown; claim not yet vs ±25 % cost (A244 parked) |
@@ -30,3 +30,5 @@ Breakdown header "Rules today" strip shipped: `GET /api/stocks/:t/edges` (routes
 Gaps left: live record per rule still n 0 everywhere (A380 not built); panic-puts signal has no priced contract until the pricer runs. Next: S054 chip on Model List, S109 chip on Live.
 
 **11-09:** S054 'panic' chip on Model List put rows (model-list-panel.tsx, reuses useActivePanicPutBadges = Live hotlist source; tooltip = trigger, signal contract, backtest, live n). Playwright: 81 chips on rich_puts = DB count 81/151. Conflict open: band_engine market panic (VIX÷VIX3M ≥ 1) blocks all new puts while S054 fires on 176 names → Model List banner 'ANOMALY'. Next: S109 chip on Live.
+
+**11-09 #2:** S109 'rich' chip on Live › Oversold rows (hotlist-table.tsx; useRichPutBadges = Model List rich_puts folder, latest run; tooltip = lane rank, contract, rule, backtest +101 vs +34 bp/wk t 5.7, shadow/live not graded). Playwright: 13 chips, 0 console errors (NVDA #67 167.5p 11/11 @1.18). Next: A244 S171 paper board.
