@@ -117,6 +117,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("put consistency", PY, HERE, ["put_consistency.py"]),   # A277 §3: WARN if a surface shows a different put than the engine   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
         ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),
+        ("S171 paper calls", PY, HERE, ["s171_paper.py"]),   # A244 S171: loss-maker momentum ∧ cheap vol → 30 DTE 0.30Δ call at the ask, graded day 3 vs same-Δ stock
         ("S/R strike picker", PY, HERE, ["analysis/s088_sr_zones.py", "--if-due"]),   # S088: weekly refit (~5 min) → sold put/call picks + 1σ baseline → forecast_ledger   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)

@@ -84,10 +84,73 @@ function NamesTable({ side, rows }: { side: "call" | "put"; rows: Name[] }) {
 }
 
 /** `side` = embed under Long call / Long put in StructureLab (no separate tab). */
+type S171Pick = { ticker: string; entry: string; gradeOn: string; beat: boolean | null; strike: number; expiry: string;
+  ask: number; delta: number; retCall: number | null; vsDelta: number | null; exitFill: string | null };
+type S171Summary = { n: number; open: number; dates: number; meanVsDelta: number | null; t: number | null };
+
+function S171Paper({ picks, sum }: { picks: S171Pick[]; sum: S171Summary }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="rounded border border-[#d4af37]/20 bg-zinc-950">
+      <button type="button" onClick={() => setShow(!show)}
+        className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 py-1 text-left">
+        {show ? <ChevronDown className="w-3 h-3 text-[#d4af37] shrink-0" />
+          : <ChevronRight className="w-3 h-3 text-[#d4af37] shrink-0" />}
+        <DataTip tip={"S171 rule, frozen: loss-making names with momentum (20-day return ≥ 17 %, RSI ≥ 63, 5-day ≥ 8 %) while their own IV/RV sits in its bottom third. Buy the ~30-day ~0.30Δ call at the Schwab ask the session after the signal, sell at the bid 3 trading days later.\n\nBacktest (2024-07→): beat buying the same-Δ in stock by +142 bp per $ per day, both halves, but t 1.06 — too few dates to trust. Graded live here. Promote at ≥ 100 picks with mean > 0 and t ≥ 2."}>
+          <span className="font-semibold text-white underline decoration-dotted cursor-help">Paper: loss-maker momentum + cheap vol calls (S171)</span>
+        </DataTip>
+        <span className="rounded border border-zinc-500/40 px-1 text-[10px] uppercase text-amber-100">paper</span>
+        <span className="tabular-nums text-amber-100">
+          {sum.n ? `${sum.n}/100 graded · vs same-Δ stock ${pct(sum.meanVsDelta, 0)} · t ${sum.t?.toFixed(1) ?? "—"}` : "0/100 graded"}
+          {sum.open ? ` · ${sum.open} open` : ""}
+        </span>
+      </button>
+      {show ? (
+        <div className="px-2 pb-2">
+          {picks.length === 0 ? <p className="text-amber-100">No signals yet.</p> : (
+            <div className={GRID_WRAP}>
+              <table className="w-full">
+                <thead className={GRID_HEADER}>
+                  <tr>
+                    {["Ticker", "Entry", "Call", "Ask", "Δ", "Exit", "Call ret", "vs Δ-stock"].map((h, i) => (
+                      <th key={h} className={cn(GRID_TH, i ? "text-right" : "text-left")}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {picks.map((p, i) => (
+                    <tr key={`${p.ticker}-${p.entry}`} className={gridRow(i)}>
+                      <td className={GRID_TD}><TickerLink ticker={p.ticker} /></td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{formatMdYy(p.entry)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.strike}C {formatMdYy(p.expiry)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{px(p.ask)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.delta.toFixed(2)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>
+                        {p.vsDelta == null ? `grade ${formatMdYy(p.gradeOn)}` : (
+                          <DataTip tip={p.exitFill ?? ""}><span>{formatMdYy(p.gradeOn)}</span></DataTip>
+                        )}
+                      </td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{pct(p.retCall, 0)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums font-semibold",
+                        p.vsDelta == null ? "text-amber-100" : p.vsDelta > 0 ? "text-emerald-400" : "text-rose-400")}>
+                        {pct(p.vsDelta, 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function LongOptionBoard({ side }: { side?: "call" | "put" } = {}) {
   const { data, isLoading } = useQuery({
     queryKey: ["long-option-board"],
-    queryFn: async (): Promise<{ board: Board | null }> => {
+    queryFn: async (): Promise<{ board: Board | null; s171?: S171Pick[]; s171Summary?: S171Summary }> => {
       const r = await fetch("/api/options/long-board", { credentials: "include" });
       if (!r.ok) throw new Error("long-board fetch failed");
       return r.json();
@@ -128,6 +191,8 @@ export function LongOptionBoard({ side }: { side?: "call" | "put" } = {}) {
           </span>
         ))}
       </div>
+
+      {side !== "put" && data?.s171Summary ? <S171Paper picks={data.s171 ?? []} sum={data.s171Summary} /> : null}
 
       {b.strategies.map((st) => {
         const isOpen = open === st.name;

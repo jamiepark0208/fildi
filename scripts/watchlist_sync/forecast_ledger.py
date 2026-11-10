@@ -544,7 +544,32 @@ def _r_structure(conn, t, d, m):
     return (pnl > 0, {"close": S, "pnl_per_share": round(pnl, 3)})
 
 
-EXTRA_RESOLVERS = {"sim_structure": _r_structure, "index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
+def _r_long_call_ts(conn, t, d, m):
+    """s171_paper.py (A244 S171): long call sold at the day-`d` Schwab bid (latest snapshot ≤ d after entry).
+    outcome = call P&L > same-Δ stock P&L (Δ × ΔS), both per $ debit. No quote → not resolvable yet; after 5 days
+    without one, mark at intrinsic and flag it (never silently)."""
+    entry = dt.date.fromisoformat(m["entry_date"])
+    q = conn.execute("""SELECT as_of, bid::float, spot::float FROM option_chain_history
+                        WHERE ticker = %s AND side = 'call' AND expiry = %s AND strike = %s AND source = 'schwab'
+                          AND as_of > %s AND as_of <= %s AND bid IS NOT NULL
+                        ORDER BY as_of DESC LIMIT 1""", (t, m["expiry"], m["strike"], entry, d)).fetchone()
+    c = _close_on_or_before(conn, t, d)
+    if not c:
+        return None
+    S1, S0, debit, delta = c[0], float(m["spot"]), float(m["debit"]), float(m["delta"])
+    if q:
+        exit_px, fill = q[1], f"schwab bid {q[0]}"
+    elif (dt.date.today() - d).days > 5:
+        exit_px, fill = max(S1 - float(m["strike"]), 0.0), "intrinsic (no quote)"
+    else:
+        return None
+    pnl, pnl_d = exit_px - debit, delta * (S1 - S0)
+    return (pnl > pnl_d, {"close": S1, "exit_px": round(exit_px, 4), "exit_fill": fill,
+                          "pnl_per_share": round(pnl, 4), "ret_call": round(pnl / debit, 4),
+                          "ret_delta_stock": round(pnl_d / debit, 4), "vs_delta": round((pnl - pnl_d) / debit, 4)})
+
+
+EXTRA_RESOLVERS = {"sim_structure": _r_structure, "long_call_ts": _r_long_call_ts,"index_up_21d": _r_index21, "index_tail_21d": _r_index21, "strike_touch": _r_touch, "direction_5d": _r_direction, "direction_20d": _r_direction,
                    "drop_2sigma": _r_drop, "score_disagree": _r_disagree, "earnings_vs_implied": _r_earnings, "earnings_up": _r_earnings_up,
                    "fv_vs_pt": _r_fvpt, "rec_beats_median": _r_recmed, "abn_1s_5d": _r_abn_1s_5d}
 
