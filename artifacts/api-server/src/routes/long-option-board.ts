@@ -48,8 +48,10 @@ router.get("/options/long-board", async (_req, res) => {
       FROM watchlist_sync.macro_daily a JOIN watchlist_sync.macro_daily b ON b.date = a.date AND b.series = 'vix3m'
       WHERE a.series = 'vix' AND b.value > 0 ORDER BY a.date DESC LIMIT 10`);
     const s172Puts = await db.execute(sql`
-      SELECT ticker, as_of::text AS "asOf", status, occ, entry_mid::float8 AS "entryMid", ret::float8 AS ret
-      FROM watchlist_sync.strategy_signals WHERE strategy_id = 'vix-uninvert-put' ORDER BY as_of DESC LIMIT 20`);
+      SELECT ticker, as_of::text AS "asOf", status, occ, entry_mid::float8 AS "entryMid", ret::float8 AS ret,
+             (strategy_id = 'vix-uninvert-put-hibeta') AS "hiBeta", (details->>'beta60')::float8 AS beta
+      FROM watchlist_sync.strategy_signals WHERE strategy_id IN ('vix-uninvert-put', 'vix-uninvert-put-hibeta')
+      ORDER BY as_of DESC, strategy_id, ticker LIMIT 40`);
     return res.json({ board: (board.rows[0] as { payload?: unknown } | undefined)?.payload ?? null,
       s171: picks.slice(0, 40), s171Summary,
       s172: { picks: (s172.rows as { entry: string }[]).sort((a, b) => b.entry.localeCompare(a.entry)).slice(0, 30),

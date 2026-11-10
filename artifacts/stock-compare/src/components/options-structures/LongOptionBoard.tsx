@@ -148,7 +148,7 @@ function S171Paper({ picks, sum }: { picks: S171Pick[]; sum: S171Summary }) {
 }
 
 type S172Data = { picks: S171Pick[]; curve: { date: string; ratio: number }[];
-  puts: { ticker: string; asOf: string; status: string; occ: string | null; entryMid: number | null; ret: number | null }[] };
+  puts: { ticker: string; asOf: string; status: string; occ: string | null; entryMid: number | null; ret: number | null; hiBeta?: boolean; beta?: number | null }[] };
 
 /** S172: VIX÷VIX3M un-invert = market bottom tell (Jamie 11-09). Open by default for 10 days after a fire. */
 function BottomSignal({ d }: { d: S172Data }) {
@@ -204,10 +204,19 @@ function BottomSignal({ d }: { d: S172Data }) {
               </table>
             </div>
           ) : null}
-          {d.puts.length ? (
-            <p className="text-amber-100">Put signals: {d.puts.map((p) => (
+          {d.puts.some((p) => !p.hiBeta) ? (
+            <p className="text-amber-100">Put signals: {d.puts.filter((p) => !p.hiBeta).map((p) => (
               <span key={`${p.ticker}-${p.asOf}`} className="mr-2">{p.ticker} {formatMdYy(p.asOf)} {p.occ ?? p.status}{p.ret != null ? ` ${pct(p.ret, 1)}` : ""}</span>
             ))}</p>
+          ) : null}
+          {d.puts.some((p) => p.hiBeta) ? (
+            <p className="text-amber-100">
+              <DataTip tip={"S173 (18 un-invert episodes 2018→, ~930 names, model-priced): 0.20Δ ~30-day puts on the top-beta fifth of names earned +3.0 % (2018–22) / +2.0 % (2023→) per $ collateral vs +0.9 / +0.6 % on SPY's put, beating each name's own any-day put both halves. Worst single name −29 %, 6–9 % breached — spread across names.\n\nPer-name calls did NOT beat SPY's call (features flip between halves) → for calls use the index.\n\n18 episodes = underpowered; paper only, graded at expiry."}>
+                <span className="underline decoration-dotted">High-beta puts (S173, paper)</span>
+              </DataTip>: {d.puts.filter((p) => p.hiBeta).map((p) => (
+                <span key={`hb-${p.ticker}-${p.asOf}`} className="mr-2">{p.ticker}{p.beta != null ? ` β${p.beta.toFixed(1)}` : ""} {p.occ ?? p.status}{p.ret != null ? ` ${pct(p.ret, 1)}` : ""}</span>
+              ))}
+            </p>
           ) : null}
         </div>
       ) : null}

@@ -9,6 +9,7 @@
 | Panic puts: panic drop + IV30 > 48.7 | kept +4.05 % vs +0.26 %; 2025 +3.15 vs +1.63 % | S054 | live (Strategies) |
 | Sharp-drop regime (SPY 3m ≤ −8 %, VIX÷VIX3M < 1) → higher put Δ | bp rises steeply with Δ, both periods | S101 | strategy_rules |
 | Market bottom: VIX÷VIX3M un-inverts after ≥ 2 inverted days → 0.50Δ 30 DTE index calls; sell 0.20Δ SPY/QQQ puts | calls +34–43 % per $ vs any-day calls, both halves, n 33–38 (real SPY quotes +74 %, 7/11); puts 94–95 % win | S172 | paper (Live board, fired 11-09) |
+| Market bottom per stock: at the VIX÷VIX3M un-invert sell 0.20Δ 30 DTE puts on the top-beta fifth of names | +3.0 % / +2.0 % per $ collateral per 30 d (2018–22 / 2023→) vs SPY put +0.9 / +0.6; beats own any-day put both halves; worst name −29 %; 18 episodes, model prices = underpowered. Single-name calls do NOT beat SPY's call → buy the index | S173 | paper (Live board, 10 names 11-09) |
 | Buy calls: rising revisions + strong 60d return | holdout +69.6 % vs revisions +43.1 % (t 2.0) | S100 | board gate |
 | Calls: low volume + not stretched above 200d | +42.9 bp/wk OOS, t 4.6 | S046 | options-1.2.0 |
 | Index oversold: SPY/QQQ RSI14 < 25 → long 5 d | **UNDERPOWERED** (A371): 17 / 14 events since 2003; at RSI < 30 SPY 60.9 % vs 59.0 % base (46 ev), QQQ 76 % vs 60 % (39 ev, halves 64 / 94 %) | S159 | trigger chip (A368) (label underpowered) |

@@ -57,6 +57,12 @@ SHADOW = {
         "exit": "expiry",
         "trigger": "VIX÷VIX3M un-inverts after ≥2 inverted sessions → sell ~0.20Δ put ~30 DTE (S172: SPY 95 % / QQQ 94 % win, 2009→)",
     },
+    # S173 (Claude 11-09): s172_paper.py also writes the 10 highest-beta names on a fire day (paper; same pricing/grading).
+    "vix-uninvert-put-hibeta": {
+        "delta": -0.20,
+        "exit": "expiry",
+        "trigger": "VIX÷VIX3M un-invert → sell ~0.20Δ put ~30 DTE on top-beta names (S173: Q5 beta +3.0/+2.0 %/30d per $ collateral vs SPY put +0.9/+0.6, both halves, 18 eps = UNDERPOWERED)",
+    },
     "put_z50_dip_d20": {
         "delta": -0.20,
         "exit": "expiry",
