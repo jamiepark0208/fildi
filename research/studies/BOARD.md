@@ -48,6 +48,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 
 ## Testing / queued
 - S178 panic risk reversal on names (sell 0.25Δ put + buy 0.50Δ call, 30 DTE, VIX÷VIX3M ≥ 1): +5.9–6.1 % / $ strike vs short put alone +2.2–2.4, both eras, t 2.6, 11/15 panic Mondays; the 4 losers = early panic weeks → pair with the S172 un-invert timing; call ≈ same-Δ stock (leverage, not option edge). UNDERPOWERED — 15 episodes
+- S184 Kronos (pooled fine-tune, 242 names) mu/sd rank → top-fifth 0.50Δ 30-DTE calls +0.24 per $ debit over all calls, month t 2.8, both halves +; pre-registered mu fails (t 1.4), 28 origins, model prices. UNDERPOWERED — promising; paper it, then blend with S177 score
 - A370 indicators as put-timing filters in the seller's universe (smoke 11-07: top-IV names, SuperTrend bear / below 200d / 5d drop → +1.8–2.5 vol pts IV−RV, t 4–9; RSI>70 and high-volume days −4.4; works when SPY > 200d, fades in broad sell-offs)
 - S159 → short puts on index-oversold days, real chains (A359 engine)
 - A365 event-stack guard (vol backwardation + earnings) vs S159 conflict
