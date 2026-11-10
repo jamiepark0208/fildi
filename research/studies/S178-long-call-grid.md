@@ -32,7 +32,7 @@ Independent events: panic = **15 entry Mondays / 9 months** (n_indep 15 → UNDE
   - Panic + ret20 ≤ 4 %: test +49 % vs +47 %, so it adds nothing.
 - **Next rule:** pair the panic risk reversal with S172 timing (enter at the VIX÷VIX3M un-invert, not the first inverted week). Apply it to S173's top-beta names as a paper leg next to the S172 put.
 
-## Verdict
+## Verdict per RULE (entry × structure × exit)
 - **RULE "longer-dated calls (120–240 DTE) bought on any day / low IV / dip days, held 21–63 td or exited at TP 2× / −50 %": NO-LIFT.** It fails both eras against shorter calls and against same-Δ stock. Long-dated IV sits above iv30 and the spread is wider. A first pass showed +38 % for low-IV LEAPS; that was a pricing artifact (IV moved 1:1 with iv30).
 - **RULE "long calls on the sold-put days (dip / rich IV)": NO-LIFT.** Those days pay the put seller.
 - **RULE "panic × 30 DTE 0.50Δ call + 0.25Δ short put (risk reversal) to expiry": UNDERPOWERED-promising.** It makes +6 % vs +2.3 % for the put alone, in both eras, with 15 episodes, on model prices. The call matches same-Δ stock, so it adds leverage, not an option edge.
