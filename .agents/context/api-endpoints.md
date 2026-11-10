@@ -401,6 +401,7 @@ routes/watchlist.ts        → /api/watchlist/*
 | POST | /api/stocks/news-summary | stocks.ts |
 | GET | /api/stocks/edgar-statements/:ticker | stocks.ts |
 | GET | /api/strategies | strategies.ts |
+| GET | /api/strategy-signals/active | strategies.ts |
 | GET | /api/strategies/:id/signals | strategies.ts |
 | GET | /api/strategies/:id | strategies.ts |
 | GET | /api/strategy-board | strategy-board.ts |
