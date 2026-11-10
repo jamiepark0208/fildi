@@ -12,7 +12,7 @@ Every stage writes watchlist_sync.trade_funnel_daily (as_of, stage, ticker, fami
 end-of-day audit (step 4) can say which stage dropped a missed winner. Score weights below are NOT validated — the
 step-4 recall of the 'shortlist' stage is the test; change them only through that audit.
 
-    .venv/bin/python trade_funnel.py [shortlist|today] [--dry]
+    .venv/bin/python trade_funnel.py [shortlist|today] [--dry] [--as-of=YYYY-MM-DD]   (as-of = replay, eod_audit step 4)
 """
 from __future__ import annotations
 
@@ -59,12 +59,13 @@ def strike_at(S, v, t, delta, put):
 
 
 # ── stage 0: regime (same labels as S175, live inputs) ──────────────────────────────────────────────────────────────
-def regime(conn) -> dict:
+def regime(conn, d0: date | None = None) -> dict:
+    d0 = d0 or date.today()
     c = conn.execute("""SELECT a.date, a.value / b.value, a.value FROM watchlist_sync.macro_daily a
                         JOIN watchlist_sync.macro_daily b ON b.date = a.date AND b.series = 'vix3m'
-                        WHERE a.series = 'vix' AND b.value > 0 ORDER BY a.date DESC LIMIT 15""").fetchall()[::-1]
-    spy = [float(x) for (x,) in conn.execute("""SELECT close FROM lseg_research.daily_history WHERE ticker = 'SPY' AND close > 0
-                                                ORDER BY date DESC LIMIT 201""").fetchall()][::-1]
+                        WHERE a.series = 'vix' AND b.value > 0 AND a.date <= %s ORDER BY a.date DESC LIMIT 15""", (d0,)).fetchall()[::-1]
+    spy = [float(x) for (x,) in conn.execute("""SELECT close FROM lseg_research.daily_history WHERE ticker = 'SPY' AND close > 0 AND date <= %s
+                                                ORDER BY date DESC LIMIT 201""", (d0,)).fetchall()][::-1]
     if not c:
         return {"label": "other", "why": "no VIX curve"}
     d, r, vix = c[-1][0], float(c[-1][1]), float(c[-1][2])
@@ -110,22 +111,22 @@ def log(conn, as_of, out):
 
 
 # ── shortlist mode ────────────────────────────────────────────────────────────────────────────────────────────────
-def shortlist(conn, dry: bool):
-    today = date.today()
-    reg = regime(conn)
+def shortlist(conn, dry: bool, d0: date | None = None):
+    today = d0 or date.today()
+    reg = regime(conn, today)
     ok_s = allowed(reg["label"])
     out = [("regime", "MARKET", "", True, reg["label"], None, {**reg, "allowed": sorted(ok_s)})]
     hist = defaultdict(list)
     ivs = {}
     for t, d, c, ip, ic in conn.execute("""SELECT ticker, date, close::float8, iv30_put::float8, iv30_call::float8
-                                           FROM lseg_research.daily_history WHERE date >= CURRENT_DATE - 420 AND close > 0
-                                           ORDER BY ticker, date"""):
+                                           FROM lseg_research.daily_history WHERE date BETWEEN %s::date - 420 AND %s AND close > 0
+                                           ORDER BY ticker, date""", (today, today)):
         hist[t].append(c)
         if ip and ic and d >= today - timedelta(days=6):
             ivs[t] = (ip / 100, ic / 100, d)
     edge = {t: float(b) for t, b in conn.execute("""SELECT ticker, pnl_bp FROM watchlist_sync.put_edge_daily
-              WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily) AND pnl_bp IS NOT NULL""")}
-    board = conn.execute("SELECT payload->'overlap' FROM watchlist_sync.long_option_board ORDER BY as_of DESC LIMIT 1").fetchone()
+              WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily WHERE as_of <= %s) AND pnl_bp IS NOT NULL""", (today,))}
+    board = conn.execute("SELECT payload->'overlap' FROM watchlist_sync.long_option_board WHERE as_of <= %s ORDER BY as_of DESC LIMIT 1", (today,)).fetchone()
     ov = {"long_call": dict((board[0] or {}).get("call", [])) if board else {},
           "long_put": dict((board[0] or {}).get("put", [])) if board else {}}
     T = DTE / 365
@@ -192,17 +193,17 @@ def chain_names(conn) -> list[str]:
 TIER = {"live": 3, "candidate": 2, "board": 2, "paper": 1}
 
 
-def today_list(conn, dry: bool):
-    today = date.today()
+def today_list(conn, dry: bool, d0: date | None = None):
+    today = d0 or date.today()
     lib = {r["strategy_id"]: r for r in rows(conn, "SELECT strategy_id, status, name FROM watchlist_sync.strategies")}
     fscore = {(t, f): s for t, f, s in conn.execute("""SELECT ticker, family, score FROM watchlist_sync.trade_funnel_daily
-               WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.trade_funnel_daily WHERE stage = 'shortlist')
-               AND stage = 'shortlist'""").fetchall()}
+               WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.trade_funnel_daily WHERE stage = 'shortlist' AND as_of <= %s)
+               AND stage = 'shortlist'""", (today,)).fetchall()}
     items = []
     # 1. the sold-put engine (put_recs_daily, gates empty = pass) — the live IRA/FILDI strategy
     for r in rows(conn, """SELECT ticker, payload p FROM watchlist_sync.put_recs_daily
-                           WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily)
-                           AND jsonb_array_length(COALESCE(payload->'gates', '[]'::jsonb)) = 0"""):
+                           WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily WHERE as_of <= %s)
+                           AND jsonb_array_length(COALESCE(payload->'gates', '[]'::jsonb)) = 0""", (today,)):
         p = r["p"]
         items.append({"ticker": r["ticker"], "family": "short_put", "structure": "csp", "source": "put engine",
                       "tier": "live", "strike": p.get("strike"), "expiry": p.get("expiry"), "bid": p.get("bid"),
@@ -210,7 +211,7 @@ def today_list(conn, dry: bool):
                       "chips": [c for c in ("s054" if p.get("s054") else None, "rich" if p.get("rich") else None) if c]})
     # 2. Strategies board primary tier (regime-fit + EV > 0 on real ladders)
     for r in rows(conn, """SELECT structure, ticker, payload p FROM watchlist_sync.structure_rank_daily
-                           WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily) AND payload->>'tier' = 'primary'"""):
+                           WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily WHERE as_of <= %s) AND payload->>'tier' = 'primary'""", (today,)):
         p = r["p"]
         if r["structure"] == "csp" and any(i["ticker"] == r["ticker"] and i["family"] == "short_put" for i in items):
             continue   # same pick as the put engine (A277: one sold-put engine)
@@ -224,10 +225,10 @@ def today_list(conn, dry: bool):
                       "metric_label": "EV %", "why": p.get("fit_why"), "chips": []})
     # 3. every registered rule firing (strategy_signals open/priced in the last 3 sessions; 'listed' = model-priced extras, skipped)
     for r in rows(conn, """SELECT DISTINCT ON (strategy_id, ticker) strategy_id, ticker, trigger, occ, expiry, strike, entry_mid, status, details
-                           FROM watchlist_sync.strategy_signals WHERE status IN ('open', 'priced')
+                           FROM watchlist_sync.strategy_signals WHERE status IN ('open', 'priced', 'graded', 'settled') AND as_of <= %(d)s
                            AND as_of >= (SELECT MIN(d) FROM (SELECT DISTINCT as_of d FROM watchlist_sync.strategy_signals
-                                         ORDER BY 1 DESC LIMIT 2) x)       -- fired in the last 2 signal days, not last week's
-                           AND (expiry IS NULL OR expiry >= CURRENT_DATE) ORDER BY strategy_id, ticker, as_of DESC"""):
+                                         WHERE as_of <= %(d)s ORDER BY 1 DESC LIMIT 2) x)       -- fired in the last 2 signal days, not last week's
+                           AND (expiry IS NULL OR expiry >= %(d)s) ORDER BY strategy_id, ticker, as_of DESC""", {"d": today}):
         sid = r["strategy_id"]
         st = (lib.get(sid) or {}).get("status")
         if st == "failed":
@@ -239,7 +240,8 @@ def today_list(conn, dry: bool):
                       "metric": None, "metric_label": "", "why": r["trigger"], "chips": [r["status"]]})
     # 4. long-option paper boards in forecast_ledger (S172 index calls at the un-invert = PASS → candidate; S171 = underpowered → paper)
     for r in rows(conn, """SELECT subject, forecaster, meta FROM watchlist_sync.forecast_ledger
-                           WHERE qtype = 'long_call_ts' AND outcome IS NULL AND made_on >= CURRENT_DATE - 3"""):
+                           WHERE qtype = 'long_call_ts' AND made_on BETWEEN %s::date - 3 AND %s
+                           AND (outcome IS NULL OR %s < CURRENT_DATE)""", (today, today, today)):
         m = r["meta"] or {}
         put = m.get("side") == "put"
         items.append({"ticker": r["subject"], "family": "long_put" if put else "long_call", "structure": m.get("structure", "long_call"),
@@ -255,7 +257,7 @@ def today_list(conn, dry: bool):
             best[k] = it
         else:
             best[k]["sources"] = sorted({*best[k]["sources"], it["source"]})
-    reg = regime(conn)
+    reg = regime(conn, today)
     ok_s = allowed(reg["label"])
     for it in best.values():
         it["regime_fit"] = it["structure"] in ok_s or S175_ID.get(it["family"]) in ok_s
@@ -282,5 +284,6 @@ def today_list(conn, dry: bool):
 
 if __name__ == "__main__":
     mode = next((a for a in sys.argv[1:] if not a.startswith("--")), "shortlist")
+    d = next((date.fromisoformat(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--as-of=")), None)   # replay a past day
     with connect() as c:
-        (today_list if mode == "today" else shortlist)(c, "--dry" in sys.argv)
+        (today_list if mode == "today" else shortlist)(c, "--dry" in sys.argv, d)

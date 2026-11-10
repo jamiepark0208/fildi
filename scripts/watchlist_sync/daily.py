@@ -121,7 +121,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),
         ("S171 paper calls", PY, HERE, ["s171_paper.py"]),   # A244 S171: loss-maker momentum ∧ cheap vol → 30 DTE 0.30Δ call at the ask, graded day 3 vs same-Δ stock
         ("S172 bottom signal", PY, HERE, ["s172_paper.py"]),
-        ("trade funnel today", PY, HERE, ["trade_funnel.py", "today"]),   # one ranked Today list (put engine + board + every rule) → Live   # S172: VIX÷VIX3M un-invert → SPY/QQQ/IWM 0.50Δ calls (paper, to expiry) + SPY/QQQ 0.20Δ put signals
+        ("trade funnel today", PY, HERE, ["trade_funnel.py", "today"]),   # one ranked Today list (put engine + board + every rule) → Live
+        ("missed-trade audit", PY, HERE, ["eod_audit.py"]),   # trade-funnel step 4: entry days whose 5/10/21-session horizon ended → missed_trades + stage recall   # S172: VIX÷VIX3M un-invert → SPY/QQQ/IWM 0.50Δ calls (paper, to expiry) + SPY/QQQ 0.20Δ put signals
         ("S/R strike picker", PY, HERE, ["analysis/s088_sr_zones.py", "--if-due"]),   # S088: weekly refit (~5 min) → sold put/call picks + 1σ baseline → forecast_ledger   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
