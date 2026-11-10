@@ -21,6 +21,7 @@
 Dead = don't re-run **the same test**. A variant is welcome when it names what is different (new regime, new data, new structure, fairer comparator, real costs). Kind: **cost** = gross edge smaller than the spread (durable; re-check only if costs or fills change) · **no-lift** = no edge in that sample (can change with regime → re-screen on the Re-check date with the newest data) · **framing?** = the test itself may be wrong (comparator, units, approximated dates) → audit (A371). `scripts/asks_revisit.py` lists due re-checks at session start.
 | Idea | Why | Study | Kind | Re-check |
 |---|---|---|---|---|
+| Long calls after a single-name crash (the sold-put 'low' entry) | −9.0 % vs +10.8 % any day, both eras; you pay the rich IV that pays the put seller. The low that carries = market panic → bull call spreads (+19 % vs +1.6 %, t 2.1); buy calls when IV pctile is low | S177 | no-transfer | new data on real chains |
 | Growth bonus on call picks (revenue accel, beat streak, FY1→FY2, SUE) added to S100 | 0/8 add to S100 (+69.6 % holdout); beat streak / surprise hurt (t −2.4 / −2.0); revenue accel works only post-2024; winners = theme names, not growth ranks | S174 | no-lift | theme-momentum rule tested, or 2027-05 |
 | Per-stock RSI cutoffs | 3–12 events per name; shrunk per-stock −0.23 pp [−1.33, +0.90] h5, −0.96 h10 vs global 25 out of sample (A378 centering fixed) | S160 | dead | if event count per name ≥ 30 |
 | Intraday indicator signals (stock or options) | gross lift < spread; 0/144, 0/60, 1/221 | S152 · S155 · S156 · A362 | cost | cost |

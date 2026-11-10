@@ -118,10 +118,13 @@ def shortlist(conn, dry: bool, d0: date | None = None):
     out = [("regime", "MARKET", "", True, reg["label"], None, {**reg, "allowed": sorted(ok_s)})]
     hist = defaultdict(list)
     ivs = {}
+    ivh = defaultdict(list)   # call iv30 history → IV percentile (S177)
     for t, d, c, ip, ic in conn.execute("""SELECT ticker, date, close::float8, iv30_put::float8, iv30_call::float8
                                            FROM lseg_research.daily_history WHERE date BETWEEN %s::date - 420 AND %s AND close > 0
                                            ORDER BY ticker, date""", (today, today)):
         hist[t].append(c)
+        if ic:
+            ivh[t].append(ic / 100)
         if ip and ic and d >= today - timedelta(days=6):
             ivs[t] = (ip / 100, ic / 100, d)
     edge = {t: float(b) for t, b in conn.execute("""SELECT ticker, pnl_bp FROM watchlist_sync.put_edge_daily
@@ -130,6 +133,7 @@ def shortlist(conn, dry: bool, d0: date | None = None):
     ov = {"long_call": dict((board[0] or {}).get("call", [])) if board else {},
           "long_put": dict((board[0] or {}).get("put", [])) if board else {}}
     T = DTE / 365
+    call_edge, call_terms = {}, {}
     priced = {f: {} for f in K}
     for t, cl in hist.items():
         why = ("history < 260 closes" if len(cl) < 260 else "no iv30 in 6 d" if t not in ivs
@@ -138,6 +142,15 @@ def shortlist(conn, dry: bool, d0: date | None = None):
         if why:
             continue
         S = cl[-1]
+        # S177 (11-09) long-call entry terms: IV pctile vs own year (Q1 +23.8 % → Q5 −2.3 %, both eras), single-name crash
+        # ret20 ≤ −15 % (−9.0 % vs +10.8 %, both eras), at a 52w high (−0.2 %), z50 ≥ +1.44 (Q5 +1.9 %)
+        ih = ivh[t][-252:]
+        ivp = sum(v <= ih[-1] for v in ih) / len(ih) if len(ih) >= 120 else 0.5
+        m50 = sum(cl[-50:]) / 50
+        s50 = (sum((x - m50) ** 2 for x in cl[-50:]) / 50) ** 0.5 or 1
+        ret20, off_hi, z50 = S / cl[-21] - 1, S / max(cl[-252:]) - 1, (S - m50) / s50
+        call_edge[t] = (1 - ivp) - 0.5 * (ret20 <= -0.15) - 0.3 * (off_hi >= -0.02) - 0.2 * (z50 >= 1.44)
+        call_terms[t] = {"ivp": round(ivp, 2), "ret20": round(ret20, 3), "off_hi": round(off_hi, 3), "z50": round(z50, 2)}
         lr = [math.log(cl[i] / cl[i - 1]) for i in range(len(cl) - 20, len(cl))]
         rv = (sum(x * x for x in lr) / len(lr) - (sum(lr) / len(lr)) ** 2) ** 0.5 * math.sqrt(252)
         ip, ic, _ = ivs[t]
@@ -150,11 +163,11 @@ def shortlist(conn, dry: bool, d0: date | None = None):
                 ev = (p_iv * (1 - FILL) - p_rv) / Kx
             else:                  # long premium: expected payoff ÷ debit − 1
                 ev = p_rv / (p_iv * (1 + FILL)) - 1 if p_iv > 0 else -1
-            priced[f][t] = {"spot": round(S, 2), "strike": round(Kx, 2), "iv": round(iv, 3), "rv20": round(rv, 3),
+            priced[f][t] = {**(call_terms[t] if f == "long_call" else {}), "spot": round(S, 2), "strike": round(Kx, 2), "iv": round(iv, 3), "rv20": round(rv, 3),
                             "prem": round(p_iv, 3), "ev": round(ev, 4)}
     shortlist_names: dict[str, float] = {}
     for f, px in priced.items():
-        e_src = edge if f == "short_put" else ov[f]
+        e_src = edge if f == "short_put" else call_edge if f == "long_call" else ov[f]   # calls: S177 terms (S086 overlap had no skill, eod_audit 11-09)
         pe = pct_rank({t: v["ev"] for t, v in px.items()})
         pg = pct_rank({t: e_src[t] for t in px if t in e_src})
         prior = 1.0 if S175_ID[f] in ok_s else OFF_PRIOR

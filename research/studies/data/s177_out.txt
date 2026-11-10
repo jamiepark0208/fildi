@@ -1,0 +1,103 @@
+S177: 225618 trades with features (292163 total)
+
+== long_call  n 51830  mean +10.8 %  win 29 %
+  feature    winners  losers |  Q1      Q2      Q3      Q4      Q5   | Q5−Q1 t   eras(Q5−Q1)
+  ret5        0.001   0.001 |  +10.2  +13.6  +12.4  +10.4   +7.2 |   0.8  +12.0/-12.4   (Q1≤-0.042 Q5≥0.044)
+  ret20       0.001   0.003 |   +3.6  +19.1  +14.7  +10.8   +5.6 |  -0.3  +0.8/+1.7   (Q1≤-0.086 Q5≥0.097)
+  ret60       0.005   0.020 |   +7.7  +19.2  +15.1   +4.4   +7.4 |  -0.4  -19.8/+8.6   (Q1≤-0.127 Q5≥0.185)
+  z50        -0.037   0.076 |  +11.2  +14.0  +17.5   +9.2   +1.9 |  -0.7  -4.1/-12.5   (Q1≤-1.245 Q5≥1.439)
+  rsi        50.157  50.473 |   +8.9  +17.0   +9.7  +10.9   +7.2 |  -0.0  +7.3/-6.2   (Q1≤35.282 Q5≥66.190)
+  off_hi     -0.158  -0.180 |   -1.8  +15.1  +25.1  +14.2   +1.3 |   0.4  +11.5/-5.1   (Q1≤-0.372 Q5≥-0.043)
+  up_lo       0.369   0.373 |   +9.5   +5.2   +7.6   +9.4  +22.2 |   1.0  +7.2/+15.7   (Q1≤0.124 Q5≥0.871)
+  ivrv        1.042   1.033 |   +9.1  +11.5  +11.1  +16.1   +6.1 |  -0.1  -17.2/+3.6   (Q1≤0.820 Q5≥1.309)
+  ivp         0.376   0.436 |  +23.8  +18.1   +7.1   +7.1   -2.3 |  -1.6  -45.8/-21.7   (Q1≤0.117 Q5≥0.751)
+  vixr        0.874   0.872 |  +19.2   +5.3  +13.1   +5.2  +11.1 |   0.2  +0.5/-14.5   (Q1≤0.836 Q5≥0.941)
+  spy20       0.010   0.012 |   +5.6   +1.7  +29.0   +5.9  +11.5 |  -0.3  +2.3/+7.7   (Q1≤-0.019 Q5≥0.039)
+
+== long_put  n 51830  mean -13.3 %  win 28 %
+  feature    winners  losers |  Q1      Q2      Q3      Q4      Q5   | Q5−Q1 t   eras(Q5−Q1)
+  ret5        0.004   0.000 |  -16.8  -16.4  -15.2  -12.3   -6.0 |  -0.3  +12.5/+9.5   (Q1≤-0.042 Q5≥0.044)
+  ret20       0.011   0.000 |  -18.2  -20.2  -15.1   -6.5   -6.6 |   1.0  +12.5/+10.7   (Q1≤-0.086 Q5≥0.097)
+  ret60       0.023   0.015 |  -16.6  -18.8  -11.7   -8.2  -11.4 |   0.2  +7.5/+3.7   (Q1≤-0.127 Q5≥0.185)
+  z50         0.275   0.036 |  -25.7  -15.1   -9.6   -9.0   -7.3 |   1.1  +15.2/+19.8   (Q1≤-1.245 Q5≥1.439)
+  rsi        52.066  50.040 |  -23.3  -16.2  -10.3   -6.7  -10.1 |   0.8  +16.7/+11.3   (Q1≤35.282 Q5≥66.190)
+  off_hi     -0.155  -0.160 |   -8.8  -13.5  -17.1  -15.8  -11.6 |  -0.4  -13.3/+3.2   (Q1≤-0.372 Q5≥-0.043)
+  up_lo       0.321   0.368 |  -20.8   -5.1  -10.4  -14.5  -15.9 |   0.5  -8.0/+12.0   (Q1≤0.124 Q5≥0.871)
+  ivrv        1.023   1.047 |   -3.1   -9.7  -13.1  -15.1  -25.7 |  -3.6  -25.5/-21.1   (Q1≤0.820 Q5≥1.309)
+  ivp         0.393   0.429 |  -11.6  -12.1   -5.2  -12.9  -24.9 |  -0.7  -9.6/-23.5   (Q1≤0.117 Q5≥0.751)
+  vixr        0.867   0.874 |   -3.6  -14.7  -15.7  -16.8  -15.9 |  -1.1  -46.3/+5.2   (Q1≤0.836 Q5≥0.941)
+  spy20       0.010   0.012 |  -12.7  -14.4  -14.9  -15.9   -8.7 |   1.9  +33.4/-22.9   (Q1≤-0.019 Q5≥0.039)
+
+== call_spread  n 70128  mean -4.6 %  win 78 %
+  feature    winners  losers |  Q1      Q2      Q3      Q4      Q5   | Q5−Q1 t   eras(Q5−Q1)
+  ret5        0.004   0.001 |   -4.9   -4.7   -4.1   -5.1   -4.3 |  -0.4  -1.8/+2.0   (Q1≤-0.041 Q5≥0.044)
+  ret20       0.013  -0.004 |   -5.4   -4.8   -5.5   -4.2   -3.2 |   0.5  +0.2/+3.4   (Q1≤-0.086 Q5≥0.096)
+  ret60       0.030  -0.000 |   -5.5   -6.1   -5.4   -3.9   -2.2 |   1.9  +6.1/+1.8   (Q1≤-0.130 Q5≥0.188)
+  z50         0.580  -0.118 |   -5.9   -5.0   -5.2   -4.2   -2.9 |   1.3  +2.5/+3.3   (Q1≤-1.241 Q5≥1.433)
+  rsi        54.229  49.498 |   -4.4   -5.0   -5.2   -4.7   -3.9 |  -0.2  -2.1/+1.9   (Q1≤35.474 Q5≥66.316)
+  off_hi     -0.058  -0.252 |   -3.0   -5.8   -6.2   -5.2   -3.0 |  -0.1  -0.2/+0.3   (Q1≤-0.376 Q5≥-0.044)
+  up_lo       0.226   0.439 |   -6.0   -4.5   -4.2   -4.3   -4.2 |   0.7  +1.6/+1.9   (Q1≤0.124 Q5≥0.877)
+  ivrv        1.095   1.109 |   -6.3   -5.4   -5.4   -4.0   -2.1 |   3.5  +7.7/+2.8   (Q1≤0.863 Q5≥1.405)
+  ivp         0.270   0.562 |   -4.9   -4.8   -4.5   -4.2   -4.7 |   0.7  -0.6/+0.7   (Q1≤0.160 Q5≥0.829)
+  vixr        0.865   0.885 |   -4.0   -4.3   -2.8   -5.7   -6.3 |  -0.9  -1.0/-3.2   (Q1≤0.837 Q5≥0.941)
+  spy20       0.015   0.010 |   -8.4   -3.4   -4.3   -3.9   -3.2 |   1.9  +3.0/+7.1   (Q1≤-0.020 Q5≥0.038)
+
+== bull_call_spread  n 51830  mean +1.6 %  win 39 %
+  feature    winners  losers |  Q1      Q2      Q3      Q4      Q5   | Q5−Q1 t   eras(Q5−Q1)
+  ret5       -0.004   0.001 |   +1.7   +3.1   +2.0   +4.3   -3.3 |   0.5  +1.7/-9.4   (Q1≤-0.042 Q5≥0.044)
+  ret20      -0.009   0.006 |   -2.3   +8.4   +5.3   +1.1   -4.8 |  -0.2  -3.2/-2.8   (Q1≤-0.086 Q5≥0.097)
+  ret60       0.006   0.021 |   -0.7   +7.3   +4.9   -1.2   -2.6 |  -0.5  -6.2/-0.9   (Q1≤-0.127 Q5≥0.185)
+  z50        -0.120   0.135 |   +4.4   +2.6   +4.2   +0.5   -3.9 |  -0.7  -1.2/-12.4   (Q1≤-1.245 Q5≥1.439)
+  rsi        48.365  50.906 |   +3.9   +4.3   +1.0   -1.7   +0.2 |  -0.1  +2.1/-6.6   (Q1≤35.282 Q5≥66.190)
+  off_hi     -0.266  -0.166 |  -10.4   +3.1  +11.0   +5.7   -1.6 |   1.0  +20.8/-0.5   (Q1≤-0.372 Q5≥-0.043)
+  up_lo       0.611   0.355 |   +3.7   -2.5   +1.6   +2.0   +2.9 |  -0.2  +4.7/-3.7   (Q1≤0.124 Q5≥0.871)
+  ivrv        1.042   1.034 |   -4.2   -0.4   +2.1   +6.5   +3.8 |   1.3  +3.9/+9.6   (Q1≤0.820 Q5≥1.309)
+  ivp         0.476   0.431 |   +3.5   +3.5   +0.1   +1.3   -0.6 |  -0.4  -16.9/+2.3   (Q1≤0.117 Q5≥0.751)
+  vixr        0.885   0.870 |   +1.0   -1.2   +1.2   -0.3   +7.1 |   1.1  +18.2/-1.2   (Q1≤0.836 Q5≥0.941)
+  spy20       0.010   0.012 |   +3.5   -1.1   +9.3   -3.1   -0.8 |  -1.1  -14.3/+3.7   (Q1≤-0.019 Q5≥0.039)
+
+== conditions (mean pnl per $ debit / capital, vs same structure all days; eras <2024 / ≥2024; month-block t of lift)
+  long_call        LOW  dip: ret20 ≤ −15 %            n   4978 mean   -9.0 % (all +10.8) lift  -19.7 · eras -21.0/-17.6 · t -0.5 · win 24 %
+  long_call        LOW  z50 ≤ −2                      n   3032 mean   +9.0 % (all +10.8) lift   -1.8 · eras -2.6/-1.4 · t 0.2 · win 30 %
+  long_call        LOW  RSI ≤ 30                      n   6365 mean   +8.2 % (all +10.8) lift   -2.5 · eras -5.8/-1.4 · t 0.8 · win 29 %
+  long_call        LOW  panic VIX÷VIX3M ≥ 1           n   3037 mean  +24.3 % (all +10.8) lift  +13.5 · eras -7.6/+15.5 · t 1.2 · win 33 %
+  long_call        LOW  dip ∧ IV cheap (ivrv < 1)     n   4145 mean   +1.3 % (all +10.8) lift   -9.5 · eras -3.4/-12.6 · t 0.2 · win 26 %
+  long_call        HIGH run: ret20 ≥ +15 %            n   6195 mean   +8.1 % (all +10.8) lift   -2.7 · eras -12.6/+2.7 · t -1.3 · win 25 %
+  long_call        HIGH z50 ≥ +2                      n   4542 mean   +8.3 % (all +10.8) lift   -2.4 · eras +2.7/-5.2 · t -0.6 · win 28 %
+  long_call        HIGH RSI ≥ 70                      n   7439 mean   +6.2 % (all +10.8) lift   -4.5 · eras +6.1/-10.2 · t -1.0 · win 29 %
+  long_call        HIGH at 52w high (off_hi ≥ −2 %)   n   6476 mean   -0.2 % (all +10.8) lift  -11.0 · eras -4.3/-14.6 · t -1.2 · win 28 %
+  long_call        HIGH run ∧ IV cheap (ivrv < 1)     n   5720 mean   +9.2 % (all +10.8) lift   -1.5 · eras -5.6/+0.7 · t -0.0 · win 26 %
+  long_call        MOM  ret60 ≥ +25 % ∧ ivrv < 1      n   3552 mean   +5.8 % (all +10.8) lift   -4.9 · eras -20.3/+0.1 · t -0.0 · win 24 %
+  long_put         LOW  dip: ret20 ≤ −15 %            n   4978 mean  -14.5 % (all -13.3) lift   -1.1 · eras -3.9/+1.0 · t -0.8 · win 29 %
+  long_put         LOW  z50 ≤ −2                      n   3032 mean  -26.1 % (all -13.3) lift  -12.8 · eras -26.1/-5.9 · t -1.9 · win 24 %
+  long_put         LOW  RSI ≤ 30                      n   6365 mean  -22.8 % (all -13.3) lift   -9.5 · eras -13.0/-7.9 · t -1.7 · win 25 %
+  long_put         LOW  panic VIX÷VIX3M ≥ 1           n   3037 mean  -32.6 % (all -13.3) lift  -19.3 · eras -62.2/-10.5 · t -2.1 · win 21 %
+  long_put         LOW  dip ∧ IV cheap (ivrv < 1)     n   4145 mean  -14.4 % (all -13.3) lift   -1.0 · eras -1.9/-0.4 · t -0.1 · win 29 %
+  long_put         HIGH run: ret20 ≥ +15 %            n   6195 mean  -10.2 % (all -13.3) lift   +3.1 · eras +5.2/+2.0 · t 0.8 · win 31 %
+  long_put         HIGH z50 ≥ +2                      n   4542 mean   -9.4 % (all -13.3) lift   +4.0 · eras -3.5/+7.7 · t 0.1 · win 28 %
+  long_put         HIGH RSI ≥ 70                      n   7439 mean   -8.9 % (all -13.3) lift   +4.4 · eras -0.4/+7.0 · t 0.8 · win 28 %
+  long_put         HIGH at 52w high (off_hi ≥ −2 %)   n   6476 mean  -11.1 % (all -13.3) lift   +2.2 · eras -6.2/+6.2 · t 1.0 · win 28 %
+  long_put         HIGH run ∧ IV cheap (ivrv < 1)     n   5720 mean   -2.4 % (all -13.3) lift  +10.9 · eras +12.2/+10.2 · t 1.5 · win 32 %
+  long_put         MOM  ret60 ≥ +25 % ∧ ivrv < 1      n   3552 mean   -7.4 % (all -13.3) lift   +5.9 · eras +10.9/+3.8 · t 1.0 · win 33 %
+  call_spread      LOW  dip: ret20 ≤ −15 %            n   6658 mean   -5.4 % (all  -4.6) lift   -0.8 · eras -0.2/-1.3 · t -1.1 · win 78 %
+  call_spread      LOW  z50 ≤ −2                      n   3929 mean   -6.0 % (all  -4.6) lift   -1.4 · eras -1.7/-1.2 · t -0.3 · win 76 %
+  call_spread      LOW  RSI ≤ 30                      n   8494 mean   -4.1 % (all  -4.6) lift   +0.5 · eras +1.2/+0.2 · t -0.7 · win 79 %
+  call_spread      LOW  panic VIX÷VIX3M ≥ 1           n   4293 mean   -8.5 % (all  -4.6) lift   -3.9 · eras -6.6/-3.3 · t -1.9 · win 74 %
+  call_spread      LOW  dip ∧ IV cheap (ivrv < 1)     n   4769 mean   -7.6 % (all  -4.6) lift   -2.9 · eras -3.6/-2.6 · t -0.8 · win 75 %
+  call_spread      HIGH run: ret20 ≥ +15 %            n   8155 mean   -3.5 % (all  -4.6) lift   +1.1 · eras +0.3/+1.5 · t 1.6 · win 80 %
+  call_spread      HIGH z50 ≥ +2                      n   6085 mean   -3.2 % (all  -4.6) lift   +1.4 · eras +0.4/+1.9 · t 2.7 · win 80 %
+  call_spread      HIGH RSI ≥ 70                      n  10149 mean   -4.0 % (all  -4.6) lift   +0.6 · eras -2.0/+1.9 · t 1.1 · win 78 %
+  call_spread      HIGH at 52w high (off_hi ≥ −2 %)   n   8557 mean   -2.0 % (all  -4.6) lift   +2.6 · eras +1.8/+3.0 · t 4.4 · win 80 %
+  call_spread      HIGH run ∧ IV cheap (ivrv < 1)     n   6457 mean   -4.4 % (all  -4.6) lift   +0.3 · eras -0.6/+0.7 · t 0.2 · win 78 %
+  call_spread      MOM  ret60 ≥ +25 % ∧ ivrv < 1      n   4084 mean   -2.6 % (all  -4.6) lift   +2.0 · eras +3.6/+1.3 · t 2.9 · win 81 %
+  bull_call_spread LOW  dip: ret20 ≤ −15 %            n   4978 mean  -10.3 % (all  +1.6) lift  -11.8 · eras -10.0/-12.2 · t -1.3 · win 33 %
+  bull_call_spread LOW  z50 ≤ −2                      n   3032 mean   +7.1 % (all  +1.6) lift   +5.6 · eras +8.6/+3.9 · t 0.5 · win 41 %
+  bull_call_spread LOW  RSI ≤ 30                      n   6365 mean   +3.7 % (all  +1.6) lift   +2.1 · eras -1.7/+3.6 · t 0.7 · win 40 %
+  bull_call_spread LOW  panic VIX÷VIX3M ≥ 1           n   3037 mean  +19.1 % (all  +1.6) lift  +17.6 · eras +22.1/+14.8 · t 2.1 · win 45 %
+  bull_call_spread LOW  dip ∧ IV cheap (ivrv < 1)     n   4145 mean   -5.8 % (all  +1.6) lift   -7.4 · eras -5.3/-8.1 · t -1.0 · win 36 %
+  bull_call_spread HIGH run: ret20 ≥ +15 %            n   6195 mean   -5.3 % (all  +1.6) lift   -6.8 · eras -11.5/-4.3 · t -1.3 · win 35 %
+  bull_call_spread HIGH z50 ≥ +2                      n   4542 mean   -1.1 % (all  +1.6) lift   -2.6 · eras +4.0/-6.1 · t -0.3 · win 38 %
+  bull_call_spread HIGH RSI ≥ 70                      n   7439 mean   +0.4 % (all  +1.6) lift   -1.1 · eras +5.9/-4.8 · t -0.3 · win 40 %
+  bull_call_spread HIGH at 52w high (off_hi ≥ −2 %)   n   6476 mean   -3.4 % (all  +1.6) lift   -4.9 · eras +5.7/-10.3 · t -0.7 · win 39 %
+  bull_call_spread HIGH run ∧ IV cheap (ivrv < 1)     n   5720 mean   -5.3 % (all  +1.6) lift   -6.9 · eras -7.2/-6.7 · t -0.5 · win 36 %
+  bull_call_spread MOM  ret60 ≥ +25 % ∧ ivrv < 1      n   3552 mean   -9.3 % (all  +1.6) lift  -10.9 · eras -18.6/-8.6 · t -0.9 · win 34 %
