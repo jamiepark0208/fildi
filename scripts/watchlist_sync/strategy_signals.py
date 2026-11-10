@@ -51,6 +51,12 @@ SHADOW = {
         "screen": "gap_up_5pct",
         "trigger": "Gap-up ≥5%: +21.5 bp/wk in top picks, shadow",
     },
+    # S172 (Claude 11-09): rows written by s172_paper.py (after the vix step) — no detector here; priced + graded below.
+    "vix-uninvert-put": {
+        "delta": -0.20,
+        "exit": "expiry",
+        "trigger": "VIX÷VIX3M un-inverts after ≥2 inverted sessions → sell ~0.20Δ put ~30 DTE (S172: SPY 95 % / QQQ 94 % win, 2009→)",
+    },
     "put_z50_dip_d20": {
         "delta": -0.20,
         "exit": "expiry",

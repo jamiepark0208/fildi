@@ -147,10 +147,78 @@ function S171Paper({ picks, sum }: { picks: S171Pick[]; sum: S171Summary }) {
   );
 }
 
+type S172Data = { picks: S171Pick[]; curve: { date: string; ratio: number }[];
+  puts: { ticker: string; asOf: string; status: string; occ: string | null; entryMid: number | null; ret: number | null }[] };
+
+/** S172: VIX÷VIX3M un-invert = market bottom tell (Jamie 11-09). Open by default for 10 days after a fire. */
+function BottomSignal({ d }: { d: S172Data }) {
+  const last = d.curve[d.curve.length - 1];
+  const lastFire = d.picks[0]?.entry ?? d.puts[0]?.asOf ?? null;
+  const fresh = lastFire != null && (Date.now() - new Date(lastFire).getTime()) / 864e5 <= 10;
+  const [show, setShow] = useState(fresh);
+  if (!last) return null;
+  const inv = last.ratio >= 1;
+  const state = fresh ? `FIRED ${formatMdYy(lastFire!)} — buy index calls / sell puts`
+    : inv ? "inverted (panic) — wait for the un-invert" : "normal — no signal";
+  return (
+    <div className={cn("rounded border bg-zinc-950", fresh ? "border-emerald-400/60" : "border-[#d4af37]/20")}>
+      <button type="button" onClick={() => setShow(!show)}
+        className="w-full flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 py-1 text-left">
+        {show ? <ChevronDown className="w-3 h-3 text-[#d4af37] shrink-0" /> : <ChevronRight className="w-3 h-3 text-[#d4af37] shrink-0" />}
+        <DataTip tip={"S172 (2009→, 33–38 episodes per ETF): the first close with VIX÷VIX3M below 1 after ≥ 2 inverted sessions.\n\n0.50Δ ~30-day calls held to expiry beat the same call bought on any day by +34 % (SPY), +43 % (QQQ), +39 % (IWM) per $ debit, both halves 2009–17 / 2018→, placebo p ≤ 0.05. Real LSEG SPY quotes at the ask, 11 episodes 2019→: mean +74 %, 7 of 11 won.\n\n0.20Δ ~30-day short puts after the signal: SPY 95 %, QQQ 94 % win.\n\nFailed (no edge): entering while still inverted (‘early normalizing’), VIX9D÷VIX, a 15 % VIX drop, VVIX peak.\n\nPicks below are paper, entered at the Schwab ask the session the job runs, graded at expiry vs the same-Δ stock."}>
+          <span className="font-semibold text-white underline decoration-dotted cursor-help">Market bottom signal: VIX curve un-invert (S172)</span>
+        </DataTip>
+        <span className={cn("tabular-nums font-semibold", fresh ? "text-emerald-400" : inv ? "text-rose-400" : "text-amber-100")}>
+          VIX÷VIX3M {last.ratio.toFixed(2)} · {state}
+        </span>
+      </button>
+      {show ? (
+        <div className="px-2 pb-2 space-y-1">
+          <p className="tabular-nums text-amber-100">
+            Last 10: {d.curve.map((c) => (
+              <span key={c.date} className={cn("mr-1.5", c.ratio >= 1 ? "text-rose-400" : "text-white")}>{formatMdYy(c.date)} {c.ratio.toFixed(2)}</span>
+            ))}
+          </p>
+          {d.picks.length ? (
+            <div className={GRID_WRAP}>
+              <table className="w-full">
+                <thead className={GRID_HEADER}>
+                  <tr>{["Ticker", "Entry", "Call", "Ask", "Δ", "Grade", "Call ret", "vs Δ-stock"].map((h, i) => (
+                    <th key={h} className={cn(GRID_TH, i ? "text-right" : "text-left")}>{h}</th>))}</tr>
+                </thead>
+                <tbody>
+                  {d.picks.map((p, i) => (
+                    <tr key={`${p.ticker}-${p.entry}`} className={gridRow(i)}>
+                      <td className={GRID_TD}><TickerLink ticker={p.ticker} /></td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{formatMdYy(p.entry)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.strike}C {formatMdYy(p.expiry)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{px(p.ask)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.delta.toFixed(2)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{formatMdYy(p.gradeOn)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{pct(p.retCall, 0)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums font-semibold",
+                        p.vsDelta == null ? "text-amber-100" : p.vsDelta > 0 ? "text-emerald-400" : "text-rose-400")}>{pct(p.vsDelta, 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {d.puts.length ? (
+            <p className="text-amber-100">Put signals: {d.puts.map((p) => (
+              <span key={`${p.ticker}-${p.asOf}`} className="mr-2">{p.ticker} {formatMdYy(p.asOf)} {p.occ ?? p.status}{p.ret != null ? ` ${pct(p.ret, 1)}` : ""}</span>
+            ))}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function LongOptionBoard({ side }: { side?: "call" | "put" } = {}) {
   const { data, isLoading } = useQuery({
     queryKey: ["long-option-board"],
-    queryFn: async (): Promise<{ board: Board | null; s171?: S171Pick[]; s171Summary?: S171Summary }> => {
+    queryFn: async (): Promise<{ board: Board | null; s171?: S171Pick[]; s171Summary?: S171Summary; s172?: S172Data }> => {
       const r = await fetch("/api/options/long-board", { credentials: "include" });
       if (!r.ok) throw new Error("long-board fetch failed");
       return r.json();
@@ -192,6 +260,7 @@ export function LongOptionBoard({ side }: { side?: "call" | "put" } = {}) {
         ))}
       </div>
 
+      {side !== "put" && data?.s172 ? <BottomSignal d={data.s172} /> : null}
       {side !== "put" && data?.s171Summary ? <S171Paper picks={data.s171 ?? []} sum={data.s171Summary} /> : null}
 
       {b.strategies.map((st) => {

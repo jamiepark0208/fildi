@@ -35,8 +35,25 @@ router.get("/options/long-board", async (_req, res) => {
     const sd = dm.length > 1 ? Math.sqrt(dm.reduce((a, b) => a + (b - dMean) ** 2, 0) / (dm.length - 1)) : 0;
     const s171Summary = { n: graded.length, open: picks.length - graded.length, dates: dm.length, meanVsDelta: mean,
       t: sd > 0 ? dMean / (sd / Math.sqrt(dm.length)) : null };
+    // S172 bottom signal (scripts/watchlist_sync/s172_paper.py): VIX÷VIX3M curve + index calls (graded at expiry) + put signals
+    const s172 = await db.execute(sql`
+      SELECT DISTINCT ON (question_id) subject AS ticker, made_on::text AS "entry", resolves_on::text AS "gradeOn",
+             outcome AS "beat", (meta->>'strike')::float8 AS strike, meta->>'expiry' AS expiry,
+             (meta->>'debit')::float8 AS ask, (meta->>'delta')::float8 AS delta,
+             (meta->>'ret_call')::float8 AS "retCall", (meta->>'vs_delta')::float8 AS "vsDelta", meta->>'exit_fill' AS "exitFill"
+      FROM watchlist_sync.forecast_ledger WHERE forecaster = 'S172'
+      ORDER BY question_id, made_at DESC`);
+    const curve = await db.execute(sql`
+      SELECT a.date::text AS date, round((a.value / b.value)::numeric, 3)::float8 AS ratio
+      FROM watchlist_sync.macro_daily a JOIN watchlist_sync.macro_daily b ON b.date = a.date AND b.series = 'vix3m'
+      WHERE a.series = 'vix' AND b.value > 0 ORDER BY a.date DESC LIMIT 10`);
+    const s172Puts = await db.execute(sql`
+      SELECT ticker, as_of::text AS "asOf", status, occ, entry_mid::float8 AS "entryMid", ret::float8 AS ret
+      FROM watchlist_sync.strategy_signals WHERE strategy_id = 'vix-uninvert-put' ORDER BY as_of DESC LIMIT 20`);
     return res.json({ board: (board.rows[0] as { payload?: unknown } | undefined)?.payload ?? null,
-      s171: picks.slice(0, 40), s171Summary });
+      s171: picks.slice(0, 40), s171Summary,
+      s172: { picks: (s172.rows as { entry: string }[]).sort((a, b) => b.entry.localeCompare(a.entry)).slice(0, 30),
+        curve: (curve.rows as { date: string; ratio: number }[]).reverse(), puts: s172Puts.rows } });
   } catch (err) {
     logger.warn({ err }, "long-option-board read failed");
     return res.json({ board: null });
