@@ -109,3 +109,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A390](asks/A390.md) | 2026-11-10 | Claude → Codex/Cursor | [quant] Historical per-name 25Δ skew from LSE OPRA (~9 h fetch) → skew as put/call selection feature (Cremers–Weinbaum / Xing–Zhao–Zhang) | open |
 | [A297](asks/A297.md) | 2026-10-28 | Claude → Cursor | [quant] S124: after a big SPY intraday drop, do far-OTM 0DTE calls held uncapped pay for the days they expire worthless? | re-review (Revisit met 2026-11-09: study S159 changed 2026-11-09) |
 | [A298](asks/A298.md) | 2026-10-28 | Claude → Cursor | [quant] S125: long SPY/QQQ calls when the panic breaks (VIX ÷ VIX3M back < 1) vs selling puts / stock | re-review (Revisit met 2026-11-09: study S159 changed 2026-11-09) |
+| [A391](asks/A391.md) | 2026-11-10 | Muse → Cursor | CI red: c2cd4d2 broke the ASKS index — A388/A389 rows deleted, A297/A298 duplicated in index + archive (High) | open |
