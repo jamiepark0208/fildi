@@ -207,6 +207,18 @@ def main() -> None:
     if missing:
         stale.append("put_edge_inputs")
         lines.extend(missing)
+    # strategy signals must get a real contract the session after they fire (strategy_signals.price_open); Jamie 11-09:
+    # "our processes should already be checking that" — rows still open > 2 trading days = pricing stalled.
+    try:
+        late = conn.execute("""SELECT strategy_id, COUNT(*), MIN(as_of) FROM watchlist_sync.strategy_signals
+                               WHERE status = 'open' GROUP BY 1""").fetchall()
+    except Exception:
+        conn.rollback()
+        late = []
+    late = [(s, n, d) for s, n, d in late if lag_trading_days(d, ref) > 2]
+    if late:
+        stale.append("strategy_signals")
+        lines.append("✗ strategy_signals: unpriced > 2 sessions — " + " · ".join(f"{s} {n} (since {d})" for s, n, d in late))
     run = daily_run_today(now.date())
     if R.is_trading_day(now.date()) and now.hour >= 11 and run == "none":
         stale.append("daily.py")

@@ -77,12 +77,13 @@ export async function buildEdges(t: string): Promise<EdgeRow[]> {
                           COUNT(*) FILTER (WHERE ret > 0)::int AS wins,
                           COUNT(*) FILTER (WHERE status = 'open')::int AS open
                    FROM watchlist_sync.strategy_signals GROUP BY 1)
-      SELECT s.strategy_id, s.as_of::text AS as_of, s.trigger, s.strike, s.expiry::text AS expiry, s.entry_mid,
+      SELECT s.strategy_id, s.as_of::text AS as_of, s.trigger, s.details, s.strike, s.expiry::text AS expiry, s.entry_mid,
              lib.name, lib.status AS lib_status, lib.study_ref, rec.n, rec.wins, rec.open
       FROM watchlist_sync.strategy_signals s
       LEFT JOIN lib USING (strategy_id) LEFT JOIN rec USING (strategy_id)
-      WHERE s.ticker = ${t} AND s.status = 'open'
-        AND s.as_of >= (SELECT MAX(as_of) FROM watchlist_sync.strategy_signals) - 3
+      WHERE s.ticker = ${t}
+        AND ((s.status IN ('open', 'listed') AND s.as_of >= (SELECT MAX(as_of) FROM watchlist_sync.strategy_signals) - 3)
+             OR (s.status = 'priced' AND s.expiry >= current_date))  -- priced = paper position held to expiry (Jamie 11-09)
       ORDER BY s.as_of DESC`),
     rowsOf(sql`SELECT as_of::text AS as_of, payload FROM watchlist_sync.long_option_board ORDER BY as_of DESC LIMIT 1`),
   ]);
@@ -153,11 +154,12 @@ export async function buildEdges(t: string): Promise<EdgeRow[]> {
   const seen = new Set<string>();
   for (const s of sigs) {
     const id = String(s.strategy_id);
-    if (seen.has(id) || s.name == null) continue;   // not in the Strategy Library = unproven paper id → not a rule
-    seen.add(id);
+    if (seen.has(id)) continue;
+    seen.add(id);   // not in the Strategy Library → still shown, as paper (Jamie 11-09: full coverage, no hand wiring)
+    const study = str((s.details as Obj | null)?.study);
     const n = num(s.n) ?? 0, wins = num(s.wins) ?? 0;
     out.push({
-      rule: str(s.name) ?? id, study: str(s.study_ref), side: "sell put",
+      rule: str(s.name) ?? (study ? `${study} ${id}` : id), study: str(s.study_ref) ?? study, side: "sell put",
       status: s.lib_status === "live" ? "signal" : "paper",
       rank: null, of: null, strike: num(s.strike), expiry: str(s.expiry), premium: num(s.entry_mid),
       why: str(s.trigger), blocked: null, asOf: str(s.as_of),

@@ -32,7 +32,7 @@ ARM = "S172"
 CALLS = ("SPY", "QQQ", "IWM")
 PUTS = ("SPY", "QQQ")
 PUT_SID = "vix-uninvert-put"
-HIBETA_SID, HIBETA_N, MIN_PX = "vix-uninvert-put-hibeta", 10, 5.0  # global: S173 tested the top beta quintile; $5 floor for option liquidity
+HIBETA_SID, HIBETA_N, MIN_PX = "vix-uninvert-put-hibeta", 20, 5.0  # global: S173 tested the top beta fifth; top 20 graded, rest listed; $5 floor
 DELTA_CALL = 0.50
 DTE_LO, DTE_HI, DTE_TARGET = 20, 45, 30
 CLUSTER_DAYS = 14
@@ -93,12 +93,36 @@ def pick_call(t: str) -> dict | None:
             "spot": d.get("spot"), "dte": (date.fromisoformat(exp) - today).days}
 
 
-def hibeta(conn) -> list[tuple[str, float]]:
-    """S173: 60-session beta vs SPY from lseg_research.daily_history (fresh daily); top HIBETA_N names priced ≥ MIN_PX."""
+LIBRARY = [  # Strategy Library rows (Breakdown › Rules today, Strategies tab); idempotent, written each run
+    ("vix-uninvert-put", "Market bottom: index puts at VIX curve un-invert", "SPY/QQQ 0.20Δ ~30 DTE short put",
+     "First close VIX÷VIX3M < 1 after ≥ 2 inverted sessions → sell ~0.20Δ ~30 DTE SPY/QQQ puts, hold to expiry.",
+     "S172 (2009→, 33–38 episodes): 94–95 % win, lift > 0 both halves, placebo p 0.00.", "Model prices; index only.", "S172", "2009-10-01"),
+    ("vix-uninvert-put-hibeta", "Market bottom: high-beta puts at VIX curve un-invert", "single-name 0.20Δ ~30 DTE short put",
+     "Same signal → sell ~0.20Δ ~30 DTE puts on the top-beta fifth (60-session beta vs SPY); top 20 paper-graded, rest listed.",
+     "S173 (18 episodes 2018→): +3.0 / +2.0 % per $ collateral per 30 d vs SPY put +0.9 / +0.6, both halves; S173b: 0.10Δ = safer "
+     "(+1.6 / +1.1 %, worst name −24 %).", "18 episodes = underpowered; model prices (BS at own iv30); worst name −29 %; names correlate.", "S173", "2018-02-01"),
+]
+
+
+def ensure_library(conn) -> None:
+    for sid, name, instr, rules, summary, caveats, ref, w0 in LIBRARY:
+        conn.execute("""INSERT INTO watchlist_sync.strategies (strategy_id, version, name, family, instrument, status, summary, rules_md,
+                        caveats_md, study_ref, window_start, window_end, price_source, updated_at)
+                        VALUES (%s, '1', %s, 'options', %s, 'candidate', %s, %s, %s, %s, %s, '2026-11-09', 'model', now())
+                        ON CONFLICT DO NOTHING""", (sid, name, instr, summary, rules, caveats, ref, w0))
+
+
+def hibeta(conn) -> list[dict]:
+    """S173: the top-beta fifth (60-session beta vs SPY, lseg daily_history; GICS stocks ≥ MIN_PX), beta-ranked, with a model
+    0.20Δ / 0.10Δ ~30 DTE put credit per $ strike at the name's own iv30_put (estimate; the graded rows get a real contract)."""
+    from s172_bottom_signals import bs, strike  # noqa: PLC0415
     px: dict[str, dict] = {}
-    for t, d, c in conn.execute("""SELECT ticker, date, close::float8 FROM lseg_research.daily_history
-                                   WHERE date >= current_date - 100 AND close > 0 ORDER BY ticker, date"""):
+    ivp: dict[str, float] = {}
+    for t, d, c, iv in conn.execute("""SELECT ticker, date, close::float8, iv30_put::float8 FROM lseg_research.daily_history
+                                       WHERE date >= current_date - 100 AND close > 0 ORDER BY ticker, date"""):
         px.setdefault(t, {})[d] = c
+        if iv and iv > 0:
+            ivp[t] = iv / 100 if iv > 3 else iv
     stocks = {r[0] for r in conn.execute("SELECT ticker FROM research_common.security_class WHERE gics_sector IS NOT NULL")}  # no ETFs / levered
     spy = px.get("SPY") or {}
     days = sorted(spy)[-61:]
@@ -106,7 +130,7 @@ def hibeta(conn) -> list[tuple[str, float]]:
         return []
     out = []
     for t, p in px.items():
-        if t not in stocks or max(p) < days[-1] - timedelta(days=4) or p[max(p)] < MIN_PX:
+        if t not in stocks or max(p) < days[-1] - timedelta(days=4):
             continue
         xy = [(spy[b] / spy[a] - 1, p[b] / p[a] - 1) for a, b in zip(days, days[1:]) if a in p and b in p]
         if len(xy) < 40:
@@ -114,13 +138,24 @@ def hibeta(conn) -> list[tuple[str, float]]:
         mx = sum(x for x, _ in xy) / len(xy)
         my = sum(y for _, y in xy) / len(xy)
         vx = sum((x - mx) ** 2 for x, _ in xy)
-        out.append((t, sum((x - mx) * (y - my) for x, y in xy) / vx))
-    return sorted(out, key=lambda r: -r[1])[:HIBETA_N]
+        out.append({"t": t, "beta": sum((x - mx) * (y - my) for x, y in xy) / vx, "px": p[max(p)], "iv": ivp.get(t)})
+    out.sort(key=lambda r: -r["beta"])
+    top = [r for r in out[:len(out) // 5] if r["px"] >= MIN_PX]  # fifth of the whole universe, then the price floor
+    T = 30 / 365
+    for r in top:
+        if r["iv"]:
+            for dl in (0.20, 0.10):
+                k = strike(r["px"], T, r["iv"], dl, call=False)
+                r[f"cr{int(dl * 100)}"] = round(bs(r["px"], k, T, r["iv"], call=False) * 0.95 / k, 4)
+    return top
 
 
 def main() -> int:
     dry = "--dry-run" in sys.argv[1:]
     conn = connect()
+    if not dry:
+        ensure_library(conn)
+        conn.commit()
     d, st = signal(conn)
     print(f"S172 curve: {st}")
     if d is None:
@@ -153,11 +188,14 @@ def main() -> int:
                         VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""", (PUT_SID, d, t, trig, json.dumps({**st, "study": "S172"})))
     hb = hibeta(conn)
     trig_hb = trig.replace("(S172)", "on a top-beta name (S173, paper)")
-    for t, b in hb:
-        conn.execute("""INSERT INTO watchlist_sync.strategy_signals (strategy_id, as_of, ticker, trigger, details)
-                        VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""",
-                     (HIBETA_SID, d, t, trig_hb, json.dumps({**st, "study": "S173", "beta60": round(b, 2)})))
-    print(f"  S173 high-beta puts: {', '.join(f'{t} β{b:.1f}' for t, b in hb)}")
+    for i, r in enumerate(hb):
+        det = {**st, "study": "S173", "beta60": round(r["beta"], 2), "rank": i + 1, "of": len(hb), "iv30_put": r["iv"],
+               "est_credit_20d": r.get("cr20"), "est_credit_10d": r.get("cr10")}
+        conn.execute("""INSERT INTO watchlist_sync.strategy_signals (strategy_id, as_of, ticker, trigger, details, status)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (strategy_id, as_of, ticker) DO UPDATE SET details = EXCLUDED.details""",
+                     (HIBETA_SID, d, r["t"], trig_hb, json.dumps(det), "open" if i < HIBETA_N else "listed"))
+    print(f"  S173 high-beta puts: {len(hb)} listed, top {HIBETA_N} graded: {', '.join(r['t'] for r in hb[:HIBETA_N])}")
     conn.commit()
     print(f"S172: signal {d} → {len(rows)} call pick(s) logged, put signals {', '.join(PUTS)}")
     return 0

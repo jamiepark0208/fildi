@@ -14,7 +14,7 @@ import { num, pct, scoreColor } from "./live-format";
 import { RecConflictChip } from "./rec-conflict-chip";
 import type { RecConflict } from "@/lib/rec-conflicts";
 import {
-  SHADOW_STRATEGY_META,
+  strategyMeta,
   useActivePanicPutBadges,
   useActiveShadowStrategyBadges,
 } from "@/hooks/use-strategy-signals";
@@ -204,7 +204,7 @@ export function HotlistTable({
                   )}
                   {!isRally &&
                     (shadowByTicker.get(e.ticker.toUpperCase()) ?? []).map((s) => {
-                      const meta = SHADOW_STRATEGY_META[s.strategyId];
+                      const meta = strategyMeta(s);
                       if (!meta) return null;
                       return (
                         <span

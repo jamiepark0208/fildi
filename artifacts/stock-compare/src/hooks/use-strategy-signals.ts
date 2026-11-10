@@ -3,7 +3,7 @@
  * A330/A341 — shadow challenger tags on Model List / Options board.
  */
 import { useMemo } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 export interface StrategySignalDetails {
   z?: number;
@@ -22,6 +22,15 @@ export const SHADOW_STRATEGY_META: Record<string, { label: string; tip: string }
 };
 
 export const SHADOW_STRATEGY_IDS = Object.keys(SHADOW_STRATEGY_META);
+
+/** Chip label + tip for any strategy id: the hand-written meta when there is one, else the study id + its trigger (Jamie 11-09:
+ *  new strategies must show without front-end wiring). */
+export function strategyMeta(s: Pick<StrategySignal, "strategyId" | "trigger" | "details">): { label: string; tip: string } {
+  const m = SHADOW_STRATEGY_META[s.strategyId];
+  if (m) return m;
+  const study = (s.details as { study?: string } | null)?.study;
+  return { label: study ?? s.strategyId.slice(0, 6), tip: s.trigger };
+}
 
 export interface StrategySignal {
   strategyId: string;
@@ -96,23 +105,26 @@ export function useActivePanicPutBadges(sessions = 3) {
 
 /** Open/priced A330/A341 shadow challenger fires — Model List put rows + Options board. */
 export function useActiveShadowStrategyBadges(sessions = 3) {
-  const queries = useQueries({
-    queries: SHADOW_STRATEGY_IDS.map((id) => ({
-      queryKey: ["strategy-signals", id, 14] as const,
-      queryFn: () => fetchStrategySignals(id, 14),
-      staleTime: 5 * 60_000,
-    })),
+  const q = useQuery({
+    queryKey: ["strategy-signals-active", 14] as const,
+    queryFn: async (): Promise<{ signals: StrategySignal[] }> => {
+      const res = await fetch("/api/strategy-signals/active?days=14", { credentials: "include" });
+      if (!res.ok) throw new Error("active strategy signals failed");
+      return res.json();
+    },
+    staleTime: 5 * 60_000,
   });
-  const dataStamp = queries.map((q) => q.dataUpdatedAt).join("|");
+  const dataStamp = String(q.dataUpdatedAt);
   const byTicker = useMemo(() => {
     const map = new Map<string, StrategySignal[]>();
-    for (const q of queries) {
-      const rows = q.data?.signals ?? [];
+    const byId = new Map<string, StrategySignal[]>();
+    for (const s of q.data?.signals ?? []) byId.set(s.strategyId, [...(byId.get(s.strategyId) ?? []), s]);
+    for (const rows of byId.values()) {
       const dates = [...new Set(rows.map((r) => r.asOf))].sort().reverse().slice(0, sessions);
       const dateSet = new Set(dates);
       for (const s of rows) {
         if (!dateSet.has(s.asOf)) continue;
-        if (s.status !== "open" && s.status !== "priced") continue;
+        if (s.status !== "open" && s.status !== "priced" && s.status !== "listed") continue;
         const t = s.ticker.toUpperCase();
         const list = map.get(t) ?? [];
         if (!list.some((x) => x.strategyId === s.strategyId && x.asOf === s.asOf)) {
@@ -125,5 +137,5 @@ export function useActiveShadowStrategyBadges(sessions = 3) {
     // dataStamp tracks query result identity; queries array is stable enough per render batch
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dataStamp is the intentional dep
   }, [dataStamp, sessions]);
-  return { byTicker, isLoading: queries.some((q) => q.isLoading) };
+  return { byTicker, isLoading: q.isLoading };
 }

@@ -49,9 +49,14 @@ router.get("/options/long-board", async (_req, res) => {
       WHERE a.series = 'vix' AND b.value > 0 ORDER BY a.date DESC LIMIT 10`);
     const s172Puts = await db.execute(sql`
       SELECT ticker, as_of::text AS "asOf", status, occ, entry_mid::float8 AS "entryMid", ret::float8 AS ret,
-             (strategy_id = 'vix-uninvert-put-hibeta') AS "hiBeta", (details->>'beta60')::float8 AS beta
-      FROM watchlist_sync.strategy_signals WHERE strategy_id IN ('vix-uninvert-put', 'vix-uninvert-put-hibeta')
-      ORDER BY as_of DESC, strategy_id, ticker LIMIT 40`);
+             (strategy_id = 'vix-uninvert-put-hibeta') AS "hiBeta", (details->>'beta60')::float8 AS beta,
+             (details->>'rank')::int AS rank, (details->>'est_credit_20d')::float8 AS "cr20", (details->>'est_credit_10d')::float8 AS "cr10",
+             strike::float8 AS strike, expiry::text AS expiry
+      FROM watchlist_sync.strategy_signals
+      WHERE strategy_id = 'vix-uninvert-put' AND as_of >= current_date - 60
+         OR strategy_id = 'vix-uninvert-put-hibeta'
+            AND as_of = (SELECT MAX(as_of) FROM watchlist_sync.strategy_signals WHERE strategy_id = 'vix-uninvert-put-hibeta')
+      ORDER BY as_of DESC, strategy_id, (details->>'rank')::int NULLS LAST, ticker LIMIT 400`);
     return res.json({ board: (board.rows[0] as { payload?: unknown } | undefined)?.payload ?? null,
       s171: picks.slice(0, 40), s171Summary,
       s172: { picks: (s172.rows as { entry: string }[]).sort((a, b) => b.entry.localeCompare(a.entry)).slice(0, 30),

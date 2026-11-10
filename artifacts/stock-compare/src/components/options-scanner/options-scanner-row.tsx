@@ -8,7 +8,7 @@ import type { TechnicalRow, TechnicalScore } from "@/lib/technical-rankings";
 import type { MacroRegime } from "@/lib/option-scorer-constants";
 import { useTickerTrackRecord } from "@/hooks/use-ticker-track-record";
 import {
-  SHADOW_STRATEGY_META,
+  strategyMeta,
   useActivePanicPutBadges,
   useActiveShadowStrategyBadges,
 } from "@/hooks/use-strategy-signals";
@@ -409,7 +409,7 @@ export function ScannerRow({
             </span>
           )}
           {shadowSigs.map((s) => {
-            const meta = SHADOW_STRATEGY_META[s.strategyId];
+            const meta = strategyMeta(s);
             if (!meta) return null;
             return (
               <span

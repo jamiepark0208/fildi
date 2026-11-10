@@ -275,6 +275,28 @@ router.get("/strategies", requireAdmin, async (req, res, next) => {
 });
 
 /**
+ * Jamie 11-09: every strategy_signals id shows on Model List / Live hotlist / Options scanner without a hand-kept list.
+ * GET /api/strategy-signals/active?days=14 — open/priced rows of every strategy (panic-puts-hiv has its own badge).
+ */
+router.get("/strategy-signals/active", requireAdmin, async (req, res, next) => {
+  try {
+    const daysRaw = Number(req.query.days);
+    const days = Number.isFinite(daysRaw) ? Math.min(30, Math.max(1, Math.floor(daysRaw))) : 14;
+    const signals = await safe<Record<string, unknown>>(sql`
+      SELECT strategy_id AS "strategyId", as_of::text AS "asOf", ticker, trigger, details, occ, expiry::text AS expiry,
+             strike::float8 AS strike, entry_mid::float8 AS "entryMid", entry_date::text AS "entryDate", status,
+             settle::float8 AS settle, ret::float8 AS ret, itm, graded_at::text AS "gradedAt"
+      FROM watchlist_sync.strategy_signals
+      WHERE status IN ('open', 'priced', 'listed') AND strategy_id <> 'panic-puts-hiv'
+        AND as_of >= current_date - ${days}::int
+      ORDER BY as_of DESC, strategy_id, ticker`);
+    res.json({ days, count: signals.length, signals });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * A189 — live strategy_signals for a Strategy Library id (e.g. panic-puts-hiv).
  * GET /api/strategies/:id/signals?days=30
  */

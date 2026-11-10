@@ -16,7 +16,7 @@ import { HouseViewWarnings } from "@/components/live/house-view-card";
 import { PutBandSelector } from "@/components/put-band-selector";
 import { bookGroupChip, engineAwareness, newsChip } from "@/lib/model-list-awareness";
 import {
-  SHADOW_STRATEGY_META,
+  strategyMeta,
   useActivePanicPutBadges,
   useActiveShadowStrategyBadges,
   type StrategySignal,
@@ -316,20 +316,19 @@ function ItemRow({
             </TooltipContent>
           </Tooltip>
         ) : null}
-        {(shadowSignals ?? []).map((s) => {
-          const meta = SHADOW_STRATEGY_META[s.strategyId];
-          if (!meta) return null;
-          return (
-            <Tooltip key={`${s.strategyId}:${s.asOf}`}>
-              <TooltipTrigger asChild>
-                <span className="text-[7px] px-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 cursor-help">
-                  {meta.label}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">{meta.tip}</TooltipContent>
-            </Tooltip>
-          );
-        })}
+        {shadowSignals?.length ? (
+          // 11-09: one chip per row (N rules) — one chip per strategy overflowed the narrow panel; tooltip lists each
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-[7px] px-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-400/40 cursor-help">
+                {shadowSignals.length === 1 ? strategyMeta(shadowSignals[0]).label : `${shadowSignals.length} rules`}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs whitespace-pre-wrap">
+              {shadowSignals.map((s) => `${strategyMeta(s).label} ${s.asOf}: ${strategyMeta(s).tip}`).join("\n\n")}
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
       </span>
     </div>
   );
@@ -395,7 +394,7 @@ function FolderTable({
   const [lens, setLens] = useSessionState<LensKey>(`fildi_model_lens_${folder.key}`, "model");
   const items = hasTrades && lens !== "model" ? [...folder.items].sort((a, b) => LENSES[lens].value(b) - LENSES[lens].value(a)) : folder.items;
   const { byTicker: shadowByTicker } = useActiveShadowStrategyBadges(3);
-  const showShadow = folder.key === "sell_puts";
+  const showShadow = folder.key === "sell_puts" || folder.key === "rich_puts"; // 11-09: every strategy chip on both put lanes
   const { byTicker: panicByTicker, data: panicData } = useActivePanicPutBadges(3);
   const showPanic = folder.key === "sell_puts" || folder.key === "rich_puts";
   const emptyHint =

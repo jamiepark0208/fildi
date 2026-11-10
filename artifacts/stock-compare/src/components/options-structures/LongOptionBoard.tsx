@@ -148,7 +148,50 @@ function S171Paper({ picks, sum }: { picks: S171Pick[]; sum: S171Summary }) {
 }
 
 type S172Data = { picks: S171Pick[]; curve: { date: string; ratio: number }[];
-  puts: { ticker: string; asOf: string; status: string; occ: string | null; entryMid: number | null; ret: number | null; hiBeta?: boolean; beta?: number | null }[] };
+  puts: S172Put[] };
+type S172Put = { ticker: string; asOf: string; status: string; occ: string | null; entryMid: number | null; ret: number | null;
+  hiBeta?: boolean; beta?: number | null; rank?: number | null; cr20?: number | null; cr10?: number | null; strike?: number | null; expiry?: string | null };
+
+/** S173: top-beta fifth on the latest fire — top 20 paper-graded (real contract next session), rest listed with a model credit. */
+function HiBetaPuts({ rows }: { rows: S172Put[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, 20);
+  return (
+    <div className="space-y-0.5">
+      <p className="text-amber-100">
+        <DataTip tip={"S173 (18 un-invert episodes 2018→, ~930 names, model-priced at each name's own IV): 0.20Δ ~30-day puts on the top-beta fifth earned +3.0 % (2018–22) / +2.0 % (2023→) per $ collateral vs +0.9 / +0.6 % on SPY's put, and beat each name's own any-day put in both halves. Worst single name −29 %, 6–9 % ended in the money.\n\nStructures (S173b, same names, per $ at risk): 0.10Δ put = safer (+1.6 / +1.1 %, worst name −24 %, 2–3 % lose); 0.30Δ = more (+4.3 / +2.6 %) but a losing episode in 2023→. Put spreads: SPY's spread pays as much per $ risk (+14–17 %) → use the index for spreads. Single-name calls did not beat SPY's call → index for calls.\n\n18 episodes = underpowered; paper only. Top 20 get a real contract next session and are graded at expiry; credit columns are model estimates per $ strike for ~30 days."}>
+          <span className="underline decoration-dotted cursor-help">High-beta puts (S173, paper) — {rows.length} names</span>
+        </DataTip>
+        <span className="ml-2 text-amber-100/80">best size: many small, these move together</span>
+      </p>
+      <table className="w-full text-[11px] tabular-nums">
+        <thead><tr className="text-amber-100/80 text-left">
+          <th className="pr-2">#</th><th className="pr-2">Ticker</th><th className="pr-2">β</th>
+          <th className="pr-2" title="Model credit per $ strike, ~30 days, own IV">0.20Δ credit</th><th className="pr-2">0.10Δ credit</th>
+          <th className="pr-2">Contract</th><th>Result</th>
+        </tr></thead>
+        <tbody>
+          {shown.map((p) => (
+            <tr key={`hb-${p.ticker}`} className="text-amber-100">
+              <td className="pr-2 text-amber-100/80">{p.rank ?? ""}</td>
+              <td className="pr-2 font-semibold text-white">{p.ticker}</td>
+              <td className="pr-2">{p.beta != null ? p.beta.toFixed(1) : "—"}</td>
+              <td className="pr-2">{p.cr20 != null ? pct(p.cr20, 1) : "—"}</td>
+              <td className="pr-2">{p.cr10 != null ? pct(p.cr10, 1) : "—"}</td>
+              <td className="pr-2">{p.occ ?? (p.status === "open" ? "pricing next session" : "listed")}</td>
+              <td className={cn(p.ret == null ? "text-amber-100/80" : p.ret > 0 ? "text-emerald-400" : "text-rose-400")}>{p.ret != null ? pct(p.ret, 1) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > 20 ? (
+        <button type="button" className="text-[11px] text-[#d4af37] underline" onClick={() => setAll(!all)}>
+          {all ? "show top 20" : `show all ${rows.length}`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 /** S172: VIX÷VIX3M un-invert = market bottom tell (Jamie 11-09). Open by default for 10 days after a fire. */
 function BottomSignal({ d }: { d: S172Data }) {
@@ -209,15 +252,7 @@ function BottomSignal({ d }: { d: S172Data }) {
               <span key={`${p.ticker}-${p.asOf}`} className="mr-2">{p.ticker} {formatMdYy(p.asOf)} {p.occ ?? p.status}{p.ret != null ? ` ${pct(p.ret, 1)}` : ""}</span>
             ))}</p>
           ) : null}
-          {d.puts.some((p) => p.hiBeta) ? (
-            <p className="text-amber-100">
-              <DataTip tip={"S173 (18 un-invert episodes 2018→, ~930 names, model-priced): 0.20Δ ~30-day puts on the top-beta fifth of names earned +3.0 % (2018–22) / +2.0 % (2023→) per $ collateral vs +0.9 / +0.6 % on SPY's put, beating each name's own any-day put both halves. Worst single name −29 %, 6–9 % breached — spread across names.\n\nPer-name calls did NOT beat SPY's call (features flip between halves) → for calls use the index.\n\n18 episodes = underpowered; paper only, graded at expiry."}>
-                <span className="underline decoration-dotted">High-beta puts (S173, paper)</span>
-              </DataTip>: {d.puts.filter((p) => p.hiBeta).map((p) => (
-                <span key={`hb-${p.ticker}-${p.asOf}`} className="mr-2">{p.ticker}{p.beta != null ? ` β${p.beta.toFixed(1)}` : ""} {p.occ ?? p.status}{p.ret != null ? ` ${pct(p.ret, 1)}` : ""}</span>
-              ))}
-            </p>
-          ) : null}
+          {d.puts.some((p) => p.hiBeta) ? <HiBetaPuts rows={d.puts.filter((p) => p.hiBeta)} /> : null}
         </div>
       ) : null}
     </div>
