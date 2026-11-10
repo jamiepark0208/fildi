@@ -32,7 +32,7 @@ import statistics
 import subprocess
 import sys
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -198,7 +198,9 @@ def main():
     print(f"{len(universe)} names · {len(all_weeks)} weeks · {len(analog)} analogs · today {today}", flush=True)
 
     tech[today], tw = e.carry_forward(tech, today, e.CARRY_TECH)
-    fund[today], fw = e.carry_forward(fund, today, e.CARRY_FUND)
+    # live row only: estimates dated after the last price bar (Mon LSEG snapshot vs Fri close) still count — the
+    # backtest weeks never read fund[today]
+    fund[today], fw = e.carry_forward(fund, max(today, date.today()), e.CARRY_FUND)
     panel = e.build_panel(px, universe, all_weeks + [today], tech, fund)
     for row in panel.values():
         for t, f in row.items():

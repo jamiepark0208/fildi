@@ -158,6 +158,7 @@ export async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSi
   const out: IbesSignalsByTicker = {};
   for (const t of tickers) out[t] = { revBreadth: null, sue: null, fwdGrowth: null };
   if (tickers.length === 0) return out;
+  const asOf = new Map<string, string>();   // `b:`/`g:` + ticker → IBES statpers behind breadth / fwd growth
 
   try {
     const schema = await pool.query<{ exists: boolean }>(
@@ -172,9 +173,10 @@ export async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSi
       numup: number | null;
       numdown: number | null;
       numest: number | null;
+      statpers: string;
     }>(
       `SELECT DISTINCT ON (oftic)
-         oftic, numup, numdown, numest
+         oftic, numup, numdown, numest, statpers::text AS statpers
        FROM wrds_research.ibes_statsum
        WHERE oftic = ANY($1::text[])
          AND measure = 'EPS'
@@ -189,13 +191,14 @@ export async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSi
       const t = r.oftic?.toUpperCase();
       if (!t || !out[t]) continue;
       out[t].revBreadth = ibesRevBreadth(r.numup, r.numdown, r.numest);
+      asOf.set(`b:${t}`, r.statpers);
     }
 
     // Consensus FY1→FY2 EPS growth from the SAME statpers (ratio is split-invariant), fresh ≤ 120 days,
     // positive FY1 only (loss → profit has no meaningful growth rate); clamped like epsgrow.
     // One-off guard: FY1 jumping > 25% vs the prior statpers while FY2 moves < 10% means a non-recurring item
     // landed in FY1 (GOOGL 2026-08: FY1 14.21 → 20.60, FY2 14.68 → 14.97 ⇒ a fake −27%) → null.
-    const fwd = await pool.query<{ oftic: string; e1: number; e2: number; p1: number | null; p2: number | null }>(
+    const fwd = await pool.query<{ oftic: string; statpers: string; e1: number; e2: number; p1: number | null; p2: number | null }>(
       `WITH pairs AS (
          SELECT a.oftic, a.statpers, a.meanest::float AS e1, b.meanest::float AS e2
          FROM wrds_research.ibes_statsum a
@@ -206,7 +209,7 @@ export async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSi
        ), cur AS (
          SELECT DISTINCT ON (oftic) * FROM pairs WHERE statpers >= CURRENT_DATE - 120 ORDER BY oftic, statpers DESC
        )
-       SELECT c.oftic, c.e1, c.e2, p.e1 AS p1, p.e2 AS p2
+       SELECT c.oftic, c.statpers::text AS statpers, c.e1, c.e2, p.e1 AS p1, p.e2 AS p2
        FROM cur c
        LEFT JOIN LATERAL (
          SELECT e1, e2 FROM pairs x WHERE x.oftic = c.oftic AND x.statpers <= c.statpers - 25
@@ -220,6 +223,7 @@ export async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSi
       if (r.p1 != null && r.p2 != null && r.p1 > 0 && r.p2 > 0
           && Math.abs(r.e1 / r.p1 - 1) > 0.25 && Math.abs(r.e2 / r.p2 - 1) < 0.10) continue;
       out[t].fwdGrowth = Math.max(-0.9, Math.min(3, r.e2 / r.e1 - 1));
+      asOf.set(`g:${t}`, r.statpers);
     }
 
     const surp = await pool.query<{ oftic: string; suescore: number | null }>(
@@ -244,5 +248,46 @@ export async function loadIbesSignalsByTicker(tickers: string[]): Promise<IbesSi
   } catch (err) {
     logger.warn({ err }, "loadIbesSignalsByTicker: wrds_research unavailable — skipping IBES extras");
   }
+  if (process.env.FILDI_LSEG_REVISIONS !== "0") await overlayLsegRevisions(tickers, out, asOf);   // "0" = IBES-only (kill switch / before-after)
   return out;
+}
+
+/**
+ * 11-09: WRDS IBES stops at 2026-08-20; LSEG serves the same I/B/E/S consensus daily (research/lseg/sync_signals.py).
+ * Where the LSEG reading (≤ 7 days old) is newer than the IBES statpers, it replaces breadth and FY2/FY1 growth.
+ * Checked vs IBES on 08-20 (120 names): breadth corr 0.93, level median gap 0.13 %. Breadth = brokers whose FY1
+ * estimate rose minus fell vs 30 days ago, over brokers with a current estimate (LSEG detail counts ~17 % more).
+ */
+async function overlayLsegRevisions(tickers: string[], out: IbesSignalsByTicker, asOf: Map<string, string>): Promise<void> {
+  try {
+    const r = await pool.query<{ ticker: string; as_of: string; up: number | null; down: number | null; n: number | null;
+      e1: number | null; e2: number | null }>(
+      `WITH b AS (
+         SELECT DISTINCT ON (ticker) ticker, as_of, eps_num_up_fy1 AS up, eps_num_down_fy1 AS down, eps_num_brokers_fy1 AS n
+         FROM lseg_research.signals_daily
+         WHERE ticker = ANY($1::text[]) AND as_of >= CURRENT_DATE - 7 AND eps_num_brokers_fy1 IS NOT NULL
+         ORDER BY ticker, as_of DESC),
+       g AS (
+         SELECT DISTINCT ON (ticker) ticker, as_of, eps_mean_fy1 AS e1, eps_mean_fy2 AS e2
+         FROM lseg_research.signals_daily
+         WHERE ticker = ANY($1::text[]) AND as_of >= CURRENT_DATE - 7 AND eps_mean_fy2 IS NOT NULL
+         ORDER BY ticker, as_of DESC)
+       SELECT COALESCE(b.ticker, g.ticker) AS ticker, COALESCE(b.as_of, g.as_of)::text AS as_of,
+              b.up, b.down, b.n, g.e1::float AS e1, g.e2::float AS e2
+       FROM b FULL JOIN g ON g.ticker = b.ticker`,
+      [tickers],
+    );
+    for (const x of r.rows) {
+      const t = x.ticker?.toUpperCase();
+      if (!t || !out[t]) continue;
+      const ib = asOf.get(`b:${t}`);
+      if (x.n != null && (!ib || x.as_of > ib)) out[t].revBreadth = ibesRevBreadth(x.up, x.down, x.n);
+      const ig = asOf.get(`g:${t}`);
+      if (x.e1 != null && x.e2 != null && (!ig || x.as_of > ig)) {
+        out[t].fwdGrowth = x.e1 > 0 && Number.isFinite(x.e2) ? Math.max(-0.9, Math.min(3, x.e2 / x.e1 - 1)) : null;
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "loadIbesSignalsByTicker: lseg_research unavailable — IBES-only revisions");
+  }
 }

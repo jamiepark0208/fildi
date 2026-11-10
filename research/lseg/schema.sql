@@ -175,3 +175,11 @@ ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_median doubl
 ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_high double precision;
 ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_low double precision;
 ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS pt_num_est integer;
+-- 11-09 (Claude, A244/S100): WRDS IBES stops at 2026-08-20 → revision features from LSEG (same I/B/E/S consensus, daily).
+-- Checked vs IBES on 08-20 (120 names): level median gap 0.13 %, 1m drift corr 0.79 (sign 95 %), breadth corr 0.93.
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS eps_mean_fy1_90d_ago double precision;
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS eps_mean_fy2 double precision;
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS eps_std_fy1 double precision;
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS eps_num_up_fy1 integer;     -- brokers whose FY1 estimate rose vs 30 days ago
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS eps_num_down_fy1 integer;   -- … fell
+ALTER TABLE lseg_research.signals_daily ADD COLUMN IF NOT EXISTS eps_num_brokers_fy1 integer; -- brokers with a current FY1 detail estimate

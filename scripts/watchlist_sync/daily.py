@@ -115,6 +115,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
                                     "| grep -o 'graded.*' | tail -1 || echo 'regime grades skipped'"]),
         ("strategies board", PY, HERE, ["structures.py"]),
         ("put consistency", PY, HERE, ["put_consistency.py"]),   # A277 §3: WARN if a surface shows a different put than the engine   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
+        ("revisions from LSEG", PY, HERE, ["analysis/lab_fund_lseg.py"]),   # 11-09: WRDS IBES ends 08-20 → ibes_drift/_3m/breadth/disp/fwd_growth from LSEG signals_daily for the board
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
         ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),
         ("S171 paper calls", PY, HERE, ["s171_paper.py"]),   # A244 S171: loss-maker momentum ∧ cheap vol → 30 DTE 0.30Δ call at the ask, graded day 3 vs same-Δ stock
