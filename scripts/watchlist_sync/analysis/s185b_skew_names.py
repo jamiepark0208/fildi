@@ -6,7 +6,15 @@ Pre-registered 2026-11-10 (before data): names = Jamie's watchlist (59) + traded
   30-DTE expiry from skew_daily; buy mid × 1.05 on day d, sell mid × 0.95 on day d+h, h ∈ {1, 3, 5} sessions.
   Feature z = (x − mean) / sd over the name's prior 40 skew days (≥ 20), x ∈ {rr25, smirk, cw, iv_atm}.
   Buckets low z ≤ −1 · mid · high z ≥ +1.  Test = high − low mean ret at h = 5 on non-overlapping 5-day origins,
-  PASS: |t| ≥ 2 and same sign in both halves (split 2026-05-01). Also report the stock's own h-day return per bucket
+  PASS: |t| ≥ 2 and same sign in both halves (split 2026-05-01).
+  Amended 11-10 before the pooled run (Jamie: H1-26 bull, Oct→Nov selloff in both 2025 and 2026; calendar halves mix regimes):
+  regime = QQQ 20-session return at entry (up ≥ 0 / down < 0). Rev 2 (Jamie: the right skew trade DEPENDS on regime — never
+  require one sign across regimes): every feature is tested INSIDE each regime. Cell PASS = |Welch t| ≥ 2 on every-5th-day
+  trades AND same sign in both episodes of that regime (before / after 2026-05-01 = fall-25 vs fall-26 selloff for down).
+  Pre-registered cells (mechanics, written before the pooled run):
+    D1 down · smirk high → long put5 worse (put wing already bid = rich)        D2 down · iv_atm high → long call5 worse (vol crush on rebound)
+    U1 up   · rr25 high  → long call5 worse (call wing bid = rich, chasers)      U2 up   · iv_atm low  → long call5 better (cheap vol in trend)
+  Other 12 cells exploratory: 16 cells → ~1 false |t| ≥ 2 expected by chance. Also report the stock's own h-day return per bucket
   (is skew just a direction call?). n_indep ≈ months → UNDERPOWERED below 30.
 """
 from __future__ import annotations
@@ -72,11 +80,18 @@ def main() -> None:
         rows.append(rec)
     T = pd.DataFrame(rows)
     T["half"] = np.where(T["d"] < SPLIT, "H1", "H2")
+    q = pd.DataFrame(c.execute("SELECT date, close FROM prices_historical WHERE ticker = 'QQQ' ORDER BY date").fetchall(), columns=["d", "c"])
+    q["d"] = pd.to_datetime(q["d"]); q["c"] = q["c"].astype(float); q["r20"] = q["c"] / q["c"].shift(20) - 1
+    T = T.merge(q[["d", "r20"]], on="d", how="left")
+    T["reg"] = np.where(T["r20"] >= 0, "up", "down")
+    T["k"] = T.groupby("t").cumcount()
     nm = T["d"].dt.to_period("M").nunique()
     L_ = [f"# S185b — skew vs own history → short option holds, Jamie's names", "",
           f"{T['t'].nunique()} names ({', '.join(sorted(T['t'].unique()))}) · {len(T)} name-days · {T['d'].min():%Y-%m-%d} → "
-          f"{T['d'].max():%Y-%m-%d} · real LSE quote mids, buy mid+5 % / sell mid−5 % · n_indep ≈ {nm} months "
+          f"{T['d'].max():%Y-%m-%d} · real LSE quote mids, buy mid+{HC*100:.0f} % / sell mid−{HC*100:.0f} % · n_indep ≈ {nm} months "
           f"({'UNDERPOWERED' if nm < 30 else 'ok'}).", ""]
+    L_ += ["Regime (QQQ 20d at entry): " + " · ".join(f"{rr} {(T['reg'] == rr).sum()} days: call5 {T.loc[T['reg'] == rr, 'call5'].mean()*100:+.1f} % · put5 "
+                                                     f"{T.loc[T['reg'] == rr, 'put5'].mean()*100:+.1f} %" for rr in ("up", "down")), ""]
     L_ += [f"Baseline (all days): " + " · ".join(f"{s}{h} {T[f'{s}{h}'].mean()*100:+.1f} %" for s in ("call", "put") for h in H if f"{s}{h}" in T), ""]
 
     def t5(diff_by_day):
@@ -96,11 +111,21 @@ def main() -> None:
                                                          for s in ("call", "put") for h in H) + f" | {w['sret5'].mean()*100:+.1f} % |")
         for s in ("call", "put"):
             col = f"{s}5"
-            day = T.groupby("d").apply(lambda w: w.loc[w["b"] == "high", col].mean() - w.loc[w["b"] == "low", col].mean())
-            hv = [T[(T["half"] == hh) & (T["b"] == "high")][col].mean() - T[(T["half"] == hh) & (T["b"] == "low")][col].mean() for hh in ("H1", "H2")]
-            tt = t5(day)
-            ok = abs(tt) >= 2 and np.sign(hv[0]) == np.sign(hv[1])
-            L_.append(f"\n{s}5 high − low: H1 {hv[0]*100:+.1f} % · H2 {hv[1]*100:+.1f} % · t {tt:+.2f} → {'PASS' if ok else 'fail'}")
+            ni = T[T["k"] % 5 == 0]
+            for rr in ("up", "down"):
+                hl = lambda m: T[m & (T["reg"] == rr) & (T["b"] == "high")][col].mean() - T[m & (T["reg"] == rr) & (T["b"] == "low")][col].mean()  # noqa: E731
+                hv = [hl(T["half"] == hh) for hh in ("H1", "H2")]
+                w_ = ni[ni["reg"] == rr]
+                a_, b_ = w_.loc[w_["b"] == "high", col].dropna(), w_.loc[w_["b"] == "low", col].dropna()
+                tt = (a_.mean() - b_.mean()) / math.sqrt(a_.var() / len(a_) + b_.var() / len(b_)) if len(a_) > 2 and len(b_) > 2 else float("nan")
+                ok = abs(tt) >= 2 and np.sign(hv[0]) == np.sign(hv[1])
+                pre = {("smirk", "put", "down"): "D1 expect −", ("iv_atm", "call", "down"): "D2 expect −",
+                       ("rr25", "call", "up"): "U1 expect −", ("iv_atm", "call", "up"): "U2 expect − (low better)"}.get((x, s, rr), "explor.")
+                L_.append(f"\n{s}5 · QQQ-{rr} · high − low {hl(T['half'].notna())*100:+.1f} % · ep1 {hv[0]*100:+.1f} % · ep2 {hv[1]*100:+.1f} % · "
+                          f"t {tt:+.2f} (n {len(a_)}/{len(b_)}) · {pre} → {'PASS' if ok else 'fail'}")
+                if ok:
+                    verdict.append(f"{x}→{s} in {rr} tape ({'high' if tt > 0 else 'low'} z better; {pre})")
+            continue
             if ok:
                 verdict.append(f"{x}→{s} ({'high' if hv[0] > 0 else 'low'} z better)")
         L_.append("")
