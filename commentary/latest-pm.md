@@ -1,124 +1,114 @@
-# Evening Market Recap — Friday, November 6, 2026 (Post-Close) — REVISED
+# Evening Market Recap — Monday, November 9, 2026 (Post-Close)
 
-**Banner:** S&P 7,376.86 +0.31% · Dow 51,285.73 −0.46% · Nasdaq 24,579.42 +1.09% · 10Y 4.86% (+2 bp) · Brent $97.90 (−0.5%) · VIX 25.58 (−9.2%)
+**Banner:** S&P 7,549.94 +2.35% · Dow 52,389.75 +2.15% · Nasdaq 25,253.14 +2.74% · 10Y 4.86% (flat) · Brent ~$92.81 −5.6% · VIX 19.92 −22.3%
 
 ## Indices
 
-| Index | Close | Day |
-| S&P 500 | 7,376.86 | +0.31% |
-| Dow | 51,285.73 | −0.46% |
-| Nasdaq | 24,579.42 | +1.09% |
-| 10Y yield | 4.86% | +2 bp |
-| 2Y yield | 4.51% | +5 bp |
-| VIX | 25.58 | −9.2% |
-| Brent | $97.90 | −0.5% |
-| Gold | ~$4,071 | −0.4% |
-| Bitcoin | ~$75,900 | −0.5% |
+| Name | Close | Day % |
+| S&P 500 | 7,549.94 | +2.35% |
+| Dow | 52,389.75 | +2.15% |
+| Nasdaq Composite | 25,253.14 | +2.74% |
+| Nasdaq 100 | 27,907.63 | +3.40% |
+| Russell 2000 | 2,840.81 | +3.15% |
+| 10Y yield | 4.86% | flat |
+| 30Y yield | 5.26% | flat |
+| VIX | 19.92 | −22.3% |
+| Brent | ~$92.81 | −5.6% |
+| WTI | $86.97 | −4.3% |
+| Gold | $4,147.50 | +1.8% |
+| Bitcoin | $74,878 | +0.4% |
 
-What it means: a narrow bounce, not a turn — tech rose, the Dow fell, and the averages faded from their highs into the close. Breadth agrees: 720 new 52-week lows vs 210 new highs, only 33% of stocks above their 50-day average.
+What it means: the best day since April, and broad — all 11 sectors higher, S&P gainers outnumbering decliners nearly 6:1. But the driver is cheaper oil on Iran-talk headlines, not cheaper money: the 10Y didn't move, so this is a relief rally with no rates cover behind it.
 
 ## Asia / Europe — overnight
 
-| Market | Day | Note |
-| Nikkei | −6.0% | bear market, >20% below record |
-| KOSPI | −6.0% | circuit breaker after −8% intraday |
-| Taiwan | −4.5% | |
-| Hang Seng | −1.3% | |
-| STOXX 600 | −1.0% | European chips bounced with the US tape (ASML +2.6%) |
+| Name | Close | Day % |
+| Nikkei 225 | 58,776 | +2.33% |
+| Shanghai Composite | 3,661 | +0.32% |
+| DAX | 25,974 | +0.6% |
+| CAC 40 | 8,168 | +0.4% |
+| FTSE 100 | 10,721 | +0.4% |
 
-What it means: the overnight leg finished the flush — the move is done, not pending.
+What it means: Asia and Europe already had the bounce before the US open — the Nikkei led on the same oil-relief trade, so today's US move extends a global risk-on day rather than starting one.
 
-## Semis — the bounce
+## Semis & AI — the rally without its leader
 
-| Name | Day | Note |
-| SOX | +4.2% | after Thu −12.25%, worst since Mar 2020 |
-| AMD | +11.0% | $449.04 |
-| LRCX | +8.2% | $25B buyback |
-| MRVL | +5.7% | |
-| MU | +5.1% | |
-| NVDA | +2.8% | $186.64 |
+| Name | Close | Day % | Note |
+| AMD | — | +13.3% | Oppenheimer upgrade to Outperform, $600 target |
+| SOX (Philly semis) | 10,000+ | — | reclaimed 10,000 |
+| GOOGL | — | higher | launched two new TPU chips |
+| NVDA | $178.67 | −4.27% | board probe into CEO Huang; the lone big-tech decliner |
 
-What it means: oversold semis recovered on the AI-politics reversal (below), funded by Thursday's winners — staples −1.3% gave back.
+What it means: the AI trade rallied ex-NVDA — Anthropic's IPO roadshow launching Tuesday and GOOGL's TPUs gave the complex a forward story, while NVDA fell on its own headline. Chips up and NVDA down is a stock-specific break, not a sector turn, so the split from the morning held all day.
 
-## Neocloud / data-center — hardest hit by the Dem sweep
+## Energy & oil — the driver
 
-| Name | Day | Note |
-| IREN | +20.0% | $21.64; Q3 beat, $20.3B backlog |
-| NBIS | +7.6% | $129.49; −16.0% on the week (from $154.14 Mon close) |
-| CRWV | +6.3% | $46.40; −15.4% on the week (from $54.87 Mon close); 2031 bonds ~80c |
+| Name | Close | Day % | Note |
+| Brent | ~$92.81 | −5.6% | extends last week's −17% slide |
+| WTI | $86.97 | −4.3% | settled back below $90 |
+| Energy sector | — | +0.5% | weakest sector despite the tape |
 
-What it means: partial recovery, not a turn — the group bounced hard Friday but is still down ~15% on the week, and CRWV's bonds never rallied with the stock. The moratorium threat eased from a stop to a slow-permitting risk; it is not gone (UBS: ~30% of expected 2028 US capacity additions at risk; China H200 import delay still pending).
+What it means: oil is the whole story — President Trump (R) calling renewed Iran strikes "highly unlikely" plus an unconfirmed report of a possible deal outline did the work. But Trump (R) also reasserted the US is ready to resume strikes at any time, and Secretary of State Rubio (R) called Iran's demands unacceptable, so the relief is conditional and reverses on one headline.
 
-## Defense — did not join the bounce
+## Data & Fed
 
-| Name | Day | Note |
-| LMT | −1.6% | $567.08; −11.9% on the week; Wed −6.9% |
-| RTX | −1.2% | $189.53; Wed −3.1% |
-| NOC | — | Wed −3.7% |
-| LHX | — | Wed −6.9% |
+- **NY Fed October consumer expectations:** 1-year inflation expectations 3.9% (+~0.1 pp), 3-year 3.3% and 5-year 3.0% unchanged — no new inflation scare ahead of CPI.
+- **3-year Treasury auction:** $58B tailed 0.5 bp, cleared 4.627% vs 4.932% last month — short rates coming down even as the long end sat still.
+- **Fedspeak:** Chicago's Goolsbee (non-voter) said services inflation is starting to kick up; Richmond's Barkin (non-voter) said the policy rate may be at or slightly below neutral, with no baseline for the December meeting.
 
-What it means: the budget risk is a slow bleed, not a one-day flush. A Democratic Congress (D) makes President Trump's (R) proposed $1.5T FY2027 defense budget unlikely — Jefferies expects closer to the $1.15T House level (vs $901B approved now). Record backlogs (LMT $292B) cushion it, but they don't re-rate it. History says defense under Democratic Congresses has not been as dire as the tape implies — watch the budget number, not the headlines.
+What it means: nothing today changed the hike math — ~80% odds of a December hike still stand, and CPI tomorrow is the adjudicator.
 
-## Politics — the driver, with parties named
+## Single names
 
-- **Gina Hinojosa (D), Texas governor-elect:** does not oppose data centers outright; permitted Texas projects finish construction. Pipeline covered through 2027.
-- **President Trump (R):** posted he is "100% in favor of Super Intelligence" and would work with states to expand AI.
-- **Sen. Bernie Sanders (I-Vt., caucuses with Democrats):** called for a national moratorium on data-center construction — the other end of the Democratic position.
-- **OpenAI:** will press ahead with US data-center expansion despite the midterm sweep.
+- **OXY** beat after the close: EPS $1.91 vs $1.46 expected.
+- **TTWO** missed badly after the close: −$0.29 vs +$0.96 expected; shares already −3.5% to $207.40 in the regular session.
+- **RKLB** missed after the close: −$0.12 vs −$0.07 expected.
+- **CEG** (before open): EPS $5.06 vs $3.90 expected; **NRG**: $4.68 vs $3.35 — power-for-data-centers is still the strongest earnings theme. **KKR** mixed.
+- **TSLA** +5%+ on SpaceX's $24B Texas gas-fired power plant and super-compute facility plan, lifting the Musk complex with the AI tape.
 
-What it means: the Democratic sweep split the AI trade into two stories — permitting risk for data centers, budget risk for defense — and Friday's tape priced the first as easing and the second as still open.
-
-## Jobs — the headwind, not the driver
-
-- October payrolls +165K vs +65K expected; unemployment 4.1% vs 4.2%; wages +0.4% m/m. December hike odds firmed; yields rose.
-
-What it means: hot jobs lifted hike odds and yields — the tape rose anyway, on semis. The Dow down is the tell. Futures were already up before the 5:30 AM print, so jobs did not cause the rally; the hike was already mostly priced, and after Thursday's crash strong jobs read as "no recession."
-
-## Single names, one line
-
-TSLA +4.2% to $358.22 (Musk: Cybertruck winds down ~mid-2027 to free Gigafactory Texas for Cybercab). Fox closed its $22B Roku deal ($160/share); ROKU flat at $160.52.
+Flat/non-moving: managed care, credit cards, P&C insurance, food/beverage, commodity chemicals, China tech — relative laggards on a day everything else rose.
 
 ## What changed vs the morning thesis
 
-- Right: the bounce was narrow and chip-led.
-- Right: hot jobs keeps a December hike live into Tuesday's CPI.
-- Softer than hoped: the bounce did not broaden — Dow lower, new lows 3-to-1 over new highs.
+- Right: dip-buying funded by cheaper oil, NVDA the split story, yields not confirming the rally.
+- Bigger than expected: +2.35% vs +0.7% in futures, and broad — 6:1 breadth, all 11 sectors, VIX crushed 22% to under 20.
+- Shifted: Anthropic's IPO roadshow and GOOGL's TPUs turned "AI ex-NVDA" into a full AI rally; NVDA stayed the lone exception at −4.27%.
 
 ## Desk flagged
 
-- **Tuesday's CPI bar is set (LSEG Day Ahead):** headline CPI expected +0.3% m/m vs +0.6% in September; core +0.2% vs +0.3%; core y/y 2.8%. Friday's PPI expected +0.4% vs +1.3% prior.
-- **Fed speakers stack up Tuesday:** Bowman (two appearances), Waller, plus Dallas' Logan and Kansas City's Schmid at an energy conference — the hike debate gets aired the same morning as CPI.
+- **CTAs are expected net sellers near term** — a positioning headwind sits above this bounce into CPI, so don't read one big day as clearing the path.
+- **Peak buyback window plus positive seasonality** — a floor under the tape if CPI cooperates.
+- **$125B of Treasury issuance this week, $42B of 10s Tuesday at 1:00 PM ET** — right after CPI, so rates get tested twice in one day.
+- **NVDA headline risk easing a touch:** major investors publicly backed Huang staying, and prediction markets price low odds he exits — but there is still no succession plan, which is the overhang.
 
 ## Book impact
 
-- **Friday's expiries expired worthless.** IREN closed $21.64 (+20.0%) — the short 20P x2 finished out of the money, full credit kept. OKLO closed $23.55 (+22.7%) after a Q3 revenue beat ($1.9M vs ~$0.95M expected) — the short 22P finished out of the money too. (Per Thursday's Robinhood export; Mac offline, so not verified against the live book.)
-- **Premium decayed but stayed rich.** VIX 28.18 → 25.58 into the close — short premium written at Thursday's stress marked down, but 25.6 is still elevated. No chasing short puts into a semi bounce that faded from its highs.
-- **Tuesday CPI is the gate.** No new short-dated premium into it; event windows stack up right behind — CEG/KKR/OXY Monday, CRWV Tuesday after the close (same day as CPI), AMAT/CSCO Thursday, PPI Friday.
+- **VIX 25.58 → 19.92:** short premium written at Friday's stress is now worth far less — bank the winners; don't add new short premium into CPI at compressed vol.
+- **Tuesday is the event stack:** CPI 8:30 AM ET plus CRWV after the close — no new short-dated premium into it; keep Tuesday expiries clear.
+- **NVDA stays off-limits for short puts** until the probe's scope is known; AMD's +13% gap is not a premium-selling setup either.
+- **Energy is the only weak sector:** short puts on energy names face a second leg if the Iran headlines flip, and the airline/travel gaps reverse the same way — don't chase either side of the oil move.
 
 ## Risk/events for tomorrow
 
-- **Early Asia (Mon) — China October CPI/PPI.**
-- **Mon — US earnings: CEG, KKR, OXY.**
-- **Mon 1:00 PM ET — 3-year Treasury auction.**
-- **Tue Nov 10, 8:30 AM ET — October CPI** (cons +0.3% headline, +0.2% core); CRWV reports after the close; Fed's Bowman and Waller speak.
+- **Tue 8:30 AM ET — October CPI** (headline +0.3% m/m, core +0.2% m/m expected; no y/y print given the 2025 shutdown data gap)
+- **Tue 1:00 PM ET — $42B 10-year Treasury auction**
+- **Tue after close — CRWV reports** (also SE, ONON); Fed's Bowman and Waller speak
+- **Thu 8:30 AM ET — jobless claims; 1:00 PM ET — $25B 30-year auction**
+- **Fri 8:30 AM ET — October PPI** (+0.4% expected)
 
 ## Context
 
-- **S&P 500:** +0.31% Friday but −2.68% on the week; Nasdaq −3.37% on the week. The S&P sits ~5.7% below its October 6 record close of 7,818.93 — the bounce recovered a fraction of Thursday's flush.
+- **S&P 500:** +2.35% today recovers most of last week's −2.68% flush, but the index still sits ~3.4% below its October 6 record close of 7,818.93.
+- **10Y:** flat at 4.86% on the day, down 7 bp on the week and 42 bp over the past month — the bond market is not confirming the equity bounce.
+- **Brent:** −5.6% today extends last week's −17% slide, the steepest weekly drop since the start of the pandemic.
 
-Systems: Mac offline — unverified
+Systems: Mac online, gateway connected — fildi API/scheduler unverified from device commands, no live book snapshot
 
 ## Sources
 
-- Closes, yields, oil, gold, bitcoin, VIX: https://edgeconsultancykw.com/us-market-wrap-06-november-2026/ · https://stockmarketwatch.com/digest/2026-11-06 · https://www.ausecure.com/gold-market-close-nov-6-2026/ · https://shunya.trade/blog/2026/11/06/nq-es-dji-gold-nasdaq-sp500-futures-analysis-afternoon-2026-11-06
-- Asia/Europe, semis, single names: https://bankofvol.substack.com/p/chip-flush-asia-6-payrolls-at-1430 · https://percysperspective.com/2026/11/07/daily-market-analysis-20261106/ · https://cappnotes.substack.com/p/closing-look-friday-november-6-2026
-- Jobs, hike odds: https://www.investopedia.com/5-things-to-know-stock-market-november-06-2026-12237638 · https://nordfx.com/market-news/market-pulse-november-06-2026
-- TSLA Cybertruck: https://www.usatoday.com/story/cars/shopping/evs/2026/11/06/tesla-cybertruck-production-ending/92639472007/ · https://www.tipranks.com/news/tesla-to-wind-down-cybertruck-production-in-2027-as-tsla-stock-rebounds
-- Fox/Roku close: https://www.financial-news.co.uk/fox-completes-22bn-roku-acquisition-closing-streaming-deal/
-- IREN/OKLO closes, OKLO Q3: https://finnhub.io/?q=%22IREN%22 · https://finnhub.io/?q=%22OKLO%22 · https://capitalsnitch.com/news/oklo-stock-forecast-price-prediction
-- Neocloud closes (NBIS, CRWV): https://finnhub.io/?q=%22NBIS%22 · https://finnhub.io/?q=%22CRWV%22 · week moves via https://www.threads.com/@wingzeros1229/post/Dfa0l2VJoKh
-- Defense: https://finnhub.io/?q=%22RTX%22 · https://finnhub.io/?q=%22LMT%22 · https://www.devdiscourse.com/article/international/4001707-ai-data-center-stocks-slide-renewables-rally-after-democratic-us-midterm-sweep · https://www.ad-hoc-news.de/boerse/news/corporate-news/rtx-stock-slips-as-defense-budget-fears-weigh-on-sector/70469950 · https://qmmcapitals.com/news/drones-are-changing-warfare-but-defense-giants-are-still-making-billions-from-old-school-weapons-2026-11-06
-- Week moves: FactSet StreetAccount US Weekly Recap (via Gmail label tradedash-brief), Nov 6, 2026
-- Morning thesis: commentary/2026-11-06-am.md (this repo)
-- Desk: Gmail label tradedash-brief, Nov 6 — LSEG The Day Ahead for Monday, November 9, 2026 (CPI consensus, Fed speakers)
-- Book snapshot: Mac offline — no live snapshot; Friday expiry outcomes from public closes vs the Nov 5 recap's expiry list (Robinhood export)
+- Closes, yields, oil, gold, bitcoin, VIX: https://edgeconsultancykw.com/us-market-wrap-09-november-2026/ · https://elitealphareport.com/sp-500-jumps-2-3-the-rebound-has-company/ · https://www.tradingkey.com/analysis/stocks/us-stocks/262297090-us-stock-nasdaq-dow-rise-anthropic-ipo-nvidia-spacex-tesla-tradingkey · https://swingfolio.com/daily/us/2026-11-09/afternoon · https://calculateddegens.com/journal/2026-11-09-final-hour/ · https://dataforgestudio.xyz/2026/11/after-market-brief-monday-november-09-2026/
+- Asia/Europe: commentary/2026-11-09-am.md (this repo)
+- Earnings: https://confluencetradingtools.substack.com/p/ctt-ai-analyst-closing-briefing-nov-2b7 · https://finnhub.io/?q=%22TTWO%22
+- Morning thesis: commentary/2026-11-09-am.md (this repo)
+- Desk: Gmail label tradedash-brief, Nov 9 — FactSet StreetAccount Summary, U.S. Market Recap 4:08 PM ET
+- Book snapshot: Mac online but fildi checkout/.env.local not located via device files; no DB access from this VM — generic premium commentary used
