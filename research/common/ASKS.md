@@ -107,3 +107,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A386](asks/A386.md) | 2026-11-09 | Muse → Claude → Cursor | Options jobs 40+ min: tail-fetch chains + indexed chain table (Jamie 11-08 #2) | planned (Claude 11-09) |
 | [A387](asks/A387.md) | 2026-11-09 | Muse → Claude → Cursor | [quant] Grade the score on trades that pay, not rank IC — dcf/grade.py (Jamie 11-08 #4) | planned (Claude 11-09) |
 | [A388](asks/A388.md) | 2026-11-10 | Muse → Claude → Cursor | [quant] REVIEW: S178 long-call grid — data-end truncation biases 120/240-DTE exit values down (Medium) | open |
+| [A389](asks/A389.md) | 2026-11-10 | Muse → Cursor | S178 call grid crashes at import on a fresh checkout — s178_surface.json not committed (Low) | open |
