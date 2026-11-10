@@ -33,7 +33,7 @@ import lse_client as L  # noqa: E402
 LOCK = Path.home() / ".fildi/locks/lse.lock"
 FIRST_EXP, LAST_EXP = date(2025, 11, 1), date(2026, 12, 31)
 LEAD, TAIL = 52, 12            # fetch E−52 … E−12 (skew read at DTE 14–50)
-Z_PUT, Z_CALL = (-1.5, -0.75, 0.0), (0.0, 0.75, 1.5)
+Z_PUT, Z_CALL = (-1.6, -0.95, -0.45, 0.0), (0.0, 0.45, 0.95, 1.6)   # 8-strike ladder: 6 bracketed 25Δ on 58 % of NVDA days
 
 DDL = """
 CREATE TABLE IF NOT EXISTS lse_option_greeks_daily (
@@ -95,6 +95,9 @@ def plan(conn, names: list[str], strikes_only: bool) -> list[tuple[str, str, str
                 continue
             try:
                 listed = L.list_put_strikes(conn, t, e)   # cached in vendor_raw after the first call
+                if not listed:                            # holiday Friday (Juneteenth 2026) → Thursday expiry
+                    e = e - timedelta(days=1)
+                    listed = L.list_put_strikes(conn, t, e)
             except Exception as ex:  # noqa: BLE001 — one slow listing (AAPL ~3k pairs) must not kill the run
                 print(f"  pairs {t} {e}: {type(ex).__name__}", flush=True)
                 conn.rollback()
@@ -125,18 +128,45 @@ def parse(text: str) -> list[dict]:
     return out
 
 
-def fetch(conn, jobs, limit: int) -> None:
+def preview_rows(conn, occ: str, d0: date, d1: date) -> tuple[int, list[dict]]:
+    """/v3/preview (≤ 10 rows/call) in 12-day windows — answers while the daily row quota is exhausted (one-stock smoke)."""
+    import json, urllib.parse
+    out, st, a = [], 200, d0
+    while a <= d1:
+        b = min(a + timedelta(days=12), d1)
+        q = urllib.parse.urlencode({"market": "us_options", "symbol": occ, "timeframe": "1d", "from": a.isoformat(),
+                                    "to": b.isoformat(), "data": "greeks", "format": "csv"})
+        st, body, _ = L._request(conn, f"{L.BASE}/preview?{q}", endpoint="preview", vkey=f"{occ}|{a}|{b}|greeks")
+        if st != 200:
+            break
+        for r in json.loads(body).get("rows") or []:
+            iv = r.get("iv")
+            if iv is None or not (0.01 < iv < 5.0):
+                continue
+            out.append({"date": date.fromisoformat(str(r["time"])[:10]), "iv": iv, "delta": r.get("delta"),
+                        "px": r.get("option_price"), "src": r.get("price_source"), "spot": r.get("underlying_price"),
+                        "rate": r.get("rate")})
+        a = b + timedelta(days=1)
+    return st, out
+
+
+def fetch(conn, jobs, limit: int, preview: bool = False) -> None:
     done = {r[0] for r in conn.execute("SELECT occ FROM lse_option_greeks_fetch WHERE status IN (200, 404)")}
     todo = [j for j in jobs if j[0] not in done][: limit or None]
     print(f"fetch: {len(jobs)} planned, {len(done)} done, {len(todo)} to go (~{len(todo)/60:.0f} min)", flush=True)
     t0, nrow = time.time(), 0
     for i, (occ, t, side, k, e) in enumerate(todo):
-        st, text = L.export_options_csv(conn, occ, date_from=e - timedelta(days=LEAD), date_to=e - timedelta(days=TAIL),
-                                        timeframe="1d", data="greeks")
+        if preview:
+            st, rows = preview_rows(conn, occ, e - timedelta(days=LEAD), e - timedelta(days=TAIL))
+            text = ""
+        else:
+            st, text = L.export_options_csv(conn, occ, date_from=e - timedelta(days=LEAD), date_to=e - timedelta(days=TAIL),
+                                            timeframe="1d", data="greeks")
         if st == 429 and "rows-exhausted" in text:
             print("rows exhausted — stop; rerun after 00:00 UTC", flush=True)
             break
-        rows = parse(text) if st == 200 else []
+        if not preview:
+            rows = parse(text) if st == 200 else []
         for r in rows:
             conn.execute(
                 """INSERT INTO lse_option_greeks_daily (occ, ticker, side, strike, expiry, date, iv, delta, option_price,
@@ -202,6 +232,8 @@ def main() -> None:
     ap.add_argument("--build", action="store_true")
     ap.add_argument("--names", type=int, default=150)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--preview", action="store_true", help="10-row preview calls (works while rows are exhausted)")
+    ap.add_argument("--tickers", default="", help="comma list overrides the universe (small proof run)")
     a = ap.parse_args()
     conn = L.connect()
     conn.execute(DDL)
@@ -210,11 +242,11 @@ def main() -> None:
         LOCK.parent.mkdir(parents=True, exist_ok=True)
         LOCK.write_text(str(os.getpid()))
         try:
-            names = universe(conn, a.names)
+            names = [x.strip().upper() for x in a.tickers.split(",") if x.strip()] or universe(conn, a.names)
             print(f"universe {len(names)}: {names[:8]} …", flush=True)
             jobs = plan(conn, names, strikes_only=a.strikes)
             if a.fetch:
-                fetch(conn, jobs, a.limit)
+                fetch(conn, jobs, a.limit, a.preview)
         finally:
             LOCK.unlink(missing_ok=True)
     if a.build:

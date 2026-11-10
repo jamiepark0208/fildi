@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import lse_client as L  # noqa: E402
 
 SPLIT = pd.Timestamp("2026-05-01")
-OUT = ROOT / "artifacts/api-server/out/opt/S185.md"
+OUT = HERE.parent / "out/opt/S185.md"
 
 
 def load(conn):
