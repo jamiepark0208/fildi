@@ -39,7 +39,12 @@ let lastRequestAt = 0;
 /** Batch lane (10-28): localhost machine routes (skew survey, verify, panic puts) run inside it. The shared 100-rpm
  *  bucket serves app requests first, so a click never queues behind a batch job using the whole budget. */
 export const schwabBatchLane = new AsyncLocalStorage<boolean>();
-const waiting: Array<{ batch: boolean; go: () => void }> = [];
+const waiting: Array<{ batch: boolean; at: number; go: (ok: boolean) => void }> = [];
+/** A386 (11-09): app calls always go first, so a busy app parked batch calls > 60 s; the Python caller timed out, but the
+ *  queued call still spent a Schwab slot later (skew survey 3.5 → 33 min, 219 fails). A batch call queued longer than this
+ *  is dropped (returns null, no Schwab call) — the caller's 60 s timeout would have discarded the answer anyway. */
+const BATCH_MAX_WAIT_MS = 45_000;
+let batchDropped = 0;
 let pumping = false;
 
 /** Rolling 60s request counter for status / ops. */
@@ -71,6 +76,7 @@ function bumpUsage(path: string, status: number | null, err?: string): void {
 
 export function getSchwabUsageStats(): {
   rpmBudget: number;
+  batchDropped: number;
   requestsLast60s: number;
   totalRequests: number;
   lastStatus: number | null;
@@ -87,6 +93,7 @@ export function getSchwabUsageStats(): {
   const stats = schwabChainCache.getStats();
   return {
     rpmBudget: RPM_BUDGET,
+    batchDropped,
     requestsLast60s: usage.requestsInWindow,
     totalRequests: usage.totalRequests,
     lastStatus: usage.lastStatus,
@@ -108,19 +115,24 @@ async function pump(): Promise<void> {
     while (waiting.length) {
       const wait = Math.max(0, lastRequestAt + MIN_INTERVAL_MS - Date.now());
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      const now = Date.now();
+      for (let k = waiting.length - 1; k >= 0; k--) {
+        if (waiting[k].batch && now - waiting[k].at > BATCH_MAX_WAIT_MS) { waiting.splice(k, 1)[0].go(false); batchDropped++; }
+      }
+      if (!waiting.length) break;
       const i = waiting.findIndex((w) => !w.batch);
       const [next] = waiting.splice(i >= 0 ? i : 0, 1);
       lastRequestAt = Date.now();
-      next.go();
+      next.go(true);
     }
   } finally {
     pumping = false;
   }
 }
 
-function throttle(): Promise<void> {
-  return new Promise<void>((go) => {
-    waiting.push({ batch: schwabBatchLane.getStore() === true, go });
+function throttle(): Promise<boolean> {
+  return new Promise<boolean>((go) => {
+    waiting.push({ batch: schwabBatchLane.getStore() === true, at: Date.now(), go });
     void pump();
   });
 }
@@ -135,7 +147,7 @@ export function schwabCircuitOpen(): boolean { return schwabCircuit().isOpen(); 
 
 async function schwabFetch(url: URL, token: string, retried401 = false, retried429 = false): Promise<Response | null> {
   if (schwabCircuitOpen()) return null;
-  await throttle();
+  if (!(await throttle())) return null;
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },

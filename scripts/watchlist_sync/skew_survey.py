@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
@@ -104,25 +105,43 @@ def main():
         # the throttle still caps the rate, so the app's own calls keep their turn.
         jobs = [(n["ticker"], 50) for n in names]
         spots = {n["ticker"]: n["spot"] for n in names}
-        got, fails = 0, 0
-        with ThreadPoolExecutor(4) as pool:
-            width = {str(e): 0.12 if (e - today).days <= 14 else 0.25 for e in exps}
-            for (t, _), d in pool.map(fetch, jobs):
-                if d is None:
-                    fails += 1
-                    continue
-                spot = d.get("spot") or spots[t]
-                batch = [(today, t, r["expiry"], r["side"], r["strike"], spot, r["bid"], r["ask"], r["mark"], r["iv"], r["delta"],
-                          r["oi"], r["volume"], None)
-                         for r in d["rows"] if r["expiry"] in width and r["bid"] is not None and abs(r["strike"] / spot - 1) <= width[r["expiry"]]]
-                with conn.cursor() as cur:
-                    cur.executemany("""INSERT INTO optlab.skew_survey VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                                       ON CONFLICT (as_of, ticker, expiry, side, strike) DO UPDATE SET bid = EXCLUDED.bid, ask = EXCLUDED.ask,
-                                       mark = EXCLUDED.mark, iv = EXCLUDED.iv, delta = EXCLUDED.delta, oi = EXCLUDED.oi,
-                                       volume = EXCLUDED.volume, spot = EXCLUDED.spot""", batch)
-                conn.commit()
-                got += len(batch)
-    print(f"skew_survey: {got} quotes · {len(names)} names ({fails} failed) · expiries {', '.join(map(str, exps))}")
+        got, fails, retried = 0, 0, 0
+        # A386 (11-09): a busy app starves the batch lane → 60 s timeouts per name (11-09: 219 fails, 33 min). Failed names get
+        # one retry pass at the end; a 12 min budget stops the step from eating the morning chain (normal run ≈ 3.5 min).
+        t_end = time.time() + 12 * 60
+        failed: list = []
+
+        def results():
+            nonlocal retried
+            with ThreadPoolExecutor(4) as pool:
+                for job, d in pool.map(lambda j: (j, None) if time.time() > t_end else fetch(j), jobs):
+                    if d is None:
+                        failed.append(job)
+                    yield job, d
+            retried = len(failed)
+            with ThreadPoolExecutor(2) as pool:
+                for job, d in pool.map(lambda j: (j, None) if time.time() > t_end else fetch(j), list(failed)):
+                    yield job, d
+
+        width = {str(e): 0.12 if (e - today).days <= 14 else 0.25 for e in exps}
+        done: set = set()
+        for (t, _), d in results():
+            if d is None:
+                continue
+            done.add(t)
+            spot = d.get("spot") or spots[t]
+            batch = [(today, t, r["expiry"], r["side"], r["strike"], spot, r["bid"], r["ask"], r["mark"], r["iv"], r["delta"],
+                      r["oi"], r["volume"], None)
+                     for r in d["rows"] if r["expiry"] in width and r["bid"] is not None and abs(r["strike"] / spot - 1) <= width[r["expiry"]]]
+            with conn.cursor() as cur:
+                cur.executemany("""INSERT INTO optlab.skew_survey VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                   ON CONFLICT (as_of, ticker, expiry, side, strike) DO UPDATE SET bid = EXCLUDED.bid, ask = EXCLUDED.ask,
+                                   mark = EXCLUDED.mark, iv = EXCLUDED.iv, delta = EXCLUDED.delta, oi = EXCLUDED.oi,
+                                   volume = EXCLUDED.volume, spot = EXCLUDED.spot""", batch)
+            conn.commit()
+            got += len(batch)
+        fails = len(names) - len(done)
+    print(f"skew_survey: {got} quotes · {len(names)} names ({fails} failed, {retried} retried) · expiries {', '.join(map(str, exps))}")
 
 
 if __name__ == "__main__":
