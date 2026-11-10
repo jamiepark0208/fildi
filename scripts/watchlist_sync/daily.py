@@ -108,6 +108,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("geo risk + oil", SH, HERE, ["-c", f"{PY} geo_risk.py 2>&1 | tail -1"]),   # GPR index (Fed Board) + FRED WTI/Brent → macro_daily
         ("key themes snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-themes.ts 2>&1 | tail -1"]),
         ("dealer GEX log", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-gex-daily.ts 2>&1 | tail -3"]),
+        ("trade funnel shortlist", PY, HERE, ["trade_funnel.py", "shortlist"]),   # trade-funnel-plan step 3: all names cheap-priced → chain shortlist
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
         # 10-28: Live-tab regime checkpoints were never graded (table missing, no schedule) → grade the last 3 sessions daily.
         # 40-day backfill: bearish right 77 / wrong 121, bullish 117 / 108 — no edge yet; the grade table is how we'd know.
@@ -119,7 +120,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
         ("long-option paper ledger", PY, HERE, ["long_option_ledger.py"]),
         ("S171 paper calls", PY, HERE, ["s171_paper.py"]),   # A244 S171: loss-maker momentum ∧ cheap vol → 30 DTE 0.30Δ call at the ask, graded day 3 vs same-Δ stock
-        ("S172 bottom signal", PY, HERE, ["s172_paper.py"]),   # S172: VIX÷VIX3M un-invert → SPY/QQQ/IWM 0.50Δ calls (paper, to expiry) + SPY/QQQ 0.20Δ put signals
+        ("S172 bottom signal", PY, HERE, ["s172_paper.py"]),
+        ("trade funnel today", PY, HERE, ["trade_funnel.py", "today"]),   # one ranked Today list (put engine + board + every rule) → Live   # S172: VIX÷VIX3M un-invert → SPY/QQQ/IWM 0.50Δ calls (paper, to expiry) + SPY/QQQ 0.20Δ put signals
         ("S/R strike picker", PY, HERE, ["analysis/s088_sr_zones.py", "--if-due"]),   # S088: weekly refit (~5 min) → sold put/call picks + 1σ baseline → forecast_ledger   # A244 Part C: S081 frozen flags + any passing S083 arm → forecast_ledger sim_structure, graded at expiry (no product, forward track record only)
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)

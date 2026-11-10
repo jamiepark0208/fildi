@@ -297,6 +297,37 @@ router.get("/strategy-signals/active", requireAdmin, async (req, res, next) => {
 });
 
 /**
+ * Trade funnel step 3 (research/common/trade-funnel-plan.md, 11-09): one ranked Today list + the funnel stages behind it.
+ * GET /api/trade-funnel/today — written by scripts/watchlist_sync/trade_funnel.py (shortlist + today) in daily.py.
+ */
+router.get("/trade-funnel/today", requireAdmin, async (_req, res, next) => {
+  try {
+    const last = await safe<{ d: string | null }>(sql`
+      SELECT MAX(as_of)::text AS d FROM watchlist_sync.trade_funnel_daily WHERE stage = 'today'`);
+    const asOf = last[0]?.d ?? null;
+    if (!asOf) {
+      res.json({ asOf: null, regime: null, stages: [], items: [] });
+      return;
+    }
+    const stages = await safe<{ stage: string; kept: number; cut: number }>(sql`
+      SELECT stage, (COUNT(DISTINCT ticker) FILTER (WHERE kept))::int AS kept, (COUNT(DISTINCT ticker) FILTER (WHERE NOT kept))::int AS cut
+      FROM watchlist_sync.trade_funnel_daily
+      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.trade_funnel_daily WHERE stage = 'shortlist' AND as_of <= ${asOf}::date)
+        AND stage IN ('universe', 'shortlist')
+      GROUP BY stage`);
+    const reg = await safe<{ payload: Record<string, unknown> }>(sql`
+      SELECT payload FROM watchlist_sync.trade_funnel_daily WHERE stage = 'regime' AND as_of <= ${asOf}::date
+      ORDER BY as_of DESC LIMIT 1`);
+    const items = await safe<{ payload: Record<string, unknown> }>(sql`
+      SELECT payload FROM watchlist_sync.trade_funnel_daily WHERE stage = 'today' AND as_of = ${asOf}::date
+      ORDER BY (payload->>'rank')::int`);
+    res.json({ asOf, regime: reg[0]?.payload ?? null, stages, items: items.map((r) => r.payload) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * A189 — live strategy_signals for a Strategy Library id (e.g. panic-puts-hiv).
  * GET /api/strategies/:id/signals?days=30
  */

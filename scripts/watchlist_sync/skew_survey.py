@@ -49,9 +49,19 @@ def universe(conn, n: int) -> list[dict]:
     for r in rows(conn, """SELECT DISTINCT UPPER(ticker) ticker FROM watchlist_sync.plan_items
                            WHERE plan_id = (SELECT MAX(id) FROM watchlist_sync.plans) AND l1_pass"""):
         forced.append(r["ticker"])
-    for r in rows(conn, """SELECT ticker FROM watchlist_sync.put_edge_daily
-                           WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily) AND quintile >= 4"""):
-        forced.append(r["ticker"])
+    # Trade funnel (11-09, trade-funnel-plan step 3): every name priced cheaply first → chains only for its shortlist
+    # (top K per family, put-edge already in its short-put score). Was all put-edge Q4+ (~350 names/day). Fallback = old list.
+    from trade_funnel import chain_names
+    funnel = chain_names(conn)
+    if funnel:
+        forced += funnel
+        # forecast_ledger prices earnings skew from the day-before ladder → keep names reporting within 7 days
+        forced += [r["t"] for r in rows(conn, """SELECT DISTINCT UPPER(ticker) t FROM earnings_calendar
+                                                 WHERE report_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7""")]
+    else:
+        for r in rows(conn, """SELECT ticker FROM watchlist_sync.put_edge_daily
+                               WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily) AND quintile >= 4"""):
+            forced.append(r["ticker"])
     out: list[dict] = []
     seen: set[str] = set()
     for t in forced:
