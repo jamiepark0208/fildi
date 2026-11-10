@@ -1,96 +1,104 @@
-# Morning Market Brief — Monday, November 9, 2026 (Pre-Market)
+# Morning Market Brief — Tuesday, November 10, 2026 (Pre-Market)
 
-**Banner:** S&P fut ~7,448 +0.7% · Dow fut +1.0% · Nasdaq fut +0.5% · 10Y 4.87% · Brent ~$94.80 −3.6% · VIX 23.5 −8.3%
+**Banner:** S&P fut ~7,497 −0.7% · Dow fut ~52,390 flat · Nasdaq fut ~27,710 −1.1% · 10Y 4.94% · Brent $90.52 −2.2% · VIX 20.25
 
 ## What's moving
 
 | Name | Level | Day % |
-| S&P 500 futures | 7,448 | +0.71% |
-| Dow futures | 51,880 | +1.04% |
-| Nasdaq 100 futures | 27,225 | +0.67% |
-| Nikkei 225 | 58,776 | +2.33% |
-| Shanghai Composite | 3,661 | +0.32% |
-| DAX | 25,974 | +0.6% |
-| CAC 40 | 8,168 | +0.4% |
-| FTSE 100 | 10,721 | +0.4% |
-| 10Y Treasury | 4.87% | +1 bp |
-| 30Y Treasury | 5.26% | Fri close |
-| Brent crude | ~$94.80 | −3.6% |
-| WTI crude | ~$88.17 | −2.9% |
-| Gold | ~$4,122 | +1.2% |
-| Bitcoin | ~$74,800 | −1.5% |
-| VIX | 23.5 | −8.3% |
+| S&P 500 futures | ~7,497 | −0.7% |
+| Dow futures | ~52,390 | flat |
+| Nasdaq 100 futures | ~27,710 | −1.1% |
+| Russell 2000 futures | 2,846.40 | −0.08% |
+| Nikkei 225 | 60,459.58 | +2.87% |
+| Shanghai Composite | 3,663.72 | +0.1% |
+| STOXX 600 | ~662 | +0.9% early |
+| FTSE 100 | 10,824.71 | +0.39% |
+| DAX | 26,596.05 | +1.25% |
+| 10Y Treasury | 4.94% | +7.6 bp |
+| 2Y Treasury | 4.68% | +13 bp |
+| 30Y Treasury | 5.27% | +1.3 bp (7:24 ET) |
+| Brent crude | $90.52 | −2.2% |
+| WTI crude | $84.94 | −2.2% |
+| Gold | $4,080.10 | −0.8% |
+| Bitcoin | $73,600 | −1.5% |
+| VIX | 20.25 | +1.4% |
 
-What it means: bargain-hunting after the worst week since April 2025, funded by cheaper oil — not an AI all-clear. The Nasdaq lags the Dow because NVDA is −5% on its own headline, and bonds aren't confirming the rally, with the 10Y parked at 4.86% into tomorrow's CPI.
+What it means: Monday's rally was an oil-relief trade; today's tape is a rates trade. Hot core landed exactly on Waller's 0.3% trigger, so the December hike got repriced bigger — tech, the most rate-sensitive, leads the give-back while the Dow's value tilt holds flat. Oil still sliding says the relief is real; yields rising anyway says the Fed path matters more.
 
 ## Why it matters
 
-- The rebound is dip-buying into a wall, not a turn: the S&P fell 2.7% last week and CPI lands in about 24 hours, with the VIX still at 23.5.
-- NVDA −5% while the tape rises splits the story — index risk is down, single-name headline risk is up, and the AI complex is not out of the woods, it's just ex-NVDA today.
-- Oil is the real easing: −3.6% on de-escalation talk does more for CPI odds than any equity bounce, and it reverses just as fast if the Iran headlines flip.
-- Yields aren't confirming: the 10Y is flat at 4.86% with an ~80% December hike priced, so today's equity move has no rates cover behind it.
+- Hot core for a third straight month (+0.3%) against Waller's explicit 0.3% trigger locks in December and puts 50 bp on the table — the market went from pricing a hike to pricing its size.
+- Monday's rally is repriced, not reversed: the S&P gives back ~0.7% of a 2.35% gain — the move is rates-led (2Y +14 bp), while the oil relief that powered the rally is still intact underneath.
+- Yields refused the oil gift: the 10Y rose even as Brent slid under $91 — bonds are pricing the Fed, not the commodity, so equity premium has no rates cover behind it.
 
 ## What to watch today (ET)
 
-- **8:40 AM** — Fed Vice Chair for Supervision Bowman speaks
-- **10:00 AM** — September wholesale inventories
-- **11:00 AM** — NY Fed October consumer expectations survey (1-yr expectations 3.9% in September)
-- **1:00 PM** — 3-year Treasury auction, first of $122B in 3Y/10Y/30Y sales this week
-- **After close** — TTWO, OXY, RKLB, NRG report
-- **Tomorrow 8:30 AM** — October CPI (headline +0.3% m/m, core +0.2% m/m, core ~2.8% y/y expected); CRWV reports after the close; Fed's Bowman and Waller speak
-- **Friday** — October PPI (+0.4% expected vs +1.3% prior)
+- **8:30 AM** — October CPI (done: headline +0.4% m/m vs +0.3% expected; core +0.3% vs +0.2%; no year-over-year published)
+- **8:55 AM** — Redbook chain store sales
+- **9:35 AM** — Dallas Fed President Logan speaks
+- **10:00 AM** — JOLTS job openings (September)
+- **1:00 PM** — $42B 10-year Treasury auction
+- **1:30 PM** — Kansas City Fed President Schmid speaks
+- **3:30 PM** — Fed Vice Chair for Supervision Bowman speaks
+- **4:30 PM** — API crude inventories
+- **After close** — CRWV earnings (call 5:00 PM ET; revenue ~$3.54B expected; ~21.8% move priced), Petrobras, Rigetti, Firefly Aerospace; TransDigm and D-Wave reported before the open
+- **Tomorrow (Wed)** — Veterans Day: bond market closed, equities open, nothing on the economic calendar
+- **Thursday 8:30 AM** — Initial jobless claims, existing home sales; $25B 30-year auction; Fed speakers Hammack, Barr, Goolsbee, Daly, Schmid; Williams after the close
+- **Friday 8:30 AM** — October PPI
 
 ## Data
 
-- **October payrolls (Fri):** +165K actual vs +65K expected; unemployment 4.1% vs 4.2% expected. Hot jobs lifted hike odds — but futures were already up before the 5:30 AM print, so jobs did not cause the rally; they read as "no recession" instead.
-- **China October CPI:** +0.7% y/y actual vs +0.8% expected, prior +0.9%.
-- **China October PPI:** +5.7% y/y actual vs +5.3% expected — producer inflation beat on high oil prices while consumer inflation stayed subdued.
+- **October CPI headline m/m:** +0.4% actual vs +0.3% consensus vs +0.6% prior (September)
+- **October core CPI m/m:** +0.3% actual vs +0.2% consensus vs +0.3% prior — third straight month at +0.3%
+- **October CPI year-over-year:** not published — no October 2025 base (2025 shutdown stopped collection)
+- Shelter made up more than 30% of the monthly rise; food +0.5%.
+- **NFIB small business optimism (Oct):** 97.8 actual vs 97.9 prior
+- **China October trade balance:** +$105.3B actual vs +$127B consensus vs +$133.5B prior
 
 ## Single names
 
 | Name | Day % | Why |
-| NVDA | −4.9% | Board opened an independent probe into CEO Jensen Huang after reports he was targeted by a foreign intelligence effort — no short puts into an open-ended headline; a −5% gap is not a premium-selling signal. |
-| AMD | +4.0% | Oppenheimer upgraded to Outperform with a $600 target — a gap-up on an analyst call, not a setup to chase with short premium. |
-| GOOGL / AMZN / META / MSFT | +1% to +3% | Hyperscalers rebound after last week's flush; JPMorgan named AMZN and META to its analyst focus list — a bounce, not a trend change, and premium is still rich. |
-| UAL / DAL | +4.0% / +3.2% | Oil down ~3% lifts airlines — a headline-driven gap that reverses on one Iran headline, don't chase it. |
-| MSTR / COIN | −3.1% / −2.4% | Bitcoin under $75K, near its 200-day average — crypto-linked premium stays jumpy, size accordingly. |
-| CRWV | −3.5% | AI-cloud names still under pressure; reports Tuesday after the close, the same day as CPI — stay out of short-dated premium. |
-| CEG | +1.7% | Q3 adjusted EPS $5.06 vs $3.90 expected — a real beat holding its gap. |
-| KKR | +0.9% | Record quarterly profit, Q3 adjusted EPS $1.78 vs $1.58 expected — beats are holding, no chasing gaps. |
+| NVDA | +1.8% premarket | Rebounding after −4.3% Monday on the board probe into CEO Huang; risk seen as idiosyncratic — premium still headline-driven, no short puts until the probe's scope is known. |
+| CRWV | n/a (reports AMC) | Q3 after the close, call 5:00 PM ET; revenue ~$3.54B expected, options price a 21.8% move, stock −47% in a month — no short premium into the print, the move is binary and the debt debate makes the tail fat. |
+| SANM | +19.6% | Earnings beat — the gap is already in the price; no edge selling premium into a 20% spike. |
+| AAON | +18.1% | Earnings beat — same as SANM: let the gap settle before touching premium. |
+| TTWO | +4.3% | Earnings beat holding its gap — a beat that holds is one to watch, not to chase. |
+| NOVT / WGS / ETD | −11.8% / −10.6% / −10.4% | Earnings misses — falling knives; premium not worth the gap risk. |
 
-Flat/non-moving: TSLA ~flat (Cybertruck wind-down already priced; deposit refunds underway), BRK.B +0.4% (Q3 operating earnings down 6% y/y, buybacks stepped up), MU +1.3%.
+Flat/non-moving: RKLB −6.4%, ONON −5.5%, WIX −4.6% drifting lower on earnings; QQQ −1.1% premarket tracks the Nasdaq give-back.
 
 ## Politics
 
-- **President Trump (R)** said renewed strikes on Iran are "highly unlikely" if nuclear and Strait of Hormuz talks progress — that single comment is the oil move, and the airline move with it.
-- **Secretary of State Rubio (R)** is more cautious, calling Iran's demand unacceptable and downplaying progress — the relief trade can reverse on one headline from his side.
-- The AI industry is working with **Democrats (D)** to ease data-center permitting concerns — the permitting risk from the midterm sweep is being negotiated, not legislated away.
+- **President Trump (R)** said Monday the Iran war "militarily is effectively over," holding off new strikes to give diplomacy a chance — that comment is the oil move (Brent −5.9% Monday, −2.2% today) and the lift in European industrials with it.
+- Hardest-hit names are energy: Brent under $91 and WTI ~$85; the beneficiaries are airlines and energy-intensive industrials, with the STOXX 600 +0.9% early.
+- Fed Governor Waller pre-committed to a December hike and put 50 bp on the table if core printed 0.3% or higher — it printed exactly 0.3%, so the hawkish read is his own trigger firing, not a surprise.
 
 ## Desk flagged
 
-- **Positioning is washed out (FactSet StreetAccount overnight):** hedge funds sold tech at the fastest pace on record last week, and AI stocks were net sold for six straight sessions (Goldman) — a soft CPI print has room to run because the weak hands are already out.
-- **The hike debate, not a cut, is what CPI adjudicates:** the market prices ~80% odds of a December hike and 43 bp of hikes through the end of next year.
+- **Anthropic set its IPO range (FactSet StreetAccount overnight, Reuters filing):** 825M shares at $70–78, aiming to raise ~$69.3B — the AI complex's biggest capital event lands into a tape already repricing AI on rates, so watch for sentiment spillover into neocloud names around tonight's CRWV print.
 
 ## Implications
 
-- The NVDA probe is open-ended headline risk — no short puts on NVDA until the scope is known; single-name gaps like this are where put sellers get hurt.
-- VIX 23.5 and still backwardated — premium pays, but tails are live; wide strikes and 7+ DTE on anything new.
-- Oil-relief gaps (airlines +3–4%) are headline trades, not trends — don't chase them into a weekend's worth of Iran headlines.
-- Tuesday is an event stack, not a single event: CPI at 8:30 AM and CRWV after the close — keep Tuesday expiries clear.
+- The 8:30 shock is priced, not pending: CPI is now a known print — don't pay up for same-day hedges or chase 0DTE premium into a repricing tape.
+- December is now a hike, not a question (~100% for 25 bp, ~14% for 50 bp): the tail is the size of the hike, not whether — keep Friday expiries clear into PPI, which either confirms the hot print or walks it back.
+- CRWV tonight prices a 21.8% move with the neocloud debt debate unresolved — no short premium into the print; if you want the name, sell the aftermath, not the event.
+- VIX ~20 after Monday's 22% collapse: the easy premium from last week's rout is gone — premium is thinner and the tape is rates-driven, so be selective rather than broad.
 
 ## Context
 
-- **S&P 500:** −2.68% last week, its worst week since April 2025, and 5.7% below its October 6 record close of 7,818.93 — today's bounce recovers a fraction of the flush.
-- **10Y:** 4.86%, down 7 bp on the week and 42 bp over the past month.
-- **Brent:** −17% last week, its steepest weekly drop since the start of the pandemic — today's −3.6% extends the slide, it doesn't start it.
+- **S&P 500:** +2.35% Monday to 7,549.94 from Friday's 7,376.86, recovering most of last week's −2.68% slide — this morning's −0.7% gives back under a third of the gain, not the rally.
+- **10Y:** 4.94%, +8 bp from Monday's 4.86% settle — the hot print erased last week's rates relief in one morning.
+- **Brent:** −5.85% Monday to a $92.57 settle, −2.2% more today to $90.52 — below $90 intraday Monday for the first time since August, extending last week's −17% slide.
 
 Systems: Mac online, gateway connected — fildi API/scheduler not probeable from device commands, unverified
 
 ## Sources
 
-- Futures, NVDA probe, oil, movers: https://www.kitco.com/news/off-the-wire/2026-11-09/wall-st-futures-rally-bargain-hunting-nvidia-clouds-outlook · https://worldmoneyroadmap.com/en/reports/2026-11-09-preopen/ · https://upstox.com/news/market-news/us-stocks/dow-jones-s-and-p-500-nasdaq-futures-hint-positive-open-on-nov-9-nvidia-amd-other-us-stocks-to-watch-today/article-203235/
-- Yields, gold, bitcoin, VIX, oil: https://www.samuelandcotrading.com/us-open-market-brief-9-november-2026-everyone-but-nvidia/ · https://swingfolio.com/daily/us/2026-11-09/morning · https://investinglive.com/technical-analysis/morning-kickstart-stock-futures-climb-as-bitcoin-nears-its-200-day-moving-average-usd-is-lower/ · https://www.home.saxo/en-gb/content/articles/options/the-spike-settles-the-curve-stays-inverted---options-brief---9-november-2026-09112026
-- Asia/Europe: https://squawknews.com/brief/livecast/2026-11-09 · https://journalarta.com/en/2026/11/09/ihsg-close-jakarta-composite-gains-0-31-to-5066-07-as-lq45-rises-0-69/ · https://www.binance.com/en/square/post/11-09-2026-asia-market-close-taiex-rises-4-94-to-end-seven-day-losing-streak-nikkei-gains-2-33-as-kospi-slips-386344294842568 · https://nordfx.com/market-news/market-pulse-november-09-2026
-- Movers, earnings: https://summamoney.com/investing/the-daily/todays-market-movers-nvidia-board-probes-ceo-huang-report-while-amd-amazon-and-meta-gain-premarket/ · https://stockmarketwatch.com/movers/premarket?gclid=CJTm26b-_bwCFQ2hOgodgXgAbA&google=1 · https://www.kucoin.com/news/flash/u-s-pre-market-tech-stocks-split-optical-communication-and-cloud-computing-sectors-decline
-- Desk: Gmail label tradedash-brief, Nov 9 — FactSet StreetAccount Summary, U.S. Overnight (S&P futures +47.3 / +0.64% as of 6:55 ET)
-- Prior brief: commentary/2026-11-06-pm.md (this repo)
+- CPI actuals, market reaction, yields: https://www.coindesk.com/markets/2026/11/10/u-s-cpi-rose-stronger-than-expected-0-4-in-october-core-rate-rose-0-3 · https://www.reuters.com/business/view-hot-october-inflation-report-rattles-markets-2026-11-10/ · https://www.investors.com/market-trend/stock-market-today/dow-jones-sp500-nasdaq-cpi-inflation-report-anthropic-ipo/ · https://www.investopedia.com/5-things-to-know-stock-market-november-10-2026-12244529 · https://www.thefinancialeconomy.com/us-cpi-october/
+- Futures, gold, bitcoin, VIX pre-print: https://thetradesignal.com/brief/2026-11-10/premarket · https://www.tipranks.com/news/stock-market-today-nov-10-markets-await-the-consumer-inflation-report · https://www.regardsofwallstreet.com/premarket
+- Asia/Europe, oil driver: https://www.morningstar.com/news/dow-jones/202611105056/global-stocks-strengthen-as-oil-dips-below-90-a-barrel-update · https://gmg-wjxt-prod.cdn.arcpublishing.com/business/2026/11/10/asian-stocks-rise-after-technology-shares-advance-on-wall-street/ · https://my-passive-income.eu/markets-before-the-open-november-10-2026/
+- Calendar, Waller, speakers, auctions: https://nowflation.com/calendar · https://ivanlabrie.substack.com/p/monday-brief-november-9-to-november · https://www.tradingnerve.com/en/market/us-cpi-wall-street-rebound-2026-11-10
+- Earnings, CRWV: https://aistockwire.com/blog/coreweave-crwv-softbank-nebius-nbis-amat-csco-earnings-week-november-2026 · https://medium.com/@support_86523/coreweave-q3-2026-earnings-a-21-8-priced-move-104b-backlog-275a41dc3216 · https://tradersunion.com/news/stocks/show/4170964-us-stocks-earnings-fed-auction/
+- Premarket movers, NVDA: https://quantpartners.substack.com/p/morning-note-111026-ryan-day-joins · https://www.kucoin.com/news/flash/u-s-stock-futures-mixed-ahead-of-cpi-data-fed-official-signals-potential-50-basis-point-hike
+- Desk: Gmail label tradedash-brief, Nov 10 — Bloomberg breaking news (CPI, 05:36 PT); FactSet StreetAccount Summary, U.S. Overnight (7 AM ET snapshot: FTSE +0.39% to 10,824.71; DAX +1.25% to 26,596.05; Nikkei +2.87% to 60,459.58; WTI −1.40% to $85.63; gold −0.84% to $4,080.10; Anthropic IPO 825M shares $70–78, ~$69.3B raise)
+- Prior brief: commentary/2026-11-09-am.md (this repo)
