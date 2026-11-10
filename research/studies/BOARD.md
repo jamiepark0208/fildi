@@ -22,6 +22,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 | Idea | Why | Study | Kind | Re-check |
 |---|---|---|---|---|
 | Long calls after a single-name crash (the sold-put 'low' entry) | −9.0 % vs +10.8 % any day, both eras; you pay the rich IV that pays the put seller. The low that carries = market panic → bull call spreads (+19 % vs +1.6 %, t 2.1); buy calls when IV pctile is low | S177 | no-transfer | new data on real chains |
+| Longer-dated / different-strike calls, profit-take/stop exits, low-IV long calls (strike × DTE 30–240 × exit grid on a real-quote surface, 917 names) | 240 DTE calls lose on all days (−5…−6 % / $, both eras) once long-dated IV is priced right (it sits above iv30 at low IV and moves only 0.2–0.45× iv30); best all-day config = 60 DTE 0.50–0.70Δ to expiry (+14 %) but era 1 ≈ 0 and < same-Δ stock; TP 2× / −50 % stop worse in every set; low IV pctile lift depends on the IV model (−1 / +8 %) → not a rule. First-pass '+38 % low-IV LEAPS' was a pricing artifact | S178 | framing fixed → no-lift | real long-dated call history (LSEG Workspace RICs) |
 | Growth bonus on call picks (revenue accel, beat streak, FY1→FY2, SUE) added to S100 | 0/8 add to S100 (+69.6 % holdout); beat streak / surprise hurt (t −2.4 / −2.0); revenue accel works only post-2024; winners = theme names, not growth ranks | S174 | no-lift | theme-momentum rule tested, or 2027-05 |
 | Per-stock RSI cutoffs | 3–12 events per name; shrunk per-stock −0.23 pp [−1.33, +0.90] h5, −0.96 h10 vs global 25 out of sample (A378 centering fixed) | S160 | dead | if event count per name ≥ 30 |
 | Intraday indicator signals (stock or options) | gross lift < spread; 0/144, 0/60, 1/221 | S152 · S155 · S156 · A362 | cost | cost |
@@ -43,6 +44,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 | Tech score totals | predict nothing | S004 | no-lift | 2027-02-07 |
 
 ## Testing / queued
+- S178 panic risk reversal on names (sell 0.25Δ put + buy 0.50Δ call, 30 DTE, VIX÷VIX3M ≥ 1): +5.9–6.1 % / $ strike vs short put alone +2.2–2.4, both eras, t 2.6, 11/15 panic Mondays; the 4 losers = early panic weeks → pair with the S172 un-invert timing; call ≈ same-Δ stock (leverage, not option edge). UNDERPOWERED — 15 episodes
 - A370 indicators as put-timing filters in the seller's universe (smoke 11-07: top-IV names, SuperTrend bear / below 200d / 5d drop → +1.8–2.5 vol pts IV−RV, t 4–9; RSI>70 and high-volume days −4.4; works when SPY > 200d, fades in broad sell-offs)
 - S159 → short puts on index-oversold days, real chains (A359 engine)
 - A365 event-stack guard (vol backwardation + earnings) vs S159 conflict
