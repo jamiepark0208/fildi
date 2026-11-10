@@ -149,7 +149,10 @@ def shortlist(conn, dry: bool, d0: date | None = None):
         m50 = sum(cl[-50:]) / 50
         s50 = (sum((x - m50) ** 2 for x in cl[-50:]) / 50) ** 0.5 or 1
         ret20, off_hi, z50 = S / cl[-21] - 1, S / max(cl[-252:]) - 1, (S - m50) / s50
-        call_edge[t] = (1 - ivp) - 0.5 * (ret20 <= -0.15) - 0.3 * (off_hi >= -0.02) - 0.2 * (z50 >= 1.44)
+        # S179 (11-09): ramps, not steps — pnl is a gradient across each cut (ret20 −16 % ≈ −14 %); same top-fifth within noise
+        ramp = lambda x: min(max(x, 0.0), 1.0)
+        call_edge[t] = ((1 - ivp) - 0.5 * ramp((-0.10 - ret20) / 0.20) - 0.3 * ramp((off_hi + 0.05) / 0.05)
+                        - 0.2 * ramp((z50 - 1.0) / 0.9))
         call_terms[t] = {"ivp": round(ivp, 2), "ret20": round(ret20, 3), "off_hi": round(off_hi, 3), "z50": round(z50, 2)}
         lr = [math.log(cl[i] / cl[i - 1]) for i in range(len(cl) - 20, len(cl))]
         rv = (sum(x * x for x in lr) / len(lr) - (sum(lr) / len(lr)) ** 2) ** 0.5 * math.sqrt(252)
