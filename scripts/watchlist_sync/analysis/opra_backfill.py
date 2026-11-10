@@ -555,6 +555,11 @@ def main() -> None:
     ap.add_argument("--limit-contracts", type=int, default=0)
     args = ap.parse_args()
 
+    lock = Path.home() / ".fildi/locks/lse.lock"   # S185 skew fetch holds it; one LSE job at a time
+    if not args.probe and lock.exists() and time.time() - lock.stat().st_mtime < 3600:
+        print(f"skip: {lock} held (another LSE job running)", flush=True)
+        return
+
     with connect() as conn:
         ensure_schema(conn)
         if args.probe:

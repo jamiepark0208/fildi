@@ -347,23 +347,26 @@ def export_options_csv(
     date_from: date,
     date_to: date,
     timeframe: str = "1d",
+    data: str = "candles",
 ) -> tuple[int, str]:
-    """GET /v3/export for us_options. Returns (http_status, csv_text or error body)."""
-    q = urllib.parse.urlencode(
-        {
-            "market": "us_options",
-            "symbol": occ,
-            "timeframe": timeframe,
-            "from": date_from.isoformat(),
-            "to": date_to.isoformat(),
-            "format": "csv",
-        }
-    )
+    """GET /v3/export for us_options. Returns (http_status, csv_text or error body).
+    data='greeks' → daily near-close quote-mid IV/delta/spot per contract (expired contracts too; S185)."""
+    params = {
+        "market": "us_options",
+        "symbol": occ,
+        "timeframe": timeframe,
+        "from": date_from.isoformat(),
+        "to": date_to.isoformat(),
+        "format": "csv",
+    }
+    if data != "candles":
+        params["data"] = data
+    q = urllib.parse.urlencode(params)
     path = f"export?{q}"
-    vkey = f"{occ}|{date_from}|{date_to}"
+    vkey = f"{occ}|{date_from}|{date_to}" + ("" if data == "candles" else f"|{data}")
     status, body, _ = _request(conn, f"{BASE}/{path}", endpoint="export", vkey=vkey)
     text = body.decode("utf-8", errors="replace")
-    if status == 200 and '"time"' in text.lstrip()[:40].lower():
+    if status == 200 and text.lstrip()[:40].lower().lstrip("\"").startswith("time"):
         _save_vendor_csv(conn, "export", vkey, text)
     return status, text
 
