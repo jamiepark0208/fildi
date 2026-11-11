@@ -16,6 +16,7 @@ import {
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 import { computeChartZones, pfNum, type DbTechnicalLevels } from "@/lib/chart-levels";
+import { daysTo, probabilityCone, putStrikeOdds } from "@/lib/prob-cone";
 import { detectBos, detectFvg, detectSupplyDemand, detectSweeps } from "@/lib/ict-detectors";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -222,6 +223,10 @@ interface LWSeriesSpec {
   color: string;
   scaleId: "left" | "right";
   data: LWPoint[];
+  /** Solid line (forward cone) instead of the default dash. */
+  solid?: boolean;
+  /** Let this line widen the Y scale (1σ cone); default off so bands never squash candles. */
+  autoscale?: boolean;
 }
 
 interface LWMarker {
@@ -698,13 +703,13 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
         s = chart.addSeries(LineSeries, {
           color: spec.color,
           lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
+          lineStyle: spec.solid ? LineStyle.Solid : LineStyle.Dashed,
           lastValueVisible: false,
           priceLineVisible: false,
           crosshairMarkerVisible: false,
           priceScaleId: "left",
           // Don't let EM bands expand the Y scale.
-          autoscaleInfoProvider: () => ({ priceRange: null }),
+          ...(spec.autoscale ? {} : { autoscaleInfoProvider: () => ({ priceRange: null }) }),
         });
         overlayMapRef.current.set(spec.ticker, s);
       }
@@ -946,6 +951,18 @@ export function PriceChart({
     refetchOnWindowFocus: false,
   });
 
+  /** Engine / Model List candidate puts for this name (same query key as Breakdown's EdgesStrip). */
+  const edgesQuery = useQuery({
+    queryKey: ["stock-edges", techTicker],
+    queryFn: async (): Promise<{ edges: { side: string; status: string; rule: string; strike: number | null; expiry: string | null }[] }> => {
+      const r = await fetch(`/api/stocks/${encodeURIComponent(techTicker!)}/edges`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    enabled: !!techTicker && tickers.length === 1 && showTechnicalZones,
+    staleTime: 5 * 60_000,
+  });
+
   const isLoading = queries.some(q => q.isLoading);
   const isError = queries.some(q => q.isError);
 
@@ -1087,17 +1104,80 @@ export function PriceChart({
     };
   }, [showTechnicalZones, tickers, historyByTicker, technicalsQuery.data]);
 
-  const shortStrikeLines = useMemo((): LWPriceLine[] => {
-    if (!techTicker || !shortPutsQuery.data?.positions) return [];
-    return shortPutsQuery.data.positions
-      .filter(p => p.ticker.toUpperCase() === techTicker)
-      .map(p => ({
-        price: p.strike,
-        color: "#d4af37",
-        title: `${p.strike}P ${p.expiry.slice(5)}`,
-        dashed: false,
-      }));
-  }, [techTicker, shortPutsQuery.data]);
+  /** Annualised ATM IV (fraction) — cone width and strike odds (north-star #5). */
+  const ivAnnual = useMemo((): number | null => {
+    const tech = technicalsQuery.data;
+    const ivPct = pfNum(tech?.atmPutIv);
+    if (ivPct != null && ivPct > 0) return ivPct / 100;
+    const wk = pfNum(tech?.impliedMoveWeekly);
+    return wk != null && wk > 0 ? wk / Math.sqrt(7 / 365) : null;
+  }, [technicalsQuery.data]);
+
+  const lastBar = tickers.length === 1 ? (historyByTicker[tickers[0]] ?? []).at(-1) ?? null : null;
+  const spotNow = lastBar?.close ?? null;
+
+  const myPuts = useMemo(
+    () => (techTicker ? (shortPutsQuery.data?.positions ?? []).filter(p => p.ticker.toUpperCase() === techTicker) : []),
+    [techTicker, shortPutsQuery.data],
+  );
+  const candidatePuts = useMemo(() => {
+    const seen = new Set(myPuts.map(p => `${p.strike}|${p.expiry.slice(0, 10)}`));
+    const out: { strike: number; expiry: string; rule: string }[] = [];
+    for (const e of edgesQuery.data?.edges ?? []) {
+      if (e.side !== "sell put" || e.status === "gated" || e.strike == null || !e.expiry) continue;
+      const k = `${e.strike}|${e.expiry.slice(0, 10)}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ strike: e.strike, expiry: e.expiry.slice(0, 10), rule: e.rule });
+    }
+    return out.slice(0, 3);
+  }, [edgesQuery.data, myPuts]);
+
+  /** "1.4σ · 9% ITM" for a put strike, from today's ATM IV. */
+  const oddsLabel = useCallback((strike: number, expiry: string): string => {
+    if (spotNow == null || ivAnnual == null) return "";
+    const o = putStrikeOdds(spotNow, strike, ivAnnual, daysTo(expiry));
+    if (!o) return "";
+    return ` · ${o.sigmas.toFixed(1)}σ · ${Math.round(o.pBelow * 100)}% ITM`;
+  }, [spotNow, ivAnnual]);
+
+  const shortStrikeLines = useMemo((): LWPriceLine[] => [
+    ...myPuts.map(p => ({
+      price: p.strike,
+      color: "#d4af37",
+      title: `${p.strike}P ${p.expiry.slice(5)}${oddsLabel(p.strike, p.expiry)}`,
+      dashed: false,
+    })),
+    ...candidatePuts.map(c => ({
+      price: c.strike,
+      color: "#2dd4bf",
+      title: `idea ${c.strike}P ${c.expiry.slice(5)}${oddsLabel(c.strike, c.expiry)}`,
+      dashed: true,
+    })),
+  ], [myPuts, candidatePuts, oddsLabel]);
+
+  /**
+   * North-star #5 — forward ±1σ / ±2σ cone from the last daily bar out to the farthest put expiry
+   * (min 30 d, max 120 d). Lognormal from today's ATM IV; daily bars only (intraday scale would distort it).
+   */
+  const probCone = useMemo((): LWSeriesSpec[] | null => {
+    if (!showTechnicalZones || activeBar !== "1d" || !lastBar || ivAnnual == null) return null;
+    const far = Math.max(30, ...[...myPuts, ...candidatePuts].map(p => Math.ceil(daysTo(p.expiry))).filter(Number.isFinite));
+    const c = probabilityCone(lastBar.close, ivAnnual, toUnixTime(lastBar.date), Math.min(120, far));
+    if (!c) return null;
+    const pts = (a: { time: number; value: number }[]): LWPoint[] => a.map(p => ({ time: p.time as UTCTimestamp, value: p.value }));
+    return [
+      { ticker: "_cone1+", color: "rgba(250,204,21,0.75)", scaleId: "left", data: pts(c.up1), solid: true, autoscale: true },
+      { ticker: "_cone1-", color: "rgba(250,204,21,0.75)", scaleId: "left", data: pts(c.dn1), solid: true, autoscale: true },
+      { ticker: "_cone2+", color: "rgba(250,204,21,0.35)", scaleId: "left", data: pts(c.up2), solid: true },
+      { ticker: "_cone2-", color: "rgba(250,204,21,0.35)", scaleId: "left", data: pts(c.dn2), solid: true },
+    ];
+  }, [showTechnicalZones, activeBar, lastBar, ivAnnual, myPuts, candidatePuts]);
+
+  const emOverlays = useMemo(
+    () => (showEm ? [...(ivBand?.overlays ?? []), ...(probCone ?? [])] : undefined),
+    [showEm, ivBand, probCone],
+  );
 
   const sessionFlowLines = useMemo((): LWPriceLine[] => {
     if (!showSessionFlow || !sessionFlowQuery.data) return [];
@@ -1580,7 +1660,14 @@ export function PriceChart({
               <LegendItem
                 swatch={<span className="w-2.5 h-0.5 bg-[#d4af37]" />}
                 label="Your short put"
-                explanation="Open short-put strikes from your book — compare them to the IV band."
+                explanation="Open short-put strikes from your book. Label: distance in σ (today's ATM IV, to that expiry) and odds of closing below the strike at expiry; touch odds ≈ 2×. Teal dashed = engine / Model List candidate put."
+              />
+            )}
+            {showEm && probCone && (
+              <LegendItem
+                swatch={<span className="w-2.5 h-0.5 bg-yellow-400" />}
+                label="Probability cone"
+                explanation="Forward range from today's close: bright = ±1σ (~68 % of outcomes), faint = ±2σ (~95 %). Lognormal from ATM IV, no drift; out to the farthest put expiry (30–120 days). Options-implied, not a forecast."
               />
             )}
             {ohlcv.volumes && (
@@ -1631,7 +1718,7 @@ export function PriceChart({
             emaSeries={emaSeries}
             markers={tickers.length === 1 ? allMarkers : undefined}
             priceLines={tickers.length === 1 && showTechnicalZones ? allPriceLines : undefined}
-            overlays={tickers.length === 1 && showTechnicalZones && showEm ? ivBand?.overlays : undefined}
+            overlays={tickers.length === 1 && showTechnicalZones ? emOverlays : undefined}
             candles={ohlcv.candles}
             volumes={ohlcv.volumes}
             vwap={ohlcv.vwap}
