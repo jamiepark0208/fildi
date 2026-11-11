@@ -130,6 +130,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("daily reflection", PY, HERE, ["analysis/daily_reflection.py"]),   # S014: wrong / missed / trader / score IC (report only)
         ("monthly re-test", PY, HERE, ["monthly.py"]),   # no-op unless ≥ 28 days old: lab + gates + win-rate rebuild (~3 min), one summary
         ("learning cycle", PY, HERE, ["learn.py", "propose"]),   # idempotent: only proposes when the evidence moved
+        ("options flow", SH, HERE, ["-c", f"{PY} options_flow.py --max-minutes 40 2>&1 | tail -1"]),   # A396: LSE OPRA prints ≥ $25k → options_flow_* (Breakdown + Feed; display only; soft, last so nothing waits on it)
     ],
 }
 ORDER = list(STAGES)

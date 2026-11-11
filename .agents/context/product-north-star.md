@@ -18,7 +18,7 @@
 | # | Feature | Who sells it | Fildi today | Value for a premium seller | Data we already have | Priority |
 |---|---|---|---|---|---|---|
 | 1 | **Roll / defend analyzer** for open short puts: roll down/out credit, new break-even, P(touch) before vs after, assignment-adjusted basis if taken | OptionStrat, tastytrade, wheel trackers | put_manage = take/re-sell/hold only; no roll candidates | The crash pain: what to do with a losing put | Schwab chains, open positions, put engine | **P1** |
-| 2 | **Unusual options activity / flow** (block / sweep, vol ≫ OI, premium $) per name + market | Unusual Whales, Barchart, Cheddar Flow | none (0 code hits) | Confirms or warns before selling into a name | LSE OPRA trades since 10/2025 (paid for, mostly unused) | **P1** |
+| 2 | **Unusual options activity / flow** (block / sweep, vol ≫ OI, premium $) per name + market | Unusual Whales, Barchart, Cheddar Flow | **have** (A396 11-10): Breakdown + Feed › Options flow, prints ≥ $25k, × own median, blocks, bursts, vol/OI; side unknown (no bid/ask) | Confirms or warns before selling into a name | LSE OPRA trades since 10/2025 (paid for, mostly unused) | **P1** |
 | 3 | **Earnings move history**: implied vs realized move per past quarter, IV crush, post-ER drift | Market Chameleon, ORATS | earnings-history-section (EPS); implied move only on the chart | ~45 % of missed trades are earnings (eod_audit) | earnings dates, daily bars, iv30 history | P2 |
 | 4 | **Trade journal + grade** (Jamie 11-10: wants it, needs a UI home → A393 building): every fill auto-imported, tagged by setup, P&L vs what Fildi said that day | TraderSync, Tradervue, Edgewonk | rec_scoreboard.py (CLI only) | Learns Jamie's real edge (RGTI/ONDS wins) | portfolio_orders, put_recs_daily | P2 |
 | 5 | **Probability cone + expected-move bands** on the price chart, strike markers for open/candidate puts | thinkorswim, tastytrade | expected move lines only | See distance to strike in σ at a glance | iv30, chains | P2 |
@@ -32,4 +32,4 @@
 - **tastytrade:** account unfunded → data may be poor. 11-10: IV percentile vs LSEG corr 0.70, 11 % of names off > 30 pts → removed from the IV-rank resolver (iv_rank.py, FILDI_TASTY_IVRANK=1 to re-enable) and the API reader. Liquidity rating still display-only — don't build on it.
 
 ## Build order
-Building 11-10: #1 (A392), #4 (A393), #6 (A394). Then #2 → #3 → #5. One row per session, end to end (API + UI + Playwright check + scoreboard/eval line). Each row's spec lives in its ASKS file; this table keeps the status.
+Built 11-10: #1 (A392), #4 (A393), #6 (A394), #2 (A396). Next #3 → #5. One row per session, end to end (API + UI + Playwright check + scoreboard/eval line). Each row's spec lives in its ASKS file; this table keeps the status.

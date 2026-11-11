@@ -46,6 +46,7 @@ import { DataTip } from "./data-tip";
 import { ShortInterestPanel, ShortInterestHeaderStats } from "./breakdown/short-interest-panel";
 import { InsiderPanel, InsiderHeaderStats } from "./breakdown/insider-panel";
 import { CongressSection, CongressHeaderStats } from "./breakdown/congress-section";
+import { OptionsFlowSection, OptionsFlowHeaderStats } from "./breakdown/options-flow-section";
 import { EventsPanel } from "./breakdown/events-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
@@ -772,6 +773,15 @@ export function StockBreakdown({
                       action={activeTicker ? <InsiderHeaderStats ticker={activeTicker} /> : undefined}
                     >
                       {activeTicker ? <InsiderPanel ticker={activeTicker} /> : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel
+                      title="Options flow"
+                      empty="No option prints ≥ $25k."
+                      scrollMax="max-h-[420px]"
+                      action={activeTicker ? <OptionsFlowHeaderStats ticker={activeTicker} /> : undefined}
+                    >
+                      {activeTicker ? <OptionsFlowSection ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
                     <BreakdownPanel

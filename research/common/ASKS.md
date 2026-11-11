@@ -114,3 +114,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A393](asks/A393.md) | 2026-11-10 | Claude → Claude | Trade journal: every fill + what Fildi said that day, graded (north-star #4) | done |
 | [A394](asks/A394.md) | 2026-11-10 | Claude → Claude | Congress trades (Senate + House) per stock + latest feed (north-star #6) | done |
 | [A395](asks/A395.md) | 2026-11-10 | Claude → Claude | Congress trades history from official House Clerk PTRs + Senate eFD (A394 follow-up) | planned |
+| [A396](asks/A396.md) | 2026-11-10 | Claude → Claude | Unusual options activity per name + market from LSE OPRA prints (north-star #2) | done |

@@ -9,6 +9,7 @@ import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
 import { apiFeed } from "@/lib/feed-api"
 import { CongressFeedPanel } from "@/components/congress-feed-panel"
+import { OptionsFlowFeedPanel } from "@/components/options-flow-feed-panel"
 
 // ── API ────────────────────────────────────────────────────────────────────────
 
@@ -317,6 +318,7 @@ export default function Feed() {
               </div>
             </div>
 
+            <OptionsFlowFeedPanel className="lg:hidden" />
             <CongressFeedPanel className="lg:hidden" />
 
             {/* Post list */}
@@ -358,6 +360,7 @@ export default function Feed() {
           {/* Right panel — top performers (desktop only) */}
           <div className="hidden lg:block w-[280px] shrink-0 space-y-3 sticky top-6 self-start">
             <TopPerformers posts={topPosts} />
+            <OptionsFlowFeedPanel />
             <CongressFeedPanel />
           </div>
 
