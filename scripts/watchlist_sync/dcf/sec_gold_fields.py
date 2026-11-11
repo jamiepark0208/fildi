@@ -26,6 +26,9 @@ INTANG_EX_GW = ["IntangibleAssetsNetExcludingGoodwill"]
 INTANG_PARTS = ["FiniteLivedIntangibleAssetsNet", "IndefiniteLivedIntangibleAssetsExcludingGoodwill"]
 
 
+MAX_PERIOD_AGE_D = 400   # FY filers: newest 10-K/20-F period ≤ ~13 months old
+
+
 def _at(facts: dict, concept: str, end: str) -> tuple[bool, float | None]:
     """(tag ever reported, value at exactly `end`). Never tagged → (False, None) = legitimately 0."""
     vals = [u for u in F._units(facts, concept) if not u.get("start")]
@@ -279,10 +282,46 @@ def _filing_assets_override(conn, t: str, facts: dict | None, out: list[dict]) -
     return out
 
 
+def _augment_lagging(conn, t: str, facts: dict | None) -> dict | None:
+    """11-11 #53: companyfacts lags the newest filing by > 45 d (52 filers: C/DUK/PLD Q3 10-Q, TSM FY25 20-F) →
+    merge that filing's inline-XBRL facts in, so NI / revenue / OCF TTM, margins and ROA are as of the same report as
+    everyone else's, not whatever date SEC's API reached. One EDGAR call; the parsed facts only live in memory."""
+    import sec_ixbrl
+    from sec_staleness import newest_fact_end, newest_report
+    if not facts:
+        return facts
+    sub = rows(conn, """SELECT payload FROM vendor_raw WHERE source = 'sec' AND endpoint = 'submissions' AND key = %s
+                        ORDER BY fetched_on DESC LIMIT 1""", (t,))
+    rep = newest_report(sub[0]["payload"]) if sub else None
+    fe = newest_fact_end(facts)
+    if not rep or (fe and (date.fromisoformat(rep[2]) - date.fromisoformat(fe)).days <= 45):
+        return facts
+    try:
+        got = sec_ixbrl.newest_filing(conn, t)
+        parsed = sec_ixbrl.parse_facts(got[0]) if got else []
+    except Exception as e:  # noqa: BLE001
+        print(t, "ixbrl error", str(e)[:80], file=sys.stderr)
+        return facts
+    if not parsed or not fe or max(f["end"] for f in parsed) <= fe:
+        return facts
+    import copy
+    aug = copy.deepcopy(facts)
+    n = sec_ixbrl.augment(aug, parsed, got[1])
+    print(t, f"ixbrl +{n} facts from {got[1]['form']} {got[1]['filed']}", file=sys.stderr)
+    return aug
+
+
 def fields_for_ticker(conn, ticker: str) -> list[dict]:
     t = ticker.upper()
-    facts0 = _load_facts(conn, t)
-    return _filing_assets_override(conn, t, facts0, _fields_for_ticker(conn, t, facts0))
+    raw = _load_facts(conn, t)
+    facts0 = _augment_lagging(conn, t, raw)
+    out = _fields_for_ticker(conn, t, facts0)
+    if facts0 is not raw:   # a field the filing can't complete (DUK: 9M diluted EPS untagged) keeps its older dated value
+        have = {r["field"] for r in out}
+        out += [r for r in _fields_for_ticker(conn, t, raw) if r["field"] not in have]
+    if any(r["field"] == "totalAssets" for r in out):
+        return out
+    return _filing_assets_override(conn, t, facts0, out)   # fallback: Assets only (non-us-gaap filers)
 
 
 def _fields_for_ticker(conn, ticker: str, facts: dict | None) -> list[dict]:
@@ -322,6 +361,8 @@ def _fields_for_ticker(conn, ticker: str, facts: dict | None) -> list[dict]:
             return
         filed = str(meta.get("filed") or meta.get("end") or asof)[:10]
         period_end = str(meta.get("end") or filed)[:10]
+        if field != "sharesOutstandingPrior" and F._days(period_end, date.today().isoformat()) > MAX_PERIOD_AGE_D:
+            return   # 11-11 #53: a tag the filer stopped using (PBR NI 2010, TM 2013, DTE revenue 2018) is not today's number
         out.append({"field": field, "value": float(value), "filed": filed, "period_end": period_end})
 
     if ocf and capex:
@@ -461,6 +502,8 @@ def main() -> None:
             produced = {r["field"] for r in rows_out if r.get("source", "sec") == "sec"}
             gone = [f for f in SEC_OWNED_FIELDS if f not in produced]
             conn.execute("DELETE FROM source_fundamentals WHERE ticker = %s AND source = 'sec' AND field = ANY(%s)", (t.upper(), gone))
+            conn.execute("""DELETE FROM source_fundamentals WHERE ticker = %s AND source = 'sec' AND field <> 'sharesOutstandingPrior'
+                            AND fetched_at < now() - make_interval(days => %s)""", (t.upper(), MAX_PERIOD_AGE_D))
             if not any(r.get("source") == "sec_local" for r in rows_out):
                 conn.execute("DELETE FROM source_fundamentals WHERE ticker = %s AND source = 'sec_local'", (t.upper(),))
             n = upsert_rows(conn, t, rows_out)
