@@ -14,7 +14,7 @@ Caveman (AGENTS.md rule 9). Don't echo code or commands you just ran. 1–2 plai
 4. Open ASKS rows **to Claude**, plus statuses `needs Claude` / `sign-off still open`.
 5. Review loop (AGENTS.md § Review loop): (a) plan-review **every** open Muse row (`[quant]` also gets the eval) → `**Claude plan <date>:**` in `asks/A##.md` § Reviews, status `planned`; (b) `git log <Last reviewed SHA in state.md>..HEAD` → review quant diffs (`Refs: A##`) **before** reading Muse's review → `**Claude review <sha>:**`, update the SHA.
 6. **Scoreboard first (Jamie 11-10):** digest 5d = Jamie's puts vs engine vs Model List. Engine trails Jamie, a producer gap, or ungraded recs → fix that before any new study. Full: `scripts/rec_scoreboard.py`.
-**Study preflight (11-10):** before running, write the regime def + expected sign per regime cell and count trades per cell. Under 30 → don't run or report it; say "can't answer at this n" and what n would take.
+**Study preflight (11-10):** inline studies follow `.agents/dispatch/_study-contract.md` (esp. 12 regime · 13 entry candle · 14 probabilistic + literature). Before running, write the regime def + expected sign per regime cell and count trades per cell. Under 30 → don't run or report it; say "can't answer at this n" and what n would take.
 **Report rule (11-10):** first line of any result = "Goal moved: yes/no" + the number (scoreboard or bp/$). Nothing found → say so first; never call a by-product a finding.
 **Never implement Muse rows** (Cursor owns them). Build/restart on the Mac: `.claude/skills/local-mac-dev.md`.
 
