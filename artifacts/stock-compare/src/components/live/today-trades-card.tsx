@@ -70,8 +70,17 @@ export function TodayTradesCard({ n = 15 }: { n?: number }) {
               <td className={cn(TD, "text-amber-200/40")}>{it.rank}</td>
               <td className={cn(TD, "text-white")}>{it.ticker}</td>
               <td className={TD}>{FAM[it.family] ?? it.structure}</td>
-              <td className={cn(TD, "text-right")}>{it.strike != null ? Number(it.strike).toFixed(1) : "—"}</td>
-              <td className={TD}>{it.expiry ? String(it.expiry).slice(5) : "—"}</td>
+              {it.strike != null ? (
+                <>
+                  <td className={cn(TD, "text-right")}>{Number(it.strike).toFixed(1)}</td>
+                  <td className={TD}>{it.expiry ? String(it.expiry).slice(5) : "—"}</td>
+                </>
+              ) : (
+                // rule fired; the contract is picked from the next session's close (no look-ahead), so it fills in tomorrow
+                <td colSpan={2} className={cn(TD, "text-right text-amber-100/70")} title="Rule fired; strike is picked from the next session's close">
+                  strike next close
+                </td>
+              )}
               <td className={cn(TD, TIER_CLS[it.tier] ?? "")}>{it.tier}</td>
               <td className={cn(TD, "text-left text-amber-200/60 truncate max-w-[260px]")}>
                 {it.sources.length > 1 ? `${it.sources.length}: ` : ""}{it.sources.join(", ")}

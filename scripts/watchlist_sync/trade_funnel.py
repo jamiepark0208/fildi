@@ -268,7 +268,9 @@ def today_list(conn, dry: bool, d0: date | None = None):
     best: dict = {}
     for it in items:
         k = (it["ticker"], it["family"])
-        if k not in best or TIER[it["tier"]] > TIER[best[k]["tier"]]:
+        # 11-11: same tier → the row with a contract wins (TEAM: unpriced put_z50 'open' hid the priced panic-puts 130P → "— —")
+        if k not in best or TIER[it["tier"]] > TIER[best[k]["tier"]] or (
+                TIER[it["tier"]] == TIER[best[k]["tier"]] and best[k].get("strike") is None and it.get("strike") is not None):
             it["sources"] = sorted({it["source"], *(best[k]["sources"] if k in best else [])})
             best[k] = it
         else:
