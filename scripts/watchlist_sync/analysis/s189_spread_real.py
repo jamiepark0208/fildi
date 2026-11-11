@@ -36,11 +36,24 @@ def tstat(x):
     return float(x.mean() / (x.std(ddof=1) / np.sqrt(len(x)))) if len(x) > 2 else float("nan")
 
 
+def one_per_name_week(rs):
+    """Several strikes on one chain are one bet (RDDT 10-21 = 12 strikes): average them into one row per name-week."""
+    g = defaultdict(list)
+    for r in rs:
+        g[(r["t"], R.week(r["d"]))].append(r)
+    out = []
+    for v in g.values():
+        m = {**v[0], **{f: float(np.mean([x[f] for x in v])) for f in ("r", "spread", "otm", "inc", "dd52")}}
+        m["kept"] = bool(np.mean([x["kept"] for x in v]) >= 0.5)
+        out.append(m)
+    return out
+
+
 def main():
     with connect() as conn:
         q, px = R.load(conn)
         spy = [(d, c) for d, c in conn.execute("SELECT date, close::float8 FROM lseg_research.daily_history WHERE ticker='SPY' AND close > 0 ORDER BY date")]
-    real = R.trades(q, px)
+    real = one_per_name_week(R.trades(q, px))
     sd = [d for d, _ in spy]
     sc = np.array([c for _, c in spy])
 
@@ -58,7 +71,7 @@ def main():
         rows.append({**r, "wk": iso[0] * 100 + iso[1], "regime": regime(r["d"]), "brch": 0.0 if r["kept"] else 1.0})
     rows = [x for x in rows if x["regime"]]
     L = ["# S189 — spread ÷ fill on real LSEG weekly puts", "",
-         f"{len(rows)} real puts with a regime label. Coef = lowest → highest within-week spread rank, after OTM / income / "
+         f"{len(rows)} real puts (one per name-week; strikes on one chain averaged) with a regime label. Coef = lowest → highest within-week spread rank, after OTM / income / "
          "drawdown ranks, week FE, t clustered by week. Registered: coef < 0 on r.", "",
          "| cell | sample | target | weeks | trades | coef | t | verdict |", "|---|---|---|---|---|---|---|---|"]
     for cell in ("down", "up", "all"):
@@ -125,8 +138,8 @@ def main():
     n_ind = {c: len({x["d"] for x in rows if x["regime"] == c}) for c in ("down", "up")}
     L += ["", f"Independent events (distinct entry dates): down {n_ind['down']}, up {n_ind['up']} (both ≥ 30, so not UNDERPOWERED).",
           "", "Spread separates winners only raw: cheap far-OTM puts carry wide spreads. After OTM/income/drawdown ranks the "
-          "spread coef is + (wrong sign) in every cell. What does separate winners, pre-entry: nearer the money (3.6 % vs 9.9 % OTM) "
-          "and deeper off the high (−42 % vs −24 %); income is partly mechanical. **Next rule:** down tape, 3–6 % OTM weekly puts on "
+          "spread coef is + (wrong sign) in every cell. What does separate winners, pre-entry: nearer the money (4.1 % vs 10 % OTM) "
+          "and deeper off the high (−43 % vs −24 %); income is partly mechanical. **Next rule:** down tape, 3–6 % OTM weekly puts on "
           "names ≥ 35 % off their 52w high (vs the S109 ≥ 10 % OTM floor), real LSEG marks, same fill.",
           "", "**Verdict — RULE NO-LIFT: within-week spread ÷ fill rank (tight = better) × hold to expiry × short weekly put (3–9 DTE, "
           "fill bid + 23 %).** Spread is still a cost; it is charged in the fill, not a pick factor."]
