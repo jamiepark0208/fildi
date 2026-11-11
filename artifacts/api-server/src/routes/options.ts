@@ -61,6 +61,8 @@ function refreshChain(ticker: string): Promise<OptionsChainResult[]> {
   });
 }
 
+const bgRefreshAt = new Map<string, number>();
+
 /** Memory → saved DB snapshot (stale ones refresh in the background) → vendor only when nothing is saved (10-28). */
 async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> {
   const mem = optionsCache.get(ticker);
@@ -69,7 +71,12 @@ async function fetchOptionsChain(ticker: string): Promise<OptionsChainResult[]> 
   if (snap) {
     // stale → answer with the saved chain flagged `stale`, refresh behind it; the page re-asks and gets the fresh one
     if (!chainIsFresh(snap.fetchedAt)) {
-      refreshChain(ticker).catch((err) => logger.warn({ ticker, err: String(err) }, "options: background chain refresh failed"));
+      // 11-11: after hours a thin / failing name stays stale forever → every page re-ask was another vendor call
+      const cool = inMarketHours() ? 5 * 60_000 : 60 * 60_000;
+      if (Date.now() - (bgRefreshAt.get(ticker) ?? 0) > cool) {
+        bgRefreshAt.set(ticker, Date.now());
+        refreshChain(ticker).catch((err) => logger.warn({ ticker, err: String(err) }, "options: background chain refresh failed"));
+      }
       return withFreshDte(snap.chains).map((c) => ({ ...c, stale: true }));
     }
     optionsCache.set(ticker, snap.chains);

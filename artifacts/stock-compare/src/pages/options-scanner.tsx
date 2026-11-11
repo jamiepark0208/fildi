@@ -790,7 +790,7 @@ export function OptionsScannerContent({
       const data = await res.json() as OptionsChainResult[];
       setRefreshedOptions(prev => new Map(prev).set(ticker, data));
       // Saved chain while the server refreshes it → re-ask shortly so fresh quotes replace it without a reload (10-28).
-      if (data.some((c) => c.stale) && attempt < 3) {
+      if (data.some((c) => c.stale) && attempt < 1) {   // 11-11: one re-ask (3 × per name was a poll storm after hours)
         setTimeout(() => { void ensureTickerChain(ticker, attempt + 1); }, 4_000 * (attempt + 1));
       }
       queryClient.setQueryData(
