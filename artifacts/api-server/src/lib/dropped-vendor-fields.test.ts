@@ -5,6 +5,7 @@ import {
   STOCK_BOARD_CANDIDATE_FIELDS,
   decideVendorRawAction,
   mapFactSetHighlightRows,
+  factsetActualColumn,
   mapFinnhubDropped,
   mapFmpDropped,
   vendorRawFromHttpUrl,
@@ -127,5 +128,23 @@ describe("A266 mapped fields", () => {
     );
     assert.equal(edgar.latestOnly, true);
     assert.equal(edgar.key, "CIK0000320193");
+  });
+});
+
+describe("FactSet actual column (11-11: col 1 = in-progress FY estimates)", () => {
+  const rows = [
+    { rowType: "Header", cells: [null, "Dec '26", "Dec '25", "Dec '24"] },
+    { cells: ["Net Income", "67274.21875", "56780.0", "50000.0"], rowMetadata: { metric: { value: "FIN" } } },
+    { cells: ["Revenue", "190000.5", "170000.0", "160000.0"], rowMetadata: { metric: { value: "FIN" } } },
+    { cells: ["Total Assets", "5046448.0", "4435143.0", "4000000.0"], rowMetadata: { metric: { value: "FIN" } } },
+  ];
+  it("skips the estimate year and reads the last reported FY", () => {
+    const r = mapFactSetHighlightRows(rows as never, new Date("2026-11-11"));
+    assert.equal(r.netIncome, 56780e6);
+    assert.equal(r.totalAssets, 4435143e6);
+  });
+  it("a Sep FY 46 days old is not yet actuals (AAPL Sep '26 on 11-11)", () => {
+    const end = factsetActualColumn([null, "Sep '26", "Sep '25"], new Date("2026-11-11"));
+    assert.equal(end?.idx, 2);
   });
 });

@@ -156,7 +156,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
   { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["fmp","grossProfit"], ["edgar","grossProfit"]] },
   // totalAssets: Yahoo wide table has no totalAssets col. 11-11: SEC companyfacts 'Assets' (USD units only) first.
-  { tfCol: "totalAssets",        priority: [["sec","totalAssets"], ["sec_local","totalAssets"], ["fmp","totalAssets"]] },
+  { tfCol: "totalAssets",        priority: [["sec","totalAssets"], ["sec_local","totalAssets"], ["fmp","totalAssets"], ["factset","totalAssets"]] },
   { tfCol: "annualOperatingCashFlow", priority: [["yahoo","annualOperatingCashFlow"], ["fmp","annualOperatingCashFlow"], ["factset","annualOperatingCashFlow"]] },
   { tfCol: "interestExpense",    priority: [["yahoo","interestExpense"],    ["fmp","interestExpense"],   ["edgar","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },

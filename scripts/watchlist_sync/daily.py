@@ -134,6 +134,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("monthly re-test", PY, HERE, ["monthly.py"]),   # no-op unless ≥ 28 days old: lab + gates + win-rate rebuild (~3 min), one summary
         ("learning cycle", PY, HERE, ["learn.py", "propose"]),   # idempotent: only proposes when the evidence moved
         ("data gaps review", PY, HERE, ["data_gaps.py"]),   # 11-11: null key fields → data_issues (sourceable vs no source) → agent_start 11a
+        ("sec staleness", PY, HERE, ["sec_staleness.py", "--quiet"]),   # 11-11: companyfacts lagging the newest filing → data_issues
         ("options flow", SH, HERE, ["-c", f"{PY} options_flow.py --max-minutes 40 2>&1 | tail -1"]),   # A396: LSE OPRA prints ≥ $25k → options_flow_* (Breakdown + Feed; display only; soft, last so nothing waits on it)
     ],
 }

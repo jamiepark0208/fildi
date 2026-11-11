@@ -148,6 +148,7 @@ export interface FactSetFundamentalsPartial {
   totalStockholdersEquity?: number;
   freeCashFlow?: number;
   annualOperatingCashFlow?: number;
+  totalAssets?: number;
   cashAndEquivalents?: number;
   currentRatio?: number;
   debtToEquity?: number;
@@ -176,10 +177,38 @@ type FactSetRow = {
   };
 };
 
+const MONTHS: Record<string, number> = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+/** Fiscal-year end of a FactSet column header like "Dec '25" (last day of that month, UTC). */
+export function factsetColumnEnd(label: string | null | undefined): Date | null {
+  const m = /^([A-Z][a-z]{2}) '(\d{2})$/.exec((label ?? "").trim());
+  if (!m || MONTHS[m[1]!] == null) return null;
+  return new Date(Date.UTC(2000 + Number(m[2]), MONTHS[m[1]!]! + 1, 0));
+}
+/** Days after FY end before a column counts as reported actuals (10-K ≤ 60–90 d, 20-F ≤ 120 d → 100 covers all but late 20-F). */
+export const FACTSET_ACTUAL_LAG_DAYS = 100;
+/**
+ * 11-11 (Jamie: "compare against the same dated data"): column 1 is the fiscal year IN PROGRESS = consensus estimates
+ * (JPM "Dec '26" NI 67.3 B vs FY25 actual 56.8 B; NVDA "Jan '27" 225.6 B vs 120.1 B). Pick the newest column whose FY
+ * ended ≥ FACTSET_ACTUAL_LAG_DAYS ago. No parseable header → null (caller writes nothing rather than guess).
+ */
+export function factsetActualColumn(headerCells: (string | null)[] | null, today = new Date()): { idx: number; periodEnd: Date } | null {
+  if (!headerCells) return null;
+  const cutoff = today.getTime() - FACTSET_ACTUAL_LAG_DAYS * 86_400_000;
+  for (let i = 1; i < headerCells.length; i++) {
+    const end = factsetColumnEnd(headerCells[i]);
+    if (end && end.getTime() <= cutoff) return { idx: i, periodEnd: end };
+  }
+  return null;
+}
+
 /** Parse FactSet overview rows. RATIO stays percent points. PERCENTAGE /100. FIN scale 6 → millions. */
-export function mapFactSetHighlightRows(rows: FactSetRow[]): FactSetFundamentalsPartial {
+export function mapFactSetHighlightRows(rows: FactSetRow[], today = new Date()): FactSetFundamentalsPartial {
   type RowEntry = { cells: (string | null)[]; scale: number; isPct: boolean };
   const byLabel = new Map<string, RowEntry>();
+  const header = rows.find((r) => r.rowType === "Header")?.cells ?? null;
+  const actual = factsetActualColumn(header, today);
+  // Legacy callers/tests without a header row keep column 1; a header with no reported FY → write nothing.
+  const COL = header == null ? 1 : actual?.idx ?? -1;
   for (const row of rows) {
     if (!row.cells || row.rowType === "Header") continue;
     const label = (row.cells[0] ?? "").trim();
@@ -198,7 +227,8 @@ export function mapFactSetHighlightRows(rows: FactSetRow[]): FactSetFundamentals
     byLabel.set(label, { cells: row.cells, scale, isPct });
   }
 
-  function val(label: string, colIdx = 1): number | undefined {
+  function val(label: string, colIdx = COL): number | undefined {
+    if (colIdx < 0) return undefined;
     const entry = byLabel.get(label);
     if (!entry) return undefined;
     const raw = entry.cells[colIdx] ?? null;
@@ -211,8 +241,8 @@ export function mapFactSetHighlightRows(rows: FactSetRow[]): FactSetFundamentals
 
   const revenue = val("Revenue");
   const netIncome = val("Net Income");
-  const revPrior = val("Revenue", 2);
-  const epsPrior = val("EPS (Diluted)", 2);
+  const revPrior = val("Revenue", COL < 0 ? -1 : COL + 1);
+  const epsPrior = val("EPS (Diluted)", COL < 0 ? -1 : COL + 1);
   const revenueGrowthYoY =
     revenue !== undefined && revPrior && revPrior !== 0
       ? (revenue - revPrior) / Math.abs(revPrior)
@@ -239,6 +269,7 @@ export function mapFactSetHighlightRows(rows: FactSetRow[]): FactSetFundamentals
     freeCashFlow: val("Free Cash Flow"),
     // 11-11: column 1 = latest fiscal YEAR (AAPL "Sep '26" 151 B) — was stored as quarterly → cashrun ×4 = 4× annual
     annualOperatingCashFlow: val("Net Operating Cash Flow"),
+    totalAssets: val("Total Assets"),
     cashAndEquivalents: val("Cash & ST Inv"),
     currentRatio: val("Current Ratio"),
     debtToEquity: (() => {

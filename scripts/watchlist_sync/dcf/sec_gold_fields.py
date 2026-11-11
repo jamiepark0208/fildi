@@ -255,9 +255,38 @@ def _gross_profit(facts: dict, rev: dict | None) -> dict | None:
     return {"value": rev["value"] - cogs["value"], "end": cogs["end"], "filed": cogs["filed"], "how": "rev − cogs"}
 
 
+def _filing_assets_override(conn, t: str, facts: dict | None, out: list[dict]) -> list[dict]:
+    """11-11: companyfacts lags some filings (TSM FY25 20-F, C/DUK/PLD Q3 10-Q) → read Assets from the newest filing's
+    inline XBRL so every name's total assets is as of its latest report, not whatever date SEC's API reached."""
+    import sec_ixbrl
+    from sec_staleness import newest_fact_end, newest_report
+    sub = rows(conn, """SELECT payload FROM vendor_raw WHERE source = 'sec' AND endpoint = 'submissions' AND key = %s
+                        ORDER BY fetched_on DESC LIMIT 1""", (t,))
+    rep = newest_report(sub[0]["payload"]) if sub else None
+    fe = newest_fact_end(facts or {})
+    if not rep or (fe and (date.fromisoformat(rep[2]) - date.fromisoformat(fe)).days <= 45):
+        return out
+    try:
+        f = sec_ixbrl.latest_instant(conn, t, ["Assets"])
+    except Exception as e:  # noqa: BLE001
+        print(t, "ixbrl error", str(e)[:80], file=sys.stderr)
+        return out
+    if not f or f["value"] <= 0 or (fe and f["end"] <= fe) or len(f["unit"]) != 3:
+        return out
+    out = [r for r in out if r["field"] != "totalAssets"]
+    out.append({"field": "totalAssets", "value": f["value"], "filed": f["filed"], "period_end": f["end"],
+                "source": "sec" if f["unit"] == "USD" else "sec_local"})
+    return out
+
+
 def fields_for_ticker(conn, ticker: str) -> list[dict]:
     t = ticker.upper()
-    facts = _load_facts(conn, t)
+    facts0 = _load_facts(conn, t)
+    return _filing_assets_override(conn, t, facts0, _fields_for_ticker(conn, t, facts0))
+
+
+def _fields_for_ticker(conn, ticker: str, facts: dict | None) -> list[dict]:
+    t = ticker.upper()
     if not facts:
         return []
     usd_fresh = any(not u.get("start") and F._days(u["end"], date.today().isoformat()) <= 370 for u in F._units(facts, "Assets"))

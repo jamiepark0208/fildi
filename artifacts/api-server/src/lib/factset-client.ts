@@ -39,6 +39,7 @@ export interface FactSetFundamentalsPartial {
   totalStockholdersEquity?: number;
   freeCashFlow?: number;
   annualOperatingCashFlow?: number;
+  totalAssets?: number;
   cashAndEquivalents?: number;
   currentRatio?: number;
   debtToEquity?: number;

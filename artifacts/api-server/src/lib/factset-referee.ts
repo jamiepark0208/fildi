@@ -22,6 +22,7 @@ import {
 import { isCohortDueToday } from "./data-ops-config.js";
 import { logger } from "./logger.js";
 import { recordApiUsage } from "./api-usage.js";
+import { mapFactSetHighlightRows } from "./dropped-vendor-fields.js";
 import { usageCalendarDate } from "./usage-date.js";
 
 /** Map FactSet partial keys → source_fundamentals field names (FIELD_DEFS sfField). */
@@ -42,7 +43,8 @@ const FACTSET_FIELD_MAP: Array<{
   { key: "returnOnAssets", sfField: "returnOnAssets" },
   { key: "totalStockholdersEquity", sfField: "totalStockholdersEquity" },
   { key: "freeCashFlow", sfField: "freeCashFlow" },
-  { key: "annualOperatingCashFlow", sfField: "annualOperatingCashFlow" },   // 11-11: FY column, not quarterly
+  { key: "annualOperatingCashFlow", sfField: "annualOperatingCashFlow" },
+  { key: "totalAssets", sfField: "totalAssets" },   // 11-11: FY column, not quarterly
   { key: "cashAndEquivalents", sfField: "totalCash" }, // FIELD_DEFS yahoo alias
   { key: "currentRatio", sfField: "currentRatio" },
   { key: "debtToEquity", sfField: "debtToEquity" },
@@ -296,4 +298,30 @@ export async function runFactsetReferee(opts: {
     skippedBudget,
     failed,
   };
+}
+
+/**
+ * 11-11: re-map every stored FactSet payload (vendor_raw, 0 API calls) after a mapper change — e.g. reading reported
+ * FY actuals instead of the in-progress-year estimate column. Fields the mapper no longer produces are deleted, so an
+ * old estimate can't linger as bronze.
+ */
+export async function remapStoredFactset(): Promise<{ tickers: number; written: number; deleted: number }> {
+  const res: any = await db.execute(sql`SELECT DISTINCT ON (key) key, payload FROM vendor_raw
+    WHERE source = 'factset' AND endpoint = '/factset/report/overview/v1/financial-highlights' ORDER BY key, fetched_on DESC`);
+  let tickers = 0, written = 0, deleted = 0;
+  for (const r of (res.rows ?? res) as Array<{ key: string; payload: any }>) {
+    const rows = r.payload?.data?.tables?.main?.data?.rows ?? [];
+    const raw = mapFactSetHighlightRows(rows);
+    const [price, fwdEps] = await Promise.all([latestClosePrice(r.key), consensusForwardEps(r.key)]);
+    const data = deriveFactSetValuations(raw, price, fwdEps);
+    written += await writeFactsetSourceRows(r.key, data);
+    const gone = FACTSET_FIELD_MAP.filter(({ key }) => data[key] === undefined || !isFinite(data[key] as number)).map((m) => m.sfField);
+    if (gone.length) {
+      const d: any = await db.execute(sql`DELETE FROM source_fundamentals WHERE ticker = ${r.key} AND source = 'factset'
+        AND field IN (${sql.join(gone.map((g) => sql`${g}`), sql`, `)})`);
+      deleted += Number(d.rowCount ?? 0);
+    }
+    tickers++;
+  }
+  return { tickers, written, deleted };
 }
