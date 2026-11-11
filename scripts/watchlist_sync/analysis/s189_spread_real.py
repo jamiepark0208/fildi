@@ -128,7 +128,7 @@ def main():
           "spread coef is + (wrong sign) in every cell. What does separate winners, pre-entry: nearer the money (3.6 % vs 9.9 % OTM) "
           "and deeper off the high (−42 % vs −24 %); income is partly mechanical. **Next rule:** down tape, 3–6 % OTM weekly puts on "
           "names ≥ 35 % off their 52w high (vs the S109 ≥ 10 % OTM floor), real LSEG marks, same fill.",
-          "", "**RULE NO-LIFT: within-week spread ÷ fill rank (tight = better) × hold to expiry × short weekly put (3–9 DTE, "
+          "", "**Verdict — RULE NO-LIFT: within-week spread ÷ fill rank (tight = better) × hold to expiry × short weekly put (3–9 DTE, "
           "fill bid + 23 %).** Spread is still a cost; it is charged in the fill, not a pick factor."]
     OUT.write_text("\n".join(L) + "\n")
     print("\n".join(L))
