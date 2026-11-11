@@ -20,6 +20,8 @@ Run during market hours (LSEG IV and Robinhood quotes are only trustworthy in se
 from __future__ import annotations
 
 import argparse
+
+import data_issues as DI
 import fcntl
 import json
 import os
@@ -135,6 +137,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     ],
 }
 ORDER = list(STAGES)
+# Steps that must stop the run when they fail (everything before them in publish is the plan → Model List chain).
+HARD_PUBLISH = {"publish Model List"}
 
 
 def quotes_ingested() -> bool:
@@ -307,6 +311,13 @@ def main() -> None:
                 status = "awaiting_verification"
                 print("→ no Robinhood quotes and Schwab unavailable: plan built but not verified/published; re-run `daily.py --from verify`")
                 break
+            if not r["ok"] and st == "publish" and name not in HARD_PUBLISH:
+                # 11-11 (Jamie): one bad side step (strategies board, 1 contract with iv None) stopped 16 later steps incl. the
+                # Live Today list. After the Model List is published, every step is soft: log it for review, keep going.
+                log.setdefault("soft_failures", []).append({"step": name, "cause": r["cause"], "tail": (r["tail"] or "")[-300:]})
+                DI.record("daily.py", "soft_step_failed", field=name, detail=f"{r['cause']}: {(r['tail'] or '').splitlines()[-1:]}")
+                print(f"  ↳ soft step failed ({r['cause']}) — logged to data issues, continuing")
+                continue
             if not r["ok"]:
                 cause = r["cause"]
                 status = f"failed at {name} ({cause})"

@@ -16,6 +16,7 @@ Gates: trim → no bullish; earnings before expiry → out (S018). Backtest: A19
 """
 from __future__ import annotations
 
+import data_issues as DI
 import json
 import math
 import sys
@@ -177,27 +178,41 @@ def main():
             exps = sorted(e for (tt, e) in chains if tt == t)
             if len(exps) < 1 or t not in rv:
                 continue
-            for c in build_all(t, exps, chains, as_of, held, ladder.get(t), I.get(t, {})):
-                c.update(evaluate(c, rv[t], as_of, hist[t]))
-                if c.get("s088"):   # one engine for sold puts: show the ladder model's numbers; keep the board's own as ev_board
-                    c["ev_board"], c["p_board"] = c["ev_rv_cap"], c["p_rv"]
-                    c["ev_rv_cap"] = c["s088"]["expPnlBpWk"] / 1e4
-                    c["ev_rv"] = round(c["ev_rv_cap"] * c["capital"], 3)
-                    c["p_rv"] = c["s088"]["pKept"]
-                c["earnings"] = str(er[t]) if t in er and er[t] <= c["expiry_max"] else None
-                c["edge_q"] = edge.get(t)
-                c["inputs"] = I.get(t, {})
-                desc = regime_fit(c, rv[t], trend.get(t), edge.get(t))[1]
-                if SE.strategy_of(c["structure"]) == "none":
-                    c["fit"], c["fit_why"] = regime_fit(c, rv[t], trend.get(t), edge.get(t))
-                elif c["structure"] == "csp":   # 10-26: the engine's verdict (its gates + sector-drop relax + floors), not a re-run
-                    pr = I.get(t, {}).get("put_rec") or {}   # + the Model List's live-quote result (verify_plan → live_check, 10-28)
-                    g = (pr.get("gates") or []) + ([f"live check — {pr['live_check']}"] if pr.get("live_check") not in (None, "pass") else [])
-                    c["fit"], c["fit_why"] = not g, desc + ("" if not g else " · " + "; ".join(g))
-                else:
-                    ok, why = SE.fit(c, I, ctx)
-                    c["fit"], c["fit_why"] = ok, desc + ("" if ok else " · " + "; ".join(why))
-                cands.append(c)
+            rows_t = [r for e in exps for r in chains[(t, e)]]
+            bad = sum(1 for r in rows_t if not _tradable(r))
+            if rows_t and bad / len(rows_t) > 0.5:   # chain mostly unusable → source problem, not a market fact
+                DI.record("structures.py", "bad_chain", ticker=t, value=round(bad / len(rows_t), 2),
+                          detail=f"{bad}/{len(rows_t)} contracts lack iv / bid > 0 / spread <= 50% mid (skew_survey {as_of})")
+            # 11-11 (Jamie): one ticker's bad data skips that ticker/structure and is logged for review — never the whole board
+            try:
+                built = build_all(t, exps, chains, as_of, held, ladder.get(t), I.get(t, {}))
+            except Exception as e:  # noqa: BLE001
+                DI.record("structures.py", "build_failed", ticker=t, detail=f"{type(e).__name__}: {e}")
+                continue
+            for c in built:
+                try:
+                    c.update(evaluate(c, rv[t], as_of, hist[t]))
+                    if c.get("s088"):   # one engine for sold puts: show the ladder model's numbers; keep the board's own as ev_board
+                        c["ev_board"], c["p_board"] = c["ev_rv_cap"], c["p_rv"]
+                        c["ev_rv_cap"] = c["s088"]["expPnlBpWk"] / 1e4
+                        c["ev_rv"] = round(c["ev_rv_cap"] * c["capital"], 3)
+                        c["p_rv"] = c["s088"]["pKept"]
+                    c["earnings"] = str(er[t]) if t in er and er[t] <= c["expiry_max"] else None
+                    c["edge_q"] = edge.get(t)
+                    c["inputs"] = I.get(t, {})
+                    desc = regime_fit(c, rv[t], trend.get(t), edge.get(t))[1]
+                    if SE.strategy_of(c["structure"]) == "none":
+                        c["fit"], c["fit_why"] = regime_fit(c, rv[t], trend.get(t), edge.get(t))
+                    elif c["structure"] == "csp":   # 10-26: the engine's verdict (its gates + sector-drop relax + floors), not a re-run
+                        pr = I.get(t, {}).get("put_rec") or {}   # + the Model List's live-quote result (verify_plan → live_check, 10-28)
+                        g = (pr.get("gates") or []) + ([f"live check — {pr['live_check']}"] if pr.get("live_check") not in (None, "pass") else [])
+                        c["fit"], c["fit_why"] = not g, desc + ("" if not g else " · " + "; ".join(g))
+                    else:
+                        ok, why = SE.fit(c, I, ctx)
+                        c["fit"], c["fit_why"] = ok, desc + ("" if ok else " · " + "; ".join(why))
+                    cands.append(c)
+                except Exception as e:  # noqa: BLE001
+                    DI.record("structures.py", "evaluate_failed", ticker=t, field=c.get("structure"), detail=f"{type(e).__name__}: {e}")
         for sid in {c["structure"] for c in cands}:       # rank score per structure (rules file); CSP = S088 expected pnl
             cs = [c for c in cands if c["structure"] == sid]
             stg = SE.strategy_of(sid)

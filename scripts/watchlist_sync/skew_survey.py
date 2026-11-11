@@ -62,6 +62,12 @@ def universe(conn, n: int) -> list[dict]:
         for r in rows(conn, """SELECT ticker FROM watchlist_sync.put_edge_daily
                                WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_edge_daily) AND quintile >= 4"""):
             forced.append(r["ticker"])
+    # 11-11 (Jamie: TEAM 'sell put' with no strike): a fired live/candidate rule needs today's chain so Live can show a
+    # provisional contract the day it can be traded (graded entry still prices off the next close).
+    forced += [r["ticker"] for r in rows(conn, """SELECT DISTINCT s.ticker FROM watchlist_sync.strategy_signals s
+                                                  JOIN watchlist_sync.strategies g USING (strategy_id)
+                                                  WHERE s.status IN ('open', 'priced') AND g.status IN ('live', 'candidate')
+                                                  AND s.as_of >= CURRENT_DATE - 7""")]
     out: list[dict] = []
     seen: set[str] = set()
     for t in forced:

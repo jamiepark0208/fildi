@@ -209,6 +209,36 @@ def chain_names(conn) -> list[str]:
 TIER = {"live": 3, "candidate": 2, "board": 2, "paper": 1}
 
 
+
+def provisional(conn, items) -> None:
+    """11-11 (Jamie: TEAM 'sell put' with no strike): a rule that fired is priced for grading off the NEXT close (no
+    look-ahead), so on the day it can be traded it has no contract. Show a provisional put from today's skew-survey chain at
+    the rule's delta (21-50 DTE, two-sided quote); no chain → logged as a data issue for review."""
+    need = [it for it in items if it["family"] == "short_put" and it.get("strike") is None]
+    if not need:
+        return
+    try:
+        from strategy_signals import SHADOW
+    except Exception:  # noqa: BLE001
+        SHADOW = {}
+    import data_issues as DI
+    for it in need:
+        td = abs((SHADOW.get(it["source"]) or {}).get("delta", -0.20))
+        r = conn.execute("""SELECT expiry, strike::float8, bid::float8, ask::float8 FROM optlab.skew_survey
+                            WHERE ticker = %s AND side = 'put' AND as_of = (SELECT MAX(as_of) FROM optlab.skew_survey WHERE ticker = %s)
+                              AND as_of >= CURRENT_DATE - 1 AND expiry BETWEEN CURRENT_DATE + 21 AND CURRENT_DATE + 50
+                              AND delta IS NOT NULL AND bid > 0 AND ask - bid <= 0.5 * (ask + bid) / 2
+                            ORDER BY abs(abs(delta) - %s), abs(expiry - (CURRENT_DATE + 35)) LIMIT 1""",
+                         (it["ticker"], it["ticker"], td)).fetchone()
+        if not r:
+            if it["tier"] in ("live", "candidate"):
+                DI.record("trade_funnel.py", "no_live_chain", ticker=it["ticker"], field=it["source"],
+                          detail="fired live rule, no same-day chain in skew_survey → no provisional strike")
+            continue
+        e, k, b, a = r
+        it.update(strike=k, expiry=str(e), bid=round((b + a) / 2, 2), provisional=True)
+        it["chips"] = [*it.get("chips", []), f"provisional {td:.2f}Δ (today's chain; graded at next close)"]
+
 def today_list(conn, dry: bool, d0: date | None = None):
     today = d0 or date.today()
     lib = {r["strategy_id"]: r for r in rows(conn, "SELECT strategy_id, status, name FROM watchlist_sync.strategies")}
@@ -264,6 +294,7 @@ def today_list(conn, dry: bool, d0: date | None = None):
                       "source": r["forecaster"], "tier": "candidate" if r["forecaster"] == "S172" else "paper",
                       "strike": m.get("strike"), "expiry": m.get("expiry"), "bid": m.get("debit"), "metric": None,
                       "metric_label": "", "why": m.get("rule"), "chips": []})
+    provisional(conn, items)
     # one row per (ticker, family): keep the highest tier, merge sources
     best: dict = {}
     for it in items:

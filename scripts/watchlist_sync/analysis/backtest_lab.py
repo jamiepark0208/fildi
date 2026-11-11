@@ -120,19 +120,35 @@ AAPL_INSPECT_FIXTURE = {
 }
 
 
-def _finite(x):
-    """11-11: NaN/inf → None — a bare NaN (hold_mean_sig on an empty hold set) is invalid JSON and 500'd /backtest/run."""
+def _finite(x, path="", bad=None):
+    """11-11: NaN/inf → None — a bare NaN (hold_mean_sig on an empty hold set) is invalid JSON and 500'd /backtest/run.
+    Every replaced path is collected so the run reports it (dataIssues) and the data-issue log gets it for review."""
     if isinstance(x, float):
-        return x if math.isfinite(x) else None
+        if math.isfinite(x):
+            return x
+        if bad is not None:
+            bad.append(path)
+        return None
     if isinstance(x, dict):
-        return {k: _finite(v) for k, v in x.items()}
+        return {k: _finite(v, f"{path}.{k}" if path else str(k), bad) for k, v in x.items()}
     if isinstance(x, (list, tuple)):
-        return [_finite(v) for v in x]
+        return [_finite(v, f"{path}[{i}]", bad) for i, v in enumerate(x)]
     return x
 
 
 def _json_out(obj: dict) -> None:
-    print(json.dumps(_finite(obj), default=str, allow_nan=False))
+    bad: list[str] = []
+    clean = _finite(obj, bad=bad)
+    if bad and isinstance(clean, dict):
+        clean["dataIssues"] = {"nonFinite": bad[:50], "count": len(bad)}
+        try:
+            sys.path.insert(0, str(HERE.parent))
+            import data_issues as DI
+            DI.record("backtest_lab.py", "non_finite", field=",".join(sorted({b.split("[")[0] for b in bad}))[:200],
+                      detail=f"{len(bad)} NaN/inf values → null; first: {bad[:5]}")
+        except Exception:  # noqa: BLE001
+            pass
+    print(json.dumps(clean, default=str, allow_nan=False))
 
 
 def catalog() -> dict:

@@ -185,6 +185,9 @@ def main() -> None:
         rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/data_freshness.py", log)
         bad = [l for l in out.splitlines() if l.startswith("✗")]
         say(f"11 data freshness: {last(out, pat='freshness')}" + (f" — STALE: {'; '.join(b[2:90] for b in bad[:4])} → fix the job (not just re-run)" if bad else ""))
+        # 11a data issues (Jamie 11-11): skipped bad data points / soft-failed steps / data gaps → the session reviews + fixes the source
+        rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/data_issues.py digest", log)
+        say(f"11a {last(out, pat='data issues')}")
         # 11c weekly goal-gap scan (Jamie 11-06: agents must find improvements themselves). Due when goals.md log has no row in 7 d.
         gp = ROOT / '.agents/context/goals.md'
         if gp.exists():
