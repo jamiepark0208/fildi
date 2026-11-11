@@ -243,8 +243,15 @@ def rows_closes(conn):
     return by.items()
 
 
+def _tradable(r):
+    """11-11: a leg needs a two-sided quote within 50 % of mid — bid-0 / 0–4.9 quotes (QGEN, PTC) made debit spreads
+    'cost' less than nothing and printed +24,000 % EV on the board."""
+    b, a = r["bid"], r["ask"]
+    return bool(r["iv"]) and b is not None and a is not None and b > 0 and (a - b) <= 0.5 * (a + b) / 2
+
+
 def _pick(chain, side, target, below=None, above=None):
-    xs = [r for r in chain if r["side"] == side and r["iv"]]
+    xs = [r for r in chain if r["side"] == side and _tradable(r)]
     if below is not None:
         xs = [r for r in xs if r["strike"] < below]
     if above is not None:
@@ -260,7 +267,7 @@ def _pick(chain, side, target, below=None, above=None):
 
 
 def _atm(chain, side):
-    xs = [r for r in chain if r["side"] == side and r["iv"]]
+    xs = [r for r in chain if r["side"] == side and _tradable(r)]
     return min(xs, key=lambda r: abs(r["strike"] - r["spot"])) if xs else None
 
 
@@ -334,8 +341,11 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
     if wk and mo:
         fc, bc = _atm(chains[(t, wk)], "call"), _atm(chains[(t, mo)], "call")
         if fc and bc:
-            same = min(chains[(t, mo)], key=lambda r: abs(r["strike"] - fc["strike"]) if r["side"] == "call" else 1e9)
-            add("calendar", [_leg(fc, -1, wk), _leg(same, +1, mo)])
+            # 11-11: back leg must be tradable — a nearest-strike call with iv None crashed the whole board
+            xs = [r for r in chains[(t, mo)] if r["side"] == "call" and _tradable(r)]
+            same = min(xs, key=lambda r: abs(r["strike"] - fc["strike"])) if xs else None
+            if same:
+                add("calendar", [_leg(fc, -1, wk), _leg(same, +1, mo)])
     return out
 
 
