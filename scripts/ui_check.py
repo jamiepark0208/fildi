@@ -40,7 +40,7 @@ def main() -> None:
             errs, bad = [], []
             pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
             pg.on("pageerror", lambda e: errs.append(f"pageerror: {e}"))
-            pg.on("response", lambda resp: bad.append(f"{resp.status} {resp.url}") if resp.status >= 400 else None)
+            pg.on("response", lambda resp: bad.append(resp) if resp.status >= 400 else None)
             pg.goto(BASE + path)
             pg.wait_for_timeout(a.wait)
             name = path.strip("/").replace("/", "_").replace("?", "_").replace("=", "-").replace("&", "_") or "home"
@@ -50,7 +50,14 @@ def main() -> None:
             for e in errs[:6]:
                 print("   err", e[:200])
             for x in bad[:6]:
-                print("   http", x[:160])
+                try:
+                    body = x.text()[:200].replace("\n", " ")
+                except Exception:
+                    body = ""
+                rq = x.request
+                print("   http", f"{x.status} {rq.method} {x.url}"[:160], "·", body)
+                if rq.method != "GET" and rq.post_data:
+                    print("     body sent:", rq.post_data[:300])
             pg.close()
         b.close()
 

@@ -31,9 +31,12 @@ export function ExpandableChartFrame({
 
   return (
     <>
-      <button
-        type="button"
+      {/* div, not <button>: charts like Yield Curve carry their own period buttons (button-in-button = invalid HTML) */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(true); } }}
         className={cn(
           "group relative w-full text-left rounded-md border border-[#d4af37]/20 bg-zinc-950/80",
           "hover:border-[#d4af37]/45 hover:bg-zinc-900/80 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/50",
@@ -42,7 +45,7 @@ export function ExpandableChartFrame({
         title="Click to enlarge"
       >
         <div className="pointer-events-none">{children}</div>
-      </button>
+      </div>
 
       {open && (
         <div

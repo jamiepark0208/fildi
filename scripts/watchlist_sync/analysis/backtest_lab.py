@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import importlib.util
 import json
 import pickle
@@ -119,8 +120,19 @@ AAPL_INSPECT_FIXTURE = {
 }
 
 
+def _finite(x):
+    """11-11: NaN/inf → None — a bare NaN (hold_mean_sig on an empty hold set) is invalid JSON and 500'd /backtest/run."""
+    if isinstance(x, float):
+        return x if math.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: _finite(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_finite(v) for v in x]
+    return x
+
+
 def _json_out(obj: dict) -> None:
-    print(json.dumps(obj, default=str))
+    print(json.dumps(_finite(obj), default=str, allow_nan=False))
 
 
 def catalog() -> dict:
