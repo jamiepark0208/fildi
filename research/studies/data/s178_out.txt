@@ -53,66 +53,62 @@ validation on real calls 0.25–0.75Δ: model ÷ real mid (median) — parity-fr
 level b: 1.06 / 0.93 / 0.71 / 0.58 / 0.45 (5-21/21-50/50-100/100-200/200-420 DTE); same-contract 30d change beta: - / 0.71 / 0.48 / 0.26 / 0.19
 pricer validation (model/real median, calls): 1.00/0.95 · 1.00/1.02 · 0.97/1.00 · 0.90/0.95 · 1.03/1.08 (ATM/OTM per DTE bucket)
 
-## variant A (change beta) robustness
-  30 DTE rr0.30: n 4610 RR +4.3 · CSP +2.2 · eras RR−CSP -0.2/+2.6 · RR win 45 % · RR worst 5 % -5.0 vs CSP -2.5
-  30 DTE rr0.50: n 4610 RR +6.1 · CSP +2.2 · eras RR−CSP +1.2/+4.4 · RR win 54 % · RR worst 5 % -8.3 vs CSP -2.5
-  60 DTE rr0.30: n 4458 RR +9.5 · CSP +3.0 · eras RR−CSP -1.7/+7.9 · RR win 51 % · RR worst 5 % -10.9 vs CSP -6.7
-  60 DTE rr0.50: n 4458 RR +12.3 · CSP +3.0 · eras RR−CSP -2.8/+11.4 · RR win 53 % · RR worst 5 % -15.1 vs CSP -6.7
-240 C0.30  h63 ALL       n 78814 mean   -5.1 wins  -11.3 eras  -12.8/ -10.5 Δstk  +10.7/ +26.2 names  -36.0 (23%+) top10  nan% ×1.1  -13.7 t  nan
-240 C0.30  h63 IVLOW     n 16462 mean   -1.2 wins   -6.1 eras   -3.6/  -9.5 Δstk  +23.4/ +20.1 names  -17.1 (29%+) top10  nan% ×1.1  -10.2 t  1.2
-240 C0.30  h63 IVLOW∧UP  n 10019 mean   +0.0 wins   -3.1 eras   -2.0/  -4.8 Δstk  +24.7/ +21.2 names  -18.9 (29%+) top10 14443% ×1.1   -9.1 t  0.5
-240 C0.30  h63 PANIC     n  4521 mean  +69.2 wins  +48.5 eras  -29.2/ +61.4 Δstk   -9.7/ +81.6 names  +56.9 (51%+) top10   24% ×1.1  +53.8 t  2.5
-240 C0.30  h63 DIP       n  7189 mean   +3.7 wins   -9.5 eras  -16.8/  -4.3 Δstk   +9.0/ +38.7 names   -5.8 (39%+) top10  314% ×1.1   -5.7 t  1.2
-240 C0.30  h63 RICH      n 25075 mean   -8.9 wins  -17.2 eras   -9.2/ -20.6 Δstk  +16.9/ +26.2 names  -36.7 (20%+) top10  nan% ×1.1  -17.2 t  1.1
+## variant A (change beta) robustness — rerun 11-10 after A388 fix (true remaining life; exits past data end skipped)
+240 C0.30  h63 ALL       n 58531 mean  +11.3 wins   +4.4 eras  -12.7/ +19.1 Δstk  +10.7/ +32.1 names  +15.9 (49%+) top10   48% ×1.1   +1.1 t  nan
+240 C0.30  h63 IVLOW     n 14616 mean   +9.9 wins   +4.6 eras   -3.6/ +19.5 Δstk  +23.4/ +32.2 names  +15.0 (44%+) top10   69% ×1.1   -0.0 t  0.1
+240 C0.30  h63 IVLOW∧UP  n  9157 mean   +8.4 wins   +5.1 eras   -1.9/ +18.0 Δstk  +24.7/ +30.7 names   +5.7 (40%+) top10   72% ×1.1   -1.5 t -0.6
+240 C0.30  h63 PANIC     n  3379 mean  +63.0 wins  +46.0 eras  -29.2/ +63.7 Δstk   -9.7/ +82.5 names  +40.6 (44%+) top10   31% ×1.1  +48.2 t  1.7
+240 C0.30  h63 DIP       n  5579 mean  +18.4 wins   +3.6 eras  -16.7/ +26.7 Δstk   +9.0/ +52.7 names  +31.9 (52%+) top10   87% ×1.1   +7.6 t  0.5
+240 C0.30  h63 RICH      n 17561 mean  +11.4 wins   +0.8 eras   -9.2/  +8.2 Δstk  +16.9/ +28.3 names  +12.3 (44%+) top10   96% ×1.1   +1.2 t -0.6
 
-240 C0.50  h63 ALL       n 78814 mean   -5.9 wins   -9.3 eras  -10.0/  -8.9 Δstk   +8.4/ +20.7 names  -27.0 (27%+) top10  nan% ×1.1  -14.5 t  nan
-240 C0.50  h63 IVLOW     n 16462 mean   -3.4 wins   -6.1 eras   -2.0/ -11.6 Δstk  +18.5/ +15.9 names  -16.5 (32%+) top10  nan% ×1.1  -12.2 t  1.0
-240 C0.50  h63 IVLOW∧UP  n 10019 mean   -1.7 wins   -3.4 eras   -0.8/  -7.1 Δstk  +19.5/ +17.0 names  -18.3 (31%+) top10  nan% ×1.1  -10.6 t  0.4
-240 C0.50  h63 PANIC     n  4521 mean  +47.7 wins  +36.7 eras  -24.8/ +46.9 Δstk   -8.0/ +65.1 names  +38.6 (55%+) top10   22% ×1.1  +34.3 t  2.4
-240 C0.50  h63 DIP       n  7189 mean   -0.9 wins   -8.3 eras  -13.0/  -5.0 Δstk   +7.3/ +31.1 names   -4.0 (43%+) top10  nan% ×1.1   -9.9 t  1.0
-240 C0.50  h63 RICH      n 25075 mean   -7.8 wins  -12.5 eras   -6.6/ -14.9 Δstk  +13.4/ +20.9 names  -26.3 (26%+) top10  nan% ×1.1  -16.2 t  1.3
+240 C0.50  h63 ALL       n 58531 mean   +5.3 wins   +1.6 eras  -10.0/ +11.4 Δstk   +8.4/ +25.6 names   +8.1 (49%+) top10   60% ×1.1   -4.2 t  nan
+240 C0.50  h63 IVLOW     n 14616 mean   +5.6 wins   +2.7 eras   -1.9/ +11.2 Δstk  +18.5/ +25.7 names   +6.7 (46%+) top10   77% ×1.1   -4.0 t  0.2
+240 C0.50  h63 IVLOW∧UP  n  9157 mean   +5.2 wins   +3.4 eras   -0.8/ +11.1 Δstk  +19.5/ +24.6 names   +0.7 (42%+) top10   81% ×1.1   -4.4 t -0.5
+240 C0.50  h63 PANIC     n  3379 mean  +44.1 wins  +34.9 eras  -24.8/ +49.0 Δstk   -8.0/ +65.9 names  +24.6 (48%+) top10   28% ×1.1  +31.0 t  1.6
+240 C0.50  h63 DIP       n  5579 mean  +10.6 wins   +2.3 eras  -12.9/ +19.7 Δstk   +7.3/ +42.5 names  +21.8 (56%+) top10   89% ×1.1   +0.6 t  0.3
+240 C0.50  h63 RICH      n 17561 mean   +5.7 wins   -0.3 eras   -6.6/  +4.3 Δstk  +13.4/ +22.8 names   +6.7 (47%+) top10  113% ×1.1   -3.9 t -0.2
 
-240 C0.70  h63 ALL       n 78814 mean   +2.0 wins   -0.2 eras   -2.8/  +1.1 Δstk   +7.2/ +17.7 names   -7.2 (45%+) top10   79% ×1.1   -7.2 t  nan
-240 C0.70  h63 IVLOW     n 16462 mean   +3.2 wins   +1.4 eras   +4.7/  -3.0 Δstk  +15.7/ +13.6 names   -4.4 (44%+) top10   87% ×1.1   -6.2 t  0.7
-240 C0.70  h63 IVLOW∧UP  n 10019 mean   +4.7 wins   +3.5 eras   +5.5/  +0.7 Δstk  +16.5/ +14.6 names   -8.2 (41%+) top10   64% ×1.1   -4.8 t  0.1
-240 C0.70  h63 PANIC     n  4521 mean  +41.7 wins  +34.4 eras  -16.3/ +42.8 Δstk   -7.2/ +56.0 names  +34.5 (62%+) top10   19% ×1.1  +28.8 t  2.1
-240 C0.70  h63 DIP       n  7189 mean   +5.0 wins   -0.1 eras   -4.7/  +3.1 Δstk   +6.4/ +26.9 names   +7.2 (54%+) top10   97% ×1.1   -4.5 t  0.7
-240 C0.70  h63 RICH      n 25075 mean   +2.5 wins   -0.7 eras   +0.4/  -1.2 Δstk  +11.4/ +17.9 names   -5.9 (45%+) top10  124% ×1.1   -6.8 t  1.1
+240 C0.70  h63 ALL       n 58531 mean   +7.9 wins   +5.4 eras   -2.7/ +12.3 Δstk   +7.2/ +21.9 names   +9.5 (56%+) top10   31% ×1.1   -1.9 t  nan
+240 C0.70  h63 IVLOW     n 14616 mean   +9.2 wins   +7.4 eras   +4.7/ +12.2 Δstk  +15.7/ +22.1 names   +8.2 (53%+) top10   36% ×1.1   -0.7 t  0.4
+240 C0.70  h63 IVLOW∧UP  n  9157 mean   +9.3 wins   +8.1 eras   +5.5/ +12.7 Δstk  +16.5/ +21.2 names   +4.1 (49%+) top10   37% ×1.1   -0.7 t -0.3
+240 C0.70  h63 PANIC     n  3379 mean  +39.1 wins  +32.9 eras  -16.3/ +44.5 Δstk   -7.2/ +56.8 names  +22.6 (53%+) top10   23% ×1.1  +26.5 t  1.6
+240 C0.70  h63 DIP       n  5579 mean  +13.0 wins   +7.2 eras   -4.7/ +20.8 Δstk   +6.4/ +37.1 names  +21.8 (62%+) top10   56% ×1.1   +2.7 t  0.2
+240 C0.70  h63 RICH      n 17561 mean   +8.6 wins   +4.4 eras   +0.4/  +7.3 Δstk  +11.4/ +19.8 names   +9.1 (54%+) top10   55% ×1.1   -1.3 t  0.1
 
-240 C0.30  h21 ALL       n 79067 mean  -16.9 wins  -18.7 eras   -9.8/ -23.3 Δstk   +2.7/  +9.4 names  -43.9 ( 6%+) top10  nan% ×1.1  -24.5 t  nan
-240 C0.30  h21 IVLOW     n 16402 mean  -10.0 wins  -11.4 eras   -7.4/ -16.9 Δstk   +3.9/  +6.7 names  -26.8 (24%+) top10  nan% ×1.1  -18.2 t  2.5
-240 C0.30  h21 IVLOW∧UP  n  9967 mean   -8.2 wins   -9.2 eras   -7.6/ -11.5 Δstk   +3.7/  +8.0 names  -23.2 (27%+) top10  nan% ×1.1  -16.5 t  1.9
-240 C0.30  h21 PANIC     n  4627 mean  +17.3 wins  +13.9 eras  +14.3/ +13.8 Δstk  +35.9/ +28.9 names  +14.7 (56%+) top10   19% ×1.1   +6.6 t  3.7
-240 C0.30  h21 DIP       n  7231 mean  -16.5 wins  -18.9 eras  -10.1/ -25.0 Δstk   +4.1/ +11.6 names  -25.7 (25%+) top10  nan% ×1.1  -24.1 t  2.4
-240 C0.30  h21 RICH      n 25269 mean  -22.1 wins  -24.0 eras  -12.0/ -29.0 Δstk   +3.7/ +10.8 names  -45.0 ( 8%+) top10  nan% ×1.1  -29.2 t  2.1
+240 C0.30  h21 ALL       n 58858 mean   -3.3 wins   -5.1 eras   -9.8/  -1.2 Δstk   +2.7/  +9.3 names   -2.4 (38%+) top10  nan% ×1.1  -12.1 t  nan
+240 C0.30  h21 IVLOW     n 14594 mean   -0.6 wins   -2.1 eras   -7.3/  +7.5 Δstk   +3.9/ +14.3 names   +5.2 (50%+) top10  nan% ×1.1   -9.7 t  0.9
+240 C0.30  h21 IVLOW∧UP  n  9135 mean   -1.1 wins   -2.0 eras   -7.6/  +7.9 Δstk   +3.7/ +14.5 names   +1.7 (46%+) top10  nan% ×1.1  -10.1 t  0.1
+240 C0.30  h21 PANIC     n  3396 mean  +13.2 wins  +10.2 eras  +14.3/  +9.2 Δstk  +35.9/ +22.6 names   +1.1 (46%+) top10   30% ×1.1   +2.9 t  1.9
+240 C0.30  h21 DIP       n  5602 mean   -4.5 wins   -7.0 eras  -10.0/  -3.6 Δstk   +4.1/ +11.1 names   +0.2 (41%+) top10  nan% ×1.1  -13.2 t  0.7
+240 C0.30  h21 RICH      n 17724 mean   -5.7 wins   -7.7 eras  -11.9/  -4.6 Δstk   +3.7/  +8.8 names   -2.3 (37%+) top10  nan% ×1.1  -14.2 t -0.1
 
-240 C0.30  tp  ALL       n 72537 mean  -15.6 wins  -16.5 eras  -13.7/ -17.9 Δstk   +0.0/ +11.7 names  -42.3 (16%+) top10  nan% ×1.1  -23.2 t  nan
-240 C0.30  tp  IVLOW     n 14719 mean   -8.6 wins   -9.4 eras   -8.7/ -10.2 Δstk   +9.0/ +14.7 names  -21.3 (30%+) top10  nan% ×1.1  -16.9 t  2.6
-240 C0.30  tp  IVLOW∧UP  n  8974 mean   -6.3 wins   -6.9 eras   -8.2/  -5.0 Δstk  +10.1/ +15.9 names  -19.9 (31%+) top10  nan% ×1.1  -14.8 t  1.8
-240 C0.30  tp  PANIC     n  4416 mean  +24.3 wins  +22.4 eras  -11.6/ +27.9 Δstk   -2.1/ +39.3 names  +18.7 (54%+) top10   16% ×1.1  +13.0 t  3.1
-240 C0.30  tp  DIP       n  6727 mean  -12.3 wins  -13.6 eras  -13.5/ -13.7 Δstk   -1.3/ +18.4 names  -20.8 (32%+) top10  nan% ×1.1  -20.3 t  2.3
-240 C0.30  tp  RICH      n 23091 mean  -22.4 wins  -23.2 eras  -14.3/ -27.0 Δstk   +2.0/  +9.2 names  -44.9 (16%+) top10  nan% ×1.1  -29.4 t  1.7
+240 C0.30  tp  ALL       n 54243 mean   -0.7 wins   -1.5 eras  -13.7/  +8.7 Δstk   +0.0/ +15.3 names   +5.6 (49%+) top10  nan% ×1.1   -9.7 t  nan
+240 C0.30  tp  IVLOW     n 12972 mean   +1.7 wins   +1.0 eras   -8.7/ +19.1 Δstk   +9.0/ +21.5 names  +12.7 (48%+) top10  147% ×1.1   -7.5 t  1.4
+240 C0.30  tp  IVLOW∧UP  n  8181 mean   +1.5 wins   +1.0 eras   -8.2/ +17.6 Δstk  +10.1/ +21.6 names   +4.1 (43%+) top10  220% ×1.1   -7.7 t  0.3
+240 C0.30  tp  PANIC     n  3297 mean  +22.2 wins  +20.7 eras  -11.6/ +27.9 Δstk   -2.1/ +37.1 names   +6.1 (44%+) top10   21% ×1.1  +11.1 t  1.6
+240 C0.30  tp  DIP       n  5229 mean   -0.5 wins   -1.8 eras  -13.5/ +10.8 Δstk   -1.3/ +21.8 names   +8.0 (49%+) top10  nan% ×1.1   -9.5 t  0.3
+240 C0.30  tp  RICH      n 16210 mean   -4.6 wins   -5.4 eras  -14.2/  +0.9 Δstk   +2.0/ +11.9 names   +2.9 (43%+) top10  nan% ×1.1  -13.2 t -1.0
 
-120 C0.30  h63 ALL       n 78814 mean   +0.2 wins   -8.7 eras  -26.7/  +0.6 Δstk  +14.6/ +33.8 names  -22.8 (30%+) top10 2231% ×1.1   -8.9 t  nan
-120 C0.30  h63 IVLOW     n 16462 mean   -4.2 wins  -12.0 eras  -16.9/  -5.5 Δstk  +32.0/ +26.9 names   -8.7 (28%+) top10  nan% ×1.1  -12.9 t  0.4
-120 C0.30  h63 IVLOW∧UP  n 10019 mean   -4.9 wins  -10.0 eras  -14.4/  -3.7 Δstk  +33.9/ +28.4 names  -17.2 (26%+) top10  nan% ×1.1  -13.5 t -0.3
-120 C0.30  h63 PANIC     n  4521 mean  +92.9 wins  +63.6 eras  -42.3/ +81.3 Δstk  -11.4/+102.3 names  +78.4 (47%+) top10   26% ×1.1  +75.4 t  2.1
-120 C0.30  h63 DIP       n  7189 mean   +8.9 wins   -9.5 eras  -31.6/  +6.1 Δstk  +11.5/ +48.5 names  +10.6 (38%+) top10  183% ×1.1   -1.0 t  0.9
-120 C0.30  h63 RICH      n 25075 mean   -4.4 wins  -16.0 eras  -22.8/ -13.1 Δstk  +22.6/ +33.6 names  -24.6 (27%+) top10  nan% ×1.1  -13.1 t  0.1
+120 C0.30  h63 ALL       n 67874 mean  +11.8 wins   +2.3 eras  -26.5/ +21.3 Δstk  +14.6/ +43.0 names  +15.9 (45%+) top10   56% ×1.1   +1.6 t  nan
+120 C0.30  h63 IVLOW     n 14997 mean   +4.0 wins   -3.9 eras  -16.6/ +17.8 Δstk  +32.0/ +41.4 names  +13.9 (35%+) top10  247% ×1.1   -5.4 t -0.4
+120 C0.30  h63 IVLOW∧UP  n  9355 mean   +1.2 wins   -3.7 eras  -14.1/ +14.1 Δstk  +33.9/ +40.0 names   +0.2 (32%+) top10  713% ×1.1   -8.0 t -1.0
+120 C0.30  h63 PANIC     n  4521 mean  +92.9 wins  +65.9 eras  -42.3/ +83.9 Δstk  -11.4/+102.3 names  +78.4 (47%+) top10   26% ×1.1  +75.4 t  1.8
+120 C0.30  h63 DIP       n  6223 mean  +22.4 wins   +2.8 eras  -31.2/ +33.9 Δstk  +11.5/ +68.5 names  +52.9 (48%+) top10   87% ×1.1  +11.3 t  0.5
+120 C0.30  h63 RICH      n 20485 mean  +10.6 wins   -2.9 eras  -22.6/  +8.4 Δstk  +22.6/ +40.1 names  +12.2 (41%+) top10  125% ×1.1   +0.6 t -0.9
 
-120 C0.50  h63 ALL       n 78814 mean   +5.5 wins   +0.8 eras  -11.4/  +7.1 Δstk  +12.2/ +28.3 names   -8.4 (42%+) top10   60% ×1.1   -4.1 t  nan
-120 C0.50  h63 IVLOW     n 16462 mean   +3.1 wins   -0.9 eras   -1.6/  -0.1 Δstk  +26.6/ +22.5 names   -1.7 (37%+) top10  181% ×1.1   -6.2 t  0.3
-120 C0.50  h63 IVLOW∧UP  n 10019 mean   +4.1 wins   +1.4 eras   +0.0/  +3.4 Δstk  +28.2/ +23.8 names   -9.1 (34%+) top10  145% ×1.1   -5.4 t -0.3
-120 C0.50  h63 PANIC     n  4521 mean  +74.3 wins  +59.0 eras  -29.7/ +73.8 Δstk   -9.9/ +86.2 names  +62.6 (54%+) top10   20% ×1.1  +58.4 t  2.0
-120 C0.50  h63 DIP       n  7189 mean  +10.5 wins   +0.3 eras  -16.2/ +11.9 Δstk   +9.8/ +41.0 names  +17.8 (49%+) top10   92% ×1.1   +0.4 t  0.5
-120 C0.50  h63 RICH      n 25075 mean   +3.9 wins   -2.5 eras   -7.3/  -0.5 Δstk  +18.9/ +28.3 names   -7.8 (42%+) top10  159% ×1.1   -5.6 t  0.3
+120 C0.50  h63 ALL       n 67874 mean  +13.7 wins   +8.7 eras  -11.3/ +21.9 Δstk  +12.2/ +36.0 names  +17.4 (54%+) top10   29% ×1.1   +3.4 t  nan
+120 C0.50  h63 IVLOW     n 14997 mean  +10.0 wins   +5.9 eras   -1.4/ +18.3 Δstk  +26.6/ +34.8 names  +13.6 (43%+) top10   65% ×1.1   +0.0 t -0.4
+120 C0.50  h63 IVLOW∧UP  n  9355 mean   +9.4 wins   +6.8 eras   +0.2/ +18.1 Δstk  +28.2/ +33.6 names   +4.3 (40%+) top10   69% ×1.1   -0.6 t -0.9
+120 C0.50  h63 PANIC     n  4521 mean  +74.3 wins  +60.2 eras  -29.7/ +75.1 Δstk   -9.9/ +86.2 names  +62.6 (54%+) top10   20% ×1.1  +58.4 t  1.7
+120 C0.50  h63 DIP       n  6223 mean  +21.5 wins  +10.7 eras  -15.9/ +34.9 Δstk   +9.8/ +58.1 names  +47.6 (59%+) top10   55% ×1.1  +10.4 t  0.2
+120 C0.50  h63 RICH      n 20485 mean  +13.6 wins   +6.2 eras   -7.1/ +13.8 Δstk  +18.9/ +33.8 names  +16.5 (53%+) top10   57% ×1.1   +3.3 t -0.7
 
-120 C0.70  h63 ALL       n 78814 mean   +9.2 wins   +6.2 eras   -2.3/ +10.7 Δstk  +10.0/ +23.2 names   +3.1 (55%+) top10   25% ×1.1   -0.8 t  nan
-120 C0.70  h63 IVLOW     n 16462 mean   +8.4 wins   +5.9 eras   +7.2/  +4.3 Δstk  +21.8/ +18.5 names   +4.2 (47%+) top10   48% ×1.1   -1.5 t  0.2
-120 C0.70  h63 IVLOW∧UP  n 10019 mean   +9.8 wins   +8.2 eras   +8.4/  +7.9 Δstk  +23.0/ +19.6 names   -3.0 (43%+) top10   46% ×1.1   -0.2 t -0.3
-120 C0.70  h63 PANIC     n  4521 mean  +59.2 wins  +50.0 eras  -19.8/ +61.6 Δstk   -8.6/ +71.3 names  +50.1 (62%+) top10   18% ×1.1  +44.7 t  1.9
-120 C0.70  h63 DIP       n  7189 mean  +12.6 wins   +6.2 eras   -5.7/ +14.5 Δstk   +8.1/ +34.1 names  +20.9 (60%+) top10   53% ×1.1   +2.3 t  0.3
-120 C0.70  h63 RICH      n 25075 mean   +9.8 wins   +5.8 eras   +1.7/  +7.6 Δstk  +15.5/ +23.3 names   +4.6 (54%+) top10   42% ×1.1   -0.1 t  0.5
+120 C0.70  h63 ALL       n 67874 mean  +14.2 wins  +11.1 eras   -2.2/ +19.9 Δstk  +10.0/ +29.7 names  +16.9 (61%+) top10   19% ×1.1   +3.9 t  nan
+120 C0.70  h63 IVLOW     n 14997 mean  +13.5 wins  +11.0 eras   +7.3/ +17.4 Δstk  +21.8/ +28.7 names  +13.0 (52%+) top10   35% ×1.1   +3.2 t -0.2
+120 C0.70  h63 IVLOW∧UP  n  9355 mean  +13.8 wins  +12.2 eras   +8.5/ +18.5 Δstk  +23.0/ +27.7 names   +6.7 (48%+) top10   36% ×1.1   +3.4 t -0.7
+120 C0.70  h63 PANIC     n  4521 mean  +59.2 wins  +50.7 eras  -19.8/ +62.4 Δstk   -8.6/ +71.3 names  +50.1 (62%+) top10   18% ×1.1  +44.7 t  1.6
+120 C0.70  h63 DIP       n  6223 mean  +21.0 wins  +14.1 eras   -5.6/ +32.1 Δstk   +8.1/ +48.4 names  +41.0 (68%+) top10   40% ×1.1  +10.0 t  0.0
+120 C0.70  h63 RICH      n 20485 mean  +14.9 wins  +10.2 eras   +1.8/ +15.1 Δstk  +15.5/ +27.9 names  +17.3 (61%+) top10   35% ×1.1   +4.5 t -0.3
 
  60 C0.50  exp ALL       n 72865 mean  +15.3 wins  +10.7 eras   -5.3/ +20.0 Δstk   +9.5/ +30.1 names  +12.3 (56%+) top10   22% ×1.1   +4.8 t  nan
  60 C0.50  exp IVLOW     n 15843 mean  +17.5 wins  +13.7 eras   +3.9/ +28.5 Δstk  +21.1/ +35.9 names  +26.9 (50%+) top10   35% ×1.1   +6.9 t  0.9
@@ -156,91 +152,91 @@ pricer validation (model/real median, calls): 1.00/0.95 · 1.00/1.02 · 0.97/1.0
  30 rr0.50 exp DIP       n  6944 mean   +1.6 wins   +0.9 eras   -0.7/  +2.0                      names   +2.3 (64%+) top10   42% ×1.1   -7.6 t  1.2
  30 rr0.50 exp RICH      n 23516 mean   +1.6 wins   +1.1 eras   +0.0/  +1.6                      names   +2.1 (69%+) top10   23% ×1.1   -7.7 t  0.7
 
-120 csp    h63 ALL       n 78814 mean   +2.1 wins   +2.0 eras   +1.8/  +2.2                      names   +2.5 (90%+) top10   10% ×1.1   -7.2 t  nan
-120 csp    h63 IVLOW     n 16462 mean   +2.6 wins   +2.5 eras   +2.9/  +2.1                      names   +1.8 (86%+) top10   14% ×1.1   -6.7 t  0.5
-120 csp    h63 IVLOW∧UP  n 10019 mean   +2.5 wins   +2.4 eras   +2.8/  +1.9                      names   +1.4 (81%+) top10   14% ×1.1   -6.8 t -0.3
-120 csp    h63 PANIC     n  4521 mean   +3.6 wins   +3.5 eras   -0.3/  +4.1                      names   +3.0 (89%+) top10   13% ×1.1   -5.8 t  0.9
-120 csp    h63 DIP       n  7189 mean   +3.9 wins   +3.7 eras   +2.7/  +4.4                      names   +3.6 (90%+) top10   21% ×1.1   -5.6 t  2.2
-120 csp    h63 RICH      n 25075 mean   +2.6 wins   +2.5 eras   +2.4/  +2.5                      names   +2.9 (92%+) top10   13% ×1.1   -6.8 t  1.6
+120 csp    h63 ALL       n 67874 mean   +2.0 wins   +1.9 eras   +1.8/  +2.0                      names   +1.8 (85%+) top10   13% ×1.1   -7.3 t  nan
+120 csp    h63 IVLOW     n 14997 mean   +2.7 wins   +2.6 eras   +2.9/  +2.2                      names   +1.5 (83%+) top10   15% ×1.1   -6.7 t  0.8
+120 csp    h63 IVLOW∧UP  n  9355 mean   +2.6 wins   +2.5 eras   +2.8/  +2.1                      names   +1.5 (82%+) top10   15% ×1.1   -6.8 t  0.0
+120 csp    h63 PANIC     n  4521 mean   +3.6 wins   +3.5 eras   -0.3/  +4.2                      names   +3.0 (89%+) top10   13% ×1.1   -5.8 t  1.0
+120 csp    h63 DIP       n  6223 mean   +3.7 wins   +3.6 eras   +2.7/  +4.3                      names   +3.4 (89%+) top10   24% ×1.1   -5.7 t  2.2
+120 csp    h63 RICH      n 20485 mean   +2.3 wins   +2.2 eras   +2.4/  +2.1                      names   +2.0 (85%+) top10   17% ×1.1   -7.0 t  1.8
 
-120 rr0.30 h63 ALL       n 78814 mean   +2.3 wins   +1.3 eras   -0.2/  +2.1                      names   +1.4 (59%+) top10   33% ×1.1   -7.0 t  nan
-120 rr0.30 h63 IVLOW     n 16462 mean   +2.4 wins   +1.5 eras   +1.5/  +1.5                      names   +1.1 (51%+) top10   42% ×1.1   -7.0 t  0.7
-120 rr0.30 h63 IVLOW∧UP  n 10019 mean   +2.3 wins   +1.7 eras   +1.6/  +1.8                      names   +0.6 (49%+) top10   40% ×1.1   -7.0 t -0.1
-120 rr0.30 h63 PANIC     n  4521 mean  +10.8 wins   +7.8 eras   -3.7/  +9.7                      names   +8.9 (66%+) top10   27% ×1.1   +0.8 t  1.9
-120 rr0.30 h63 DIP       n  7189 mean   +4.6 wins   +2.0 eras   -0.8/  +3.9                      names   +3.8 (65%+) top10   54% ×1.1   -4.9 t  1.2
-120 rr0.30 h63 RICH      n 25075 mean   +2.9 wins   +1.3 eras   +0.4/  +1.7                      names   +1.8 (58%+) top10   53% ×1.1   -6.4 t  1.0
+120 rr0.30 h63 ALL       n 67874 mean   +2.9 wins   +1.8 eras   -0.2/  +3.1                      names   +2.9 (69%+) top10   32% ×1.1   -6.4 t  nan
+120 rr0.30 h63 IVLOW     n 14997 mean   +3.0 wins   +2.1 eras   +1.6/  +3.1                      names   +2.1 (57%+) top10   39% ×1.1   -6.4 t  0.4
+120 rr0.30 h63 IVLOW∧UP  n  9355 mean   +2.7 wins   +2.2 eras   +1.7/  +3.0                      names   +1.8 (56%+) top10   37% ×1.1   -6.6 t -0.3
+120 rr0.30 h63 PANIC     n  4521 mean  +10.8 wins   +8.0 eras   -3.7/  +9.9                      names   +8.9 (66%+) top10   27% ×1.1   +0.8 t  1.7
+120 rr0.30 h63 DIP       n  6223 mean   +5.6 wins   +2.8 eras   -0.7/  +6.0                      names   +6.4 (72%+) top10   52% ×1.1   -4.0 t  1.1
+120 rr0.30 h63 RICH      n 20485 mean   +3.7 wins   +1.7 eras   +0.5/  +2.4                      names   +3.2 (64%+) top10   53% ×1.1   -5.8 t  0.5
 
-240 csp    h63 ALL       n 78814 mean   +1.9 wins   +1.9 eras   +0.7/  +2.5                      names   +3.5 (94%+) top10    8% ×1.1   -7.3 t  nan
-240 csp    h63 IVLOW     n 16462 mean   +2.0 wins   +1.9 eras   +1.7/  +2.2                      names   +2.3 (84%+) top10   13% ×1.1   -7.3 t -0.7
-240 csp    h63 IVLOW∧UP  n 10019 mean   +1.8 wins   +1.8 eras   +1.7/  +1.9                      names   +1.7 (79%+) top10   15% ×1.1   -7.4 t -1.2
-240 csp    h63 PANIC     n  4521 mean   +3.2 wins   +3.1 eras   -1.1/  +3.8                      names   +2.7 (84%+) top10   14% ×1.1   -6.2 t  0.3
-240 csp    h63 DIP       n  7189 mean   +3.3 wins   +3.1 eras   +0.8/  +4.8                      names   +4.5 (91%+) top10   17% ×1.1   -6.1 t -0.0
-240 csp    h63 RICH      n 25075 mean   +2.4 wins   +2.4 eras   +1.2/  +2.8                      names   +3.8 (92%+) top10   10% ×1.1   -6.9 t -0.4
+240 csp    h63 ALL       n 58531 mean   +0.9 wins   +0.9 eras   +0.7/  +1.1                      names   +0.8 (72%+) top10   17% ×1.1   -8.2 t  nan
+240 csp    h63 IVLOW     n 14616 mean   +1.5 wins   +1.5 eras   +1.7/  +1.1                      names   +0.7 (72%+) top10   16% ×1.1   -7.7 t  0.6
+240 csp    h63 IVLOW∧UP  n  9157 mean   +1.5 wins   +1.5 eras   +1.7/  +1.2                      names   +0.7 (73%+) top10   19% ×1.1   -7.7 t  0.1
+240 csp    h63 PANIC     n  3379 mean   +3.1 wins   +2.9 eras   -1.1/  +3.9                      names   +1.9 (76%+) top10   16% ×1.1   -6.3 t  1.3
+240 csp    h63 DIP       n  5579 mean   +1.7 wins   +1.6 eras   +0.8/  +2.5                      names   +2.0 (78%+) top10   31% ×1.1   -7.5 t  0.5
+240 csp    h63 RICH      n 17561 mean   +1.1 wins   +1.1 eras   +1.2/  +1.0                      names   +0.9 (75%+) top10   23% ×1.1   -8.0 t  1.9
 
-240 rr0.30 h63 ALL       n 78814 mean   +1.8 wins   +0.9 eras   -0.6/  +1.7                      names   +1.1 (57%+) top10   34% ×1.1   -7.5 t  nan
-240 rr0.30 h63 IVLOW     n 16462 mean   +1.9 wins   +1.2 eras   +1.0/  +1.3                      names   +0.9 (53%+) top10   46% ×1.1   -7.4 t  0.4
-240 rr0.30 h63 IVLOW∧UP  n 10019 mean   +1.9 wins   +1.4 eras   +1.2/  +1.7                      names   +0.4 (50%+) top10   43% ×1.1   -7.4 t -0.2
-240 rr0.30 h63 PANIC     n  4521 mean   +9.8 wins   +7.3 eras   -4.2/  +9.2                      names   +8.0 (66%+) top10   25% ×1.1   -0.1 t  1.8
-240 rr0.30 h63 DIP       n  7189 mean   +3.7 wins   +1.5 eras   -1.6/  +3.7                      names   +3.5 (67%+) top10   56% ×1.1   -5.7 t  0.9
-240 rr0.30 h63 RICH      n 25075 mean   +2.3 wins   +1.0 eras   -0.0/  +1.4                      names   +1.5 (57%+) top10   55% ×1.1   -7.0 t  0.8
+240 rr0.30 h63 ALL       n 58531 mean   +2.0 wins   +1.0 eras   -0.6/  +2.5                      names   +2.1 (60%+) top10   42% ×1.1   -7.2 t  nan
+240 rr0.30 h63 IVLOW     n 14616 mean   +2.3 wins   +1.6 eras   +1.1/  +2.6                      names   +1.6 (56%+) top10   43% ×1.1   -7.0 t  0.5
+240 rr0.30 h63 IVLOW∧UP  n  9157 mean   +2.2 wins   +1.8 eras   +1.2/  +2.8                      names   +1.2 (54%+) top10   40% ×1.1   -7.1 t -0.2
+240 rr0.30 h63 PANIC     n  3379 mean   +9.4 wins   +7.0 eras   -4.2/  +9.7                      names   +6.3 (56%+) top10   32% ×1.1   -0.6 t  1.6
+240 rr0.30 h63 DIP       n  5579 mean   +3.8 wins   +1.3 eras   -1.5/  +4.6                      names   +4.4 (65%+) top10   70% ×1.1   -5.6 t  0.7
+240 rr0.30 h63 RICH      n 17561 mean   +2.6 wins   +0.9 eras   -0.0/  +1.6                      names   +2.3 (58%+) top10   67% ×1.1   -6.7 t  0.6
 
 
-## variant B (level beta) robustness
-240 C0.30  h63 ALL       n 78814 mean   -6.1 wins  -12.4 eras  -14.1/ -11.5 Δstk  +11.7/ +25.8 names  -36.3 (22%+) top10  nan% ×1.1  -14.7 t  nan
-240 C0.30  h63 IVLOW     n 16462 mean   +7.9 wins   +1.4 eras   +1.6/  +1.0 Δstk  +25.6/ +21.5 names   -6.4 (34%+) top10   89% ×1.1   -1.9 t  2.4
-240 C0.30  h63 IVLOW∧UP  n 10019 mean   +9.4 wins   +4.9 eras   +4.0/  +6.2 Δstk  +27.1/ +22.8 names   -8.6 (33%+) top10   69% ×1.1   -0.6 t  1.6
-240 C0.30  h63 PANIC     n  4521 mean  +50.2 wins  +31.1 eras  -40.1/ +43.0 Δstk   -9.3/ +77.6 names  +42.2 (46%+) top10   33% ×1.1  +36.5 t  1.9
-240 C0.30  h63 DIP       n  7189 mean   -3.1 wins  -16.0 eras  -23.1/ -11.0 Δstk   +9.1/ +37.3 names  -14.4 (32%+) top10  nan% ×1.1  -11.9 t  1.1
-240 C0.30  h63 RICH      n 25075 mean  -12.3 wins  -20.2 eras  -12.3/ -23.6 Δstk  +17.7/ +25.7 names  -38.9 (18%+) top10  nan% ×1.1  -20.3 t  0.6
+## variant B (level beta) robustness — rerun 11-10 after A388 fix
+240 C0.30  h63 ALL       n 58531 mean  +10.5 wins   +3.7 eras  -14.0/ +18.7 Δstk  +11.7/ +31.9 names  +17.3 (49%+) top10   51% ×1.1   +0.5 t  nan
+240 C0.30  h63 IVLOW     n 14616 mean  +19.7 wins  +12.8 eras   +1.7/ +33.0 Δstk  +25.6/ +34.4 names  +29.3 (50%+) top10   42% ×1.1   +8.8 t  1.5
+240 C0.30  h63 IVLOW∧UP  n  9157 mean  +18.3 wins  +13.9 eras   +4.2/ +31.6 Δstk  +27.1/ +32.9 names  +18.9 (46%+) top10   40% ×1.1   +7.6 t  0.6
+240 C0.30  h63 PANIC     n  3379 mean  +41.6 wins  +25.9 eras  -40.1/ +41.4 Δstk   -9.3/ +77.9 names  +28.3 (40%+) top10   44% ×1.1  +28.7 t  1.1
+240 C0.30  h63 DIP       n  5579 mean  +10.6 wins   -4.0 eras  -22.9/ +17.6 Δstk   +9.1/ +50.9 names  +21.3 (46%+) top10  151% ×1.1   +0.5 t  0.4
+240 C0.30  h63 RICH      n 17561 mean   +7.8 wins   -2.3 eras  -12.1/  +4.9 Δstk  +17.7/ +27.9 names  +10.1 (42%+) top10  136% ×1.1   -2.0 t -1.2
 
-240 C0.50  h63 ALL       n 78814 mean   -6.4 wins   -9.8 eras  -10.5/  -9.5 Δstk   +9.2/ +20.5 names  -27.0 (27%+) top10  nan% ×1.1  -14.9 t  nan
-240 C0.50  h63 IVLOW     n 16462 mean   +1.7 wins   -1.6 eras   +1.3/  -5.4 Δstk  +20.1/ +17.0 names   -9.9 (36%+) top10  236% ×1.1   -7.5 t  2.0
-240 C0.50  h63 IVLOW∧UP  n 10019 mean   +3.6 wins   +1.3 eras   +2.7/  -0.6 Δstk  +21.3/ +18.1 names  -12.2 (34%+) top10  118% ×1.1   -5.8 t  1.3
-240 C0.50  h63 PANIC     n  4521 mean  +37.9 wins  +27.6 eras  -31.0/ +37.3 Δstk   -7.8/ +62.1 names  +31.0 (52%+) top10   27% ×1.1  +25.4 t  2.0
-240 C0.50  h63 DIP       n  7189 mean   -4.6 wins  -11.9 eras  -16.6/  -8.6 Δstk   +7.4/ +30.0 names   -8.3 (39%+) top10  nan% ×1.1  -13.2 t  0.9
-240 C0.50  h63 RICH      n 25075 mean   -9.7 wins  -14.3 eras   -8.3/ -16.8 Δstk  +14.0/ +20.5 names  -27.6 (25%+) top10  nan% ×1.1  -17.9 t  0.9
+240 C0.50  h63 ALL       n 58531 mean   +5.0 wins   +1.2 eras  -10.4/ +11.1 Δstk   +9.2/ +25.4 names   +8.8 (49%+) top10   63% ×1.1   -4.6 t  nan
+240 C0.50  h63 IVLOW     n 14616 mean  +10.9 wins   +7.3 eras   +1.3/ +18.3 Δstk  +20.1/ +27.3 names  +14.3 (50%+) top10   45% ×1.1   +0.8 t  1.3
+240 C0.50  h63 IVLOW∧UP  n  9157 mean  +10.6 wins   +8.3 eras   +2.7/ +18.5 Δstk  +21.3/ +26.2 names   +7.7 (46%+) top10   45% ×1.1   +0.5 t  0.4
+240 C0.50  h63 PANIC     n  3379 mean  +33.1 wins  +24.4 eras  -31.0/ +37.5 Δstk   -7.8/ +62.5 names  +18.1 (44%+) top10   35% ×1.1  +21.0 t  1.2
+240 C0.50  h63 DIP       n  5579 mean   +6.4 wins   -1.9 eras  -16.5/ +14.7 Δstk   +7.4/ +41.3 names  +16.3 (51%+) top10  148% ×1.1   -3.3 t  0.1
+240 C0.50  h63 RICH      n 17561 mean   +3.7 wins   -2.2 eras   -8.2/  +2.2 Δstk  +14.0/ +22.5 names   +5.6 (46%+) top10  169% ×1.1   -5.7 t -0.8
 
-240 C0.70  h63 ALL       n 78814 mean   +1.9 wins   -0.4 eras   -2.8/  +0.8 Δstk   +7.8/ +17.5 names   -7.2 (45%+) top10   85% ×1.1   -7.4 t  nan
-240 C0.70  h63 IVLOW     n 16462 mean   +6.1 wins   +4.0 eras   +6.7/  +0.4 Δstk  +17.0/ +14.5 names   -0.7 (46%+) top10   50% ×1.1   -3.5 t  1.4
-240 C0.70  h63 IVLOW∧UP  n 10019 mean   +7.7 wins   +6.3 eras   +7.6/  +4.3 Δstk  +18.0/ +15.5 names   -5.0 (44%+) top10   43% ×1.1   -2.1 t  0.7
-240 C0.70  h63 PANIC     n  4521 mean  +36.6 wins  +29.7 eras  -19.4/ +37.9 Δstk   -7.0/ +53.6 names  +30.5 (60%+) top10   21% ×1.1  +24.2 t  1.9
-240 C0.70  h63 DIP       n  7189 mean   +3.1 wins   -1.9 eras   -6.5/  +1.3 Δstk   +6.4/ +26.1 names   +4.9 (53%+) top10  153% ×1.1   -6.2 t  0.6
-240 C0.70  h63 RICH      n 25075 mean   +1.6 wins   -1.6 eras   -0.3/  -2.1 Δstk  +11.9/ +17.6 names   -6.5 (44%+) top10  193% ×1.1   -7.6 t  0.9
+240 C0.70  h63 ALL       n 58531 mean   +7.9 wins   +5.4 eras   -2.7/ +12.3 Δstk   +7.8/ +21.8 names  +10.0 (56%+) top10   30% ×1.1   -1.9 t  nan
+240 C0.70  h63 IVLOW     n 14616 mean  +12.3 wins  +10.0 eras   +6.7/ +16.1 Δstk  +17.0/ +23.5 names  +12.4 (55%+) top10   30% ×1.1   +2.1 t  1.2
+240 C0.70  h63 IVLOW∧UP  n  9157 mean  +12.4 wins  +10.9 eras   +7.7/ +16.8 Δstk  +18.0/ +22.5 names   +7.8 (52%+) top10   31% ×1.1   +2.1 t  0.3
+240 C0.70  h63 PANIC     n  3379 mean  +33.5 wins  +27.6 eras  -19.4/ +38.7 Δstk   -7.0/ +54.1 names  +19.2 (52%+) top10   27% ×1.1  +21.4 t  1.3
+240 C0.70  h63 DIP       n  5579 mean  +10.9 wins   +5.2 eras   -6.4/ +18.3 Δstk   +6.4/ +36.1 names  +19.1 (61%+) top10   66% ×1.1   +0.8 t  0.1
+240 C0.70  h63 RICH      n 17561 mean   +7.7 wins   +3.6 eras   -0.2/  +6.4 Δstk  +11.9/ +19.5 names   +8.6 (53%+) top10   60% ×1.1   -2.1 t -0.2
 
-240 C0.30  h21 ALL       n 79067 mean  -17.5 wins  -19.4 eras  -11.3/ -23.6 Δstk   +2.8/  +9.2 names  -44.2 ( 5%+) top10  nan% ×1.1  -25.0 t  nan
-240 C0.30  h21 IVLOW     n 16402 mean   -2.5 wins   -4.9 eras   -2.8/  -7.7 Δstk   +4.3/  +7.2 names  -18.5 (37%+) top10  nan% ×1.1  -11.4 t  4.3
-240 C0.30  h21 IVLOW∧UP  n  9967 mean   -0.5 wins   -2.4 eras   -2.9/  -1.7 Δstk   +4.1/  +8.7 names  -14.8 (38%+) top10  nan% ×1.1   -9.6 t  3.7
-240 C0.30  h21 PANIC     n  4627 mean   +8.3 wins   +5.4 eras   +1.7/  +6.1 Δstk  +33.9/ +27.2 names   +8.9 (51%+) top10   36% ×1.1   -1.6 t  3.3
-240 C0.30  h21 DIP       n  7231 mean  -19.7 wins  -22.2 eras  -14.5/ -27.5 Δstk   +3.9/ +11.2 names  -30.2 (21%+) top10  nan% ×1.1  -27.0 t  2.2
-240 C0.30  h21 RICH      n 25269 mean  -26.3 wins  -28.1 eras  -17.0/ -32.9 Δstk   +3.8/ +10.7 names  -47.8 ( 7%+) top10  nan% ×1.1  -33.0 t  0.8
+240 C0.30  h21 ALL       n 58858 mean   -3.7 wins   -5.7 eras  -11.3/  -1.0 Δstk   +2.8/  +9.3 names   -2.1 (37%+) top10  nan% ×1.1  -12.4 t  nan
+240 C0.30  h21 IVLOW     n 14594 mean   +7.4 wins   +5.0 eras   -2.8/ +19.1 Δstk   +4.3/ +15.3 names  +16.6 (66%+) top10   33% ×1.1   -2.4 t  3.1
+240 C0.30  h21 IVLOW∧UP  n  9135 mean   +6.9 wins   +5.2 eras   -2.9/ +19.5 Δstk   +4.1/ +15.5 names  +12.3 (59%+) top10   32% ×1.1   -2.8 t  2.5
+240 C0.30  h21 PANIC     n  3396 mean   +2.0 wins   -0.3 eras   +1.7/  -0.8 Δstk  +33.9/ +20.7 names   -3.1 (40%+) top10  169% ×1.1   -7.3 t  1.1
+240 C0.30  h21 DIP       n  5602 mean   -8.2 wins  -10.9 eras  -14.4/  -6.9 Δstk   +3.9/ +10.7 names   -5.8 (32%+) top10  nan% ×1.1  -16.6 t  0.5
+240 C0.30  h21 RICH      n 17724 mean  -10.5 wins  -12.5 eras  -16.9/  -9.3 Δstk   +3.8/  +8.8 names   -6.4 (31%+) top10  nan% ×1.1  -18.6 t -2.2
 
-240 C0.30  tp  ALL       n 73013 mean  -16.6 wins  -17.6 eras  -15.5/ -18.6 Δstk   +0.0/ +11.8 names  -42.8 (14%+) top10  nan% ×1.1  -24.2 t  nan
-240 C0.30  tp  IVLOW     n 14856 mean   -1.3 wins   -2.4 eras   -4.5/  +0.4 Δstk   +9.5/ +15.2 names  -13.1 (37%+) top10  nan% ×1.1  -10.3 t  4.3
-240 C0.30  tp  IVLOW∧UP  n  9049 mean   +0.6 wins   -0.4 eras   -4.4/  +5.3 Δstk  +10.1/ +16.1 names  -11.4 (36%+) top10  592% ×1.1   -8.6 t  3.2
-240 C0.30  tp  PANIC     n  4423 mean  +13.7 wins  +12.0 eras  -23.3/ +17.7 Δstk   -4.1/ +41.7 names  +10.6 (47%+) top10   27% ×1.1   +3.4 t  2.6
-240 C0.30  tp  DIP       n  6770 mean  -16.5 wins  -17.8 eras  -18.4/ -17.3 Δstk   -1.6/ +18.6 names  -26.3 (28%+) top10  nan% ×1.1  -24.1 t  2.2
-240 C0.30  tp  RICH      n 23319 mean  -26.9 wins  -27.8 eras  -19.1/ -31.4 Δstk   +2.2/  +8.8 names  -47.8 (12%+) top10  nan% ×1.1  -33.5 t  0.6
+240 C0.30  tp  ALL       n 54598 mean   -1.5 wins   -2.5 eras  -15.5/  +8.4 Δstk   +0.0/ +15.8 names   +6.2 (47%+) top10  nan% ×1.1  -10.5 t  nan
+240 C0.30  tp  IVLOW     n 13113 mean   +9.8 wins   +8.6 eras   -4.4/ +32.4 Δstk   +9.5/ +22.3 names  +25.7 (57%+) top10   30% ×1.1   -0.2 t  3.3
+240 C0.30  tp  IVLOW∧UP  n  8258 mean   +9.1 wins   +7.9 eras   -4.4/ +29.9 Δstk  +10.1/ +22.0 names  +16.2 (49%+) top10   42% ×1.1   -0.8 t  1.9
+240 C0.30  tp  PANIC     n  3304 mean  +10.2 wins   +9.0 eras  -23.2/ +16.3 Δstk   -4.1/ +40.8 names   +1.1 (38%+) top10   41% ×1.1   +0.2 t  0.7
+240 C0.30  tp  DIP       n  5271 mean   -5.4 wins   -6.6 eras  -18.3/  +6.1 Δstk   -1.6/ +22.5 names   +1.3 (44%+) top10  nan% ×1.1  -14.0 t  0.2
+240 C0.30  tp  RICH      n 16378 mean   -9.9 wins  -11.0 eras  -19.0/  -5.2 Δstk   +2.2/ +11.2 names   -1.6 (40%+) top10  nan% ×1.1  -18.1 t -3.2
 
-120 C0.30  h63 ALL       n 78814 mean   +5.2 wins   -3.8 eras  -17.6/  +3.4 Δstk  +16.2/ +33.6 names  -19.8 (33%+) top10  109% ×1.1   -4.3 t  nan
-120 C0.30  h63 IVLOW     n 16462 mean  +17.6 wins   +7.8 eras   +4.0/ +13.0 Δstk  +35.2/ +29.1 names  +10.1 (35%+) top10   61% ×1.1   +6.9 t  1.8
-120 C0.30  h63 IVLOW∧UP  n 10019 mean  +17.5 wins  +10.7 eras   +7.2/ +15.8 Δstk  +37.6/ +30.7 names   +1.1 (31%+) top10   59% ×1.1   +6.8 t  1.0
-120 C0.30  h63 PANIC     n  4521 mean  +78.6 wins  +51.8 eras  -46.4/ +68.1 Δstk  -11.0/ +98.1 names  +67.5 (44%+) top10   31% ×1.1  +62.4 t  1.7
-120 C0.30  h63 DIP       n  7189 mean   +8.1 wins  -10.0 eras  -29.7/  +3.9 Δstk  +11.7/ +47.2 names   +5.9 (37%+) top10  207% ×1.1   -1.7 t  0.8
-120 C0.30  h63 RICH      n 25075 mean   -2.8 wins  -14.1 eras  -15.9/ -13.4 Δstk  +23.8/ +33.3 names  -24.0 (27%+) top10  nan% ×1.1  -11.6 t -0.1
+120 C0.30  h63 ALL       n 67874 mean  +17.5 wins   +8.0 eras  -17.3/ +24.6 Δstk  +16.2/ +42.8 names  +19.9 (47%+) top10   39% ×1.1   +6.8 t  nan
+120 C0.30  h63 IVLOW     n 14997 mean  +27.5 wins  +17.6 eras   +4.4/ +40.2 Δstk  +35.2/ +44.7 names  +36.7 (43%+) top10   44% ×1.1  +16.0 t  1.1
+120 C0.30  h63 IVLOW∧UP  n  9355 mean  +25.0 wins  +18.4 eras   +7.7/ +36.9 Δstk  +37.6/ +43.2 names  +21.8 (39%+) top10   45% ×1.1  +13.6 t  0.4
+120 C0.30  h63 PANIC     n  4521 mean  +78.6 wins  +53.7 eras  -46.4/ +70.3 Δstk  -11.0/ +98.1 names  +67.5 (44%+) top10   31% ×1.1  +62.4 t  1.3
+120 C0.30  h63 DIP       n  6223 mean  +21.5 wins   +2.1 eras  -29.4/ +30.8 Δstk  +11.7/ +66.9 names  +45.7 (45%+) top10   94% ×1.1  +10.4 t  0.5
+120 C0.30  h63 RICH      n 20485 mean  +12.6 wins   -0.6 eras  -15.6/  +8.0 Δstk  +23.8/ +39.7 names  +12.6 (42%+) top10  106% ×1.1   +2.4 t -1.1
 
-120 C0.50  h63 ALL       n 78814 mean   +8.5 wins   +3.7 eras   -5.9/  +8.7 Δstk  +13.5/ +28.2 names   -6.5 (44%+) top10   40% ×1.1   -1.4 t  nan
-120 C0.50  h63 IVLOW     n 16462 mean  +16.0 wins  +10.9 eras  +11.0/ +10.8 Δstk  +29.3/ +24.3 names   +9.5 (43%+) top10   42% ×1.1   +5.4 t  1.4
-120 C0.50  h63 IVLOW∧UP  n 10019 mean  +17.2 wins  +13.8 eras  +13.0/ +14.9 Δstk  +31.2/ +25.8 names   +1.6 (41%+) top10   42% ×1.1   +6.6 t  0.7
-120 C0.50  h63 PANIC     n  4521 mean  +66.6 wins  +52.3 eras  -32.3/ +66.4 Δstk   -9.6/ +82.7 names  +56.7 (53%+) top10   23% ×1.1  +51.4 t  1.7
-120 C0.50  h63 DIP       n  7189 mean  +10.2 wins   +0.1 eras  -15.0/ +10.7 Δstk  +10.0/ +39.9 names  +15.2 (48%+) top10   98% ×1.1   +0.1 t  0.5
-120 C0.50  h63 RICH      n 25075 mean   +4.8 wins   -1.5 eras   -3.1/  -0.8 Δstk  +19.8/ +28.0 names   -7.5 (43%+) top10  129% ×1.1   -4.7 t  0.1
+120 C0.50  h63 ALL       n 67874 mean  +17.0 wins  +12.0 eras   -5.8/ +23.6 Δstk  +13.5/ +36.0 names  +19.7 (57%+) top10   24% ×1.1   +6.4 t  nan
+120 C0.50  h63 IVLOW     n 14997 mean  +23.7 wins  +18.6 eras  +11.2/ +31.1 Δstk  +29.3/ +37.5 names  +26.5 (50%+) top10   32% ×1.1  +12.4 t  0.8
+120 C0.50  h63 IVLOW∧UP  n  9355 mean  +23.1 wins  +19.8 eras  +13.2/ +31.1 Δstk  +31.2/ +36.3 names  +16.6 (46%+) top10   33% ×1.1  +11.9 t  0.2
+120 C0.50  h63 PANIC     n  4521 mean  +66.6 wins  +53.4 eras  -32.3/ +67.6 Δstk   -9.6/ +82.7 names  +56.7 (53%+) top10   23% ×1.1  +51.4 t  1.4
+120 C0.50  h63 DIP       n  6223 mean  +21.1 wins  +10.3 eras  -14.7/ +33.2 Δstk  +10.0/ +56.7 names  +43.6 (59%+) top10   58% ×1.1  +10.1 t  0.1
+120 C0.50  h63 RICH      n 20485 mean  +14.8 wins   +7.4 eras   -2.9/ +13.4 Δstk  +19.8/ +33.4 names  +16.7 (54%+) top10   53% ×1.1   +4.3 t -0.9
 
-120 C0.70  h63 ALL       n 78814 mean  +10.7 wins   +7.7 eras   +0.6/ +11.4 Δstk  +11.0/ +23.1 names   +4.0 (56%+) top10   22% ×1.1   +0.6 t  nan
-120 C0.70  h63 IVLOW     n 16462 mean  +15.1 wins  +12.0 eras  +13.7/  +9.8 Δstk  +23.9/ +19.9 names  +10.0 (50%+) top10   31% ×1.1   +4.6 t  1.0
-120 C0.70  h63 IVLOW∧UP  n 10019 mean  +16.6 wins  +14.5 eras  +15.1/ +13.8 Δstk  +25.4/ +21.2 names   +2.5 (47%+) top10   31% ×1.1   +6.0 t  0.4
-120 C0.70  h63 PANIC     n  4521 mean  +55.1 wins  +46.3 eras  -20.9/ +57.5 Δstk   -8.3/ +68.6 names  +47.0 (61%+) top10   19% ×1.1  +41.0 t  1.7
-120 C0.70  h63 DIP       n  7189 mean  +12.4 wins   +6.0 eras   -5.1/ +13.8 Δstk   +8.3/ +33.2 names  +19.5 (60%+) top10   55% ×1.1   +2.2 t  0.3
-120 C0.70  h63 RICH      n 25075 mean  +10.3 wins   +6.3 eras   +3.9/  +7.4 Δstk  +16.2/ +23.1 names   +4.7 (55%+) top10   40% ×1.1   +0.3 t  0.3
+120 C0.70  h63 ALL       n 67874 mean  +16.0 wins  +12.8 eras   +0.7/ +20.8 Δstk  +11.0/ +29.6 names  +18.1 (63%+) top10   18% ×1.1   +5.4 t  nan
+120 C0.70  h63 IVLOW     n 14997 mean  +20.6 wins  +17.6 eras  +13.8/ +24.0 Δstk  +23.9/ +30.9 names  +19.8 (55%+) top10   26% ×1.1   +9.7 t  0.6
+120 C0.70  h63 IVLOW∧UP  n  9355 mean  +20.9 wins  +18.9 eras  +15.2/ +25.2 Δstk  +25.4/ +29.8 names  +13.1 (52%+) top10   27% ×1.1   +9.9 t  0.1
+120 C0.70  h63 PANIC     n  4521 mean  +55.1 wins  +47.0 eras  -20.9/ +58.3 Δstk   -8.3/ +68.6 names  +47.0 (61%+) top10   19% ×1.1  +41.0 t  1.4
+120 C0.70  h63 DIP       n  6223 mean  +20.8 wins  +14.0 eras   -4.9/ +31.2 Δstk   +8.3/ +47.3 names  +38.8 (67%+) top10   42% ×1.1   +9.8 t  0.0
+120 C0.70  h63 RICH      n 20485 mean  +15.5 wins  +10.9 eras   +4.0/ +14.8 Δstk  +16.2/ +27.7 names  +17.3 (61%+) top10   34% ×1.1   +5.0 t -0.5
 
  60 C0.50  exp ALL       n 72865 mean  +14.5 wins  +10.1 eras   -3.6/ +18.0 Δstk  +10.1/ +29.6 names  +11.0 (56%+) top10   23% ×1.1   +4.1 t  nan
  60 C0.50  exp IVLOW     n 15843 mean  +25.2 wins  +20.8 eras  +11.3/ +35.1 Δstk  +22.4/ +37.6 names  +34.0 (53%+) top10   27% ×1.1  +13.9 t  1.7
@@ -284,33 +280,33 @@ pricer validation (model/real median, calls): 1.00/0.95 · 1.00/1.02 · 0.97/1.0
  30 rr0.50 exp DIP       n  6944 mean   +1.5 wins   +0.7 eras   -0.8/  +1.9                      names   +2.2 (63%+) top10   45% ×1.1   -7.7 t  1.2
  30 rr0.50 exp RICH      n 23516 mean   +1.5 wins   +1.0 eras   +0.0/  +1.5                      names   +2.0 (68%+) top10   24% ×1.1   -7.7 t  0.7
 
-120 csp    h63 ALL       n 78814 mean   +1.9 wins   +1.8 eras   +1.4/  +2.0                      names   +2.3 (89%+) top10   10% ×1.1   -7.4 t  nan
-120 csp    h63 IVLOW     n 16462 mean   +1.7 wins   +1.7 eras   +2.0/  +1.1                      names   +1.0 (81%+) top10   16% ×1.1   -7.6 t -1.0
-120 csp    h63 IVLOW∧UP  n 10019 mean   +1.7 wins   +1.6 eras   +2.0/  +1.1                      names   +0.7 (77%+) top10   17% ×1.1   -7.6 t -1.4
-120 csp    h63 PANIC     n  4521 mean   +3.9 wins   +3.7 eras   -0.0/  +4.4                      names   +3.2 (89%+) top10   12% ×1.1   -5.6 t  1.4
-120 csp    h63 DIP       n  7189 mean   +3.7 wins   +3.5 eras   +2.5/  +4.3                      names   +3.7 (90%+) top10   20% ×1.1   -5.7 t  2.0
-120 csp    h63 RICH      n 25075 mean   +2.5 wins   +2.4 eras   +2.1/  +2.5                      names   +2.9 (91%+) top10   13% ×1.1   -6.8 t  2.0
+120 csp    h63 ALL       n 67874 mean   +1.7 wins   +1.7 eras   +1.4/  +1.9                      names   +1.6 (83%+) top10   13% ×1.1   -7.5 t  nan
+120 csp    h63 IVLOW     n 14997 mean   +1.8 wins   +1.8 eras   +2.0/  +1.3                      names   +0.8 (76%+) top10   17% ×1.1   -7.5 t -0.7
+120 csp    h63 IVLOW∧UP  n  9355 mean   +1.8 wins   +1.7 eras   +2.0/  +1.3                      names   +0.8 (77%+) top10   17% ×1.1   -7.5 t -1.1
+120 csp    h63 PANIC     n  4521 mean   +3.9 wins   +3.7 eras   -0.0/  +4.4                      names   +3.2 (89%+) top10   12% ×1.1   -5.6 t  1.5
+120 csp    h63 DIP       n  6223 mean   +3.5 wins   +3.4 eras   +2.5/  +4.2                      names   +3.4 (89%+) top10   24% ×1.1   -5.9 t  2.0
+120 csp    h63 RICH      n 20485 mean   +2.2 wins   +2.1 eras   +2.1/  +2.1                      names   +2.0 (85%+) top10   17% ×1.1   -7.1 t  2.1
 
-120 rr0.30 h63 ALL       n 78814 mean   +2.4 wins   +1.3 eras   -0.1/  +2.1                      names   +1.4 (58%+) top10   33% ×1.1   -6.9 t  nan
-120 rr0.30 h63 IVLOW     n 16462 mean   +2.6 wins   +1.7 eras   +1.8/  +1.6                      names   +1.3 (52%+) top10   40% ×1.1   -6.7 t  0.8
-120 rr0.30 h63 IVLOW∧UP  n 10019 mean   +2.6 wins   +1.9 eras   +1.9/  +2.0                      names   +0.7 (50%+) top10   38% ×1.1   -6.8 t  0.1
-120 rr0.30 h63 PANIC     n  4521 mean  +10.5 wins   +7.5 eras   -3.8/  +9.3                      names   +8.7 (66%+) top10   28% ×1.1   +0.5 t  1.8
-120 rr0.30 h63 DIP       n  7189 mean   +4.5 wins   +1.9 eras   -0.8/  +3.7                      names   +3.6 (64%+) top10   56% ×1.1   -5.0 t  1.2
-120 rr0.30 h63 RICH      n 25075 mean   +2.9 wins   +1.3 eras   +0.5/  +1.6                      names   +1.8 (57%+) top10   53% ×1.1   -6.4 t  1.0
+120 rr0.30 h63 ALL       n 67874 mean   +3.0 wins   +1.8 eras   -0.1/  +3.1                      names   +2.9 (69%+) top10   31% ×1.1   -6.4 t  nan
+120 rr0.30 h63 IVLOW     n 14997 mean   +3.3 wins   +2.4 eras   +1.8/  +3.3                      names   +2.3 (58%+) top10   37% ×1.1   -6.1 t  0.6
+120 rr0.30 h63 IVLOW∧UP  n  9355 mean   +3.1 wins   +2.4 eras   +1.9/  +3.3                      names   +2.0 (57%+) top10   35% ×1.1   -6.3 t -0.1
+120 rr0.30 h63 PANIC     n  4521 mean  +10.5 wins   +7.7 eras   -3.8/  +9.6                      names   +8.7 (66%+) top10   28% ×1.1   +0.5 t  1.6
+120 rr0.30 h63 DIP       n  6223 mean   +5.5 wins   +2.7 eras   -0.8/  +5.8                      names   +6.2 (71%+) top10   54% ×1.1   -4.1 t  1.1
+120 rr0.30 h63 RICH      n 20485 mean   +3.7 wins   +1.7 eras   +0.6/  +2.4                      names   +3.1 (64%+) top10   53% ×1.1   -5.8 t  0.5
 
-240 csp    h63 ALL       n 78814 mean   +2.0 wins   +2.0 eras   +0.9/  +2.5                      names   +3.5 (94%+) top10    8% ×1.1   -7.2 t  nan
-240 csp    h63 IVLOW     n 16462 mean   +1.5 wins   +1.5 eras   +1.5/  +1.5                      names   +1.7 (79%+) top10   15% ×1.1   -7.7 t -1.9
-240 csp    h63 IVLOW∧UP  n 10019 mean   +1.4 wins   +1.4 eras   +1.5/  +1.3                      names   +1.1 (74%+) top10   18% ×1.1   -7.8 t -2.1
-240 csp    h63 PANIC     n  4521 mean   +3.8 wins   +3.7 eras   -0.3/  +4.4                      names   +3.2 (86%+) top10   12% ×1.1   -5.6 t  1.0
-240 csp    h63 DIP       n  7189 mean   +3.7 wins   +3.5 eras   +1.4/  +5.1                      names   +4.8 (91%+) top10   16% ×1.1   -5.7 t  0.3
-240 csp    h63 RICH      n 25075 mean   +2.7 wins   +2.6 eras   +1.5/  +3.0                      names   +4.0 (94%+) top10   10% ×1.1   -6.7 t  0.3
+240 csp    h63 ALL       n 58531 mean   +1.1 wins   +1.0 eras   +0.9/  +1.1                      names   +0.7 (72%+) top10   17% ×1.1   -8.1 t  nan
+240 csp    h63 IVLOW     n 14616 mean   +1.2 wins   +1.1 eras   +1.5/  +0.5                      names   +0.1 (66%+) top10   20% ×1.1   -8.0 t -0.6
+240 csp    h63 IVLOW∧UP  n  9157 mean   +1.2 wins   +1.2 eras   +1.5/  +0.7                      names   +0.2 (65%+) top10   22% ×1.1   -8.0 t -0.8
+240 csp    h63 PANIC     n  3379 mean   +3.8 wins   +3.7 eras   -0.3/  +4.6                      names   +2.4 (79%+) top10   14% ×1.1   -5.6 t  1.8
+240 csp    h63 DIP       n  5579 mean   +2.2 wins   +2.1 eras   +1.3/  +2.9                      names   +2.4 (80%+) top10   27% ×1.1   -7.1 t  0.8
+240 csp    h63 RICH      n 17561 mean   +1.4 wins   +1.3 eras   +1.5/  +1.2                      names   +1.1 (76%+) top10   20% ×1.1   -7.8 t  2.4
 
-240 rr0.30 h63 ALL       n 78814 mean   +1.8 wins   +0.9 eras   -0.7/  +1.7                      names   +1.0 (56%+) top10   35% ×1.1   -7.5 t  nan
-240 rr0.30 h63 IVLOW     n 16462 mean   +2.1 wins   +1.3 eras   +1.2/  +1.4                      names   +1.0 (53%+) top10   44% ×1.1   -7.2 t  0.7
-240 rr0.30 h63 IVLOW∧UP  n 10019 mean   +2.1 wins   +1.6 eras   +1.4/  +1.8                      names   +0.5 (51%+) top10   41% ×1.1   -7.2 t  0.0
-240 rr0.30 h63 PANIC     n  4521 mean   +9.3 wins   +6.8 eras   -4.4/  +8.6                      names   +7.6 (64%+) top10   26% ×1.1   -0.7 t  1.7
-240 rr0.30 h63 DIP       n  7189 mean   +3.5 wins   +1.3 eras   -1.7/  +3.5                      names   +3.2 (66%+) top10   59% ×1.1   -5.9 t  0.9
-240 rr0.30 h63 RICH      n 25075 mean   +2.2 wins   +0.9 eras   -0.0/  +1.3                      names   +1.4 (56%+) top10   56% ×1.1   -7.1 t  0.7
+240 rr0.30 h63 ALL       n 58531 mean   +2.0 wins   +1.0 eras   -0.6/  +2.4                      names   +2.1 (59%+) top10   42% ×1.1   -7.2 t  nan
+240 rr0.30 h63 IVLOW     n 14616 mean   +2.7 wins   +1.8 eras   +1.2/  +2.8                      names   +1.8 (57%+) top10   41% ×1.1   -6.7 t  0.8
+240 rr0.30 h63 IVLOW∧UP  n  9157 mean   +2.5 wins   +2.0 eras   +1.4/  +3.1                      names   +1.5 (56%+) top10   39% ×1.1   -6.8 t  0.1
+240 rr0.30 h63 PANIC     n  3379 mean   +8.7 wins   +6.4 eras   -4.4/  +8.9                      names   +6.0 (56%+) top10   34% ×1.1   -1.2 t  1.6
+240 rr0.30 h63 DIP       n  5579 mean   +3.6 wins   +1.1 eras   -1.6/  +4.3                      names   +4.1 (64%+) top10   75% ×1.1   -5.9 t  0.8
+240 rr0.30 h63 RICH      n 17561 mean   +2.6 wins   +0.9 eras   -0.0/  +1.5                      names   +2.2 (58%+) top10   68% ×1.1   -6.8 t  0.5
 
 
 ## superseded first pass (iv moved 1:1 with iv30 at all DTE = artifact): IVLOW 240DTE 0.30d h63 +38.3 % → corrected -1.2 % (A) / +7.9 % (B)
