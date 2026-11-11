@@ -1,7 +1,7 @@
 /**
  * A83 — option rec grading + assignment settle (from model-track-record).
  */
-import { and, eq, sql, lt } from "drizzle-orm";
+import { and, eq, sql, lte } from "drizzle-orm";
 import { db, modelRecs } from "@workspace/db";
 import { closeOnOrBeforeExpiryChecked } from "./trade-post-expiry.js";
 import { fetchAndStoreOHLCV } from "./indicators.js";
@@ -42,17 +42,22 @@ export async function gradeModelRecs(): Promise<{ graded: number; noData: number
           AND (${modelRecs.componentScores}->'_settlement'->'assignment') IS NULL
         )
       )`,
-      lt(modelRecs.expiry, todayStr()),
+      // lte (11-10): the Fri-evening run skipped same-day expiries → a week of ungraded recs. Same-day rows settle only once
+      // that day's close is stored (guard below).
+      lte(modelRecs.expiry, todayStr()),
     ));
 
   let graded = 0, noData = 0, pending = 0, assigned = 0;
   for (const rec of due) {
     try {
-      let close = (await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry))?.close ?? null;
-      if (close == null) {
+      let hit = await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry);
+      const sameDay = rec.expiry === todayStr();
+      if (hit == null || (sameDay && hit.date !== rec.expiry)) {
         await fetchAndStoreOHLCV(rec.ticker).catch(() => {});
-        close = (await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry))?.close ?? null;
+        hit = await closeOnOrBeforeExpiryChecked(rec.ticker, rec.expiry);
       }
+      if (sameDay && hit?.date !== rec.expiry) { pending++; continue; } // expiry-day close not in yet
+      let close = hit?.close ?? null;
 
       const daysPast = (Date.now() - new Date(rec.expiry).getTime()) / 86_400_000;
       const spot = Number(rec.spot);

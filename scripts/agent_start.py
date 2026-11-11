@@ -101,6 +101,11 @@ def main() -> None:
         # 5c perf-watch (10-28): restart loops, slow/hung routes, 5xx, poll storms, blocked event loop — from the live API log
         rc, out = sh("node scripts/perf-watch.mjs", log, timeout=90)
         say(f"5c {last(out)}" + (" → read ~/.fildi/perf-watch.md, run each signal's check, fix the cause (don't wait for Jamie)" if rc == 1 else ""))
+        # 5d rec scoreboard (Jamie 11-10: "how can you not measure if any of it changed a trade or a model rec?")
+        # Jamie's put sales vs engine PASS vs Model List, same window, real-fill grading. Engine trailing Jamie = fix producer, no new study.
+        rc, out = sh("scripts/watchlist_sync/.venv/bin/python scripts/rec_scoreboard.py --brief", log, timeout=120)
+        for l in (out or "").strip().splitlines()[-3:]:
+            say(f"5d {l[:300]}")
         open_rows = [l for l in asks.splitlines() if l.startswith("| [A") and not re.search(r"\|\s*(done|verified|declined)\b[^|]*\|\s*$", l)]
         mine = [re.search(r"\[(A\d+)\]", l).group(1) for l in open_rows if re.search(rf"→ {Agent}\b|needs {Agent}", l)]
         say(f"6 ASKS for {Agent}: {len(mine)} open — {', '.join(mine[:15])}{' …' if len(mine) > 15 else ''}")
