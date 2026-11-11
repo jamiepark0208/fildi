@@ -196,7 +196,9 @@ def main():
                     kc = strike(S, ivT, Tn, D, True)
                     cm, cs, cdl = price("C", S, kc, dte, ivb, ibar)
                     legs[D] = (kc, cm * (1 + FK * cs), cdl)
-                exits = {"h21": min(i + 21, exp_i), "h63": min(i + 63, exp_i)}
+                exp_d = date.fromordinal(d.toordinal() + dte)
+                past_end = exp_d > END                      # A388: expiry after the last bar → exp_i is the data end, not expiry
+                exits = {nm: min(i + n, exp_i) for n, nm in ((21, "h21"), (63, "h63")) if not (past_end and i + n > exp_i)}
                 if dte <= 60:
                     exits["exp"] = exp_i
                 for en, j in exits.items():
@@ -204,7 +206,7 @@ def main():
                         continue
                     dj, Sj, ipj, icj = h[j]
                     ivj = (ipj + icj) / 2 if (ipj and icj) else None
-                    rem = (h[exp_i][0] - dj).days if j < exp_i else 0
+                    rem = 0 if (j == exp_i and not past_end) else max((exp_d - dj).days, 0)   # A388: true remaining life
                     if not ivj:
                         continue
                     for D, (kc, debit, cdl) in legs.items():
@@ -224,6 +226,8 @@ def main():
                         out[(dte, f"rr{D:.2f}", en)] = ((pcred - pclose - debit + val) / kp, j - i, None)
                 # TP 2× / stop −50 %, weekly checks within 63 td (calls only)
                 for D, (kc, debit, cdl) in legs.items():
+                    if past_end and i + 63 > exp_i:                # A388: TP window runs past the data end
+                        break
                     jj = i
                     while True:
                         jj = min(jj + 5, exp_i, i + 63)
@@ -231,7 +235,7 @@ def main():
                         if not (icj and ipj):
                             break
                         ivj = (ipj + icj) / 2
-                        rem = (h[exp_i][0] - dj).days if jj < exp_i else 0
+                        rem = 0 if (jj == exp_i and not past_end) else max((exp_d - dj).days, 0)
                         cv, cvs, _ = price("C", Sj, kc, rem, ivj, ibar)
                         val = cv * (1 - FK * cvs) if rem > 2 else cv
                         r = val / debit - 1

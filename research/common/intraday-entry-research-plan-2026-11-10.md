@@ -4,7 +4,7 @@
 
 **Goal:** for every candidate premium sale, during the session: P(reversion | features now), expected buy-back cost, tail risk → size or skip. No fixed if-then.
 
-## 1. Literature first (verify each claim from the paper itself before using it; ≤ 1 page of notes per paper)
+## 1. Literature first — DONE 11-10 → research/common/intraday-entry-literature-2026-11-10.md (verify each claim from the paper itself before using it; ≤ 1 page of notes per paper)
 Retail names → academic analogs:
 - **"Liquidity sweep" / stop hunt** → stop-loss cascades: Osler (NY Fed, 2003/2005) on stop-loss clustering at round numbers and price cascades.
 - **"Fair value gap" / imbalance** → order-flow imbalance and price impact: Cont, Kukanov & Stoikov (2014); Kyle (1985) for the impact mechanism.
