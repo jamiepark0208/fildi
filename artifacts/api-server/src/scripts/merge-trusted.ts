@@ -25,7 +25,7 @@ import {
   fieldProvenance, manualOverrides, pricesHistorical,
   type ManualOverridesRow,
 } from "@workspace/db";
-import { pickFieldGold } from "../lib/gold-pick.js";
+import { pickFieldGold, secTtmSameDefinition } from "../lib/gold-pick.js";
 import { isMaterialDivergence } from "../lib/field-divergence.js";
 import { isFactsetRulerField } from "../lib/factset-ruler-table.js";
 import {
@@ -358,6 +358,12 @@ function resolveFromIndex(
   const secOwned = SEC_OWNED_TFCOLS.has(tf) ? orderedBySrc.get("sec") : undefined;
   if (secOwned != null && Number.isFinite(secOwned)) {
     return { source: "sec", value: secOwned, isOverride: false, divergent: false };
+  }
+
+  // 11-11 #54: NI / revenue on one basis = TTM to the newest filing. SEC TTM wins only when its concept is the
+  // vendors' definition (its FY matches a vendor FY) — else a bank's sub-line tag would beat the real revenue.
+  if (secTtmSameDefinition(tf, byField)) {
+    return { source: "sec", value: orderedBySrc.get("sec")!, isOverride: false, divergent: false };
   }
 
   // Disputed cells: FactSet rules only forwardPe, gross margin, current ratio,

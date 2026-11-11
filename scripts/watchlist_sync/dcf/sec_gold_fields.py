@@ -371,6 +371,11 @@ def _fields_for_ticker(conn, ticker: str, facts: dict | None) -> list[dict]:
         add("totalRevenue", rev["value"], rev)
     if ni:
         add("netIncome", ni["value"], ni)
+    # 11-11 #54: same concept's last two FY totals, dated like the TTM row (merge-trusted: definition check vs vendor FY)
+    for fld, m in (("totalRevenue", rev), ("netIncome", ni)):
+        if m:
+            add(f"{fld}Fy", m.get("fy_value"), m)
+            add(f"{fld}FyPrev", m.get("fy_prev_value"), m)
     if rev and gp and rev["value"]:
         add("grossMargin", gp["value"] / rev["value"], rev)
     if rev and op and rev["value"]:

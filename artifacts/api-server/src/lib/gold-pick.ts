@@ -329,3 +329,31 @@ export function pickDisputedGold(args: Parameters<typeof pickFieldGold>[0]): Dis
   const { factsetDisagrees: _f, ruler: _r, bandRel: _br, bandAbs: _ba, ...pick } = pickFieldGold(args);
   return pick;
 }
+
+/** Vendor FY rows (same concept, last completed fiscal year) + Yahoo trailing, per SEC TTM field. */
+const SEC_TTM_BASIS: Record<string, { fy: Array<[string, string]>; ttm: Array<[string, string]> }> = {
+  totalRevenue: {
+    fy: [["yahoo", "annualTotalRevenue"], ["fmp", "totalRevenue"], ["edgar", "totalRevenue"], ["factset", "totalRevenue"], ["polygon", "totalRevenue"]],
+    ttm: [["yahoo", "totalRevenue"]],
+  },
+  netIncome: {
+    fy: [["yahoo", "annualNetIncome"], ["fmp", "netIncome"], ["edgar", "netIncome"], ["factset", "netIncome"], ["polygon", "netIncome"]],
+    ttm: [],
+  },
+};
+const SEC_BASIS_TOL = 0.05;   // FX on 20-F filers (NIO sec 12.51 vs factset 12.17 B)
+
+/** SEC TTM is the same definition as the vendors: its FY (or prior FY) or its TTM matches one vendor's. */
+export function secTtmSameDefinition(tf: string, byField: Map<string, Map<string, number>>): boolean {
+  const basis = SEC_TTM_BASIS[tf];
+  const sec = byField.get(tf)?.get("sec");
+  if (!basis || sec == null || !Number.isFinite(sec) || sec === 0) return false;
+  const near = (a: number, b: number) => b !== 0 && Math.sign(a) === Math.sign(b) && Math.abs(a / b - 1) <= SEC_BASIS_TOL;
+  const vals = (pairs: Array<[string, string]>) =>
+    pairs.map(([s, f]) => byField.get(f)?.get(s)).filter((v): v is number => v != null && Number.isFinite(v));
+  if (vals(basis.ttm).some((v) => near(sec, v))) return true;
+  const secFy = [byField.get(`${tf}Fy`)?.get("sec"), byField.get(`${tf}FyPrev`)?.get("sec")]
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const vendorFy = vals(basis.fy);
+  return secFy.some((s) => vendorFy.some((v) => near(s, v)));
+}

@@ -229,7 +229,11 @@ def ttm_flow(facts: dict, concepts: list[str]) -> dict | None:
     if not fy:
         return None
     last_fy = max(fy, key=lambda u: u["end"])
-    fyv = {"fy_value": last_fy["val"], "fy_end": last_fy["end"]}
+    prev_fy = [u for u in fy if 330 <= _days(u["end"], last_fy["end"]) <= 400]
+    prev = max(prev_fy, key=lambda u: (u["end"], u["filed"])) if prev_fy else None
+    # 11-11 #54: last two FY totals let gold check SEC's concept against vendor FY (same definition) before TTM wins
+    fyv = {"fy_value": last_fy["val"], "fy_end": last_fy["end"],
+           "fy_prev_value": prev["val"] if prev else None, "fy_prev_end": prev["end"] if prev else None}
     if last_fy["end"] == newest:
         return {"value": last_fy["val"], "concept": c, "end": newest, "filed": last_fy["filed"], "how": "FY", **fyv}
     ytd = [u for u in vals if u["end"] == newest and u["start"] > last_fy["end"][:10] and _days(u["start"], u["end"]) >= 80]

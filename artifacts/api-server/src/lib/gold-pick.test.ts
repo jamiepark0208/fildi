@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   pickDisputedGold,
+  secTtmSameDefinition,
   pickFieldGold,
   inBand,
   filterTimely,
@@ -203,5 +204,37 @@ describe("pickDisputedGold", () => {
     assert.equal(pick.source, "factset");
     assert.equal(pick.value, 12);
     assert.equal(pick.divergent, false);
+  });
+});
+
+describe("secTtmSameDefinition (11-11 #54: NI/revenue on one TTM basis)", () => {
+  const idx = (rows: Array<[string, string, number]>) => {
+    const m = new Map<string, Map<string, number>>();
+    for (const [f, s, v] of rows) {
+      if (!m.has(f)) m.set(f, new Map());
+      m.get(f)!.set(s, v);
+    }
+    return m;
+  };
+  it("AAPL: SEC prior FY = vendor FY25 → SEC FY26 TTM wins", () => {
+    assert.equal(secTtmSameDefinition("totalRevenue", idx([
+      ["totalRevenue", "sec", 478.83], ["totalRevenueFy", "sec", 478.83], ["totalRevenueFyPrev", "sec", 416.16],
+      ["totalRevenue", "fmp", 416.16], ["annualTotalRevenue", "yahoo", 416.16],
+    ])), true);
+  });
+  it("bank sub-line tag (MTB 1.7 vs 9.6 B) never wins", () => {
+    assert.equal(secTtmSameDefinition("totalRevenue", idx([
+      ["totalRevenue", "sec", 1.72], ["totalRevenueFy", "sec", 1.66], ["totalRevenueFyPrev", "sec", 1.54],
+      ["totalRevenue", "yahoo", 9.46], ["annualTotalRevenue", "yahoo", 9.63],
+    ])), false);
+  });
+  it("Yahoo trailing confirms revenue; NI needs an FY match", () => {
+    assert.equal(secTtmSameDefinition("totalRevenue", idx([["totalRevenue", "sec", 100], ["totalRevenue", "yahoo", 102]])), true);
+    assert.equal(secTtmSameDefinition("netIncome", idx([["netIncome", "sec", 13], ["netIncomeFy", "sec", 13.02], ["netIncome", "edgar", 14.31]])), false);
+    assert.equal(secTtmSameDefinition("netIncome", idx([["netIncome", "sec", 11.64], ["netIncomeFy", "sec", 6.84], ["netIncome", "edgar", 6.84]])), true);
+  });
+  it("sign mismatch or other fields → false", () => {
+    assert.equal(secTtmSameDefinition("netIncome", idx([["netIncome", "sec", 1], ["netIncomeFy", "sec", -1], ["netIncome", "fmp", 1]])), false);
+    assert.equal(secTtmSameDefinition("ebitda", idx([["ebitda", "sec", 1]])), false);
   });
 });
