@@ -110,3 +110,28 @@ export function computeGammaFlip(contracts: GexContract[], spot: number): number
   if (!crossings.length) return null;
   return crossings.reduce((best, c) => (Math.abs(c - spot) < Math.abs(best - spot) ? c : best));
 }
+
+export interface GexStrikeRow {
+  strike: number;
+  callGex: number;
+  putGex: number;
+  netGex: number;
+}
+
+/** North-star #7 — dealer GEX per strike inside spot ± bandPct, ascending strike. Same sign convention as computeGexSummary. */
+export function computeGexByStrike(contracts: GexContract[], spot: number, bandPct = 0.2): GexStrikeRow[] {
+  if (!(spot > 0)) return [];
+  const lo = spot * (1 - bandPct);
+  const hi = spot * (1 + bandPct);
+  const byStrike = new Map<number, GexStrikeRow>();
+  for (const c of contracts) {
+    if (c.strike < lo || c.strike > hi) continue;
+    const g = contractGexDollars(c.gamma, c.openInterest, spot, c.side === "call");
+    const row = byStrike.get(c.strike) ?? { strike: c.strike, callGex: 0, putGex: 0, netGex: 0 };
+    if (c.side === "call") row.callGex += g;
+    else row.putGex += g;
+    row.netGex = row.callGex + row.putGex;
+    byStrike.set(c.strike, row);
+  }
+  return [...byStrike.values()].sort((a, b) => a.strike - b.strike);
+}

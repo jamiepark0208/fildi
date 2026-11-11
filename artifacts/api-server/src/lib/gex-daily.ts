@@ -5,8 +5,10 @@ import { bsGreeks } from "./options-greeks.js";
 import { lastCompletedSessionYmd, etDateKey } from "./market-hours.js";
 import { logger } from "./logger.js";
 import {
+  computeGexByStrike,
   computeGexSummary,
   type GexContract,
+  type GexStrikeRow,
   type GexSummary,
 } from "./gex-daily-math.js";
 export { computeGexSummary, contractGexDollars, type GexContract, type GexSummary } from "./gex-daily-math.js";
@@ -197,3 +199,30 @@ export async function runGexDailySnapshot(asOf = lastCompletedSessionYmd()): Pro
 }
 
 export { GEX_TICKERS };
+
+export interface GexProfile {
+  ticker: string;
+  asOf: string;
+  maxDte: number;
+  summary: GexSummary;
+  strikes: GexStrikeRow[];
+  fetchedAt: string;
+}
+
+/** North-star #7 — live GEX by strike for any optionable ticker (Schwab chain, ≤ 60 DTE, 15 s deadline). null = no auth / no chain. */
+export async function fetchGexProfile(ticker: string): Promise<GexProfile | null> {
+  if (!schwabCredentialsConfigured()) return null;
+  const today = etDateKey();
+  const raw = await fetchChainWithDeadline(ticker, today, addDaysYmd(today, GEX_MAX_DTE));
+  if (!raw) return null;
+  const { spot, contracts } = contractsFromSchwabChain(raw, today);
+  if (!contracts.length) return null;
+  return {
+    ticker: ticker.toUpperCase(),
+    asOf: today,
+    maxDte: GEX_MAX_DTE,
+    summary: computeGexSummary(contracts, spot),
+    strikes: computeGexByStrike(contracts, spot),
+    fetchedAt: new Date().toISOString(),
+  };
+}

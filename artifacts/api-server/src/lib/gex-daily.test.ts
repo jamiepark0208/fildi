@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeGammaFlip, computeGexSummary, contractGexDollars } from "./gex-daily-math.js";
+import { computeGammaFlip, computeGexByStrike, computeGexSummary, contractGexDollars } from "./gex-daily-math.js";
 
 describe("gex-daily", () => {
   it("sums GEX on a 3-contract fixture (gex-tracker scaling)", () => {
@@ -41,5 +41,21 @@ describe("gex-daily", () => {
     assert.equal(computeGammaFlip(contracts, spot), 100);
     const summary = computeGexSummary(contracts, spot);
     assert.equal(summary.gammaFlip, 100);
+  });
+  it("groups GEX by strike inside the band, sums call+put at one strike", () => {
+    const spot = 100;
+    const rows = computeGexByStrike(
+      [
+        { strike: 95, side: "put", gamma: 0.01, openInterest: 40, iv: 0.3, dte: 20 },
+        { strike: 95, side: "call", gamma: 0.01, openInterest: 10, iv: 0.3, dte: 20 },
+        { strike: 105, side: "call", gamma: 0.02, openInterest: 30, iv: 0.3, dte: 20 },
+        { strike: 150, side: "call", gamma: 0.02, openInterest: 999, iv: 0.3, dte: 20 },
+      ],
+      spot,
+    );
+    assert.deepEqual(rows.map((r) => r.strike), [95, 105]);
+    assert.equal(rows[0]!.netGex, contractGexDollars(0.01, 10, spot, true) + contractGexDollars(0.01, 40, spot, false));
+    assert.ok(rows[0]!.netGex < 0);
+    assert.ok(rows[1]!.putGex === 0 && rows[1]!.callGex > 0);
   });
 });

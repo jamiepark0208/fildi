@@ -47,6 +47,7 @@ import { ShortInterestPanel, ShortInterestHeaderStats } from "./breakdown/short-
 import { InsiderPanel, InsiderHeaderStats } from "./breakdown/insider-panel";
 import { CongressSection, CongressHeaderStats } from "./breakdown/congress-section";
 import { OptionsFlowSection, OptionsFlowHeaderStats } from "./breakdown/options-flow-section";
+import { GexSection, GexHeaderStats } from "./breakdown/gex-section";
 import { EventsPanel } from "./breakdown/events-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
@@ -782,6 +783,15 @@ export function StockBreakdown({
                       action={activeTicker ? <OptionsFlowHeaderStats ticker={activeTicker} /> : undefined}
                     >
                       {activeTicker ? <OptionsFlowSection ticker={activeTicker} /> : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel
+                      title="Dealer gamma by strike"
+                      empty="No option chain."
+                      scrollMax="max-h-[420px]"
+                      action={activeTicker ? <GexHeaderStats ticker={activeTicker} /> : undefined}
+                    >
+                      {activeTicker ? <GexSection ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
                     <BreakdownPanel

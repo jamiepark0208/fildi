@@ -2,6 +2,7 @@ import { searchCache, compareCache, historyCache, historyCache1D, quoteCache, br
 import { peersCache, profileCache } from '../lib/peer-resolver.js';
 import { classifyCache } from './peer-classifier.js';
 import { optionsCache, ivTermCache } from '../routes/options.js';
+import { gexCache } from '../routes/options-flow.js';
 import { techRankingsCache } from '../routes/technicals.js';
 import { expiryCache } from '../lib/options.js';
 import { _cache as macroCache, CACHE_TTL_MS as MACRO_REGIME_TTL } from '../routes/macro-regime.js';
@@ -42,6 +43,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   'schwab-options-chain': 'Schwab Options Chain',
   'options-expiry': 'Options Calendar',
   'options-iv-term': 'Options IV Term Structure',
+  'gex-profile':    'Dealer GEX by Strike',
   'technicals-rankings': 'Technicals Rankings (put/call V2)',
   'volatility-regime': 'Volatility Regime (VIX)',
   'business-cycle-regime': 'Business Cycle Regime',
@@ -81,6 +83,7 @@ export const namedCachesMap: Record<string, { clear(): void; setTtl?(ms: number)
   breakdown:        breakdownCache,
   options:          optionsCache,
   'options-iv-term': ivTermCache,
+  'gex-profile':    gexCache,
   'technicals-rankings': techRankingsCache,
   'schwab-options-chain': schwabChainCache,
   'options-expiry': expiryCache,

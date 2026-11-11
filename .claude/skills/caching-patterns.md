@@ -26,6 +26,7 @@ history-1d        | Price History (Intraday)        | 15 min   | routes/stocks.t
 options           | Options Chain                   | 30 min   | routes/options.ts
 options-expiry    | Options Calendar                | 24 hours | lib/options.ts
 options-iv-term   | Options IV Term Structure       | 1 hour   | routes/options.ts
+gex-profile       | Dealer GEX by Strike            | 15 min   | routes/options-flow.ts
 macro-regime      | Market Regime (VIX)             | 30 min   | routes/macro-regime.ts
 macro-data        | Macro Data (FRED + Yahoo)       | 4 hours  | file cache (macro-data.json)
 macro-charts      | Macro Charts (VIX/Rates/Sentiment) | 4 hours | file cache (macro-charts.json)

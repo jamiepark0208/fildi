@@ -9,6 +9,8 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { logger } from "../lib/logger.js";
+import { TTLCache } from "../lib/ttl-cache.js";
+import { fetchGexProfile, type GexProfile } from "../lib/gex-daily.js";
 
 const router = Router();
 
@@ -105,6 +107,25 @@ router.get("/options-flow/latest", async (_req, res) => {
   } catch (err) {
     logger.warn({ err }, "options flow latest failed");
     return res.json({ day: null, unusual: [], biggest: [], putHeavy: [], index: [], days: 0 });
+  }
+});
+
+// North-star #7 — dealer GEX by strike (live Schwab chain; OI is yesterday's close, so 15 min is plenty).
+export const gexCache = new TTLCache<GexProfile>(15 * 60 * 1000, "gex-profile", 300);
+
+router.get("/stocks/:ticker/gex", async (req, res) => {
+  const t = String(req.params.ticker ?? "").toUpperCase();
+  if (!/^[A-Z0-9.\-]{1,12}$/.test(t)) return res.status(400).json({ error: "bad ticker" });
+  try {
+    const profile = await gexCache.getOrCompute(t, async () => {
+      const p = await fetchGexProfile(t);
+      if (!p) throw new Error("no chain");
+      return p;
+    });
+    return res.json({ ticker: t, profile });
+  } catch (err) {
+    logger.debug({ err: String(err), t }, "gex profile unavailable");
+    return res.json({ ticker: t, profile: null });
   }
 });
 
