@@ -26,3 +26,6 @@ Real-time only (known at that minute): minutes since open · move vs open in ATR
 
 ## 4. Ship
 Live: an entry-window panel for Jamie's watchlist showing P(reversion), price now vs the model's good zone, and size. Graded daily by scripts/rec_scoreboard.py (add: an entry-minute column).
+
+## Preflight n (Claude 11-10)
+Local watchlist_sync.intraday_bars_1m = 54 names, 2026-08-19 → 11-10 = 2,083 name-days; independent unit = trading day (names co-move in a selloff): bull 33 days / bear (from 10-06) 25 days → **bear cell can't answer at this n**. optlab.minute_bars (2024-10 → 2026-10-16) adds one bull year, no bear. Plan: stock-side label (reversion from the running low, by window) on LSE 1m history for the same names across past bear tapes (2018-Q4, 2020-02→04, 2022) = well over 30 bear days; option P&L at the minute only from OPRA since 10/2025 (bull cell + 25 bear days) → option leg reported as UNDERPOWERED until more bear days accrue; the stock-side P(reversion) model is the part that can be tested now.
