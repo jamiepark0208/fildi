@@ -82,14 +82,14 @@ export function putTechScores(rows: TechnicalRow[], putTechWeights: Record<strin
 
 /**
  * IV-rank resolver output (scripts/watchlist_sync/iv_rank.py → watchlist_sync.iv_rank_daily): 1-year IV percentile [0,1],
- * LSEG → tastytrade → none. Replaces the realized-vol proxy in ivRelative (lab O2: proxy wrong-signed). Missing → component drops out.
+ * LSEG → none (tastytrade dropped 11-10: unfunded account, corr 0.70 vs LSEG). Replaces the realized-vol proxy in ivRelative (lab O2: proxy wrong-signed). Missing → component drops out.
  */
 export async function loadIvRanks(): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   try {
     const rows = rowsOf<{ ticker: string; pctile: number }>((await db.execute(sql`
       SELECT DISTINCT ON (ticker) ticker, pctile::float8 AS pctile FROM watchlist_sync.iv_rank_daily
-      WHERE date >= current_date - 7 AND pctile IS NOT NULL ORDER BY ticker, date DESC`)) as SqlRows<never>);
+      WHERE date >= current_date - 7 AND pctile IS NOT NULL AND source <> 'tastytrade' ORDER BY ticker, date DESC`)) as SqlRows<never>);  // Jamie 11-10: unfunded tasty account
     for (const r of rows) out.set(r.ticker, r.pctile);
   } catch (err) {
     logger.warn({ err: String(err) }, "put-scoring-inputs: iv_rank_daily unavailable (ivRelative drops out)");

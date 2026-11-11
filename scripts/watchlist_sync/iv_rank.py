@@ -23,6 +23,9 @@ DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.iv_rank_daily (
 
 def resolve(conn, tickers) -> dict[str, tuple[float, str]]:
     out = {t: (p, "lseg") for t, p in V.iv_ranks(conn, tickers).items()}
+    # Jamie 11-10: tastytrade account unfunded → data may be poor; vs LSEG corr 0.70, 11 % of names off > 30 pts → off by default
+    if __import__("os").environ.get("FILDI_TASTY_IVRANK") != "1":
+        return out
     for t, p in conn.execute(f"""SELECT DISTINCT ON (ticker) ticker, iv_percentile FROM watchlist_sync.tasty_metrics_daily
                                  WHERE ticker = ANY(%s) AND iv_percentile IS NOT NULL AND date >= current_date - {TASTY_MAX_AGE_DAYS}
                                  ORDER BY ticker, date DESC""", (list(tickers),)).fetchall():
