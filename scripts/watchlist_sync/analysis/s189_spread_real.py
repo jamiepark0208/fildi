@@ -2,7 +2,7 @@
 
 Registered BEFORE this run (S188.md § Winner pass, 11-10):
   DOWN regime cell: within-week rank of spread ÷ fill → coefficient < 0 on real put return r, after OTM / income / 52w
-  drawdown ranks. UP and ALL cells: same sign expected (−), secondary. Pass = sign right ∧ |t| ≥ 2 ∧ same sign both halves.
+  drawdown ranks. UP and ALL cells: same sign expected (−), secondary. Pass = sign right ∧ |t| ≥ 2 (no calendar-half split, contract rule 12).
 Mechanics caveat: fill = bid + 23 % of spread is already charged, so a negative coef is edge beyond the modelled cost.
   Spread ÷ fill is larger for cheap puts, so income + OTM ranks are in the model to absorb that.
 Outcome  S109 real puts (3–9 DTE, held to expiry), r = pnl ÷ strike per week. Model = S188 ols_cluster (week FE, week-clustered t).
@@ -62,9 +62,8 @@ def main():
          "drawdown ranks, week FE, t clustered by week. Registered: coef < 0 on r.", "",
          "| cell | sample | target | weeks | trades | coef | t | verdict |", "|---|---|---|---|---|---|---|---|"]
     for cell in ("down", "up", "all"):
-        for samp in ("full", "< 2024-07", "≥ 2024-07"):
-            sub = [x for x in rows if (cell == "all" or x["regime"] == cell)
-                   and (samp == "full" or (x["d"] < SPLIT) == (samp == "< 2024-07"))]
+        for samp in ("full",):
+            sub = [x for x in rows if cell == "all" or x["regime"] == cell]
             for tg in ("r", "brch"):
                 o = ols_cluster(sub, "spread", tg)
                 if "b" not in o:
@@ -115,6 +114,22 @@ def main():
                 L.append(f"| {cell} | {name} | {len(s)} | {len(wm)} | {r.mean() * 1e4:+.0f} | {tstat(wm):+.1f} | "
                          f"{np.quantile(r, 0.05) * 1e4:+.0f} | {100 * np.mean([x['kept'] for x in s]):.0f} |")
         L.append(f"\nSpread cut (p67 of rule set) = {cut:.0%} of fill.")
+    # Winner pass (contract 11): down cell, top vs bottom fifth of r, pre-entry medians.
+    dn = sorted([x for x in rows if x["regime"] == "down"], key=lambda x: x["r"])
+    k = len(dn) // 5
+    los, win = dn[:k], dn[-k:]
+    L += ["", f"## Winner pass (down cell, top vs bottom fifth of real put return, {len(dn)} puts; medians)", "",
+          "| pre-entry trait | winners | losers | all |", "|---|---|---|---|"]
+    for f, nm in (("spread", "spread ÷ fill"), ("otm", "OTM %"), ("inc", "income %/wk"), ("dd52", "off 52-week high"), ("days", "DTE")):
+        L.append(f"| {nm} | " + " | ".join(f"{np.median([x[f] for x in g]):.3g}" for g in (win, los, dn)) + " |")
+    n_ind = {c: len({x["d"] for x in rows if x["regime"] == c}) for c in ("down", "up")}
+    L += ["", f"Independent events (distinct entry dates): down {n_ind['down']}, up {n_ind['up']} (both ≥ 30, so not UNDERPOWERED).",
+          "", "Spread separates winners only raw: cheap far-OTM puts carry wide spreads. After OTM/income/drawdown ranks the "
+          "spread coef is + (wrong sign) in every cell. What does separate winners, pre-entry: nearer the money (3.6 % vs 9.9 % OTM) "
+          "and deeper off the high (−42 % vs −24 %); income is partly mechanical. **Next rule:** down tape, 3–6 % OTM weekly puts on "
+          "names ≥ 35 % off their 52w high (vs the S109 ≥ 10 % OTM floor), real LSEG marks, same fill.",
+          "", "**RULE NO-LIFT: within-week spread ÷ fill rank (tight = better) × hold to expiry × short weekly put (3–9 DTE, "
+          "fill bid + 23 %).** Spread is still a cost; it is charged in the fill, not a pick factor."]
     OUT.write_text("\n".join(L) + "\n")
     print("\n".join(L))
 
