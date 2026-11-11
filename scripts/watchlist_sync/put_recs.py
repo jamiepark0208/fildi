@@ -30,7 +30,7 @@ import math
 import os
 import sys
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -325,6 +325,11 @@ def compute(conn) -> tuple[date, list[dict], dict]:
                                          WHERE strategy_id = 'panic-puts-hiv' AND status IN ('open', 'priced')
                                            AND as_of IN (SELECT DISTINCT as_of FROM watchlist_sync.strategy_signals
                                                          WHERE strategy_id = 'panic-puts-hiv' ORDER BY as_of DESC LIMIT 3)""").fetchall()}
+    # 11-10 live vs backtest: the backtest (S088/S101) sells one put per name per week (Monday); live re-sold the same names
+    # every day into the 10-26 slide — repeats −3.59 % of strike vs first sales −2.24 % (n 49 / 74). One sale per name per week.
+    wk0 = as_of - timedelta(days=as_of.weekday())
+    sold_wk = {r[0]: r[1] for r in conn.execute("""SELECT ticker, MIN(as_of) FROM watchlist_sync.put_recs_daily
+                                               WHERE pass AND as_of >= %s AND as_of < %s GROUP BY 1""", (wk0, as_of)).fetchall()}
     out = []
     for t in names:
         exp = pick_expiry(sorted({p["expiry"] for p in by[t]}), as_of, ctx.get("earnings", {}).get(t))
@@ -403,6 +408,9 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         if cl and cd >= as_of and abs(100 * (cl / p["spot"] - 1)) > R.MAX_SPOT_DRIFT_PCT:
             ok = False
             gates.append(f"stale chain: spot {p['spot']:.2f} on {as_of} vs close {cl:.2f} ({100 * (cl / p['spot'] - 1):+.1f} %)")
+        if t in sold_wk and os.environ.get("FILDI_PUT_RESELL_WEEK") != "1":
+            ok = False
+            gates.append(f"already picked {sold_wk[t]:%m-%d} this week — one sale per name per week, as backtested")
         rec.update(pass_=ok, gates=gates, put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
         out.append(rec)
     ranked = [r for r in out if r.get("strike") is not None]
