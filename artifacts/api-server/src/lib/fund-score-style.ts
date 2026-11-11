@@ -10,11 +10,14 @@ const FINANCIAL_GROUP_RE = /(bank|insur|reit|financial|broker|asset_manag)/i;
 const DEFENSIVE_GROUP_RE = /(staples|utilities|healthcare|pharma|telecom)/i;
 const FINANCIAL_MODE = new Set(["financial", "insurance", "reit", "financial_mixed"]);
 
-/** True pre-revenue / pre-profit speculative: tiny or null revenue, or loss-making with small scale. */
+/** True pre-revenue / pre-profit speculative: zero revenue, or loss-making with small scale.
+ *  Missing revenue = unknown, not pre-revenue (11-11: 39 non-USD ADRs — TSM, ASML, SAP, NVO, TM — have revenue cleared by
+ *  the A329 non-USD gold policy and were all scored with pre-revenue weights). */
 export function isEconomicallyPreRevenue(r: FundRowInput): boolean {
   const rev = r.totalRevenue;
   const ni = r.netIncome;
-  if (rev == null || rev <= 0) return true;
+  if (rev == null) return false;
+  if (rev <= 0) return true;
   if (rev < 50_000_000 && (ni == null || ni < 0)) return true;
   return false;
 }
