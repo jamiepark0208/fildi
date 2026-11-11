@@ -147,7 +147,7 @@ export function JournalTab() {
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.orderId} className={gridRow(i)} data-testid="journal-row">
-                <td className={GRID_TD}>{r.day.slice(5)}</td>
+                <td className={cn(GRID_TD, "whitespace-nowrap")}>{r.day.slice(5)}</td>
                 <td className={GRID_TD}><TickerLink ticker={r.symbol} returnLabel="Journal" /></td>
                 <td className={cn(GRID_TD, "whitespace-nowrap")}>
                   <DataTip tip={r.matchedOpenDay ? `Closes the ${r.matchedOpenDay} open.` : r.touched == null ? undefined : `Strike touched: ${r.touched ? "yes" : "no"}`}>

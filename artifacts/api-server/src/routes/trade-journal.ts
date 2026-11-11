@@ -28,16 +28,21 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function fildiSaid(rec: RecRow | undefined, lists: string[] | undefined): string {
-  const ml = lists?.length ? ` · list: ${lists.join("/")}` : "";
-  if (!rec) return `engine: not scanned${ml}`;
+export function fildiSaid(rec: RecRow | undefined, lists: string[] | undefined, optionSide: "put" | "call" | null = "put"): string {
+  // 11-10 review: lists deduped; the engine only judges short puts → label it on call/stock trades
+  const ml = lists?.length ? ` · list: ${[...new Set(lists)].join(", ")}` : "";
+  const eng = optionSide === "put" ? "engine" : "put engine";
+  if (!rec) return `${eng}: not scanned${ml}`;
   const p = rec.payload ?? {};
   if (rec.pass) {
     const d = num(p.delta), k = num(p.strike);
-    return `engine: pass${d != null ? ` ${Math.abs(d).toFixed(2)}Δ` : ""}${k != null ? ` $${k} strike` : ""}${ml}`;
+    return `${eng}: pass${d != null ? ` ${Math.abs(d).toFixed(2)}Δ` : ""}${k != null ? ` $${k} strike` : ""}${ml}`;
   }
   const gates = Array.isArray(p.gates) ? (p.gates as unknown[]).map(String) : [];
-  return `engine: no — ${(gates[0] ?? "ranked out").slice(0, 80)}${ml}`;
+  let g = gates[0] ?? "ranked out";
+  if (g.startsWith("no listed put")) g = `no liquid put in the ${String(p.band_target ?? "target")}Δ band`;
+  else if (g.length > 90) g = `${g.slice(0, g.lastIndexOf(" ", 90))}…`;
+  return `${eng}: no — ${g}${ml}`;
 }
 
 router.get("/trade-journal", requireAdmin, async (req, res, next) => {
@@ -126,7 +131,7 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
       const run = runFor(r.day);
       const p = rec?.payload ?? {};
       const tag = rec ? [p.market_state, p.stock_state].filter(Boolean).join("/") || "—" : "—";
-      return { ...r, fildi: fildiSaid(rec, run ? listBy.get(`${run}|${r.symbol}`) : undefined), tag };
+      return { ...r, fildi: fildiSaid(rec, run ? listBy.get(`${run}|${r.symbol}`) : undefined, r.optionSide), tag };
     });
 
     // Jamie vs engine, same window (port of rec_scoreboard.py)
