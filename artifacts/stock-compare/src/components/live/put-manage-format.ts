@@ -7,7 +7,33 @@ export type PutManageResell = {
   income_wk_pct?: number | null;
 };
 
-export type PutManageRow = {
+/** A392 roll / defend fields (put_manage.py). Per-share dollars unless `_usd`. */
+export type PutManageRoll = {
+  kind: "out" | "down" | "band";
+  strike: number;
+  expiry: string;
+  dte: number;
+  extra_days: number;
+  sell: number;
+  net: number;
+  net_usd: number;
+  breakeven: number;
+  delta?: number | null;
+  ann_pct?: number | null;
+  p_itm?: number | null;
+  p_touch?: number | null;
+};
+
+export type PutManageOptions = {
+  spot?: number | null;
+  rolls?: PutManageRoll[];
+  rolls_note?: string;
+  hold?: { pnl_usd: number; breakeven: number; p_itm?: number | null; p_touch?: number | null };
+  close?: { pnl_usd: number; buy_back: number };
+  assign?: { basis: number; spot: number; vs_spot_pct: number; loss_usd: number };
+};
+
+export type PutManageRow = PutManageOptions & {
   as_of?: string;
   ticker: string;
   strike: number;
@@ -77,4 +103,64 @@ export function formatTakeAlert(row: PutManageRow): string | null {
   const first = row.resell?.[0];
   if (!first) return head;
   return `${head}, re-sell ${fmtResell(first)}`;
+}
+
+export type OptionsLine = {
+  label: string;
+  net: string;
+  newPut: string;
+  breakeven: string;
+  pItm: string;
+  pTouch: string;
+  ann: string;
+};
+
+const num = (v: number | null | undefined, d = 2) =>
+  v == null || !Number.isFinite(v) ? "—" : v.toFixed(d);
+const usd = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v) ? "—" : `${v < 0 ? "-" : "+"}$${Math.abs(Math.round(v))}`;
+const pct = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(0)} %`);
+
+const ROLL_LABEL: Record<PutManageRoll["kind"], string> = {
+  out: "Roll out",
+  down: "Roll down & out",
+  band: "Roll to band",
+};
+
+/** Hold · Close · Roll out · Roll down & out · Assign lines for the expandable Options row. */
+export function optionsLines(row: PutManageRow): OptionsLine[] {
+  const empty = { newPut: "—", pItm: "—", pTouch: "—", ann: "—" };
+  const lines: OptionsLine[] = [];
+  if (row.hold)
+    lines.push({
+      label: "Hold",
+      net: usd(row.hold.pnl_usd),
+      newPut: `${Number(row.strike)}p ${fmtExpiryMd(row.expiry)}`,
+      breakeven: num(row.hold.breakeven),
+      pItm: pct(row.hold.p_itm),
+      pTouch: pct(row.hold.p_touch),
+      ann: "—",
+    });
+  if (row.close) lines.push({ label: "Close", net: usd(row.close.pnl_usd), breakeven: "—", ...empty });
+  for (const c of row.rolls ?? [])
+    lines.push({
+      label: ROLL_LABEL[c.kind] ?? c.kind,
+      net: usd(c.net_usd),
+      newPut: `${Number(c.strike)}p ${fmtExpiryMd(c.expiry)}`,
+      breakeven: num(c.breakeven),
+      pItm: pct(c.p_itm),
+      pTouch: pct(c.p_touch),
+      ann: pct(c.ann_pct),
+    });
+  if (row.assign)
+    lines.push({
+      label: "Assign",
+      net: usd(row.assign.loss_usd),
+      newPut: `basis ${num(row.assign.basis)}`,
+      breakeven: num(row.assign.basis),
+      pItm: "—",
+      pTouch: "—",
+      ann: `${row.assign.vs_spot_pct >= 0 ? "+" : ""}${row.assign.vs_spot_pct.toFixed(0)} % vs spot`,
+    });
+  return lines;
 }

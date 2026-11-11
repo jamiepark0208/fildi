@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatTakeAlert,
+  optionsLines,
   isTakeAction,
   partitionPutManage,
   type PutManageRow,
@@ -54,5 +55,25 @@ describe("put-manage-format (A280)", () => {
     assert.equal(holds.length, 2);
     assert.equal(takes.every((r) => formatTakeAlert(r) != null), true);
     assert.equal(holds.every((r) => formatTakeAlert(r) == null), true);
+  });
+
+  it("optionsLines builds hold/close/rolls/assign (A392)", () => {
+    const row: PutManageRow = {
+      ...holdRow,
+      hold: { pnl_usd: -120, breakeven: 4.5, p_itm: 41.2, p_touch: 82.4 },
+      close: { pnl_usd: -120, buy_back: 0.9 },
+      rolls: [
+        { kind: "out", strike: 5, expiry: "2026-11-20", dte: 10, extra_days: 7, sell: 0.8, net: -0.1, net_usd: -10, breakeven: 4.6, p_itm: 38, p_touch: 76, ann_pct: -28.5 },
+        { kind: "down", strike: 4, expiry: "2026-11-27", dte: 17, extra_days: 14, sell: 0.95, net: 0.05, net_usd: 5, breakeven: 3.6, p_itm: 22, p_touch: 44, ann_pct: 3.3 },
+      ],
+      assign: { basis: 4.5, spot: 4.2, vs_spot_pct: -6.7, loss_usd: -30 },
+    };
+    const l = optionsLines(row);
+    assert.deepEqual(l.map((x) => x.label), ["Hold", "Close", "Roll out", "Roll down & out", "Assign"]);
+    assert.equal(l[0].net, "-$120");
+    assert.equal(l[2].newPut, "5p 11-20");
+    assert.equal(l[3].net, "+$5");
+    assert.equal(l[4].ann, "-7 % vs spot");
+    assert.deepEqual(optionsLines(holdRow), []);
   });
 });
