@@ -55,3 +55,11 @@ test("fully closed open row is status closed and carries no remainder P&L", () =
   assert.equal(rows[0].status, "closed");
   assert.ok(Math.abs((rows[1].pnl ?? 0) - -30) < 1e-9);
 });
+
+test("A205: open (unexpired) short put is not graded — no premium-minus-intrinsic fake mark", () => {
+  const rows = buildJournal([o({ orderId: "z", expiry: "2026-11-27" })], new Map([["XYZ", bars([10.5, 10.6, 10.7, 10.8, 10.9], [10.2, 10.3, 10.4, 10.5, 10.6])]]) as PriceMap);
+  const r = rows.find((x) => x.orderId === "z")!;
+  assert.equal(r.status, "open");
+  assert.equal(r.pnl ?? null, null);
+  assert.equal(r.pct ?? null, null);
+});

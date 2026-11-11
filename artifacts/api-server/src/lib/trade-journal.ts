@@ -128,7 +128,8 @@ export function buildJournal(orders: JournalOrder[], prices: PriceMap): JournalR
       const g = gradeOption({ optionSide: r.optionSide, strike: r.strike, expiry: r.expiry, px: r.px, day: r.day, short }, prices.get(r.symbol));
       r.touched = g.touched;
       r.status = g.expired ? "expired" : "open";
-      if (g.retPct != null && r.strike) {
+      // A205/Codex 11-10: before expiry, premium − intrinsic omits the remaining time value → no fake mark; open rows stay ungraded
+      if (g.expired && g.retPct != null && r.strike) {
         r.pct = g.retPct;
         r.pnl = (g.retPct / 100) * r.strike * 100 * l.left - (r.fees ?? 0);
       }

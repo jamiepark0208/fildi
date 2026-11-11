@@ -71,7 +71,9 @@ def main() -> None:
             if bad:
                 ret.append(np.nan); touch.append(np.nan); exp.append(np.nan); reg.append(None); continue
             s = w["c"].iloc[-1]
-            ret.append((r.px - max(0.0, r.k - s)) / r.k * 100)
+            # A205/Codex 11-10: premium − intrinsic is only the true result at expiry; before it, it omits the remaining
+            # time value → open contracts are not graded (counted as open), never shown as a mark-to-market return
+            ret.append((r.px - max(0.0, r.k - s)) / r.k * 100 if r.e <= last else np.nan)
             touch.append(float(w["lo"].min() < r.k))
             exp.append(float(r.e <= last))
             rv = r20[r20.index <= r.d]
@@ -85,8 +87,12 @@ def main() -> None:
         w = src[(src.t == r.t) & (pd.to_datetime(src.d) <= r.d) & (pd.to_datetime(src.d) >= r.d - pd.Timedelta(days=4))]
         if w.empty:
             return "none"
-        same = (pd.to_datetime(w.e) == r.e) & ((w.k - r.k).abs() <= max(0.5, 0.03 * r.k))
-        return "same" if same.any() else "name"
+        # A205/Codex 11-10: "same" = exact contract (expiry + strike); within max($0.50, 3 %) = "near", not identity.
+        # A match is proximity, not proof Fildi caused the trade (no adoption record yet).
+        se = pd.to_datetime(w.e) == r.e
+        if (se & ((w.k - r.k).abs() < 0.005)).any():
+            return "same"
+        return "near" if (se & ((w.k - r.k).abs() <= max(0.5, 0.03 * r.k))).any() else "name"
     J["m_eng"] = [match(r, eng) for r in J.itertuples()]
     J["m_ml"] = [match(r, M) for r in J.itertuples()]
 
@@ -94,11 +100,11 @@ def main() -> None:
         w = df.dropna(subset=["ret"])
         if w.empty:
             return f"{nm}: no graded rows"
-        return (f"{nm}: n {len(w)} ({w.t.nunique()} names, {int(w.expired.sum())} expired, {int(df.skip.sum())} skipped) · "
+        return (f"{nm}: n {len(w)} ({w.t.nunique()} names, graded at expiry; {int((df.expired == 0).sum())} still open, ungraded; {int(df.skip.sum())} skipped) · "
                 f"{w.ret.mean():+.2f} % of strike · win {(w.ret > 0).mean():.0%} · strike touched {w.touched.mean():.0%} · worst {w.ret.min():+.1f} %")
 
-    adopt = (f"Fildi → Jamie trades: {len(J)} short-put opens · engine same contract {(J.m_eng == 'same').sum()} / name {(J.m_eng == 'name').sum()}"
-             f" · Model List same {(J.m_ml == 'same').sum()} / name {(J.m_ml == 'name').sum()}")
+    adopt = (f"Fildi → Jamie trades: {len(J)} short-put opens · engine same contract {(J.m_eng == 'same').sum()} / near strike {(J.m_eng == 'near').sum()} / name {(J.m_eng == 'name').sum()}"
+             f" · Model List same {(J.m_ml == 'same').sum()} / near {(J.m_ml == 'near').sum()} / name {(J.m_ml == 'name').sum()} (proximity, not adoption)")
     lines = [f"REC SCOREBOARD since {since} (prices to {last:%m-%d})", adopt, line("Jamie puts", J), line("Engine PASS", E), line("Model List puts", M)]
     # Engine vs Jamie on the overlap window
     if len(J.dropna(subset=["ret"])) and len(E.dropna(subset=["ret"])):

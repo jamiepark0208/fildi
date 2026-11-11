@@ -137,11 +137,12 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
     // Jamie vs engine, same window (port of rec_scoreboard.py)
     const jamieOpens = out.filter((r) => r.kind === "option" && r.optionSide === "put" && r.side === "credit" && r.legEffect === "open");
     const jamieG = jamieOpens.map((r) => gradeOption({ optionSide: "put", strike: r.strike, expiry: r.expiry, px: r.px, day: r.day, short: true }, prices.get(r.symbol)))
-      .filter((g) => g.retPct != null).map((g) => g.retPct as number);
+      .filter((g) => g.expired && g.retPct != null).map((g) => g.retPct as number);  // A205: expired only
     const engG = engPass.filter((r) => r.as_of >= since).map((r) => {
       const p = r.payload; const bid = num(p.bid), ask = num(p.ask);
       if (bid == null || ask == null) return null;
-      return gradeOption({ optionSide: "put", strike: num(p.strike), expiry: typeof p.expiry === "string" ? p.expiry : null, px: bid + 0.1 * (ask - bid), day: r.as_of, short: true }, prices.get(r.ticker), num(p.spot)).retPct;
+      const g = gradeOption({ optionSide: "put", strike: num(p.strike), expiry: typeof p.expiry === "string" ? p.expiry : null, px: bid + 0.1 * (ask - bid), day: r.as_of, short: true }, prices.get(r.ticker), num(p.spot));
+      return g.expired ? g.retPct : null;  // A205: expired only, same as rec_scoreboard
     }).filter((x): x is number => x != null);
     const mean = (a: number[]) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
 
