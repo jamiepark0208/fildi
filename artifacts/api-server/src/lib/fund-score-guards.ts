@@ -137,6 +137,8 @@ export function netCashToAssets(
   assets: number | null,
 ): number | null {
   if (assets == null || assets <= 0) return null;
+  // 11-11: both missing = unknown, not 0 net cash (29 names, e.g. TSM after the A329 non-USD clear, scored 20th pct on a stand-in 0)
+  if (cash == null && debt == null) return null;
   const c = cash ?? 0;
   const d = debt ?? 0;
   return (c - d) / assets;

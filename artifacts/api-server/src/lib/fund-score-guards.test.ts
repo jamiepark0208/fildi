@@ -75,6 +75,8 @@ describe("netCashToAssets", () => {
   it("computes (cash-debt)/assets", () => {
     assert.equal(netCashToAssets(50, 20, 100), 0.3);
     assert.equal(netCashToAssets(null, null, null), null);
+    assert.equal(netCashToAssets(null, null, 100), null);
+    assert.equal(netCashToAssets(30, null, 100), 0.3);
   });
 });
 
