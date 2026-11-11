@@ -59,6 +59,7 @@ Thumbs.db
 .env.*
 !.env.example
 .local-admin-credentials
+.agent-login
 
 # Replit
 .cache/

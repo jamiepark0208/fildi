@@ -697,6 +697,7 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
         overlayMapRef.current.delete(id);
       }
     });
+    let coneAdded = false;
     for (const spec of overlays ?? []) {
       let s = overlayMapRef.current.get(spec.ticker);
       if (!s) {
@@ -712,9 +713,12 @@ function LightweightPriceChart({ series, hasRightAxis, period, emaSeries, marker
           ...(spec.autoscale ? {} : { autoscaleInfoProvider: () => ({ priceRange: null }) }),
         });
         overlayMapRef.current.set(spec.ticker, s);
+        if (spec.solid) coneAdded = true;
       }
       s.setData(spec.data);
     }
+    // Cone runs past the last candle: show its end once when it first appears (zoom kept; later scrolls untouched).
+    if (coneAdded) { try { chart.timeScale().scrollToRealTime(); } catch { /* scale not ready */ } }
   }, [overlays]);
 
   // RSI + MACD sub-panes — rebuild together so pane indexes stay consistent.
@@ -1114,7 +1118,9 @@ export function PriceChart({
   }, [technicalsQuery.data]);
 
   const lastBar = tickers.length === 1 ? (historyByTicker[tickers[0]] ?? []).at(-1) ?? null : null;
-  const spotNow = lastBar?.close ?? null;
+  // Live quote first: the daily history can lag a session (HOOD 11-11: bar 81.33 vs live 85.90 → 44 % vs 25 % ITM).
+  const liveQuote = tickers.length === 1 ? loadedStocks.find(s => s.ticker === tickers[0])?.currentPrice ?? null : null;
+  const spotNow = liveQuote != null && liveQuote > 0 ? liveQuote : lastBar?.close ?? null;
 
   const myPuts = useMemo(
     () => (techTicker ? (shortPutsQuery.data?.positions ?? []).filter(p => p.ticker.toUpperCase() === techTicker) : []),
@@ -1163,7 +1169,7 @@ export function PriceChart({
   const probCone = useMemo((): LWSeriesSpec[] | null => {
     if (!showTechnicalZones || activeBar !== "1d" || !lastBar || ivAnnual == null) return null;
     const far = Math.max(30, ...[...myPuts, ...candidatePuts].map(p => Math.ceil(daysTo(p.expiry))).filter(Number.isFinite));
-    const c = probabilityCone(lastBar.close, ivAnnual, toUnixTime(lastBar.date), Math.min(120, far));
+    const c = probabilityCone(spotNow ?? lastBar.close, ivAnnual, toUnixTime(lastBar.date), Math.min(120, far));
     if (!c) return null;
     const pts = (a: { time: number; value: number }[]): LWPoint[] => a.map(p => ({ time: p.time as UTCTimestamp, value: p.value }));
     return [
@@ -1172,7 +1178,7 @@ export function PriceChart({
       { ticker: "_cone2+", color: "rgba(250,204,21,0.35)", scaleId: "left", data: pts(c.up2), solid: true },
       { ticker: "_cone2-", color: "rgba(250,204,21,0.35)", scaleId: "left", data: pts(c.dn2), solid: true },
     ];
-  }, [showTechnicalZones, activeBar, lastBar, ivAnnual, myPuts, candidatePuts]);
+  }, [showTechnicalZones, activeBar, lastBar, spotNow, ivAnnual, myPuts, candidatePuts]);
 
   const emOverlays = useMemo(
     () => (showEm ? [...(ivBand?.overlays ?? []), ...(probCone ?? [])] : undefined),
