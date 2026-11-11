@@ -64,7 +64,8 @@ export { computeTrailingPeg as computeCanonicalPeg, computeForwardPeg } from "..
 type SFPair = [source: string, sfField: string];
 type FieldDef = { tfCol: string; priority: SFPair[] };
 
-const SEC_OWNED_TFCOLS = new Set(["sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare"]);
+const SEC_OWNED_TFCOLS = new Set(["sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare",
+  "totalAssets"]);   // 11-11: AAPL fmp FY25 359 B outvoted SEC FY26 404 B on pull date
 
 export const FIELD_DEFS: FieldDef[] = [
   // ── Valuation ratios ──────────────────────────────────────────────────────
@@ -154,9 +155,9 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "ebitda",             priority: [["yahoo","ebitda"],             ["fmp","ebitda"],            ["alpha_vantage","ebitda"], ["edgar","ebitda"], ["factset","ebitda"]] },
   { tfCol: "ebit",               priority: [["yahoo","annualEbit"],         ["fmp","ebit"],              ["edgar","ebit"], ["factset","ebit"]] },
   { tfCol: "grossProfit",        priority: [["yahoo","annualGrossProfit"],  ["fmp","grossProfit"], ["edgar","grossProfit"]] },
-  // totalAssets: Yahoo wide table has no totalAssets col; EDGAR gold map has none yet — FMP only until those land.
-  { tfCol: "totalAssets",        priority: [["fmp","totalAssets"]] },
-  { tfCol: "annualOperatingCashFlow", priority: [["yahoo","annualOperatingCashFlow"], ["fmp","annualOperatingCashFlow"]] },
+  // totalAssets: Yahoo wide table has no totalAssets col. 11-11: SEC companyfacts 'Assets' (USD units only) first.
+  { tfCol: "totalAssets",        priority: [["sec","totalAssets"], ["sec_local","totalAssets"], ["fmp","totalAssets"]] },
+  { tfCol: "annualOperatingCashFlow", priority: [["yahoo","annualOperatingCashFlow"], ["fmp","annualOperatingCashFlow"], ["factset","annualOperatingCashFlow"]] },
   { tfCol: "interestExpense",    priority: [["yahoo","interestExpense"],    ["fmp","interestExpense"],   ["edgar","interestExpense"]] },
   { tfCol: "effectiveTaxRate",   priority: [["yahoo","effectiveTaxRate"], ["fmp","effectiveTaxRate"]] },
   { tfCol: "wacc",               priority: [["yahoo","wacc"],             ["fmp","wacc"]] },
@@ -165,7 +166,7 @@ export const FIELD_DEFS: FieldDef[] = [
   { tfCol: "freeCashFlow",               priority: [["sec","freeCashFlow"], ["yahoo","freeCashFlow"],              ["yahoo","annualFreeCashFlow"], ["fmp","freeCashFlow"],   ["edgar","freeCashFlow"], ["factset","freeCashFlow"]] },
   // FMP "quarter" cash-flow endpoint returns YTD from 10-Q, not isolated quarter — Yahoo only.
   // FactSet NOCF allowed as last resort when Yahoo quarterly OCF is null.
-  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"], ["factset","quarterlyOperatingCashFlow"]] },
+  { tfCol: "quarterlyOperatingCashFlow", priority: [["yahoo","quarterlyOperatingCashFlow"]] },   // 11-11: factset's is annual
 
   // ── Market / other ────────────────────────────────────────────────────────
   { tfCol: "beta",               priority: [["yahoo","beta"],              ["finnhub","beta"],    ["fmp","beta"],              ["alpha_vantage","beta"]] },
@@ -1005,6 +1006,14 @@ export async function runMergeTrusted() {
         : null;
     applyDerived("ffoProxy", ffoProxy);
 
+    // 11-11: sec_local = filer's own currency; without a known non-USD reporting currency it can't be converted → drop + log
+    if ((!financialCurrency || financialCurrency.toUpperCase() === "USD") && update.totalAssets != null
+        && provenanceBatch.find((p) => p.field === "totalAssets")?.result.source === "sec_local") {
+      delete update.totalAssets;
+      const i = provenanceBatch.findIndex((p) => p.field === "totalAssets");
+      if (i >= 0) provenanceBatch.splice(i, 1);
+      logDataIssue("merge-trusted.ts", "non_usd_cleared", ticker, "totalAssets", `sec_local value but financialCurrency=${financialCurrency ?? "null"}`);
+    }
     const { clearedNonUsd, nonUsdOutcomes } = applyStatementGoldPolicies({
       update,
       provenanceBatch,
@@ -1015,7 +1024,8 @@ export async function runMergeTrusted() {
     });
     // 11-11: EDGAR 20-F totalAssets is local currency (TSM 6.24T TWD) and is written outside this merge; with cash/debt now in
     // USD, netCash/assets would mix units → clear it for non-USD filers + log, until the EDGAR writer converts at write time.
-    if (financialCurrency && financialCurrency.toUpperCase() !== "USD" && existing?.totalAssets != null) {
+    if (financialCurrency && financialCurrency.toUpperCase() !== "USD" && existing?.totalAssets != null
+        && (update as Record<string, unknown>).totalAssets == null) {   // a USD-unit source (sec) this run wins
       (update as Record<string, number | null>).totalAssets = null;
       logDataIssue("merge-trusted.ts", "non_usd_cleared", ticker, "totalAssets",
         `existing ${existing.totalAssets} likely ${financialCurrency} (EDGAR 20-F) — convert in the EDGAR writer`);

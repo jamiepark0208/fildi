@@ -147,7 +147,7 @@ export interface FactSetFundamentalsPartial {
   returnOnAssets?: number;
   totalStockholdersEquity?: number;
   freeCashFlow?: number;
-  quarterlyOperatingCashFlow?: number;
+  annualOperatingCashFlow?: number;
   cashAndEquivalents?: number;
   currentRatio?: number;
   debtToEquity?: number;
@@ -237,7 +237,8 @@ export function mapFactSetHighlightRows(rows: FactSetRow[]): FactSetFundamentals
     returnOnAssets: val("Return on Asset (%)"),
     totalStockholdersEquity: val("Total Shareholder Equity"),
     freeCashFlow: val("Free Cash Flow"),
-    quarterlyOperatingCashFlow: val("Net Operating Cash Flow"),
+    // 11-11: column 1 = latest fiscal YEAR (AAPL "Sep '26" 151 B) — was stored as quarterly → cashrun ×4 = 4× annual
+    annualOperatingCashFlow: val("Net Operating Cash Flow"),
     cashAndEquivalents: val("Cash & ST Inv"),
     currentRatio: val("Current Ratio"),
     debtToEquity: (() => {

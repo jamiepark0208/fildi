@@ -31,6 +31,13 @@ describe("non-USD gold: convert, don't blank (11-11 TSM)", () => {
     assert.equal(update.cashAndEquivalents, 9e10);
     assert.equal(r.outcomes.find((o) => o.field === "cashAndEquivalents")?.action, "factset");
   });
+  it("converts sec_local IFRS total assets (ASML EUR 20-F)", () => {
+    const update: Record<string, number> = { totalAssets: 50.6e9 };
+    const batch = [pb("totalAssets", "sec_local", 50.6e9)];
+    applyNonUsdAbsoluteGoldPolicyDetailed(update, batch, "EUR", { usdPerUnit: 1.1 });
+    assert.ok(Math.abs(update.totalAssets! - 55.66e9) < 1e6);
+    assert.equal(batch[0]!.result.source, "sec_local+fx");
+  });
   it("still clears (and reports) when nothing is convertible", () => {
     const update: Record<string, number> = { totalDebt: 1e12 };
     const batch = [pb("totalDebt", "sec", 1e12)];

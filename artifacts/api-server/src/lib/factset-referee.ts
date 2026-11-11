@@ -42,7 +42,7 @@ const FACTSET_FIELD_MAP: Array<{
   { key: "returnOnAssets", sfField: "returnOnAssets" },
   { key: "totalStockholdersEquity", sfField: "totalStockholdersEquity" },
   { key: "freeCashFlow", sfField: "freeCashFlow" },
-  { key: "quarterlyOperatingCashFlow", sfField: "quarterlyOperatingCashFlow" },
+  { key: "annualOperatingCashFlow", sfField: "annualOperatingCashFlow" },   // 11-11: FY column, not quarterly
   { key: "cashAndEquivalents", sfField: "totalCash" }, // FIELD_DEFS yahoo alias
   { key: "currentRatio", sfField: "currentRatio" },
   { key: "debtToEquity", sfField: "debtToEquity" },
@@ -64,7 +64,7 @@ const FACTSET_FIELD_MAP: Array<{
 const GOLD_NULL_COLS = [
   "totalRevenue", "netIncome", "ebitda", "ebit", "earningsPerShare",
   "grossMargin", "operatingMargin", "netMargin", "returnOnEquity", "returnOnAssets",
-  "totalStockholdersEquity", "freeCashFlow", "quarterlyOperatingCashFlow",
+  "totalStockholdersEquity", "freeCashFlow", "annualOperatingCashFlow",
   "cashAndEquivalents", "currentRatio", "debtToEquity", "revenueGrowthYoY", "epsGrowth",
   "peRatio", "priceToBook", "pegRatio", "forwardPe",
 ] as const;

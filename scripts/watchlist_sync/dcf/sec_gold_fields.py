@@ -21,7 +21,7 @@ ROA_NI_CONCEPTS = (
 
 
 SHARES_MAX_AGE_D = 120   # older cover = stale (buybacks); vendor current count wins instead
-SEC_OWNED_FIELDS = ("sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare", "earningsPerShare")   # deleted when not produced this run
+SEC_OWNED_FIELDS = ("totalAssets", "sharesOutstanding", "sharesOutstandingPrior", "tangibleBookValuePerShare", "earningsPerShare")   # deleted when not produced this run
 INTANG_EX_GW = ["IntangibleAssetsNetExcludingGoodwill"]
 INTANG_PARTS = ["FiniteLivedIntangibleAssetsNet", "IndefiniteLivedIntangibleAssetsExcludingGoodwill"]
 
@@ -207,9 +207,31 @@ def _load_facts(conn, ticker: str) -> dict | None:
     """Prefer vendor_raw; refresh from SEC when trimmed cache lacks net_income (ROA/NI)."""
     facts = F.stored_facts(conn, ticker)
     gaap = (facts or {}).get("facts", {}).get("us-gaap", {}) or {}
-    if facts and any(c in gaap for c in F.FLOWS["net_income"]) and "Assets" in gaap:
+    fresh = (facts or {}).get("keep_v", 0) >= F.KEEP_V
+    if facts and fresh and (any(c in gaap for c in F.FLOWS["net_income"]) or (facts.get("facts") or {}).get("ifrs-full")):
         return facts
-    return F.companyfacts(conn, ticker)
+    # 11-11: an unchanged filing returns the trimmed cache — force one refetch when it predates KEEP_V (no Assets kept)
+    return F.companyfacts(conn, ticker, force=bool(facts) and not fresh)
+
+
+def local_total_assets(facts: dict) -> dict | None:
+    """11-11: latest Assets in the filer's own currency (IFRS 20-F, or us-gaap in non-USD units: MUFG JPY).
+    Written as source 'sec_local'; merge-trusted converts it at today's FX like other local-currency vendors."""
+    today = date.today().isoformat()
+    best = None
+    for tax in ("ifrs-full", "us-gaap"):
+        node = ((facts.get("facts") or {}).get(tax) or {}).get("Assets") or {}
+        for unit, vals in (node.get("units") or {}).items():
+            if unit == "USD" or not (len(unit) == 3 and unit.isalpha() and unit.isupper()):
+                continue
+            for u in vals:
+                if u.get("start") or not u.get("val") or u.get("form") not in ("20-F", "20-F/A", "40-F", "6-K", "10-K", "10-Q"):
+                    continue
+                if u["end"] <= today and (best is None or (u["end"], u.get("filed", "")) > (best["end"], best["filed"])):
+                    best = {"value": float(u["val"]), "end": u["end"], "filed": u.get("filed", u["end"]), "unit": unit}
+    if best and F._days(best["end"], today) > 370:
+        return None
+    return best
 
 
 def _price(conn, ticker: str) -> float | None:
@@ -236,8 +258,14 @@ def _gross_profit(facts: dict, rev: dict | None) -> dict | None:
 def fields_for_ticker(conn, ticker: str) -> list[dict]:
     t = ticker.upper()
     facts = _load_facts(conn, t)
-    if not facts or not (facts.get("facts") or {}).get("us-gaap"):
+    if not facts:
         return []
+    usd_fresh = any(not u.get("start") and F._days(u["end"], date.today().isoformat()) <= 370 for u in F._units(facts, "Assets"))
+    loc = None if usd_fresh else local_total_assets(facts)   # TM: us-gaap USD stops 2013, IFRS since
+    local_rows = ([{"field": "totalAssets", "value": loc["value"], "filed": str(loc["filed"])[:10],
+                    "period_end": str(loc["end"])[:10], "source": "sec_local"}] if loc else [])
+    if not (facts.get("facts") or {}).get("us-gaap"):
+        return local_rows
 
     rev = F.ttm_flow(facts, F.FLOWS["revenue"])
     ocf = F.ttm_flow(facts, F.FLOWS["ocf"])
@@ -256,7 +284,7 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
     gp = _gross_profit(facts, rev)
     asof = (rev or ocf or ni or {}).get("end") or date.today().isoformat()
 
-    out: list[dict] = []
+    out: list[dict] = list(local_rows)
 
     def add(field: str, value: float | None, meta: dict | None) -> None:
         if value is None or meta is None:
@@ -291,6 +319,9 @@ def fields_for_ticker(conn, ticker: str) -> list[dict]:
             else assets["value"]
         )
         add("returnOnAssets", ni_common["value"] / avg, ni_common)
+    if usd_fresh and assets and assets.get("value") and assets["value"] > 0:
+        # 11-11: gold total_assets had FMP only (4 names) → 413 nulls; us-gaap USD units only, so never local currency
+        add("totalAssets", assets["value"], assets)
 
     ca = F.balance(facts, ["AssetsCurrent"], asof)
     cl = F.balance(facts, ["LiabilitiesCurrent"], asof)
@@ -343,10 +374,10 @@ def upsert_rows(conn, ticker: str, field_rows: list[dict]) -> int:
     for r in field_rows:
         conn.execute(
             """INSERT INTO source_fundamentals (ticker, source, field, value, fetched_at)
-               VALUES (%s, 'sec', %s, %s, %s::date)
+               VALUES (%s, %s, %s, %s, %s::date)
                ON CONFLICT (ticker, source, field) DO UPDATE
                SET value = EXCLUDED.value, fetched_at = EXCLUDED.fetched_at""",
-            (ticker.upper(), r["field"], r["value"], r.get("period_end") or r["filed"]),
+            (ticker.upper(), r.get("source", "sec"), r["field"], r["value"], r.get("period_end") or r["filed"]),
         )
         n += 1
     return n
@@ -398,9 +429,11 @@ def main() -> None:
                 if rows_out:
                     print(t, len(rows_out), rows_out[0]["filed"])
                 continue
-            produced = {r["field"] for r in rows_out}
+            produced = {r["field"] for r in rows_out if r.get("source", "sec") == "sec"}
             gone = [f for f in SEC_OWNED_FIELDS if f not in produced]
             conn.execute("DELETE FROM source_fundamentals WHERE ticker = %s AND source = 'sec' AND field = ANY(%s)", (t.upper(), gone))
+            if not any(r.get("source") == "sec_local" for r in rows_out):
+                conn.execute("DELETE FROM source_fundamentals WHERE ticker = %s AND source = 'sec_local'", (t.upper(),))
             n = upsert_rows(conn, t, rows_out)
             total += n
             conn.commit()

@@ -16,6 +16,8 @@ const NON_USD_ABSOLUTE_FIELDS = [
   "freeCashFlow",
   "quarterlyOperatingCashFlow",
   "totalStockholdersEquity",
+  "grossProfit", "annualOperatingCashFlow", "interestExpense",   // 11-11: were left local → GPA/accruals/intcov mixed units
+  "totalAssets",   // 11-11: sec_local (IFRS 20-F Assets, TSM/ASML) + fmp are reporting currency
 ] as const;
 
 const NON_USD_PER_SHARE_FIELDS = ["earningsPerShare", "tangibleBookValuePerShare"] as const;   // TM finnhub TBVPS 2956 = JPY
@@ -44,7 +46,7 @@ function setDerivedGold(
 }
 
 /** Vendors whose statement absolutes are in the filer's reporting currency (TSM yahoo 4.94T TWD vs factset 169B USD). */
-const LOCAL_CURRENCY_SOURCES = new Set(["yahoo", "fmp", "finnhub", "alpha_vantage"]);
+const LOCAL_CURRENCY_SOURCES = new Set(["yahoo", "fmp", "finnhub", "alpha_vantage", "sec_local"]);
 /** Converted value vs FactSet USD beyond this ratio gap → divergent (Needs Review), not silently trusted. */
 const FX_CROSSCHECK_TOL = 0.35;
 

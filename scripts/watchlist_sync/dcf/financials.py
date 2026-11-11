@@ -41,6 +41,18 @@ FLOWS = {
         "ProfitLoss",
     ],
 }
+# 11-11: concepts sec_gold_fields reads outside FLOWS/BALANCES — the trimmed cache dropped them (Assets → no total_assets,
+# AssetsCurrent/LiabilitiesCurrent → no current ratio).
+EXTRA_KEEP = {"Assets", "AssetsCurrent", "LiabilitiesCurrent", "Liabilities", "Goodwill", "NetIncomeLoss", "ProfitLoss",
+              "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "CommonStockSharesOutstanding",
+              "IntangibleAssetsNetExcludingGoodwill", "FiniteLivedIntangibleAssetsNet",
+              "IndefiniteLivedIntangibleAssetsExcludingGoodwill", "PreferredStockValueOutstanding",
+              "PreferredStockLiquidationPreferenceValue", "PreferredStockDividendsIncomeStatementImpact",
+              "DividendsPreferredStock", "PreferredStockDividendsAndOtherAdjustments", "EarningsPerShareDiluted"}
+
+IFRS_KEEP = {"Assets"}   # 20-F IFRS filers (TSM, ASML): local currency → sec_local source, FX-converted in merge-trusted
+KEEP_V = 2              # bump when EXTRA_KEEP / IFRS_KEEP change → sec_gold_fields refetches older caches once
+
 BALANCES = {
     "cash": ["CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"],
     "st_investments": ["ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesDebtSecuritiesCurrent"],
@@ -161,9 +173,11 @@ def companyfacts(conn, ticker: str, *, force: bool = False) -> dict | None:
         if cached:
             return cached[0]["payload"] if isinstance(cached[0]["payload"], dict) else json.loads(cached[0]["payload"])
     facts = _get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json")
-    used = {c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | set(WEIGHTED.values()) | set(DILUTION.values()) | {UNRECOGNIZED, CONVERT_PRICE}
-    keep = {"cik": facts.get("cik"), "entityName": facts.get("entityName"), "facts": {
+    used = ({c for v in (*FLOWS.values(), *BALANCES.values()) for c in v} | set(WEIGHTED.values()) | set(DILUTION.values())
+            | {UNRECOGNIZED, CONVERT_PRICE} | EXTRA_KEEP)
+    keep = {"cik": facts.get("cik"), "entityName": facts.get("entityName"), "keep_v": KEEP_V, "facts": {
         "us-gaap": {k: v for k, v in (facts.get("facts", {}).get("us-gaap", {}) or {}).items() if k in used},
+        "ifrs-full": {k: v for k, v in (facts.get("facts", {}).get("ifrs-full", {}) or {}).items() if k in IFRS_KEEP},
         "dei": (facts.get("facts", {}).get("dei", {}) or {})}}
     body = json.dumps(keep)  # whole fact series for every concept we use (full file is 5–20 MB)
     sha = hashlib.sha256(body.encode()).hexdigest()
