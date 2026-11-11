@@ -55,6 +55,10 @@ class RowsExhausted(Exception):
     pass
 
 
+class SkipName(Exception):
+    """Network failed 3× for one name-day: leave it unstored so the next run retries it."""
+
+
 def universe(conn) -> list[str]:
     ts = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM source_fundamentals WHERE ticker ~ '^[A-Z.]{1,6}$'")}
     return sorted(ts | set(EXTRA))
@@ -66,7 +70,15 @@ def fetch(conn, ticker: str, day: date) -> list[dict]:
     while True:
         url = (f"{L.BASE}/options/flow?underlying={ticker}&from={day}&to={day}&min_premium={MIN_PREMIUM}"
                f"&limit={PAGE}&offset={off}&order=asc")
-        status, body, _ = L._request(conn, url, endpoint="options/flow", vkey=f"{ticker}|{day}|{off}")
+        for attempt in range(3):   # 11-10: one ConnectionResetError killed the backfill mid-day
+            try:
+                status, body, _ = L._request(conn, url, endpoint="options/flow", vkey=f"{ticker}|{day}|{off}")
+                break
+            except OSError as e:
+                print(f"flow: {ticker} {day} {type(e).__name__} (try {attempt + 1})", file=sys.stderr)
+                time.sleep(5 * (attempt + 1))
+        else:
+            raise SkipName()
         if status == 429 and b"rows-exhausted" in body:
             raise RowsExhausted()
         if status != 200:
@@ -203,7 +215,10 @@ def main() -> None:
                         continue
                     if time.monotonic() - t0 > a.max_minutes * 60:
                         raise TimeoutError
-                    rows = fetch(conn, t, day)
+                    try:
+                        rows = fetch(conn, t, day)
+                    except SkipName:
+                        continue
                     calls += 1 + len(rows) // PAGE
                     store_prints(conn, day, t, rows)
                     summarize(conn, day, t, rows)
