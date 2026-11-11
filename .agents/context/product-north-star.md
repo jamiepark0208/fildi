@@ -32,4 +32,4 @@
 - **tastytrade:** account unfunded → data may be poor. 11-10: IV percentile vs LSEG corr 0.70, 11 % of names off > 30 pts → removed from the IV-rank resolver (iv_rank.py, FILDI_TASTY_IVRANK=1 to re-enable) and the API reader. Liquidity rating still display-only — don't build on it.
 
 ## Build order
-Built 11-10: #1 (A392), #4 (A393), #6 (A394), #2 (A396). Next #3 → #5. One row per session, end to end (API + UI + Playwright check + scoreboard/eval line). Each row's spec lives in its ASKS file; this table keeps the status.
+Built 11-10: #1 (A392), #4 (A393), #6 (A394), #2 (A396), #3 (earnings implied vs actual for ~900 names via IV30 crush, calibrated 0.9× real straddles; Breakdown › Options). Next #5. One row per session, end to end (API + UI + Playwright check + scoreboard/eval line). Each row's spec lives in its ASKS file; this table keeps the status.

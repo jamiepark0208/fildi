@@ -50,6 +50,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("price/IV history", LPY, LSEG, ["sync_daily_history.py", "--start", "2024-10-01"]),
         ("StarMine history", LPY, LSEG, ["sync_starmine_history.py"]),
         ("earnings history", LPY, LSEG, ["sync_earnings_moves.py", "--years", "6"]),
+        ("earnings implied", LPY, LSEG, ["sync_earnings_implied.py"]),   # north-star #3: priced vs actual move, IV crush, drift (local, $0, ~10 s)
         ("CDS spreads", LPY, LSEG, ["sync_cds.py"]),   # S060: credit flag has no history → collect our own (~5 requests)
     ],
     "integrity": [("split repair", PY, HERE, ["split_repair.py", "--apply"])],

@@ -35,8 +35,20 @@ async function safe<T>(q: ReturnType<typeof sql>): Promise<T[]> {
 router.get("/stocks/:ticker/options-history", async (req, res) => {
   const t = String(req.params.ticker ?? "").toUpperCase();
   if (!TICKER.test(t)) return res.status(400).json({ error: "bad ticker" });
-  const earnings = await safe(sql`SELECT report_date::text AS date, implied::float8, realized::float8, ratio::float8
-    FROM optlab.earnings_moves WHERE ticker = ${t} ORDER BY report_date`);
+  // Real straddle (optlab, ~60 names) first; else the IV30-crush estimate (lseg_research.earnings_implied, ~900 names,
+  // research/lseg/sync_earnings_implied.py). Crush + post-report drift come from the LSEG table for both.
+  const earnings = await safe(sql`
+    SELECT COALESCE(o.report_date, e.report_date)::text AS date,
+           COALESCE(o.implied, e.implied)::float8 AS implied,
+           COALESCE(o.realized, e.realized)::float8 AS realized,
+           COALESCE(o.ratio, e.ratio)::float8 AS ratio,
+           CASE WHEN o.implied IS NOT NULL THEN 'straddle' ELSE 'iv30' END AS source,
+           e.move::float8 AS move, e.crush_pts::float8 AS "crushPts",
+           e.drift_5d::float8 AS "drift5d", e.drift_20d::float8 AS "drift20d"
+    FROM (SELECT * FROM optlab.earnings_moves WHERE ticker = ${t}) o
+    FULL JOIN (SELECT * FROM lseg_research.earnings_implied WHERE ticker = ${t}) e USING (ticker, report_date)
+    WHERE COALESCE(o.implied, e.implied) IS NOT NULL
+    ORDER BY 1`);
   const iv = await safe(sql`SELECT date::text, iv::float8, rv20::float8, iv_rank::float8 AS "ivRank"
     FROM optlab.iv30 WHERE ticker = ${t} ORDER BY date`);
   return res.json({ ticker: t, earnings, iv });

@@ -14,7 +14,8 @@ import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-type Move = { date: string; implied: number; realized: number; ratio: number | null };
+type Move = { date: string; implied: number; realized: number; ratio: number | null; source?: "straddle" | "iv30";
+  move?: number | null; crushPts?: number | null; drift5d?: number | null; drift20d?: number | null };
 type Iv = { date: string; iv: number; rv20: number | null; ivRank: number | null };
 type VolRow = { date: string; ivIndex: number | null; ivIndex5dChange: number | null; ivRank: number | null; ivPercentile: number | null;
   liquidityRating: number | null; liquidityRank: number | null };
@@ -77,15 +78,26 @@ function useJson<T>(key: unknown[], url: string, enabled = true) {
 function EarningsMoves({ moves }: { moves: Move[] }) {
   const m = median(moves.map((x) => x.ratio).filter((x): x is number => x != null));
   const beat = moves.filter((x) => x.realized > x.implied).length;
+  const nums = (f: (x: Move) => number | null | undefined) => moves.map(f).filter((x): x is number => x != null);
+  const crush = median(nums((x) => x.crushPts));
+  const d5 = nums((x) => x.drift5d);
+  const d20 = nums((x) => x.drift20d);
+  const sameWay = (ds: (x: Move) => number | null | undefined) => {
+    const r = moves.filter((x) => x.move != null && ds(x) != null && x.move !== 0);
+    return r.length ? `${r.filter((x) => Math.sign(ds(x)!) === Math.sign(x.move!)).length}/${r.length}` : "—";
+  };
+  const est = moves.some((x) => x.source === "iv30");
   return (
     <div className="space-y-1">
       <Head
         title="Earnings moves"
         value={m == null ? "—" : `${m.toFixed(1)}×`}
         sub={m == null ? "no reports yet" : <>priced move · bigger than priced {beat}/{moves.length}</>}
-        info={<>Priced-in move = at-the-money straddle (put + call, first weekly expiry after the report) at the close before ÷ stock price.
+        info={<>Priced-in move = at-the-money straddle (put + call, first weekly expiry after the report) at the close before ÷ stock price
+          where we have option closes; otherwise estimated from the 30-day IV drop across the report (IV crush), which tracks real
+          straddles at 0.9× (corr 0.65, 385 reports){est ? " — this name uses the estimate" : ""}.
           Actual = first close after the report vs last close before. Below 1× = options overpriced the move (sellers won).
-          Across 363 reports options overpriced the move (actual 0.65× priced), but a name's past ratio doesn't predict its next one (S018), so treat this as history, not a forecast.</>}
+          Across ~9,100 reports on ~900 names options overpriced the move (actual 0.75× priced, bigger than priced 38 %), but a name's past ratio doesn't predict its next one (S018), so treat this as history, not a forecast.</>}
       />
       {moves.length > 0 && (
         <ResponsiveContainer width="100%" height={110}>
@@ -100,6 +112,21 @@ function EarningsMoves({ moves }: { moves: Move[] }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      )}
+      {moves.length > 0 && (
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>
+            <div className="text-[10px] text-amber-100 tabular-nums cursor-help">
+              IV crush {crush == null ? "—" : `${crush > 0 ? "+" : ""}${crush.toFixed(1)} pts`} · drift 5d {pct(median(d5), 1)} (same way {sameWay((x) => x.drift5d)})
+              · 20d {pct(median(d20), 1)} (same way {sameWay((x) => x.drift20d)})
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className={TIP}>
+            Median over {moves.length} reports. IV crush = 30-day implied vol the day after minus the day before (vol points).
+            Drift = stock move from the first close after the report to 5 / 20 trading days later; "same way" = drift kept the
+            report-day direction. History, not a forecast.
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
   );
