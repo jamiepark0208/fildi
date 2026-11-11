@@ -89,6 +89,8 @@ Each factor gets 0–2 on six questions. Rank = sum. Honest caveat: the expected
 
 ## 6. Next tests, in order
 
+**Update 11-10 (S188):** test 1 below ran on 7,630 real LSEG puts. Not confirmed: down cell +26 bp/wk top vs bottom, t +1.3 (needed ≥ 2). Same sign in every cell, no breach effect. Parked until forward weeks accrue.
+
 1. **Option momentum (own past put P&L and breach rate) in down tape.** Registered now: down-cell IC > 0 for past P&L, < 0 for
    breach rate, both after put_edge. The 2024-07 → holdout is now inspected, so it no longer counts as fresh. Confirmation has
    to come from a different pricing source (LSEG daily real marks, 2020 →, ~120 names) and from forward weeks logged from today.
