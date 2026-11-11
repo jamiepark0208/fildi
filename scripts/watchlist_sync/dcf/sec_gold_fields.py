@@ -348,6 +348,12 @@ def _fields_for_ticker(conn, ticker: str, facts: dict | None) -> list[dict]:
         elif pl:
             nci = F.balance(facts, ["MinorityInterest"], pl["end"])
             ni = pl if not (nci and nci.get("value")) else None
+    # 11-11 #55: gold NI / net margin = NetIncomeLoss (to the parent, before preferred) like every vendor;
+    # to-common is ROA's numerator only (GS 16.3 vs vendor 17.2 B, C 13.0 vs 14.3, MET, STT, COF failed the FY check)
+    if ni is not None and ni.get("concept") != "NetIncomeLoss":
+        nil_ = F.ttm_flow(facts, ["NetIncomeLoss"])
+        if nil_ and str(nil_["end"])[:10] >= str(ni["end"])[:10]:
+            ni = nil_
     op = F.ttm_flow(facts, F.FLOWS["operating_income"])
     gp = _gross_profit(facts, rev)
     asof = (rev or ocf or ni or {}).get("end") or date.today().isoformat()
