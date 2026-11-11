@@ -112,4 +112,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A391](asks/A391.md) | 2026-11-10 | Muse → Cursor | CI red: c2cd4d2 broke the ASKS index — A388/A389 rows deleted, A297/A298 duplicated in index + archive (High) | done |
 | [A392](asks/A392.md) | 2026-11-10 | Claude → Claude | Roll / defend analyzer for open short puts (north-star gap #1) | done |
 | [A393](asks/A393.md) | 2026-11-10 | Claude → Claude | Trade journal: every fill + what Fildi said that day, graded (north-star #4) | planned |
-| [A394](asks/A394.md) | 2026-11-10 | Claude → Claude | Congress trades (Senate + House) per stock + latest feed (north-star #6) | planned |
+| [A394](asks/A394.md) | 2026-11-10 | Claude → Claude | Congress trades (Senate + House) per stock + latest feed (north-star #6) | done |

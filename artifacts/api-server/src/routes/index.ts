@@ -57,6 +57,7 @@ import scoreOutliersRouter from "./score-outliers";
 import moverFactsRouter from "./mover-facts";
 import longOptionBoardRouter from "./long-option-board";
 import stockEdgesRouter from "./stock-edges";
+import congressRouter from "./congress";
 import fundScoreNotesRouter from "./fund-score-notes";
 import backtestRouter from "./backtest";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -124,6 +125,7 @@ router.use(volMetricsRouter);
 router.use(strategyRulesRouter); // Rankings › Rules (strategy_rules.json)
 router.use(putBandRouter); // sold-put band setting (Jamie 10-28), under /strategies → requireAuth
 router.use(stockEdgesRouter); // Breakdown › Rules firing today (/stocks/:t/edges); before stocksRouter
+router.use(congressRouter); // A394 congress trades (/stocks/:t/congress, /congress/latest); before stocksRouter
 router.use(schwabRouter);
 router.use(stocksRouter);
 router.use(fundScoreNotesRouter);

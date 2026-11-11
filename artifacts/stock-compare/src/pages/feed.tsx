@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext"
 import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
 import { apiFeed } from "@/lib/feed-api"
+import { CongressFeedPanel } from "@/components/congress-feed-panel"
 
 // ── API ────────────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ function TopPerformers({ posts }: { posts: TradePost[] }) {
   const performers = useMemo(() => topPerformers(posts), [posts])
 
   return (
-    <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-2 sticky top-6">
+    <div className="rounded-md border border-[#d4af37]/25 bg-zinc-950 shadow-lg shadow-black/60 p-3 space-y-2">
       <div className="text-xs font-semibold text-[#d4af37]/80 uppercase tracking-wide">Top Performers</div>
       {performers.length === 0 ? (
         <div className="text-xs text-amber-100">Not enough data yet</div>
@@ -316,6 +317,8 @@ export default function Feed() {
               </div>
             </div>
 
+            <CongressFeedPanel className="lg:hidden" />
+
             {/* Post list */}
             {isLoading ? (
               <div className="space-y-3">
@@ -353,8 +356,9 @@ export default function Feed() {
           </div>
 
           {/* Right panel — top performers (desktop only) */}
-          <div className="hidden lg:block w-[280px] shrink-0">
+          <div className="hidden lg:block w-[280px] shrink-0 space-y-3 sticky top-6 self-start">
             <TopPerformers posts={topPosts} />
+            <CongressFeedPanel />
           </div>
 
         </div>

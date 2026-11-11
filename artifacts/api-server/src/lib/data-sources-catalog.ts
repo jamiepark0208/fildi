@@ -35,8 +35,8 @@ export const DATA_SOURCES_CATALOG: DataSourceCatalogRow[] = [
   {
     id: "fmp", usageKey: "fmp", name: "FMP",
     plan: "220/day",
-    feeds: "Statements, grades/targets, peers, profile → fund score / universe",
-    tables: "fmp_fundamentals · source_fundamentals · analyst events",
+    feeds: "Statements, grades/targets, peers, profile → fund score / universe · Senate/House STOCK Act disclosures (*-latest, page 0 only) → Breakdown/Feed Congress (A394, display only)",
+    tables: "fmp_fundamentals · source_fundamentals · analyst events · watchlist_sync.congress_trades",
     unusedAvailable: "P/FCF, interest coverage, income quality, SBC/rev (mega-cap)",
     dailyLimit: 220,
   },

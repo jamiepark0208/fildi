@@ -45,6 +45,7 @@ import { formatDerivedTip, formatProvenanceTip } from "@/lib/provenance-display"
 import { DataTip } from "./data-tip";
 import { ShortInterestPanel, ShortInterestHeaderStats } from "./breakdown/short-interest-panel";
 import { InsiderPanel, InsiderHeaderStats } from "./breakdown/insider-panel";
+import { CongressSection, CongressHeaderStats } from "./breakdown/congress-section";
 import { EventsPanel } from "./breakdown/events-panel";
 import { EarningsCallPanel, EarningsCallsTab } from "./breakdown/earnings-call-panel";
 import { OptionsHistoryTab } from "./breakdown/options-history-tab";
@@ -771,6 +772,15 @@ export function StockBreakdown({
                       action={activeTicker ? <InsiderHeaderStats ticker={activeTicker} /> : undefined}
                     >
                       {activeTicker ? <InsiderPanel ticker={activeTicker} /> : null}
+                    </BreakdownPanel>
+
+                    <BreakdownPanel
+                      title="Congress trades"
+                      empty="No Senate/House disclosures."
+                      scrollMax="max-h-[260px]"
+                      action={activeTicker ? <CongressHeaderStats ticker={activeTicker} /> : undefined}
+                    >
+                      {activeTicker ? <CongressSection ticker={activeTicker} /> : null}
                     </BreakdownPanel>
 
                     <BreakdownPanel

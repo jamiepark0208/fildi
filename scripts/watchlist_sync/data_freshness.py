@@ -27,6 +27,7 @@ CHECKS = [
     ("public.option_score_snapshots", "computed_at", 1, "Rankings › Options, Model List pool · daily.py option scan + API 19 UTC"),
     ("public.option_chain_history", "fetched_at", 1, "option history · same scan"),
     ("public.ticker_atm_iv_snapshots", "as_of", 1, "IV columns · option scan"),
+    ("watchlist_sync.congress_trades", "disclosure_date", 4, "Breakdown › Congress, Feed › Congress · congress_trades.py (FMP *-latest, page 0 only)"),
     ("watchlist_sync.fit_scores", "computed_at", 1, "Model List fit · daily.py model stage"),
     ("watchlist_sync.put_edge_daily", "as_of", 1, "Model List put edge · daily.py"),
     ("watchlist_sync.house_view", "created_at", 1, "house view memo · daily.py publish"),
