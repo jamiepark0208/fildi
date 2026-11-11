@@ -114,6 +114,24 @@ def main():
             L.append(f"| {name} ({exp}) | {wk[0]} / {wk[1]} | {fmt(res.get('19–22'))} | {dl(res.get('19–22'))} | {fmt(res.get('23–26'))} | "
                      f"{dl(res.get('23–26'))} | {t:.1f} | {ta:+.0f} ({na}) / {tb:+.0f} ({nb}) | {v} |")
         L.append("")
+    # Winner pass (contract 11): train = 2019-12→2022, 0.12–0.20Δ; losers = net < 0 (strike breached past premium)
+    tr = [r for r in rows if 0.12 <= r["dlt"] < 0.20 and r["d"] < SPLIT]
+    win, lose = [r for r in tr if r["hc"] > 0], [r for r in tr if r["hc"] < 0]
+    feats = [("sector ETF 5d ret %", lambda r: r["s5"] * 100), ("stock 5d ret %", lambda r: r["k5"] * 100),
+             ("sector off 52w high %", lambda r: (r.get("sec_dd52") or 0) * 100), ("stock off 52w high %", lambda r: r.get("stk_dd52", np.nan) * 100),
+             ("IV/RV", lambda r: r["iv_rv"]), ("|Δ|", lambda r: r["dlt"]), ("VIX÷VIX3M", lambda r: r["vix_ratio"])]
+    L += ["## Winner pass", "", f"Train 2019-12→2022, 0.12–0.20Δ in sector_drop: winners (net > 0) n {len(win):,} vs losers (net < 0) n {len(lose):,} "
+          f"(entry weeks {len({r['d'] for r in win})} / {len({r['d'] for r in lose})}). Median pre-entry features:", "",
+          "| feature | winners | losers |", "|---|---|---|"]
+    for nm, f in feats:
+        L.append(f"| {nm} | {np.nanmedian([f(r) for r in win]):+.2f} | {np.nanmedian([f(r) for r in lose]):+.2f} |")
+    L += ["", "Read: losers were sold AFTER a bounce (sector +0.8 %, stock +1.1 % over 5 d vs −1.0 / −1.4 % for winners) and deeper "
+          "in the drawdown (sector −23 % vs −19 % off high); IV/RV, Δ, VIX÷VIX3M identical. Same direction as Jamie's entry-candle rule "
+          "(sell puts into weakness, not after the pop). Next rule to test (pre-register first, real-time entry per contract 13): "
+          "in sector_drop, sell the upgraded band only on a sector down-day/5d < 0; sector ≥ 22 % off high → base band.", "",
+          f"n_indep: {len({r['d'] for r in rows})} distinct entry weeks in sector_drop; split cells 30 / 39 weeks (A), others < 30 → UNDERPOWERED.", "",
+          "**RULE NO-LIFT: sell 1-week 0.12–0.20Δ put in sector_drop × hold to expiry × skip while sector ETF 5d < 0** — "
+          "the skipped entries earned more (+95/+79 vs +42/+46 bp/wk), so the guard would cut the better half; week-cluster t −0.7."]
     OUT.write_text("\n".join(L) + "\n")
     print("\n".join(L))
 
