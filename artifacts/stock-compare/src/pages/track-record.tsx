@@ -10,6 +10,7 @@ import { AppPage } from "@/components/app-page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TickerDrilldown } from "@/components/track-record/ticker-drilldown";
 import { StrategiesTab } from "@/components/track-record/strategies-tab";
+import { JournalTab } from "@/components/track-record/journal-tab";
 import { AnimatedNumber } from "@/components/animated-number";
 import { useAuth } from "@/context/AuthContext";
 import { useSessionState } from "@/hooks/use-session-state";
@@ -772,13 +773,13 @@ function TickerSummaryTable({ rows }: { rows: TickerSummaryRow[] }) {
   );
 }
 
-type TrackTab = "model" | "strategies";
+type TrackTab = "model" | "strategies" | "journal";
 
 /** `embedded` — Live › Track Record sub-tab (no TopNav / AppPage shell). */
 export default function TrackRecord({ embedded = false }: { embedded?: boolean } = {}) {
   const { isAdmin } = useAuth();
   const [tab, setTab] = useSessionState<TrackTab>("fildi_track_record_tab", "model");
-  const activeTab: TrackTab = tab === "strategies" && !isAdmin ? "model" : tab;
+  const activeTab: TrackTab = (tab === "strategies" || tab === "journal") && !isAdmin ? "model" : tab;
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["track-record", "summary"],
@@ -821,6 +822,7 @@ export default function TrackRecord({ embedded = false }: { embedded?: boolean }
             {([
               { id: "model" as const, label: "Model" },
               { id: "strategies" as const, label: "Strategies" },
+              { id: "journal" as const, label: "Journal" },
             ]).map((t) => (
               <button
                 key={t.id}
@@ -837,7 +839,9 @@ export default function TrackRecord({ embedded = false }: { embedded?: boolean }
           </div>
         )}
 
-        {activeTab === "strategies" && isAdmin ? (
+        {activeTab === "journal" && isAdmin ? (
+          <JournalTab />
+        ) : activeTab === "strategies" && isAdmin ? (
           <StrategiesTab />
         ) : summaryLoading || !summary ? (
           <div className="text-xs text-amber-200/70 py-10 text-center">Loading…</div>
