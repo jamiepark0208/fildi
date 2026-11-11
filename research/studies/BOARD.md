@@ -45,6 +45,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 | Sector-specific fundamental weights | 0/6 sectors better | S024 | no-lift | 2027-05-07 |
 | Recession odds model | no skill vs base rate | S029 | no-lift | 2027-05-07 |
 | Tech score totals | predict nothing | S004 | no-lift | 2027-02-07 |
+| Falling-knife guard in a sector drop (skip puts while sector ETF still falling) | still-falling entries earn more (+95/+79 vs +42/+46 bp/wk), worst week better | S186 | no-lift | 2027-05-10 |
 
 ## Testing / queued
 - S178 panic risk reversal on names (sell 0.25Δ put + buy 0.50Δ call, 30 DTE, VIX÷VIX3M ≥ 1): +5.9–6.1 % / $ strike vs short put alone +2.2–2.4, both eras, t 2.6, 11/15 panic Mondays; the 4 losers = early panic weeks → pair with the S172 un-invert timing; call ≈ same-Δ stock (leverage, not option edge). UNDERPOWERED — 15 episodes

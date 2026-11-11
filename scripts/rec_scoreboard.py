@@ -105,9 +105,17 @@ def main() -> None:
         e0 = E["d"].min()
         jw = J[(J.d >= e0)].dropna(subset=["ret"])
         if len(jw):
-            gap = E.dropna(subset=["ret"]).ret.mean() - jw.ret.mean()
-            lines.append(f"Engine − Jamie (same window from {e0:%m-%d}): {gap:+.2f} pts of strike (Jamie n {len(jw)})"
-                         + ("  ← ENGINE TRAILS JAMIE: fix the producer before any new study" if gap < 0 else ""))
+            ew = E.dropna(subset=["ret"])
+            gap = ew.ret.mean() - jw.ret.mean()
+            # week-clustered gap (S186 11-10: one crash fortnight is one episode, not 14 trades)
+            wk = lambda df: pd.to_datetime(df["d"]).dt.to_period("W")  # noqa: E731
+            gw = (ew.groupby(wk(ew)).ret.mean() - jw.groupby(wk(jw)).ret.mean()).dropna()
+            k = len(gw)
+            t = gw.mean() / (gw.std(ddof=1) / np.sqrt(k)) if k >= 2 and gw.std(ddof=1) > 0 else float("nan")
+            verdict = ("  ← ENGINE TRAILS JAMIE: fix the producer before any new study" if gap < 0 and k >= 4 and t <= -2
+                       else f"  (not significant: {k} shared weeks, t {t:+.1f}; flag needs ≥ 4 weeks and t ≤ −2)" if gap < 0 else "")
+            lines.append(f"Engine − Jamie (same window from {e0:%m-%d}): {gap:+.2f} pts of strike (Jamie n {len(jw)}) · "
+                         f"by week {' '.join(f'{p.start_time:%m-%d} {v:+.1f}' for p, v in gw.items())}" + verdict)
     if a.brief:
         print("\n".join(lines[:2] + lines[-1:] if len(lines) > 5 else lines[:3]))
         return
