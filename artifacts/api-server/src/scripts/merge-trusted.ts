@@ -17,6 +17,8 @@
  * Run: cd artifacts/api-server && /path/to/tsx src/scripts/merge-trusted.ts
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import { and, desc, eq, sql } from "drizzle-orm";
 import {
   db, sourceFundamentals, tickerFundamentals, tickerRegistry,
@@ -677,6 +679,7 @@ export async function runMergeTrusted() {
     bandAbs: number;
   }> = [];
 
+  const fxUsdPerUnit = await loadFxUsdPerUnit(new Set(financialCurrencyByTicker.values()));
   for (const ticker of allTickers) {
     const byField = index.get(ticker) ?? new Map();
     const update: Record<string, number> = {};
@@ -1002,12 +1005,26 @@ export async function runMergeTrusted() {
         : null;
     applyDerived("ffoProxy", ffoProxy);
 
-    const { clearedNonUsd } = applyStatementGoldPolicies({
+    const { clearedNonUsd, nonUsdOutcomes } = applyStatementGoldPolicies({
       update,
       provenanceBatch,
       existing: existing as Record<string, unknown> | undefined,
       financialCurrency,
+      // 11-11: convert local-currency absolutes at today's FX (factset USD fallback) instead of blanking them
+      fx: { usdPerUnit: financialCurrency ? (fxUsdPerUnit.get(financialCurrency.toUpperCase()) ?? null) : null, bronze: byField },
     });
+    // 11-11: EDGAR 20-F totalAssets is local currency (TSM 6.24T TWD) and is written outside this merge; with cash/debt now in
+    // USD, netCash/assets would mix units → clear it for non-USD filers + log, until the EDGAR writer converts at write time.
+    if (financialCurrency && financialCurrency.toUpperCase() !== "USD" && existing?.totalAssets != null) {
+      (update as Record<string, number | null>).totalAssets = null;
+      logDataIssue("merge-trusted.ts", "non_usd_cleared", ticker, "totalAssets",
+        `existing ${existing.totalAssets} likely ${financialCurrency} (EDGAR 20-F) — convert in the EDGAR writer`);
+    }
+    for (const o of nonUsdOutcomes) {
+      if (o.action === "cleared" || o.detail.includes("DIVERGENT")) {
+        logDataIssue("merge-trusted.ts", o.action === "cleared" ? "non_usd_cleared" : "fx_divergent", ticker, o.field, o.detail);
+      }
+    }
     // A329: dropping the field from `update` left the old local-currency gold in the DB (TM TBVPS 2956 JPY) — write null.
     for (const field of clearedNonUsd) {
       (update as Record<string, number | null>)[field] = null;
@@ -1187,4 +1204,45 @@ if (isMain) {
   runMergeTrusted()
     .then(() => process.exit(0))
     .catch((err) => { console.error("Fatal:", err); process.exit(1); });
+}
+
+
+/** 11-11: USD per unit of each reporting currency (Yahoo <CCY>USD=X, 8 s deadline each), stored in fx_rates; on a failed
+ *  fetch the last stored rate (≤ 10 days old) is used. Missing rate → the gold policy falls back to factset / clears + logs. */
+async function loadFxUsdPerUnit(ccys: Set<string>): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS fx_rates (ccy text NOT NULL, d date NOT NULL, usd_per_unit double precision NOT NULL,
+    source text NOT NULL DEFAULT 'yahoo', fetched_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (ccy, d))`);
+  for (const raw of ccys) {
+    const ccy = raw.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(ccy) || ccy === "USD") continue;
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ccy}USD=X?range=5d&interval=1d`, {
+        headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
+      const j: any = r.ok ? await r.json() : null;
+      const px = Number(j?.chart?.result?.[0]?.meta?.regularMarketPrice);
+      if (Number.isFinite(px) && px > 0) {
+        out.set(ccy, px);
+        await db.execute(sql`INSERT INTO fx_rates (ccy, d, usd_per_unit) VALUES (${ccy}, CURRENT_DATE, ${px})
+          ON CONFLICT (ccy, d) DO UPDATE SET usd_per_unit = EXCLUDED.usd_per_unit, fetched_at = now()`);
+        continue;
+      }
+    } catch { /* fall through to stored */ }
+    const prev: any = await db.execute(sql`SELECT usd_per_unit FROM fx_rates WHERE ccy = ${ccy} AND d >= CURRENT_DATE - 10
+      ORDER BY d DESC LIMIT 1`);
+    const v = Number(((prev as any).rows ?? prev)?.[0]?.usd_per_unit);
+    if (Number.isFinite(v) && v > 0) out.set(ccy, v);
+    else logDataIssue("merge-trusted.ts", "fx_missing", null, ccy, "no Yahoo FX rate and none stored in 10 d");
+  }
+  return out;
+}
+
+/** Same JSONL as scripts/watchlist_sync/data_issues.py → agent_start 11a digest (never throws). */
+function logDataIssue(producer: string, kind: string, ticker: string | null, field: string | null, detail: string): void {
+  try {
+    const dir = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../../scripts/watchlist_sync/out/issues");
+    fs.mkdirSync(dir, { recursive: true });
+    const row = { at: new Date().toISOString().slice(0, 19), producer, kind, ticker, field, value: null, detail: detail.slice(0, 400) };
+    fs.appendFileSync(path.join(dir, `${new Date().toLocaleDateString("en-CA")}.jsonl`), JSON.stringify(row) + "\n");
+  } catch { /* logging must not become the failure */ }
 }
