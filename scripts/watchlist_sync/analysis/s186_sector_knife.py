@@ -130,7 +130,7 @@ def main():
           "(sell puts into weakness, not after the pop). Next rule to test (pre-register first, real-time entry per contract 13): "
           "in sector_drop, sell the upgraded band only on a sector down-day/5d < 0; sector ≥ 22 % off high → base band.", "",
           f"n_indep: {len({r['d'] for r in rows})} distinct entry weeks in sector_drop; split cells 30 / 39 weeks (A), others < 30 → UNDERPOWERED.", "",
-          "**RULE NO-LIFT: sell 1-week 0.12–0.20Δ put in sector_drop × hold to expiry × skip while sector ETF 5d < 0** — "
+          "**Verdict — RULE NO-LIFT: sell 1-week 0.12–0.20Δ put in sector_drop × hold to expiry × skip while sector ETF 5d < 0** — "
           "the skipped entries earned more (+95/+79 vs +42/+46 bp/wk), so the guard would cut the better half; week-cluster t −0.7."]
     OUT.write_text("\n".join(L) + "\n")
     print("\n".join(L))
