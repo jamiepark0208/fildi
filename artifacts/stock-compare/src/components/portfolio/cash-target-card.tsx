@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BreakdownMetricsTable, type MetricGroup } from "@/components/breakdown-metrics-table";
 import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 import { cn } from "@/lib/utils";
+import { CashTargetHistory, type CashHistory } from "./cash-target-history";
 
 type CashTarget = {
   as_of: string; policy_version: string; target: number; lo: number; hi: number;
@@ -25,6 +26,7 @@ type Rebalance = {
 type Book = {
   snapshot_at?: string;
   cash_target?: CashTarget | null;
+  cash_history?: CashHistory | null;
   accounts: Record<string, { accounting?: Accounting; rebalance?: Rebalance }>;
 };
 
@@ -133,6 +135,7 @@ export function CashTargetCard({ className }: { className?: string }) {
         Cash vs put collateral · market target → how to get there
       </div>
       <BreakdownMetricsTable groups={groups} hideEmptyScore />
+      <CashTargetHistory h={book.cash_history} />
       {steps.length > 0 && (
         <div className={GRID_WRAP}>
           <table className="w-full border-collapse">

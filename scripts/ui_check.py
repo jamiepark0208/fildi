@@ -26,6 +26,8 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--wait", type=int, default=8000)
     ap.add_argument("--width", type=int, default=1500)
+    ap.add_argument("--click", action="append", default=[], help="button/tab text to click after load (repeatable)")
+    ap.add_argument("--el", help="CSS selector: screenshot just this element (scrolled into view)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     with sync_playwright() as p:
@@ -43,9 +45,15 @@ def main() -> None:
             pg.on("response", lambda resp: bad.append(resp) if resp.status >= 400 else None)
             pg.goto(BASE + path)
             pg.wait_for_timeout(a.wait)
+            for txt in a.click:
+                pg.get_by_text(txt, exact=True).first.click()
+                pg.wait_for_timeout(2500)
             name = path.strip("/").replace("/", "_").replace("?", "_").replace("=", "-").replace("&", "_") or "home"
             shot = os.path.join(a.out, f"{name}.png")
-            pg.screenshot(path=shot, full_page=False)
+            if a.el:
+                pg.locator(a.el).first.screenshot(path=shot)
+            else:
+                pg.screenshot(path=shot, full_page=False)
             print(f"{path}: {len(errs)} console errors · {len(bad)} HTTP>=400 · {shot}")
             for e in errs[:6]:
                 print("   err", e[:200])

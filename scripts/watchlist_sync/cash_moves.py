@@ -20,6 +20,20 @@ MULT = 100
 SELL_FIRST = ("avoid", "trim_risk")
 
 
+def reserve(acct: dict) -> tuple[float, str]:
+    """The F the moves (and the history chart) use: reconciled free cash, else its low bound, else raw cash (debt < 0)."""
+    if acct["F_status"] == "reconciled":
+        return acct["F"], "free cash"
+    if acct["F_status"] == "unknown" and acct.get("F_bounds"):
+        return acct["F_bounds"][0], "free cash, low end of what the broker shows (part of the cash is held)"
+    return acct["C"] or 0.0, "cash (negative = margin debt)"
+
+
+def mix(F: float, P: float) -> float | None:
+    """Cash share of cash + put collateral; None when cash is negative (debt) or nothing is reserved."""
+    return F / (F + P) if F >= 0 and F + P > 0 else None
+
+
 def _gap(T: float, F: float, P: float) -> float:
     return T / (1 - T) * P - F
 
@@ -29,15 +43,10 @@ def plan(acct: dict, target: dict, puts: list[dict], stocks: list[dict], short_c
     """acct = book_accounting.accounting(). puts: ticker, strike, expiry, qty, mark, prem. stocks: ticker, qty, px, folder.
     short_calls: ticker → contracts short (locks 100 shares each). new_puts: engine picks (ticker, strike, expiry, bid, rank)."""
     T = target["target"]
-    if acct["F_status"] == "reconciled":
-        F, basis = acct["F"], "free cash"
-    elif acct["F_status"] == "unknown" and acct.get("F_bounds"):
-        F, basis = acct["F_bounds"][0], "free cash, low end of what the broker shows (part of the cash is held)"
-    else:
-        F, basis = acct["C"] or 0.0, "cash (negative = margin debt)"
+    F, basis = reserve(acct)
     P = acct["P"]
     F0 = F
-    mix0 = F / (F + P) if F >= 0 and F + P > 0 else None
+    mix0 = mix(F, P)
     gap0 = _gap(T, F, P)
     steps: list[dict] = []
     gap = gap0

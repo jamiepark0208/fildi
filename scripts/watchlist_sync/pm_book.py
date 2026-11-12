@@ -27,7 +27,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from book_accounting import accounting
-from cash_moves import plan as rebalance_plan
+from cash_moves import mix, plan as rebalance_plan, reserve
 from build_plan import connect, rows
 
 OUT = Path(__file__).resolve().parent / "out" / "pm"
@@ -91,6 +91,41 @@ def trading_days(a: date, b: date) -> int:
         d = date.fromordinal(d.toordinal() + 1)
         n += d.weekday() < 5
     return n
+
+
+def cash_history(conn) -> dict:
+    """A372 § 4 chart: the market target over time (issued rows win; earlier = counterfactual replay) + each account's
+    cash mix F/(F+P) at every holdings snapshot, on the same reserve basis as the moves table (cash_moves.reserve).
+    Debt (cash < 0) → mix None with debt $, never a fake 0 %. Last snapshot per account per day."""
+    snaps = rows(conn, """SELECT DISTINCT ON (a.account, s.imported_at::date) s.id, s.imported_at::date d, a.account,
+                                 a.cash::float8 cash, a.buying_power::float8 bp, a.total_value::float8 total_value,
+                                 a.equity_value::float8 equity_value, a.options_value::float8 options_value,
+                                 a.crypto_value::float8 crypto_value, a.unleveraged_bp::float8 unleveraged_bp
+                          FROM portfolio_snapshots s JOIN portfolio_account_summaries a ON a.snapshot_id = s.id
+                          ORDER BY a.account, s.imported_at::date, s.imported_at DESC""")
+    if not snaps:
+        return {"target": [], "accounts": {}}
+    puts = rows(conn, """SELECT o.snapshot_id sid, o.account, o.strike::float8 strike, SUM(o.qty)::float8 qty
+                         FROM portfolio_options o JOIN portfolio_snapshots s ON s.id = o.snapshot_id
+                         WHERE o.direction = 'short' AND o.option_type = 'put' AND o.expiration >= s.imported_at::date
+                           AND o.snapshot_id = ANY(%s) GROUP BY 1, 2, 3""", ([r["id"] for r in snaps],))
+    accts: dict[str, list] = {}
+    for r in snaps:
+        a = accounting(r, [p for p in puts if p["sid"] == r["id"] and p["account"] == r["account"]])
+        F, basis = reserve(a)
+        m = mix(F, a["P"])
+        accts.setdefault(ACCOUNTS.get(r["account"], r["account"]), []).append(
+            {"d": str(r["d"]), "mix": None if m is None else round(m, 4), "F": round(F, 2), "P": round(a["P"], 2),
+             "debt": a["D"] or None, "basis": basis.split(",")[0]})
+    start = min(str(r["d"]) for r in snaps)
+    hist = Path(__file__).resolve().parent / "out" / "cash_target" / "history.json"
+    tgt = {p["d"]: {"d": p["d"], "target": p["target"], "regime": p["regime"], "issued": False}
+           for p in (json.loads(hist.read_text())["points"] if hist.exists() else []) if p["d"] >= start}
+    for r in rows(conn, """SELECT DISTINCT ON (as_of) as_of::text d, target, regime FROM watchlist_sync.cash_target
+                           ORDER BY as_of, known_at"""):
+        tgt[r["d"]] = {"d": r["d"], "target": float(r["target"]), "regime": r["regime"], "issued": True}
+    return {"target": sorted(tgt.values(), key=lambda x: x["d"]), "accounts": accts,
+            "note": "target before the first issued day is the same rule replayed (counterfactual)"}
 
 
 def main() -> None:
@@ -211,7 +246,12 @@ def main() -> None:
             books[name]["rebalance"] = rebalance_plan(books[name]["accounting"], cash_target, aputs, stocks,
                                                       {c["t"]: c["q"] for c in calls if c["account"] == acct}, picks,
                                                       allow_new_puts=not margin_loan)
-    out = {"generated": datetime.now().isoformat(timespec="seconds"), "snapshot_id": snap, "cash_target": cash_target, "snapshot_at": taken.isoformat(), "live_priced_at": priced,
+    try:
+        hist = cash_history(conn)
+    except Exception as e:  # the chart is optional; the book must still publish
+        hist = {"target": [], "accounts": {}, "error": str(e)[:200]}
+    out = {"generated": datetime.now().isoformat(timespec="seconds"), "snapshot_id": snap, "cash_target": cash_target,
+           "cash_history": hist, "snapshot_at": taken.isoformat(), "live_priced_at": priced,
            "rules": PM_RULES, "accounts": books,
            "positions": sorted(positions, key=lambda x: (x["expiry"], x["account"], -(x["move_needed"] or -1))),
            "unknown_notes": unknown_notes}
