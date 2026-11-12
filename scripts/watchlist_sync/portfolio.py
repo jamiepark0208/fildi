@@ -186,7 +186,11 @@ def allocate(puts: list[dict], calls: list[dict], snap: dict, P: dict, today: da
     return kept, held, summary
 
 
-def manage(snap: dict, P: dict, today: date | None = None, closures: list[dict] | None = None) -> list[dict]:
+def manage(snap: dict, P: dict, today: date | None = None, closures: list[dict] | None = None,
+           put_actions: dict | None = None) -> list[dict]:
+    """put_actions: (account, ticker, strike, expiry iso) → put_manage_daily payload. A372 11-11: short PUTS take their
+    take-profit alert from put_manage (S103 rule: weekly, ≥ 25 % captured at ≥ 4× pace; 2+ week puts never — every early
+    exit lost on real quotes), not the flat 50 % rule below, which stays for short calls and puts put_manage hasn't scored."""
     today = today or date.today()
     nick = {a["account"]: a["nickname"] for a in snap["accounts"]}
     fund = {(c["account"], c["ticker"], c["strike"]): c["funds"] for c in (closures or [])}
@@ -202,7 +206,11 @@ def manage(snap: dict, P: dict, today: date | None = None, closures: list[dict] 
         f = fund.get((nick.get(o["account"], o["account"]), t, k))
         if f:
             alerts.append(f"close to fund {f}: its collateral earns more there")
-        if prem and o["mark"] is not None and o["mark"] <= P["take_profit"] * prem:
+        pa = (put_actions or {}).get((o["account"], t, float(k), str(o["expiration"]))) if typ == "put" else None
+        if pa is not None:
+            if pa.get("action") == "take + re-sell":
+                alerts.append(f"take profit + re-sell: {pa.get('why', '')} (put manager, S103)")
+        elif prem and o["mark"] is not None and o["mark"] <= P["take_profit"] * prem:
             alerts.append(f"take profit: worth ${o['mark']:.2f} vs ${prem:.2f} collected (kept {1 - o['mark'] / prem:.0%})")
         if spot:
             itm = spot < k if typ == "put" else spot > k

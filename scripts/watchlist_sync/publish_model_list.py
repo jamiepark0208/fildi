@@ -440,7 +440,11 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
             continue
         out.append(item("review", c["f"], ticker=c["ticker"], score=c["score"], status="review", contract=c["contract"],
                         why=[f"{c['list_key'].replace('_', ' ')} idea held back by the portfolio: {c['why_held']}"] + c["why"]))
-    for i, m in enumerate(PF.manage(snap, PP, closures=budget["closures"]), 1):
+    put_actions = {(r["account"], r["ticker"], float(r["strike"]), str(r["expiry"])): r["payload"] for r in rows(conn,
+                   """SELECT account, ticker, strike, expiry, payload FROM watchlist_sync.put_manage_daily
+                      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_manage_daily)""")} if conn.execute(
+                   "SELECT to_regclass('watchlist_sync.put_manage_daily')").fetchone()[0] else {}
+    for i, m in enumerate(PF.manage(snap, PP, closures=budget["closures"], put_actions=put_actions), 1):
         f = fit.get(m["ticker"])
         out.append(item("manage", f, ticker=m["ticker"], score=None, status="review" if any(a.startswith(("in the money", "at risk")) for a in m["alerts"]) else "ok",
                         contract={"type": m["contract"]["type"], "strike": m["contract"]["strike"], "expiry": m["contract"]["expiry"],
