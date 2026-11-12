@@ -32,8 +32,16 @@ router.get("/put-manage", requireAdmin, async (_req, res, next) => {
       `)) as SqlRows<never>,
     );
     const asOf = rows[0]?.as_of ?? null;
+    // A372: rows carry the portfolio snapshot they were computed on; a newer import = stale advice until put_manage reruns.
+    const latest = rowsOf<{ id: number | null }>(
+      (await db.execute(sql`SELECT MAX(id)::int AS id FROM portfolio_snapshots`)) as SqlRows<{ id: number | null }>,
+    )[0]?.id ?? null;
+    const snap = Number((rows[0]?.payload as { snapshot_id?: unknown } | undefined)?.snapshot_id) || null;
     res.json({
       as_of: asOf,
+      snapshot_id: snap,
+      latest_snapshot_id: latest,
+      stale: snap != null && latest != null && snap < latest,
       rows: rows.map((r) => ({ ...(r.payload ?? {}), as_of: r.as_of })),
     });
   } catch (err) {

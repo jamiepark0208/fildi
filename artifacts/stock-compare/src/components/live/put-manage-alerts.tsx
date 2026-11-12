@@ -26,7 +26,7 @@ const OPT_TIPS = {
   ann: "Roll net ÷ strike, annualized over the extra days of risk. Assign row: spot vs cost basis.",
 };
 
-type PutManageResponse = { as_of: string | null; rows: PutManageRow[] };
+type PutManageResponse = { as_of: string | null; rows: PutManageRow[]; stale?: boolean; snapshot_id?: number | null };
 
 export function PutManageAlerts() {
   const [holdsOpen, setHoldsOpen] = useState(false);
@@ -83,6 +83,12 @@ export function PutManageAlerts() {
           </TooltipContent>
         </Tooltip>
       </div>
+
+      {data?.stale && (
+        <div className="text-[10px] text-amber-300">
+          Newer portfolio import than this advice (snapshot {data.snapshot_id}) — refreshing; closed or new puts may be missing.
+        </div>
+      )}
 
       {takes.length > 0 && (
         <ul className="space-y-1.5">

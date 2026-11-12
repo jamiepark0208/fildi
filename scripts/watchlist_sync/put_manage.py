@@ -118,17 +118,43 @@ def build_options(strike: float, expiry: date, qty: float, credit: float, buy: f
 PACE, MIN_CAP, WEEKLY_DAYS = 4.0, 0.25, 10
 
 
+def decide(credit: float, bid: float, ask: float, el: int, tot: int, weekly: bool) -> tuple[float, float, float, bool]:
+    """buy-back at ask − 23 % of spread → captured share, pace vs plan, take rule (S103)."""
+    buy = max(ask - SPREAD_BUY * (ask - bid), 0.0)
+    cap = (credit - buy) / credit
+    pace = (cap / el) / (1 / tot)
+    return buy, cap, pace, weekly and cap >= MIN_CAP and pace >= PACE
+
+
 def main():
     today = date.today()
     with connect() as conn:
         snap = conn.execute("SELECT MAX(id) FROM portfolio_snapshots").fetchone()[0]
-        pos = conn.execute("""SELECT symbol, strike::float8, expiration, qty::float8, avg_premium::float8, bid::float8, ask::float8
+        pos = conn.execute("""SELECT coalesce(account, ''), symbol, strike::float8, expiration, qty::float8, avg_premium::float8,
+                                     bid::float8, ask::float8
                               FROM portfolio_options WHERE snapshot_id = %s AND direction = 'short' AND option_type ILIKE 'put%%'""",
                            (snap,)).fetchall()
-        opened = dict(((s, k, e), d) for s, k, e, d in conn.execute(
-            """SELECT o.symbol, o.strike::float8, o.expiration, MIN(p.imported_at)::date FROM portfolio_options o
+        # A372: entry = first sell-to-open fill after the contract's last buy-to-close (per account); first snapshot only as fallback
+        first_seen = dict(((a, s, k, e), d) for a, s, k, e, d in conn.execute(
+            """SELECT coalesce(o.account, ''), o.symbol, o.strike::float8, o.expiration, MIN(p.imported_at)::date FROM portfolio_options o
                JOIN portfolio_snapshots p ON p.id = o.snapshot_id WHERE o.direction = 'short' AND o.option_type ILIKE 'put%%'
-               GROUP BY 1, 2, 3"""))
+               GROUP BY 1, 2, 3, 4"""))
+        fills: dict = {}
+        for a, s, k, e, eff, ts in conn.execute(
+            """SELECT DISTINCT ON (coalesce(order_id, id::text)) coalesce(account, ''), symbol, option_strike::float8, option_expiration,
+                      leg_effect, coalesce(last_transaction_at, created_at)
+               FROM portfolio_orders WHERE is_option AND option_side ILIKE 'put%%' AND state = 'filled'
+                 AND ((leg_side = 'sell' AND leg_effect = 'open') OR (leg_side = 'buy' AND leg_effect = 'close'))
+               ORDER BY coalesce(order_id, id::text), snapshot_id DESC"""):
+            if ts is not None:
+                fills.setdefault((a, s, k, e), []).append((ts, eff))
+        def opened_on(key):
+            ev = sorted(fills.get(key, []))
+            last_close = max((t for t, eff in ev if eff == "close"), default=None)
+            opens = [t for t, eff in ev if eff == "open" and (last_close is None or t > last_close)]
+            if opens:
+                return min(opens).date(), "fill"
+            return first_seen.get(key, today), "first snapshot"
         tech = dict(conn.execute("""SELECT DISTINCT ON (ticker) ticker, payload FROM watchlist_sync.indicators_daily
                                     ORDER BY ticker, as_of DESC""").fetchall()) if conn.execute(
             "SELECT to_regclass('watchlist_sync.indicators_daily')").fetchone()[0] else {}
@@ -142,25 +168,22 @@ def main():
             band[tkr] = bt
         out = []
         agg = {}
-        for s, k, e, q, prem, b, a in pos:   # merge lots of the same contract (weighted credit)
-            g = agg.setdefault((s, k, e), [0.0, 0.0, b, a])
+        for acct, s, k, e, q, prem, b, a in pos:   # merge lots of the same contract inside one account (weighted credit)
+            g = agg.setdefault((acct, s, k, e), [0.0, 0.0, b, a])
             g[0] += q; g[1] += q * prem
-        for (s, k, e), (q, tot_prem, b, a) in agg.items():
+        for (acct, s, k, e), (q, tot_prem, b, a) in agg.items():
             credit = tot_prem / q / 100
             if credit <= 0 or a is None or b is None:
                 continue
-            buy = max(a - 0.23 * (a - b), 0.0)
-            od = opened.get((s, k, e), today)
+            od, od_src = opened_on((acct, s, k, e))
             el, tot = max((today - od).days, 1), max((e - od).days, 1)
-            cap = (credit - buy) / credit
-            pace = (cap / el) / (1 / tot)
             weekly = tot <= WEEKLY_DAYS
-            take = weekly and cap >= MIN_CAP and pace >= PACE
+            buy, cap, pace, take = decide(credit, b, a, el, tot, weekly)
             t = tech.get(s) or {}
             note = []
             if t.get("ut_dir") == -1 or (t.get("stc_bull") is not None and t["stc_bull"] <= 0.4):
                 note.append("trend turned down — not a reason to close (S103: trend stops lost)")
-            r = {"ticker": s, "strike": k, "expiry": str(e), "qty": q, "opened": str(od), "credit": round(credit, 4), "buy_back": round(buy, 4),
+            r = {"account": acct, "snapshot_id": snap, "opened_src": od_src, "quote_src": "snapshot", "ticker": s, "strike": k, "expiry": str(e), "qty": q, "opened": str(od), "credit": round(credit, 4), "buy_back": round(buy, 4),
                  "captured_pct": round(100 * cap, 1), "pace": round(pace, 2), "days_held": el, "days_total": tot,
                  "action": "take + re-sell" if take else "hold",
                  "why": (f"captured {100 * cap:.0f} % in {el} of {tot} days = {pace:.1f}× plan pace ≥ {PACE:g}× (S103)" if take else
@@ -168,6 +191,7 @@ def main():
                  "notes": note, "resell": [{"ticker": n["ticker"], "strike": n["strike"], "expiry": n["expiry"], "income_wk_pct": n["income_wk_pct"]}
                                            for n in nxt] if take else []}
             r["_q"] = q
+            r["_bidask"] = (b, a)
             out.append(r)
         # A392: roll/defend options — one chain call per ticker, worst loss first, capped
         t0, calls = time.time(), 0
@@ -181,6 +205,20 @@ def main():
             calls += 1
         for r in out:
             q = r.pop("_q")
+            r.pop("_bidask", None)
+            ch = chains.get(r["ticker"])
+            cur = next((c for c in (ch or {}).get("rows", []) if c.get("side") == "put" and c.get("expiry") == r["expiry"]
+                        and abs(c.get("strike", -1) - r["strike"]) < 1e-6 and c.get("bid") is not None and c.get("ask")), None)
+            if cur:   # A372: price the headline action on the fresh chain quote, not the snapshot's bid/ask
+                buy, cap, pace, take = decide(r["credit"], cur["bid"], cur["ask"], r["days_held"], r["days_total"],
+                                              r["days_total"] <= WEEKLY_DAYS)
+                r.update(buy_back=round(buy, 4), captured_pct=round(100 * cap, 1), pace=round(pace, 2), quote_src="chain",
+                         action="take + re-sell" if take else "hold",
+                         why=(f"captured {100 * cap:.0f} % in {r['days_held']} of {r['days_total']} days = {pace:.1f}× plan pace ≥ {PACE:g}× (S103)"
+                              if take else f"{100 * cap:.0f} % captured, {pace:.1f}× pace"
+                              + ("" if r["days_total"] <= WEEKLY_DAYS else " · 2+ week put: hold (S103: early exits lost)")),
+                         resell=[{"ticker": n["ticker"], "strike": n["strike"], "expiry": n["expiry"], "income_wk_pct": n["income_wk_pct"]}
+                                 for n in nxt] if take else [])
             if r["ticker"] in chains:
                 r.update(build_options(r["strike"], date.fromisoformat(r["expiry"]), q, r["credit"], r["buy_back"],
                                        chains[r["ticker"]], band.get(r["ticker"]), today))
@@ -188,12 +226,20 @@ def main():
                 r.update(build_options(r["strike"], date.fromisoformat(r["expiry"]), q, r["credit"], r["buy_back"], None, None, today))
                 r["rolls_note"] = "over 15-chain cap"
         print(f"roll analysis: {calls} chain calls, {time.time() - t0:.1f}s")
-        conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_manage_daily (as_of date, ticker text, strike float8, expiry date,
-                        payload jsonb, computed_at timestamptz DEFAULT now(), PRIMARY KEY (as_of, ticker, strike, expiry))""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_manage_daily (as_of date, account text NOT NULL DEFAULT '', ticker text,
+                        strike float8, expiry date, payload jsonb, computed_at timestamptz DEFAULT now(),
+                        PRIMARY KEY (as_of, account, ticker, strike, expiry))""")
+        conn.execute("ALTER TABLE watchlist_sync.put_manage_daily ADD COLUMN IF NOT EXISTS account text NOT NULL DEFAULT ''")
+        pk = conn.execute("""SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_index i JOIN pg_attribute a
+                             ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                             WHERE i.indrelid = 'watchlist_sync.put_manage_daily'::regclass AND i.indisprimary""").fetchone()[0] or []
+        if "account" not in pk:   # A372 migration: one row per account × contract
+            conn.execute("ALTER TABLE watchlist_sync.put_manage_daily DROP CONSTRAINT IF EXISTS put_manage_daily_pkey")
+            conn.execute("ALTER TABLE watchlist_sync.put_manage_daily ADD PRIMARY KEY (as_of, account, ticker, strike, expiry)")
         conn.execute("DELETE FROM watchlist_sync.put_manage_daily WHERE as_of = %s", (today,))
         for r in out:
-            conn.execute("INSERT INTO watchlist_sync.put_manage_daily (as_of, ticker, strike, expiry, payload) VALUES (%s,%s,%s,%s,%s)",
-                         (today, r["ticker"], r["strike"], r["expiry"], json.dumps(r)))
+            conn.execute("INSERT INTO watchlist_sync.put_manage_daily (as_of, account, ticker, strike, expiry, payload) VALUES (%s,%s,%s,%s,%s,%s)",
+                         (today, r["account"], r["ticker"], r["strike"], r["expiry"], json.dumps(r)))
         conn.commit()
     for r in sorted(out, key=lambda r: r["action"] != "take + re-sell"):
         print(f"{r['action']:14s} {r['ticker']:6s} {r['strike']:g}p {r['expiry']} ×{r['qty']:g}: {r['why']}"

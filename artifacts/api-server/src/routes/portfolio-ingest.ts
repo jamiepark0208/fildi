@@ -14,6 +14,25 @@ import {
 import { parseRobinhoodCSV } from '../lib/portfolio-parser.js'
 import { carryForwardCost } from '../lib/portfolio-cost-carry.js'
 import { logger } from '../lib/logger.js'
+import { spawn } from 'node:child_process'
+import { join } from 'node:path'
+import { ROOT, PM_PY } from './scheduled-tasks/paths.js'
+
+/** A372: re-run the open-put manager on every new holdings snapshot, so it never advises on a closed book. Detached, ≥ 2 min apart. */
+let putManageAt = 0
+function rerunPutManage(snapshotId: number) {
+  if (Date.now() - putManageAt < 120_000) return
+  putManageAt = Date.now()
+  try {
+    const child = spawn(PM_PY, [join(ROOT, 'scripts/watchlist_sync/put_manage.py')], {
+      cwd: join(ROOT, 'scripts/watchlist_sync'), detached: true, stdio: 'ignore',
+    })
+    child.on('error', (err) => logger.warn({ err: String(err), snapshotId }, 'put_manage rerun failed to start'))
+    child.unref()
+  } catch (err) {
+    logger.warn({ err: String(err), snapshotId }, 'put_manage rerun failed')
+  }
+}
 import { desc, sql } from 'drizzle-orm'
 import {
   isTransactionsCSV,
@@ -310,6 +329,7 @@ router.post(
         )
       }
 
+      if (parsed.options.length) rerunPutManage(snapshotId)
       res.json({
         success:       true,
         format:        'holdings',
