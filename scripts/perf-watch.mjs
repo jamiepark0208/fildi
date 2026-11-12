@@ -132,7 +132,8 @@ for (const [route, rs] of byRoute) {
   if (route === "/api/healthz") continue;
   const ok = rs.filter((r) => r.ms < HANG_MS).map((r) => r.ms);
   const budget = VENDOR_ROUTE.test(route) ? VENDOR_P95_BUDGET_MS : P95_BUDGET_MS;
-  if (ok.length >= 5 && pct(ok, 0.95) > budget) add("slow_route", route, `${route}: p50 ${pct(ok, 0.5)} ms · p95 ${pct(ok, 0.95)} ms over ${ok.length} calls (budget p95 ${budget} ms)`);
+  if (ok.length >= 5 && pct(ok, 0.95) > budget && !MACHINE_ROUTES.has(route)) add(   // batch lane: size × vendor pacing, not UI latency (hung_request still applies)
+    "slow_route", route, `${route}: p50 ${pct(ok, 0.5)} ms · p95 ${pct(ok, 0.95)} ms over ${ok.length} calls (budget p95 ${budget} ms)`);
   const errs = rs.filter((r) => r.code >= 500).length;
   if (errs >= ERRORS_5XX) add("errors_5xx", route, `${route}: ${errs} × 5xx of ${rs.length} calls in ${HOURS} h`);
   const perMin = new Map();
