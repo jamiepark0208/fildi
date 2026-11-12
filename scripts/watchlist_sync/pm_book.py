@@ -140,7 +140,7 @@ def main() -> None:
     longs = rows(conn, """SELECT account, UPPER(symbol) AS t, SUM(quantity)::float8 AS q, SUM(market_value)::float8 AS mv
                           FROM portfolio_positions WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))
     puts = rows(conn, """SELECT o.account, UPPER(o.symbol) AS t, o.strike::float8 AS k, o.expiration AS exp, o.qty::float8 AS q,
-                                o.iv::float8 AS iv, o.mark_price::float8 AS mark, o.avg_premium::float8 AS prem,
+                                o.iv::float8 AS iv, o.mark_price::float8 AS mark, o.avg_premium::float8 / 100 AS prem,   -- avg_premium is $/contract; mark is $/share
                                 (SELECT close::float8 FROM prices_historical p WHERE p.ticker = UPPER(o.symbol) ORDER BY date DESC LIMIT 1) AS spot,
                                 (SELECT market_value::float8 / NULLIF(quantity, 0) FROM portfolio_positions pp
                                    WHERE pp.snapshot_id = o.snapshot_id AND UPPER(pp.symbol) = UPPER(o.symbol)

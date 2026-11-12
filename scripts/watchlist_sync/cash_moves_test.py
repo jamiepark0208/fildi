@@ -23,6 +23,13 @@ class Rebalance(unittest.TestCase):
         self.assertLessEqual(sold[0]["qty"], 500)                                # 1,000 of 1,500 locked by 10 short calls
         self.assertIn("still short", r["note"])                                 # $19.6k debt > sellable stock in this fixture
 
+    def test_put_without_mark_is_never_a_free_close(self):
+        acct = BA.accounting(FILDI, [{"strike": p["strike"], "qty": p["qty"]} for p in PUTS])
+        puts = [{**PUTS[1], "mark": None}, PUTS[0]]
+        r = RB.plan(acct, TGT, puts, [], {}, [], allow_new_puts=False)
+        closed = [s["what"] for s in r["steps"] if s["action"] == "close put"]
+        self.assertNotIn("IREN 18P 2026-11-13", closed)                        # no mark → no "$0 to close, 100 % captured"
+
     def test_target_identical_whatever_the_account(self):
         a = RB.plan(BA.accounting(FILDI, FILDI_PUTS), TGT, [], [], {}, [])
         b = RB.plan(BA.accounting(IRA, []), TGT, [], [], {}, [])

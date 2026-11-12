@@ -60,11 +60,11 @@ def plan(acct: dict, target: dict, puts: list[dict], stocks: list[dict], short_c
                       "mix_after": round(F / (F + P), 4) if F >= 0 and F + P > 0 else None, "gap_after": round(gap, 2), "why": why})
 
     if gap > 1:
-        def put_rank(p):
-            cap = 1 - (p["mark"] or 0) / p["prem"] if p.get("prem") else 0
-            cost = (p["mark"] or 0) / p["strike"]
+        def put_rank(p):   # prem + mark both per share (pm_book converts avg_premium from per-contract)
+            cap = 1 - p["mark"] / p["prem"] if p.get("prem") else 0
+            cost = p["mark"] / p["strike"]
             return (0 if cap >= 0.5 else 2, cost)
-        put_q = sorted(puts, key=put_rank)
+        put_q = sorted((p for p in puts if p.get("mark") is not None), key=put_rank)   # no mark → can't price the close; never a stand-in 0
         stock_q = []
         for s in stocks:
             free = s["qty"] - MULT * short_calls.get(s["ticker"], 0)
@@ -77,8 +77,8 @@ def plan(acct: dict, target: dict, puts: list[dict], stocks: list[dict], short_c
             if gap <= 1 or len(steps) >= max_steps:
                 break
             if kind == "put":
-                m, cost = MULT * x["qty"], (x["mark"] or 0) * MULT * x["qty"]
-                cap = 1 - (x["mark"] or 0) / x["prem"] if x.get("prem") else None
+                m, cost = MULT * x["qty"], x["mark"] * MULT * x["qty"]
+                cap = 1 - x["mark"] / x["prem"] if x.get("prem") else None
                 why = (f"{cap:.0%} of premium captured — ${cost:,.0f} to close, frees ${x['strike'] * m:,.0f} of collateral"
                        if cap is not None else f"${cost:,.0f} to close, frees ${x['strike'] * m:,.0f}")
                 add("close put", f"{x['ticker']} {x['strike']:g}P {x['expiry']}", x["qty"], -cost, -x["strike"] * m, why)
