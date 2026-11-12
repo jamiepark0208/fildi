@@ -1,86 +1,94 @@
-# Morning Market Brief — Wednesday, November 11, 2026 (pre-market)
+# Morning Market Brief — Thursday, November 12, 2026 (Pre-Market)
 
-**Banner:** S&P fut +0.86% · Dow fut +0.11% · Nasdaq fut +1.9% · 10Y 4.98% (bond market closed) · Brent $92.43, +1.0% · VIX 19.46, -2.3%
+**Banner:** S&P fut 7,609 −0.42% · Dow fut 52,597 +0.04% · Nasdaq 100 fut 28,209 −0.93% · 10Y 5.01% (+2 bp) · Brent $92.92 +0.2% · VIX 18.35 (+~5%)
 
 ## What's moving
 
 | Name | Level | Day % |
 |---|---|---|
-| S&P 500 futures | 7,607 | +0.86% |
-| Dow futures | 52,371 | +0.11% |
-| Nasdaq 100 futures | 28,355 | +1.9% |
-| Nikkei 225 | 61,248.59 | +1.3% |
-| Shanghai Composite | 3,685.27 | +0.6% |
-| Hang Seng | — | -0.98% |
-| STOXX 600 | — | +0.6% (record high) |
-| FTSE 100 | — | +0.8% |
-| 10Y Treasury | 4.98% | +10 bp Tue (briefly above 5%) |
-| Brent crude | $92.43 | +1.0% |
-| WTI crude | $86.64 | +0.7% |
-| Gold | ~$4,064 | +0.24% overnight (Tue -2.6%) |
-| Bitcoin | ~$73,900 | +0.27% |
-| VIX | 19.46 | -2.3% Tue |
+| S&P 500 fut | 7,609 | −0.42% |
+| Dow fut | 52,597 | +0.04% |
+| Nasdaq 100 fut | 28,209 | −0.93% |
+| Russell 2000 fut | 2,849 | −0.13% |
+| Nikkei 225 | 60,819 | −0.70% |
+| Shanghai Composite | 3,656 | −0.67% |
+| Hang Seng | — | −1.26% |
+| Taiwan Taiex | — | −2.6% |
+| KOSPI | — | −0.61% |
+| STOXX 600 | 665.38 | +0.3% (record) |
+| DAX | 27,001 | +1.1% (record) |
+| FTSE 100 | 10,871 | +0.31% |
+| CAC 40 | — | +0.72% |
 
-**What it means:** The rebound is AI-earnings-led, not rate relief. Futures rally while a December hike is now fully priced (100%, ~88% for 25 bp / ~12% for 50 bp) and the 10Y sits near 5% — equities are rallying on CoreWeave's beat-and-raise and fresh AI-demand signals, in spite of the hawkish rates repricing, not because of it. The bond market is closed today, so yields can't confirm or contradict the move until Thursday.
+What it means: this is a one-name shock, not a macro turn — Nasdaq −0.9% against a flat Dow is the NVDA resignation repricing, and Europe setting records at the same time proves it: no spillover, just chips. The second, separate headwind is rates: bonds reopened after Veterans Day with the 10Y back above 5% on the hot-CPI repricing, so the tape carries two unrelated drags into the open. Gold under $4,000 while the VIX rises says dollar strength, not haven buying.
 
 ## Why it matters
 
-- The rally is narrow and AI-led; breadth is unproven, so don't read it as broad risk-on.
-- The real overhang is the rate-hike repricing: a 50 bp December hike is now on the table, and Friday's PPI decides whether that probability grows.
-- VIX easing while yields jump means the vol market is calm and the rates market is not — premium still pays, but the tail risk this week is rates, not equities.
-- With bonds closed, the 5% 10Y level gets its real test Thursday when the market reopens.
+- The AI trade's leadership risk just repriced from rumor to fact: Huang resigned, Kress is interim CEO, and NVDA earnings land Tuesday, Nov 17 — the governance discount now has a name and a date.
+- The tape is splitting, not breaking: Dow flat, small caps −0.1%, Europe at records — a chip/AI unwind, not broad de-risking.
+- Rates are a real second headwind, not a sideshow: 10Y above 5% with a December hike ~90% priced and five Fed speakers today — Friday's PPI decides whether the repricing sticks.
+- VIX 18.35 is elevated, not panicked — premium is richer into the Thu–Fri stack, which pays a put-seller who waits for the print rather than chasing the open.
 
 ## What to watch today (ET)
 
-- 7:00 — MBA mortgage purchase applications (weekly)
-- 10:30 — DOE crude inventories (weekly)
-- No major economic releases — Veterans Day; stocks trade normal hours, bond market closed. Nonsettlement day for options: rolls and closes settle tomorrow.
-- Earnings: Kenvue before the open; Mosaic, Corteva, Brighthouse Financial after the close (light slate)
-- Tomorrow, Thu Nov 12, 8:30 — Initial jobless claims (cons ~195k, prior 189k); existing home sales; Fed speakers Hammack, Barr, Goolsbee, Daly, Schmid, Williams after the close; Treasury sells $25B of 30Y bonds
-- Fri Nov 13, 8:30 — October PPI (headline cons +0.4% m/m vs +1.3% prior; core cons +0.3% vs +0.7% prior)
+- **8:30 AM:** Initial jobless claims — cons 195K, prior 189K; continuing claims cons 1.71M, prior 1.718M
+- **9:00 AM:** Fed's Hammack speaks
+- **10:00 AM:** Existing home sales — cons 3.85M, prior 3.99M; Fed's Barr speaks
+- **10:30 AM:** EIA natural gas inventories
+- **11:30 AM:** Fed's Goolsbee speaks
+- **12:00 PM:** DOE crude inventories
+- **1:00 PM:** $25B 30-year Treasury auction
+- **1:10 PM:** Fed's Daly speaks
+- **2:00 PM:** Treasury monthly budget — cons −$298.6B, prior −$26.9B
+- **After close (calls 4:30 PM):** Cisco (CSCO), Applied Materials (AMAT), Cerebras (CBRS), Nu Holdings (NU) report
+- **6:30 PM:** Fed's Williams speaks
+- **Tomorrow 8:30 AM:** October PPI — cons +0.4% m/m (prior +1.3%), core +0.3% (prior +0.7%)
 
 ## Data
 
-- Oct CPI (Tue): +0.4% m/m vs +0.3% consensus, prior +0.6%; core CPI +0.3% vs +0.2% consensus — the hot print that repriced December to a certain hike.
-- Oct PPI (Fri 8:30 ET): headline cons +0.4% m/m, prior +1.3%; core cons +0.3%, prior +0.7%.
+- **October CPI (Tue Nov 10):** +0.4% m/m vs +0.3% consensus; core +0.3% vs +0.2% consensus — the hot print behind the 10Y's move above 5% and the December-hike repricing.
+- **No prints yet today** — claims land 8:30 AM ET.
 
 ## Single names
 
 | Name | Day % | Why |
 |---|---|---|
-| CoreWeave (CRWV) | +13–17% | Q3 beat, raised FY outlook, sees adjusted profitability in H1 2028 — neocloud funding fears eased; AI-name premium stays rich, don't chase short puts into the pop |
-| Nvidia (NVDA) | +5% | Rebound after ~$430B lost in two sessions on the Huang headline overhang — a bounce, not a resolution; headline risk still live |
-| Marvell (MRVL) | +8.0% | Chip sympathy on the AI-demand read-through; same tailwind as CRWV, same caution on chasing |
-| Intel (INTC) | +5% | Chip sympathy; momentum name only, no fundamental change |
+| Nvidia (NVDA) | −7.7% premarket | Huang resigned as CEO, CFO Colette Kress named interim — the board-ouster story became a resignation overnight; no NVDA short puts, the gap risk has no floor and earnings land Tue Nov 17. |
+| AMD / Broadcom (AVGO) | +3.9% / +3% | Rotation into non-NVDA chips on the same headlines — selling puts here means selling into a sympathy rally, not a discount; wait for the NVDA dust to settle. |
+| Intel / Marvell / Micron (INTC/MRVL/MU) | −2.7% to −3.5% | Chip contagion, no company news — wider strikes only; the move is NVDA-driven, so it can reverse on a single NVDA headline. |
+| CoreWeave (CRWV) | −7% | Giving back part of Wednesday's +24.7% on the NVDA unwind — premium is rich but the name moves 20%+ on prints; 7+ DTE and wide or nothing. |
+| Strategy (MSTR) | −6.4% | MSCI is removing it from global indexes — forced-selling overhang, not fundamentals; no fresh short puts until the rebalance flow clears. |
+| Applied Materials (AMAT) | −3.9% premarket | Reports after close; the drop is NVDA contagion, not its print — don't sell into the print, the earnings gap stacks on the NVDA gap. |
+| Nebius (NBIS) | −0.4% | Flat into its before-open print — no edge, skip. |
+| Cisco (CSCO) | −0.05% | Flat into its after-close print — skip. |
 
-Small-cap gainers FOSL +27%, PEPG +8.5%, BGS +8.3% lead; decliners BV -18%, SUJA -15%, GO -8% — no book names, no action.
+Flat/non-moving: most non-AI names are flat — the move is concentrated in chips, everything else is waiting on claims and the 30Y auction.
 
 ## Politics
 
-- Treasury Secretary Scott Bessent (R) urged the US and China to "de-risk" — a slightly softer trade-tension tone into the open.
-- On Iran, the White House is shifting toward economic "strangulation" with diplomacy, a return to fighting unlikely — oil's bid is skepticism about a diplomatic offramp, capped by US reluctance to strike.
+- The Wall Street Journal's morning note flags a loss in GOP (R) heartland exposing a party in pieces — politics is not driving the tape today; NVDA is.
+- Vice President Vance (R) is considering direct talks with Iran's security chief — oil's bid is skepticism about a diplomatic off-ramp, capped by U.S. reluctance to strike.
 
 ## Desk flagged
 
-- Positioning dynamics flagged as supportive — a dip-buying base sits under the tape.
-- Anthropic IPO demand is strong (valuation could reach $1.5T+, per FT); TSMC is investing $500M each in Anthropic and OpenAI, and OpenAI's Q3 revenue growth accelerated — the AI capex/demand story has legs beyond CoreWeave's print.
-- Thursday is the crowded day: five Fed speakers (Hammack, Barr, Goolsbee, Daly, Schmid; Williams after the close) plus a $25B 30Y auction; Friday brings PPI and four more speakers (Collins, Bowman, Daly, Jefferson).
+- **Japan PPI hot — +7.1% y/y vs +6.5% expected, yen back at 160/USD:** BoJ hike bets firming, another leg under global yields; feeds the same 10Y-at-5% headwind.
+- **Southern Co (SO) announced a $1.75B equity units offering:** dilution overhang on a utility — don't sell fresh SO puts into the raise.
 
 ## Implications
 
-- Veterans Day is a nonsettlement day for options — don't force expiries or rolls today; they settle tomorrow.
-- No new short-dated premium into the Thu–Fri stack (claims + Fed speakers + $25B 30Y Thu; PPI Fri) — the event-stack guard still applies.
-- AI-name premium is rich after the pop; if selling, favor wide strikes and 7+ DTE rather than chasing the premarket move.
+- NVDA's resignation is now a fact, not a rumor — any NVDA-adjacent short premium (SMCI, ORCL, CRWV) carries gap risk into the open and into Tue Nov 17 earnings; wide strikes and 7+ DTE only, if anything.
+- VIX 18.35 pays better than 17.49 did, but the premium is event premium — sell it after Friday's PPI clears, not into a two-day stack of claims + 30Y auction + PPI.
+- Chip contagion (INTC/MRVL/MU −3%) is NVDA-driven and can reverse on one NVDA headline — if you want chip exposure, wait for the NVDA tape to stabilize; don't chase the dip in the first hour.
+- MSTR index-removal flow is forced selling, not fundamentals — no fresh short puts until the rebalance clears.
 
-Systems: Mac online, agent heartbeat fresh 05:59 PT; API/prices unverified (no shell probe available).
+Systems: Mac online — API/scheduler unverified (no shell probe on device)
 
 ## Sources
 
-- Reuters via stacks921.com — S&P/Nasdaq futures, CoreWeave, Nvidia, FedWatch pricing
-- TradingView / Benzinga — futures levels, Bessent de-risk comment, SPY/QQQ/DIA premarket
-- Saxo Options Brief, Nov 11 — VIX 19.46, 2Y 4.74%, 10Y 4.99%, Brent/WTI/gold levels, bond market closed
-- FactSet StreetAccount U.S. Overnight (Gmail, tradedash-brief) — futures +0.87%, Anthropic/OpenAI/TSM demand, Fed speaker slate, $25B 30Y auction, PPI consensus, Europe/Asia closes
-- my-passive-income.eu — Asia/Europe closes, 10Y/30Y, gold, DXY, VIX
-- Quant Partners Morning Note — S&P +63, Nasdaq +504, Dow +83; bond market closed, nonsettlement day; premarket gainers/decliners
-- Investopedia, Nov 11 — Brent +1.2%, gold ~$4,050, bitcoin below $74,000, 10Y touched 5.03%
-- Deepscope / Velox Macro economic calendars — claims cons 195k vs prior 189k; PPI cons and priors
+- Futures, NVDA, single names: https://www.regardsofwallstreet.com/premarket · https://premarketdaily.com/2026/11/12/tech-sells-off-as-nvidia-leadership-shock-rattles-chip-stocks/ · https://wnflsports.com/2026/11/12/nasdaq-futures-fall-as-nvidia-turmoil-rattles-ai-stocks/ · https://mlq.ai/news/nasdaq-futures-slide-as-nvidia-sinks-before-the-open-while-the-stoxx-600-hits-another-record/
+- Yields, oil, gold, bitcoin: https://munich.meridanreport.com/article/treasury-yields-edge-higher-as-investors-await-fresh-inflation-and-housing-data-i3eer8?site=munich · https://www.investopedia.com/5-things-to-know-stock-market-november-12-2026-12244529-12248795
+- Asia/Europe: https://my-passive-income.eu/markets-before-the-open-november-12-2026/ · https://www.xtb.com/cy/market-analysis/news-and-research/market-wrap-europe-breaks-records-another-scandal-at-nvidia
+- Economic calendar: https://helious.io/calendar/2026-w46 · https://www.xtb.com/cy/market-analysis/news-and-research/economic-calendar-uk-gdp-series-of-fed-speeches-and-inflation-pressure-in-japan
+- Earnings: https://fihandbook.com/earnings-calendar/ · https://my-passive-income.eu/markets-before-the-open-november-12-2026/
+- Desk: Gmail label tradedash-brief, Nov 12 — Bloomberg breaking news (NVDA resignation, 5:52 AM PT); FactSet StreetAccount U.S. Overnight summary (6:59 AM ET)
+- Prior brief: briefs/2026-11-11-pm.md (this repo)
