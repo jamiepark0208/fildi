@@ -26,6 +26,7 @@ import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 
+from book_accounting import accounting
 from build_plan import connect, rows
 
 OUT = Path(__file__).resolve().parent / "out" / "pm"
@@ -97,7 +98,9 @@ def main() -> None:
     snap = conn.execute("SELECT MAX(id) FROM portfolio_snapshots").fetchone()[0]
     taken = conn.execute("SELECT imported_at FROM portfolio_snapshots WHERE id = %s", (snap,)).fetchone()[0]
     accts = {r["account"]: r for r in rows(conn, """SELECT account, nickname, type, total_value::float8 AS equity, cash::float8 AS cash,
-                    buying_power::float8 AS bp FROM portfolio_account_summaries WHERE snapshot_id = %s""", (snap,))}
+                    buying_power::float8 AS bp, total_value::float8 AS total_value, equity_value::float8 AS equity_value,
+                    options_value::float8 AS options_value, crypto_value::float8 AS crypto_value,
+                    unleveraged_bp::float8 AS unleveraged_bp FROM portfolio_account_summaries WHERE snapshot_id = %s""", (snap,))}
     longs = rows(conn, """SELECT account, UPPER(symbol) AS t, SUM(quantity)::float8 AS q, SUM(market_value)::float8 AS mv
                           FROM portfolio_positions WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))
     puts = rows(conn, """SELECT o.account, UPPER(o.symbol) AS t, o.strike::float8 AS k, o.expiration AS exp, o.qty::float8 AS q,
@@ -164,7 +167,9 @@ def main() -> None:
              "short_puts": len(ps_all), "itm_puts": sum(x["itm"] for x in ps), "assign_if_itm_now": assign_itm, "assign_if_all": assign_all,
              "assign_bad_week": PM_RULES["bad_week_itm"] * assign_all,
              "crash_equity": crash_eq, "crash_drop_pct": 1 - crash_eq / eq if eq else None, "close_itm_cost": sum(x["close_cost"] for x in ps if x["itm"]),
-             "unknown_puts": sum(1 for x in ps_all if x["status"] == "unknown")}
+             "unknown_puts": sum(1 for x in ps_all if x["status"] == "unknown"),
+             # A372 § 1: E/C/D/P/F + actual cash-vs-put mix (F unknown unless broker free cash reconciles)
+             "accounting": accounting(a, [{"strike": x["strike"], "qty": x["qty"]} for x in ps_all])}
         if margin:
             req = max(eq - (a["bp"] or 0), 0)
             ratio = req / long_mv if long_mv else 0.5
