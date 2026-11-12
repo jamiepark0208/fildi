@@ -21,7 +21,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude → Cursor | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A192](asks/A192.md) | 2026-10-19 | Jamie → Claude → Cursor | [quant] Any-structure builder + view ranker (stock ±, every option combo); backtest ranking after A364 | planned (Claude 11-07: Part L live any-structure builder + view ranker now; Part B waits A364) |
-| [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial (Codex 10-19: desktop main activity observed in signed-in Stage; helper coverage pending) |
+| [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial; needs Claude: deep-news/event-analogue + NVDA/NVDY specification atop SAME news plan; prior Ranker/quote/calendar repairs retained; start top handoff |
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude → Cursor | Material decision changes using existing action tickets | done (Cursor 11-07, uncommitted) |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
@@ -72,15 +72,15 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A346](asks/A346.md) | 2026-11-05 | Muse → Cursor | Explain cache: technicalHash keys only on the turning-point line's length, so different TP lines collide | done |
 | [A347](asks/A347.md) | 2026-11-06 | Muse → Claude → Cursor | Kronos candlestick foundation model: fair validation on fildi data, adopt/drop + catalog row | parked (Claude triage 2026-11-07) |
 | [A349](asks/A349.md) | 2026-11-06 | Muse → Claude → Cursor | AI quant lab batch: TradingAgents, AI Hedge Fund, RD-Agent, Freqtrade (OpenBB/Nautilus/Qlib covered) | parked (Claude triage 2026-11-07) |
-| [A351](asks/A351.md) | 2026-11-06 | Muse → Claude → Cursor | Evaluate DeepSeek Harness + Super-Agent as the post-Cursor builder seat | parked (Claude triage 2026-11-07) |
+| [A351](asks/A351.md) | 2026-11-06 | Muse → Claude → Cursor | Evaluate DeepSeek Harness + Super-Agent as the post-Cursor builder seat | planned (Revisit met 2026-11-12: date 2026-11-12) |
 | [A352](asks/A352.md) | 2026-11-06 | Claude → Grok | [quant] Put picks fall more than universe; option score ranks backwards — fix grade, test history | verified |
 | [A353](asks/A353.md) | 2026-11-06 | Claude → Cursor | [quant] Signals catch swing starts, lose on exits — exit-rule menu + mirror side of S152/S154/S155 | verified |
 | [A354](asks/A354.md) | 2026-11-06 | Muse → Cursor | Volume profile chart overlay (POC + value area) + TPO from minute bars; delta out | parked (Claude triage 2026-11-07) |
 | [A355](asks/A355.md) | 2026-11-06 | Muse → Cursor | Graphify pilot: query a code graph instead of re-reading files; measured token cut or drop | done (Cursor 11-07, drop, uncommitted) |
 | [A358](asks/A358.md) | 2026-11-06 | Muse → Cursor | My List grid lost a column: WATCHLIST_ROW_MINE 6 tracks vs 7 children (279615b) | revise |
 | [A359](asks/A359.md) | 2026-11-06 | Claude → Cursor | [quant] Conditional backtests: regime-match entry, exit rules, TP/SL, hits; audit all studies | planned |
-| [A360](asks/A360.md) | 2026-11-07 | Muse → Cursor | Evaluate GLM-5.3/5.2 (Zhipu) as post-Cursor builder: API build test vs DeepSeek, cost, verdict | parked (Claude triage 2026-11-07) |
-| [A361](asks/A361.md) | 2026-11-07 | Muse → Cursor | Evaluate OpenCode as the post-Cursor harness: provider-agnostic terminal agent, same fixed build task, verdict | parked (Claude triage 2026-11-07) |
+| [A360](asks/A360.md) | 2026-11-07 | Muse → Cursor | Evaluate GLM-5.3/5.2 (Zhipu) as post-Cursor builder: API build test vs DeepSeek, cost, verdict | planned (Revisit met 2026-11-12: date 2026-11-12) |
+| [A361](asks/A361.md) | 2026-11-07 | Muse → Cursor | Evaluate OpenCode as the post-Cursor harness: provider-agnostic terminal agent, same fixed build task, verdict | planned (Revisit met 2026-11-12: date 2026-11-12) |
 | [A362](asks/A362.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 conditional engine correctness — RSI cold start, IV-beta sign, carried fill_bar (High) | done |
 | [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | done (Cursor 11-07, uncommitted) |
 | [A364](asks/A364.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A357 LSE option backfill + regrade — OCC collapse, smoke gate, inverted verdict (High) | done (merged → A357, Claude 11-08) |
@@ -118,5 +118,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A397](asks/A397.md) | 2026-11-10 | Muse → Cursor | options_flow.py marks a ticker-day complete after a failed/partial LSE fetch — transient error leaves a permanent silent gap (Low) | planned |
 | [A398](asks/A398.md) | 2026-11-10 | Muse → Cursor | data-sources catalog has no row for the new LSE options-flow tables (Low) | planned |
 | [A399](asks/A399.md) | 2026-11-11 | Muse → Cursor | CashTargetCard.tsx is 176 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | planned |
-| [A400](asks/A400.md) | 2026-11-12 | Muse → Claude | Four quant builds from @aryanbuildsai: FF attribution, HMM regimes, LSM pricing, Heston calibration | open |
-| [A401](asks/A401.md) | 2026-11-12 | Muse → Claude | ML+stats battery from neuron.machinelearning: GARCH+ML vol, pairs, GMM regimes, PCA, RF control | open |
+| [A400](asks/A400.md) | 2026-11-12 | Muse → Claude | Four quant builds from @aryanbuildsai: FF attribution, HMM regimes, LSM pricing, Heston calibration | parked |
+| [A401](asks/A401.md) | 2026-11-12 | Muse → Claude | ML+stats battery from neuron.machinelearning: GARCH+ML vol, pairs, GMM regimes, PCA, RF control | declined |
+| [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | re-review (Revisit met 2026-11-12: date 2026-11-12) |
