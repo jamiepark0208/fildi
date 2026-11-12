@@ -117,3 +117,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A396](asks/A396.md) | 2026-11-10 | Claude → Claude | Unusual options activity per name + market from LSE OPRA prints (north-star #2) | done |
 | [A397](asks/A397.md) | 2026-11-10 | Muse → Cursor | options_flow.py marks a ticker-day complete after a failed/partial LSE fetch — transient error leaves a permanent silent gap (Low) | planned |
 | [A398](asks/A398.md) | 2026-11-10 | Muse → Cursor | data-sources catalog has no row for the new LSE options-flow tables (Low) | planned |
+| [A399](asks/A399.md) | 2026-11-11 | Muse → Cursor | CashTargetCard.tsx is 176 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | planned |
