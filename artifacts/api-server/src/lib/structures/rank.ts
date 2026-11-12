@@ -2,9 +2,8 @@
  * A192 Part L — view × horizon × max-loss ranker (model estimate, not backtested).
  */
 import type { OptionsChainResult } from "../options.js";
-import { getUpcomingEarningsDates } from "../earnings-history.js";
 import { STRUCTURE_EVIDENCE } from "./evidence-map.js";
-import { type ChainContext, pickExpiry, priceStructure, payoffAtSpot, rationalApproxInvNorm, type Leg } from "./legs.js";
+import { type ChainContext, pickExpiry, priceStructure, payoffAtTime, rationalApproxInvNorm, type Leg } from "./legs.js";
 import { TEMPLATE_LABELS, buildTemplate, type TemplateId } from "./templates.js";
 
 export type MarketView = "bull" | "bear" | "neutral" | "vol_up" | "vol_down";
@@ -45,13 +44,13 @@ function mcExpectedPnl(
   legs: Leg[],
   ctx: ChainContext,
   netFill: number,
-  horizonDays: number,
+  atMs: number,
   sigma: number,
   earningsBump: number,
 ): number {
   const spot = ctx.spot;
   const r = ctx.riskFree ?? 0.045;
-  const T = horizonDays / 365;
+  const T = Math.max(atMs - Date.now(), 12 * 3600 * 1000) / (365 * 86_400_000);
   const effSigma = sigma * (1 + earningsBump);
   let sum = 0;
   const n = 200;
@@ -59,7 +58,7 @@ function mcExpectedPnl(
     const u = (i + 0.5) / n;
     const z = rationalApproxInvNorm(u);
     const ST = spot * Math.exp((r - 0.5 * effSigma * effSigma) * T + effSigma * Math.sqrt(T) * z);
-    sum += payoffAtSpot(legs, ctx, ST, netFill, true);
+    sum += payoffAtTime(legs, ctx, ST, netFill, atMs);
   }
   return sum / n;
 }
@@ -132,13 +131,9 @@ export async function rankStructuresForView(opts: {
   const ctx: ChainContext = { spot, chains: opts.chains };
   const chainCoverage = chainCoverageSummary(opts.chains);
   const iv = atmIv(anchor ?? opts.chains[0]);
-  let earningsBump = 0;
-  const upcoming = await getUpcomingEarningsDates([opts.ticker]);
-  const er = upcoming[opts.ticker.toUpperCase()];
-  if (er) {
-    const days = (new Date(er).getTime() - Date.now()) / 86_400_000;
-    if (days >= 0 && days <= opts.horizonDays) earningsBump = 0.25;
-  }
+  // A205: no earnings σ bump — the horizon expiry's market IV already prices the event (+25 % on top double-counted:
+  // NVDA 30-d long straddle read +$630 vs ≈ −spread). Untested rule, removed.
+  const earningsBump = 0;
 
   const ids = VIEW_TEMPLATES[opts.view] ?? VIEW_TEMPLATES.neutral;
   const rows: RankRow[] = [];
@@ -157,9 +152,10 @@ export async function rankStructuresForView(opts: {
     if (priced.maxLoss > opts.maxLoss && priced.maxLoss > 0) continue;
     // Payoff is intrinsic at the nearest leg expiry, so the price distribution must stop there too (was the full horizon:
     // a 5-DTE straddle drew 30 days of moves → AAPL long straddle +$2,070).
-    const legDays = legs.flatMap((l) => (l.kind === "stock" ? [] : [opts.chains.find((c) => c.expiry === l.expiry)?.daysToExpiry ?? opts.horizonDays]));
-    const days = Math.max(0.5, Math.min(opts.horizonDays, ...legDays));
-    const expectedPnl = mcExpectedPnl(legs, ctx, priced.netFill, days, iv, earningsBump);
+    // Value everything at the earlier of the horizon and the nearest leg expiry (back legs keep time value — calendars).
+    const legEnds = legs.flatMap((l) => (l.kind === "stock" || !l.expiry ? [] : [new Date(`${l.expiry}T16:00:00`).getTime()]));
+    const atMs = Math.min(Date.now() + opts.horizonDays * 86_400_000, ...legEnds);
+    const expectedPnl = mcExpectedPnl(legs, ctx, priced.netFill, atMs, iv, earningsBump);
     const bp = priced.buyingPower || 1;
     rows.push({
       id,

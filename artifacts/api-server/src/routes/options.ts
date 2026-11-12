@@ -12,6 +12,7 @@ import { getOptionsChainSourceStats } from "../lib/options-chain-source-stats.js
 import { chainIsFresh, chainUniverse, engineExpiry, inMarketHours, readChainSnapshot, saveChainSnapshot, staleChainTickers } from "../lib/options-chain-store.js";
 import { type Leg, priceStructure } from "../lib/structures/legs.js";
 import { rankStructuresForView, type MarketView } from "../lib/structures/rank.js";
+import { rankerChains } from "../lib/structures/ranker-chain.js";
 import { buildTemplate, type TemplateId } from "../lib/structures/templates.js";
 import { getSchwabChainForExpiry } from "../lib/schwab-client.js";
 import { logger } from "../lib/logger.js";
@@ -355,14 +356,15 @@ router.get("/options/:ticker/structures/rank", async (req, res) => {
     return res.status(404).json({ error: "no stored chain" });
   }
   try {
+    const { chains, filled } = await rankerChains(ticker, snap.chains, horizon);   // A205: + ATM / back-month ladder
     const ranked = await rankStructuresForView({
       ticker,
-      chains: snap.chains,
+      chains,
       view,
       horizonDays: horizon,
       maxLoss,
     });
-    return res.json({ ...ranked, asOf: snap.fetchedAt, spot: snap.chains[0].spot });
+    return res.json({ ...ranked, asOf: snap.fetchedAt, spot: chains[0]?.spot ?? snap.chains[0].spot, ladderFilled: filled });
   } catch (err: unknown) {
     return res.status(500).json({ error: String((err as Error)?.message ?? err) });
   }

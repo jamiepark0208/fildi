@@ -177,6 +177,14 @@ export function payoffAtSpot(legs: Leg[], ctx: ChainContext, S: number, netFill:
   return netFill + marks;
 }
 
+/** P&L with every leg marked at `atMs` (BS at the leg's own IV, intrinsic once expired). A205 D3: mixed-expiry
+ *  structures (calendars/diagonals) keep the back leg's time value; single-expiry at its expiry = intrinsic. */
+export function payoffAtTime(legs: Leg[], ctx: ChainContext, S: number, netFill: number, atMs: number): number {
+  let marks = 0;
+  for (const leg of legs) marks += legMark(leg, S, ctx, atMs);
+  return netFill + marks;
+}
+
 export function payoffCurve(
   legs: Leg[],
   ctx: ChainContext,
@@ -314,13 +322,17 @@ export function popAtHorizon(
       return 1 - normCDF(d); // P(S_T > BE): covered call profits above breakeven
     }
   }
+  // A205 D3: mixed expiries (calendar/diagonal) → back legs keep time value at the front expiry (was all-intrinsic → POP 0).
+  const exps = [...new Set(legs.filter((l) => l.kind !== "stock" && l.expiry).map((l) => l.expiry!))].sort();
+  const frontMs = exps.length > 1 ? new Date(`${exps[0]}T16:00:00`).getTime() : null;
   let w = 0;
   const n = 400;
   for (let i = 0; i < n; i++) {
     const u = (i + 0.5) / n;
     const z = rationalApproxInvNorm(u);
     const ST = spot * Math.exp((r - 0.5 * sigma * sigma) * T + sigma * Math.sqrt(T) * z);
-    if (payoffAtSpot(legs, ctx, ST, netFill, true) > 0) w++;
+    const pnl = frontMs != null ? payoffAtTime(legs, ctx, ST, netFill, frontMs) : payoffAtSpot(legs, ctx, ST, netFill, true);
+    if (pnl > 0) w++;
   }
   return w / n;
 }

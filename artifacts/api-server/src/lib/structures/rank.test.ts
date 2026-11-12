@@ -28,3 +28,47 @@ describe("structures ranker distribution inputs", () => {
     assert.equal(atmIv(null), 0.25);
   });
 });
+
+import { mergeLadder } from "./ranker-chain.js";
+import { buildTemplate } from "./templates.js";
+import { payoffAtTime, payoffAtSpot, type Leg, type ChainContext } from "./legs.js";
+
+const day = 86_400_000;
+const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const lad = (expiry: string, side: "put" | "call", strike: number, px: number) =>
+  ({ expiry, side, strike, bid: px - 0.05, ask: px + 0.05, mark: px, iv: 0.4, delta: null, oi: 100, volume: 10 });
+
+describe("A205 ranker chain fill + mixed-expiry valuation", () => {
+  const now = Date.now();
+  const e5 = ymd(now + 5 * day), e30 = ymd(now + 30 * day), e60 = ymd(now + 60 * day);
+  // stored engine chain: 5-DTE only, OTM calls only (the real producer shape)
+  const stored = [{ ticker: "X", expiry: e5, isWeekly: true, daysToExpiry: 5, exactDte: 5, settlementDte: 5, spot: 100, tier: 1,
+    puts: [{ strike: 95, bid: 0.5, ask: 0.6, iv: 0.4 }], calls: [{ strike: 105, bid: 0.5, ask: 0.6, iv: 0.4 }], fetchedAt: now }] as unknown as OptionsChainResult[];
+  const ladder = [e5, e30, e60].flatMap((e) => [95, 100, 105].flatMap((k) => [lad(e, "put", k, 3), lad(e, "call", k, 3)]));
+
+  it("merge adds ATM strikes and 30/60-day expiries; stored rows win", () => {
+    const m = mergeLadder(stored, ladder, 100, now);
+    assert.deepEqual(m.map((c) => c.expiry), [e5, e30, e60]);
+    assert.ok(m[0].calls.some((r) => r.strike === 100));
+    assert.equal(m[0].calls.find((r) => r.strike === 105)!.bid, 0.5);   // stored quote kept
+  });
+
+  it("straddle is at a strike both sides list; calendar = horizon expiry + ~30 d", () => {
+    const m = mergeLadder(stored, ladder, 100, now);
+    const st = buildTemplate("long_straddle", { chains: m, horizonDays: 30 })!.legs;
+    assert.deepEqual(st.map((l) => [l.kind, l.strike, l.expiry]), [["call", 100, e30], ["put", 100, e30]]);
+    const cal = buildTemplate("calendar", { chains: m, horizonDays: 30 })!.legs;
+    assert.deepEqual(cal.map((l) => [l.side, l.strike, l.expiry]), [["short", 100, e30], ["long", 100, e60]]);
+  });
+
+  it("payoffAtTime = intrinsic for single expiry at expiry; keeps back-leg time value for a calendar", () => {
+    const m = mergeLadder(stored, ladder, 100, now);
+    const ctx: ChainContext = { spot: 100, chains: m };
+    const single: Leg[] = [{ kind: "call", side: "long", qty: 1, strike: 100, expiry: e30 }];
+    const t30 = new Date(`${e30}T16:00:00`).getTime();
+    assert.ok(Math.abs(payoffAtTime(single, ctx, 110, -300, t30) - payoffAtSpot(single, ctx, 110, -300, true)) < 1e-6);
+    const cal: Leg[] = [{ kind: "call", side: "short", qty: 1, strike: 100, expiry: e30 }, { kind: "call", side: "long", qty: 1, strike: 100, expiry: e60 }];
+    assert.ok(payoffAtTime(cal, ctx, 100, -150, t30) > 0, "ATM at front expiry: back call worth > net debit");
+    assert.ok(payoffAtSpot(cal, ctx, 100, -150, true) <= -150 + 1e-6, "old all-intrinsic view = full loss");
+  });
+});

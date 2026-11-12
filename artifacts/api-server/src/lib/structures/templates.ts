@@ -623,6 +623,28 @@ const TEMPLATE_CHAIN_SIDE: Partial<Record<TemplateId, "put" | "call" | "both">> 
   reverse_jade_lizard: "both",
 };
 
+/** A205: strike nearest spot that is quoted (bid or ask > 0) in every (chain, side) a structure needs — was the put-side ATM,
+ *  which the call side often did not list → leg priced as free / unpriced. */
+function commonAtmStrike(spot: number, need: Array<[OptionsChainResult, "put" | "call"]>): number | null {
+  const sets = need.map(([c, k]) => new Set((k === "put" ? c.puts : c.calls).filter((r) => (r.ask ?? 0) > 0 || (r.bid ?? 0) > 0).map((r) => r.strike)));
+  const common = [...sets[0]].filter((k) => sets.every((s) => s.has(k)));
+  if (!common.length) return null;
+  return common.reduce((a, b) => (Math.abs(b - spot) < Math.abs(a - spot) ? b : a));
+}
+
+/** Calendar/diagonal expiries: front = the horizon expiry, back = the later expiry nearest front + 30 d (≥ front + 14 d when listed). */
+function calendarPair(chains: OptionsChainResult[], horizon: number): { front: OptionsChainResult; back: OptionsChainResult } | null {
+  const sorted = [...chains].filter((c) => c.puts.length || c.calls.length).sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+  if (sorted.length < 2) return null;
+  const front = pickExpiry(sorted.slice(0, -1), horizon) ?? sorted[0];
+  const later = sorted.filter((c) => c.daysToExpiry > front.daysToExpiry);
+  if (!later.length) return null;
+  const pool = later.filter((c) => c.daysToExpiry >= front.daysToExpiry + 14);
+  const back = (pool.length ? pool : later).reduce((a, b) =>
+    Math.abs(b.daysToExpiry - front.daysToExpiry - 30) < Math.abs(a.daysToExpiry - front.daysToExpiry - 30) ? b : a);
+  return { front, back };
+}
+
 export function buildTemplate(id: TemplateId, opts: BuildOpts): TemplateBuild | null {
   const legsOnly = buildTemplateLegs(id, opts);
   if (!legsOnly) return null;
@@ -724,21 +746,19 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "long_straddle": {
-      const atm = chain!.puts.reduce((a, b) =>
-        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
-      );
+      const k = commonAtmStrike(chain!.spot, [[chain!, "call"], [chain!, "put"]]);
+      if (k == null) return null;
       return [
-        { kind: "call", side: "long", qty: 1, strike: atm.strike, expiry: chain!.expiry },
-        { kind: "put", side: "long", qty: 1, strike: atm.strike, expiry: chain!.expiry },
+        { kind: "call", side: "long", qty: 1, strike: k, expiry: chain!.expiry },
+        { kind: "put", side: "long", qty: 1, strike: k, expiry: chain!.expiry },
       ];
     }
     case "short_straddle": {
-      const atm = chain!.puts.reduce((a, b) =>
-        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
-      );
+      const k = commonAtmStrike(chain!.spot, [[chain!, "call"], [chain!, "put"]]);
+      if (k == null) return null;
       return [
-        { kind: "call", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
-        { kind: "put", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
+        { kind: "call", side: "short", qty: 1, strike: k, expiry: chain!.expiry },
+        { kind: "put", side: "short", qty: 1, strike: k, expiry: chain!.expiry },
       ];
     }
     case "long_strangle": {
@@ -770,23 +790,19 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "calendar": {
-      const sorted = [...opts.chains].sort((a, b) => a.daysToExpiry - b.daysToExpiry);
-      if (sorted.length < 2) return null;
-      const front = sorted[0];
-      const back = sorted[Math.min(1, sorted.length - 1)];
-      const atm = front.puts.reduce((a, b) =>
-        Math.abs(b.strike - front.spot) < Math.abs(a.strike - front.spot) ? b : a,
-      );
+      const pair = calendarPair(opts.chains, opts.horizonDays ?? 30);
+      if (!pair) return null;
+      const k = commonAtmStrike(pair.front.spot, [[pair.front, "call"], [pair.back, "call"]]);
+      if (k == null) return null;
       return [
-        { kind: "call", side: "short", qty: 1, strike: atm.strike, expiry: front.expiry },
-        { kind: "call", side: "long", qty: 1, strike: atm.strike, expiry: back.expiry },
+        { kind: "call", side: "short", qty: 1, strike: k, expiry: pair.front.expiry },
+        { kind: "call", side: "long", qty: 1, strike: k, expiry: pair.back.expiry },
       ];
     }
     case "diagonal": {
-      const sorted = [...opts.chains].sort((a, b) => a.daysToExpiry - b.daysToExpiry);
-      if (sorted.length < 2) return null;
-      const front = sorted[0];
-      const back = sorted[sorted.length - 1];
+      const pair = calendarPair(opts.chains, opts.horizonDays ?? 30);
+      if (!pair) return null;
+      const { front, back } = pair;
       const short = nearestByDelta(front, "call", 0.35);
       const long = nearestByDelta(back, "call", 0.45);
       if (!short || !long) return null;
@@ -872,16 +888,13 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "put_calendar": {
-      const sorted = [...opts.chains].sort((a, b) => a.daysToExpiry - b.daysToExpiry);
-      if (sorted.length < 2) return null;
-      const front = sorted[0];
-      const back = sorted[1];
-      const atm = front.puts.reduce((a, b) =>
-        Math.abs(b.strike - front.spot) < Math.abs(a.strike - front.spot) ? b : a,
-      );
+      const pair = calendarPair(opts.chains, opts.horizonDays ?? 30);
+      if (!pair) return null;
+      const k = commonAtmStrike(pair.front.spot, [[pair.front, "put"], [pair.back, "put"]]);
+      if (k == null) return null;
       return [
-        { kind: "put", side: "short", qty: 1, strike: atm.strike, expiry: front.expiry },
-        { kind: "put", side: "long", qty: 1, strike: atm.strike, expiry: back.expiry },
+        { kind: "put", side: "short", qty: 1, strike: k, expiry: pair.front.expiry },
+        { kind: "put", side: "long", qty: 1, strike: k, expiry: pair.back.expiry },
       ];
     }
     case "call_butterfly": {
