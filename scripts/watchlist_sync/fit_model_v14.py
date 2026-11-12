@@ -143,7 +143,10 @@ def score_all(S: list[dict], P: dict, ivr: dict) -> list[dict]:
                 filled[k], src = prior(i.get("peer"), k)
                 notes.append(f"{k} unavailable → {src} {filled[k]:.0f}")
         ii = {**i, **filled}
-        own = F13.wavg([(O["w_fund"], ii.get("fund")), (O["w_credit"], None if levered else ii.get("credit")), (O["w_cam"], ii.get("cam"))])
+        # own.fund_scale 'pct' = fund on the same 0–100 percentile scale as credit / CAM ranks (fit_model.fp, 11-11);
+        # 'raw' = fund_total (sd ≈ 4, so its 0.45 weight acts like ~0.07). Raw fund always drives the weak-fundamentals flags.
+        fund_in = ii.get("fund_pct") if O.get("fund_scale") == "pct" else ii.get("fund")
+        own = F13.wavg([(O["w_fund"], fund_in), (O["w_credit"], None if levered else ii.get("credit")), (O["w_cam"], ii.get("cam"))])
         tot = O["w_fund"] + O["w_cam"] + (0 if levered else O["w_credit"])
         obs = sum(w for w, k in ((O["w_fund"], "fund"), (O["w_credit"], "credit"), (O["w_cam"], "cam"))
                   if i.get(k) is not None and not (k == "credit" and levered))

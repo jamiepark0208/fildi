@@ -26,7 +26,7 @@ NAME = {v: k for k, v in HEX.items()}
 GREEN_OWN, GREEN_STREET, GREEN_CREDIT = 62, 55, 40
 YELLOW_PREMIUM, YELLOW_OWN, YELLOW_FIT = 55, 45, 60
 RED_FLAGS, RED_BOTH = 2, 35
-MODEL_VERSION = "fit-1.3"
+MODEL_VERSION = "fit-1.3.1"
 # StarMine credit ranks leveraged-by-design financials low (GS 11, MS 24, BDC PFLT 1): not comparable → excluded for these.
 LEVERED_FINANCIALS = {"Large Banks", "Regional Banks", "Asset Management & Alt Finance", "Insurance"}
 
@@ -46,6 +46,11 @@ def wavg(parts):
 
 SQL = """
 WITH s AS (SELECT DISTINCT ON (ticker) * FROM lseg_research.signals_daily ORDER BY ticker, as_of DESC),
+-- 11-11: fund_total is an average of 4 near-uncorrelated families → sd ≈ 4 pts (p5 43, p95 57) while credit / CAM are
+-- 1–100 ranks (sd ≈ 29), so the 0.45 OWN weight carried ~1/7 of its share. fund_pct = universe percentile, used by
+-- v14 when own.fund_scale = 'pct' (challenger). fit-1.3 base OWN below stays raw (v14 recomputes OWN itself).
+fp AS (SELECT UPPER(ticker) ticker, 100 * PERCENT_RANK() OVER (ORDER BY fund_total_score) pct
+       FROM ticker_fundamentals WHERE fund_total_score IS NOT NULL),
 -- 10-19: LSEG served empty StarMine ranks pre-open → every rank null → crash. Carry the last real ranks forward ≤ 7 days.
 sm AS (SELECT DISTINCT ON (ticker) ticker, credit_combined_rank, combined_alpha_rank, arm_rank FROM lseg_research.signals_daily
        WHERE combined_alpha_rank IS NOT NULL AND as_of >= CURRENT_DATE - 7 ORDER BY ticker, as_of DESC),
@@ -63,7 +68,7 @@ pg AS (SELECT t2.ticker, g.name FROM (
          SELECT DISTINCT ON (ticker) ticker, group_id FROM peer_group_members m
          WHERE removed_at IS NULL AND NOT EXISTS (SELECT 1 FROM peer_group_overrides o WHERE o.ticker = m.ticker)
        ) t2 JOIN peer_groups g ON g.id = t2.group_id)
-SELECT t.ticker, tf.fund_total_score::float8 fund, COALESCE(s.credit_combined_rank, sm.credit_combined_rank) credit,
+SELECT t.ticker, tf.fund_total_score::float8 fund, fp.pct::float8 fund_pct, COALESCE(s.credit_combined_rank, sm.credit_combined_rank) credit,
        COALESCE(s.combined_alpha_rank, sm.combined_alpha_rank) cam, COALESCE(s.arm_rank, sm.arm_rank) arm,
        s.eps_drift_30d_pct drift, s.pred_surprise_pct_fq1 ps, s.pt_upside_pct pt_up, s.eps_num_est_fy1 n_est,
        CASE WHEN s.free_float > 0 THEN 100 * s.short_interest / s.free_float END short_float,
@@ -76,6 +81,7 @@ SELECT t.ticker, tf.fund_total_score::float8 fund, COALESCE(s.credit_combined_ra
 FROM unnest(%s::text[]) t(ticker)
 LEFT JOIN ticker_fundamentals tf ON UPPER(tf.ticker) = t.ticker
 LEFT JOIN s ON s.ticker = t.ticker
+LEFT JOIN fp ON fp.ticker = t.ticker
 LEFT JOIN sm ON sm.ticker = t.ticker
 LEFT JOIN ticker_technicals tt ON UPPER(tt.ticker) = t.ticker
 LEFT JOIN px ON px.ticker = t.ticker

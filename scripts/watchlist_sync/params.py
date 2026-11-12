@@ -35,7 +35,7 @@ SEED = {
     "premium": {"w_iv_rv": 0.70, "w_iv_rank": 0.30, "w_iv_level": 0.00,      # Step 4 #1 (raw IV level had no edge)
                 "contract_iv_pre_earnings": False},   # P2 (fit-1.4.2): ideas expiring before earnings that sit inside the 30d IV window use the contract's IV
     "street": {"k": 8.0, "floor_credit": 20, "floor_own": 40, "timing_far": 0.75, "analyst_saturation": 8},
-    "own": {"w_fund": 0.45, "w_credit": 0.35, "w_cam": 0.20},
+    "own": {"w_fund": 0.45, "w_credit": 0.35, "w_cam": 0.20, "fund_scale": "raw"},  # pct = A372 11-11 challenger
     "thresholds": {"green_own": 62, "green_credit": 40, "yellow_premium": 55, "yellow_own": 45, "yellow_fit": 60, "red_risk": 1.0,
                    "put_block_risk": 0.3,
                    "min_contract_iv_rv": 0.0,   # P1 (fit-1.4.2: 0.95): hold back puts whose contract IV is below the stock's 20d realized vol
