@@ -325,8 +325,8 @@ export function popAtHorizon(
   return w / n;
 }
 
-/** Acklam inverse normal approximation */
-function rationalApproxInvNorm(p: number): number {
+/** Acklam inverse normal approximation (one home: rank.ts imports this; |err| < 1.2e-9). */
+export function rationalApproxInvNorm(p: number): number {
   if (p <= 0) return -8;
   if (p >= 1) return 8;
   const a = [

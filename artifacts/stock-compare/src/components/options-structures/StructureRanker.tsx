@@ -48,6 +48,7 @@ export function StructureRanker() {
         label: string;
         spot: number;
         expiryNote?: string | null;
+        unpriced?: string[];
         chainCoverage?: { expiry: string; daysToExpiry: number; puts: boolean; calls: boolean }[];
       }>;
     },
@@ -59,6 +60,11 @@ export function StructureRanker() {
       <p className="text-yellow-300/90">{q.data?.label ?? "model estimate — not backtested"}</p>
       {q.data?.expiryNote ? (
         <p className="text-amber-200/80 text-[10px]">{q.data.expiryNote}</p>
+      ) : null}
+      {q.data?.unpriced?.length ? (
+        <p className="text-amber-200/80 text-[10px]" title="A leg's strike or expiry is not in the stored chain, so there is no real price to rank it on.">
+          Not priced (no quote): {q.data.unpriced.map((u) => u.replace(/_/g, " ")).join(", ")}
+        </p>
       ) : null}
       {q.data?.chainCoverage?.length ? (
         <p className="text-amber-100 text-[9px] font-mono leading-tight">
