@@ -117,7 +117,7 @@ router.get("/stocks/:ticker/gex", async (req, res) => {
   const t = String(req.params.ticker ?? "").toUpperCase();
   if (!/^[A-Z0-9.\-]{1,12}$/.test(t)) return res.status(400).json({ error: "bad ticker" });
   try {
-    const profile = await gexCache.getOrCompute(t, async () => {
+    const profile = await gexCache.getOrComputeStale(t, async () => {  // expired → last profile now, refresh behind
       const p = await fetchGexProfile(t);
       if (!p) throw new Error("no chain");
       return p;

@@ -352,6 +352,7 @@ routes/watchlist.ts        → /api/watchlist/*
 | GET | /api/options/mover-facts | mover-facts.ts |
 | GET | /api/stocks/:ticker/options-flow | options-flow.ts |
 | GET | /api/options-flow/latest | options-flow.ts |
+| GET | /api/stocks/:ticker/gex | options-flow.ts |
 | GET | /api/research/scoreboard | options-history.ts |
 | GET | /api/options/candidates | options.ts |
 | GET | /api/options/rankings | options.ts |

@@ -304,6 +304,15 @@ def grade(conn):
 def main():
     conn = connect()
     conn.execute(DDL)
+    if "--price-only" in sys.argv:
+        # 11-11: shadow rules fire ~180–240/day, the in-build pass prices ~58 (300 s × ~5 s/row) → backlog grew daily
+        # (89 rows from 11-06 still open). daily.py runs this drain soft, after the Model List is published.
+        budget = next((float(a.split("=")[1]) for a in sys.argv if a.startswith("--budget=")), 1500.0)
+        price_open(conn, budget)
+        grade(conn)
+        left = conn.execute("SELECT count(*) FROM watchlist_sync.strategy_signals WHERE status = 'open'").fetchone()[0]
+        print(f"strategy signal drain: {left} still open")
+        return
     asof = next((date.fromisoformat(a.split("=")[1]) for a in sys.argv if a.startswith("--asof=")), None)
     asof, sig = detect(conn, asof)
     with conn.cursor() as cur:

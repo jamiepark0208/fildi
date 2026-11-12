@@ -111,10 +111,13 @@ export function BreakdownMetricsTable({
   groups,
   byField,
   metrics,
+  hideEmptyScore = false,
 }: {
   groups: MetricGroup[];
   byField?: Map<string, ProvTipField>;
   metrics?: MetricTipCtx | null;
+  /** Non-score uses (Portfolio › cash target): no "–" badge when a group has no score. */
+  hideEmptyScore?: boolean;
 }) {
   // Expect Value, Growth, Quality, Safety — pad/truncate to 4 slots for stable columns.
   const cols = [0, 1, 2, 3].map((i) => groups[i] ?? { title: "—", score: null, rows: [] as MetricRowData[] });
@@ -138,11 +141,11 @@ export function BreakdownMetricsTable({
               >
                 <span className="inline-flex items-baseline gap-1.5">
                   <span>{g.title}</span>
-                  <ScoreBadge
+                  {hideEmptyScore && g.score == null ? null : <ScoreBadge
                     score={g.score}
                     max={100}
                     tip={`${g.title} family score · computed · peer-relative fund model`}
-                  />
+                  />}
                 </span>
               </th>
             ))}

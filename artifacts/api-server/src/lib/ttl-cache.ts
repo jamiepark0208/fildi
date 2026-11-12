@@ -68,6 +68,23 @@ export class TTLCache<T> {
   }
 
   /**
+   * Stale-while-revalidate (8c "serve stored value + refresh behind"): a fresh hit returns as usual; an expired key with a
+   * lastGood inside the grace window returns that value now and refreshes in the background (coalesced). Only a key never
+   * seen (or past grace) waits on compute().
+   */
+  async getOrComputeStale(key: string, compute: () => Promise<T>): Promise<T> {
+    if (this.get(key) === undefined) {
+      const stale = this.freshLastGood(key);
+      if (stale !== undefined) {
+        this.staleServed++;
+        void this.getOrCompute(key, compute).catch(() => undefined);
+        return stale;
+      }
+    }
+    return this.getOrCompute(key, compute);
+  }
+
+  /**
    * Cache-aside with in-flight coalescing: on a miss, concurrent callers for the same
    * key share ONE `compute()` promise instead of each firing a duplicate upstream call
    * (thundering herd when a popular key expires under load). Only successful results are

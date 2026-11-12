@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { PortfolioAnalysis } from "@/components/portfolio-analysis";
 import { PortfolioUpload } from "@/components/PortfolioUpload";
 import { PmBookCard } from "@/components/portfolio/pm-book-card";
+import { CashTargetCard } from "@/components/portfolio/cash-target-card";
 import { PutOdds } from "@/components/portfolio/put-odds";
 import { PositionPickOdds } from "@/components/portfolio/position-pick-odds";
 import { LazyMount } from "@/components/lazy-mount";
@@ -883,7 +884,7 @@ export default function Portfolio() {
                           </Suspense>
                         </LazyMount>
                       ) : (
-                        <div className="space-y-3"><PmBookCard embedded /><PutOdds /><PositionPickOdds /></div>
+                        <div className="space-y-3"><CashTargetCard /><PmBookCard embedded /><PutOdds /><PositionPickOdds /></div>
                       )}
                     </CardContent>
                   </Card>

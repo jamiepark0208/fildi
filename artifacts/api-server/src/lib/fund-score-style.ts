@@ -8,7 +8,10 @@ export type { FundRowInput, StyleBucket, FamilyName } from "./fund-score-types.j
 
 const FINANCIAL_GROUP_RE = /(bank|insur|reit|financial|broker|asset_manag)/i;
 const DEFENSIVE_GROUP_RE = /(staples|utilities|healthcare|pharma|telecom)/i;
-const FINANCIAL_MODE = new Set(["financial", "insurance", "reit", "financial_mixed"]);
+const FINANCIAL_MODE = new Set(["financial", "insurance", "reit"]);
+/** 11-11: payment networks (V, MA, AXP…), fintech / brokers-as-apps (HOOD, PYPL, COIN…) and health insurers (UNH, CVS…)
+ *  matched "financial"/"insur" by name and were scored on bank/insurer weights (P/B, ROA) instead of value + growth. */
+const NON_BANK_GROUP_RE = /(payment|fintech|health_insurance|managed_care)/i;
 
 /** True pre-revenue / pre-profit speculative: zero revenue, or loss-making with small scale.
  *  Missing revenue = unknown, not pre-revenue (11-11: 39 non-USD ADRs — TSM, ASML, SAP, NVO, TM — have revenue cleared by
@@ -28,6 +31,7 @@ export function isUnprofitableOperator(r: FundRowInput): boolean {
 }
 
 export function isFinancialLike(r: FundRowInput): boolean {
+  if (r.peerGroupId && NON_BANK_GROUP_RE.test(r.peerGroupId)) return false;
   if (r.scoringMode && FINANCIAL_MODE.has(r.scoringMode)) return true;
   return !!(r.peerGroupId && FINANCIAL_GROUP_RE.test(r.peerGroupId));
 }

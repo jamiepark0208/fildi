@@ -99,6 +99,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("pick odds", PY, HERE, ["pick_odds.py"]),  # A213: per-pick probabilities → watchlist_sync.pick_odds
         ("grade ledger", PY, HERE, ["grade_ledger.py"]),
         ("house view", PY, HERE, ["house_view.py"]),
+        ("cash target", PY, HERE, ["cash_target.py"]),   # A372 § 2: one market-wide cash/put-collateral target (preference policy) → cash_target
         # Jamie 10-29: Trading Central valuation/levels/outlooks + Argus PT + Morningstar bull/bear text (Yahoo insights, free,
         # ~1.2 s/name sequential, circuit-aware) → yahoo_insights_daily (+ argus_pt in external_intrinsic). Soft.
         # 11-03: after publish — nothing that builds the list reads it (fair value is display-only); was ~21 min ahead of the list.
@@ -135,6 +136,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("learning cycle", PY, HERE, ["learn.py", "propose"]),   # idempotent: only proposes when the evidence moved
         ("data gaps review", PY, HERE, ["data_gaps.py"]),   # 11-11: null key fields → data_issues (sourceable vs no source) → agent_start 11a
         ("sec staleness", PY, HERE, ["sec_staleness.py", "--quiet"]),   # 11-11: companyfacts lagging the newest filing → data_issues
+        ("strategy signal backlog", LPY, HERE, ["strategy_signals.py", "--price-only", "--budget=1500"]),   # 11-11: drain shadow fires the 300 s in-build pass leaves open (soft; LSEG, sequential)
         ("options flow", SH, HERE, ["-c", f"{PY} options_flow.py --max-minutes 40 2>&1 | tail -1"]),   # A396: LSE OPRA prints ≥ $25k → options_flow_* (Breakdown + Feed; display only; soft, last so nothing waits on it)
     ],
 }

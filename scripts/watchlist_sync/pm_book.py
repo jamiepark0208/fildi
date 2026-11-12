@@ -27,6 +27,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from book_accounting import accounting
+from cash_moves import plan as rebalance_plan
 from build_plan import connect, rows
 
 OUT = Path(__file__).resolve().parent / "out" / "pm"
@@ -185,7 +186,32 @@ def main() -> None:
         amber = amber or (b["crash_drop_pct"] or 0) > PM_RULES["crash_warn"]
         b["status"] = "red" if red else "amber" if amber else "green"
         books[name] = b
-    out = {"generated": datetime.now().isoformat(timespec="seconds"), "snapshot_id": snap, "snapshot_at": taken.isoformat(), "live_priced_at": priced,
+    # A372 § 2/§ 4: ONE market-wide cash target (cash_target.py) → per-account moves to reach it. Target never reads an account.
+    tgt = rows(conn, """SELECT as_of::text, policy_version, target, lo, hi, regime, direction, reasons, known_at::text
+                        FROM watchlist_sync.cash_target ORDER BY as_of DESC, known_at DESC LIMIT 1""") if conn.execute(
+        "SELECT to_regclass('watchlist_sync.cash_target')").fetchone()[0] else []
+    cash_target = tgt[0] if tgt else None
+    if cash_target:
+        folders = {r["t"]: r["f"] for r in rows(conn, """SELECT UPPER(ticker) t, (array_agg(folder_key ORDER BY CASE folder_key
+                       WHEN 'avoid' THEN 0 WHEN 'trim_risk' THEN 1 ELSE 2 END))[1] f FROM watchlist_sync.model_items
+                       WHERE run_id = (SELECT MAX(id) FROM watchlist_sync.model_runs) GROUP BY 1""")}
+        calls = rows(conn, """SELECT account, UPPER(symbol) t, SUM(qty)::float8 q FROM portfolio_options WHERE snapshot_id = %s
+                              AND option_type = 'call' AND direction = 'short' AND expiration >= CURRENT_DATE GROUP BY 1, 2""", (snap,))
+        picks = [{"ticker": r["ticker"], "rank": r["rank"], "strike": float(r["k"]), "expiry": r["e"], "bid": float(r["b"] or 0)}
+                 for r in rows(conn, """SELECT ticker, rank, payload->>'strike' k, payload->>'expiry' e, payload->>'bid' b
+                                        FROM watchlist_sync.put_recs_daily WHERE pass AND payload->>'strike' IS NOT NULL
+                                          AND as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) ORDER BY rank LIMIT 15""")]
+        for acct, a in accts.items():
+            name = ACCOUNTS.get(acct, acct)
+            margin_loan = "margin" in (a["type"] or "").lower() and (a["cash"] or 0) < 0
+            stocks = [{"ticker": x["t"], "qty": x["q"], "px": (x["mv"] or 0) / x["q"] if x["q"] else 0, "folder": folders.get(x["t"])}
+                      for x in longs if x["account"] == acct and (x["q"] or 0) > 0]
+            aputs = [{"ticker": p["t"], "strike": p["k"], "expiry": str(p["exp"]), "qty": p["q"], "mark": p["mark"], "prem": p["prem"]}
+                     for p in puts if p["account"] == acct]
+            books[name]["rebalance"] = rebalance_plan(books[name]["accounting"], cash_target, aputs, stocks,
+                                                      {c["t"]: c["q"] for c in calls if c["account"] == acct}, picks,
+                                                      allow_new_puts=not margin_loan)
+    out = {"generated": datetime.now().isoformat(timespec="seconds"), "snapshot_id": snap, "cash_target": cash_target, "snapshot_at": taken.isoformat(), "live_priced_at": priced,
            "rules": PM_RULES, "accounts": books,
            "positions": sorted(positions, key=lambda x: (x["expiry"], x["account"], -(x["move_needed"] or -1))),
            "unknown_notes": unknown_notes}

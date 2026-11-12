@@ -156,6 +156,9 @@ def main():
         n = 0 if "--no-log" in sys.argv else log_forecasts(conn, odds, today)
         ctx = context(conn)
         warn, lists = coherence(conn, ctx)
+        lag = int(np.busday_count(date.fromisoformat(odds["as_of"]), today))
+        if lag > 3:   # 11-11: VIX cache froze → odds sat on 10-21 for 3 weeks with no warning
+            warn.append(f"STALE: index odds use market data from {odds['as_of']} ({lag} sessions old) — check the FRED/GSPC inputs")
         import put_edge
         edge = put_edge.scores(conn)
         put_edge.persist(conn, edge)

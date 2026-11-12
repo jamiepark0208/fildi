@@ -140,3 +140,18 @@ describe("TTLCache.getOrCompute", () => {
     } finally { TTLCache.FAIL_COOLDOWN_MS = saved; }
   });
 });
+
+describe("TTLCache.getOrComputeStale", () => {
+  it("expired key returns last value at once and refreshes behind; cold key waits", async () => {
+    const c = new TTLCache<number>(20, "swr-test");
+    let n = 0;
+    const compute = async () => { await new Promise(r => setTimeout(r, 30)); return ++n; };
+    assert.equal(await c.getOrComputeStale("k", compute), 1);          // cold: waits
+    await new Promise(r => setTimeout(r, 25));                          // expire
+    const t0 = Date.now();
+    assert.equal(await c.getOrComputeStale("k", compute), 1);          // stale served immediately
+    assert.ok(Date.now() - t0 < 15);
+    await new Promise(r => setTimeout(r, 45));                          // background refresh landed
+    assert.equal(await c.getOrComputeStale("k", compute), 2);
+  });
+});

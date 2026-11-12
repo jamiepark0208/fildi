@@ -34,9 +34,19 @@ SIGNALS = ["curve_inverted", "curve_2s10s_inverted", "credit_wide", "nfci_tight"
 
 def series(name: str) -> tuple[list[date], list[float]]:
     f = IN / f"{name}.csv"
-    if not f.exists() and name != "GSPC":
+    # 11-11: the cache was download-once → VIXCLS stopped at 10-16 and S057's panel (house view odds, cash target) froze on
+    # 10-21 for 3 weeks. Refresh a FRED file older than 20 h; on failure keep the cached copy (first fetch still must work).
+    import time
+    if name != "GSPC" and (not f.exists() or time.time() - f.stat().st_mtime > 20 * 3600):
         IN.mkdir(parents=True, exist_ok=True)
-        f.write_bytes(urllib.request.urlopen(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={name}", timeout=60).read())
+        try:
+            data = urllib.request.urlopen(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={name}", timeout=20 if f.exists() else 60).read()
+            if name.encode() in data[:300]:
+                f.write_bytes(data)
+        except Exception as e:  # noqa: BLE001
+            if not f.exists():
+                raise
+            print(f"  FRED {name} refresh skipped ({str(e)[:60]}); using cache")
     ds, vs = [], []
     for r in csv.reader(open(f)):
         try:

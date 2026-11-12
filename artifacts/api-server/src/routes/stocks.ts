@@ -800,7 +800,7 @@ async function fetchQuoteSummary(ticker: string, modules: string[]) {
 async function fetchQuoteMetrics(ticker: string): Promise<QuoteMetrics> {
   const key = ticker.toUpperCase();
   // getOrCompute coalesces concurrent misses for the same ticker into one Yahoo call.
-  return quoteCache.getOrCompute(key, async () => {
+  return quoteCache.getOrComputeStale(key, async () => {  // expired → last metrics now (live price re-applied by caller), refresh behind
     const [fmpRow, regRow, fv, liveMap] = await Promise.all([
       readFundamentalsRow(key),
       readRegistryRow(key),
