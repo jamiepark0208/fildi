@@ -122,3 +122,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A401](asks/A401.md) | 2026-11-12 | Muse → Claude | ML+stats battery from neuron.machinelearning: GARCH+ML vol, pairs, GMM regimes, PCA, RF control | declined |
 | [A402](asks/A402.md) | 2026-11-12 | Muse → Claude | Daily-brief research triggers: historical-analogue library — CEO scandals, Japan PPI/carry, hot CPI | revise |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | re-review (Revisit met 2026-11-12: date 2026-11-12) |
+| [A403](asks/A403.md) | 2026-11-12 | Muse → Cursor | CI red on every push — A130 duplicated in ASKS.md + ASKS-archive.md | open |
