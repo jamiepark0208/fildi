@@ -398,7 +398,7 @@ def _hist_var(conn, b: dict, puts: list[dict], longs: list[dict], days: int = 50
 
 
 def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], rng: random.Random,
-             conn=None) -> dict | None:
+             conn=None, extra_names: frozenset[str] = frozenset()) -> dict | None:
     import time
     b = book["accounts"][acct]
     puts = [p for p in book["positions"]
@@ -408,7 +408,8 @@ def simulate(book: dict, acct: str, longs: list[dict], vols: dict[str, float], r
     near = min(p["expiry"] for p in puts)
     days = min(p["days_left"] for p in puts if p["expiry"] == near)
     t = max(days, 0.5) / 252
-    names = sorted({p["ticker"] for p in puts} | {x["t"] for x in longs})
+    # A205 u4: extra_names lets base and with-candidate runs draw over the same name set (common draws).
+    names = sorted({p["ticker"] for p in puts} | {x["t"] for x in longs} | set(extra_names))
     ratio, margin = b.get("maint_ratio_est"), "maint_ratio_est" in b
     expiring = [p for p in puts if p["expiry"] == near]
     # A260: MC is front-expiry only — surface notional by every expiry so the label is honest.
@@ -584,19 +585,21 @@ def what_if_add_put(
                                 WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))
         longs = [x for x in allongs if x["account"] == acct_ids.get(acct)]
         vols = realized_vol(conn, sorted({x["t"] for x in longs} | {cand["ticker"]}))
-        rng = random.Random(int(snap) if snap else 0)
-        base_sim = simulate(book, acct, longs, vols, rng, conn=conn)
+        seed = int(snap) if snap else 0
+        extra = frozenset({cand["ticker"]})
+        # A205 u4: fresh rng with one seed per run → identical draws, so Δ is the trade, not sampling noise.
+        base_sim = simulate(book, acct, longs, vols, random.Random(seed), conn=conn, extra_names=extra)
         book2 = copy.deepcopy(book)
         book2["positions"] = list(book2.get("positions") or []) + [cand]
-        with_sim = simulate(book2, acct, longs, vols, rng, conn=conn)
+        with_sim = simulate(book2, acct, longs, vols, random.Random(seed), conn=conn, extra_names=extra)
 
     rules = book.get("rules") or {"crash_budget": 0.25, "crash_warn": 0.20}
     crash_base = book["accounts"][acct].get("crash_drop_pct")
     crash_with = _crash_drop(book2, acct)
 
-    def band(risk: float | None, margin: bool) -> str:
+    def band(risk: float | None, margin: bool) -> str | None:
         if risk is None:
-            return "green"
+            return None  # A205 u4: missing risk is unknown, never green
         lo = THRESH["margin_amber"] if margin else THRESH["cash_amber"]
         hi = THRESH["margin_red"] if margin else THRESH["cash_red"]
         if risk >= hi:
@@ -608,33 +611,68 @@ def what_if_add_put(
     margin = bool((with_sim or base_sim or {}).get("margin")) if (with_sim or base_sim) else True
     risk_base = base_sim["risk"] if base_sim else None
     risk_with = with_sim["risk"] if with_sim else None
-    badge = band(risk_with, margin)
+    base_exp = str(base_sim["expiry"]) if base_sim else None
+    with_exp = str(with_sim["expiry"]) if with_sim else None
+    cand_in_mc = with_exp == str(expiry)
+    same_horizon = base_exp is not None and base_exp == with_exp
+    # A205 u4: MC covers the nearest expiry only → list what each run left out.
+    excluded_with = {k: round(v) for k, v in ((with_sim or {}).get("notional_by_expiry") or {}).items() if k != with_exp}
+    coverage = {
+        "method": "mc_front_expiry_only" if with_sim else None,
+        "paths": PATHS,
+        "common_draws": True,
+        "base_expiry": base_exp,
+        "with_expiry": with_exp,
+        "candidate_in_mc": cand_in_mc,
+        "excluded_notional": excluded_with,
+        "crash_covers_candidate": crash_with is not None,
+        "snapshot_id": snap,
+        "book_generated_at": book.get("generated_at"),
+    }
+    mc_band = band(risk_with, margin) if cand_in_mc else None
+    badge = mc_band
     if crash_with is not None and crash_with > rules.get("crash_budget", 0.25):
         badge = "red"
-    elif crash_with is not None and crash_with > rules.get("crash_warn", 0.20) and badge == "green":
+    elif crash_with is not None and crash_with > rules.get("crash_warn", 0.20) and badge in (None, "green"):
         badge = "amber"
+    elif badge is None and crash_with is not None:
+        badge = "partial"  # crash-week counts the trade; the MC did not → not a whole-trade clearance
 
     er_flag = earnings_days_out is not None and 0 <= earnings_days_out <= days
     reasons = []
-    if risk_base is not None and risk_with is not None:
-        reasons.append(f"P(risk) {risk_base:.0%} → {risk_with:.0%} (Δ {(risk_with - risk_base):+.0%})")
+    risk_delta = None
+    if risk_base is not None and risk_with is not None and same_horizon:
+        risk_delta = risk_with - risk_base
+        reasons.append(f"P(risk) {risk_base:.0%} → {risk_with:.0%} (Δ {risk_delta:+.0%}) to {with_exp}")
+    elif risk_base is None and risk_with is not None:
+        reasons.append(f"P(risk) with trade {risk_with:.0%}; no base run (no open puts with IV) — Δ not computed")
+    elif risk_base is not None and risk_with is not None:
+        reasons.append(f"MC horizon moved {base_exp} → {with_exp}; Δ not comparable")
+    if not cand_in_mc:
+        reasons.append(f"MC covers {with_exp or 'nothing'} only; {expiry} put counted in crash-week only")
     if crash_base is not None and crash_with is not None:
         reasons.append(f"crash-week drop {crash_base:.0%} → {crash_with:.0%}")
+    elif crash_with is not None:
+        reasons.append(f"crash-week drop with trade {crash_with:.0%} (no base)")
+    if risk_with is None and crash_with is None:
+        badge = "unknown"
+        reasons.append("no simulation and no crash scenario — risk unknown, not zero")
     if er_flag:
         reasons.append(f"earnings in {earnings_days_out}d inside DTE ({days}d)")
-        if badge == "green":
+        if badge in ("green", "partial"):
             badge = "amber"
 
     return {
         "account": acct,
         "candidate": {k: cand[k] for k in ("ticker", "strike", "expiry", "qty", "iv", "spot")},
-        "badge": badge,
+        "badge": badge or "unknown",
         "risk_base": risk_base,
         "risk_with": risk_with,
-        "risk_delta": (risk_with - risk_base) if risk_base is not None and risk_with is not None else None,
+        "risk_delta": risk_delta,
         "crash_base": crash_base,
         "crash_with": crash_with,
         "earnings_in_dte": er_flag,
+        "coverage": coverage,
         "reasons": reasons,
         "note": "Advisory only — Jamie overrides freely (A136).",
     }

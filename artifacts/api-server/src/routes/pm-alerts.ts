@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { TTLCache } from "../lib/ttl-cache.js";
 import { exDivWarningBullets } from "../lib/ex-div-warnings.js";
 
 const router = Router();
@@ -163,6 +164,9 @@ router.get("/pm/alerts", requireAdmin, async (_req, res, next) => {
   }
 });
 
+/** A205 u4: one bounded job per (book version, engine version, candidate); identical concurrent asks share it. */
+const whatIfCache = new TTLCache<unknown>(10 * 60_000, "pm-what-if", 200);
+
 /**
  * POST /api/pm/what-if — A136 candidate mode (Claude plan 10-16).
  * Body: { account, ticker, strike, expiry, qty, iv, spot, premium? }
@@ -183,25 +187,30 @@ router.post("/pm/what-if", requireAdmin, async (req, res) => {
     if (!(strike > 0) || !(iv > 0) || !(spot > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
       return res.status(400).json({ error: "need strike, iv, spot, expiry YYYY-MM-DD" });
     }
-    const py = resolve(ROOT, ".venv/bin/python");
+    // A205 u4: venv lives in scripts/watchlist_sync (ROOT/.venv does not exist → every call was spawn ENOENT).
+    const py = resolve(ROOT, "scripts/watchlist_sync/.venv/bin/python");
     const script = resolve(ROOT, "scripts/watchlist_sync/pm_alerts.py");
     const args = [
       script, "--what-if", account, ticker, String(strike), expiry, String(qty), String(iv), String(spot),
       ...(premium != null && Number.isFinite(premium) ? [String(premium)] : []),
     ];
-    const body = await new Promise<string>((resolveP, reject) => {
-      const child = spawn(py, args, { cwd: resolve(ROOT, "scripts/watchlist_sync"), timeout: 120_000 });
-      let out = "";
-      let err = "";
-      child.stdout.on("data", (d) => { out += d; });
-      child.stderr.on("data", (d) => { err += d; });
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code === 0) resolveP(out);
-        else reject(new Error(err.trim() || out.trim() || `exit ${code}`));
+    const mtime = (p: string) => (existsSync(p) ? statSync(p).mtimeMs : 0);
+    const key = [mtime(BOOK_PATH), mtime(script), ...args.slice(2)].join("|");
+    const json = await whatIfCache.getOrCompute(key, async () => {
+      const body = await new Promise<string>((resolveP, reject) => {
+        const child = spawn(py, args, { cwd: resolve(ROOT, "scripts/watchlist_sync"), timeout: 120_000 });
+        let out = "";
+        let err = "";
+        child.stdout.on("data", (d) => { out += d; });
+        child.stderr.on("data", (d) => { err += d; });
+        child.on("error", reject);
+        child.on("close", (code) => {
+          if (code === 0) resolveP(out);
+          else reject(new Error(err.trim() || out.trim() || `exit ${code}`));
+        });
       });
+      return JSON.parse(body.trim().split("\n").filter(Boolean).pop() || "{}");
     });
-    const json = JSON.parse(body.trim().split("\n").filter(Boolean).pop() || "{}");
     return res.json(json);
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

@@ -5,7 +5,7 @@
  * Compact by default: one chip in the action row — not a full-width "BOOK RISK" card.
  */
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -21,6 +21,15 @@ export type WhatIfResult = {
   risk_with: number | null;
   crash_base: number | null;
   crash_with: number | null;
+  /** A205 u4: what the simulation covered (nearest expiry only). */
+  coverage?: {
+    method: string | null;
+    base_expiry: string | null;
+    with_expiry: string | null;
+    candidate_in_mc: boolean;
+    excluded_notional: Record<string, number>;
+    snapshot_id: number | null;
+  };
   note?: string;
   error?: string;
 };
@@ -41,7 +50,10 @@ export type RiskWhatIfInput = {
 function badgeCls(badge: string | undefined) {
   if (badge === "red") return "border-red-400/60 text-red-200 bg-red-500/20";
   if (badge === "amber") return "border-amber-400/60 text-amber-100 bg-amber-500/20";
-  return "border-emerald-400/60 text-emerald-100 bg-emerald-500/20";
+  if (badge === "green") return "border-emerald-400/60 text-emerald-100 bg-emerald-500/20";
+  // A205 u4: partial = MC did not cover this expiry; unknown = no risk inputs. Never shown as green.
+  if (badge === "partial") return "border-sky-400/60 text-sky-100 bg-sky-500/20";
+  return "border-zinc-400/60 text-zinc-100 bg-zinc-700/40";
 }
 
 export function RiskWhatIfBadge({
@@ -80,6 +92,15 @@ export function RiskWhatIfBadge({
     },
     onSuccess: () => setOpen(true),
   });
+  // A205 u4: a result belongs to one account/contract/qty/IV/spot/premium — drop it when any of them changes.
+  const inputKey = input
+    ? [input.account, input.ticker, input.strike, input.expiry, input.qty ?? 1, input.iv, input.spot, input.premium ?? ""].join("|")
+    : "";
+  const resetRun = run.reset;
+  useEffect(() => {
+    resetRun();
+    setOpen(false);
+  }, [inputKey, resetRun]);
   const override = useMutation({
     mutationFn: async () => {
       if (!input || !run.data) throw new Error("run first");
@@ -175,6 +196,16 @@ export function RiskWhatIfBadge({
           {(run.data.reasons ?? []).slice(0, 4).map((r, i) => (
             <div key={i} className="text-white/90">{r}</div>
           ))}
+          {run.data.coverage?.method && (
+            <div className="text-amber-100">
+              Simulated to {run.data.coverage.with_expiry} only
+              {Object.keys(run.data.coverage.excluded_notional ?? {}).length > 0
+                ? ` · not in sim: ${Object.entries(run.data.coverage.excluded_notional)
+                    .map(([d, n]) => `${d} $${(n / 1000).toFixed(1)}k`)
+                    .join(", ")}`
+                : ""}
+            </div>
+          )}
           {run.data.note && <div className="text-amber-100">{run.data.note}</div>}
           {(run.data.badge === "red" || run.data.badge === "amber") && (
             <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-white/10 mt-1">
