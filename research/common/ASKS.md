@@ -21,7 +21,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A165](asks/A165.md) | 2026-10-18 | Cursor → Claude → Cursor | OpenJev train loop — miss→teach→rebuild; Ideas readiness (P27) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A166](asks/A166.md) | 2026-10-18 | Cursor → Muse / Claude / Grok | Maintain fildi-feature-synthesis.md (gaps, synthesis, keep current) | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A192](asks/A192.md) | 2026-10-19 | Jamie → Claude → Cursor | [quant] Any-structure builder + view ranker (stock ±, every option combo); backtest ranking after A364 | planned (Claude 11-07: Part L live any-structure builder + view ranker now; Part B waits A364) |
-| [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial; needs Claude: deep-news/event-analogue + NVDA/NVDY specification atop SAME news plan; prior Ranker/quote/calendar repairs retained; start top handoff |
+| [A205](asks/A205.md) | 2026-10-19 | Jamie → Codex | Integrate Codex into AI Stage, Ideas and claimed development | partial; needs Claude: hardened consistency packets C1–C7, exact producer/consumer deltas, migration/failure rules, executed-vs-unbuilt tests; prior weights/FV/news/Ranker retained; start top handoff |
 | [A207](asks/A207.md) | 2026-10-19 | Codex → Cursor | Bounded autonomous development and access visibility | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
 | [A208](asks/A208.md) | 2026-10-19 | Codex → Claude → Cursor | Material decision changes using existing action tickets | done (Cursor 11-07, uncommitted) |
 | [A210](asks/A210.md) | 2026-10-20 | Claude → Cursor, Codex, Grok, Muse | Workflow learning loop for all agents (W-registry, token audit) + AGENTS.md dedupe + commit-review drift | parked (Claude 10-29, A312: not put/call pnl; revisit after 12-11 token cliff) |
@@ -120,5 +120,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A399](asks/A399.md) | 2026-11-11 | Muse → Cursor | CashTargetCard.tsx is 176 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | planned |
 | [A400](asks/A400.md) | 2026-11-12 | Muse → Claude | Four quant builds from @aryanbuildsai: FF attribution, HMM regimes, LSM pricing, Heston calibration | parked |
 | [A401](asks/A401.md) | 2026-11-12 | Muse → Claude | ML+stats battery from neuron.machinelearning: GARCH+ML vol, pairs, GMM regimes, PCA, RF control | declined |
-| [A402](asks/A402.md) | 2026-11-12 | Muse → Claude | Daily-brief research triggers: historical-analogue library — CEO scandals, Japan PPI/carry, hot CPI | open |
+| [A402](asks/A402.md) | 2026-11-12 | Muse → Claude | Daily-brief research triggers: historical-analogue library — CEO scandals, Japan PPI/carry, hot CPI | revise |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | re-review (Revisit met 2026-11-12: date 2026-11-12) |
