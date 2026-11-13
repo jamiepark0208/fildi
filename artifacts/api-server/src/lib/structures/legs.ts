@@ -24,6 +24,8 @@ export interface LegFill {
   fill: number;
   mid: number;
   iv: number | null;
+  /** A205 unit 2: false = no chain row / no price for this option leg (fill 0 is NOT a real price). */
+  quoted: boolean;
 }
 
 export interface ChainContext {
@@ -103,10 +105,14 @@ function yearsToExpiry(expiry: string, asOfMs = Date.now()): number {
   return Math.max((end - asOfMs) / (365 * 24 * 3600 * 1000), 0);
 }
 
-export function priceLegs(legs: Leg[], ctx: ChainContext): { fills: LegFill[]; netFill: number; netMid: number } {
+export function priceLegs(
+  legs: Leg[],
+  ctx: ChainContext,
+): { fills: LegFill[]; netFill: number; netMid: number; unquoted: number } {
   const fills: LegFill[] = [];
   let netFill = 0;
   let netMid = 0;
+  let unquoted = 0;
   for (const leg of legs) {
     if (leg.kind === "stock") {
       const { fill, mid } = stockFill(ctx.spot, leg.side);
@@ -114,27 +120,26 @@ export function priceLegs(legs: Leg[], ctx: ChainContext): { fills: LegFill[]; n
       const cashMid = mid * leg.qty * (leg.side === "long" ? -1 : 1);
       netFill += cash;
       netMid += cashMid;
-      fills.push({ leg, fill, mid, iv: null });
+      fills.push({ leg, fill, mid, iv: null, quoted: true });
       continue;
     }
     const chain = leg.expiry ? findChain(ctx.chains, leg.expiry) : pickExpiry(ctx.chains, 30);
-    if (!chain || leg.strike == null) {
-      fills.push({ leg, fill: 0, mid: 0, iv: null });
+    const row = chain && leg.strike != null ? findStrikeRow(chain, leg.kind, leg.strike) : null;
+    const px = row ? contractFill(row, leg.side) : null;
+    // A205 unit 2: no row, or a row with no bid/ask/last → unquoted; never price it as free.
+    if (!row || !px || !(px.mid > 0)) {
+      unquoted += 1;
+      fills.push({ leg, fill: 0, mid: 0, iv: null, quoted: false });
       continue;
     }
-    const row = findStrikeRow(chain, leg.kind, leg.strike);
-    if (!row) {
-      fills.push({ leg, fill: 0, mid: 0, iv: null });
-      continue;
-    }
-    const { fill, mid } = contractFill(row, leg.side);
+    const { fill, mid } = px;
     const mult = OPTION_MULT * leg.qty;
     const sign = leg.side === "short" ? 1 : -1;
     netFill += sign * fill * mult;
     netMid += sign * mid * mult;
-    fills.push({ leg, fill, mid, iv: row.iv > 0 ? row.iv : null });
+    fills.push({ leg, fill, mid, iv: row.iv > 0 ? row.iv : null, quoted: true });
   }
-  return { fills, netFill, netMid };
+  return { fills, netFill, netMid, unquoted };
 }
 
 function legIntrinsic(leg: Leg, S: number): number {
@@ -434,6 +439,8 @@ export interface PricedStructure {
   fills: LegFill[];
   netFill: number;
   netMid: number;
+  /** A205 unit 2: count of option legs with no chain quote (numbers below treat them as free). */
+  unquoted: number;
   maxLoss: number;
   maxGain: number;
   breakevens: number[];

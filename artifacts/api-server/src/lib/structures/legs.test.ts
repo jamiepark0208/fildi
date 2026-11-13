@@ -578,3 +578,25 @@ describe("Part C fix2 — credit-by-design templates on BS synth", () => {
     assert.ok(p.breakevens[0] < spot, "BE below spot");
   });
 });
+
+describe("legs — A205 unit 2 unquoted legs", () => {
+  it("a strike off the chain is flagged unquoted, never priced as free", () => {
+    const chain = synthChain(100, "2026-12-19", 30);
+    const ctx: ChainContext = { spot: 100, chains: [chain] };
+    const legs: Leg[] = [
+      { kind: "put", side: "short", qty: 1, strike: 95, expiry: chain.expiry },
+      { kind: "put", side: "long", qty: 1, strike: 87.5, expiry: chain.expiry }, // not on the 5-pt ladder
+    ];
+    const p = priceLegs(legs, ctx);
+    assert.equal(p.unquoted, 1);
+    assert.equal(p.fills[0]!.quoted, true);
+    assert.equal(p.fills[1]!.quoted, false);
+    assert.equal(priceStructure(legs, ctx, 30).unquoted, 1);
+  });
+  it("fully quoted structure has unquoted 0", () => {
+    const chain = synthChain(100, "2026-12-19", 30);
+    const ctx: ChainContext = { spot: 100, chains: [chain] };
+    const legs: Leg[] = [{ kind: "call", side: "long", qty: 1, strike: 100, expiry: chain.expiry }];
+    assert.equal(priceLegs(legs, ctx).unquoted, 0);
+  });
+});

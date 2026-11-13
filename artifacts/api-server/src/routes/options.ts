@@ -197,8 +197,11 @@ router.post("/options/structures/price", async (req, res) => {
   const spot = snap.chains[0].spot;
   const horizon = typeof horizonDays === "number" ? horizonDays : 30;
   try {
-    const result = priceStructure(legs as Leg[], { spot, chains: snap.chains }, horizon);
-    return res.json({ ticker: ticker.toUpperCase(), spot, asOf: snap.fetchedAt, ...result });
+    // A205 unit 2: same chain fill as the Ranker (stored chain + cached ATM/back-month ladder) so ATM/ITM legs get quotes.
+    const { chains, filled } = await rankerChains(ticker.toUpperCase(), snap.chains, horizon);
+    const px = chains[0]?.spot ?? spot;
+    const result = priceStructure(legs as Leg[], { spot: px, chains }, horizon);
+    return res.json({ ticker: ticker.toUpperCase(), spot: px, asOf: snap.fetchedAt, ladderFilled: filled, ...result });
   } catch (err: unknown) {
     return res.status(500).json({ error: String((err as Error)?.message ?? err) });
   }
@@ -218,16 +221,18 @@ router.post("/options/structures/template", async (req, res) => {
     return res.status(404).json({ error: "no stored chain — refresh chain first" });
   }
   const horizon = typeof horizonDays === "number" ? horizonDays : 45;
-  const built = buildTemplate(templateId as TemplateId, { chains: snap.chains, horizonDays: horizon });
+  const { chains, filled } = await rankerChains(ticker.toUpperCase(), snap.chains, horizon);   // A205 unit 2
+  const built = buildTemplate(templateId as TemplateId, { chains, horizonDays: horizon });
   if (!built?.legs.length) {
     return res.status(404).json({ error: "template could not be built from stored chain" });
   }
   try {
-    const spot = snap.chains[0].spot;
-    const result = priceStructure(built.legs, { spot, chains: snap.chains }, horizon);
+    const spot = chains[0]?.spot ?? snap.chains[0].spot;
+    const result = priceStructure(built.legs, { spot, chains }, horizon);
     return res.json({
       ticker: ticker.toUpperCase(),
       templateId,
+      ladderFilled: filled,
       legs: built.legs,
       noCredit: built.noCredit ?? false,
       spot,

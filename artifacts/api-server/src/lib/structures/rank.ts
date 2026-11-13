@@ -148,7 +148,7 @@ export async function rankStructuresForView(opts: {
     const legs = built.legs;
     const priced = priceStructure(legs, ctx, opts.horizonDays);
     // A205 D4: a leg with no chain quote was priced as free (fill 0 → maxLoss 0) — never rank an unquoted structure.
-    if (priced.fills.some((f) => f.leg.kind !== "stock" && f.fill === 0 && f.mid === 0)) { unpriced.push(id); continue; }
+    if (priced.unquoted > 0) { unpriced.push(id); continue; }
     if (priced.maxLoss > opts.maxLoss && priced.maxLoss > 0) continue;
     // Payoff is intrinsic at the nearest leg expiry, so the price distribution must stop there too (was the full horizon:
     // a 5-DTE straddle drew 30 days of moves → AAPL long straddle +$2,070).

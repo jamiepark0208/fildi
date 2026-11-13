@@ -29,6 +29,7 @@ type PriceResp = {
   payoff: { spot: number; pnl: number }[];
   templateId: string;
   noCredit?: boolean;
+  unquoted?: number;
 };
 
 type BacktestSlice = { id: string; verdict: Verdict; why?: string } | undefined;
@@ -98,7 +99,12 @@ export function StrategyCard({
         ) : null}
       </div>
 
-      {priced ? (
+      {priced && (priced.unquoted ?? 0) > 0 ? (
+        <div className="text-amber-300">
+          Unpriced: {priced.unquoted} leg{priced.unquoted === 1 ? "" : "s"} not quoted on the stored chain — refresh the chain
+          or pick another expiry.
+        </div>
+      ) : priced ? (
         <div className="grid gap-2 lg:grid-cols-2">
           <div className="text-amber-100 space-y-0.5">
             <div className="text-white font-mono tabular-nums">

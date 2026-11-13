@@ -27,7 +27,8 @@ type PriceResp = {
   breakevens: number[];
   buyingPower: number;
   payoff: { spot: number; pnl: number }[];
-  fills: { leg: Leg; fill: number; mid: number }[];
+  fills: { leg: Leg; fill: number; mid: number; quoted?: boolean }[];
+  unquoted?: number;
 };
 
 const DEFAULT_LEGS: Leg[] = [
@@ -183,7 +184,16 @@ export function StructureBuilder({
       </div>
       <button type="button" className="text-[#d4af37]" onClick={addLeg}>+ leg</button>
 
-      {priced ? (
+      {priced && (priced.unquoted ?? 0) > 0 ? (
+        <div className="text-amber-300">
+          Unpriced: no quote for{" "}
+          {priced.fills
+            .filter((f) => f.quoted === false)
+            .map((f) => `${f.leg.side} ${f.leg.kind} ${f.leg.strike ?? "?"} ${f.leg.expiry ?? ""}`.trim())
+            .join(", ")}
+          . Fill, max loss and POP would count that leg as free.
+        </div>
+      ) : priced ? (
         <div className="grid gap-2 md:grid-cols-2">
           <div className="space-y-1 text-amber-100">
             <DataTip tip="Contract fills (23 % spread); mid shown for context only.">

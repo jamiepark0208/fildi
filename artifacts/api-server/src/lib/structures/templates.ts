@@ -162,7 +162,12 @@ function pickBestCreditCandidate(
   let bestAnyFill = -Infinity;
   for (const legs of candidates) {
     if (!creditOtmShapeOk(id, legs, chain, ctx, horizon)) continue;
-    const { netFill } = priceLegs(legs, ctx);
+    const { netFill, unquoted } = priceLegs(legs, ctx);
+    // A205 unit 2: an unquoted leg adds 0 (a free wing inflates credit) → only quoted candidates compete.
+    if (unquoted > 0) {
+      if (!bestAny) bestAny = legs;
+      continue;
+    }
     if (netFill > bestAnyFill) {
       bestAnyFill = netFill;
       bestAny = legs;
@@ -844,9 +849,9 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "iron_fly": {
-      const atm = chain!.puts.reduce((a, b) =>
-        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
-      );
+      const atmK = commonAtmStrike(chain!.spot, [[chain!, "put"], [chain!, "call"]]);
+      if (atmK == null) return null;
+      const atm = { strike: atmK };
       const putWing = pickWidth(chain!, "put", atm.strike, width * 2);
       const callWing = pickWidth(chain!, "call", atm.strike, width * 2);
       return [
@@ -920,9 +925,9 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "big_lizard": {
-      const atm = chain!.puts.reduce((a, b) =>
-        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
-      );
+      const atmK = commonAtmStrike(chain!.spot, [[chain!, "put"], [chain!, "call"]]);
+      if (atmK == null) return null;
+      const atm = { strike: atmK };
       const longCall = pickWidth(chain!, "call", atm.strike, width);
       return [
         { kind: "put", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
@@ -931,9 +936,9 @@ function buildTemplateLegs(id: TemplateId, opts: BuildOpts): Leg[] | null {
       ];
     }
     case "reverse_big_lizard": {
-      const atm = chain!.puts.reduce((a, b) =>
-        Math.abs(b.strike - chain!.spot) < Math.abs(a.strike - chain!.spot) ? b : a,
-      );
+      const atmK = commonAtmStrike(chain!.spot, [[chain!, "put"], [chain!, "call"]]);
+      if (atmK == null) return null;
+      const atm = { strike: atmK };
       const longPut = pickWidth(chain!, "put", atm.strike, width);
       return [
         { kind: "call", side: "short", qty: 1, strike: atm.strike, expiry: chain!.expiry },
