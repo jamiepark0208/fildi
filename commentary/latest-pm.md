@@ -1,124 +1,81 @@
-# Evening Market Recap — Wednesday, November 11, 2026 (Post-Close)
+# Evening Market Recap — Thursday, November 12, 2026 (Post-Close)
 
-**Banner:** S&P 7,619.38 +1.31% · Dow 52,486.49 +0.49% · Nasdaq 25,466.19 +1.60% · 10Y 4.99% (unchanged, bond market closed) · Brent $92.76 +1.39% · VIX 17.49 −10.1%
+| Name | Close | Day % | 1W % | 1M % | Note |
+|---|---|---|---|---|---|
+| S&P 500 | 7,592.40 | -0.35% | +3.25% | -2.75% | |
+| Dow | 52,297.09 | -0.36% | +1.50% | +0.86% | |
+| Nasdaq Composite | 25,366.09 | -0.39% | +4.32% | -6.90% | |
+| Nasdaq 100 | 28,286.72 | -0.31% | +6.22% | -7.76% | |
+| Russell 2000 | 2,799.06 | -1.66% | +2.53% | +0.16% | |
+| VIX | 18.70 | +6.86% | -33.6% | +23.0% | |
+| 10Y Treasury | 5.10% | +10.5 bp | +26 bp | -14 bp | 1M vs Oct 9 close; bond market closed Oct 12 |
+| 2Y Treasury | 4.88% | +14 bp | +40 bp | — | |
+| 30Y Treasury | 5.43% | +8 bp | — | — | |
+| Dollar index | 103.18 | +0.3% | — | — | |
+| Gold | $3,882.10 | -2.96% | -5.3% | -6.9% | |
+| WTI crude | $88.71 | +2.52% | -2.3% | -4.7% | |
+| Brent crude | ~$94 | +1.0% | -4.4% | -11.4% | President Trump (R) posted on social media; Iran standoff underpins the bid |
+| Bitcoin | $71,336 | -3.56% | -5.9% | -12.8% | |
 
-## Moves
+| Name | Close | Day % | 1W % | 1M % |
+|---|---|---|---|---|
+| Nikkei 225 | 60,798.84 | -0.71% | -0.46% | — |
+| Shanghai Composite | 3,656 | -0.67% | — | — |
+| Hang Seng | 24,034.38 | -1.2% | -3.08% | — |
+| KOSPI | — | -0.61% | — | — |
+| Taiwan Taiex | — | -2.6% | — | — |
+| STOXX 600 | 664.01 | +0.14% | +1.40% | — |
+| DAX | 26,771.88 | +0.41% | +1.70% | — |
+| FTSE 100 | 10,863.09 | +0.25% | +0.75% | — |
+| CAC 40 | 8,361.36 | +0.34% | +1.90% | — |
 
-| Name | Close | Day % |
-|---|---|---|
-| S&P 500 | 7,619.38 | +1.31% |
-| Dow | 52,486.49 | +0.49% |
-| Nasdaq Composite | 25,466.19 | +1.60% |
-| Nasdaq 100 | 28,374.25 | +2.28% |
-| Russell 2000 | 2,846.26 | +0.88% |
-| VIX | 17.49 | −10.13% |
-| 10Y Treasury | 4.99% | 0 bp (market closed) |
-| 2Y Treasury | 4.73% | 0 bp (market closed) |
-| 30Y Treasury | 5.35% | 0 bp (market closed) |
-| Dollar index | 102.92 | +0.67% |
-| Gold (Dec) | $3,991.10 | −0.97% |
-| WTI crude | $86.36 | +0.37% |
-| Brent crude | $92.76 | +1.39% |
-| Bitcoin futures | — | +1.3% |
+| Name | Close | Day % | 1W % | 1M % | Note |
+|---|---|---|---|---|---|
+| Nvidia (NVDA) | $166.19 | -4.34% | -16.96% | -27.28% | Opened $151.00, low $148.80 |
+| AMD | $585.30 | +5.86% | +19.75% | -3.34% | |
+| Broadcom (AVGO) | $364.36 | +5.54% | +11.95% | +1.97% | |
+| CoreWeave (CRWV) | $56.60 | -6.86% | +16.89% | -27.26% | |
+| Strategy (MSTR) | $114.41 | -6.49% | — | — | MSCI deletion effective Dec 1 |
+| Nebius (NBIS) | — | -17% | — | — | On its print |
+| Energy sector | — | +1.52% | — | — | 4th straight advance |
+| Materials sector | — | -1.54% | — | — | Lagged |
 
-What it means: an AI-earnings rebound, not rate relief — stocks ripped while the bond market sat closed, so the 10Y near 5% went untested and the December hike stayed priced (~90% for 25 bp). The VIX falling 10% while yields can't move says the vol market is calm and the rates market is still the tail risk; Thursday's reopen is the real test.
-
-| Name | Close | Day % |
-|---|---|---|
-| Nikkei 225 | 61,248.59 | +1.31% |
-| KOSPI | 5,375.36 | +2.60% |
-| Taiwan Taiex | 44,257.15 | +3.62% |
-| Shanghai Composite | 3,680.64 | +0.46% |
-| Hang Seng | 24,315.92 | −0.98% |
-| STOXX 600 | 663.05 | +0.72% |
-| DAX | 26,662.77 | +1.20% |
-| Euro Stoxx 50 | 6,393.39 | +1.04% |
-| FTSE 100 | 10,835.47 | +0.78% |
-
-What it means: Asia's chip-led rally carried into Europe — Taiwan and Korea ran on the same AI-demand read-through that lifted the U.S. open. The Hang Seng was the lone decliner, on rate-hike worries hitting property; the split says the rally is an AI story, not a global risk-on story.
-
-| Name | Close | Day % | Note |
-|---|---|---|---|
-| CoreWeave (CRWV) | — | +24.7% | Beat, raised FY guide to $13.0–13.3B, $132.5B backlog |
-| Micron (MU) | $811.30 | +11.89% | Memory the highest-beta leg of the chip rally |
-| Super Micro (SMCI) | $30.43 | +9.50% | |
-| Oracle (ORCL) | $128.38 | +8.82% | Gave back ~2.8% after hours on the NVDA news |
-| Intel (INTC) | $62.50 | +7.52% | |
-| Nvidia (NVDA) | $173.73 | +2.87% | Regular session only — see Desk flagged for after hours |
-| Rumble (RUM) | — | +16.6% | Quake AI GPU capacity nearly sold out |
-| Riskified (RSKD) | — | +22.3% | Q3 beat, raised FY guide |
-| Mercury Systems (MRCY) | — | higher | Beat and raised; defense leverage, margin inflection |
-
-What it means: CoreWeave's print answered the demand question for the whole AI stack — neocloud and memory led while the megacaps (MSFT, AMZN, META) were all weaker. But the rally's foundation is one headline from cracking: NVDA gave back its whole day after the close, so the AI trade is demand-proven and governance-fragile at the same time.
-
-| Name | Day % | Note |
-|---|---|---|
-| Tech (sector) | +2.71% | Led |
-| Energy (sector) | +1.83% | Oil and gas ended an eight-day slide in Europe |
-| Industrials (sector) | +1.32% | |
-| Consumer discretionary | +0.36% | Lagged |
-| Healthcare | +0.06% | Lagged |
-| Real estate | +0.03% | Lagged |
-
-What it means: a growth-led tape with defensive corners flat — breadth was positive (Nasdaq 1.78:1 advancers) but the equal-weight S&P lagged the cap-weighted index by ~50 bp, so this is still a narrow rally, not broad risk-on.
-
-## Data
-
-- **No economic data today** — Veterans Day; bond market closed, no releases, no Treasury trading.
-- **Fed:** Chicago Fed President Goolsbee called the October CPI print "borderline disturbing" and "distressing" — hawkish into Thursday's speaker slate and Friday's PPI.
-- **December pricing:** CME FedWatch ~90% for a 25 bp December hike; Goldman Sachs now expects hikes in December and March.
-
-## Politics
-
-- A House Republican (R) said Congress is prepared to subpoena NVDA CEO Jensen Huang amid the probe — the Washington escalation path from Tuesday now has a named next step.
-- Vice President Vance (R) may push for direct diplomacy with Iran's security chief, while a top Iranian official said none of Iran's enriched nuclear material will leave the country — oil's bid is skepticism about a diplomatic offramp, capped by U.S. reluctance to strike.
-
-## Single names
-
-- **CRWV:** Q3 revenue $3.66B vs ~$3.54B expected, +168% y/y; backlog $132.5B vs $104.2B in Q2; raised full-year revenue guidance to $13.0–13.3B; management said no new unsecured parent debt through 2027. The demand leg is answered; the debt leg ($846M quarterly interest, Q4 guided $1.05–1.15B) is not.
-- **NVDA (regular session):** +2.87% to $173.73, rebounding after three down sessions — then the after-hours reversal (see Desk flagged).
-- **COST:** announced a $30/share special dividend and a $4B buyback program.
-- **CTVA:** Q3 non-GAAP EPS $0.06 vs ~$0.10 expected, revenue $1.59B vs ~$1.77B; cut full-year guidance on weaker Brazil conditions; Latin America organic sales −31%.
-- **GO:** −6.4% — margin headwinds and lower EBITDA guide overshadowed improving comps. **SUJA:** −12.9% — lowered FY sales and EBITDA guide; downgraded to neutral at Goldman Sachs (GS). **ALC:** −2.2% — slight cut to FY core EPS guidance midpoint.
-
-Flat/non-moving: managed care, regional banks, airlines, retail/apparel, QSRs, homebuilders, building products, paper/packaging and staples all lagged without a single headline — the narrow rally left everything outside AI and energy behind.
-
-## What changed vs the morning thesis
-
-- Morning got it right: an AI-earnings-led rebound, narrow, with bonds untestable — the tape did exactly that, Nasdaq +1.6% while the 10Y sat frozen at 4.99%.
-- What shifted: the NVDA overhang the morning called "a bounce, not a resolution" resolved the wrong way after the close — board-ouster reports sent the stock −8% to −9% after hours, erasing the day's +2.9%.
-- The 50 bp December odds kept walking back (~90% now for 25 bp), and breadth stayed positive but equal-weight lagged — still a narrow rally, not broad risk-on.
+- Huang resigned as Nvidia CEO effective immediately; Kress is interim CEO, Jones the board's first chair. The stock opened at $151.00, touched $148.80, and closed at $166.19, down 4.34%, then rose 1.0% after hours. The CEO-scandal base rate — 11 cases since 2005, 6 of 11 higher at 3 months — splits on succession: vacuum cases fell (Intel 2018, -13.8% at 3 months; HP 2010, -33.5% at 1 year) while clean ones rose (McDonald's 2019, +11.0%; Boeing 2005, +10.3%). No permanent successor is named and DOJ probes landed the same day — this sits in the vacuum leg, so the base rate argues for patience, not a dip buy.
+- Rates did the damage the indexes hid: the 10-year rose 10.5 bp to 5.103% while the $25B 30-year auction tailed — high yield 5.441% against a 5.005% 12-auction average. December now fully prices a 25 bp hike with a 15% chance of 50 bp. Claims printed 200K vs 195K consensus and home sales hit a 16-year low at 3.75M, yet neither softened the repricing — 200K is still near the lowest since 1969. Gold fell 3% to $3,882, its lowest since October 2025 — yields, not safety, pulled money out. The Japan PPI trigger did not transmit: yen 159.84, flat, no carry unwind. Stocks fell only 0.35% because AMD and Broadcom rose about 6% each, but breadth ran 3.4-to-1 negative.
+- Applied Materials beat — $4.16 vs $4.06, revenue $10.41B vs $10.30B, guide $11.10B vs $10.89B — and fell 3.6% to $380.95, flat after hours: it cleared consensus and missed the $4.20 whisper. Cisco beat — $1.40 vs $1.33, revenue $18.52B vs $18.13B — and raised its outlook.
+- The morning called it a one-name shock, not a macro turn — that held: the S&P fell 0.35% while Nvidia recovered from -14% intraday to -4.3%, and Europe closed at records. The rates drag widened instead: the 10-year went 5.01% to 5.10%, the 30-year auction tailed, and 50 bp December odds reached 15%.
 
 ## Desk flagged
 
-- **NVDA board preparing to oust Huang (WSJ, ~3:41 PM PT; Bloomberg and CBS confirming):** directors could meet as soon as tonight to decide his future, after the New York Times reported a second alleged affair — with Kimberly Powell, VP of healthcare, who reports to him. Shares fell 8–9% after hours to ~$159–161. No decision, interim chief, or company statement had been announced as of the close. NVDA short puts stay off-limits — the headline risk now has no calendar and no floor, and earnings land Tuesday, Nov 17.
-- **Goolsbee's "borderline disturbing" CPI call** lands the day before six Fed speakers and a $25B 30-year auction — the hawkish drumbeat into Friday's PPI is getting louder, not softer.
-- **Saudi crude output surged 26% last month** to one of its highest levels in years (Bloomberg) — a supply overhang sitting under oil's Iran bid, so Brent's +1.39% is geopolitics, not fundamentals.
+- DOJ probes landed on Nvidia (Semafor) — multiple investigations including antitrust — and on Super Micro over possible China smuggling links (Yahoo Finance). Both add headline risk into Tuesday's Nvidia earnings; no NVDA or SMCI short puts, and NVDA-adjacent premium stays wide and 7+ DTE.
 
 ## Book impact
 
-- **VIX 17.49, −10% on the day:** short premium keeps decaying — bank the winners; the vol is not paying you to add here, with the Thu–Fri stack (claims, $25B 30Y, PPI) still ahead.
-- **No new short-dated premium into the Thu–Fri stack** — the event-stack guard still applies; PPI Friday is the print that confirms or walks back hot CPI.
-- **NVDA after-hours −8% to −9% on ouster reports:** any NVDA-adjacent short premium (SMCI, ORCL, CRWV) carries gap risk into Thursday's open — wide strikes and 7+ DTE only, if anything.
-- **Veterans Day was a nonsettlement day:** today's rolls and closes settle tomorrow — don't force expiries.
+- 69 short contracts expire Friday: the ONDS and OPEN calls (67 contracts) are marked $0.005 and set to expire worthless, and the IREN 18P ($0.115 mark) is nearly there. One live item: the IRA's RKLB 63C is $1.94 in the money, covered by 100 RKLB shares — decide before Friday's open whether to let the shares go at $63 or roll.
+- The November 20 book (8 DTE) is quiet: IREN puts out of the money near $19, five RGTI 13.5C shorts at $0.025. One IREN short put was bought back today for $0.20. No new short-dated premium into Friday's PPI.
+- Nvidia hits the equity book, not the premium book: IRA holds 100 shares at $216.64, now $166.04, down $5,060 (-23.4%). No NVDA short puts to manage; earnings Tue Nov 17 is the next decision point.
 
 ## Risk/events for tomorrow
 
-- **Thursday 8:30 AM ET:** initial jobless claims (cons ~195k, prior 189k); **10:00 AM:** existing home sales (cons 3.85M, prior 3.99M)
-- **Thursday:** $25B 30-year Treasury auction; Fed speakers Hammack, Barr, Goolsbee, Daly, Schmid; Williams after the close
-- **Friday 8:30 AM ET:** October PPI (headline cons +0.4% m/m vs +1.3% prior; core +0.3% vs +0.7% prior); Fed speakers Collins, Bowman, Daly, Jefferson
-- **Earnings Thursday:** Cisco (CSCO), Applied Materials (AMAT), Brookfield (BN), Nu Holdings (NU), Nebius (NBIS)
-- **Overnight watch:** NVDA board decision; NVDA earnings Tuesday, Nov 17
+- Fri 8:30 AM ET: October PPI (cons +0.4% m/m, prior +1.3%; core +0.3% vs +0.7% prior).
+- Fri: Fed speakers Collins, Bowman, Daly, Jefferson; MUFG, SMFG and Mizuho report before the open.
+- Overnight: Asia opens into the Nvidia/DOJ tape; Microsoft's Outlook outage still unresolved.
+- Tue Nov 17 after close: Nvidia earnings (revenue guide ~$108B).
 
-Systems: Mac online — book snapshot unavailable (DB local-only to the Mac, no shell probe on device); API/scheduler unverified
+Systems: Mac online — book snapshot from today's Robinhood export (fildi DB is Mac-local, 127.0.0.1); fildi API/scheduler unverified (no shell probe on device).
 
 ## Sources
 
-- Closes, VIX, gold, oil, DXY, sectors, breadth: https://swingfolio.com/daily/us/2026-11-11/afternoon · https://thecompanychronicle.com/story/stocks-close-nasdaq-100-up-2-3-percent-coreweave-24-micron-12-dow-255-points-november-11-2026 · https://www.curveaheadmarketstrategies.com/cams-closing-market-recap-november-11-2026/
-- Asia/Europe closes, Brent: https://edgeconsultancykw.com/europe-market-wrap-11-november-2026/ · https://cappnotes.substack.com/p/closing-look-wednesday-november-11
-- Single names (MU, SMCI, ORCL, INTC): https://www.nakag.ai/tales/micron-s-big-one-day-jump-and-three-like-it-2026-11-11 · https://www.marketbeat.com/stocks/NASDAQ/SMCI/ · Finnhub quotes via search
-- NVDA after hours: https://invezz.com/news/2026/11/12/kimberly-powell-nvidia-stock-jensen-huang-report/ · https://nypost.com/2026/11/11/business/nasdaq-surges-as-coreweave-earnings-anthropic-ipo-help-tech-trade-bounce-back-after-nvidia-affair-drama/ · https://www.fincept.news/news/nvidia-board-weighs-ousting-jensen-huang-as-shares-slide-8
-- Desk: Gmail label tradedash-brief, Nov 11 — FactSet StreetAccount U.S. Market Recap (4:09 PM ET); Bloomberg breaking news (NVDA ouster, 3:41/3:49 PM PT); WSJ Politics (NVDA CEO downfall, 3:50 PM PT)
-- CTVA earnings: https://www.morningstar.com/news/pr-newswire/20261111cl95463/corteva-reports-third-quarter-2026-results-updates-fy-2026-outlook · https://tech.knfoz.com/article/id-6af4dfbdb9330faa87c1d704
-- Fed pricing: StockTitan via swingfolio; Goolsbee via FactSet StreetAccount
-- Morning thesis: briefs/2026-11-11-am.md (this repo)
+- Closes, VIX, yields, gold, oil, bitcoin, breadth: https://fxnews.ai/news/russell2000-underperforms-sp500-november12-2026-us-close/ · https://wiseview.ai/news/stock-market-close-2026-11-12 · https://www.waverider.ai/market-analysis/market-summary-post-market-2026-11-12/ · https://stockmarketwatch.com/digest/2026-11-12 · https://medium.com/@marketsondeck/nvidia-sinks-4-3-the-indexes-hide-a-rougher-day-9c0513bce08e
+- Europe closes, Brent, yen, Bunds: https://finance.biggo.com/news/ef957334-c920-4a3e-a25c-b0d62dbc4628
+- Asia closes: https://my-passive-income.eu/markets-before-the-open-november-12-2026/
+- 1W levels (Nov 5 closes): briefs/2026-11-05-pm.md (this repo); NDX/RUT Nov 5: https://edgeconsultancykw.com/us-market-wrap-05-november-2026/; Asia/Europe Nov 5: https://edgeconsultancykw.com/europe-market-wrap-05-november-2026/
+- 1M levels (Oct 12 closes): https://edgeconsultancykw.com/us-market-wrap-12-october-2026/ · https://marketbriefer.com/the-global-close-october-12-2026-rotation-out-of-chips-lifts-dow-drags-nasdaq/ (10Y 1M vs Oct 9 close, bond market closed Oct 12; VIX Oct 12 ~15.2 per https://marketsnap.com/stock-market-summary-october-12-2026/; gold Oct 12 $4,167.56 per https://www.fool.com/coverage/stock-market-today/2026/10/12/stock-market-today-oct-12-dow-gains-as-memory-stocks-weigh-on-nasdaq/; WTI Oct 12 ~$93.06, Brent $106.09, bitcoin $81,782.78 per https://www.newbridgesecurities.com/daily-market-commentary/weekly-market-notes---october-12-2026 and https://www.globaltradingoutlook.com/markets/markets-digest-2026-10-12/)
+- Single names (NVDA/AMD/AVGO/CRWV closes, 5-session and 1-month returns): Finnhub via https://finnhub.io/?q=%22NVDA%22 · https://finnhub.io/?q=%22AMD%22 · https://finnhub.io/?q=%22AVGO%22 · https://finnhub.io/?q=%22CRWV%22; MSTR/NBIS: https://stockhango.com/2026/11/12/🌙-sk-aftershock-thursday-november-12-2026/ · https://www.investopedia.com/stock-market-today-dow-jones-s-and-p-500-nasdaq-11122026-12250329
+- Claims, home sales: https://mix929.com/2026/11/12/us-weekly-jobless-claims-increase-but-labor-market-firming/
+- 30Y auction, yields, Dec hike odds: https://www.waverider.ai/market-analysis/market-summary-post-market-2026-11-12/ · https://medium.com/@marketsondeck/nvidia-sinks-4-3-the-indexes-hide-a-rougher-day-9c0513bce08e
+- AMAT results: https://theapexwire.com/stock-market/applied-materials-record-10-41-billion-quarterly-revenue/ · https://www.earningswhispers.com/article/AMAT/r2693
+- CSCO results: https://www.zacks.com/stock/news/3029044/cisco-csco-reports-q1-earnings-what-key-metrics-have-to-say
+- Desk: Gmail label tradedash-brief, Nov 12 — GuruFocus Market Today (NVDA DOJ probe per Semafor; SMCI DOJ probe per Yahoo Finance; MSFT Outlook outage per CNBC); Bloomberg breaking news (MSFT Outlook/Copilot outage, 4:48 PM PT)
+- Morning thesis: briefs/2026-11-12-am.md (this repo)
+- Book snapshot: Robinhood holdings/transactions exports from Jamie's Mac, pulled 2026-11-12 (FILDI account net liq $17,358.10, buying power $6,065.72, margin used $19,628.73; IRA $91,674.66; combined $109,032.76)
