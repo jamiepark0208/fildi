@@ -1,81 +1,94 @@
-# Evening Market Recap — Thursday, November 12, 2026 (Post-Close)
+# Evening Market Recap — Friday, November 13, 2026 (Post-Close)
 
 | Name | Close | Day % | 1W % | 1M % | Note |
 |---|---|---|---|---|---|
-| S&P 500 | 7,592.40 | -0.35% | +3.25% | -2.75% | |
-| Dow | 52,297.09 | -0.36% | +1.50% | +0.86% | |
-| Nasdaq Composite | 25,366.09 | -0.39% | +4.32% | -6.90% | |
-| Nasdaq 100 | 28,286.72 | -0.31% | +6.22% | -7.76% | |
-| Russell 2000 | 2,799.06 | -1.66% | +2.53% | +0.16% | |
-| VIX | 18.70 | +6.86% | -33.6% | +23.0% | |
-| 10Y Treasury | 5.10% | +10.5 bp | +26 bp | -14 bp | 1M vs Oct 9 close; bond market closed Oct 12 |
-| 2Y Treasury | 4.88% | +14 bp | +40 bp | — | |
-| 30Y Treasury | 5.43% | +8 bp | — | — | |
-| Dollar index | 103.18 | +0.3% | — | — | |
-| Gold | $3,882.10 | -2.96% | -5.3% | -6.9% | |
-| WTI crude | $88.71 | +2.52% | -2.3% | -4.7% | |
-| Brent crude | ~$94 | +1.0% | -4.4% | -11.4% | President Trump (R) posted on social media; Iran standoff underpins the bid |
-| Bitcoin | $71,336 | -3.56% | -5.9% | -12.8% | |
+| S&P 500 | 7,561.67 | -0.40% | +2.51% | -3.1% | |
+| Dow | 52,347.55 | +0.10% | +2.07% | +1.0% | |
+| Nasdaq Composite | 25,136.27 | -0.91% | +2.27% | -7.8% | |
+| Nasdaq 100 | 27,943.74 | -1.22% | — | -8.9% | |
+| Russell 2000 | 2,790.49 | -0.31% | +1.32% | -0.2% | |
+| VIX | 19.30 | +3.2% | +12.6% | +26.9% | |
+| 10Y Treasury | 5.15% | +3 bp | +30 bp | -9 bp | Worst week since Apr 2025, +~30bp |
+| 2Y Treasury | 4.86% | -1 bp | +38 bp | — | |
+| 30Y Treasury | 5.48% | +3 bp | — | — | |
+| Dollar index | 103.42 | +0.2% | — | — | Near 19-month high; yen 159.65, no carry unwind |
+| Gold | $3,879.20 | -0.16% | -5.4% | -7.0% | |
+| WTI crude | $89.14 | +0.45% | -1.8% | -4.2% | |
+| Brent crude | $95.84 | -0.2% | -2.5% | -9.7% | |
+| Bitcoin | $68,350 | -3.2% | -9.9% | -16.5% | Below $70K first time since Aug |
 
 | Name | Close | Day % | 1W % | 1M % |
 |---|---|---|---|---|
-| Nikkei 225 | 60,798.84 | -0.71% | -0.46% | — |
-| Shanghai Composite | 3,656 | -0.67% | — | — |
-| Hang Seng | 24,034.38 | -1.2% | -3.08% | — |
-| KOSPI | — | -0.61% | — | — |
-| Taiwan Taiex | — | -2.6% | — | — |
-| STOXX 600 | 664.01 | +0.14% | +1.40% | — |
-| DAX | 26,771.88 | +0.41% | +1.70% | — |
-| FTSE 100 | 10,863.09 | +0.25% | +0.75% | — |
-| CAC 40 | 8,361.36 | +0.34% | +1.90% | — |
+| Nikkei 225 | 61,142 | +0.5% | +5.5% | -7.3% |
+| Shanghai Composite | 3,634 | -0.6% | — | — |
+| Hang Seng | 23,649 | -1.5% | -4.6% | — |
+| STOXX 600 | 664.14 | +0.02% | +2.44% | — |
+| FTSE 100 | 10,902.56 | +0.36% | +2.14% | — |
+| DAX | 26,749.95 | -0.08% | +3.60% | — |
+| CAC 40 | 8,368.91 | +0.09% | +2.82% | — |
 
 | Name | Close | Day % | 1W % | 1M % | Note |
 |---|---|---|---|---|---|
-| Nvidia (NVDA) | $166.19 | -4.34% | -16.96% | -27.28% | Opened $151.00, low $148.80 |
-| AMD | $585.30 | +5.86% | +19.75% | -3.34% | |
-| Broadcom (AVGO) | $364.36 | +5.54% | +11.95% | +1.97% | |
-| CoreWeave (CRWV) | $56.60 | -6.86% | +16.89% | -27.26% | |
-| Strategy (MSTR) | $114.41 | -6.49% | — | — | MSCI deletion effective Dec 1 |
-| Nebius (NBIS) | — | -17% | — | — | On its print |
-| Energy sector | — | +1.52% | — | — | 4th straight advance |
-| Materials sector | — | -1.54% | — | — | Lagged |
+| Nvidia (NVDA) | ~$162.85 | -2.0% | -12.0% | -28.7% | Below $4T market cap; earnings Tue; board approached ARM's Rene Haas |
+| AMD | $534.06 | -8.8% | +32.0% | -11.8% | After +44.7% in the five prior sessions |
+| Broadcom (AVGO) | $347.01 | -4.8% | — | -2.9% | |
+| CoreWeave (CRWV) | $53.13 | -6.1% | — | -31.7% | |
+| Nebius (NBIS) | — | -9.9% | — | — | |
+| Dell (DELL) | — | -7.2% | — | — | 22 servers with restricted H800 chips traced to a Shanghai data center |
+| Cerebras (CBRS) | — | +11.2% | — | — | Q4 guide materially ahead; MSFT cloud deal; ~3x FY27 revenue growth |
+| Modine (MOD) | — | +27.9% | — | — | Samsung acquisition talks |
+| Nu Holdings (NU) | — | +11.8% | — | — | Led S&P 500 |
+| Microsoft (MSFT) | — | +0.2% | — | — | Outage resolved |
+| Meta (META) | — | +2.9% | — | — | |
+| PHLX SOX | — | -3.4% | +8.1% | — | |
+| Staples sector | — | +1.39% | — | — | |
+| Energy sector | — | +0.96% | — | — | |
 
-- Huang resigned as Nvidia CEO effective immediately; Kress is interim CEO, Jones the board's first chair. The stock opened at $151.00, touched $148.80, and closed at $166.19, down 4.34%, then rose 1.0% after hours. The CEO-scandal base rate — 11 cases since 2005, 6 of 11 higher at 3 months — splits on succession: vacuum cases fell (Intel 2018, -13.8% at 3 months; HP 2010, -33.5% at 1 year) while clean ones rose (McDonald's 2019, +11.0%; Boeing 2005, +10.3%). No permanent successor is named and DOJ probes landed the same day — this sits in the vacuum leg, so the base rate argues for patience, not a dip buy.
-- Rates did the damage the indexes hid: the 10-year rose 10.5 bp to 5.103% while the $25B 30-year auction tailed — high yield 5.441% against a 5.005% 12-auction average. December now fully prices a 25 bp hike with a 15% chance of 50 bp. Claims printed 200K vs 195K consensus and home sales hit a 16-year low at 3.75M, yet neither softened the repricing — 200K is still near the lowest since 1969. Gold fell 3% to $3,882, its lowest since October 2025 — yields, not safety, pulled money out. The Japan PPI trigger did not transmit: yen 159.84, flat, no carry unwind. Stocks fell only 0.35% because AMD and Broadcom rose about 6% each, but breadth ran 3.4-to-1 negative.
-- Applied Materials beat — $4.16 vs $4.06, revenue $10.41B vs $10.30B, guide $11.10B vs $10.89B — and fell 3.6% to $380.95, flat after hours: it cleared consensus and missed the $4.20 whisper. Cisco beat — $1.40 vs $1.33, revenue $18.52B vs $18.13B — and raised its outlook.
-- The morning called it a one-name shock, not a macro turn — that held: the S&P fell 0.35% while Nvidia recovered from -14% intraday to -4.3%, and Europe closed at records. The rates drag widened instead: the 10-year went 5.01% to 5.10%, the 30-year auction tailed, and 50 bp December odds reached 15%.
+## Data
+
+| Print | Actual | Consensus | Prior (revised) |
+|---|---|---|---|
+| PPI m/m (Oct) | +0.3% | +0.4% | +1.4% (from +1.3%) |
+| PPI y/y (Oct) | +6.5% | +6.6% | +6.3% |
+| Core PPI m/m (Oct) | +0.3% | +0.3% | +0.8% (from +0.7%) |
+| Core PPI y/y (Oct) | +5.0% | +5.0% | +5.0% |
+
+- October PPI rose 0.3% vs 0.4% expected, and the cooler core print pulled core PCE estimates down. Collins, Goolsbee and Daly leaned hawkish and no policymaker picked up Waller's 50bp theme — December stays a 25bp hike with ~10% on 50bp.
+- Nvidia fell 2% Friday and 12% on the week; the board has approached ARM's Rene Haas as successor, and Bessent (R) assailed Lutnick (R) as the scandal reached the White House. In 11 CEO-scandal cases since 2005, 6 were higher at 3 months; founder-vacuum cases fell hard (Intel 2018 −13.8%, HP 2010 −33.5%).
+- Chips reversed: AMD −8.8% to $534.06, Broadcom −4.8%, the SOX −3.4%, CoreWeave −6.1%, Nebius −9.9%, Dell −7.2%. Breadth stayed positive — over 60% of names rose and the equal-weight index gained 0.20% against a 0.40% cap-weighted fall.
+- The dollar index hit 103.42 and the yen stayed near 160 at 159.65, no carry unwind. Bitcoin fell 3.2% to ~$68,350, below $70,000 for the first time since August.
+- The morning's Nvidia bounce failed: premarket near $170, close ~$162.85, down 12% on the week. The morning call was relief; Friday showed the scandal widening.
+- Microsoft's outage cleared — service restored across Outlook, Teams and Copilot, and the stock finished +0.17% after opening 2.6% lower. The morning flag on fresh MSFT premium is lifted.
 
 ## Desk flagged
 
-- DOJ probes landed on Nvidia (Semafor) — multiple investigations including antitrust — and on Super Micro over possible China smuggling links (Yahoo Finance). Both add headline risk into Tuesday's Nvidia earnings; no NVDA or SMCI short puts, and NVDA-adjacent premium stays wide and 7+ DTE.
+- FAA grounded all US departures at ~3:54pm ET, citing "extraordinary circumstances" after a communications failure; no restart time, and the stop held into the close. Airline names gap Monday if it holds — no new airline short premium until it lifts.
 
 ## Book impact
 
-- 69 short contracts expire Friday: the ONDS and OPEN calls (67 contracts) are marked $0.005 and set to expire worthless, and the IREN 18P ($0.115 mark) is nearly there. One live item: the IRA's RKLB 63C is $1.94 in the money, covered by 100 RKLB shares — decide before Friday's open whether to let the shares go at $63 or roll.
-- The November 20 book (8 DTE) is quiet: IREN puts out of the money near $19, five RGTI 13.5C shorts at $0.025. One IREN short put was bought back today for $0.20. No new short-dated premium into Friday's PPI.
-- Nvidia hits the equity book, not the premium book: IRA holds 100 shares at $216.64, now $166.04, down $5,060 (-23.4%). No NVDA short puts to manage; earnings Tue Nov 17 is the next decision point.
+- Index premium decayed while single-name tech vol stayed hot: the equal-weight S&P gained 0.20%, but VIX rose 3.2% to 19.30. The vol bid is name-specific — short index premium collected theta, short tech premium did not.
+- Nvidia's Tuesday print is now the week's main event: −12% on the week, a public succession search, and the scandal reaching the cabinet. Premium written into Tuesday prices a gap.
+- Data risk is quiet until Tuesday: the soft PPI pulled core PCE estimates down and December's 25bp hike is priced. No new short-dated premium into the retail-sales / Nvidia / FOMC-minutes stack.
 
 ## Risk/events for tomorrow
 
-- Fri 8:30 AM ET: October PPI (cons +0.4% m/m, prior +1.3%; core +0.3% vs +0.7% prior).
-- Fri: Fed speakers Collins, Bowman, Daly, Jefferson; MUFG, SMFG and Mizuho report before the open.
-- Overnight: Asia opens into the Nvidia/DOJ tape; Microsoft's Outlook outage still unresolved.
-- Tue Nov 17 after close: Nvidia earnings (revenue guide ~$108B).
+- Mon: Empire State 8:30 ET; Warsh opens the Productivity and Jobs Task Force conference. Tue: retail sales, industrial production, export/import prices 8:30 ET; Nvidia earnings after close. Wed: housing starts, pending home sales, 20-year auction, FOMC minutes. Thu: claims, Philly Fed. Fri: U Mich sentiment.
 
-Systems: Mac online — book snapshot from today's Robinhood export (fildi DB is Mac-local, 127.0.0.1); fildi API/scheduler unverified (no shell probe on device).
+Systems: Mac offline — unverified
 
 ## Sources
 
-- Closes, VIX, yields, gold, oil, bitcoin, breadth: https://fxnews.ai/news/russell2000-underperforms-sp500-november12-2026-us-close/ · https://wiseview.ai/news/stock-market-close-2026-11-12 · https://www.waverider.ai/market-analysis/market-summary-post-market-2026-11-12/ · https://stockmarketwatch.com/digest/2026-11-12 · https://medium.com/@marketsondeck/nvidia-sinks-4-3-the-indexes-hide-a-rougher-day-9c0513bce08e
-- Europe closes, Brent, yen, Bunds: https://finance.biggo.com/news/ef957334-c920-4a3e-a25c-b0d62dbc4628
-- Asia closes: https://my-passive-income.eu/markets-before-the-open-november-12-2026/
-- 1W levels (Nov 5 closes): briefs/2026-11-05-pm.md (this repo); NDX/RUT Nov 5: https://edgeconsultancykw.com/us-market-wrap-05-november-2026/; Asia/Europe Nov 5: https://edgeconsultancykw.com/europe-market-wrap-05-november-2026/
-- 1M levels (Oct 12 closes): https://edgeconsultancykw.com/us-market-wrap-12-october-2026/ · https://marketbriefer.com/the-global-close-october-12-2026-rotation-out-of-chips-lifts-dow-drags-nasdaq/ (10Y 1M vs Oct 9 close, bond market closed Oct 12; VIX Oct 12 ~15.2 per https://marketsnap.com/stock-market-summary-october-12-2026/; gold Oct 12 $4,167.56 per https://www.fool.com/coverage/stock-market-today/2026/10/12/stock-market-today-oct-12-dow-gains-as-memory-stocks-weigh-on-nasdaq/; WTI Oct 12 ~$93.06, Brent $106.09, bitcoin $81,782.78 per https://www.newbridgesecurities.com/daily-market-commentary/weekly-market-notes---october-12-2026 and https://www.globaltradingoutlook.com/markets/markets-digest-2026-10-12/)
-- Single names (NVDA/AMD/AVGO/CRWV closes, 5-session and 1-month returns): Finnhub via https://finnhub.io/?q=%22NVDA%22 · https://finnhub.io/?q=%22AMD%22 · https://finnhub.io/?q=%22AVGO%22 · https://finnhub.io/?q=%22CRWV%22; MSTR/NBIS: https://stockhango.com/2026/11/12/🌙-sk-aftershock-thursday-november-12-2026/ · https://www.investopedia.com/stock-market-today-dow-jones-s-and-p-500-nasdaq-11122026-12250329
-- Claims, home sales: https://mix929.com/2026/11/12/us-weekly-jobless-claims-increase-but-labor-market-firming/
-- 30Y auction, yields, Dec hike odds: https://www.waverider.ai/market-analysis/market-summary-post-market-2026-11-12/ · https://medium.com/@marketsondeck/nvidia-sinks-4-3-the-indexes-hide-a-rougher-day-9c0513bce08e
-- AMAT results: https://theapexwire.com/stock-market/applied-materials-record-10-41-billion-quarterly-revenue/ · https://www.earningswhispers.com/article/AMAT/r2693
-- CSCO results: https://www.zacks.com/stock/news/3029044/cisco-csco-reports-q1-earnings-what-key-metrics-have-to-say
-- Desk: Gmail label tradedash-brief, Nov 12 — GuruFocus Market Today (NVDA DOJ probe per Semafor; SMCI DOJ probe per Yahoo Finance; MSFT Outlook outage per CNBC); Bloomberg breaking news (MSFT Outlook/Copilot outage, 4:48 PM PT)
-- Morning thesis: briefs/2026-11-12-am.md (this repo)
-- Book snapshot: Robinhood holdings/transactions exports from Jamie's Mac, pulled 2026-11-12 (FILDI account net liq $17,358.10, buying power $6,065.72, margin used $19,628.73; IRA $91,674.66; combined $109,032.76)
+- Closes, week gains, breadth, sectors, yields, FX, gold, oil, bitcoin: FactSet StreetAccount U.S. Market Recap Nov 13 (Gmail label tradedash-brief); AP via https://mlq.ai/news/wall-street-closes-mixed-as-nvidia-and-amd-sink-nasdaq-still-posts-its-best-week-since-august/ ; https://longbridge.com/en/news/305514679 ; https://worldmoneyroadmap.com/en/reports/2026-11-13-evening/ ; https://www.investopedia.com/stock-market-today-dow-jones-today-s-and-p-500-nasdaq-11132026-12252143
+- Europe closes, week gains, Goldman STOXX target: https://edgeconsultancykw.com/europe-market-wrap-13-november-2026/ ; https://www.lse.co.uk/news/european-shares-end-best-week-since-june-as-strong-earnings-lift-sentiment-n0igv6kg8d57un5.html ; https://www.sharecast.com/news/market-report-europe-close/stoxx-600-dax-cac-40-nvidia-microsoft-richemont--24169546.html
+- Asia closes: briefs/2026-11-13-am.md (this repo)
+- PPI actuals/consensus/prior: briefs/2026-11-13-am.md; BLS ex-food/energy/trade +0.5% m/m, +4.9% y/y per https://kbldestinations.substack.com/p/daily-market-report-11-13-26
+- 1W levels (Nov 6 closes): StreetAccount Weekly Recap Nov 13 (Dow +2.07%, S&P +2.51%, Nasdaq +2.27%, Russell +1.32%); Europe week gains per Edge/LSE; 10Y week +~30bp per https://www.coindesk.com/tech/2026/11/13/live-news-bitcoin-drops-below-200-week-moving-average-as-dollar-strength-pressures-risk-assets?post-id=528e1b5afc4e
+- 1M levels (Oct 12 closes): briefs/2026-11-12-pm.md (this repo), adjusted by today's day move; VIX 1W +12.6% from briefs/2026-11-13-am.md baseline
+- Single names (NVDA/AMD/AVGO/CRWV closes, SOX, DELL H800, CBRS/MOD/NU/MSFT/META): FactSet StreetAccount U.S. Market Recap Nov 13; https://swingfolio.com/daily/us/2026-11-13/afternoon ; https://longbridge.com/en/news/305514679
+- Fedspeak (Collins, Goolsbee, Daly, Williams; no policymaker on Waller's 50bp theme; Warsh Monday): FactSet StreetAccount U.S. Market Recap Nov 13
+- NVDA succession (ARM's Rene Haas approached), Bessent vs Lutnick: FactSet StreetAccount U.S. Market Recap Nov 13; Bloomberg "White House knives come out" Nov 13 (Gmail label tradedash-brief)
+- MSFT outage restored: FactSet StreetAccount U.S. Market Recap Nov 13
+- FAA ground stop (~3:54pm ET, "extraordinary circumstances", Sec. Duffy (R), no restart time): Bloomberg breaking news Nov 13 (Gmail label tradedash-brief); https://mlq.ai/news/wall-street-closes-mixed-as-nvidia-and-amd-sink-nasdaq-still-posts-its-best-week-since-august/
+- NVDA trigger base rates: A402 trigger library seed (11 CEO-scandal cases 2005–2025; Intel 2018, HP 2010); Aug 2024 carry precedent and Sep 2026 counter-case per library seed
+- Morning thesis: briefs/2026-11-13-am.md (this repo)
+- Book snapshot: none — MacBook Pro offline (last seen 12:31 PT Nov 13); generic premium commentary only
