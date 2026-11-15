@@ -241,7 +241,9 @@ type XbrlAnnualFact = { form?: string; fp?: string; fy?: number; val?: number; f
 // Tries each tag in order and uses the first one with data — filers don't all use the
 // same XBRL concept for the same line item (e.g. Revenues vs
 // RevenueFromContractWithCustomerExcludingAssessedTax).
-const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementType; tags: string[]; unit?: string }> = {
+// fillTags: a different concept used only for periods no `tags` entry covers (HOOD's FY2025
+// 10-K tags equity incl. NCI only, so parent-only equity was blank).
+const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementType; tags: string[]; unit?: string; fillTags?: string[] }> = {
   revenue:            { statementType: "income", tags: ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"] },
   costOfRevenue:       { statementType: "income", tags: ["CostOfRevenue", "CostOfGoodsAndServicesSold"] },
   grossProfit:         { statementType: "income", tags: ["GrossProfit"] },
@@ -255,7 +257,7 @@ const STATEMENT_LINE_ITEM_TAGS: Record<string, { statementType: EdgarStatementTy
   currentAssets:       { statementType: "balance", tags: ["AssetsCurrent"] },
   totalLiabilities:    { statementType: "balance", tags: ["Liabilities"] },
   currentLiabilities:  { statementType: "balance", tags: ["LiabilitiesCurrent"] },
-  stockholdersEquity:  { statementType: "balance", tags: ["StockholdersEquity"] },
+  stockholdersEquity:  { statementType: "balance", tags: ["StockholdersEquity"], fillTags: ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"] },
   longTermDebt:        { statementType: "balance", tags: ["LongTermDebtNoncurrent", "LongTermDebt"] },
   cashAndEquivalents:  { statementType: "balance", tags: ["CashAndCashEquivalentsAtCarryingValue"] },
 
@@ -300,7 +302,10 @@ export async function fetchEdgarStatementHistory(ticker: string): Promise<EdgarS
     // years stale (or whose only "FY" facts are actually quarterly footnote disclosures)
     // silently wins and blocks the active tag from ever being tried.
     const byYear = new Map<number, { value: number; filedDate: string }>();
-    for (const tag of def.tags) {
+    const primaryYears = new Set<number>();
+    for (const tag of [...def.tags, ...(def.fillTags ?? [])]) {
+      const isFill = !def.tags.includes(tag);
+      if (isFill) for (const y of byYear.keys()) primaryYears.add(y);
       const usd = gaap[tag]?.units?.[def.unit ?? "USD"];
       if (!Array.isArray(usd)) continue;
       for (const fact of usd) {
@@ -317,6 +322,7 @@ export async function fetchEdgarStatementHistory(ticker: string): Promise<EdgarS
         // MSFT's FY2026 10-K tags both its FY2026 figure AND its FY2024/FY2025 comparatives
         // as fy=2026), silently overwriting the real year's value with a prior year's.
         const periodYear = new Date(fact.end).getUTCFullYear();
+        if (isFill && primaryYears.has(periodYear)) continue;
         const existing = byYear.get(periodYear);
         if (!existing || fact.filed > existing.filedDate) {
           byYear.set(periodYear, { value: fact.val, filedDate: fact.filed });
