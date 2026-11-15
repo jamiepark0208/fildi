@@ -82,7 +82,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A360](asks/A360.md) | 2026-11-07 | Muse → Cursor | Evaluate GLM-5.3/5.2 (Zhipu) as post-Cursor builder: API build test vs DeepSeek, cost, verdict | planned (Revisit met 2026-11-12: date 2026-11-12) |
 | [A361](asks/A361.md) | 2026-11-07 | Muse → Cursor | Evaluate OpenCode as the post-Cursor harness: provider-agnostic terminal agent, same fixed build task, verdict | planned (Revisit met 2026-11-12: date 2026-11-12) |
 | [A362](asks/A362.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 conditional engine correctness — RSI cold start, IV-beta sign, carried fill_bar (High) | done |
-| [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | done (Cursor 11-07, uncommitted) |
+| [A363](asks/A363.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: S159 LSE 2003 panel + RSI grid — split-factor direction, confirm indexing, put-exit off-by-one (High) | done (e25d3ba6) |
 | [A364](asks/A364.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A357 LSE option backfill + regrade — OCC collapse, smoke gate, inverted verdict (High) | done (merged → A357, Claude 11-08) |
 | [A365](asks/A365.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] Event-stack guard: warn/block short premium when vol backwardated + print/earnings in expiry | planned |
 | [A367](asks/A367.md) | 2026-11-07 | Jamie → Claude → Cursor | Fetch hygiene: backfill once, then fetch only the new tail; guard every heavy fetch/process (watermark, change signal, distinct-only upsert, fetch_runs meter) | done (Cursor 11-07, Claude review 70571445) |
@@ -95,7 +95,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A374](asks/A374.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 engine — RSI slice misaligned under session_filter; carried bar-0 lookahead (High) | done (91d0c17a; Claude review pass 11-15) |
 | [A375](asks/A375.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A359 fix4 horizon sweep — confluence on wrong TF; higher-TF RSI dates (High) | done (91d0c17a; Claude review pass 11-15) |
 | [A376](asks/A376.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A369 trade cache never hits (salted hash); stale meta; OPRA cache mismatch (High) | verified (via A369 fix2a/2b, Claude 11-08) |
-| [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | done (Cursor 11-07, H1 H2 M1, uncommitted) |
+| [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | done (H1 H2 M1, e25d3ba6) |
 | [A378](asks/A378.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] S160 test-era centering flaw — subtract train-era base for both eras (Medium) | verified (via A369 fix2a + Claude inline, Claude 11-08) |
 | [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | done (Claude 11-07: gate fixed) |
 | [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |
