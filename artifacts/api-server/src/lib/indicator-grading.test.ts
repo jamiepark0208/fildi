@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ResampledBar } from "@workspace/indicators";
+import { resample, type ResampledBar, type TvBar } from "@workspace/indicators";
 import { barCtx, bestStructure, buildScorecard, confidence, exitFor, gradeAt, pairStat, randomIndex, roundTrip, statsFor, verdictFor, type ScoreInput } from "./indicator-grading.js";
 
 // 2026-11-02 (Mon, EST) 09:30 ET = 14:30 UTC
@@ -109,5 +109,24 @@ describe("verdict rule (fixed, round-trip lift in % per trade)", () => {
     const keys = sc.map((r) => `${r.kind}/${r.tf}`).sort();
     assert.deepEqual(keys, ["ALL/15m", "ALL/5m", "ALL/ALL", "Buy/5m", "Buy/ALL", "Sell/15m", "Sell/ALL"]);
     assert.equal(sc.find((r) => r.kind === "ALL" && r.tf === "ALL")!.n, 40);
+  });
+  it("resample 1h filters extended hours and clamps 15:30–16:00 ET half-bar end to 16:00", () => {
+    // 2026-11-02 (EST): T0 = 09:30 ET (14:30 UTC). 78 × 5m bars = 09:30..15:55 ET, plus pre-open (-2) and after-hours (78).
+    const raw: TvBar[] = [-2, ...Array.from({ length: 78 }, (_, k) => k), 78].map((k) => ({
+      time: T0 + k * 300,
+      open: 100 + k * 0.05,
+      high: 100.2 + k * 0.05,
+      low: 99.8 + k * 0.05,
+      close: 100.1 + k * 0.05,
+      volume: 10,
+    }));
+    const h1 = resample(raw, 60);
+    assert.equal(h1.length, 7); // 6 full hours + 15:30..16:00 half-hour (pre/post-market dropped)
+    const last = h1[6]!;
+    assert.equal(last.n, 6); // 6 × 5m = 30 min
+    assert.equal(last.end, T0 + 390 * 60); // 16:00 ET, NOT 16:30 ET
+    // Signal at 14:30..15:30 bar (index 5, end = 15:30 ET) now gets non-null fwd30mPct at 16:00 ET!
+    const g1h = gradeAt(h1, 5, "buy", 1);
+    assert.ok(g1h.fwd30mPct !== null && Number.isFinite(g1h.fwd30mPct));
   });
 });

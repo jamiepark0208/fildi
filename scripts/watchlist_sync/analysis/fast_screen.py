@@ -107,18 +107,24 @@ def _align(pack: dict) -> tuple[pd.DatetimeIndex, list[str], np.ndarray, np.ndar
 # ── indicators (matrix) ──────────────────────────────────────────────────────
 
 def rsi_mat(c: np.ndarray, n: int) -> np.ndarray:
-    """Wilder RSI along axis 0. Matches pattern_lab.rsi (ewm alpha=1/n)."""
+    """Wilder RSI along axis 0 with min_periods=n warm-up and exact boundary handling (dn==0 -> 100, not NaN)."""
     d = pd.DataFrame(c).diff()
-    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
-    return (100 - 100 / (1 + up / dn.replace(0, np.nan))).to_numpy()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean().to_numpy(dtype=float)
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean().to_numpy(dtype=float)
+    out = np.full_like(up, np.nan)
+    valid = np.isfinite(up) & np.isfinite(dn)
+    out[valid & (up == 0) & (dn == 0)] = 50.0
+    out[valid & (dn == 0) & (up > 0)] = 100.0
+    reg = valid & (dn > 0)
+    out[reg] = 100.0 - 100.0 / (1.0 + up[reg] / dn[reg])
+    return out
 
 
 def atr14_mat(h: np.ndarray, l: np.ndarray, c: np.ndarray) -> np.ndarray:
     prev = np.roll(c, 1, 0)
     prev[0] = np.nan
     tr = np.maximum(h - l, np.maximum(np.abs(h - prev), np.abs(l - prev)))
-    return pd.DataFrame(tr).ewm(alpha=1 / 14, adjust=False).mean().to_numpy()
+    return pd.DataFrame(tr).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean().to_numpy()
 
 
 def realized_vol20(c: np.ndarray) -> np.ndarray:

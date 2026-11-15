@@ -379,12 +379,21 @@ def ema_series(closes: np.ndarray, span: int = 20) -> np.ndarray:
 
 
 def rsi_series(closes: np.ndarray, n: int = 14) -> np.ndarray:
-    """Canonical RSI — multi-bar warm-up, min_periods=n (matches s159 grid)."""
+    """Canonical Wilder RSI — multi-bar warm-up (min_periods=n) and exact Pine boundary handling
+    (dn==0 & up>0 -> 100, up==0 & dn>0 -> 0, both 0 -> 50; previously dn.replace(0, nan) turned pure rallies into NaN)."""
     s = pd.Series(closes, dtype=float)
     d = s.diff()
-    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
-    return (100 - 100 / (1 + up / dn.replace(0, np.nan))).to_numpy(dtype=float)
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean().to_numpy(dtype=float)
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean().to_numpy(dtype=float)
+    out = np.full(len(closes), np.nan, dtype=float)
+    valid = np.isfinite(up) & np.isfinite(dn)
+    both_zero = valid & (up == 0) & (dn == 0)
+    dn_zero = valid & (dn == 0) & (up > 0)
+    reg = valid & (dn > 0)
+    out[both_zero] = 50.0
+    out[dn_zero] = 100.0
+    out[reg] = 100.0 - 100.0 / (1.0 + up[reg] / dn[reg])
+    return out
 
 
 def condition_true_series(
@@ -781,6 +790,14 @@ def load_bars_for_timeframe(conn, tickers: list[str], tf: str) -> dict[str, pd.D
 
 
 def load_bars_5m_db(conn, tickers: list[str]) -> dict[str, pd.DataFrame]:
+    """B26 fix: optlab.bars_5m stores 24h bars (59% outside RTH, 10k+ UTC/ET date flips).
+    Convert to America/New_York and restrict strictly to RTH [09:30, 16:00) so options never 'fill'
+    at 04:00 AM / 20:00 PM and after-hours bars never spill into next-day UTC sessions."""
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    t_open = pd.Timestamp("09:30").time()
+    t_close = pd.Timestamp("16:00").time()
     out: dict[str, pd.DataFrame] = {}
     for tk in tickers:
         rows = conn.execute(
@@ -791,8 +808,16 @@ def load_bars_5m_db(conn, tickers: list[str]) -> dict[str, pd.DataFrame]:
         if not rows:
             continue
         df = pd.DataFrame(rows, columns=["ts", "o", "h", "l", "c"])
-        df["session_date"] = pd.to_datetime(df["ts"]).dt.tz_localize(None).dt.date
-        out[tk] = df
+        ts_et = pd.to_datetime(df["ts"], utc=True).dt.tz_convert(et)
+        t_et = ts_et.dt.time
+        mask = (t_et >= t_open) & (t_et < t_close)
+        if not np.any(mask):
+            continue
+        df = df.loc[mask].copy()
+        ts_sub = ts_et.loc[mask]
+        df["ts"] = ts_sub
+        df["session_date"] = ts_sub.dt.tz_localize(None).dt.date
+        out[tk] = df.reset_index(drop=True)
     return out
 
 
@@ -893,10 +918,127 @@ def aggregate_trades(trades: list[dict], sectors: dict[str, str]) -> dict[str, A
     }
 
 
-def _intraday_rsi_by_session(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[int, np.ndarray]]:
+_CANONICAL_SPLIT_RATIOS: tuple[float, ...] = (
+    1 / 50, 1 / 25, 1 / 20, 1 / 15, 1 / 10, 1 / 8, 1 / 5, 1 / 4, 1 / 3, 1 / 2,
+    2.0, 3.0, 4.0, 5.0, 8.0, 10.0, 15.0, 20.0, 25.0, 50.0,
+)
+
+
+def load_split_tables_and_adj_closes(
+    conn, tickers: list[str], d0: date, d1: date
+) -> tuple[dict[str, dict[date, float]], dict[str, dict[date, float]]]:
+    """Load recorded splits (optlab.splits: split_from / split_to) and split-adjusted daily closes
+    (lseg_research.daily_history union prices_historical) to confirm unadjusted intraday jumps vs real crashes."""
+    up_tickers = [t.upper() for t in tickers]
+    known: dict[str, dict[date, float]] = defaultdict(dict)
+    try:
+        for tk, ed, fr, to in conn.execute(
+            """SELECT UPPER(ticker), exec_date, split_from::float8, split_to::float8
+               FROM optlab.splits
+               WHERE UPPER(ticker) = ANY(%s) AND split_from > 0 AND split_to > 0""",
+            (up_tickers,),
+        ).fetchall():
+            if abs(fr - to) / max(fr, to) > 0.05:
+                known[tk][ed] = float(fr / to)
+    except Exception:
+        pass
+    adj: dict[str, dict[date, float]] = defaultdict(dict)
+    for tk, d, c in conn.execute(
+        """SELECT UPPER(ticker), date, close::float8 FROM prices_historical
+           WHERE UPPER(ticker) = ANY(%s) AND date BETWEEN %s AND %s AND close::float8 > 0""",
+        (up_tickers, d0 - timedelta(days=10), d1),
+    ).fetchall():
+        adj[tk][d] = float(c)
+    for tk, d, c in conn.execute(
+        """SELECT UPPER(ticker), date, close::float8 FROM lseg_research.daily_history
+           WHERE UPPER(ticker) = ANY(%s) AND date BETWEEN %s AND %s AND close > 0""",
+        (up_tickers, d0 - timedelta(days=10), d1),
+    ).fetchall():
+        adj[tk][d] = float(c)
+    return dict(known), dict(adj)
+
+
+def detect_session_split_mults(
+    df: pd.DataFrame,
+    *,
+    known_splits: dict[date, float] | None = None,
+    adj_closes: dict[date, float] | None = None,
+) -> dict[date, float]:
+    """Confirm unadjusted corporate splits in intraday bars without ever erasing real -50% crashes (Claude review #2):
+    1. If `known_splits` (from optlab.splits) has `sess` AND raw intraday gap agrees within 25%, apply exact `fr / to`.
+    2. Else if `adj_closes` (split-adjusted daily closes) has both `prev_sess` and `sess`: `implied = raw_gap / adj_ret`.
+       A real -50% crash has `adj_ret ≈ 0.50` -> `implied ≈ 1.0` (never flagged). An unadjusted 3:1 split (SOXX Nov 4)
+       has `raw_gap = 0.323, adj_ret = 0.969 -> implied = 0.333`, which snaps to 1/3."""
+    if df.empty or "session_date" not in df.columns:
+        return {}
+    mults: dict[date, float] = {}
+    prev_sess: date | None = None
+    prev_close: float | None = None
+    for sess, grp in sorted(df.groupby("session_date"), key=lambda x: x[0]):
+        o0 = float(grp["o"].iloc[0]) if "o" in grp.columns else float(grp["c"].iloc[0])
+        c_end = float(grp["c"].iloc[-1])
+        if prev_close is not None and prev_close > 0 and o0 > 0 and prev_sess is not None:
+            raw = o0 / prev_close
+            ks = (known_splits or {}).get(sess)
+            if ks is not None and ks > 0 and abs(raw / ks - 1.0) <= 0.25:
+                mults[sess] = float(ks)
+            elif adj_closes and prev_sess in adj_closes and sess in adj_closes:
+                ac0, ac1 = adj_closes[prev_sess], adj_closes[sess]
+                if ac0 > 0 and ac1 > 0:
+                    adj_ret = ac1 / ac0
+                    # Use close-to-close raw vs close-to-close adj so intraday move cancels cleanly
+                    raw_cc = c_end / prev_close if c_end > 0 else raw
+                    implied = raw_cc / adj_ret
+                    if implied < 0.60 or implied > 1.65:
+                        nearest = min(_CANONICAL_SPLIT_RATIOS, key=lambda r: abs(math.log(implied / r)))
+                        if abs(implied / nearest - 1.0) <= 0.12:
+                            mults[sess] = float(nearest)
+        if c_end > 0 and math.isfinite(c_end):
+            prev_close = c_end
+            prev_sess = sess
+    return mults
+
+
+def build_split_continuous_closes(df: pd.DataFrame, split_mults: dict[date, float] | None = None) -> np.ndarray:
+    """Keep `df` OHLC at point-in-time prices (so OPRA strike lookups match traded strikes), while chaining
+    historical closes onto post-split scale so RSI/EMA never suffer fake -67% / +700% split shocks."""
+    closes = df["c"].to_numpy(dtype=float).copy()
+    if df.empty:
+        return closes
+    mults = split_mults if split_mults is not None else {}
+    if not mults:
+        return closes
+    s_dates = df["session_date"].to_numpy()
+    for split_d, mult in sorted(mults.items()):
+        closes[s_dates < split_d] *= mult
+    return closes
+
+
+def _intraday_rsi_by_session(
+    df: pd.DataFrame,
+    *,
+    split_mults: dict[date, float] | None = None,
+    max_gap_days: int = 7,
+) -> tuple[pd.DataFrame, dict[int, np.ndarray]]:
+    """Compute Wilder RSI(2/5/14) on split-continuous closes, resetting warm-up across >7-day missing-data
+    holes (B29: 23 tickers in optlab.bars_5m have up to 214-day gaps; diff() across 7 months is not a 5m move)."""
     df = df.sort_values(["session_date", "ts"]).reset_index(drop=True)
-    closes = df["c"].to_numpy(dtype=float)
-    rsi_full = {p: rsi_series(closes, p) for p in (2, 5, 14)}
+    if df.empty:
+        return df, {p: np.array([], dtype=float) for p in (2, 5, 14)}
+    closes = build_split_continuous_closes(df, split_mults)
+    sd = df["session_date"].tolist()
+    breaks = [0]
+    for k in range(1, len(sd)):
+        if (sd[k] - sd[k - 1]).days > max_gap_days:
+            breaks.append(k)
+    breaks.append(len(sd))
+    if len(breaks) == 2:
+        return df, {p: rsi_series(closes, p) for p in (2, 5, 14)}
+    rsi_full = {p: np.full(len(closes), np.nan, dtype=float) for p in (2, 5, 14)}
+    for a, b in zip(breaks[:-1], breaks[1:]):
+        seg = closes[a:b]
+        for p in (2, 5, 14):
+            rsi_full[p][a:b] = rsi_series(seg, p)
     return df, rsi_full
 
 
@@ -909,14 +1051,25 @@ def _align_higher_tf_entry_mask(
     rsi_hi: dict[int, np.ndarray],
     hi_bar_minutes: int = 15,
 ) -> np.ndarray:
-    """A375 H2+H3: `df_hi` and `rsi_hi` must have matching lengths (sliced together before call),
-    and a higher-TF bar is only known at entry time `t` when its bar END (`ts_hi + hi_bar_minutes`) <= `t + entry_bar_dur`."""
+    """A375 H2+H3 + B27: `df_hi` and `rsi_hi` share exact sliced length; higher-TF bar is known at entry time `t`
+    when its actual RTH bar END <= `t` (clamping the 15:30–16:00 1h half-candle to 16:00 ET instead of 16:30 ET)."""
     if not filt.conditions or df_hi.empty:
         return entry_mask
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
     ts_hi_start = pd.to_datetime(df_hi["ts"], utc=True)
-    ts_hi_end = ts_hi_start + pd.Timedelta(minutes=max(1, hi_bar_minutes))
+    ts_hi_et = ts_hi_start.dt.tz_convert(et)
+    mins_et = ts_hi_et.dt.hour * 60 + ts_hi_et.dt.minute
+    # Clamp RTH bar duration so a 15:30 ET 1h bar closes at 16:00 ET (30m), not 16:30 ET (60m).
+    dur_mins = np.where(
+        (mins_et >= 570) & (mins_et < 960),
+        np.minimum(max(1, hi_bar_minutes), 960 - mins_et),
+        max(1, hi_bar_minutes),
+    )
+    ts_hi_end = ts_hi_start + pd.to_timedelta(dur_mins, unit="m")
     hi_parts = []
-    closes_hi = df_hi["c"].to_numpy(dtype=float)
+    closes_hi = build_split_continuous_closes(df_hi) if "session_date" in df_hi.columns else df_hi["c"].to_numpy(dtype=float)
     rsi_use = rsi_hi if all(len(v) == len(closes_hi) for v in rsi_hi.values()) else None
     for c in filt.conditions:
         hi_parts.append(condition_true_series(c, closes_hi, rsi_cache=rsi_use))
@@ -953,38 +1106,75 @@ def _run_ticker_sessions(
     higher_filter: ConditionSet | None = None,
     rsi_higher: dict[int, np.ndarray] | None = None,
     higher_bar_minutes: int = 15,
+    split_mults: dict[date, float] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
     carry: OpenPut | None = None
     base_carry: OpenPut | None = None
     shift_pending: dict[tuple[str, str, int], OpenPut | None] = {}
+    sm_map = split_mults or {}
     if rsi_full is None or any(len(v) != len(df) for v in rsi_full.values()):
-        df, rsi_full = _intraday_rsi_by_session(df)
+        df, rsi_full = _intraday_rsi_by_session(df, split_mults=sm_map)
     else:
         df = df.sort_values(["session_date", "ts"]).reset_index(drop=True)
     hi_sorted: pd.DataFrame | None = None
     hi_rsi_sorted: dict[int, np.ndarray] | None = None
     if higher_filter and higher_df is not None:
-        hi_sorted, hi_rsi_sorted = _intraday_rsi_by_session(higher_df) if (
+        hi_sorted, hi_rsi_sorted = _intraday_rsi_by_session(higher_df, split_mults=sm_map) if (
             rsi_higher is None or any(len(v) != len(higher_df) for v in rsi_higher.values())
         ) else (higher_df.sort_values(["session_date", "ts"]).reset_index(drop=True), rsi_higher)
+
+    # Claude review #3: compute full-series entry level once on split-continuous closes so EMA20 / multi-bar
+    # conditions carry exact warm-up across session boundaries (not a 1-element slice).
+    closes_cont_full = build_split_continuous_closes(df, sm_map)
+    full_parts = [condition_true_series(c, closes_cont_full, rsi_cache=rsi_full) for c in entry.conditions]
+    full_level = (
+        (np.vstack(full_parts).all(axis=0) if entry.logic == "and" else np.vstack(full_parts).any(axis=0))
+        if full_parts
+        else np.zeros(len(df), dtype=bool)
+    )
+
+    def _adj_carry(pos: OpenPut | None, sm: float) -> OpenPut | None:
+        if pos is None or sm == 1.0:
+            return pos
+        return OpenPut(
+            strike=round(pos.strike * sm, 4),
+            credit=pos.credit * sm,
+            spot_entry=pos.spot_entry * sm,
+            iv_anchor=pos.iv_anchor,
+            expiry=pos.expiry,
+            signal_bar=pos.signal_bar,
+            fill_bar=pos.fill_bar,
+            entry_session=pos.entry_session,
+            dte_at_entry=pos.dte_at_entry,
+            listed_strikes=[round(k * sm, 4) for k in pos.listed_strikes] if pos.listed_strikes else [],
+        )
+
+    prev_session_seen: date | None = None
     for session, grp in sorted(df.groupby("session_date"), key=lambda x: x[0]):
+        gap_hole = prev_session_seen is not None and (session - prev_session_seen).days > 7
+        prev_session_seen = session
+        if gap_hole:
+            carry = None
+            base_carry = None
+            shift_pending = {k: v for k, v in shift_pending.items() if k[0] != tk}
+        sm = sm_map.get(session, 1.0)
+        if sm != 1.0:
+            carry = _adj_carry(carry, sm)
+            base_carry = _adj_carry(base_carry, sm)
+            for sk_p, sc_p in list(shift_pending.items()):
+                if sk_p[0] == tk and sc_p is not None:
+                    shift_pending[sk_p] = _adj_carry(sc_p, sm)
         idx = grp.index.to_numpy(dtype=int)
         i0, i1 = int(idx[0]), int(idx[-1]) + 1
         sess_df = df.iloc[i0:i1].reset_index(drop=True)
         closes = sess_df["c"].to_numpy(dtype=float)
+        closes_cont_sess = closes_cont_full[i0:i1]
         rsi_slice = {p: rsi_full[p][i0:i1] for p in rsi_full}
-        prior_lvl = False
-        if i0 > 0:
-            prev_close = np.array([float(df["c"].iloc[i0 - 1])])
-            prev_rsi = {p: np.array([float(rsi_full[p][i0 - 1])]) for p in rsi_full}
-            prev_parts = [condition_true_series(c, prev_close, rsi_cache=prev_rsi) for c in entry.conditions]
-            if prev_parts:
-                prev_stack = np.vstack(prev_parts)
-                prior_lvl = bool((prev_stack.all(axis=0) if entry.logic == "and" else prev_stack.any(axis=0))[0])
+        prior_lvl = bool(full_level[i0 - 1]) if (i0 > 0 and not gap_hole) else False
         cross = (
-            entry_cross_mask(entry, closes, rsi_cache=rsi_slice, prior_level=prior_lvl)
+            entry_cross_mask(entry, closes_cont_sess, rsi_cache=rsi_slice, prior_level=prior_lvl)
             if carry is None
             else np.zeros(len(closes), dtype=bool)
         )
@@ -1099,6 +1289,7 @@ class ConditionalContext:
     higher_bar_minutes: int = 15
     higher_bars: dict[str, pd.DataFrame] = field(default_factory=dict)
     rsi_higher: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
+    split_mults_by_ticker: dict[str, dict[date, float]] = field(default_factory=dict)
 
 
 def load_conditional_context(
@@ -1120,19 +1311,28 @@ def load_conditional_context(
             all_dates.update(df["session_date"].unique())
         d0, d1 = min(all_dates), max(all_dates)
         iv_maps = load_daily_iv_series(conn, list(bars_map.keys()), d0, d1)
+        known_splits, adj_closes = load_split_tables_and_adj_closes(conn, list(bars_map.keys()), d0, d1)
         higher_bars: dict[str, pd.DataFrame] = {}
         if higher_tf and higher_tf != bar_tf:
             higher_bars = load_bars_for_timeframe(conn, list(bars_map.keys()), higher_tf)
     rsi_by_ticker: dict[str, dict[int, np.ndarray]] = {}
     rsi_higher: dict[str, dict[int, np.ndarray]] = {}
+    split_mults_by_ticker: dict[str, dict[date, float]] = {}
     bm = bar_minutes_for_tf(bar_tf)
     hbm = bar_minutes_for_tf(higher_tf) if higher_tf else 15
     for tk, df in bars_map.items():
-        df_s, rsi_full = _intraday_rsi_by_session(df)
+        tk_up = tk.upper()
+        sm = detect_session_split_mults(df, known_splits=known_splits.get(tk_up), adj_closes=adj_closes.get(tk_up))
+        if sm:
+            split_mults_by_ticker[tk] = sm
+        df_s, rsi_full = _intraday_rsi_by_session(df, split_mults=sm)
         bars_map[tk] = df_s
         rsi_by_ticker[tk] = rsi_full
     for tk, df in higher_bars.items():
-        df_hs, rf = _intraday_rsi_by_session(df)
+        sm = split_mults_by_ticker.get(tk) or detect_session_split_mults(
+            df, known_splits=known_splits.get(tk.upper()), adj_closes=adj_closes.get(tk.upper())
+        )
+        df_hs, rf = _intraday_rsi_by_session(df, split_mults=sm)
         higher_bars[tk] = df_hs
         rsi_higher[tk] = rf
     return ConditionalContext(
@@ -1149,6 +1349,7 @@ def load_conditional_context(
         higher_bar_minutes=hbm,
         higher_bars=higher_bars,
         rsi_higher=rsi_higher,
+        split_mults_by_ticker=split_mults_by_ticker,
     )
 
 
@@ -1204,6 +1405,7 @@ def run_conditional_strategy(
             higher_filter=higher_filter,
             rsi_higher=ctx.rsi_higher.get(tk),
             higher_bar_minutes=ctx.higher_bar_minutes,
+            split_mults=ctx.split_mults_by_ticker.get(tk),
         )
         cond_trades.extend(ct)
         base_trades.extend(bt)
@@ -2231,12 +2433,13 @@ def run_horizon_sweep(tickers: list[str], *, smoke: bool = False) -> dict[str, A
                                 bar_minutes=base_ctx.bar_minutes,
                                 higher_tf=hi_tf if hi_tf != tf else None,
                                 higher_bar_minutes=bar_minutes_for_tf(hi_tf),
+                                split_mults_by_ticker=base_ctx.split_mults_by_ticker,
                             )
                             if hi_tf and hi_tf != tf:
                                 with connect() as conn:
                                     hb = load_bars_for_timeframe(conn, list(base_ctx.bars_map.keys()), hi_tf)
                                 for tk_h, df_h in hb.items():
-                                    df_hs, rf_h = _intraday_rsi_by_session(df_h)
+                                    df_hs, rf_h = _intraday_rsi_by_session(df_h, split_mults=base_ctx.split_mults_by_ticker.get(tk_h))
                                     ctx_s.higher_bars[tk_h] = df_hs
                                     ctx_s.rsi_higher[tk_h] = rf_h
                             ctx_by_hi[hi_tf] = ctx_s

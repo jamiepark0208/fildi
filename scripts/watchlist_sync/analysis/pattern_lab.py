@@ -71,9 +71,11 @@ def load(tickers: list[str] | None) -> pd.DataFrame:
 
 def rsi(c: pd.Series, n: int = 14) -> pd.Series:
     d = c.diff()
-    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
-    return 100 - 100 / (1 + up / dn.replace(0, np.nan))
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    r = 100 - 100 / (1 + up / dn.replace(0, np.nan))
+    r = r.where(~(up.notna() & (dn == 0) & (up > 0)), 100.0)
+    return r.where(~(up.notna() & (dn == 0) & (up == 0)), 50.0)
 
 
 def vol_profile(g: pd.DataFrame, look: int = 60, bins: int = 24) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -130,7 +132,7 @@ def features(g: pd.DataFrame) -> pd.DataFrame:
     g = g.sort_values("date").reset_index(drop=True).copy()
     pc = g.c.shift()
     tr = np.maximum(g.h - g.l, np.maximum((g.h - pc).abs(), (g.l - pc).abs()))
-    g["atr"] = tr.ewm(alpha=1 / 14, adjust=False).mean()
+    g["atr"] = tr.ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
     a = g.atr
     # labels (future only — a backward window would match "near a 20-d low" features by construction)
     fl = g.l.shift(-1)[::-1].rolling(W, min_periods=W).min()[::-1]   # lowest low t+1 … t+W

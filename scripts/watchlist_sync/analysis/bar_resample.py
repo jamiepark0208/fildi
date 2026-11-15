@@ -30,29 +30,34 @@ def _ensure_et_ts(df: pd.DataFrame) -> pd.Series:
 
 def resample_bars(df_1m: pd.DataFrame, tf: str) -> pd.DataFrame:
     """RTH-only bars grouped into `tf` buckets from 09:30 ET per session."""
+    if df_1m.empty:
+        return pd.DataFrame(columns=["ts", "o", "h", "l", "c", "v", "session_date"])
+
     if tf == "1m":
         df = df_1m.copy()
         ts = _ensure_et_ts(df)
         t_et = ts.dt.time
-        df = df[(t_et >= pd.Timestamp("09:30").time()) & (t_et < pd.Timestamp("16:00").time())]
-        df = df.assign(session_date=ts.dt.tz_localize(None).dt.date)
+        mask = (t_et >= pd.Timestamp("09:30").time()) & (t_et < pd.Timestamp("16:00").time())
+        df = df.loc[mask].copy()
+        ts_sub = ts.loc[mask]
+        df["ts"] = ts_sub
+        df["session_date"] = ts_sub.dt.tz_localize(None).dt.date
         return df.sort_values(["session_date", "ts"]).reset_index(drop=True)
 
     mins = TF_MINUTES.get(tf)
     if mins is None:
         raise ValueError(f"unknown tf {tf}")
 
-    if df_1m.empty:
-        return df_1m.copy()
-
     df = df_1m.copy()
     ts = _ensure_et_ts(df)
-    df = df.assign(_ts=ts)
-    df["session_date"] = ts.dt.tz_localize(None).dt.date
     t_et = ts.dt.time
-    df = df[(t_et >= pd.Timestamp("09:30").time()) & (t_et < pd.Timestamp("16:00").time())]
+    mask = (t_et >= pd.Timestamp("09:30").time()) & (t_et < pd.Timestamp("16:00").time())
+    df = df.loc[mask].copy()
     if df.empty:
         return pd.DataFrame(columns=["ts", "o", "h", "l", "c", "v", "session_date"])
+    ts_sub = ts.loc[mask]
+    df["_ts"] = ts_sub
+    df["session_date"] = ts_sub.dt.tz_localize(None).dt.date
 
     minutes_from_open = df["_ts"].dt.hour * 60 + df["_ts"].dt.minute - (9 * 60 + 30)
     df["_bucket"] = (minutes_from_open // mins).astype(int)

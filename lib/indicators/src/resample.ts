@@ -22,23 +22,38 @@ export function etClock(sec: number): [string, number] {
 }
 
 const RTH_OPEN_MIN = 9 * 60 + 30;
+const RTH_CLOSE_MIN = 16 * 60;
 
 /**
  * Resample ascending 5m bars into `minutes`-minute buckets anchored at the US RTH open (09:30 ET each day, so 1h =
- * 09:30, 10:30 …). OHLC aggregated, volume summed, the last partial bucket of a session is kept.
+ * 09:30, 10:30 … and the final 15:30–16:00 half-hour closes at 16:00 ET, not 16:30). Pre/post-market bars outside
+ * [09:30, 16:00) ET are excluded so overnight ticks never form negative or after-hours buckets.
  */
 export function resample(bars: TvBar[], minutes: number): ResampledBar[] {
   const out: ResampledBar[] = [];
   let key = "";
   for (const b of bars) {
     const [day, m] = etClock(b.time);
+    if (m < RTH_OPEN_MIN || m >= RTH_CLOSE_MIN) continue;
     const idx = Math.floor((m - RTH_OPEN_MIN) / minutes);
     const k = `${day}|${idx}`;
     const vol = b.volume ?? 0;
     if (k !== key || !out.length) {
       key = k;
-      const start = b.time - (m - RTH_OPEN_MIN - idx * minutes) * 60;
-      out.push({ time: b.time, lastTime: b.time, end: start + minutes * 60, open: b.open, high: b.high, low: b.low, close: b.close, volume: vol, n: 1 });
+      const startMin = RTH_OPEN_MIN + idx * minutes;
+      const endMin = Math.min(RTH_CLOSE_MIN, startMin + minutes);
+      const start = b.time - (m - startMin) * 60;
+      out.push({
+        time: b.time,
+        lastTime: b.time,
+        end: start + (endMin - startMin) * 60,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: vol,
+        n: 1,
+      });
     } else {
       const r = out[out.length - 1]!;
       if (b.high > r.high) r.high = b.high;

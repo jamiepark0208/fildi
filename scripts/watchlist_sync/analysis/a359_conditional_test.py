@@ -401,6 +401,97 @@ class TestA374A375EngineFixes(unittest.TestCase):
         self.assertEqual(dict(_swing_exits(60))["tstop_5d"].max_bars, 32)
         self.assertEqual(dict(_swing_exits(390))["tstop_5d"].max_bars, 5)
 
+    def test_unadjusted_split_no_fake_rsi_or_put_crash(self) -> None:
+        """B26 + Claude #2/#3: confirmed 3:1 split (SOXX 465 -> 155 with adj_closes 155 -> 156) adjusts cleanly,
+        while a real -50% crash (adj_closes 100 -> 50) is NEVER erased as a 2:1 split."""
+        from conditional_engine import _intraday_rsi_by_session, _run_ticker_sessions, detect_session_split_mults
+
+        d1, d2 = date(2026, 11, 3), date(2026, 11, 4)
+        s1 = np.linspace(450.0, 465.0, 20)
+        s2 = np.linspace(155.0, 156.0, 20)
+        df = pd.DataFrame({
+            "ts": pd.date_range("2026-11-03 14:30", periods=20, freq="5min", tz="UTC").tolist()
+            + pd.date_range("2026-11-04 14:30", periods=20, freq="5min", tz="UTC").tolist(),
+            "o": np.concatenate([s1, s2]),
+            "h": np.concatenate([s1, s2]) + 0.3,
+            "l": np.concatenate([s1, s2]) - 0.3,
+            "c": np.concatenate([s1, s2]),
+            "session_date": [d1] * 20 + [d2] * 20,
+        })
+        mults = detect_session_split_mults(df, adj_closes={d1: 155.0, d2: 156.0})
+        self.assertAlmostEqual(mults[d2], 1 / 3)
+        _, rsi_map = _intraday_rsi_by_session(df, split_mults=mults)
+        self.assertTrue(np.all(rsi_map[14][20:] > 60.0))
+
+        entry_any = ConditionSet("and", [IndicatorCondition("rsi14", "gt", 50.0, "5m")])
+        ct, _ = _run_ticker_sessions(
+            "SOXX", df, entry_any, ExitRules(time_stop="overnight"), PutInstrument(target_delta=-0.15),
+            {date(2026, 10, 31): 28.0, d1: 28.0}, -2.0, SpreadCalibration(buckets={}, n_obs=0, source="test"),
+            base_every_day=False, split_mults=mults,
+        )
+        self.assertEqual(len(ct), 1)
+        self.assertGreater(ct[0]["pnl_frac"], 0.0)
+
+        # Counterexample (Claude #2): a REAL -50% crash (adj_closes 100 -> 50) must NOT be treated as a 2:1 split!
+        c1 = np.linspace(98.0, 100.0, 20)
+        c2 = np.linspace(50.0, 49.0, 20)
+        df_crash = df.copy()
+        df_crash["o"] = np.concatenate([c1, c2])
+        df_crash["h"] = np.concatenate([c1, c2]) + 0.2
+        df_crash["l"] = np.concatenate([c1, c2]) - 0.2
+        df_crash["c"] = np.concatenate([c1, c2])
+        crash_mults = detect_session_split_mults(df_crash, adj_closes={d1: 100.0, d2: 49.0})
+        self.assertEqual(crash_mults, {})
+        ct_crash, _ = _run_ticker_sessions(
+            "CRASH", df_crash, entry_any, ExitRules(time_stop="overnight"), PutInstrument(target_delta=-0.15),
+            {date(2026, 10, 31): 35.0, d1: 35.0}, -2.0, SpreadCalibration(buckets={}, n_obs=0, source="test"),
+            base_every_day=False, split_mults=crash_mults,
+        )
+        self.assertEqual(len(ct_crash), 1)
+        self.assertLess(ct_crash[0]["pnl_frac"], -2.0)  # real crash loss preserved!
+
+    def test_1h_closing_half_bar_available_at_1600_not_1630(self) -> None:
+        """B27: 15:30–16:00 ET 1h RTH bar closes at 16:00 ET (21:00 UTC in EST), not 16:30 ET."""
+        from conditional_engine import _align_higher_tf_entry_mask
+
+        # Nov 3, 2026 (EST = UTC-5): 15:30 ET = 20:30 UTC; next day 09:30 ET = 14:30 UTC; same day 16:00 = 21:00 UTC
+        df_hi = pd.DataFrame({
+            "ts": pd.to_datetime(["2026-11-03T19:30:00Z", "2026-11-03T20:30:00Z"]),  # 14:30 ET, 15:30 ET
+            "c": [100.0, 105.0],
+        })
+        df_en = pd.DataFrame({
+            "ts": pd.to_datetime(["2026-11-03T20:50:00Z", "2026-11-04T14:30:00Z"]),  # 15:50 ET (inside 15:30 bar), next 09:30 ET
+        })
+        filt = ConditionSet("and", [IndicatorCondition("rsi14", "gt", 50.0, "1h")])
+        # 14:30 bar has RSI=30 (False); 15:30 bar has RSI=65 (True).
+        # At 15:50 ET, 15:30 bar hasn't closed -> sees 14:30 bar (False). At next open, sees 15:30 bar (True).
+        aligned = _align_higher_tf_entry_mask(
+            np.array([True, True]), df_en, df_hi, filt,
+            rsi_hi={14: np.array([30.0, 65.0])}, hi_bar_minutes=60,
+        )
+        self.assertEqual(aligned.tolist(), [False, True])
+
+    def test_multi_week_data_hole_resets_rsi_warmup(self) -> None:
+        """B29: >7-day missing-data hole (e.g. W 214d gap 45 -> 82) resets RSI warm-up instead of diffing across 7 months."""
+        from conditional_engine import _intraday_rsi_by_session
+
+        d1, d2 = date(2025, 3, 10), date(2025, 10, 17)
+        s1 = np.linspace(46.0, 45.0, 20)
+        s2 = np.linspace(82.0, 81.5, 20)
+        df = pd.DataFrame({
+            "ts": pd.date_range("2025-03-10 13:30", periods=20, freq="5min", tz="UTC").tolist()
+            + pd.date_range("2025-10-17 13:30", periods=20, freq="5min", tz="UTC").tolist(),
+            "o": np.concatenate([s1, s2]),
+            "h": np.concatenate([s1, s2]) + 0.1,
+            "l": np.concatenate([s1, s2]) - 0.1,
+            "c": np.concatenate([s1, s2]),
+            "session_date": [d1] * 20 + [d2] * 20,
+        })
+        _, rsi_map = _intraday_rsi_by_session(df)
+        # First 13 bars of d2 after 221-day hole must be NaN warm-up, NOT RSI ~99 from 45->82 jump!
+        self.assertTrue(np.all(np.isnan(rsi_map[14][20:33])))
+        self.assertLess(rsi_map[14][35], 20.0)  # s2 gently declines 82 -> 81.5, so post-warmup RSI is low, not 99!
+
 
 if __name__ == "__main__":
     unittest.main()
