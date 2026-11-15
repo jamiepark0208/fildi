@@ -134,47 +134,52 @@ export async function readLatestOptionRankings(side: "put" | "call"): Promise<{
     dated.find((d) => Number(d.n) >= MIN_BOARD) ??
     dated[0];
 
-  if (!latest?.asOf) return { rows: [], asOf: null, computedAt: null };
-
-  const raw = await db
-    .select()
-    .from(optionScoreSnapshots)
-    .where(and(
-      eq(optionScoreSnapshots.side, side),
-      eq(optionScoreSnapshots.asOf, latest.asOf),
-    ))
-    .orderBy(desc(optionScoreSnapshots.optionScore));
+  const raw = latest?.asOf
+    ? await db
+        .select()
+        .from(optionScoreSnapshots)
+        .where(and(
+          eq(optionScoreSnapshots.side, side),
+          eq(optionScoreSnapshots.asOf, latest.asOf),
+        ))
+        .orderBy(desc(optionScoreSnapshots.optionScore))
+    : [];
 
   if (side === "put") {
-    // A277: puts come from the engine (same contract as Model List / Structures); option score stays a display column.
+    // A277 (Codex P1+P2 fix): engine-first reader. Put rankings ALWAYS come from put_recs_daily —
+    // never hidden when option_score_snapshots is empty (P2), and never falling back to legacy TS
+    // pickBestStrike snapshots when put_recs_daily is empty (P1).
     const eng = await readPutRecs();
-    if (eng.rows.length) {
-      const snap = new Map(raw.map((r) => [r.ticker, r]));
-      const rows: OptionRankingRow[] = eng.rows.map((e) => {
-        const p = e.p, s = snap.get(e.ticker);
-        const strike = Number(p.strike), spot = Number(p.spot);
-        // Score = the engine contract's own (enginePins step). The nightly snapshot only counts when it scored that same contract.
-        const same = s != null && Number(s.strike) === strike && String(s.expiry).slice(0, 10) === String(p.expiry).slice(0, 10) ? s : null;
-        return {
-          ticker: e.ticker, side: "put", asOf: String(p.as_of), strike, expiry: String(p.expiry), spot, premium: Number(p.bid),
-          weeklyIncomePct: num(p.income_wk_pct as number | null), otmPct: spot > 0 ? (spot - strike) / spot : null,   // fraction, like snapshot rows
-          delta: num(p.delta as number | null), strikeIv: num(p.iv as number | null), dte: num(p.dte as number | null),
-          optionScore: num(p.option_score as number | null) ?? (same ? Number(same.optionScore) : null),
-          componentScores: ((p.option_components as Record<string, unknown> | undefined) ?? same?.componentScores ?? {}) as Record<string, unknown>,
-          earningsDaysOut: s?.earningsDaysOut ?? null, earningsRisk: p.far === "earnings before expiry", bidIsLive: true, quoteStale: false,
-          dataQuality: num(p.option_dq as number | null) ?? (same ? num(same.dataQuality) : null), atmPutIv: s ? num(s.atmPutIv) : null, ivVsRealized: num(p.iv_rv as number | null),
-          computedAt: e.computedAt, rank: e.rank, relaxed: false,
-          engine: { band: (p.band as string) ?? null, why: String(p.why ?? ""), pass: e.pass,
-                    // verify_plan writes the live-quote result onto the row (live_check); a fail shows as a gate like the engine's own
-                    gates: [...((p.gates as string[]) ?? []), ...(p.live_check && p.live_check !== "pass" ? [`live check — ${String(p.live_check)}`] : [])],
-                    histBp: num(p.hist_bp as number | null), histW5: num(p.hist_w5 as number | null),
-                    tech: (p.tech as Record<string, number | string | null> | null) ?? null },
-        };
-      });
-      await attachFocus(rows, side);
-      return { rows, asOf: eng.asOf, computedAt: rows[0]?.computedAt ?? null };
+    if (!eng.rows.length) {
+      return { rows: [], asOf: null, computedAt: null };
     }
+    const snap = new Map(raw.map((r) => [r.ticker, r]));
+    const rows: OptionRankingRow[] = eng.rows.map((e) => {
+      const p = e.p, s = snap.get(e.ticker);
+      const strike = Number(p.strike), spot = Number(p.spot);
+      // Score = the engine contract's own (enginePins step). The nightly snapshot only counts when it scored that same contract.
+      const same = s != null && Number(s.strike) === strike && String(s.expiry).slice(0, 10) === String(p.expiry).slice(0, 10) ? s : null;
+      return {
+        ticker: e.ticker, side: "put", asOf: String(p.as_of), strike, expiry: String(p.expiry), spot, premium: Number(p.bid),
+        weeklyIncomePct: num(p.income_wk_pct as number | null), otmPct: spot > 0 ? (spot - strike) / spot : null,   // fraction, like snapshot rows
+        delta: num(p.delta as number | null), strikeIv: num(p.iv as number | null), dte: num(p.dte as number | null),
+        optionScore: num(p.option_score as number | null) ?? (same ? Number(same.optionScore) : null),
+        componentScores: ((p.option_components as Record<string, unknown> | undefined) ?? same?.componentScores ?? {}) as Record<string, unknown>,
+        earningsDaysOut: s?.earningsDaysOut ?? null, earningsRisk: p.far === "earnings before expiry", bidIsLive: true, quoteStale: false,
+        dataQuality: num(p.option_dq as number | null) ?? (same ? num(same.dataQuality) : null), atmPutIv: s ? num(s.atmPutIv) : null, ivVsRealized: num(p.iv_rv as number | null),
+        computedAt: e.computedAt, rank: e.rank, relaxed: false,
+        engine: { band: (p.band as string) ?? null, why: String(p.why ?? ""), pass: e.pass,
+                  // verify_plan writes the live-quote result onto the row (live_check); a fail shows as a gate like the engine's own
+                  gates: [...((p.gates as string[]) ?? []), ...(p.live_check && p.live_check !== "pass" ? [`live check — ${String(p.live_check)}`] : [])],
+                  histBp: num(p.hist_bp as number | null), histW5: num(p.hist_w5 as number | null),
+                  tech: (p.tech as Record<string, number | string | null> | null) ?? null },
+      };
+    });
+    await attachFocus(rows, side);
+    return { rows, asOf: eng.asOf, computedAt: rows[0]?.computedAt ?? null };
   }
+
+  if (!latest?.asOf) return { rows: [], asOf: null, computedAt: null };
 
   const rows: OptionRankingRow[] = raw.map((r, i) => ({
     ticker: r.ticker,
@@ -328,9 +333,14 @@ export async function computeAndPersistOptionScores(opts?: {
     .map((t) => t.toUpperCase())
     .filter((t) => techSet.has(t));
   let candidates = [...new Set([...premium, ...watchlistInTech])];
-  const pins = opts?.enginePins ? await readEnginePins() : null;
+  const allPutPins = await readEnginePins();
+  const pins = opts?.enginePins ? allPutPins : null;
   if (opts?.enginePins && !pins) throw new Error("option-score engine pins: put_recs_daily is empty");
-  if (pins) candidates = [...pins.byTicker.keys()];
+  if (pins) {
+    candidates = [...pins.byTicker.keys()];
+  } else if (allPutPins) {
+    candidates = [...new Set([...candidates, ...allPutPins.byTicker.keys()])];
+  }
   if (opts?.onlyTickers?.length) {
     const only = new Set(opts.onlyTickers.map((t) => t.toUpperCase()));
     candidates = candidates.filter((t) => only.has(t));
@@ -458,45 +468,74 @@ export async function computeAndPersistOptionScores(opts?: {
         });
         continue;
       }
+      // A277 (Claude 2026-11-08 spec): for side=put, score the exact contract pinned in put_recs_daily
+      // when one exists (0 strike mismatches vs engine); fall back to pickBestStrike only when no put rec exists.
       const sideChains = chains.map((c) => ({ ...c, options: isCall ? c.calls : c.puts }));
-      let best = pickBestStrike(
-        sideChains,
-        stockCtx, volRegime, sideIVs, undefined,
-        policy.weights, isCall,
-        {
-          minStockQuality: policy.sqFloor,
-          calibration,
-          earningsHaircut: policy.earningsHaircut,
-        },
-      );
+      let best: ReturnType<typeof pickBestStrike<(typeof sideChains)[number]["options"][number], (typeof sideChains)[number]>> = null;
       let relaxed = false;
-      if (!best && onWatchlist) {
-        // Fund score missing or thin premium — still show a scored live-bid strike on Watchlist.
+      let enginePinnedSnapshot = false;
+      const putPin = !isCall ? allPutPins?.byTicker.get(ticker.toUpperCase()) : undefined;
+      if (putPin) {
+        const pChain = sideChains.find((c) => c.expiry === putPin.expiry);
+        const pOpt = pChain?.options.find((o) => Math.abs(o.strike - putPin.strike) < 1e-6);
+        if (!pChain || !pOpt) continue; // never substitute another strike when engine pinned a contract
+        const eh = policy.earningsHaircut;
+        const pRes = computeOptionScore(
+          buildCandidate(pOpt, pChain, false),
+          stockCtx,
+          volRegime,
+          sideIVs,
+          policy.weights,
+          false,
+          eh != null ? { earningsHaircutDeep: Math.min(0.99, eh + 0.06), earningsHaircutNear: eh } : undefined,
+        );
+        const cal = applyCalibrationToScore(pRes.optionScore, "put", calibration);
+        if (!cal.skip && cal.multiplier < 1) {
+          pRes.optionScore = Math.round(pRes.optionScore * cal.multiplier * 10) / 10;
+        }
+        best = { chain: pChain, put: pOpt, result: pRes, runnerUp: null };
+        enginePinnedSnapshot = true;
+      } else {
         best = pickBestStrike(
           sideChains,
           stockCtx, volRegime, sideIVs, undefined,
           policy.weights, isCall,
           {
-            minStockQuality: 0,
-            calibration: null,
+            minStockQuality: policy.sqFloor,
+            calibration,
             earningsHaircut: policy.earningsHaircut,
-            incomeFloor: WATCHLIST_INCOME_FLOOR,
-            minOtm: 0.02,
           },
         );
-        relaxed = true;
-        if (best) watchlistRelaxed++;
+        if (!best && onWatchlist) {
+          // Fund score missing or thin premium — still show a scored live-bid strike on Watchlist.
+          best = pickBestStrike(
+            sideChains,
+            stockCtx, volRegime, sideIVs, undefined,
+            policy.weights, isCall,
+            {
+              minStockQuality: 0,
+              calibration: null,
+              earningsHaircut: policy.earningsHaircut,
+              incomeFloor: WATCHLIST_INCOME_FLOOR,
+              minOtm: 0.02,
+            },
+          );
+          relaxed = true;
+          if (best) watchlistRelaxed++;
+        }
       }
       if (!best) continue;
       const otmCheck = spotOtm(best.chain.spot, best.put.strike, isCall);
-      // Strict path already passed viability inside pickBestStrike; relaxed too.
-      if (!relaxed) {
-        const floor = incomeFloor * 0.9;
-        if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, { incomeFloor: floor })) continue;
-      } else if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, {
-        incomeFloor: WATCHLIST_INCOME_FLOOR,
-        minOtm: 0.02,
-      })) continue;
+      // Engine-pinned puts keep put_recs_daily gating; legacy fallback checks viability.
+      if (!enginePinnedSnapshot) {
+        if (!relaxed) {
+          const floor = incomeFloor * 0.9;
+          if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, { incomeFloor: floor })) continue;
+        } else if (!isViablePremiumIncome(best.result.weeklyIncome, otmCheck, {
+          incomeFloor: WATCHLIST_INCOME_FLOOR,
+          minOtm: 0.02,
+        })) continue;
+      }
 
       const opt = best.put as OptionRow;
       const chain = best.chain;

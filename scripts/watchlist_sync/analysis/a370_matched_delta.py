@@ -42,7 +42,7 @@ import pandas as pd
 sys.path.insert(0, "/Users/jamiepark/Cursor/fildi/scripts/watchlist_sync")
 from build_plan import connect
 
-SHIFT = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+SHIFT = int(sys.argv[1]) if (__name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1].lstrip("-").isdigit()) else 0
 EVAL0, EVAL1 = date(2018, 7, 1), date(2026, 11, 1)
 SPLIT = pd.Timestamp("2023-01-01")
 FLAGS = [
@@ -84,10 +84,18 @@ def indicators(g: pd.DataFrame) -> pd.DataFrame:
     dlt = c_.diff()
     up = dlt.clip(lower=0).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
     dn = (-dlt.clip(upper=0)).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
-    rsi = (100 - 100 / (1 + up / dn.replace(0, np.nan))).where(~(up.notna() & (dn == 0) & (up > 0)), 100.0)
+    rsi = (
+        (100 - 100 / (1 + up / dn.replace(0, np.nan)))
+        .where(~(up.notna() & (dn == 0) & (up > 0)), 100.0)
+        .where(~(up.notna() & (dn == 0) & (up == 0)), 50.0)
+    )
     up5 = dlt.clip(lower=0).ewm(alpha=1 / 5, adjust=False, min_periods=5).mean()
     dn5 = (-dlt.clip(upper=0)).ewm(alpha=1 / 5, adjust=False, min_periods=5).mean()
-    rsi5 = (100 - 100 / (1 + up5 / dn5.replace(0, np.nan))).where(~(up5.notna() & (dn5 == 0) & (up5 > 0)), 100.0)
+    rsi5 = (
+        (100 - 100 / (1 + up5 / dn5.replace(0, np.nan)))
+        .where(~(up5.notna() & (dn5 == 0) & (up5 > 0)), 100.0)
+        .where(~(up5.notna() & (dn5 == 0) & (up5 == 0)), 50.0)
+    )
     tr = pd.concat([h - l, (h - c_.shift()).abs(), (l - c_.shift()).abs()], axis=1).max(axis=1)
     atr = tr.ewm(alpha=1 / 10, adjust=False, min_periods=10).mean()
     hl2 = (h + l) / 2

@@ -492,6 +492,45 @@ class TestA374A375EngineFixes(unittest.TestCase):
         self.assertTrue(np.all(np.isnan(rsi_map[14][20:33])))
         self.assertLess(rsi_map[14][35], 20.0)  # s2 gently declines 82 -> 81.5, so post-warmup RSI is low, not 99!
 
+    def test_a406_higher_tf_ema_split_and_a370_rsi_boundary(self) -> None:
+        """A406: (1) higher-TF EMA20 across a 3:1 split stays True (uptrend) when split_mults threaded;
+        (2) a370 indicators() handles pure-rally (RSI=100, rsi_hi=True) and flat (RSI=50) without NaN."""
+        from a370_matched_delta import indicators as a370_indicators
+        from conditional_engine import _align_higher_tf_entry_mask
+
+        d1, d2 = date(2026, 11, 3), date(2026, 11, 4)
+        # 25 × 1h bars: 20 pre-split gently rising 450 -> 465, then 3:1 split overnight -> 5 bars rising 155 -> 158.
+        c_pre = np.linspace(450.0, 465.0, 20)
+        c_post = np.linspace(155.0, 158.0, 5)
+        ts_hi = (
+            pd.date_range("2026-10-28 13:30", periods=20, freq="60min", tz="UTC").tolist()
+            + pd.date_range("2026-11-04 14:30", periods=5, freq="60min", tz="UTC").tolist()
+        )
+        df_hi = pd.DataFrame({
+            "ts": ts_hi,
+            "c": np.concatenate([c_pre, c_post]),
+            "session_date": [d1] * 20 + [d2] * 5,
+        })
+        df_en = pd.DataFrame({"ts": [pd.Timestamp("2026-11-04T19:35:00Z")]})  # after 4th post-split 1h bar closes
+        filt = ConditionSet("and", [IndicatorCondition("close_above_ema20", "gt", 0.0, "1h")])
+        # Without split_mults (old bug): EMA20 sits ~380 while c=158 -> False! With split_mults={d2: 1/3}: EMA20 ~153 < 158 -> True!
+        with_split = _align_higher_tf_entry_mask(
+            np.array([True]), df_en, df_hi, filt,
+            rsi_hi={14: np.full(25, 60.0)}, hi_bar_minutes=60, split_mults={d2: 1 / 3},
+        )
+        self.assertEqual(with_split.tolist(), [True])
+
+        # (2) a370 pure rally -> RSI 100 & rsi_hi True; flat -> RSI 50
+        rally_df = pd.DataFrame({"c": np.linspace(100.0, 150.0, 220), "h": np.linspace(100.5, 150.5, 220), "l": np.linspace(99.5, 149.5, 220), "v": np.ones(220) * 1000.0})
+        out_r = a370_indicators(rally_df)
+        self.assertTrue(bool(out_r["rsi_hi"].iloc[-1]))
+        self.assertFalse(bool(out_r["rsi_lo"].iloc[-1]))
+
+        flat_df = pd.DataFrame({"c": np.ones(220) * 100.0, "h": np.ones(220) * 100.0, "l": np.ones(220) * 100.0, "v": np.ones(220) * 1000.0})
+        out_f = a370_indicators(flat_df)
+        self.assertFalse(bool(out_f["rsi_hi"].iloc[-1]))
+        self.assertFalse(bool(out_f["rsi_lo"].iloc[-1]))
+
 
 if __name__ == "__main__":
     unittest.main()

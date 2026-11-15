@@ -34,6 +34,9 @@ def main():
                                            AND as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily)"""),
         }
         bad = 0
+        if not eng:
+            print("WARN put consistency: put_recs_daily has 0 priced engine picks — empty engine cannot pass strict check")
+            bad += 1
         for name, rs in surfaces.items():
             for r in rs:
                 e = eng.get(r["ticker"])

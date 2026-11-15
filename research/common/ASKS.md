@@ -39,7 +39,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A262](asks/A262.md) | 2026-10-24 | Jamie → Claude → Cursor | [quant] Test every free outside signal source vs Fildi (OSAP, JKP, option signals, StarMine extras, Finnhub, own-data flow, qlib, tastytrade, movers, QC/Quantpedia) — S089–S098 | parked (Claude 11-07: cap; revisit A371 done) |
 | [A270](asks/A270.md) | 2026-10-25 | Muse → Claude → Cursor | [quant] Reel-batch quant libs: arch (GARCH+SPA), MAPIE (conformal), PySR (symbolic), tested | done (Cursor 11-07, failed validation, uncommitted) |
 | [A276](asks/A276.md) | 2026-10-26 | Muse → Cursor | A238 packet-split pilot: unblock oldest quant studies (A188 + A184) before Dec 11 | verified (Claude 11-03: S124 FAIL; S125 FAIL after 2 bug fixes; pilot GO w/ recomputable hand-check) |
-| [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | planned (Claude 10-29, A312: leftover = retire old pickBestStrike on Rankings + Live; covered-call bands closed S101c) |
+| [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | done |
 | [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | parked (Claude re-review 11-07 after A370) |
 | [A308](asks/A308.md) | 2026-10-28 | Claude → Cursor | [quant] Forward ledger earnings_up: skew + StarMine forecasters (S127 follow-up) | revise (Claude 11-03 commit review: see file) |
 | [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude → Cursor | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | planned |
@@ -101,7 +101,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |
 | [A381](asks/A381.md) | 2026-11-07 | Jamie → Claude → Cursor | Repo + instruction diet: archive finished study scripts, split study engines, one rulebook | planned |
 | [A383](asks/A383.md) | 2026-11-08 | Jamie → Claude → Cursor | Stock-specific context layer: one nightly table → Breakdown tooltips/colours, option params, agents | planned |
-| [A384](asks/A384.md) | 2026-11-08 | Muse → Claude → Cursor | [quant] REVIEW: stock_surface lse_trades WLS weight 1/trades inverts reliability (Medium) | planned |
+| [A384](asks/A384.md) | 2026-11-08 | Muse → Claude → Cursor | [quant] REVIEW: stock_surface lse_trades WLS weight 1/trades inverts reliability (Medium) | done |
 | [A382](asks/A382.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: structure_vec_engine Part D earnings guard uses run-end date, not expiry (Medium) | declined (merged into A192 Part D fix1; High — S166 biased, re-run, Claude 11-08) |
 | [A385](asks/A385.md) | 2026-11-08 | Muse → Cursor | CI red: A340 duplicated in ASKS.md + ASKS-archive.md — delete index copy (High) | done (fixed 11-09 #2: index row removed, archive row kept, Claude) |
 | [A386](asks/A386.md) | 2026-11-09 | Muse → Claude → Cursor | Options jobs 40+ min: tail-fetch chains + indexed chain table (Jamie 11-08 #2) | planned (Claude 11-09) |
@@ -125,4 +125,5 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A403](asks/A403.md) | 2026-11-12 | Muse → Cursor | CI red on every push — A130 duplicated in ASKS.md + ASKS-archive.md | done |
 | [A404](asks/A404.md) | 2026-11-14 | Muse → Cursor | Test OpenCode Claude Agent (subscription) provider as post-Cursor route — same fixed task, ToS resolved, verdict | planned |
 | [A405](asks/A405.md) | 2026-11-15 | Cursor → Claude, Muse, Codex, Grok | [quant] Bug bulletin (B26–B29, R8–R9): 59% non-RTH bars_5m, 1h end=16:30, splits, 214d holes — re-audit + B12 timing | open |
-| [A406](asks/A406.md) | 2026-11-15 | Muse → Cursor | [quant] REVIEW: B26–B29 fixes — higher-TF EMA still on raw closes; a370 RSI boundary | open |
+| [A406](asks/A406.md) | 2026-11-15 | Muse → Cursor | [quant] REVIEW: B26–B29 fixes — higher-TF EMA still on raw closes; a370 RSI boundary | done |
+| [A407](asks/A407.md) | 2026-11-15 | Cursor → Claude → Cursor | [quant] Finance Grade-A: close 4 gaps trailing Jamie (B12 post-10am dip, B13 rel bid, sector cap, P(OTM) cal) | open |

@@ -283,8 +283,12 @@ def fit_group(
         xs.append(x)
         ys.append(q.iv)
         if source == "lse_trades":
-            tr = max(q.trades or 1, 1)
-            ws.append(1.0 / float(tr))
+            # A384 (2,441 paired overlap slices vs chain/survey across 307 OPRA tickers):
+            # _wls_quad multiplies rows by ws (effective weight = ws^2). Old 1/tr gave 1-trade outliers 160,000x weight;
+            # uncapped sqrt(tr) over-pins ATM and starves wing slope `b`. `ws = sqrt(1 + log(min(tr, 100)))` shrinks BOTH
+            # med|Δb| (0.02160 -> 0.02095) and med|Δatm| (3.03 -> 2.63 volpt) while down-weighting 1-trade prints ~5.6x.
+            tr = min(max(q.trades or 1, 1), 100)
+            ws.append(math.sqrt(1.0 + math.log(float(tr))))
         else:
             ws.append(1.0 / spr**2)
 

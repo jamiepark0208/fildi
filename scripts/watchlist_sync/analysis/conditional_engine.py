@@ -1050,8 +1050,10 @@ def _align_higher_tf_entry_mask(
     *,
     rsi_hi: dict[int, np.ndarray],
     hi_bar_minutes: int = 15,
+    split_mults: dict[date, float] | None = None,
 ) -> np.ndarray:
-    """A375 H2+H3 + B27: `df_hi` and `rsi_hi` share exact sliced length; higher-TF bar is known at entry time `t`
+    """A375 H2+H3 + B27 + A406: `df_hi` and `rsi_hi` share exact sliced length; `closes_hi` uses `split_mults` so
+    higher-TF EMA/price conditions match split-continuous entry closes; higher-TF bar is known at entry time `t`
     when its actual RTH bar END <= `t` (clamping the 15:30–16:00 1h half-candle to 16:00 ET instead of 16:30 ET)."""
     if not filt.conditions or df_hi.empty:
         return entry_mask
@@ -1069,7 +1071,11 @@ def _align_higher_tf_entry_mask(
     )
     ts_hi_end = ts_hi_start + pd.to_timedelta(dur_mins, unit="m")
     hi_parts = []
-    closes_hi = build_split_continuous_closes(df_hi) if "session_date" in df_hi.columns else df_hi["c"].to_numpy(dtype=float)
+    closes_hi = (
+        build_split_continuous_closes(df_hi, split_mults)
+        if "session_date" in df_hi.columns
+        else df_hi["c"].to_numpy(dtype=float)
+    )
     rsi_use = rsi_hi if all(len(v) == len(closes_hi) for v in rsi_hi.values()) else None
     for c in filt.conditions:
         hi_parts.append(condition_true_series(c, closes_hi, rsi_cache=rsi_use))
@@ -1186,7 +1192,13 @@ def _run_ticker_sessions(
                 hi_sub = hi_sorted.loc[hi_mask].reset_index(drop=True)
                 hi_rsi_sub = {p: hi_rsi_sorted[p][hi_mask] for p in hi_rsi_sorted}
                 cross = _align_higher_tf_entry_mask(
-                    cross, sess_df, hi_sub, higher_filter, rsi_hi=hi_rsi_sub, hi_bar_minutes=higher_bar_minutes
+                    cross,
+                    sess_df,
+                    hi_sub,
+                    higher_filter,
+                    rsi_hi=hi_rsi_sub,
+                    hi_bar_minutes=higher_bar_minutes,
+                    split_mults=sm_map,
                 )
         anchor = prior_business_iv(iv_series, session)
         if anchor is None:
