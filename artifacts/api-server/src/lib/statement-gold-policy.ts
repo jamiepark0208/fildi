@@ -111,7 +111,16 @@ export function applyNonUsdAbsoluteGoldPolicyDetailed(
   for (const field of NON_USD_PER_SHARE_FIELDS) {
     if (update[field] == null) continue;
     const pi = provenanceBatch.findIndex((p) => p.field === field);
-    if (pi >= 0 && PRICE_CONSISTENT_PER_SHARE_SOURCES.has(provenanceBatch[pi]!.result.source)) continue;
+    const src = pi >= 0 ? provenanceBatch[pi]!.result.source : null;
+    if (src && PRICE_CONSISTENT_PER_SHARE_SOURCES.has(src)) continue;
+    if (src === "factset") continue; // FactSet overview highlights already USD
+    const factsetPs = fx?.bronze?.get(field)?.get("factset") ?? null;
+    if (factsetPs != null && Number.isFinite(factsetPs)) {
+      setDerivedGold(field, factsetPs, update, provenanceBatch);
+      provenanceBatch.find((p) => p.field === field)!.result.source = "factset";
+      outcomes.push({ field, action: "factset", detail: `non-USD per-share (${src ?? "?"}) → factset USD ${factsetPs}` });
+      continue;
+    }
     delete update[field];
     if (pi >= 0) provenanceBatch.splice(pi, 1);
     cleared.push(field);

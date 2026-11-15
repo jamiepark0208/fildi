@@ -1,13 +1,13 @@
 /**
  * A372 § 4 — one market-wide cash/put-collateral target (same for every account) + per-account moves to reach it.
  * Data: GET /api/pm/book → book.cash_target + accounts.*.accounting / .rebalance (pm_book.py, cash_target.py, rebalance.py).
- * Summary grid reuses the Breakdown › Main metrics table; moves use the shared GRID_* table.
+ * Summary grid reuses the Breakdown › Main metrics table; moves use CashTargetMovesTable (A399 ≤150-line cap).
  */
 import { useQuery } from "@tanstack/react-query";
 import { BreakdownMetricsTable, type MetricGroup } from "@/components/breakdown-metrics-table";
-import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 import { cn } from "@/lib/utils";
 import { CashTargetHistory, type CashHistory } from "./cash-target-history";
+import { CashTargetMovesTable, type CashTargetStep } from "./cash-target-moves-table";
 
 type CashTarget = {
   as_of: string; policy_version: string; target: number; lo: number; hi: number;
@@ -18,10 +18,9 @@ type Accounting = {
   F_status: "reconciled" | "unknown" | "none"; F_bounds: [number | null, number | null] | null;
   cash_of_nlv: number | null; notes: string[];
 };
-type Step = { action: string; what: string; qty: number; cash: number; collateral: number; mix_after: number | null; gap_after: number; why: string };
 type Rebalance = {
   target: number; basis: string; free_now: number; mix_now: number | null; gap: number; direction: string;
-  steps: Step[]; mix_after: number | null; gap_after: number; note: string | null; small_allocation: boolean;
+  steps: CashTargetStep[]; mix_after: number | null; gap_after: number; note: string | null; small_allocation: boolean;
 };
 type Book = {
   snapshot_at?: string;
@@ -32,7 +31,6 @@ type Book = {
 
 const money = (v: number | null | undefined) =>
   v == null ? "—" : `${v < 0 ? "−" : ""}$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-const signed = (v: number) => (Math.abs(v) < 0.5 ? "$0" : `${v > 0 ? "+" : "−"}$${Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 const pct = (v: number | null | undefined) => (v == null ? "—" : `${(v * 100).toFixed(0)}%`);
 const mdy = (iso?: string) => {
   if (!iso) return "—";
@@ -136,33 +134,7 @@ export function CashTargetCard({ className }: { className?: string }) {
       </div>
       <BreakdownMetricsTable groups={groups} hideEmptyScore />
       <CashTargetHistory h={book.cash_history} />
-      {steps.length > 0 && (
-        <div className={GRID_WRAP}>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className={GRID_HEADER}>
-                {["Acct", "Move", "What", "Qty", "Cash", "Collateral", "Mix after", "Why"].map((h, i) => (
-                  <th key={h} className={cn(GRID_TH, i >= 3 && i <= 6 ? "text-right" : "text-left")}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {steps.map((s, i) => (
-                <tr key={`${s.account}-${s.what}-${i}`} className={gridRow(i)}>
-                  <td className={GRID_TD}>{s.account}</td>
-                  <td className={cn(GRID_TD, "font-semibold", s.action === "sell put" ? "text-emerald-300" : "text-amber-100")}>{s.action}</td>
-                  <td className={GRID_TD}>{s.what.replace(/(\d{4})-(\d{2})-(\d{2})/, (_m, y, mo, d) => `${Number(mo)}/${Number(d)}/${y.slice(2)}`)}</td>
-                  <td className={cn(GRID_TD, "text-right")}>{s.qty.toLocaleString()}</td>
-                  <td className={cn(GRID_TD, "text-right")}>{signed(s.cash)}</td>
-                  <td className={cn(GRID_TD, "text-right")}>{s.collateral ? signed(s.collateral) : "—"}</td>
-                  <td className={cn(GRID_TD, "text-right")}>{pct(s.mix_after)}</td>
-                  <td className={cn(GRID_TD, "text-amber-50")}>{s.why}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <CashTargetMovesTable steps={steps} />
       {notes.length > 0 && (
         <ul className="text-[10px] text-white px-1 space-y-0.5">
           {notes.map((n) => <li key={n}>{n}</li>)}

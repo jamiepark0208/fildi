@@ -81,9 +81,12 @@ def fetch(conn, ticker: str, day: date) -> list[dict]:
             raise SkipName()
         if status == 429 and b"rows-exhausted" in body:
             raise RowsExhausted()
+        if status == 404 and b"underlying-unknown" in body:
+            # Optionless ticker (e.g. WTR): valid 0-print day so we don't retry forever (A397 addendum).
+            return []
         if status != 200:
-            print(f"flow: {ticker} {day} HTTP {status} {body[:120]!r}", file=sys.stderr)
-            return out
+            print(f"flow: {ticker} {day} HTTP {status} {body[:120]!r} — skipping (will retry next run)", file=sys.stderr)
+            raise SkipName()
         d = json.loads(body.decode())
         rows = d.get("rows") or []
         out += rows
@@ -205,7 +208,7 @@ def main() -> None:
         if not days:
             print("options flow: no new published day")
             return
-        prints = calls = 0
+        prints = calls = skipped = 0
         try:
             for day in days:
                 done = {r[0] for r in conn.execute(
@@ -218,6 +221,7 @@ def main() -> None:
                     try:
                         rows = fetch(conn, t, day)
                     except SkipName:
+                        skipped += 1
                         continue
                     calls += 1 + len(rows) // PAGE
                     store_prints(conn, day, t, rows)
@@ -229,7 +233,7 @@ def main() -> None:
         except TimeoutError:
             print(f"options flow: stopped at --max-minutes {a.max_minutes} — resumes next run", file=sys.stderr)
         print(f"options flow: days {','.join(map(str, days))} · {len(names)} names · {calls} calls · {prints} prints "
-              f"· {time.monotonic() - t0:.0f} s")
+              f"· {skipped} skipped · {time.monotonic() - t0:.0f} s")
 
 
 if __name__ == "__main__":

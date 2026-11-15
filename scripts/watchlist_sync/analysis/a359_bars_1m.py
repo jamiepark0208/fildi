@@ -137,9 +137,10 @@ def backfill_ticker(conn, ticker: str, d0: date, d1: date, state: dict) -> int:
         if status != 200:
             # Never mark a failed month done (11-07: quota 429 would have skipped months for good).
             raise RuntimeError(f"{key} {a}..{b}: HTTP {status} — stop; resume after quota reset")
-        if not df.empty:
-            n_rows += len(df)
-            append_parquet(key, df)
+        if df.empty:
+            continue
+        n_rows += len(df)
+        append_parquet(key, df)
         done.add(ck)
         state.setdefault(key, {"chunks": []})["chunks"].append(list(ck))
         # Merge on write: parallel workers on disjoint tickers share this file (Claude 11-07).

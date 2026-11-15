@@ -25,6 +25,8 @@ import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type { CacheStats } from './ttl-cache.js';
+import { pool } from '@workspace/db';
+import { logger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -146,14 +148,59 @@ function macroChartsFieldEntries(charts: MacroCharts | null, ttlMs: number, now:
 
 // Single source of truth for pruning + stats — keeps the two in sync (profileCache
 // was previously tracked in DISPLAY_NAMES but missing from both, see bugs/5).
-const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, ivTermCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, bankNewsCache, tickerNewsCache, livePriceCache, screenerCache, globalMoversCache, marketDataCache, fredYieldCache, techRankingsCache, trackRecordCache, kalshiMacroCache];
+const ttlCaches = [searchCache, compareCache, historyCache, historyCache1D, quoteCache, breakdownCache, optionsCache, ivTermCache, gexCache, schwabChainCache, expiryCache, peersCache, profileCache, classifyCache, indicatorHistoryCache, sepActualsCache, sectorRotationCache, bankNewsCache, tickerNewsCache, livePriceCache, screenerCache, globalMoversCache, marketDataCache, fredYieldCache, techRankingsCache, trackRecordCache, kalshiMacroCache];
 
 /** Non-TTLCache entries (single objects / files) have no hit counters. */
 const NO_COUNTERS = { sets: 0, evictions: 0, coalesced: 0, callsSaved: 0, startedAt: 0, estBytes: null } as const;
 
 const PRUNE_INTERVAL_MS = 10 * 60 * 1000; // 10 min — O(n) on small n, see bugs/5
+const DB_WATERMARK_INTERVAL_MS = 60 * 1000; // 60 s — cross-process invalidation when Python/CLI scripts write DB
+
+const lastDbWatermarks: {
+  fundAt: string | null;
+  techAt: string | null;
+  gradeAt: string | null;
+} = { fundAt: null, techAt: null, gradeAt: null };
+
+export async function syncCachesWithDbWatermarks(): Promise<void> {
+  try {
+    const { rows } = await pool.query<{ fund_at: string | null; tech_at: string | null; grade_at: string | null }>(`
+      SELECT
+        GREATEST(MAX(fundamentals_last_fetched), MAX(fund_score_computed_at))::text AS fund_at,
+        (SELECT MAX(technicals_last_fetched)::text FROM ticker_technicals) AS tech_at,
+        (SELECT MAX(graded_at)::text FROM watchlist_sync.grades) AS grade_at
+      FROM ticker_fundamentals
+    `);
+    const row = rows[0];
+    if (!row) return;
+    if (lastDbWatermarks.fundAt !== null && row.fund_at !== lastDbWatermarks.fundAt) {
+      breakdownCache.clear();
+      compareCache.clear();
+      logger.info({ from: lastDbWatermarks.fundAt, to: row.fund_at }, 'cache-registry: cleared breakdown/compare on DB fundamentals update');
+    }
+    if (lastDbWatermarks.techAt !== null && row.tech_at !== lastDbWatermarks.techAt) {
+      techRankingsCache.clear();
+      breakdownCache.clear();
+      logger.info({ from: lastDbWatermarks.techAt, to: row.tech_at }, 'cache-registry: cleared techRankings/breakdown on DB technicals update');
+    }
+    if (lastDbWatermarks.gradeAt !== null && row.grade_at !== lastDbWatermarks.gradeAt) {
+      trackRecordCache.clear();
+      logger.info({ from: lastDbWatermarks.gradeAt, to: row.grade_at }, 'cache-registry: cleared trackRecord on DB grades update');
+    }
+    lastDbWatermarks.fundAt = row.fund_at;
+    lastDbWatermarks.techAt = row.tech_at;
+    lastDbWatermarks.gradeAt = row.grade_at;
+  } catch {
+    // Non-fatal if watchlist_sync schema not yet seeded
+  }
+}
 
 export function startCacheSweep(): NodeJS.Timeout {
+  void syncCachesWithDbWatermarks();
+  setInterval(() => {
+    void syncCachesWithDbWatermarks();
+  }, DB_WATERMARK_INTERVAL_MS).unref();
+
   return setInterval(() => {
     for (const c of ttlCaches) c.pruneExpired();
   }, PRUNE_INTERVAL_MS).unref();

@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { callHaiku, HAIKU_MODEL } from "./haiku.js";
+import { callHaiku, HAIKU_MODEL, isAnthropicBillingError, isAnthropicCreditExhausted } from "./haiku.js";
 import { cleanBodyNoise } from "./desk-commentary-normalize.js";
 import { logger } from "./logger.js";
 
@@ -28,8 +28,8 @@ export interface DeskFact {
   numbers: string[];
   checkable: boolean;
   horizon: string | null;
-  /** "model" = Haiku · "list" = code-read earnings-timing list (v3: Haiku truncates 100+ name calendars) */
-  origin?: "model" | "list";
+  /** "model" = Haiku · "list" = code-read earnings-timing list · "local" = $0 deterministic fallback when Anthropic credits = 0 */
+  origin?: "model" | "list" | "local";
 }
 
 export interface ExtractResult {
@@ -37,6 +37,7 @@ export interface ExtractResult {
   dropped: { numbers: number; kind: number; tickers: number };
   inputTokens: number;
   outputTokens: number;
+  usedModel?: string;
 }
 
 /** Bodies above this are cut (Haiku context is fine; output budget is the limit). 10-30 max body = 114k. */
@@ -238,29 +239,126 @@ export function chunkText(text: string, size = CHUNK_CHARS): string[] {
   return out;
 }
 
+const STOP_TICKERS = new Set([
+  "A", "I", "AM", "PM", "ET", "PT", "US", "UK", "EU", "AI", "CEO", "CFO", "COO", "IPO", "EPS", "GDP", "CPI", "PPI",
+  "FED", "SEC", "FDA", "DOJ", "FTC", "YOY", "QOQ", "MOM", "FY", "YTD", "ATH", "OTM", "ITM", "ATM", "DTE", "USD", "EUR",
+  "THE", "AND", "FOR", "ARE", "NOT", "NEW", "NOW", "TOP", "BUY", "OUT", "ALL", "HAS", "ITS", "MAY", "SEE", "ONE", "TWO",
+]);
+
+/**
+ * $0 deterministic extractor when Anthropic credits are exhausted.
+ * Extracts ticker-linked analyst/earnings/guidance/corporate claims + macro numbers, then runs guardFacts
+ * so every number & ticker invariant matches the Haiku path.
+ */
+export function extractFactsLocal(clean: string, universe: Set<string>): ExtractResult {
+  const candidates: Array<Record<string, unknown>> = [];
+  const sentences = clean
+    .split(/\n+|(?<=[.!?])\s+(?=[A-Z$])/)
+    .map((s) => s.replace(/\s+/g, " ").trim())
+    .filter((s) => s.length >= 25 && s.length <= 320);
+
+  for (const s of sentences) {
+    if (/unsubscribe|privacy policy|terms of service|sponsored|advertisement|view in browser/i.test(s)) continue;
+    const nums = [...s.matchAll(/[+-]?\d+(?:,\d{3})*(?:\.\d+)?(?:\s*(?:%|bps|B|M|K|bn|mn|x))?/g)]
+      .map((m) => m[0].trim())
+      .slice(0, 8);
+    const tickers: string[] = [];
+    for (const m of s.matchAll(/(?:\$([A-Z]{1,5}(?:\.[A-Z])?)|\(([A-Z]{1,5}(?:\.[A-Z])?)\)|\b([A-Z]{2,5}(?:\.[A-Z])?)\b)/g)) {
+      const sym = (m[1] ?? m[2] ?? m[3] ?? "").toUpperCase();
+      if (!sym) continue;
+      const explicit = Boolean(m[1] || m[2]);
+      if (explicit && (universe.has(sym) || sym.length >= 2)) tickers.push(sym);
+      else if (!STOP_TICKERS.has(sym) && universe.has(sym)) tickers.push(sym);
+    }
+    const uniqTickers = [...new Set(tickers)].slice(0, 8);
+    let kind: DeskFactKind | null = null;
+    if (uniqTickers.length > 0) {
+      if (/\b(upgrad\w*|downgrad\w*|initiat\w*|price target|\bPT\b|overweight|underweight|outperform|maintains?|reiterates?|rating)\b/i.test(s)) {
+        kind = "analyst_action";
+      } else if (/\b(EPS|revenue|beat\w*|miss\w*|reported|quarter|Q[1-4]\s*20\d\d|gross margin|net income)\b/i.test(s) && nums.length > 0) {
+        kind = "earnings_detail";
+      } else if (/\b(guidance|outlook|sees\s+FY|expects\s+FY|forecast\w*|reporting|earnings\s+on)\b/i.test(s)) {
+        kind = "guidance_calendar";
+      } else if (/\b(acquir\w*|merger|buyback|repurchase|spin[- ]?off|CEO|CFO|lawsuit|DOJ|FTC|FDA|contract|dividend)\b/i.test(s)) {
+        kind = "corporate_event";
+      } else if (uniqTickers.length >= 2 && nums.length > 0) {
+        kind = "cross_company_theme";
+      }
+    } else if (nums.length > 0 && /\b(CPI|PPI|PCE|GDP|nonfarm|payrolls|unemployment|FOMC|Fed\b|10-year|Treasury|Brent|WTI|VIX)\b/i.test(s)) {
+      kind = "macro_number";
+    }
+    if (!kind) continue;
+    candidates.push({
+      kind,
+      tickers: uniqTickers,
+      claim: s.slice(0, 200),
+      numbers: nums,
+      checkable: nums.length > 0 || kind === "analyst_action" || kind === "guidance_calendar",
+      horizon: kind === "guidance_calendar" ? "1w" : "past",
+    });
+    if (candidates.length >= MAX_FACTS) break;
+  }
+
+  const guarded = guardFacts(candidates, clean, universe);
+  const seen = new Set<string>();
+  const facts: DeskFact[] = [];
+  for (const f of guarded.facts) {
+    const k = `${f.kind}|${f.claim.toLowerCase()}`;
+    if (!seen.has(k)) {
+      seen.add(k);
+      facts.push({ ...f, origin: "local" });
+    }
+  }
+  for (const lf of listFacts(clean, universe)) {
+    const k = `${lf.kind}|${lf.claim.toLowerCase()}`;
+    if (!seen.has(k)) {
+      seen.add(k);
+      facts.push(lf);
+    }
+  }
+  return {
+    facts,
+    dropped: guarded.dropped,
+    inputTokens: 0,
+    outputTokens: 0,
+    usedModel: "local-deterministic",
+  };
+}
+
 export async function extractFacts(body: string, ticker = "_"): Promise<ExtractResult> {
   const clean = cleanForExtract(body);
   const universe = await loadTickerUniverse();
-  const out: ExtractResult = { facts: [], dropped: { numbers: 0, kind: 0, tickers: 0 }, inputTokens: 0, outputTokens: 0 };
+  if (isAnthropicCreditExhausted()) {
+    return extractFactsLocal(clean, universe);
+  }
+  const out: ExtractResult = { facts: [], dropped: { numbers: 0, kind: 0, tickers: 0 }, inputTokens: 0, outputTokens: 0, usedModel: HAIKU_MODEL };
   const seen = new Set<string>();
-  for (const part of chunkText(clean)) {
-    const res = await callHaiku({
-      prompt: PROMPT + part,
-      maxTokens: 16_000,
-      trigger: "desk_facts",
-      surfaceType: "desk_facts",
-      ticker,
-      timeoutMs: 120_000,
-    });
-    // guard against the whole email: a number may sit in a neighbouring chunk's line
-    const g = guardFacts(parseJsonArray(res.text), clean, universe);
-    for (const f of g.facts) {
-      const k = `${f.kind}|${f.claim.toLowerCase()}`;
-      if (!seen.has(k)) { seen.add(k); out.facts.push(f); }
+  try {
+    for (const part of chunkText(clean)) {
+      const res = await callHaiku({
+        prompt: PROMPT + part,
+        maxTokens: 16_000,
+        trigger: "desk_facts",
+        surfaceType: "desk_facts",
+        ticker,
+        timeoutMs: 120_000,
+      });
+      // guard against the whole email: a number may sit in a neighbouring chunk's line
+      const g = guardFacts(parseJsonArray(res.text), clean, universe);
+      for (const f of g.facts) {
+        const k = `${f.kind}|${f.claim.toLowerCase()}`;
+        if (!seen.has(k)) { seen.add(k); out.facts.push(f); }
+      }
+      for (const k of ["numbers", "kind", "tickers"] as const) out.dropped[k] += g.dropped[k];
+      out.inputTokens += res.inputTokens;
+      out.outputTokens += res.outputTokens;
     }
-    for (const k of ["numbers", "kind", "tickers"] as const) out.dropped[k] += g.dropped[k];
-    out.inputTokens += res.inputTokens;
-    out.outputTokens += res.outputTokens;
+  } catch (err) {
+    if (isAnthropicBillingError(err)) {
+      logger.info({ ticker }, "desk-facts: Anthropic credits exhausted — falling back to local $0 extractor");
+      return extractFactsLocal(clean, universe);
+    }
+    throw err;
   }
   out.facts.push(...listFacts(clean, universe));
   return out;
@@ -282,7 +380,7 @@ export async function extractAndStore(row: PendingRow): Promise<number> {
                   ${f.checkable}, ${f.horizon}, ${row.received_at}, ${DESK_FACTS_VERSION}, ${f.origin ?? "model"})`);
       }
       await tx.execute(sql`INSERT INTO desk_fact_runs (commentary_id, extractor_version, body_sha, model, status, n_facts, dropped, input_tokens, output_tokens, error, ran_at)
-        VALUES (${row.id}, ${DESK_FACTS_VERSION}, ${sha}, ${HAIKU_MODEL}, ${r.facts.length ? "ok" : "empty"}, ${r.facts.length},
+        VALUES (${row.id}, ${DESK_FACTS_VERSION}, ${sha}, ${r.usedModel ?? HAIKU_MODEL}, ${r.facts.length ? "ok" : "empty"}, ${r.facts.length},
                 ${JSON.stringify(r.dropped)}::jsonb, ${r.inputTokens}, ${r.outputTokens}, NULL, now())
         ON CONFLICT (commentary_id) DO UPDATE SET extractor_version = EXCLUDED.extractor_version, body_sha = EXCLUDED.body_sha,
           model = EXCLUDED.model, status = EXCLUDED.status, n_facts = EXCLUDED.n_facts, dropped = EXCLUDED.dropped,
@@ -318,14 +416,21 @@ export async function extractPendingDeskFacts(opts?: { limit?: number; days?: nu
   const out = { done: 0, facts: 0, errors: 0 };
   // Output-token bound (~6 s / email alone) → EXTRACT_CONCURRENCY emails in flight, never more (rule 8c).
   const queue = [...(r.rows as unknown as PendingRow[])];
+  let billingStopped = false;
   const worker = async () => {
     for (let row = queue.shift(); row; row = queue.shift()) {
+      if (billingStopped) return;
       try {
         out.facts += await extractAndStore(row);
         out.done++;
       } catch (err) {
         out.errors++;
         logger.warn({ err: String(err), id: row.id }, "desk-facts: extract failed");
+        if (/credit balance is too low|Plans & Billing/i.test(String((err as Error)?.message ?? err))) {
+          billingStopped = true;
+          queue.length = 0;
+          logger.warn("desk-facts: Anthropic has no credits — stopped this run");
+        }
       }
     }
   };

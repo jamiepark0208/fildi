@@ -72,7 +72,9 @@ def main() -> None:
             cells = [c.strip() for c in ln.strip("|").split("|")]
             if len(cells) >= 5 and re.match(r"\d{4}-\d{2}-\d{2}$", cells[4]) and cells[4] <= TODAY.isoformat():
                 due.append(f"{cells[2]} ({cells[0][:40]})")
-    if apply and met:
+    idx_ids = {ROW.match(ln).group(1) for ln in idx if ROW.match(ln)}
+    arch_dupes = {ROW.match(ln).group(1) for ln in arch if ROW.match(ln) and ROW.match(ln).group(1) in idx_ids}
+    if apply and (met or arch_dupes):
         note = f"Revisit met {TODAY}"
         moved = {a for a, k, _ in met if k == "declined"}
         out, back = [], []
@@ -82,20 +84,35 @@ def main() -> None:
                 c = ln.split("|"); hit = next(h for a, _, h in met if a == m.group(1))
                 c[5] = f" planned ({note}: {hit}) "; ln = "|".join(c)
             out.append(ln)
+        out_ids = {ROW.match(x).group(1) for x in out if ROW.match(x)}
         keep = []
         for ln in arch:
             m = ROW.match(ln)
-            if m and m.group(1) in moved and m.group(1) not in {ROW.match(x).group(1) for x in out if ROW.match(x)}:
-                c = ln.split("|"); hit = next(h for a, _, h in met if a == m.group(1))
-                c[5] = f" re-review ({note}: {hit}) "; back.append("|".join(c)); continue
+            if m:
+                aid = m.group(1)
+                if aid in out_ids:
+                    # Stuck duplicate (already in ASKS.md): drop stale archive copy so CI check-asks-index stays green.
+                    continue
+                if aid in moved:
+                    c = ln.split("|"); hit = next(h for a, _, h in met if a == aid)
+                    c[5] = f" re-review ({note}: {hit}) "; back.append("|".join(c)); continue
             keep.append(ln)
         if back:
             last = max(i for i, x in enumerate(out) if ROW.match(x))
             out[last + 1:last + 1] = back
+        out_status = {ROW.match(x).group(1): x.split("|")[5].strip() for x in out if ROW.match(x)}
         w(R / "ASKS.md", "\n".join(out)); w(R / "ASKS-archive.md", "\n".join(keep))
-        for a, k, h in met:
+        for a in {a for a, _, _ in met} | arch_dupes:
             f = R / "asks" / f"{a}.md"
-            w(f, f.read_text().rstrip("\n") + f"\n\n**{note}:** `{h}` → {'planned' if k == 'parked' else 're-review (owner re-judges; decline again only with a new reason)'}.\n")
+            if not f.exists(): continue
+            txt = f.read_text()
+            if a in out_status:
+                txt = re.sub(r"(\*\*Status:\*\*\s*)([^\n]+)", lambda m_st: m_st.group(1) + out_status[a], txt, count=1)
+            hit_tup = next(((k, h) for aid, k, h in met if aid == a), None)
+            if hit_tup:
+                k, h = hit_tup
+                txt = txt.rstrip("\n") + f"\n\n**{note}:** `{h}` → {'planned' if k == 'parked' else 're-review (owner re-judges; decline again only with a new reason)'}.\n"
+            w(f, txt)
     print(f"revisit: {len(met)} met" + (" — " + ", ".join(f"{a} {k}→{'planned' if k == 'parked' else 're-review'} ({h})" for a, k, h in met) if met else "")
           + (" (applied)" if apply and met else "")
           + f" · parked w/o trigger: {', '.join(missing) or '—'}"

@@ -196,11 +196,12 @@ export async function runEnrichPhase(ctx) {
   
     function runListCriticalData() {
       // Daily bars for every active name missing the last session (Schwab → Yahoo → LSEG); exit 2 = coverage < 95%.
-      const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts");
+      // After weekend/sleep gaps ~900 stale names can take >30m if a vendor throttles — allow 90m so required catch-up finishes.
+      const stalePrices = runApiTsx("src/scripts/backfill-stale-prices.ts", [], 90);
       actions.push(`backfill_stale_prices_exit_${stalePrices.status ?? stalePrices.signal ?? "spawn_error"}`);
-  
+
       // Earnings-window stale refresh (bounded) — Model List earnings re-strike reads this.
-      enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"]);
+      enrichEarnings = runApiTsx("src/scripts/enrich-earnings-window.ts", ["--max=40"], 45);
       actions.push(`enrich_earnings_exit_${enrichEarnings.status}`);
     }
   

@@ -302,6 +302,105 @@ class TestCarriedStopBarZero(unittest.TestCase):
         self.assertEqual(tr2[0]["exit_bar"], 0)
         self.assertEqual(tr2[0]["exit_reason"], "stop_loss")
 
+    def test_intraday_bar0_low_does_not_lookahead_fill_at_open0(self) -> None:
+        """A374 H2: flat open (100) + plunge inside bar 0 (low 65) cannot fill at open[0]=100."""
+        d1, d2 = date(2025, 6, 2), date(2025, 6, 3)
+        sp = SpreadCalibration(buckets={}, n_obs=0, source="test")
+        exits = ExitRules(stop_loss_mult=0.5, time_stop="expiry")
+        day1 = pd.DataFrame({
+            "o": [100.0] * 4, "h": [100.0] * 4, "l": [100.0] * 4,
+            "c": [100.0] * 4, "session_date": [d1] * 4,
+        })
+        _, carry = simulate_session_puts(
+            day1, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+            instrument=PutInstrument(), spread=sp, force_entry_bar=0,
+        )
+        day2 = pd.DataFrame({
+            "o": [100.0, 66.0, 66.0, 66.0],
+            "h": [100.0, 67.0, 67.0, 67.0],
+            "l": [65.0, 65.0, 65.0, 65.0],
+            "c": [66.0, 66.0, 66.0, 66.0],
+            "session_date": [d2] * 4,
+        })
+        tr2, _ = simulate_session_puts(
+            day2, np.zeros(4, dtype=bool), exits, iv_anchor=25.0, iv_beta=-2.0,
+            instrument=PutInstrument(), spread=sp, carry=carry,
+        )
+        self.assertTrue(tr2)
+        self.assertEqual(tr2[0]["exit_reason"], "stop_loss")
+        self.assertEqual(tr2[0]["exit_bar"], 1)  # fills at bar-1 open (66), NOT bar-0 open (100)
+
+
+class TestA374A375EngineFixes(unittest.TestCase):
+    def test_session_filter_preserves_rsi_alignment(self) -> None:
+        """A374 H1: session_filter must slice RSI to matching dates, not read session-0 RSI."""
+        from conditional_engine import ConditionalContext, _intraday_rsi_by_session, run_conditional_strategy
+
+        d1, d2 = date(2025, 9, 29), date(2025, 10, 2)
+        # Session 1 crashes into RSI < 20; Session 2 starts already high and rallies steadily (RSI > 70 on every bar).
+        s1 = np.linspace(100.0, 75.0, 25)
+        s2 = np.linspace(95.0, 120.0, 25)
+        df = pd.DataFrame({
+            "ts": pd.date_range("2025-09-29 13:30", periods=25, freq="5min", tz="UTC").tolist()
+            + pd.date_range("2025-10-02 13:30", periods=25, freq="5min", tz="UTC").tolist(),
+            "o": np.concatenate([s1, s2]),
+            "h": np.concatenate([s1, s2]) + 0.2,
+            "l": np.concatenate([s1, s2]) - 0.2,
+            "c": np.concatenate([s1, s2]),
+            "session_date": [d1] * 25 + [d2] * 25,
+        })
+        df_s, rsi_full = _intraday_rsi_by_session(df)
+        ctx = ConditionalContext(
+            bars_map={"TEST": df_s},
+            sectors={"TEST": "TECH"},
+            spread=SpreadCalibration(buckets={}, n_obs=0, source="test"),
+            betas={"TEST": -2.0},
+            iv_maps={"TEST": {date(2025, 9, 26): 30.0, d1: 30.0}},
+            default_beta=-2.0,
+            rsi_by_ticker={"TEST": rsi_full},
+            bar_tf="5m",
+            bar_minutes=5,
+        )
+        entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", 30.0, "5m")])
+        res = run_conditional_strategy(
+            ["TEST"], entry, ExitRules(time_stop="same_day"), PutInstrument(),
+            session_filter=lambda d: d >= date(2025, 10, 1), ctx=ctx, bar_tf="5m", keep_trades=True,
+        )
+        # Before fix: d2 read d1's crashing RSI and fired a false trade on d2!
+        self.assertEqual(res["conditional"]["n"], 0)
+
+    def test_higher_tf_bar_end_no_lookahead_and_ticker_deep_otm_priority(self) -> None:
+        """A375 H3 + M1: forming 1h bar cannot leak into 09:35 entry; ticker deep_otm beats global."""
+        from conditional_engine import _align_higher_tf_entry_mask, _scalp_exits, _swing_exits
+
+        df_en = pd.DataFrame({"ts": pd.to_datetime(["2025-10-02T13:35:00Z", "2025-10-02T14:35:00Z"])})
+        df_hi = pd.DataFrame({
+            "ts": pd.to_datetime(["2025-10-02T13:30:00Z", "2025-10-02T14:30:00Z"]),
+            "c": [110.0, 90.0],
+        })
+        filt = ConditionSet("and", [IndicatorCondition("rsi14", "gt", 50.0, "1h")])
+        aligned = _align_higher_tf_entry_mask(
+            np.array([True, True]), df_en, df_hi, filt,
+            rsi_hi={14: np.array([65.0, 35.0])}, hi_bar_minutes=60,
+        )
+        # 13:35 entry occurs BEFORE 13:30–14:30 1h bar closes -> False; 14:35 sees completed 13:30–14:30 bar (RSI 65) -> True
+        self.assertEqual(aligned.tolist(), [False, True])
+
+        # M1: ticker-specific deep_otm bucket beats global deep_otm bucket
+        sp = SpreadCalibration(
+            buckets={("deep_otm", "mid", "high"): 0.25},
+            n_obs=50,
+            source="test",
+            ticker_liq_bin={"SPY": "high"},
+            ticker_buckets={("SPY", "deep_otm", "mid"): 0.08},
+        )
+        self.assertAlmostEqual(sp.round_trip_frac(500.0, 420.0, 30, ticker="SPY"), 0.08)
+
+        # M4: max_bars scales by timeframe
+        self.assertEqual(dict(_scalp_exits(2))["tstop30m"].max_bars, 15)
+        self.assertEqual(dict(_swing_exits(60))["tstop_5d"].max_bars, 32)
+        self.assertEqual(dict(_swing_exits(390))["tstop_5d"].max_bars, 5)
+
 
 if __name__ == "__main__":
     unittest.main()

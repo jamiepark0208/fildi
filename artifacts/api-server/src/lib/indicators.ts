@@ -225,7 +225,12 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
   } catch (err) {
     logger.warn({ err, ticker: key, schwabSym }, "fetchAndStoreOHLCV: Schwab pricehistory failed");
   }
-  const schwabOk = schwab.length >= 15 && !isOHLCVStale(barYmd(schwab[schwab.length - 1]!));
+  // Tail catch-up (overlapDays ≈ 3) returns <15 bars by design. Fresh short Schwab is enough when
+  // prices_historical already has a series — do not fall through to Yahoo/Polygon (11-10: 429 storm).
+  const schwabOk =
+    schwab.length > 0 &&
+    !isOHLCVStale(barYmd(schwab[schwab.length - 1]!)) &&
+    (schwab.length >= 15 || !!latestYmd);
 
   let yahoo: YahooBar[] = [];
   if (!schwabOk) {
@@ -242,40 +247,51 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
 
   let sourced: SourcedBar[] = mergeSchwabYahoo(schwab, yahoo);
   const primaryLatest = sourced.length ? barYmd(sourced[sourced.length - 1]!) : null;
-  // Soft LSEG fill when Yahoo is thin/stale *or* LSEG has a newer date. Never required —
+  const primaryOk =
+    !!primaryLatest &&
+    !isOHLCVStale(primaryLatest) &&
+    (sourced.length >= 15 || !!latestYmd);
+  // Soft LSEG fill when primary is thin/stale *or* LSEG has a newer date. Never required —
   // entitlement / Workspace down / missing schema must not break Yahoo-only names.
-  let lseg: YahooBar[] = [];
-  try {
-    lseg = await fetchOHLCVFromLseg(key, period1);
-  } catch (err) {
-    logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: LSEG daily_history fallback skipped");
-  }
-  if (lseg.length >= 15) {
-    const lsegLatest = barYmd(lseg[lseg.length - 1]!);
-    const lsegAhead = !primaryLatest || lsegLatest > primaryLatest;
-    if (sourced.length < 15 || isOHLCVStale(primaryLatest) || lsegAhead) {
-      sourced = sourced.length ? mergeYahooLseg(sourced, lseg) : lseg.map((b) => ({ ...b, source: "lseg" as const }));
-      logger.info(
-        {
-          ticker: key,
-          schwabRows: schwab.length,
-          yahooRows: yahoo.length,
-          primaryLatest,
-          lsegRows: lseg.length,
-          lsegLatest,
-          merged: sourced.length,
-          lsegOnly: sourced.filter((b) => b.source === "lseg").length,
-        },
-        "fetchAndStoreOHLCV: merged/filled from LSEG daily_history",
-      );
+  if (!primaryOk) {
+    let lseg: YahooBar[] = [];
+    try {
+      lseg = await fetchOHLCVFromLseg(key, period1);
+    } catch (err) {
+      logger.warn({ err, ticker: key }, "fetchAndStoreOHLCV: LSEG daily_history fallback skipped");
+    }
+    if (lseg.length >= 15) {
+      const lsegLatest = barYmd(lseg[lseg.length - 1]!);
+      const lsegAhead = !primaryLatest || lsegLatest > primaryLatest;
+      if (sourced.length < 15 || isOHLCVStale(primaryLatest) || lsegAhead) {
+        sourced = sourced.length ? mergeYahooLseg(sourced, lseg) : lseg.map((b) => ({ ...b, source: "lseg" as const }));
+        logger.info(
+          {
+            ticker: key,
+            schwabRows: schwab.length,
+            yahooRows: yahoo.length,
+            primaryLatest,
+            lsegRows: lseg.length,
+            lsegLatest,
+            merged: sourced.length,
+            lsegOnly: sourced.filter((b) => b.source === "lseg").length,
+          },
+          "fetchAndStoreOHLCV: merged/filled from LSEG daily_history",
+        );
+      }
     }
   }
 
-  // A87: Polygon soft fill when Schwab/Yahoo/LSEG still thin (BK/MMC-class holes).
-  if (sourced.length < 15 || isOHLCVStale(sourced.length ? barYmd(sourced[sourced.length - 1]!) : null)) {
+  // A87: Polygon soft fill when Schwab/Yahoo/LSEG still thin/stale (BK/MMC-class holes). Skip on fresh tails.
+  const afterLsegLatest = sourced.length ? barYmd(sourced[sourced.length - 1]!) : null;
+  const afterLsegOk =
+    !!afterLsegLatest &&
+    !isOHLCVStale(afterLsegLatest) &&
+    (sourced.length >= 15 || !!latestYmd);
+  if (!afterLsegOk) {
     try {
       const poly = await fetchPolygonDailyBars(upper, period1);
-      if (poly.length >= 15) {
+      if (poly.length >= 15 || (poly.length > 0 && !!latestYmd && !isOHLCVStale(barYmd(poly[poly.length - 1]!)))) {
         sourced = sourced.length
           ? mergeWithPolygon(sourced, poly)
           : poly.map((b) => ({ ...b, source: "polygon" as const }));
@@ -289,12 +305,21 @@ export async function fetchAndStoreOHLCV(key: string): Promise<OHLCVRow[]> {
     }
   }
 
-  if (sourced.length < 15) throw new Error(`Insufficient history for ${key}: ${sourced.length} rows`);
-
   // Never store a session that hasn't closed: vendors return today's partial candle intraday, and a stored
   // partial bar used to stick forever (10-20/10-21 incident). Recent bars may be refreshed by the same vendor.
   const lastClosed = lastCompletedSessionYmd();
   sourced = sourced.filter((r) => barYmd(r) <= lastClosed);
+
+  // Tail catch-up (planKey overlapDays ≈ 3) only pulls a handful of bars. That is enough to upsert when
+  // prices_historical already has a full series. Cold names still need ≥15 vendor rows.
+  // 11-10: without this, every stale-price backfill threw "Insufficient history: 6 rows" and Prices stayed yellow.
+  if (sourced.length < 15) {
+    const cached = await readOHLCVFromDB(upper);
+    if (cached.length < 15) {
+      throw new Error(`Insufficient history for ${key}: ${sourced.length} rows`);
+    }
+    if (sourced.length === 0) return cached;
+  }
   const recentCut = new Date(`${lastClosed}T12:00:00Z`);
   recentCut.setUTCDate(recentCut.getUTCDate() - 10);
   const recentFrom = recentCut.toISOString().slice(0, 10);

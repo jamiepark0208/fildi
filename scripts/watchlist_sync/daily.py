@@ -58,36 +58,26 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
     "integrity": [("split repair", PY, HERE, ["split_repair.py", "--apply"])],
     "model": [
         ("peer check", PY, HERE, ["peer_verify.py", "--apply"]),   # 10-27: OpenJev + TRBC + co-movement; 2 of 3 agree → verified (enters peer norms)
-        # S096 tastytrade IV rank/pctile + liquidity → tasty_metrics_daily (+ verify vs LSEG); then the IV-rank resolver
-        # (LSEG → tastytrade → none → iv_rank_daily) read by the option scan + fit below. Soft (pipe → exit 0): a failure must not stop the plan; its last line (✗ CHECK / traceback) shows in the log.
-        ("tastytrade metrics", SH, HERE, ["-c", f"{PY} tastytrade.py universe 2>&1 | tail -1"]),
-        ("IV rank resolver", SH, HERE, ["-c", f"{PY} iv_rank.py 2>&1 | tail -1"]),
-        # A283: outside intrinsic values (StarMine from today's LSEG signals; FMP DCF weekly, ≤ 40 calls) → external_intrinsic. Soft.
-        ("outside intrinsic values", SH, HERE, ["-c", f"{PY} dcf/external_iv.py --max 40 2>&1 | tail -1"]),
-        # A289: DCF v2 lab detail (watchlist only until fv-2.0.0 is signed) → dcf_detail → Breakdown › Assumptions. Soft.
-        ("DCF lab (watchlist)", SH, HERE, ["-c", f"{PY} ../../research/fair_value/dcf_watch.py --store 2>&1 | tail -1"]),
-        # Jamie 10-20: the noon-PT scan only reached the NEXT morning's plan (~19 h stale) → re-scan with live Schwab quotes first
-        ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts 2>&1 "
-                                         "| grep -o 'persisted.*' | tail -1 || echo 'option scan skipped (plan uses the last scan)'"]),
-        # Fri accountability used to wait for noon PT dual-write — Mac often asleep by then (10-24). Ride the ≥10:00 ET
-        # Model List window (live bids + chains already on disk via option scan). Noon scheduler stays as fallback.
+        # Soft steps (SOFT_MODEL): real exit codes preserved (no pipe swallow); failures log to data_issues and continue.
+        ("tastytrade metrics", PY, HERE, ["tastytrade.py", "universe"]),
+        ("IV rank resolver", PY, HERE, ["iv_rank.py"]),
+        ("outside intrinsic values", PY, HERE, ["dcf/external_iv.py", "--max", "40"]),
+        ("DCF lab (watchlist)", PY, HERE, ["../../research/fair_value/dcf_watch.py", "--store"]),
+        ("option scan (live)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-option-scores.ts"]),
         ("Fri model snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH; "
                                          "dow=$(TZ=America/New_York date +%u); "
                                          "if [ \"$dow\" != 5 ]; then echo 'skip: not Friday ET'; exit 0; fi; "
-                                         "pnpm exec tsx src/scripts/run-model-snapshot.ts 2>&1 | tail -5 "
-                                         "|| echo 'Fri snapshot failed (noon scheduler / history catch-up can retry)'"]),
+                                         "pnpm exec tsx src/scripts/run-model-snapshot.ts"]),
         ("fit model", PY, HERE, ["fit_model_v14.py", "--write"]),   # champion + challengers (fit-1.3 is only its input builder)
         # before the plan: build_plan reads today's panic-puts-hiv signals (was after publish → plans used yesterday's, 10-19)
         ("strategy signals", LPY, HERE, ["strategy_signals.py"]),   # A178: panic-puts-hiv live triggers + forward grades
         # S059 put_edge needs this week's put tech components (was monthly only); idempotent per engine digest
-        ("tech components", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/lab-replay-technicals.ts --freq=week "
-                                      f"--from={(date.today() - timedelta(days=7)).isoformat()} 2>&1 | grep lab_tech "
-                                      "|| echo 'tech components skipped (put_edge keeps last week, ≤ 10 d)'"]),
+        ("tech components", SH, API, ["-c", f"PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/lab-replay-technicals.ts --freq=week --from={(date.today() - timedelta(days=7)).isoformat()}"]),
         ("vix", PY, HERE, ["vix_daily.py"]),   # 10-29 B16: Yahoo VIX/VIX3M daily — wrds cboe_daily lags ~a week (10-23 on 10-29)
         ("sector ETFs", PY, HERE, ["sector_etfs.py"]),   # A277: 49 sector/theme ETF closes (SOXX, REMX, SRVR …) → per-name sector_drop state
         ("band table", PY, HERE, ["band_engine.py", "refresh"]),   # A277 §8 / S101: weekly refit of the sold-put band table (~5 min) — read by build_plan + structures
         ("indicators", PY, HERE, ["indicators.py"]),   # A279: UT Bot / SuperTrend cluster / SMC / Fear & Greed per name → indicators_daily (display; S102)
-        ("turning points", SH, HERE, ["-c", f"{PY} turning_points.py 2>&1 | tail -2 || echo 'turning points skipped'"]),  # A330: S151 odds → turning_point_scores (soft)
+        ("turning points", PY, HERE, ["turning_points.py"]),  # A330: S151 odds → turning_point_scores (soft)
         ("put edge", PY, HERE, ["put_edge.py"]),   # today's quintiles before the engine reads them (10-28: it read yesterday's)
         ("put recs", PY, HERE, ["put_recs.py"]),
         ("put manage", PY, HERE, ["put_manage.py"]),   # A279 / S103: open short puts → take + re-sell at ≥ 4× pace (weeklies), else hold; never trend stops   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)
@@ -103,22 +93,16 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         # Jamie 10-29: Trading Central valuation/levels/outlooks + Argus PT + Morningstar bull/bear text (Yahoo insights, free,
         # ~1.2 s/name sequential, circuit-aware) → yahoo_insights_daily (+ argus_pt in external_intrinsic). Soft.
         # 11-03: after publish — nothing that builds the list reads it (fair value is display-only); was ~21 min ahead of the list.
-        ("Yahoo insights (Trading Central)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/sync-yahoo-insights.ts 2>&1 "
-                                                       "| grep 'yahoo-insights:' | tail -1 || echo 'yahoo insights skipped'"]),
-        ("DCF grades", SH, HERE, ["-c", f"{PY} dcf/grade.py 2>&1 | tail -1"]),   # A283 step 2: rank IC vs fv-1.x / StarMine, drift, stability (reads Trading Central/Argus → after it)
-        # Key Themes (Jamie 10-28): Treasury cash flows → gov_flows_*; then the themes snapshot (signposts + unified read →
-        # theme_snapshots, graded on each view's check date). Soft: a failure must not stop the plan.
-        ("gov flows", SH, HERE, ["-c", f"{PY} gov_flows.py 2>&1 | tail -1"]),
-        ("congress trades", SH, HERE, ["-c", f"{PY} congress_trades.py 2>&1 | tail -1"]),   # A394: FMP Senate/House *-latest → congress_trades (display only; soft)
-        ("geo risk + oil", SH, HERE, ["-c", f"{PY} geo_risk.py 2>&1 | tail -1"]),   # GPR index (Fed Board) + FRED WTI/Brent → macro_daily
-        ("key themes snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-themes.ts 2>&1 | tail -1"]),
-        ("dealer GEX log", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-gex-daily.ts 2>&1 | tail -3"]),
+        ("Yahoo insights (Trading Central)", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/sync-yahoo-insights.ts"]),
+        ("DCF grades", PY, HERE, ["dcf/grade.py"]),   # A283 step 2: rank IC vs fv-1.x / StarMine, drift, stability (reads Trading Central/Argus → after it)
+        ("gov flows", PY, HERE, ["gov_flows.py"]),
+        ("congress trades", PY, HERE, ["congress_trades.py"]),   # A394: FMP Senate/House *-latest → congress_trades (display only; soft)
+        ("geo risk + oil", PY, HERE, ["geo_risk.py"]),   # GPR index (Fed Board) + FRED WTI/Brent → macro_daily
+        ("key themes snapshot", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-themes.ts"]),
+        ("dealer GEX log", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/snapshot-gex-daily.ts"]),
         ("trade funnel shortlist", PY, HERE, ["trade_funnel.py", "shortlist"]),   # trade-funnel-plan step 3: all names cheap-priced → chain shortlist
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
-        # 10-28: Live-tab regime checkpoints were never graded (table missing, no schedule) → grade the last 3 sessions daily.
-        # 40-day backfill: bearish right 77 / wrong 121, bullish 117 / 108 — no edge yet; the grade table is how we'd know.
-        ("regime grades", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/backfill-intraday-history.ts 3 2>&1 "
-                                    "| grep -o 'graded.*' | tail -1 || echo 'regime grades skipped'"]),
+        ("regime grades", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/backfill-intraday-history.ts 3"]),
         ("strategies board", PY, HERE, ["structures.py"]),
         ("put consistency", PY, HERE, ["put_consistency.py"]),   # A277 §3: WARN if a surface shows a different put than the engine   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("revisions from LSEG", PY, HERE, ["analysis/lab_fund_lseg.py"]),   # 11-09: WRDS IBES ends 08-20 → ibes_drift/_3m/breadth/disp/fwd_growth from LSEG signals_daily for the board
@@ -137,12 +121,24 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("data gaps review", PY, HERE, ["data_gaps.py"]),   # 11-11: null key fields → data_issues (sourceable vs no source) → agent_start 11a
         ("sec staleness", PY, HERE, ["sec_staleness.py", "--quiet"]),   # 11-11: companyfacts lagging the newest filing → data_issues
         ("strategy signal backlog", LPY, HERE, ["strategy_signals.py", "--price-only", "--budget=1500"]),   # 11-11: drain shadow fires the 300 s in-build pass leaves open (soft; LSEG, sequential)
-        ("options flow", SH, HERE, ["-c", f"{PY} options_flow.py --max-minutes 40 2>&1 | tail -1"]),   # A396: LSE OPRA prints ≥ $25k → options_flow_* (Breakdown + Feed; display only; soft, last so nothing waits on it)
+        ("options flow", PY, HERE, ["options_flow.py", "--max-minutes", "40"]),   # A396: LSE OPRA prints ≥ $25k → options_flow_* (Breakdown + Feed; display only; soft, last so nothing waits on it)
     ],
 }
 ORDER = list(STAGES)
 # Steps that must stop the run when they fail (everything before them in publish is the plan → Model List chain).
 HARD_PUBLISH = {"publish Model List"}
+# Soft steps in `model` stage: optional enrichers that fall back cleanly to yesterday's stored table.
+# Run directly (no `| tail -1` pipe swallow) so real exit codes reach `soft_failures` + `data_issues`.
+SOFT_MODEL = {
+    "tastytrade metrics",
+    "IV rank resolver",
+    "outside intrinsic values",
+    "DCF lab (watchlist)",
+    "option scan (live)",
+    "Fri model snapshot",
+    "tech components",
+    "turning points",
+}
 
 
 def quotes_ingested() -> bool:
@@ -315,9 +311,9 @@ def main() -> None:
                 status = "awaiting_verification"
                 print("→ no Robinhood quotes and Schwab unavailable: plan built but not verified/published; re-run `daily.py --from verify`")
                 break
-            if not r["ok"] and st == "publish" and name not in HARD_PUBLISH:
+            if not r["ok"] and ((st == "publish" and name not in HARD_PUBLISH) or (st == "model" and name in SOFT_MODEL)):
                 # 11-11 (Jamie): one bad side step (strategies board, 1 contract with iv None) stopped 16 later steps incl. the
-                # Live Today list. After the Model List is published, every step is soft: log it for review, keep going.
+                # Live Today list. Soft steps log structured cause + tail to data_issues and keep going.
                 log.setdefault("soft_failures", []).append({"step": name, "cause": r["cause"], "tail": (r["tail"] or "")[-300:]})
                 DI.record("daily.py", "soft_step_failed", field=name, detail=f"{r['cause']}: {(r['tail'] or '').splitlines()[-1:]}")
                 print(f"  ↳ soft step failed ({r['cause']}) — logged to data issues, continuing")

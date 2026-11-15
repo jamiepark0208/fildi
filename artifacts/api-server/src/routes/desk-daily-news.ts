@@ -27,7 +27,7 @@ import {
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { aiLimiter } from "../middleware/rateLimiter.js";
-import { callHaiku } from "../lib/haiku.js";
+import { callHaiku, isAnthropicBillingError, isAnthropicCreditExhausted, resetAnthropicCreditBlock } from "../lib/haiku.js";
 import { ingestDeskCommentaries, ensureDeskCommentariesTable } from "../lib/desk-commentary.js";
 import {
   DESK_BRIEF_PREFS,
@@ -947,6 +947,7 @@ router.post("/desk-commentaries/daily-news/refresh", requireAdmin, aiLimiter, as
       req.body?.force === true
       || req.body?.force === "1"
       || String(req.query.force ?? "") === "1";
+    if (force) resetAnthropicCreditBlock();
     const prior = loadCache(win.dateKey);
     let newSince = 0;
     if (prior?.maxReceivedAt || prior?.generatedAt) {
@@ -1185,40 +1186,82 @@ Structure exactly:
 === DESK EMAILS (top ${ranked.length} of ${included.length} included / ${rows.length} total) ===
 ${pack || "(all emails filtered as noise — say so briefly)"}`;
 
-    let content = (
-      await callHaiku({
-        prompt: promptBase,
-        maxTokens: 900,
-        trigger: "desk-daily-news",
-        surfaceType: "desk-daily-news",
-        userId: req.session.userId,
-        ticker: "_",
-      })
-    ).text;
+    const buildLocalFallbackContent = (): string => {
+      const displayFacts = filterDisplayDigFacts(allDigFacts);
+      const deskBullets = ranked.slice(0, 4).map((r) => {
+        const ts = rowTickers(r).slice(0, 4);
+        const tag = ts.length ? ` (${ts.join(", ")})` : "";
+        return `- **${r.source}**: ${r.subject.replace(/\s+/g, " ").trim().slice(0, 140)}${tag}`;
+      });
+      const tickerBullets = displayFacts.slice(0, 6).map((f) => `- **${f.ticker}** (${f.kind}): ${f.detail.slice(0, 160)}`);
+      const earnBullets = earningsNearRows.slice(0, 3).map((e) => `- **Earnings ${e.date}**: ${e.tickers.slice(0, 8).join(", ")}`);
+      const sectorBlock = [...tickerBullets, ...earnBullets].slice(0, 6);
+      const namedTickers = new Set<string>([
+        ...displayFacts.map((f) => f.ticker),
+        ...ranked.flatMap((r) => rowTickers(r)),
+      ]);
+      const contractRows = modelPack.rows.filter((m) => namedTickers.has(m.ticker) || book.all.has(m.ticker)).slice(0, 5);
+      const contractBullets = contractRows.map((m) => {
+        const leg = m.strike != null && m.expiry
+          ? `sell ${m.side} $${m.strike} exp ${m.expiry}${m.premium != null ? ` @ $${m.premium.toFixed(2)}` : ""}`
+          : "no model contract";
+        return `- **${m.ticker}: ${leg}** (${m.verdict || m.folder})`;
+      });
+      return [
+        "## Desk adds",
+        ...(deskBullets.length ? deskBullets : ["- **No material desk adds** beyond current brief."]),
+        "",
+        "## Sector & tickers",
+        ...(sectorBlock.length ? sectorBlock : ["- **No confirmed rating/PT adds** in session window."]),
+        "",
+        "## Put-seller takeaway",
+        ...(contractBullets.length ? contractBullets : ["- **No model contract named** (see Model contracts strip)."]),
+      ].join("\n");
+    };
 
-    let quality = assessDailyNewsQuality(content);
-    if (!quality.ok) {
-      content = (
-        await callHaiku({
-          prompt: `${promptBase}
+    let content = "";
+    if (isAnthropicCreditExhausted()) {
+      content = buildLocalFallbackContent();
+    } else {
+      try {
+        content = (
+          await callHaiku({
+            prompt: promptBase,
+            maxTokens: 900,
+            trigger: "desk-daily-news",
+            surfaceType: "desk-daily-news",
+            userId: req.session.userId,
+            ticker: "_",
+          })
+        ).text;
+
+        let quality = assessDailyNewsQuality(content);
+        if (!quality.ok) {
+          content = (
+            await callHaiku({
+              prompt: `${promptBase}
 
 QUALITY FAIL on prior draft — rewrite and fix: ${quality.reasons.join("; ")}.
 Prior draft (do not repeat its mistakes):
 ${content.slice(0, 600)}`,
-          maxTokens: 560,
-          trigger: "desk-daily-news-retry",
-          surfaceType: "desk-daily-news",
-          userId: req.session.userId,
-          ticker: "_",
-        })
-      ).text;
-      quality = assessDailyNewsQuality(content);
-    }
-    if (!quality.ok) {
-      content = sanitizeDailyNewsContent(content);
-      if (!content.trim()) {
-        content =
-          "## Desk adds\n- **No material desk adds** (Muse brief stands; dig lacked firm/grade).\n\n## Sector & tickers\n- **No confirmed rating/PT adds** beyond Muse.\n\n## Put-seller takeaway\n- **No model contract named** (see Model contracts strip).";
+              maxTokens: 560,
+              trigger: "desk-daily-news-retry",
+              surfaceType: "desk-daily-news",
+              userId: req.session.userId,
+              ticker: "_",
+            })
+          ).text;
+          quality = assessDailyNewsQuality(content);
+        }
+        if (!quality.ok) {
+          content = sanitizeDailyNewsContent(content) || buildLocalFallbackContent();
+        }
+      } catch (err) {
+        if (isAnthropicBillingError(err)) {
+          content = buildLocalFallbackContent();
+        } else {
+          throw err;
+        }
       }
     }
 

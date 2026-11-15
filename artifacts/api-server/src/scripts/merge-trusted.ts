@@ -1049,6 +1049,13 @@ export async function runMergeTrusted() {
         changedFields.push({ field, from: Number(existing[field]), to: null as unknown as number });
       }
       fieldNullCount[field] = (fieldNullCount[field] ?? 0) + 1;
+      // If TBVPS was cleared as local currency (B23), also clear priceToTbv derived earlier at L859 from that bogus TBVPS.
+      if (field === "tangibleBookValuePerShare") {
+        (update as Record<string, number | null>).priceToTbv = null;
+        clearProvenanceFields.push("priceToTbv");
+        const pi = provenanceBatch.findIndex((p) => p.field === "priceToTbv");
+        if (pi >= 0) provenanceBatch.splice(pi, 1);
+      }
     }
 
     const negEquityClears = applyNegativeEquityGoldPolicy(

@@ -693,10 +693,11 @@ function HealthStrip({
     const weeks = cal.byWeek?.length ? cal.byWeek : [{ week: 1 as const, ...cal }];
     for (const w of weeks) {
       const gap = Math.abs(w.pred - w.real);
+      const multi = (cal.byWeek?.length ?? 0) > 1;
       parts.push({
-        label: "Cal",
+        label: multi ? (w.week === 1 ? "Cal≤7d" : "Cal>7d") : "Cal",
         tone: w.n < 20 ? "idle" : gap <= 0.05 ? "ok" : gap <= 0.12 ? "warn" : "bad",
-        title: `P(OTM) cal${cal.byWeek?.length ? ` wk${w.week}` : ""}: predicted ${pct(w.pred)} → happened ${pct(w.real)} on ${w.n} picks. Grey < 20 samples; green within 5 pts.`,
+        title: `P(OTM) cal ${w.week === 1 ? "this-week expiry (≤7d)" : "next-week expiry (>7d)"}: predicted ${pct(w.pred)} → happened ${pct(w.real)} on ${w.n} picks (gap ${pct(gap)}). Grey < 20 samples; green within 5 pts; red > 12 pts. Too optimistic → learn/propose, do not trust live win-rate odds until gap shrinks.`,
       });
     }
   }

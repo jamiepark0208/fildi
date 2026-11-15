@@ -215,7 +215,6 @@ Closed rows (done / reviewed ok) moved from ASKS.md on 2026-10-06 to keep the li
 | [A103](asks/A103.md) | 2026-10-15 | Muse → Cursor | SkillOpt pilot: validation-gated self-evolving skills for fildi agents | declined (Claude triage 2026-11-07) |
 | [A119](asks/A119.md) | 2026-10-15 | Muse → Cursor | Personal AI agent landscape: free-tier use cases (hermes, openclaw, grokbot, dots, instinct) | declined (Claude triage 2026-11-07) |
 | [A126](asks/A126.md) | 2026-10-16 | Muse → Cursor | Order-flow-style chart indicators (volume profile, VWAP, volume) | declined (Claude triage 2026-11-07) |
-| [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | declined (Claude triage 2026-11-07) |
 | [A133](asks/A133.md) | 2026-10-16 | Muse → Cursor | Evaluate PentPort data API | declined (Claude triage 2026-11-07) |
 | [A139](asks/A139.md) | 2026-10-16 | Muse → Cursor | ICT indicator suite + rank-weighted composite | declined (Claude triage 2026-11-07) |
 | [A188](asks/A188.md) | 2026-10-19 | Claude → Claude | [quant] Intraday mispricing list (research-based): option day/night, EOD hedging momentum, 0DTE regime, opex pinning, liquidity reversal, pre-FOMC | declined (Claude triage 2026-11-07) |

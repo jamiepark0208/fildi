@@ -177,11 +177,6 @@ class SpreadCalibration:
             usd = self._lookup_spread_usd(tk, mb, db)
             if usd is not None and usd > 0:
                 return float(usd / mid)
-        if mb == "deep_otm":
-            lb = self.ticker_liq_bin.get(tk) if tk else "mid"
-            gl = self._fallback_bucket("deep_otm", db, lb or "mid")
-            if gl < DEFAULT_SPREAD_RT * 0.99:
-                return gl
         if tk:
             tb = self.ticker_buckets.get((tk, mb, db))
             hit_alt: str | None = None
@@ -204,6 +199,10 @@ class SpreadCalibration:
             lb = self.ticker_liq_bin.get(tk)
             if lb:
                 return self._fallback_bucket(mb, db, lb)
+        if mb == "deep_otm":
+            gl = self._fallback_bucket("deep_otm", db, "mid")
+            if gl < DEFAULT_SPREAD_RT * 0.99:
+                return gl
         if volume or open_interest:
             return self._fallback_bucket(mb, db, _liq_bin(volume, open_interest))
         return self._fallback_bucket(mb, db, "mid")
@@ -411,6 +410,7 @@ def entry_cross_mask(
     closes: np.ndarray,
     *,
     rsi_cache: dict[int, np.ndarray] | None = None,
+    prior_level: bool = False,
 ) -> np.ndarray:
     if rsi_cache is None:
         rsi_cache = {14: rsi_series(closes, 14), 5: rsi_series(closes, 5), 2: rsi_series(closes, 2)}
@@ -420,7 +420,7 @@ def entry_cross_mask(
     stack = np.vstack(parts)
     level = stack.all(axis=0) if conds.logic == "and" else stack.any(axis=0)
     prev = np.roll(level, 1)
-    prev[0] = False
+    prev[0] = bool(prior_level)
     return level & ~prev
 
 
@@ -624,52 +624,68 @@ def simulate_session_puts(
             hi = float(highs[j]) if np.isfinite(highs[j]) else s
             if not np.isfinite(s):
                 continue
-            mark_c = _put_mark_at_bar(open_pos, s, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
-            mark_lo = _put_mark_at_bar(open_pos, lo, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
-            pnl_c = put_pnl_frac_short(credit, mark_c)
             triggered: tuple[str, int] | None = None
-            if exit_rules.close_conditions:
-                ok = True
-                for ec in exit_rules.close_conditions:
-                    ind = ec.indicator
-                    if not ind.startswith("rsi"):
-                        ok = False
-                        break
-                    val = rsi14[j] if j < len(rsi14) else float("nan")
-                    ok = ok and _cmp(val, ec.op, ec.threshold)
-                if ok:
-                    triggered = ("close_condition", j)
-            if triggered is None and exit_rules.take_profit_frac is not None:
-                mark_hi = _put_mark_at_bar(open_pos, hi, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
-                if put_pnl_frac_short(credit, mark_hi) >= exit_rules.take_profit_frac:
-                    triggered = ("take_profit", j)
-            if triggered is None and sl_level is not None and mark_lo >= sl_level:
-                triggered = ("stop_loss", j)
-            if (
-                triggered is None
-                and exit_rules.max_bars is not None
-                and (j - entry_i) >= exit_rules.max_bars
-            ):
-                triggered = ("time_stop", j)
-            if triggered is None and exit_rules.time_stop == "same_day" and j == len(bars) - 1:
-                triggered = ("time_stop", j)
-            if (
-                triggered is None
-                and exit_rules.time_stop == "overnight"
-                and session_d > open_pos.entry_session
-            ):
-                triggered = ("time_stop", j)
-            if triggered is None and session_d >= expiry and j == len(bars) - 1:
-                triggered = ("expiry", j)
+            carry_open_bar0 = False
+
+            # A374 H2: carried position at bar 0 can evaluate gap-open TP/SL on bar-0 OPEN only (causal at 09:30),
+            # never bar-0 high/low/close. If bar-0 open doesn't trigger, intraday high/low on bar 0 fill at bar-1 open.
+            if carried_overnight and session_d > open_pos.entry_session and j == 0:
+                o0 = float(opens[0]) if np.isfinite(opens[0]) else s
+                mark_o0 = _put_mark_at_bar(open_pos, o0, session_d, 0, entry_i, iv_beta, bar_minutes=bar_minutes)
+                if exit_rules.take_profit_frac is not None and put_pnl_frac_short(credit, mark_o0) >= exit_rules.take_profit_frac:
+                    triggered = ("take_profit", 0)
+                    carry_open_bar0 = True
+                elif sl_level is not None and mark_o0 >= sl_level:
+                    triggered = ("stop_loss", 0)
+                    carry_open_bar0 = True
+                elif exit_rules.time_stop == "overnight":
+                    triggered = ("time_stop", 0)
+                    carry_open_bar0 = True
+
+            if triggered is None:
+                mark_lo = _put_mark_at_bar(open_pos, lo, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
+                if exit_rules.close_conditions:
+                    ok = True
+                    for ec in exit_rules.close_conditions:
+                        ind = ec.indicator
+                        if not ind.startswith("rsi"):
+                            ok = False
+                            break
+                        val = rsi14[j] if j < len(rsi14) else float("nan")
+                        ok = ok and _cmp(val, ec.op, ec.threshold)
+                    if ok:
+                        triggered = ("close_condition", j)
+                if triggered is None and exit_rules.take_profit_frac is not None:
+                    mark_hi = _put_mark_at_bar(open_pos, hi, session_d, j, entry_i, iv_beta, bar_minutes=bar_minutes)
+                    if put_pnl_frac_short(credit, mark_hi) >= exit_rules.take_profit_frac:
+                        triggered = ("take_profit", j)
+                if triggered is None and sl_level is not None and mark_lo >= sl_level:
+                    triggered = ("stop_loss", j)
+                if (
+                    triggered is None
+                    and exit_rules.max_bars is not None
+                    and (j - entry_i) >= exit_rules.max_bars
+                ):
+                    triggered = ("time_stop", j)
+                if triggered is None and exit_rules.time_stop == "same_day" and j == len(bars) - 1:
+                    triggered = ("time_stop", j)
+                if (
+                    triggered is None
+                    and exit_rules.time_stop == "overnight"
+                    and session_d > open_pos.entry_session
+                ):
+                    triggered = ("time_stop", j)
+                if triggered is None and session_d >= expiry and j == len(bars) - 1:
+                    triggered = ("expiry", j)
             if triggered is None:
                 continue
             exit_reason, signal_j = triggered
-            open_carry = carried_overnight and session_d > open_pos.entry_session
+            open_carry = carry_open_bar0
             if exit_reason == "expiry":
                 exit_i, _, exit_mark = _exit_fill_from_signal(
                     len(bars), j, opens, closes, open_pos, session_d, entry_i, iv_beta,
                     intrinsic=max(strike - s, 0.0),
-                    session_open_carry=open_carry,
+                    session_open_carry=False,
                     bar_minutes=bar_minutes,
                 )
             else:
@@ -748,9 +764,10 @@ def load_bars_for_timeframe(conn, tickers: list[str], tf: str) -> dict[str, pd.D
     from bar_resample import resample_bars  # noqa: WPS433
 
     out: dict[str, pd.DataFrame] = {}
+    stale_cut = date.today() - timedelta(days=4)
     for tk in tickers:
         df1 = load_parquet_1m(tk)
-        if df1.empty or df1["ts"].max().date() < OPRA_START + timedelta(days=3):
+        if df1.empty or df1["ts"].max().date() < stale_cut:
             df1 = fetch_range_1m(conn, tk, OPRA_START, date.today())
         if df1.empty:
             continue
@@ -890,27 +907,30 @@ def _align_higher_tf_entry_mask(
     filt: ConditionSet,
     *,
     rsi_hi: dict[int, np.ndarray],
+    hi_bar_minutes: int = 15,
 ) -> np.ndarray:
+    """A375 H2+H3: `df_hi` and `rsi_hi` must have matching lengths (sliced together before call),
+    and a higher-TF bar is only known at entry time `t` when its bar END (`ts_hi + hi_bar_minutes`) <= `t + entry_bar_dur`."""
     if not filt.conditions or df_hi.empty:
         return entry_mask
-    ts_hi = pd.to_datetime(df_hi["ts"], utc=True)
+    ts_hi_start = pd.to_datetime(df_hi["ts"], utc=True)
+    ts_hi_end = ts_hi_start + pd.Timedelta(minutes=max(1, hi_bar_minutes))
     hi_parts = []
     closes_hi = df_hi["c"].to_numpy(dtype=float)
+    rsi_use = rsi_hi if all(len(v) == len(closes_hi) for v in rsi_hi.values()) else None
     for c in filt.conditions:
-        hi_parts.append(condition_true_series(c, closes_hi, rsi_cache=rsi_hi))
+        hi_parts.append(condition_true_series(c, closes_hi, rsi_cache=rsi_use))
     hi_stack = np.vstack(hi_parts)
     hi_ok = hi_stack.all(axis=0) if filt.logic == "and" else hi_stack.any(axis=0)
     ts_en = pd.to_datetime(df_entry["ts"], utc=True)
     out = entry_mask.copy()
     for i in np.where(entry_mask)[0]:
         t = ts_en.iloc[int(i)]
-        prior = np.where(ts_hi <= t)[0]
+        prior = np.where(ts_hi_end <= t)[0]
         if len(prior) == 0:
             out[i] = False
             continue
         j = int(prior[-1])
-        if j > 0 and ts_hi.iloc[j].date() > ts_hi.iloc[j - 1].date():
-            j -= 1
         out[i] = bool(hi_ok[j])
     return out
 
@@ -932,32 +952,51 @@ def _run_ticker_sessions(
     higher_df: pd.DataFrame | None = None,
     higher_filter: ConditionSet | None = None,
     rsi_higher: dict[int, np.ndarray] | None = None,
+    higher_bar_minutes: int = 15,
 ) -> tuple[list[dict], list[dict]]:
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
     carry: OpenPut | None = None
     base_carry: OpenPut | None = None
     shift_pending: dict[tuple[str, str, int], OpenPut | None] = {}
-    if rsi_full is None:
+    if rsi_full is None or any(len(v) != len(df) for v in rsi_full.values()):
         df, rsi_full = _intraday_rsi_by_session(df)
     else:
         df = df.sort_values(["session_date", "ts"]).reset_index(drop=True)
+    hi_sorted: pd.DataFrame | None = None
+    hi_rsi_sorted: dict[int, np.ndarray] | None = None
+    if higher_filter and higher_df is not None:
+        hi_sorted, hi_rsi_sorted = _intraday_rsi_by_session(higher_df) if (
+            rsi_higher is None or any(len(v) != len(higher_df) for v in rsi_higher.values())
+        ) else (higher_df.sort_values(["session_date", "ts"]).reset_index(drop=True), rsi_higher)
     for session, grp in sorted(df.groupby("session_date"), key=lambda x: x[0]):
         idx = grp.index.to_numpy(dtype=int)
         i0, i1 = int(idx[0]), int(idx[-1]) + 1
         sess_df = df.iloc[i0:i1].reset_index(drop=True)
         closes = sess_df["c"].to_numpy(dtype=float)
         rsi_slice = {p: rsi_full[p][i0:i1] for p in rsi_full}
+        prior_lvl = False
+        if i0 > 0:
+            prev_close = np.array([float(df["c"].iloc[i0 - 1])])
+            prev_rsi = {p: np.array([float(rsi_full[p][i0 - 1])]) for p in rsi_full}
+            prev_parts = [condition_true_series(c, prev_close, rsi_cache=prev_rsi) for c in entry.conditions]
+            if prev_parts:
+                prev_stack = np.vstack(prev_parts)
+                prior_lvl = bool((prev_stack.all(axis=0) if entry.logic == "and" else prev_stack.any(axis=0))[0])
         cross = (
-            entry_cross_mask(entry, closes, rsi_cache=rsi_slice)
+            entry_cross_mask(entry, closes, rsi_cache=rsi_slice, prior_level=prior_lvl)
             if carry is None
             else np.zeros(len(closes), dtype=bool)
         )
-        if higher_filter and higher_df is not None and rsi_higher is not None:
-            hi_sess = higher_df[higher_df["session_date"] == session]
-            if not hi_sess.empty:
+        if higher_filter and hi_sorted is not None and hi_rsi_sorted is not None:
+            # A375 H2+H3: pass full prior+same-session higher-TF bars with matching-length RSI so EMA20/RSI14
+            # have multi-session warm-up and index alignment matches exact dates.
+            hi_mask = (hi_sorted["session_date"] <= session).to_numpy()
+            if np.any(hi_mask):
+                hi_sub = hi_sorted.loc[hi_mask].reset_index(drop=True)
+                hi_rsi_sub = {p: hi_rsi_sorted[p][hi_mask] for p in hi_rsi_sorted}
                 cross = _align_higher_tf_entry_mask(
-                    cross, sess_df, hi_sess.reset_index(drop=True), higher_filter, rsi_hi=rsi_higher
+                    cross, sess_df, hi_sub, higher_filter, rsi_hi=hi_rsi_sub, hi_bar_minutes=higher_bar_minutes
                 )
         anchor = prior_business_iv(iv_series, session)
         if anchor is None:
@@ -1056,6 +1095,8 @@ class ConditionalContext:
     rsi_by_ticker: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
     bar_tf: str = "5m"
     bar_minutes: int = 5
+    higher_tf: str | None = None
+    higher_bar_minutes: int = 15
     higher_bars: dict[str, pd.DataFrame] = field(default_factory=dict)
     rsi_higher: dict[str, dict[int, np.ndarray]] = field(default_factory=dict)
 
@@ -1085,11 +1126,14 @@ def load_conditional_context(
     rsi_by_ticker: dict[str, dict[int, np.ndarray]] = {}
     rsi_higher: dict[str, dict[int, np.ndarray]] = {}
     bm = bar_minutes_for_tf(bar_tf)
+    hbm = bar_minutes_for_tf(higher_tf) if higher_tf else 15
     for tk, df in bars_map.items():
-        _, rsi_full = _intraday_rsi_by_session(df)
+        df_s, rsi_full = _intraday_rsi_by_session(df)
+        bars_map[tk] = df_s
         rsi_by_ticker[tk] = rsi_full
     for tk, df in higher_bars.items():
-        _, rf = _intraday_rsi_by_session(df)
+        df_hs, rf = _intraday_rsi_by_session(df)
+        higher_bars[tk] = df_hs
         rsi_higher[tk] = rf
     return ConditionalContext(
         bars_map=bars_map,
@@ -1101,6 +1145,8 @@ def load_conditional_context(
         rsi_by_ticker=rsi_by_ticker,
         bar_tf=bar_tf,
         bar_minutes=bm,
+        higher_tf=higher_tf,
+        higher_bar_minutes=hbm,
         higher_bars=higher_bars,
         rsi_higher=rsi_higher,
     )
@@ -1123,32 +1169,41 @@ def run_conditional_strategy(
 ) -> dict[str, Any]:
     t0 = time.perf_counter()
     tf = bar_tf or (entry.conditions[0].timeframe if entry.conditions else "5m")
-    if ctx is None:
-        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf=higher_tf)
-    elif bar_tf and bar_tf != ctx.bar_tf:
-        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf=higher_tf)
+    want_hi = higher_tf if (higher_filter and higher_tf and higher_tf != tf) else None
+    # A375 H1: reload ctx when EITHER bar_tf OR higher_tf differs so confluence filters run on their named TF.
+    if ctx is None or (bar_tf and bar_tf != ctx.bar_tf) or (want_hi is not None and want_hi != ctx.higher_tf):
+        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf=want_hi)
     bars_map = ctx.bars_map
     if not bars_map:
         return {"error": "no bars_5m data", "tickers": tickers}
 
     cond_trades: list[dict] = []
     base_trades: list[dict] = []
-    for tk, df in bars_map.items():
+    for tk, df_orig in bars_map.items():
+        rsi_tk = ctx.rsi_by_ticker.get(tk)
         if session_filter is not None:
-            df = df[df["session_date"].map(session_filter)].copy()
-            if df.empty:
+            # A374 H1: slice precomputed RSI with the EXACT boolean mask as df so warm-up is preserved
+            # AND dates never misalign to session 0.
+            mask = df_orig["session_date"].map(session_filter).to_numpy(dtype=bool)
+            if not np.any(mask):
                 continue
+            df = df_orig.loc[mask].reset_index(drop=True)
+            if rsi_tk is not None and all(len(v) == len(df_orig) for v in rsi_tk.values()):
+                rsi_tk = {p: rsi_tk[p][mask] for p in rsi_tk}
+        else:
+            df = df_orig
         beta = ctx.betas.get(tk, ctx.default_beta)
         ct, bt = _run_ticker_sessions(
             tk, df, entry, exit_rules, instrument,
             ctx.iv_maps.get(tk, {}), beta, ctx.spread,
             base_every_day=base_every_day,
             shift_bars=shift_bars,
-            rsi_full=ctx.rsi_by_ticker.get(tk),
+            rsi_full=rsi_tk,
             bar_minutes=ctx.bar_minutes,
             higher_df=ctx.higher_bars.get(tk),
             higher_filter=higher_filter,
             rsi_higher=ctx.rsi_higher.get(tk),
+            higher_bar_minutes=ctx.higher_bar_minutes,
         )
         cond_trades.extend(ct)
         base_trades.extend(bt)
@@ -1822,7 +1877,7 @@ def merge_iv_series(conn, ticker: str, dates: pd.DatetimeIndex, closes: pd.Serie
     return out
 
 
-def chain_put_mid(conn, ticker: str, as_of: date, strike: float, expiry: date) -> float | None:
+def chain_put_mid(conn, ticker: str, as_of: date, strike: float, expiry: date, *, max_strike_dist: float = 1.0) -> float | None:
     row = conn.execute(
         """SELECT (bid::float8 + ask::float8) / 2.0
            FROM option_chain_history
@@ -1834,15 +1889,18 @@ def chain_put_mid(conn, ticker: str, as_of: date, strike: float, expiry: date) -
     ).fetchone()
     if row and row[0] and math.isfinite(row[0]):
         return float(row[0])
+    # A374 M1: cap fallback strike distance so missing strikes don't silently price a distant contract.
+    dist_cap = max(max_strike_dist, strike * 0.015)
     row2 = conn.execute(
         """SELECT (bid::float8 + ask::float8) / 2.0, strike::float8
            FROM option_chain_history
            WHERE ticker = %s AND side = 'put' AND as_of = %s AND expiry = %s
+             AND abs(strike::float8 - %s) <= %s
              AND bid > 0 AND ask > bid
            ORDER BY abs(strike::float8 - %s) LIMIT 1""",
-        (ticker, as_of, expiry, strike),
+        (ticker, as_of, expiry, strike, dist_cap, strike),
     ).fetchone()
-    if row2 and row2[0]:
+    if row2 and row2[0] and math.isfinite(row2[0]):
         return float(row2[0])
     return None
 
@@ -2085,7 +2143,8 @@ def universe_tickers_from_db(limit: int | None = None) -> list[str]:
     return tickers[:limit] if limit else tickers
 
 
-def _scalp_exits() -> list[tuple[str, ExitRules]]:
+def _scalp_exits(bar_minutes: int = 1) -> list[tuple[str, ExitRules]]:
+    bars_30m = max(1, round(30 / max(1, bar_minutes)))
     return [
         ("rsi_gt_50", ExitRules(
             close_conditions=[IndicatorCondition("rsi14", "gt", 50.0)],
@@ -2093,20 +2152,22 @@ def _scalp_exits() -> list[tuple[str, ExitRules]]:
         )),
         ("tp25", ExitRules(take_profit_frac=0.25, time_stop="same_day")),
         ("tp50", ExitRules(take_profit_frac=0.50, time_stop="same_day")),
-        ("tstop30m", ExitRules(time_stop="same_day", max_bars=30)),
+        ("tstop30m", ExitRules(time_stop="same_day", max_bars=bars_30m)),
     ]
 
 
-def _day_exits() -> list[tuple[str, ExitRules]]:
-    xs = _scalp_exits()
+def _day_exits(bar_minutes: int = 5) -> list[tuple[str, ExitRules]]:
+    xs = _scalp_exits(bar_minutes)
     xs.append(("tp50_overnight", ExitRules(take_profit_frac=0.50, time_stop="overnight")))
     return xs
 
 
-def _swing_exits() -> list[tuple[str, ExitRules]]:
+def _swing_exits(bar_minutes: int = 60) -> list[tuple[str, ExitRules]]:
+    # A375 M4: 5 RTH sessions = 5 * 390 min; scale by bar_minutes (35 bars on 1h, 5 bars on 1d).
+    bars_5d = 5 if bar_minutes >= 390 else max(1, round((5 * 390) / max(1, bar_minutes)))
     return [
         ("tp50", ExitRules(take_profit_frac=0.50, time_stop="expiry")),
-        ("tstop_5d", ExitRules(time_stop="expiry", max_bars=5 * 78)),
+        ("tstop_5d", ExitRules(time_stop="expiry", max_bars=bars_5d)),
         ("expiry", ExitRules(time_stop="expiry")),
     ]
 
@@ -2120,20 +2181,21 @@ CONFLUENCE_FILTERS: list[tuple[str, str, ConditionSet]] = [
 
 
 def run_horizon_sweep(tickers: list[str], *, smoke: bool = False) -> dict[str, Any]:
-    """Horizon-matched grid (fix4): scalp/day/swing TFs + optional Elder confluence filter."""
+    """Horizon-matched grid (fix4+fix5): scalp/day/swing TFs + optional Elder confluence filter."""
     inst = PutInstrument(target_delta=-0.15)
     grids: list[tuple[str, str, list[float], list[tuple[str, ExitRules]]]] = [
-        ("scalp", "1m", [10.0, 20.0, 30.0], _scalp_exits()),
-        ("scalp", "2m", [10.0, 20.0, 30.0], _scalp_exits()),
-        ("day", "5m", [10.0, 20.0, 30.0], _day_exits()),
-        ("day", "15m", [10.0, 20.0, 30.0], _day_exits()),
-        ("swing", "1h", [10.0, 20.0, 30.0], _swing_exits()),
-        ("swing", "1d", [10.0, 20.0, 30.0], _swing_exits()),
+        ("scalp", "1m", [10.0, 20.0, 30.0], _scalp_exits(1)),
+        ("scalp", "2m", [10.0, 20.0, 30.0], _scalp_exits(2)),
+        ("day", "5m", [10.0, 20.0, 30.0], _day_exits(5)),
+        ("day", "15m", [10.0, 20.0, 30.0], _day_exits(15)),
+        ("swing", "1h", [10.0, 20.0, 30.0], _swing_exits(60)),
+        ("swing", "1d", [10.0, 20.0, 30.0], _swing_exits(390)),
     ]
     rows: list[dict[str, Any]] = []
     t_load = time.perf_counter()
     for horizon, tf, thr_list, exit_variants in grids:
-        ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf="15m" if horizon in ("scalp", "day") else "1h")
+        base_ctx = load_conditional_context(tickers, bar_tf=tf, higher_tf=None)
+        ctx_by_hi: dict[str, ConditionalContext] = {"": base_ctx}
         load_s = time.perf_counter() - t_load
         thr_use = thr_list[:1] if smoke else thr_list
         exit_use = exit_variants[:1] if smoke else exit_variants
@@ -2141,24 +2203,49 @@ def run_horizon_sweep(tickers: list[str], *, smoke: bool = False) -> dict[str, A
         for thr in thr_use:
             entry = ConditionSet("and", [IndicatorCondition("rsi14", "lt", thr, tf)])
             for exit_name, exits in exit_use:
+                bare_payload: dict[str, Any] | None = None
                 for fl_name, hi_tf, hi_cond in filt_use:
                     if fl_name == "none":
                         payload = run_conditional_strategy(
                             tickers, entry, exits, inst,
-                            session_filter=lambda d: d >= OPRA_START, ctx=ctx, bar_tf=tf,
+                            session_filter=lambda d: d >= OPRA_START, ctx=base_ctx, bar_tf=tf,
                         )
+                        bare_payload = payload
                         lift_f = None
                     else:
-                        bare = run_conditional_strategy(
-                            tickers, entry, exits, inst,
-                            session_filter=lambda d: d >= OPRA_START, ctx=ctx, bar_tf=tf,
-                        )
+                        if bare_payload is None:
+                            bare_payload = run_conditional_strategy(
+                                tickers, entry, exits, inst,
+                                session_filter=lambda d: d >= OPRA_START, ctx=base_ctx, bar_tf=tf,
+                            )
+                        if hi_tf not in ctx_by_hi:
+                            ctx_s = ConditionalContext(
+                                bars_map=base_ctx.bars_map,
+                                sectors=base_ctx.sectors,
+                                spread=base_ctx.spread,
+                                betas=base_ctx.betas,
+                                iv_maps=base_ctx.iv_maps,
+                                default_beta=base_ctx.default_beta,
+                                rsi_by_ticker=base_ctx.rsi_by_ticker,
+                                bar_tf=base_ctx.bar_tf,
+                                bar_minutes=base_ctx.bar_minutes,
+                                higher_tf=hi_tf if hi_tf != tf else None,
+                                higher_bar_minutes=bar_minutes_for_tf(hi_tf),
+                            )
+                            if hi_tf and hi_tf != tf:
+                                with connect() as conn:
+                                    hb = load_bars_for_timeframe(conn, list(base_ctx.bars_map.keys()), hi_tf)
+                                for tk_h, df_h in hb.items():
+                                    df_hs, rf_h = _intraday_rsi_by_session(df_h)
+                                    ctx_s.higher_bars[tk_h] = df_hs
+                                    ctx_s.rsi_higher[tk_h] = rf_h
+                            ctx_by_hi[hi_tf] = ctx_s
                         payload = run_conditional_strategy(
                             tickers, entry, exits, inst,
-                            session_filter=lambda d: d >= OPRA_START, ctx=ctx, bar_tf=tf,
+                            session_filter=lambda d: d >= OPRA_START, ctx=ctx_by_hi[hi_tf], bar_tf=tf,
                             higher_filter=hi_cond, higher_tf=hi_tf,
                         )
-                        lift_f = payload.get("lift_pnl_coll", float("nan")) - bare.get("lift_pnl_coll", 0)
+                        lift_f = payload.get("lift_pnl_coll", float("nan")) - bare_payload.get("lift_pnl_coll", 0)
                     c = payload["conditional"]
                     row = _frontier_row("opra", thr, exit_name, "cond", c, lift=payload.get("lift_pnl_coll"))
                     row.update({

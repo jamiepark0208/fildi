@@ -316,7 +316,7 @@ export async function getAllTechnicalsRows(): Promise<TechnicalsApiRow[]> {
 
   const tickers = techRows.map((r) => r.ticker);
 
-  const [regRows, fundRows, pxRows, spyRows, ivSnapRows, shortRows] = await Promise.all([
+  const [regRows, fundRows, pxRows, spyRows, ivRankDailyRows, ivSnapRows, shortRows] = await Promise.all([
     db
       .select({
         ticker: tickerRegistry.ticker,
@@ -352,6 +352,15 @@ export async function getAllTechnicalsRows(): Promise<TechnicalsApiRow[]> {
       WHERE rn IN (1, 21)
       GROUP BY ticker
     `),
+    // Canonical 1-year IV percentile resolver (watchlist_sync.iv_rank_daily: LSEG → none, FACTOR_MAP single home)
+    db.execute(sql`
+      SELECT DISTINCT ON (ticker) ticker, pctile::float8 AS pctile, source
+      FROM watchlist_sync.iv_rank_daily
+      WHERE ticker IN (${sql.join(tickers.map((t) => sql`${t}`), sql`, `)})
+        AND date >= (CURRENT_DATE - INTERVAL '14 days')
+        AND pctile IS NOT NULL
+      ORDER BY ticker, date DESC
+    `).catch(() => ({ rows: [] })),
     db.execute(sql`
       SELECT ticker, atm_put_iv::float8 AS atm_put_iv
       FROM ticker_atm_iv_snapshots
@@ -386,7 +395,16 @@ export async function getAllTechnicalsRows(): Promise<TechnicalsApiRow[]> {
   }
   const spyRet = ret20.get("SPY") ?? null;
 
-  // Hist ATM IV series per ticker
+  // Canonical 1-yr IV percentile from watchlist_sync.iv_rank_daily (FACTOR_MAP single home)
+  const ivRankResolverBy = new Map<string, { pctile: number; source: string }>();
+  for (const r of ((ivRankDailyRows as any).rows ?? ivRankDailyRows) as any[]) {
+    const p = Number(r.pctile);
+    if (Number.isFinite(p) && p >= 0 && p <= 1) {
+      ivRankResolverBy.set(String(r.ticker), { pctile: p, source: String(r.source ?? "lseg") });
+    }
+  }
+
+  // Hist ATM IV series per ticker (fallback when resolver lacks coverage)
   const ivHist = new Map<string, number[]>();
   for (const r of ((ivSnapRows as any).rows ?? ivSnapRows) as any[]) {
     const t = String(r.ticker);
@@ -412,18 +430,27 @@ export async function getAllTechnicalsRows(): Promise<TechnicalsApiRow[]> {
     const vsSpy20d =
       tRet != null && spyRet != null ? parseFloat((tRet - spyRet).toFixed(2)) : null;
 
-    // Hist IV rank when ≥10 snapshots; else null (scorer fills cross-sectional)
+    // Prefer canonical iv_rank_daily resolver; fall back to local ATM IV snapshots (≥10 obs)
     let ivRankEffective: number | null = null;
-    const series = ivHist.get(r.ticker);
-    const curIv = r.atmPutIv != null ? parseFloat(String(r.atmPutIv)) : NaN;
-    if (series && series.length >= 10 && Number.isFinite(curIv) && curIv > 0) {
-      let below = 0;
-      for (const v of series) if (v < curIv) below++;
-      ivRankEffective = below / series.length;
+    let ivRankSource = r.ivRankSource;
+    const resolved = ivRankResolverBy.get(r.ticker);
+    if (resolved) {
+      ivRankEffective = resolved.pctile;
+      ivRankSource = resolved.source;
+    } else {
+      const series = ivHist.get(r.ticker);
+      const curIv = r.atmPutIv != null ? parseFloat(String(r.atmPutIv)) : NaN;
+      if (series && series.length >= 10 && Number.isFinite(curIv) && curIv > 0) {
+        let below = 0;
+        for (const v of series) if (v < curIv) below++;
+        ivRankEffective = below / series.length;
+        ivRankSource = "atm_snapshots";
+      }
     }
 
     return {
       ...r,
+      ivRankSource,
       peerGroupId: peerBy.get(r.ticker) ?? null,
       analystUpside,
       vsSpy20d,

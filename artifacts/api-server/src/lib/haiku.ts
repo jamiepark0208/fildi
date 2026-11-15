@@ -14,6 +14,27 @@ const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 export const HAIKU_MODEL: string = LLM.tiers.haiku;
 const HAIKU_OFF = (LLM.models as Record<string, { thinking_off: { type: string } | null }>)[HAIKU_MODEL]?.thinking_off;
 
+const CREDIT_BLOCK_TTL_MS = 6 * 3600_000;
+let creditBlockedUntil = 0;
+let creditBlockedKey = "";
+
+export function isAnthropicBillingError(err: unknown): boolean {
+  const msg = String((err as Error)?.message ?? err ?? "");
+  return /credit balance is too low|Plans & Billing|insufficient_quota|payment_required/i.test(msg);
+}
+
+export function isAnthropicCreditExhausted(): boolean {
+  const curKey = process.env["ANTHROPIC_API_KEY"] ?? "";
+  if (!curKey) return true;
+  if (creditBlockedUntil > Date.now() && creditBlockedKey === curKey) return true;
+  return false;
+}
+
+export function resetAnthropicCreditBlock(): void {
+  creditBlockedUntil = 0;
+  creditBlockedKey = "";
+}
+
 export interface HaikuCallOpts {
   prompt: string;
   maxTokens: number;
@@ -34,6 +55,9 @@ export interface HaikuCallResult {
 }
 
 export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
+  if (isAnthropicCreditExhausted()) {
+    throw new Error("Anthropic credit balance is too low (circuit-breaker active; local fallback enabled)");
+  }
   let msg: Anthropic.Message;
   try {
     msg = await anthropic.messages.create({
@@ -43,6 +67,10 @@ export async function callHaiku(opts: HaikuCallOpts): Promise<HaikuCallResult> {
       ...(HAIKU_OFF ? { thinking: HAIKU_OFF, output_config: { effort: "low" } } : {}),
     } as Anthropic.MessageCreateParamsNonStreaming, opts.timeoutMs ? { timeout: opts.timeoutMs, maxRetries: 1 } : undefined);
   } catch (err) {
+    if (isAnthropicBillingError(err)) {
+      creditBlockedUntil = Date.now() + CREDIT_BLOCK_TTL_MS;
+      creditBlockedKey = process.env["ANTHROPIC_API_KEY"] ?? "";
+    }
     // Failed calls still count toward the API Monitor and show up in api.log.
     logApiCall({
       source: "anthropic",
