@@ -197,13 +197,14 @@ export async function syncCachesWithDbWatermarks(): Promise<void> {
 
 export function startCacheSweep(): NodeJS.Timeout {
   void syncCachesWithDbWatermarks();
-  setInterval(() => {
-    void syncCachesWithDbWatermarks();
-  }, DB_WATERMARK_INTERVAL_MS).unref();
+  const wmTimer = setInterval(() => void syncCachesWithDbWatermarks(), DB_WATERMARK_INTERVAL_MS);
+  wmTimer.unref();
 
-  return setInterval(() => {
+  const pruneTimer = setInterval(() => {
     for (const c of ttlCaches) c.pruneExpired();
-  }, PRUNE_INTERVAL_MS).unref();
+  }, PRUNE_INTERVAL_MS);
+  pruneTimer.unref();
+  return pruneTimer;
 }
 
 export function getAllCaches(): CacheStats[] {
