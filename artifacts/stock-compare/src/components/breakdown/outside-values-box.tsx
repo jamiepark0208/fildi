@@ -441,9 +441,11 @@ export function OutsideValuesBox({
         </div>
       )}
 
-      {dcfLab?.reverse?.growth_pct != null && (
+      {/* growth_pct is the growth PERCENTILE the price implies (0.92 = P92), not a rate — the rate is implied_cagr5. */}
+      {dcfLab?.reverse?.implied_cagr5 != null && (
         <p className="text-[10px] text-amber-100/70">
-          Reverse DCF implied growth ~{(dcfLab.reverse.growth_pct * 100).toFixed(0)}%/yr (lab)
+          Reverse DCF: price needs revenue {dcfLab.reverse.implied_cagr5 >= 0 ? "+" : ""}{(dcfLab.reverse.implied_cagr5 * 100).toFixed(0)}%/yr for 5 years
+          {dcfLab.reverse.growth_pct != null && <> (P{(dcfLab.reverse.growth_pct * 100).toFixed(0)} of similar firms)</>} (lab)
         </p>
       )}
 

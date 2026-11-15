@@ -132,7 +132,7 @@ function EarningsMoves({ moves }: { moves: Move[] }) {
   );
 }
 
-function ImpliedVol({ iv }: { iv: Iv[] }) {
+function ImpliedVol({ iv, source }: { iv: Iv[]; source?: "optlab" | "lseg" }) {
   const last = iv[iv.length - 1];
   const yearAgo = last ? new Date(new Date(last.date).getTime() - 365 * 864e5).toISOString().slice(0, 10) : "";
   const n = last ? iv.filter((x) => x.date >= yearAgo).length : 0;
@@ -141,8 +141,10 @@ function ImpliedVol({ iv }: { iv: Iv[] }) {
       <Head
         title="Implied vol"
         value={last ? pct(last.iv) : "—"}
-        sub={last ? <>rank {last.ivRank == null ? "—" : Math.round(last.ivRank * 100)} · realized {pct(last.rv20)}</> : "book names first; others as data loads"}
-        info={<>~30-day implied vol from the near-the-money monthly put's closing price (Black-Scholes). Rank = where today sits in the past
+        sub={last ? <>rank {last.ivRank == null ? "—" : Math.round(last.ivRank * 100)} · realized {pct(last.rv20)}</> : "no IV history for this name"}
+        info={<>{source === "lseg"
+          ? "~30-day implied vol from LSEG (average of the 30-day put and call IV), last 2 years."
+          : "~30-day implied vol from the near-the-money monthly put's closing price (Black-Scholes)."} Rank = where today sits in the past
           year (0 = lowest, 100 = highest); this one rests on {n} days of history (shown from 60; under ~250 it is rough). Realized = last 20 trading days. The gap between the lines is what option sellers are paid.
           Fildi's current "IV rank" elsewhere is a realized-vol rank; study S019 tests whether this one predicts better.</>}
       />
@@ -209,7 +211,7 @@ function IvRank({ v }: { v: Vol | undefined }) {
         <ResponsiveContainer width="100%" height={90}>
           <LineChart data={v!.term}>
             <CartesianGrid stroke="#27272a" vertical={false} />
-            <XAxis dataKey="expiry" tickFormatter={(d: string) => d.slice(5)} tick={{ fontSize: 9, fill: "#a1a1aa" }} minTickGap={24} axisLine={false} tickLine={false} />
+            <XAxis dataKey="expiry" tickFormatter={(d: string) => (d.slice(0, 4) === v!.term[0]?.expiry.slice(0, 4) ? d.slice(5) : `'${d.slice(2, 7)}`)} tick={{ fontSize: 9, fill: "#a1a1aa" }} minTickGap={24} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={(x) => pct(x)} tick={{ fontSize: 9, fill: "#a1a1aa" }} width={32} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
             <RTooltip contentStyle={{ background: "#09090b", border: "1px solid #d4af3755", fontSize: 11 }}
               formatter={(x: number) => [pct(x, 1), "IV"]} labelFormatter={(d) => `expiry ${d}`} />
@@ -281,14 +283,14 @@ function YourPuts({ trades }: { trades: Trade[] }) {
 }
 
 export function OptionsHistoryTab({ ticker, isAdmin }: { ticker: string; isAdmin: boolean }) {
-  const hist = useJson<{ earnings: Move[]; iv: Iv[] }>(["options-history", ticker], `/api/stocks/${encodeURIComponent(ticker)}/options-history`);
+  const hist = useJson<{ earnings: Move[]; iv: Iv[]; ivSource?: "optlab" | "lseg" }>(["options-history", ticker], `/api/stocks/${encodeURIComponent(ticker)}/options-history`);
   const mine = useJson<{ trades: Trade[] }>(["pm-trades", ticker], `/api/pm/trades/${encodeURIComponent(ticker)}`, isAdmin);
   const vol = useJson<Vol>(["vol-metrics", ticker], `/api/stocks/${encodeURIComponent(ticker)}/vol-metrics`);
   if (hist.isLoading) return <p className="text-[10px] text-amber-200/40">Loading…</p>;
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <EarningsMoves moves={hist.data?.earnings ?? []} />
-      <ImpliedVol iv={hist.data?.iv ?? []} />
+      <ImpliedVol iv={hist.data?.iv ?? []} source={hist.data?.ivSource} />
       <IvRank v={vol.data} />
       {isAdmin && <div className="md:col-span-2"><YourPuts trades={mine.data?.trades ?? []} /></div>}
     </div>

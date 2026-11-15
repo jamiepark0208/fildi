@@ -51,7 +51,24 @@ router.get("/stocks/:ticker/options-history", async (req, res) => {
     ORDER BY 1`);
   const iv = await safe(sql`SELECT date::text, iv::float8, rv20::float8, iv_rank::float8 AS "ivRank"
     FROM optlab.iv30 WHERE ticker = ${t} ORDER BY date`);
-  return res.json({ ticker: t, earnings, iv });
+  // optlab.iv30 covers ~9 book names; everyone else gets LSEG IV30 (~900 names, put/call avg), same shape, last 2 years.
+  const ivOut = iv.length > 0 ? iv : await safe(sql`
+    WITH d AS (
+      SELECT date, (iv30_put + iv30_call) / 200.0 AS iv,
+             ln(close / NULLIF(lag(close) OVER (ORDER BY date), 0)) AS r
+      FROM lseg_research.daily_history
+      WHERE ticker = ${t} AND date > current_date - 2 * 365 - 400 AND iv30_put IS NOT NULL AND iv30_call IS NOT NULL AND close > 0),
+    w AS (
+      SELECT date, iv,
+             stddev_samp(r) OVER (ORDER BY date ROWS 19 PRECEDING) * sqrt(252) AS rv20,
+             min(iv) OVER (ORDER BY date ROWS 251 PRECEDING) AS lo,
+             max(iv) OVER (ORDER BY date ROWS 251 PRECEDING) AS hi,
+             count(*) OVER (ORDER BY date ROWS 251 PRECEDING) AS n
+      FROM d)
+    SELECT date::text, iv::float8, rv20::float8,
+           CASE WHEN n >= 60 AND hi > lo THEN ((iv - lo) / (hi - lo))::float8 END AS "ivRank"
+    FROM w WHERE date > current_date - 2 * 365 ORDER BY date`);
+  return res.json({ ticker: t, earnings, iv: ivOut, ivSource: iv.length > 0 ? "optlab" : "lseg" });
 });
 
 router.get("/pm/trades/:ticker", requireAdmin, async (req, res) => {

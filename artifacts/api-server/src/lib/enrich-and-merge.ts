@@ -18,6 +18,7 @@ import { runMergeTrusted } from "../scripts/merge-trusted.js";
 import { classifyTicker } from "./peer-classifier.js";
 import { isExcludedEtf } from "./etf-exclusions.js";
 import { logger } from "./logger.js";
+import { fillRegistryNames } from "./registry-names.js";
 
 
 export type EnrichAndMergeResult = {
@@ -128,6 +129,7 @@ export async function enrichAndMergeTickers(
 
     await runPopulateSourceFundamentals();
     await runMergeTrusted();
+    await fillRegistryNames().catch((err) => logger.warn({ err }, "enrich-and-merge: registry name fill failed"));
 
     logger.info(
       { tickers: unique, fetched, failed, sources },

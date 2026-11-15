@@ -50,6 +50,7 @@ export default function Rankings() {
       if (!res.ok) throw new Error("fundamentals/rankings failed");
       return res.json() as Promise<Array<{
         ticker: string;
+        companyName?: string | null;
         totalScore: number | null;
         companyScore?: number | null;
         sectorScore?: number | null;
@@ -84,7 +85,7 @@ export default function Rankings() {
       .sort((a, b) => a.rank - b.rank)
       .map(r => ({
         ticker:       r.ticker,
-        companyName:  r.ticker,
+        companyName:  r.companyName ?? "",
         totalScore:   r.totalScore as number,
         maxPossible:  100,
         rank:         r.rank,

@@ -170,6 +170,8 @@ function StatementTable({
                   const pctChange = point && prevPoint && prevPoint.value !== 0
                     ? (point.value - prevPoint.value) / Math.abs(prevPoint.value)
                     : null;
+                  // Profit ↔ loss: a % off the old base is meaningless (FY21 HOOD showed ↓52771%); say the flip instead.
+                  const signFlip = point != null && prevPoint != null && point.value * prevPoint.value < 0;
                   const intent = pctChange != null ? trendIntent(k, pctChange) : null;
                   return (
                     <td
@@ -187,7 +189,7 @@ function StatementTable({
                             intent === "good" ? "text-green-400" : intent === "bad" ? "text-red-400" : "text-foreground/50",
                           )}>
                             {pctChange >= 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
-                            {Math.abs(pctChange * 100).toFixed(0)}%
+                            {signFlip ? (/income|eps/i.test(k) ? (point!.value < 0 ? "to loss" : "to profit") : (point!.value < 0 ? "to neg" : "to pos")) : `${Math.abs(pctChange * 100).toFixed(0)}%`}
                           </span>
                         )}
                         <span className="text-foreground font-semibold">{point ? formatLargeNumber(point.value) : "—"}</span>

@@ -149,7 +149,11 @@ router.get("/fundamentals/rankings", async (req, res) => {
         totalScore: r.totalScore,
       })));
     }
-    return res.json(results);
+    // Company name for the leaderboard (was the ticker twice: "MU MU").
+    const names = new Map((await db.select({ ticker: tickerRegistry.ticker, name: tickerRegistry.name }).from(tickerRegistry))
+      .filter(r => r.name && r.name.toUpperCase() !== r.ticker.toUpperCase())
+      .map(r => [r.ticker.toUpperCase(), r.name as string]));
+    return res.json(results.map((r: { ticker: string }) => ({ ...r, companyName: names.get(r.ticker.toUpperCase()) ?? null })));
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }

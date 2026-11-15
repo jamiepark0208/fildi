@@ -128,7 +128,8 @@ function Router() {
         </ProtectedRoute>
       </Route>
       <Route path="/breakdown">
-        <Redirect to="/watchlist" />
+        {/* keep ?ticker= so old /breakdown links open that stock, not an empty Watchlist */}
+        <Redirect to={`/watchlist${typeof window !== "undefined" ? window.location.search : ""}`} />
       </Route>
       <Route path="/portfolio">
         <ProtectedRoute><Portfolio /></ProtectedRoute>

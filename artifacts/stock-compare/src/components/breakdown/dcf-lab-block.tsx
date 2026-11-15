@@ -100,7 +100,7 @@ export function DcfLabBlock({ ticker }: { ticker: string }) {
         <div className="text-amber-100">
           {reverse.growth_pct == null
             ? "Price above our P98 growth outcome"
-            : `Price needs revenue +${((reverse.implied_cagr5 ?? 0) * 100).toFixed(0)}%/yr for 5 years (P${Math.round((reverse.growth_pct ?? 0) * 100)} of similar firms)`}
+            : `Price needs revenue ${(reverse.implied_cagr5 ?? 0) >= 0 ? "+" : ""}${((reverse.implied_cagr5 ?? 0) * 100).toFixed(0)}%/yr for 5 years (P${Math.round((reverse.growth_pct ?? 0) * 100)} of similar firms)`}
         </div>
       )}
 
