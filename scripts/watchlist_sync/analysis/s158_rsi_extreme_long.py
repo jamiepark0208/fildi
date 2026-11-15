@@ -14,10 +14,8 @@ COST = 0.0005 * 2
 
 
 def rsi(c, n=14):
-    d = c.diff()
-    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
-    return 100 - 100 / (1 + up / dn)
+    from quantcore.ta import rsi_frame  # one home (Jamie 11-15)
+    return rsi_frame(c, n)
 
 
 R = C.apply(rsi)

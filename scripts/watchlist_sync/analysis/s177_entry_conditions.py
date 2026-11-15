@@ -29,9 +29,9 @@ FEATS = ["ret5", "ret20", "ret60", "z50", "rsi", "off_hi", "up_lo", "ivrv", "ivp
 
 
 def rsi(c, n=14):
-    g = [max(c[i] - c[i - 1], 0) for i in range(len(c) - n, len(c))]
-    l = [max(c[i - 1] - c[i], 0) for i in range(len(c) - n, len(c))]
-    return 100 if sum(l) == 0 else 100 - 100 / (1 + sum(g) / sum(l))
+    from quantcore.ta import rsi_last  # one home (Jamie 11-15)
+    v = rsi_last(c, n)
+    return float("nan") if v is None else v  # no stand-in (B1)
 
 
 def month_t(xs):

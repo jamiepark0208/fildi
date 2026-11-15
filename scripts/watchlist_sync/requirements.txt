@@ -3,3 +3,4 @@ python-dotenv>=1.0
 pyarrow>=18.0
 openpyxl>=3.1  # DCF v2 cma.py: Damodaran implied-ERP workbook
 anthropic>=2.3  # llm.py: one Claude wrapper (E8), model registry in artifacts/api-server/src/lib/llm-models.json
+pytest>=8

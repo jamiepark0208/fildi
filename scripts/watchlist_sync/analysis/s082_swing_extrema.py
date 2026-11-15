@@ -46,15 +46,8 @@ rng = np.random.default_rng(82)
 
 
 def rsi(c, n):
-    out = np.full(len(c), np.nan)
-    if len(c) <= n:
-        return out
-    d = np.diff(c)
-    for i in range(n, len(c)):
-        w = d[i - n:i]
-        g, l = w[w > 0].sum(), (-w[w < 0]).sum()
-        out[i] = 100.0 if l == 0 else 100 - 100 / (1 + g / l)
-    return out
+    from quantcore.ta import rsi as _rsi  # one home (Jamie 11-15)
+    return _rsi(c, n)
 
 
 def mfi(h, l, c, v, n=14):

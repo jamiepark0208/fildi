@@ -28,12 +28,14 @@ FLAT = 0.001  # 0.1 % — same band the Live grader uses
 
 
 def load(tk: str) -> pd.DataFrame:
+    """RTH 5m bars via quantcore.bars (one loader, invariants checked — Jamie 11-15)."""
+    from quantcore.bars import load_intraday
+
     with psycopg.connect(os.environ["DATABASE_URL"]) as c:
-        df = pd.read_sql("select ts, o, h, l, c, v from optlab.bars_5m where ticker=%s order by ts", c, params=(tk,))
-    df["ts"] = pd.to_datetime(df["ts"], utc=True).dt.tz_convert("America/New_York")
-    t = df["ts"].dt.hour * 60 + df["ts"].dt.minute
-    df = df[(t >= 570) & (t < 960)].copy()  # 09:30 ≤ bar start < 16:00
-    df["d"] = df["ts"].dt.date
+        df = load_intraday(c, [tk]).get(tk)
+    if df is None:
+        return pd.DataFrame(columns=["ts", "o", "h", "l", "c", "v", "d", "m"])
+    df["d"] = df["session_date"]
     df["m"] = (df["ts"].dt.hour * 60 + df["ts"].dt.minute) - 570
     return df
 

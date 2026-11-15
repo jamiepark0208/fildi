@@ -64,7 +64,8 @@ def find_triggers(conn, live: dict[str, float], state: dict) -> tuple[list[str],
         if not (px and pc and ivs):
             continue
         iv = sorted(ivs)[len(ivs) // 2]
-        iv = iv / 100 if iv > 5 else iv
+        from quantcore.bs import iv_fraction  # one unit rule (11-15)
+        iv = iv_fraction(iv)
         z = (px / pc - 1) / (iv / math.sqrt(252))
         bucket = int(abs(z))
         if abs(z) >= Z_TRIGGER and bucket > state["move"].get(t, 0):

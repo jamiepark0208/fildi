@@ -51,15 +51,13 @@ LOOKBACK, BINS = 60, 24
 
 
 def ncdf(x: float) -> float:
-    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+    from quantcore.bs import norm_cdf  # quantcore.bs — one home (Jamie 11-15)
+    return float(norm_cdf(x))
 
 
 def bs_put(S, K, vol, t):
-    if vol <= 0 or t <= 0:
-        return max(0.0, K - S)
-    sd = vol * math.sqrt(t)
-    d1 = (math.log(S / K) + 0.5 * sd * sd) / sd
-    return K * ncdf(-(d1 - sd)) - S * ncdf(-d1)
+    from quantcore.bs import bs_put as _p  # quantcore.bs — one home (Jamie 11-15)
+    return _p(spot=S, strike=K, iv=vol, years=t)
 
 
 def volume_nodes(h, l, v, end_i):

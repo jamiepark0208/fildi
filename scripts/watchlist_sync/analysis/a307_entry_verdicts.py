@@ -246,9 +246,10 @@ def main() -> int:
                 continue
             dmap = {d: (c, h, l, iv) for d, c, h, l, iv in daily}
             closes = [(d, c, h, l) for d, c, h, l, _ in daily if c and h and l]
-            raw = conn.execute("SELECT ts, o, h, l, c FROM optlab.bars_5m WHERE ticker = %s ORDER BY ts", (t,)).fetchall()
-            bars = [(ts.astimezone(ET), o, h, l, c) for ts, o, h, l, c in raw]
-            bars = [b for b in bars if time(9, 30) <= b[0].time() < time(16, 0)]
+            from quantcore.bars import load_intraday  # one loader (Jamie 11-15)
+
+            bdf = load_intraday(conn, [t]).get(t)
+            bars = [] if bdf is None else [(r.ts.to_pydatetime(), r.o, r.h, r.l, r.c) for r in bdf.itertuples()]
             if len(bars) < 2000:
                 continue
             # group by day

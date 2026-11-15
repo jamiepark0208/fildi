@@ -64,8 +64,8 @@ def ninv(p: float) -> float:
 
 
 def bs_call(S, K, T, r, s):
-    d1 = (math.log(S / K) + (r + s * s / 2) * T) / (s * math.sqrt(T))
-    return S * ncdf(d1) - K * math.exp(-r * T) * ncdf(d1 - s * math.sqrt(T))
+    from quantcore.bs import bs_call as _c  # quantcore.bs — one home (Jamie 11-15)
+    return _c(spot=S, strike=K, iv=s, years=T, r=r)
 
 
 def call_strike(S, T, r, s, delta):

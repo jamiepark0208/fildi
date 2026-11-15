@@ -66,7 +66,7 @@ def ensure_schema(conn) -> None:
     for stmt in [s.strip() for s in DDL_PATH.read_text().split(";") if s.strip()]:
         conn.execute(stmt)
     conn.execute(
-        """CREATE TABLE IF NOT EXISTS optlab.bars_5m (
+        """CREATE TABLE IF NOT EXISTS optlab.bars_30m (  -- 30m only; bars_5m is 5m-only (Jamie 11-15)
            ticker text NOT NULL, ts timestamptz NOT NULL, o float8, h float8, l float8, c float8, v float8,
            PRIMARY KEY (ticker, ts))"""
     )
@@ -306,14 +306,15 @@ def build_contracts(conn, tickers: list[str], d1: date) -> list[Contract]:
 def stock_bar_at(conn, ticker: str, ts: datetime) -> float | None:
     d = ts.astimezone(NY).date()
     row = conn.execute(
-        """SELECT c::float8 FROM optlab.bars_5m WHERE ticker = %s AND ts = %s""",
+        """SELECT c::float8 FROM optlab.bars_30m WHERE ticker = %s AND ts = %s""",
         (ticker, ts),
     ).fetchone()
     if row and row[0]:
         return float(row[0])
     row = conn.execute(
-        """SELECT c::float8 FROM optlab.bars_5m WHERE ticker = %s AND ts::date = %s
-           ORDER BY ABS(EXTRACT(EPOCH FROM (ts - %s))) LIMIT 1""",
+        """SELECT c::float8 FROM optlab.bars_30m WHERE ticker = %s
+             AND (ts AT TIME ZONE 'America/New_York')::date = %s AND ts <= %s
+           ORDER BY ts DESC LIMIT 1""",
         (ticker, d, ts),
     ).fetchone()
     if row and row[0]:
@@ -338,7 +339,7 @@ def cache_stock_30m(conn, ticker: str, d0: date, d1: date) -> None:
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
         conn.execute(
-            """INSERT INTO optlab.bars_5m (ticker, ts, o, h, l, c, v) VALUES (%s,%s,%s,%s,%s,%s,%s)
+            """INSERT INTO optlab.bars_30m (ticker, ts, o, h, l, c, v) VALUES (%s,%s,%s,%s,%s,%s,%s)
                ON CONFLICT (ticker, ts) DO NOTHING""",
             (ticker, ts, r.get("open"), r.get("high"), r.get("low"), r.get("close"), r.get("volume")),
         )
@@ -577,7 +578,7 @@ def main() -> None:
             if stop:
                 break
             batch = build_contracts(conn, [t], date.today())
-            have = conn.execute("SELECT count(*) FROM optlab.bars_5m WHERE ticker = %s AND ts >= %s",
+            have = conn.execute("SELECT count(*) FROM optlab.bars_30m WHERE ticker = %s AND ts >= %s",
                                 (t.upper(), START)).fetchone()[0]
             if batch and have < 2000:  # ~13 months × 13 bars/day ≈ 3.3k when complete
                 cache_stock_30m(conn, t.upper(), START, date.today())

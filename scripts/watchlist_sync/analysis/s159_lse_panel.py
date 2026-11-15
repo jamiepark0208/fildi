@@ -93,9 +93,12 @@ def universe(conn) -> list[str]:
 
 def split_fraction(r: float) -> Fraction | None:
     f = Fraction(r).limit_denominator(20)
-    if f.numerator == f.denominator:
+    if f.numerator == f.denominator or f.numerator == 0:
         return None
-    return f if abs(r / float(f) - 1) <= FRACTION_TOL else None
+    den = float(f)
+    if den == 0:
+        return None
+    return f if abs(r / den - 1) <= FRACTION_TOL else None
 
 
 def load_splits(conn) -> dict[str, list[tuple[date, float]]]:
@@ -137,9 +140,12 @@ def detect_jump_splits(dates: list[date], closes: np.ndarray) -> list[tuple[date
         if not (closes[k - 1] > 0 and closes[k] > 0):
             continue
         j = closes[k] / closes[k - 1]
+        # Factor is the multiplier for pre-split prices (same as optlab split_from/split_to).
+        # A 7:1 forward split prints j≈1/7, not 7. j near 1/2 stays inside the noise band:
+        # a real −50% day is not a 2:1 split, and pre-2016 confirmation fails open.
         if 0.48 <= j <= 2.05:
             continue
-        frac = split_fraction(1 / j) if j < 1 else split_fraction(j)
+        frac = split_fraction(j)
         if not frac:
             continue
         after = closes[k : k + 5]
@@ -152,14 +158,15 @@ def confirm_lseg_factor(lseg: dict[date, float], d: date, factor: float, dates: 
     if not lseg:
         return True
     i = dates.index(d)
-    pre = [(dd, lseg[dd] / closes[j]) for j, dd in enumerate(dates[max(0, i - 40) : i]) if dd in lseg and closes[j] > 0]
+    pre_i = max(0, i - 40)
+    pre = [(dd, lseg[dd] / closes[j]) for j, dd in enumerate(dates[pre_i:i], start=pre_i) if dd in lseg and closes[j] > 0]
     post = [(dd, lseg[dd] / closes[j]) for j, dd in enumerate(dates[i : i + 15], start=i) if dd in lseg and closes[j] > 0]
     if len(pre) < 5 or len(post) < 3:
         return True
     R = median([r for _, r in pre])
     steady = median([abs(r / R - 1) for _, r in pre])
     post_ok = abs(median([r for _, r in post]) - 1) < 0.02
-    return steady < 0.02 and post_ok and abs(R - factor) < 0.03
+    return bool(steady < 0.02 and post_ok and abs(R - factor) < 0.03)
 
 
 def adjust_ohlcv(g: pd.DataFrame, factors: list[tuple[date, float]]) -> pd.DataFrame:
@@ -177,10 +184,30 @@ def adjust_ohlcv(g: pd.DataFrame, factors: list[tuple[date, float]]) -> pd.DataF
     return g
 
 
+def split_still_in_series(dates: list[date], closes: np.ndarray, split_d: date, fac: float) -> bool:
+    """True when raw closes still jump by fac on the ex-date.
+
+    LSE daily cache is already split-adjusted: the ex-date ratio is ~1, and applying
+    optlab's fr/to again crushes every earlier print. An unadjusted series jumps by fac.
+    """
+    if not fac or fac <= 0:
+        return False
+    for i, d in enumerate(dates):
+        if d < split_d or i == 0 or not (closes[i - 1] > 0 and closes[i] > 0):
+            continue
+        if (d - split_d).days > 7:
+            return False
+        j = float(closes[i] / closes[i - 1])
+        return abs(j / fac - 1) <= 0.25
+    return False
+
+
 def factors_for_ticker(conn, ticker: str, g: pd.DataFrame, splits: dict, lseg: dict) -> list[tuple[date, float]]:
-    facs: list[tuple[date, float]] = list(splits.get(ticker, []))
     dates = [d.date() if hasattr(d, "date") else d for d in g["date"]]
     closes = g["c"].to_numpy(dtype=float)
+    facs: list[tuple[date, float]] = [
+        (d, fac) for d, fac in splits.get(ticker, []) if split_still_in_series(dates, closes, d, fac)
+    ]
     for d, fac in detect_jump_splits(dates, closes):
         if any(abs(existing[1] - fac) < 0.01 and abs((existing[0] - d).days) < 3 for existing in facs):
             continue
@@ -289,11 +316,19 @@ def lseg_validate_frame(g: pd.DataFrame, lseg: dict[date, float]) -> pd.DataFram
             ratios.append(lseg[d] / float(g.at[i, "c"]))
     if len(ratios) < 20:
         return g
+    # A step (missed split) has a wide ratio range. Do not rescale the whole series by that
+    # median, and do not delete the post-split regime for sitting far from 1.
+    if max(ratios) / min(ratios) > 1.5:
+        return g
     med = float(median(ratios))
     if abs(med - 1) > LSEG_RATIO_TOL:
+        if not (0.2 <= med <= 5):
+            return g
         for col in ("o", "h", "l", "c"):
             if col in g.columns:
                 g[col] = g[col] * med
+        if "v" in g.columns:
+            g["v"] = g["v"].astype(float) / med
     keep = []
     for i, d in enumerate(dd):
         if d not in lseg or g.at[i, "c"] <= 0:
@@ -470,13 +505,12 @@ def build_pack(conn) -> dict:
 def cmd_build(_args) -> None:
     with connect() as conn:
         pack = build_pack(conn)
+        self_test(pack, conn)
     CACHE.parent.mkdir(parents=True, exist_ok=True)
     with CACHE.open("wb") as f:
         pickle.dump(pack, f, protocol=pickle.HIGHEST_PROTOCOL)
     C = pack["c"]
     print(f"saved {CACHE} {C.index[0].date()}→{C.index[-1].date()} tickers={C.shape[1]} days={len(C)}")
-    with connect() as conn:
-        self_test(pack, conn)
 
 
 def self_test(pack: dict, conn=None) -> None:

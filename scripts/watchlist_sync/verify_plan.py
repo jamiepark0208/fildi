@@ -73,14 +73,12 @@ def _f(x):
 
 def _bs_delta(kind: str, spot: float, strike: float, iv: float, days: int) -> float | None:
     """Black-Scholes delta (r = 0) from the quote's own IV. Schwab sends delta −999 when it has no greeks (2026-10-16:
-    every put that reached L2 failed live_delta_band on that sentinel)."""
+    every put that reached L2 failed live_delta_band on that sentinel). IV unit is mixed (RH fraction, Schwab %)."""
+    from quantcore.bs import call_delta, iv_fraction, put_delta, years_from_days  # quantcore.bs — one home (Jamie 11-15)
     if not (spot and strike and iv and days):
         return None
-    sig = iv / 100 if iv > 5 else iv
-    t = days / 365
-    d1 = (math.log(spot / strike) + 0.5 * sig * sig * t) / (sig * math.sqrt(t))
-    n = NormalDist().cdf(d1)
-    return n - 1 if kind == "put" else n
+    f = put_delta if kind == "put" else call_delta
+    return f(spot=spot, strike=strike, iv=iv_fraction(iv), years=years_from_days(days))
 
 
 def load_raw(conn, pid: int):

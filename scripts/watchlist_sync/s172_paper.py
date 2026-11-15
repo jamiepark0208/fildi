@@ -122,7 +122,8 @@ def hibeta(conn) -> list[dict]:
                                        WHERE date >= current_date - 100 AND close > 0 ORDER BY ticker, date"""):
         px.setdefault(t, {})[d] = c
         if iv and iv > 0:
-            ivp[t] = iv / 100 if iv > 3 else iv
+            from quantcore.bs import iv_fraction  # one unit rule (11-15; was > 3)
+            ivp[t] = iv_fraction(iv)
     stocks = {r[0] for r in conn.execute("SELECT ticker FROM research_common.security_class WHERE gics_sector IS NOT NULL")}  # no ETFs / levered
     spy = px.get("SPY") or {}
     days = sorted(spy)[-61:]

@@ -42,7 +42,8 @@ def held(conn, t: str, side: str, dte: int) -> tuple[float, int] | None:
         iv = ivp if side == "put" else ivc
         if not iv:
             continue
-        iv = iv / 100 if iv > 3 else iv
+        from quantcore.bs import iv_fraction  # one unit rule (11-15; was > 3: a 320 % meme IV read as 3.2 %)
+        iv = iv_fraction(iv)
         w = Z * iv * math.sqrt(dte / 365)
         end = h[i + n_sess][1]
         n += 1

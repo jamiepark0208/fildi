@@ -91,9 +91,9 @@ def load_market():
 
 
 def rsi(c, n):
-    d = np.diff(c[-(n + 1):])
-    up, dn = d[d > 0].sum(), -d[d < 0].sum()
-    return 100.0 if dn == 0 else 100 - 100 / (1 + up / dn)
+    from quantcore.ta import rsi_last  # one home (Jamie 11-15)
+    v = rsi_last(c, n)
+    return float("nan") if v is None else v  # no stand-in (B1)
 
 
 def market_features(mkt, d):

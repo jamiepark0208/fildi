@@ -56,21 +56,13 @@ def norm_cdf(x: float) -> float:
 
 
 def bs_call(S, K, T, r, sig):
-    if T <= 0 or sig <= 0 or S <= 0 or K <= 0:
-        return max(S - K, 0.0)
-    v = sig * math.sqrt(T)
-    d1 = (math.log(S / K) + (r + 0.5 * sig * sig) * T) / v
-    d2 = d1 - v
-    return S * norm_cdf(d1) - K * math.exp(-r * T) * norm_cdf(d2)
+    from quantcore.bs import bs_call as _c  # quantcore.bs — one home (Jamie 11-15)
+    return _c(spot=S, strike=K, iv=sig, years=T, r=r)
 
 
 def bs_put(S, K, T, r, sig):
-    if T <= 0 or sig <= 0 or S <= 0 or K <= 0:
-        return max(K - S, 0.0)
-    v = sig * math.sqrt(T)
-    d1 = (math.log(S / K) + (r + 0.5 * sig * sig) * T) / v
-    d2 = d1 - v
-    return K * math.exp(-r * T) * norm_cdf(-d2) - S * norm_cdf(-d1)
+    from quantcore.bs import bs_put as _p  # quantcore.bs — one home (Jamie 11-15)
+    return _p(spot=S, strike=K, iv=sig, years=T, r=r)
 
 
 def strike_for_delta(S, T, r, sig, delta):

@@ -49,6 +49,13 @@ if [ -n "$mjs" ]; then
   fi
 fi
 
+# 11-15 (Jamie): copy ratchet — shared quant logic has one home (scripts/watchlist_sync/quantcore); copies may only fall. Blocking.
+python3 "$(dirname "$0")/copy_ratchet.py" || { echo "agent-ship-check: copy ratchet failed — use quantcore instead of a new copy"; exit 1; }
+python3 "$(dirname "$0")/import_guard.py" "$base" "$head" || { echo "agent-ship-check: commit imports an uncommitted module — git add it"; exit 1; }
+# 11-15: quantcore invariants (indicators = TradingView, BS units, bar loader, look-ahead detector).
+if [ -x "$(dirname "$0")/watchlist_sync/.venv/bin/python" ]; then
+  (cd "$(dirname "$0")/watchlist_sync" && .venv/bin/python -m pytest -q tests/test_quantcore.py >/dev/null 2>&1) || { echo "agent-ship-check: tests/test_quantcore.py failed"; exit 1; }
+fi
 need_api=0
 need_ui=0
 echo "$files" | grep -qE '^artifacts/api-server/src/.*\.(ts|tsx)$' && need_api=1 || true

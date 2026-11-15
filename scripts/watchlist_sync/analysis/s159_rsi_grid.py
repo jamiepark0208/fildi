@@ -50,10 +50,8 @@ def parse_args():
 
 
 def rsi(c, n):
-    d = c.diff()
-    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
-    return 100 - 100 / (1 + up / dn)
+    from quantcore.ta import rsi_frame  # one home (Jamie 11-15)
+    return rsi_frame(c, n)
 
 
 def wilson_lo(k, n, z=1.96):
@@ -153,10 +151,15 @@ def put_grid(C, O, tickers: list[str], dlt: float) -> dict[str, dict[int, np.nda
             K = strike_for_put_delta(spot_e, iv_e, PUT_DTE, dlt)
             cred = bs_put(spot_e, K, iv_e, PUT_DTE / 365.0)
             for h in HOLDS:
-                rem = max(PUT_DTE - h, 1) / 365.0
-                spot_x = c_np_t[i + 1 + h]
+                # Same exit as the stock leg: open[i+1] → close[i+h]. Elapsed sessions = h-1.
+                spot_x = c_np_t[i + h]
+                elapsed = h - 1
                 if np.isfinite(spot_x) and cred > 0:
-                    mark = bs_put(spot_x, K, iv_e, rem)
+                    if elapsed >= PUT_DTE:
+                        mark = max(K - spot_x, 0.0)
+                    else:
+                        rem = max(PUT_DTE - elapsed, 1) / 365.0
+                        mark = bs_put(spot_x, K, iv_e, rem)
                     mats[h][i] = (cred - mark) / K - COST
         put_by_t[t] = mats
     return put_by_t
@@ -219,6 +222,8 @@ def main():
     TBASE = {h: np.nanmean(FWD[h], axis=0) for h in HOLDS}
     c_np = C.to_numpy()
     valid = np.isfinite(c_np) & (c_np > 1.0)
+    if "VIX" in C.columns:
+        valid[:, C.columns.get_loc("VIX")] = False
     cell = make_cell_fn(FWD, TBASE, dates, SPLIT_LEGACY)
     MIN_DAYS = args.min_days
     out = []

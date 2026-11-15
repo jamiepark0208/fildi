@@ -23,4 +23,6 @@ while IFS=$'\t' read -r st path; do
     fi
   fi
 done < <(git diff --name-status --no-renames "$base" "$head" 2>/dev/null)
+# 11-15 (Jamie): a (High) finding can't be closed without a fix SHA; 'done (uncommitted)' is not done.
+python3 "$(dirname "$0")/findings_guard.py" --strict >&2 || bad=1
 exit $bad

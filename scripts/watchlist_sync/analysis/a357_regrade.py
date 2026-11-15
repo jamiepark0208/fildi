@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """A357 step 4 — re-grade A352 champion edge on LSE traded entry premiums.
 
-Run after full `a357_lse_option_backfill.py`. Model entry uses BS at the snapped strike (like S059).
+Run after `a357_lse_option_backfill.py` (full or --sample). Model entry uses BS at the snapped strike.
 Pre-registered pass/fail: research/common/asks/A357.md.
 """
 from __future__ import annotations
 
-import math
+import argparse
 import sys
 from collections import defaultdict
 from datetime import date, timedelta
@@ -24,19 +24,39 @@ sys.path.insert(0, str(SYNC))
 import a352_score_rank as A352  # noqa: E402
 import s045_put_retest as S045  # noqa: E402
 import s059_option_factors as S59  # noqa: E402
-from a357_lse_option_backfill import ENTRY_CUT, collect_contracts, strike_for_event  # noqa: E402
+from a357_lse_option_backfill import collect_contracts, collect_sample_contracts, strike_for_event  # noqa: E402
+from a357_sample import SAMPLE_PATH, SampleEvent, load_sample_plan  # noqa: E402
 from build_plan import connect  # noqa: E402
-from grade_weeks import iso_week  # noqa: E402
-from lse_client import snap_put_strike  # noqa: E402
 
 REPORT = ROOT / "research" / "studies" / "a357-real-price-regrade.md"
 WEEK_FLOOR = date(2025, 10, 20)
 HAIRCUTS = (0.0, 0.05, 0.10)
-MIN_BACKFILL_OCC = 500
+
+
+def edge_verdict(edge_t: float, edge_m: float, cov: float, ci_spans_zero: bool) -> str:
+    """Coverage is a gate. The word holds/weakens/fails comes from the 5% haircut edge."""
+    if cov < 0.60:
+        return f"coverage {cov:.1%} < 60% (pre-registered bar)"
+    if ci_spans_zero or not np.isfinite(edge_t) or not np.isfinite(edge_m) or edge_m == 0:
+        return "underpowered"
+    if (edge_t > 0) != (edge_m > 0):
+        return "fails"
+    if abs(edge_t) + 1e-12 >= 0.5 * abs(edge_m):
+        return "holds"
+    return "weakens"
+
+
+def ci_spans_zero(champ: list[float], rnd: list[float]) -> bool:
+    if len(champ) < 2 or len(champ) != len(rnd):
+        return True
+    d = np.asarray(champ, dtype=float) - np.asarray(rnd, dtype=float)
+    se = float(d.std(ddof=1) / np.sqrt(len(d)))
+    return abs(float(d.mean())) <= 1.96 * se
 
 
 def _entry_close(conn, occ: str, entry: date) -> float | None:
-    for d in (entry, entry - timedelta(days=1), entry + timedelta(days=1)):
+    # entry+1 is the next session — using it as the entry premium looks ahead.
+    for d in (entry, entry - timedelta(days=1)):
         row = conn.execute(
             """SELECT close::float8 FROM lse_option_daily
                WHERE occ = %s AND date = %s AND close IS NOT NULL AND close > 0""",
@@ -63,9 +83,9 @@ def _short_pnl(entry_prem: float, strike: float, settle: float) -> float:
     return (entry_prem - intrinsic) / strike
 
 
-def _events_by_week(conn) -> dict[date, list[dict]]:
-    """S059 entries ≥ cut with snapped strikes + scores (weeks ≥ WEEK_FLOOR only)."""
-    contracts = {c.occ: c for c in collect_contracts(conn) if c.source == "s059" and c.entry >= WEEK_FLOOR}
+def _events_by_week_full(conn) -> tuple[dict[date, list[dict]], int, int]:
+    """Legacy full-universe path (re-ranks via _tercile_book)."""
+    contracts = [c for c in collect_contracts(conn) if c.source == "s059" and c.entry >= WEEK_FLOOR]
     rows_scored = A352.rebuild_book(conn)
     by_occ_entry: dict[tuple[str, date], dict] = {}
     for e in rows_scored:
@@ -74,7 +94,7 @@ def _events_by_week(conn) -> dict[date, list[dict]]:
         model = strike_for_event(conn, e)
         if model is None:
             continue
-        cands = [c for c in contracts.values() if c.ticker == e["t"] and c.entry == e["d"] and c.expiry == e["expiry"]]
+        cands = [c for c in contracts if c.ticker == e["t"] and c.entry == e["d"] and c.expiry == e["expiry"]]
         if not cands:
             continue
         c = cands[0]
@@ -83,7 +103,38 @@ def _events_by_week(conn) -> dict[date, list[dict]]:
     out: dict[date, list[dict]] = defaultdict(list)
     for e in by_occ_entry.values():
         out[e["d"]].append(e)
-    return out
+    n_plan = sum(len(v) for v in out.values())
+    return out, n_plan, len(out)
+
+
+def _events_by_week_sample(conn, plan: list[SampleEvent]) -> tuple[dict[date, list[dict]], int, int]:
+    contracts = collect_sample_contracts(conn, plan)
+    aligned = {(e["t"], e["d"], e["expiry"]): e for e in S59.aligned_events(conn)}
+    out: dict[date, list[dict]] = defaultdict(list)
+    for se in plan:
+        if se.entry() < WEEK_FLOOR:
+            continue
+        key = (se.t, se.entry(), se.expiry_date())
+        e = aligned.get(key)
+        if not e:
+            continue
+        cands = [c for c in contracts if c.ticker == se.t and c.entry == se.entry() and c.expiry == se.expiry_date()]
+        if not cands:
+            continue
+        c = cands[0]
+        model = strike_for_event(conn, e)
+        row = {
+            **e,
+            "contract": c,
+            "model_strike": model,
+            "snapped": c.strike,
+            "score": se.score,
+            "book": se.book,
+        }
+        out[se.entry()].append(row)
+    n_plan = len(plan)
+    n_days = len({se.d for se in plan})
+    return out, n_plan, n_days
 
 
 def _attach_traded(conn, events: list[dict]) -> list[dict]:
@@ -129,43 +180,90 @@ def _tercile_book(by: dict[date, list[dict]], key: str, h: float) -> tuple[list[
     return champ, rnd
 
 
+def _tagged_tercile_book(by: dict[date, list[dict]], key: str, h: float) -> tuple[list[float], list[float], int]:
+    """Grade champion/random from pre-registered `book` tags (no re-rank on traded subset)."""
+    champ, rnd = [], []
+    n_weeks = 0
+    for d in sorted(by):
+        g = by[d]
+        ch = [x for x in g if x.get("book") in ("champion", "both")]
+        rn = [x for x in g if x.get("book") in ("random", "both")]
+        if not ch or not rn:
+            continue
+        champ.append(float(np.mean([x[key][h] for x in ch])))
+        rnd.append(float(np.mean([x[key][h] for x in rn])))
+        n_weeks += 1
+    return champ, rnd, n_weeks
+
+
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--interim", action="store_true", help="Mark report INTERIM (partial sample backfill)")
+    args = ap.parse_args()
+
+    sample_loaded = load_sample_plan()
+    use_tags = sample_loaded is not None
+
     with connect() as conn:
         n_occ = conn.execute("SELECT COUNT(DISTINCT occ)::int FROM lse_option_daily").fetchone()[0]
-        if n_occ < MIN_BACKFILL_OCC:
-            raise SystemExit(
-                f"A357 regrade blocked: lse_option_daily has {n_occ} OCC(s) (need ≥ {MIN_BACKFILL_OCC}). "
-                "Wait for backfill to finish."
-            )
-        by_week = _events_by_week(conn)
-        flat = [e for g in by_week.values() for e in g]
-        n_total = len(flat)
-        with_traded = _attach_traded(conn, flat)
-        cov = len(with_traded) / n_total if n_total else 0.0
+        if use_tags:
+            plan_events, meta = sample_loaded
+            by_week, n_plan, n_days_plan = _events_by_week_sample(conn, plan_events)
+            flat = [e for g in by_week.values() for e in g]
+            with_traded = _attach_traded(conn, flat)
+            cov_events = len(with_traded) / n_plan if n_plan else 0.0
+            grade = _tagged_tercile_book
+        else:
+            by_week, n_plan, n_days_plan = _events_by_week_full(conn)
+            flat = [e for g in by_week.values() for e in g]
+            with_traded = _attach_traded(conn, flat)
+            cov_events = len(with_traded) / n_plan if n_plan else 0.0
+            grade = _tercile_book
 
         by: dict[date, list[dict]] = defaultdict(list)
         for e in with_traded:
             by[e["d"]].append(e)
 
+        header = "# A357 — real-price re-grade (LSE traded entry)"
+        if args.interim or (use_tags and cov_events < 0.99):
+            header += " · **INTERIM**"
+
         lines = [
-            "# A357 — real-price re-grade (LSE traded entry)",
+            header,
             "",
-            f"Contracts with S059 entry ≥ {WEEK_FLOOR}: {n_total} · traded entry found: {len(with_traded)} ({cov:.1%} coverage)",
+            f"LSE daily OCCs: {n_occ} · sample plan: {n_plan} events / {n_days_plan} entry days"
+            if use_tags
+            else f"Contracts with S059 entry ≥ {WEEK_FLOOR}: {n_plan}",
+            f"With traded entry (in plan): {len(with_traded)} ({cov_events:.1%} coverage)",
             "",
         ]
+        if use_tags:
+            lines.append(f"Selection: `{SAMPLE_PATH}` (tagged champion/random; no re-rank on traded subset).")
+            lines.append("")
+
+        edge_at_5: tuple[float, float, bool] | None = None
         for h in HAIRCUTS:
-            ct, rt = _tercile_book(by, "pnl_traded", h)
-            cm, rm = _tercile_book(by, "pnl_model", h)
-            if len(ct) < 4:
-                lines.append(f"## Haircut {h:.0%}: too few weeks")
+            if use_tags:
+                ct, rt, nw = grade(by, "pnl_traded", h)
+                cm, rm, _ = grade(by, "pnl_model", h)
+            else:
+                ct, rt = grade(by, "pnl_traded", h)
+                cm, rm = grade(by, "pnl_model", h)
+                nw = len(ct)
+            if len(ct) < 1:
+                lines.append(f"## Haircut {h:.0%}: no graded weeks yet")
                 continue
             edge_t = (np.mean(ct) - np.mean(rt)) * 1e4
             edge_m = (np.mean(cm) - np.mean(rm)) * 1e4
             sign_match = (edge_t > 0) == (edge_m > 0)
+            spans = ci_spans_zero(ct, rt)
+            if abs(h - 0.05) < 1e-9:
+                edge_at_5 = (edge_t, edge_m, spans)
             lines += [
-                f"## Haircut {h:.0%}",
+                f"## Haircut {h:.0%} ({nw} weeks)",
                 f"- Champion − random (traded): **{edge_t:+.1f} bp/wk** · modelled side-by-side: **{edge_m:+.1f} bp/wk**",
-                f"- Same sign: {sign_match} · size ratio: {abs(edge_t / edge_m) if edge_m else float('nan'):.2f}",
+                f"- Same sign: {sign_match} · size ratio: {(abs(edge_t / edge_m) if edge_m else float('nan')):.2f}",
+                f"- Week-difference CI spans 0: {spans}",
                 "",
             ]
 
@@ -182,14 +280,19 @@ def main() -> None:
                 "",
             ]
 
-        verdict = "holds" if cov >= 0.60 and lines[-1] != "" else "underpowered"
-        if cov < 0.60:
-            verdict = "blocked (coverage < 60%)"
-        lines += [f"**Pre-registered coverage:** {cov:.1%} → **{verdict}** (detail pass/fail after full backfill).", ""]
+        if edge_at_5 is None:
+            verdict = "underpowered"
+            if cov_events < 0.60:
+                verdict = f"coverage {cov_events:.1%} < 60% (pre-registered bar)"
+        else:
+            verdict = edge_verdict(edge_at_5[0], edge_at_5[1], cov_events, edge_at_5[2])
+        if args.interim and verdict == "holds":
+            verdict = "holds (interim)"
+        lines += [f"**Coverage vs plan:** {cov_events:.1%} → **{verdict}**.", ""]
 
         REPORT.parent.mkdir(parents=True, exist_ok=True)
         REPORT.write_text("\n".join(lines))
-        print("\n".join(lines[:12]), flush=True)
+        print("\n".join(lines[:14]), flush=True)
         print(f"Wrote {REPORT}", flush=True)
 
 

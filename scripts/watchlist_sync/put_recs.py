@@ -44,15 +44,13 @@ FAR_BAND = "0.06-0.08"   # far rule (rules.PUT_EARNINGS_ABS_DELTA 0.10 cap / 0.0
 
 
 def _ncdf(x):
-    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+    from quantcore.bs import norm_cdf  # quantcore.bs — one home (Jamie 11-15)
+    return float(norm_cdf(x))
 
 
 def bs_put(S, K, v, t):
-    if v <= 0 or t <= 0:
-        return max(K - S, 0.0)
-    sd = v * math.sqrt(t)
-    d1 = (math.log(S / K) + 0.5 * sd * sd) / sd
-    return K * _ncdf(-(d1 - sd)) - S * _ncdf(-d1)
+    from quantcore.bs import bs_put as _p  # quantcore.bs — one home (Jamie 11-15)
+    return _p(spot=S, strike=K, iv=v, years=t)
 
 
 def pick_expiry(exps: list[date], as_of: date, earnings: date | None = None):

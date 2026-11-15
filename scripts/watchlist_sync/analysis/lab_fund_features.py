@@ -49,9 +49,16 @@ def main() -> None:
     with connect() as conn:
         conn.execute(DDL)
         ibes_wm = conn.execute("SELECT MAX(statpers)::text FROM wrds_research.ibes_statsum").fetchone()[0]
-        if inputs_unchanged_since_run(conn, job="lab_fund_features", input_watermark=ibes_wm or "none",
-                                      code_path=__file__):
-            print("lab_fund: skip — IBES watermark + code unchanged")
+        out_wm = conn.execute(
+            "SELECT COALESCE(MAX(as_of)::text, 'none') || ':' || count(*)::text FROM watchlist_sync.lab_outcomes"
+        ).fetchone()[0]
+        wm = f"ibes={ibes_wm or 'none'}|outcomes={out_wm}"
+        if inputs_unchanged_since_run(conn, job="lab_fund_features", input_watermark=wm, code_path=__file__):
+            rec = FetchRunRecorder(conn, source="wrds", job="lab_fund_features",
+                                   meta={"input_watermark": wm, "code_hash": code_hash})
+            rec.finish(mode="skip")
+            conn.commit()
+            print("lab_fund: skip — IBES + lab_outcomes watermarks and code unchanged")
             return
         keys = rows(conn, """SELECT DISTINCT o.ticker, o.as_of
                              FROM watchlist_sync.lab_outcomes o
@@ -103,7 +110,7 @@ def main() -> None:
         out.append((t, a, json.dumps(feats)))
     with connect() as conn:
         rec = FetchRunRecorder(conn, source="wrds", job="lab_fund_features",
-                               meta={"input_watermark": ibes_wm, "code_hash": code_hash})
+                               meta={"input_watermark": wm, "code_hash": code_hash})
         with conn.cursor() as cur:
             cur.executemany("""INSERT INTO watchlist_sync.lab_fund (ticker, as_of, features) VALUES (%s, %s, %s)
                                ON CONFLICT (ticker, as_of) DO UPDATE SET features = EXCLUDED.features, computed_at = now()

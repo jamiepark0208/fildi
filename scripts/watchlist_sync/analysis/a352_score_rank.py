@@ -111,11 +111,10 @@ def blend(parts: list[tuple[float, float | None]]) -> float | None:
 
 
 def put_delta(spot: float, strike: float, iv: float, t: float) -> float | None:
+    from quantcore.bs import put_delta as _d  # quantcore.bs — one home (Jamie 11-15)
     if spot <= 0 or strike <= 0 or iv <= 0 or t <= 0:
         return None
-    sd = iv * math.sqrt(t)
-    d1 = (math.log(spot / strike) + 0.5 * sd * sd) / sd
-    return S.ncdf(d1) - 1.0
+    return _d(spot=spot, strike=strike, iv=iv, years=t)
 
 
 def load_tbill() -> list[tuple[date, float]]:

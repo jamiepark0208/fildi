@@ -1101,11 +1101,11 @@ def legs_d(sid: str, S: float, ivp: float, ivc: float, dte: int) -> list[tuple[s
 
 
 def bs_delta(side: str, S: float, K: float, v: float, T: float) -> float:
+    from quantcore.bs import call_delta, put_delta  # quantcore.bs — one home (Jamie 11-15)
     if T <= 0 or v <= 0 or S <= 0 or K <= 0:
         return 0.0
-    sd = v * math.sqrt(T)
-    d1 = (math.log(S / K) + (RISK_FREE + 0.5 * v * v) * T) / sd
-    return float(ndtr(d1)) if side == "call" else float(ndtr(d1) - 1.0)
+    f = call_delta if side == "call" else put_delta
+    return float(f(spot=S, strike=K, iv=v, years=T, r=RISK_FREE))
 
 
 def net_delta_at_entry(

@@ -39,13 +39,12 @@ def norm_cdf(x: float) -> float:
 
 
 def put_delta(S: float, K: float, iv: float, dte: int) -> float:
-    """Black–Scholes put delta (no rates). iv in percent."""
+    """Black–Scholes put Δ (no rates). iv in percent. Was calendar DTE ÷ 252 (trading-day basis,
+    T +45 %) and a −0.16 stand-in on bad input — both fixed 11-15 (NaN, not a stand-in)."""
+    from quantcore.bs import put_delta as _d, years_from_days  # quantcore.bs — one home (Jamie 11-15)
     if S <= 0 or K <= 0 or iv <= 0 or dte <= 0:
-        return -0.16
-    sig = iv / 100.0
-    T = dte / 252.0
-    d1 = (math.log(S / K) + 0.5 * sig * sig * T) / (sig * math.sqrt(T))
-    return norm_cdf(d1) - 1.0  # put Δ
+        return float("nan")
+    return _d(spot=S, strike=K, iv=iv / 100.0, years=years_from_days(dte))
 
 
 def candidates(conn, limit_occ: int = 200) -> list[str]:

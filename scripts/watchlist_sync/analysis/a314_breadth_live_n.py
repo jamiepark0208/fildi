@@ -53,13 +53,12 @@ BAR_CACHE: dict[str, pd.DataFrame] = {}
 def load_ticker_bars(conn, t: str) -> pd.DataFrame:
     if t in BAR_CACHE:
         return BAR_CACHE[t]
-    df = pd.read_sql(
-        "select ts, o, c, v from optlab.bars_5m where ticker=%s order by ts",
-        conn,
-        params=(t,),
-    )
-    df["ts"] = pd.to_datetime(df.ts, utc=True).dt.tz_convert("America/New_York")
-    df = df[(df.ts.dt.hour * 60 + df.ts.dt.minute >= 9 * 60 + 30) & (df.ts.dt.hour * 60 + df.ts.dt.minute < 16 * 60)]
+    from quantcore.bars import load_intraday  # one loader (Jamie 11-15)
+
+    df = load_intraday(conn, [t]).get(t)
+    if df is None:
+        df = pd.DataFrame(columns=["ts", "o", "h", "l", "c", "v", "session_date"])
+    df = df[["ts", "o", "c", "v"]].copy()
     df["d"] = df.ts.dt.date
     df["sess_open"] = df.groupby("d")["o"].transform("first")
     df["cum_pv"] = (df.c * df.v).groupby(df.d, sort=False).cumsum()

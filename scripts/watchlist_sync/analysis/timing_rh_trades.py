@@ -30,12 +30,8 @@ ACCOUNTS = {"772445425": "IRA", "5QU47796": "FILDI"}
 
 
 def rsi(closes: list[float], n: int = 14) -> float | None:
-    if len(closes) <= n:
-        return None
-    gains = [max(closes[i] - closes[i - 1], 0) for i in range(len(closes) - n, len(closes))]
-    losses = [max(closes[i - 1] - closes[i], 0) for i in range(len(closes) - n, len(closes))]
-    g, l = mean(gains), mean(losses)
-    return 100.0 if l == 0 else 100 - 100 / (1 + g / l)
+    from quantcore.ta import rsi_last  # one home (Jamie 11-15)
+    return rsi_last(closes, n)
 
 
 def load(conn):

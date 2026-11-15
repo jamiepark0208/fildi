@@ -318,12 +318,8 @@ def _ticker_betas(conn, tickers: list[str]) -> dict[str, float]:
 
 
 def _bs_put(S: float, K: float, t: float, v: float, r: float = 0.04) -> float:
-    if S <= 0 or K <= 0 or t <= 0 or v <= 0:
-        return max(K - S, 0.0)
-    d1 = (math.log(S / K) + (r + 0.5 * v * v) * t) / (v * math.sqrt(t))
-    d2 = d1 - v * math.sqrt(t)
-    n = lambda x: 0.5 * (1 + math.erf(x / math.sqrt(2)))  # noqa: E731
-    return K * math.exp(-r * t) * n(-d2) - S * n(-d1)
+    from quantcore.bs import bs_put as _p  # quantcore.bs — one home (Jamie 11-15)
+    return _p(spot=S, strike=K, iv=v, years=t, r=r)
 
 
 def _scenario_loss(b: dict, puts: list[dict], longs: list[dict], rets: dict[str, float]) -> float:

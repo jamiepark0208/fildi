@@ -51,8 +51,8 @@ def ncdf(x: float) -> float:
 
 
 def bs_put(s: float, k: float, t: float, v: float) -> float:
-    d1 = (math.log(s / k) + (RATE + v * v / 2) * t) / (v * math.sqrt(t))
-    return k * math.exp(-RATE * t) * ncdf(-(d1 - v * math.sqrt(t))) - s * ncdf(-d1)
+    from quantcore.bs import bs_put as _p  # quantcore.bs — one home (Jamie 11-15)
+    return _p(spot=s, strike=k, iv=v, years=t, r=RATE)
 
 
 def put_iv(price: float, s: float, k: float, t: float) -> float | None:

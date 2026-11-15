@@ -33,8 +33,8 @@ HOLD: list = []
 
 
 def bs_put_delta(S_, K, iv, T):
-    sd = iv * math.sqrt(T)
-    return S.N.cdf((math.log(S_ / K) + 0.5 * sd * sd) / sd) - 1
+    from quantcore.bs import put_delta as _d  # quantcore.bs — one home (Jamie 11-15)
+    return _d(spot=S_, strike=K, iv=iv, years=T)
 
 
 def main():

@@ -154,6 +154,16 @@ def main() -> None:
                 stalled.append(f"{aid} {st_.group(1)} ({route.group(1) if route else '?'})")
         say(f"6b stalled ASKS (no change > 3 d): {len(stalled)}" + (" — " + "; ".join(stalled[:12]) + (" …" if len(stalled) > 12 else "")
             + " → owner acts or re-routes; a 'revise' goes back to its author" if stalled else ""))
+        # 11-15 (Jamie): findings can't vanish; verdicts can't outrun open High bugs; shared logic copies may only fall.
+        for nm, cmd in (("6h findings", [sys.executable, "scripts/findings_guard.py"]), ("6i copies", [sys.executable, "scripts/copy_ratchet.py"])):
+            fg = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+            say(f"{nm}: " + " | ".join(((fg.stdout or fg.stderr).strip().splitlines() or ["no output"])[:4])[:400])
+        try:
+            bq = subprocess.run([str(ROOT / "scripts/watchlist_sync/.venv/bin/python"), "-m", "quantcore.bars"],
+                                cwd=ROOT / "scripts" / "watchlist_sync", capture_output=True, text=True, timeout=90, env=env)
+        except subprocess.TimeoutExpired:
+            bq = subprocess.CompletedProcess([], 1, "bars audit: timeout (90 s)", "")
+        say("6j " + ((bq.stdout or bq.stderr).strip().splitlines() or ["bars audit: no output"])[-1][:300])
         # 11-07 (Jamie): parked/declined rows and BOARD dead rows must not sit forever → triggers flip them back.
         rv = subprocess.run([sys.executable, "scripts/asks_revisit.py", "--apply"], cwd=ROOT, capture_output=True, text=True)
         say("6g " + ((rv.stdout or rv.stderr).strip().splitlines() or ["revisit: no output"])[-1][:300])

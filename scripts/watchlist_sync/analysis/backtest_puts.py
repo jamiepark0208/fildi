@@ -37,11 +37,8 @@ def ncdf(x: float) -> float:
 
 
 def bs_put(S, K, T, r, s):
-    if T <= 0 or s <= 0:
-        return max(0.0, K - S)
-    d1 = (math.log(S / K) + (r + s * s / 2) * T) / (s * math.sqrt(T))
-    d2 = d1 - s * math.sqrt(T)
-    return K * math.exp(-r * T) * ncdf(-d2) - S * ncdf(-d1)
+    from quantcore.bs import bs_put as _p  # quantcore.bs — one home (Jamie 11-15)
+    return _p(spot=S, strike=K, iv=s, years=T, r=r)
 
 
 def strike_for_delta(S, T, r, s, delta):
@@ -58,17 +55,8 @@ def strike_for_delta(S, T, r, s, delta):
 
 
 def rsi(closes, n=14):
-    if len(closes) <= n:
-        return None
-    gains = losses = 0.0
-    for a, b in zip(closes[-n - 1:-1], closes[-n:]):
-        d = b - a
-        gains += max(d, 0)
-        losses += max(-d, 0)
-    if losses == 0:
-        return 100.0
-    rs = (gains / n) / (losses / n)
-    return 100 - 100 / (1 + rs)
+    from quantcore.ta import rsi_last  # one home (Jamie 11-15)
+    return rsi_last(closes, n)
 
 
 def pct_rank(v, hist, min_n=60):
