@@ -409,7 +409,7 @@
           {
             "input": "iv_rv",
             "min": 1.15,
-            "why": "sell rich (S059 IV/RV t +12)"
+            "why": "not rich: IV/RV < 1.15 (S059 t +12)"
           }
         ],
         "strike": {
@@ -449,7 +449,7 @@
           {
             "input": "iv_rv",
             "min": 1.15,
-            "why": "sell rich"
+            "why": "not rich: IV/RV < 1.15"
           }
         ],
         "rank": [
@@ -464,7 +464,7 @@
           {
             "input": "iv_rv",
             "min": 1.15,
-            "why": "sell rich"
+            "why": "not rich: IV/RV < 1.15"
           }
         ],
         "rank": [
@@ -479,7 +479,7 @@
           {
             "input": "iv_pctile",
             "below": "median",
-            "why": "buy cheap — required (Jamie 10-24; S100 gate +10/13 angles)"
+            "why": "not cheap: IV rank ≥ today's median (Jamie 10-24; S100 +10/13 angles)"
           },
           {
             "input": "verdict",
@@ -513,7 +513,7 @@
           {
             "input": "iv_pctile",
             "below": "median",
-            "why": "buy cheap — required"
+            "why": "not cheap: IV rank ≥ today's median"
           }
         ],
         "rank": [
@@ -529,7 +529,7 @@
           {
             "input": "iv_pctile",
             "below": "median",
-            "why": "buy cheap — required"
+            "why": "not cheap: IV rank ≥ today's median"
           }
         ],
         "rank": [
