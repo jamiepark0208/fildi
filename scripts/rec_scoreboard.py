@@ -30,6 +30,33 @@ def q(c, s, a=()):
     return pd.DataFrame(cur.fetchall(), columns=[d.name for d in cur.description])
 
 
+def grade(df: pd.DataFrame, P: dict, last, r20) -> pd.DataFrame:
+    """Short puts graded at expiry: ret = (fill − intrinsic) / strike %, touched, expired, QQQ-20d regime, skip.
+    One home for put grading (scoreboard + learn_cells)."""
+    df = df.copy()
+    df["d"], df["e"] = pd.to_datetime(df["d"]), pd.to_datetime(df["e"])
+    ret, touch, exp, reg, skip = [], [], [], [], []
+    for r in df.itertuples():
+        g = P.get(r.t)
+        w = None if g is None else g[(g.index > r.d) & (g.index <= min(r.e, last))]
+        d0 = None if g is None else g[g.index <= r.d]
+        bad = (w is None or w.empty or d0 is None or d0.empty or
+               (hasattr(r, "spot") and pd.notna(r.spot) and abs(d0["c"].iloc[-1] / r.spot - 1) > 0.35))
+        skip.append(bad)
+        if bad:
+            ret.append(np.nan); touch.append(np.nan); exp.append(np.nan); reg.append(None); continue
+        s = w["c"].iloc[-1]
+        # A205/Codex 11-10: premium − intrinsic is only the true result at expiry; before it, it omits the remaining
+        # time value → open contracts are not graded (counted as open), never shown as a mark-to-market return
+        ret.append((r.px - max(0.0, r.k - s)) / r.k * 100 if r.e <= last else np.nan)
+        touch.append(float(w["lo"].min() < r.k))
+        exp.append(float(r.e <= last))
+        rv = r20[r20.index <= r.d]
+        reg.append("up" if len(rv) and rv.iloc[-1] >= 0 else "down")
+    df["ret"], df["touched"], df["expired"], df["reg"], df["skip"] = ret, touch, exp, reg, skip
+    return df
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=28)
@@ -57,31 +84,7 @@ def main() -> None:
     qq = P["QQQ"]["c"]
     r20 = qq / qq.shift(20) - 1
 
-    def grade(df: pd.DataFrame) -> pd.DataFrame:
-        df = df.copy()
-        df["d"], df["e"] = pd.to_datetime(df["d"]), pd.to_datetime(df["e"])
-        ret, touch, exp, reg, skip = [], [], [], [], []
-        for r in df.itertuples():
-            g = P.get(r.t)
-            w = None if g is None else g[(g.index > r.d) & (g.index <= min(r.e, last))]
-            d0 = None if g is None else g[g.index <= r.d]
-            bad = (w is None or w.empty or d0 is None or d0.empty or
-                   (hasattr(r, "spot") and pd.notna(r.spot) and abs(d0["c"].iloc[-1] / r.spot - 1) > 0.35))
-            skip.append(bad)
-            if bad:
-                ret.append(np.nan); touch.append(np.nan); exp.append(np.nan); reg.append(None); continue
-            s = w["c"].iloc[-1]
-            # A205/Codex 11-10: premium − intrinsic is only the true result at expiry; before it, it omits the remaining
-            # time value → open contracts are not graded (counted as open), never shown as a mark-to-market return
-            ret.append((r.px - max(0.0, r.k - s)) / r.k * 100 if r.e <= last else np.nan)
-            touch.append(float(w["lo"].min() < r.k))
-            exp.append(float(r.e <= last))
-            rv = r20[r20.index <= r.d]
-            reg.append("up" if len(rv) and rv.iloc[-1] >= 0 else "down")
-        df["ret"], df["touched"], df["expired"], df["reg"], df["skip"] = ret, touch, exp, reg, skip
-        return df
-
-    J, E, M = grade(jam), grade(eng), grade(ml)
+    J, E, M = (grade(x, P, last, r20) for x in (jam, eng, ml))
 
     def match(r, src):
         w = src[(src.t == r.t) & (pd.to_datetime(src.d) <= r.d) & (pd.to_datetime(src.d) >= r.d - pd.Timedelta(days=4))]

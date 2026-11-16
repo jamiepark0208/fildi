@@ -116,6 +116,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("sim Rec base rates", PY, HERE, ["analysis/sim_rec.py"]),   # A186: labelled sim W-L for names with no graded picks
         ("block audit", PY, HERE, ["analysis/block_audit.py"]),   # were the L2 verify blocks right? (report only)
         ("daily reflection", PY, HERE, ["analysis/daily_reflection.py"]),   # S014: wrong / missed / trader / score IC (report only)
+        ("rec cells", PY, HERE, ["learn_cells.py"]),   # A410 part 1: graded put recs per cell → rec_cells (demote needs n ≥ 30, ≥ 4 weeks)
         ("monthly re-test", PY, HERE, ["monthly.py"]),   # no-op unless ≥ 28 days old: lab + gates + win-rate rebuild (~3 min), one summary
         ("learning cycle", PY, HERE, ["learn.py", "propose"]),   # idempotent: only proposes when the evidence moved
         ("data gaps review", PY, HERE, ["data_gaps.py"]),   # 11-11: null key fields → data_issues (sourceable vs no source) → agent_start 11a
