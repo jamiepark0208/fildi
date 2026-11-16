@@ -129,7 +129,7 @@ def main() -> None:
     files = {"state": size(ROOT / ".agents/context/state.md"), "claude": size(ROOT / "CLAUDE.md"), "agents": size(ROOT / "AGENTS.md"),
              "memory": size(MEM)}
     rows = registry()
-    res = [(r, measure(r["metric"], ss, us, files)) for r in rows if r["status"].lower() not in ("retired", "reverted")]
+    res = [(r, measure(r["metric"], ss, us, files)) for r in rows if not r["status"].strip().lower().startswith(("retired", "reverted"))]
     snap = {"t": datetime.now(timezone.utc).isoformat(timespec="seconds"), "sessions": len(ss), **files,
             **{r["id"]: v for r, v in res}}
     SNAP.parent.mkdir(parents=True, exist_ok=True)
