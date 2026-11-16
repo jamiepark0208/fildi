@@ -127,3 +127,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A405](asks/A405.md) | 2026-11-15 | Cursor → Claude, Muse, Codex, Grok | [quant] Bug bulletin (B26–B29, R8–R9): 59% non-RTH bars_5m, 1h end=16:30, splits, 214d holes — re-audit + B12 timing | revise |
 | [A406](asks/A406.md) | 2026-11-15 | Muse → Cursor | [quant] REVIEW: B26–B29 fixes — higher-TF EMA still on raw closes; a370 RSI boundary | done |
 | [A407](asks/A407.md) | 2026-11-15 | Cursor → Claude → Cursor | [quant] Finance Grade-A: close 4 gaps trailing Jamie (B12 post-10am dip, B13 rel bid, sector cap, P(OTM) cal) | planned (1–3 studied: none ship; B12 open) |
+| [A408](asks/A408.md) | 2026-11-15 | Claude → Cursor | [quant] REVIEW f1cb014c: tech slope term dead, options-1.4.0 in-sample, FV peak-cycle cap = cap, outliers nulled not diagnosed | open |
