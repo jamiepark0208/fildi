@@ -48,6 +48,7 @@ Dead = don't re-run **the same test**. A variant is welcome when it names what i
 | Falling-knife guard in a sector drop (skip puts while sector ETF still falling) | still-falling entries earn more (+95/+79 vs +42/+46 bp/wk), worst week better | S186 | no-lift | 2027-05-10 |
 
 ## Testing / queued
+- S191 sweep-and-reclaim of the 20-day low as put-sale timing: screen +1.7 bp/wk bull / +3.5–7.4 bear vs same-vol peers (t 2.2–2.9, placebo ≤ 0.03, model prices) → full study on real quotes + intraday entry. Same screen: S/R levels = continuation in bull (don't buy puts at resistance), cheap-vs-own P/E = worse put sale.
 - S178 panic risk reversal on names (sell 0.25Δ put + buy 0.50Δ call, 30 DTE, VIX÷VIX3M ≥ 1): +5.9–6.1 % / $ strike vs short put alone +2.2–2.4, both eras, t 2.6, 11/15 panic Mondays; the 4 losers = early panic weeks → pair with the S172 un-invert timing; call ≈ same-Δ stock (leverage, not option edge). UNDERPOWERED — 15 episodes
 - S184 Kronos (pooled fine-tune, 242 names) mu/sd rank → top-fifth 0.50Δ 30-DTE calls +0.24 per $ debit over all calls, month t 2.8, both halves +; pre-registered mu fails (t 1.4), 28 origins, model prices. UNDERPOWERED — promising; paper it, then blend with S177 score
 - A370 indicators as put-timing filters in the seller's universe (smoke 11-07: top-IV names, SuperTrend bear / below 200d / 5d drop → +1.8–2.5 vol pts IV−RV, t 4–9; RSI>70 and high-volume days −4.4; works when SPY > 200d, fades in broad sell-offs)
