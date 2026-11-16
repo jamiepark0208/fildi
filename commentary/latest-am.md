@@ -1,82 +1,80 @@
-# Morning brief — Friday, November 13, 2026 (pre-market)
-
-## Moves
+# Morning Market Brief — Monday, November 16, 2026 (Pre-Market)
 
 | Name | Level | Day % | 1W % | 1M % |
 |---|---|---|---|---|
-| S&P 500 fut | 7,631 | +0.2% | +2.9% | +0.2% |
-| Nasdaq 100 fut | 28,393 | +0.0% | +3.2% | −0.3% |
-| Dow fut | 52,452 | +0.1% | +2.0% | +1.0% |
-| Nikkei 225 | 61,142 | +0.5% | +5.5% | −7.3% |
-| Shanghai Comp | 3,634 | −0.6% | — | — |
-| Hang Seng | 23,649 | −1.5% | — | — |
-| STOXX 600 | 664.01 | +0.1% | +2.4% | — |
-| FTSE 100 | 10,880 | +0.2% | +2.1% | +1.3% |
-| 10Y yield | 5.13% | +2bp | −11bp | +94bp |
-| 2Y yield | 4.88% | — | — | — |
-| 30Y yield | 5.35% | — | — | — |
-| WTI crude | $88.76 | −0.0% | −7.4% | +53.4% |
-| Brent crude | $96.00 | +0.2% | — | — |
-| Gold | $3,896 | +0.6% | −4.9% | −10.0% |
-| Bitcoin | $71,215 | −3.6% | −15.1% | −20.9% |
-| VIX | 18.41 | −1.6% | +9.1% | +23.1% |
+| S&P 500 fut | 7,540.50 | -0.56% | +1.9% | -3.6% |
+| Dow fut | 52,398 | -0.04% | +2.0% | +1.0% |
+| Nasdaq 100 fut | 27,679.75 | -1.27% | +1.0% | -10.1% |
+| Russell 2000 fut | 2,792.10 | -0.19% | +1.1% | -0.4% |
+| VIX | 20.55 | +6.5% | +19.9% | +35.1% |
+| 10Y Treasury | 5.13% | -2 bp | +28 bp | -11 bp |
+| 2Y Treasury | 4.84% | -2 bp | +36 bp | — |
+| 30Y Treasury | 5.46% | -2 bp | — | — |
+| Dollar index | 103.45 | +0.03% | — | — |
+| Gold | $3,876 | -0.1% | -5.5% | -7.1% |
+| WTI crude | $87.87 | -1.4% | -3.2% | -5.6% |
+| Brent crude | $94.84 | -1.0% | -3.5% | -10.6% |
+| Bitcoin | $64,100 | -6.2% | -15.5% | -21.7% |
+| Nikkei 225 | 59,662 | -2.42% | +3.0% | -9.5% |
+| Shanghai Composite | 3,602 | -0.87% | — | — |
+| Hang Seng | 23,765 | +0.49% | -4.1% | — |
+| STOXX 600 | ~665 | +0.2% | +2.6% | — |
+| FTSE 100 | 10,944 | +0.38% | +2.5% | — |
+| DAX | 26,753 | +0.01% | +3.6% | — |
 
-Levels as of ~9:05 ET; 1W/1M vs Thu Nov 12 closes unless noted; — = not verified in this morning's sources.
-
-- October PPI rose 0.3% vs 0.4% expected, yearly 6.5% vs 6.6%; September revised up to 1.4%. Futures turned higher; a December hike is fully priced, ~9% odds on a half-point move. The soft print removes the 50bp tail, not the hike.
-- Nvidia is up ~2.3% premarket to ~$170 after falling 4.3% Thursday to $166.19 on CEO Jensen Huang's resignation; Kress interim, earnings Tuesday. In 11 CEO-scandal cases since 2005, 6 were higher at 3 months — but founder-vacuum cases ran badly: Intel 2018 −13.8% at 3 months, HP 2010 −33.5% at 1 year, vs clean successions McDonald's 2019 +11.0% and Boeing 2005 +10.3%. Commerce Secretary Lutnick (R) testifies on the Nvidia China chip scandal, with the Washington leg still widening.
-- Japan's October PPI ran +7.1% year on year, lifting December BOJ hike odds. BOJ 1.25% vs Fed 3.75–4.00%, yen near 160, CFTC yen shorts ~92K, carry positions ~$500B. The Aug 2024 precedent (BOJ +15bp, Nikkei −12.4% in a day, S&P −3%, VIX 65) needs yen strength to fire, and the Sep 2026 counter-case showed a BOJ hike alone does nothing when the Fed hikes first. No unwind until the yen moves.
-- The 10-year is back above 5% at 5.13% after a weak 30-year auction and Williams saying more hikes are likely; the 2-year is 4.88%. Higher yields and a firmer dollar drove gold down 2.9% Thursday to ~$3,896 and bitcoin to ~$71,200, down ~21% in a month. Brent held $96 after President Trump (R) said the US needs no Iran deal.
+- Nvidia's leadership fight widened over the weekend: Huang is plotting a comeback with allies and Treasury Secretary Bessent (R) wants an outside CEO. Tuesday's print (consensus ~$109B revenue, +91% y/y) won't settle who runs the company. In 11 CEO-scandal cases since 2005, 6 were higher at 3 months — but the split matters: founder-vacuum cases fell hard (Intel 2018 −13.8%, HP 2010 −33.5%) while clean successions rose (McDonald's 2019 +11.0%, Boeing 2005 +10.3%). Nvidia fits the vacuum side while Huang is out; a comeback would flip the comp.
+- The chip rout went global overnight: Taiwan's Taiex fell 6.0% and TSMC 5.7%, and Nasdaq 100 futures are down 1.3% against a flat Dow. Yields eased (10Y 5.13%) while chips fell, so the driver is AI capex-duration fear, not rates — the equal-weight S&P gained Friday while the cap-weighted index fell, and the split is widening.
+- Empire State manufacturing printed 7.8 for November, down from 25.5 and below the ~18 consensus, but employment hit 18.1, its best since June 2022, and prices paid eased to 45.9. Activity cooled; hiring did not — and December's 25bp hike stays fully priced.
 
 ## Data
 
 | Print | Actual | Consensus | Prior (revised) |
 |---|---|---|---|
-| PPI m/m (Oct) | +0.3% | +0.4% | +1.4% (from +1.3%) |
-| PPI y/y (Oct) | +6.5% | +6.6% | +6.3% |
-| Core PPI m/m (Oct) | +0.3% | +0.3% | +0.8% (from +0.7%) |
-| Core PPI y/y (Oct) | +5.0% | +5.0% | +5.0% |
+| Empire State mfg (Nov) | 7.8 | ~18 | 25.5 |
+| Eurozone industrial production y/y (Sep) | -1.5% | +0.6% | -1.1% |
 
 ## Single names
 
-| Name | Day % | Why |
+| Name | Day % | why |
 |---|---|---|
-| NVDA | +2.3% | Bounce after the Huang exit; Kress interim, earnings Tue — relief, not resolution; premium stays rich but the gap risk runs both ways into Tuesday. |
-| CBRS | +17.7% | Q3 revenue missed and the loss was wider than expected, but cloud revenue +272% and FY26 guidance raised well above consensus, plus a Microsoft customer win — a guidance gap-up; selling puts into a 17% gap is chasing, let it settle. |
-| CSCO | −2.3% | Beat Q1 (rev $18.52B, EPS $1.40 vs $1.33) and raised the full-year outlook, yet faded premarket — the Nvidia overhang outweighs the print; don't sell puts into a name falling on good news. |
-| AMAT | −0.7% | Beat Q4 (rev $10.41B, +53%; EPS $4.16 vs $4.05) and guided Q1 revenue to ~$11.1B, still slipped — same sector drag; premium prices the drag, not the print. |
-| NU | +3.5% | Q3 revenue +39.6%, EPS in line — clean beat, modest move, nothing changes. |
+| NVDA | -3.8% | $156.59 premarket; leadership fight unresolved into Tuesday's print (consensus ~$109B rev). No new short premium into the print — the gap risk is the story. |
+| TSMC | -5.7% | Taiex -6.0% as investors cut AI exposure ahead of NVDA earnings; memory and optics names weak too. |
+| MSTR | -8.6% | Bitcoin ~$64,100 broke $65K; crypto-linked premium stays rich while bitcoin searches for a level. |
+| COIN | -7.8% | Same bitcoin break; no new short premium on crypto names until bitcoin stabilizes. |
 
-AMD and Broadcom each down more than 2.5% premarket; no major earnings report today.
+Names without a verified premarket move: NVO (Wegovy pill showed ~6% real-world weight loss), BABA (new flagship AI model), AMZN (40 satellites lost in ULA Vulcan failure), FANG (~$5B Permian deal), BIDU (strong AI, soft ads in earnings), SMMT (FDA declined lung-cancer drug), TSN (reports before open).
 
 ## Desk flagged
 
-- Microsoft's Outlook, Teams and Copilot outage stretched past 12 hours, and MSFT is down 2.6% premarket — the only Mag 7 name lower. An unresolved outage is binary headline risk: a restore usually reverses the dip; a breach or a widening outage gaps the name. Don't sell fresh MSFT premium until it clears.
+- Commerce issued a rule overnight limiting remote access to advanced AI chips (Bloomberg alert, 05:46 PT). It tightens the export-control leg of the Nvidia saga days before earnings — the compliance overhang persists regardless of Tuesday's print, so chip premium stays bid into it.
+- The FAA lifted Friday's nationwide ground stop at 8:15pm ET; Monday cancellations are down to ~533 from 2,858 Sunday and Duffy (R) is pushing Congress for ATC telecom funding. Friday's hold on new airline short premium is closed — operations are normalizing.
 
 ## Implications
 
-- PPI is done and soft, but the December hike is fully priced and NVDA reports Tuesday — keep new short premium 7+ DTE and wide into that print.
-- One-day protection jumped ~25% Thursday ahead of PPI; that premium should compress now.
+- Tech single-name vol is the whole move: Nasdaq futures −1.3% vs a flat Dow, VIX 20.5. Short index premium still collects theta; short tech premium does not — keep tech strikes wide or sit out into Tuesday's Nvidia print.
+- Bitcoin broke $65K and crypto names gap premarket (MSTR −8.6%, COIN −7.8%). No new short premium on crypto-linked names until bitcoin finds a level.
 
 ## What to watch today
 
-- 9:10 Collins; 9:40 Logan; 10:35 Collins (Bloomberg TV); 10:50 Bowman; 12:00 Daly; 19:00 Jefferson
-- Mon Nov 16: Empire State manufacturing, 8:30 ET
-- Tue Nov 17: retail sales, import prices, NAHB housing index; NVDA earnings after close
-- Wed Nov 18: FOMC minutes (Oct meeting), housing starts, pending home sales
+- 8:30 ET — Empire State 7.8 vs ~18 cons (out).
+- 9:05 ET — NY Fed's Williams speaks.
+- 11:30 ET — Bill auctions (3-mo, 6-mo).
+- 12:00 ET — Fed Chair Warsh opens the Productivity and Jobs Task Force conference.
+- Earnings before open: TSN, BIDU.
+- Tue: retail sales 8:30 ET (cons +0.2%), industrial production 9:15 (cons +0.1%); NVDA after close.
 
-Systems: Mac online — fildi API/scheduler unverified (no device probe available)
+Systems: Mac online (last seen 05:14 PT) — fildi API/scheduler unprobed this run; no local probe path available.
 
 ## Sources
 
-- Futures/premarket: CNBC via worldmoneyroadmap.com (8:49 ET), StreetAccount U.S. Overnight (7:00 ET), regardsofwallstreet.com (7:39 ET), Finnhub NVDA/AMAT premarket quotes (9:07–9:08 ET)
-- PPI actuals: Seeking Alpha (BLS release 8:30 ET), XTB
-- PPI consensus/prior: Finance Calendar, GGMA, Stock Titan via Medium, First Trust
-- Yields/rates: Finnhub US10Y, Saxo Market Quick Take Nov 13, Saxo Options Brief Nov 13, dailymarket.report, finbrooks.com
-- Asia/Europe: NordFX Morning Update, my-passive-income.eu, PSG, wkcaeser.top, weekly-markets-recap (Nov 6–12 closes)
-- 1W/1M indices: portfolio-terminal.com (Nov 12 close table), Finnhub JP225/UK100/SPX500/NAS100 returns, Pulsafi (VIX, gold, WTI, BTC, 10Y)
-- Single names: finance.biggo.com, stockmarketwatch.com, everhint.com, MarketsOnDeck (Medium)
-- Desk: Gmail label tradedash-brief — GuruFocus First Look Nov 13 (MSFT outage), FactSet StreetAccount Politics of the Market Nov 13 (Lutnick testimony, Fed speaker times)
-- Japan PPI: Serrari Group Daily Brief Nov 13 (Japan Oct PPI +7.1% y/y); Saxo (dollar ~159.89 yen)
-- NVDA trigger base rates: A402 trigger library seed (11 CEO-scandal cases 2005–2025; Intel 2018, HP 2010, McDonald's 2019, Boeing 2005); Aug 2024 carry precedent and Sep 2026 counter-case per library seed
-- Calendar: FRED Empire State release calendar, Schaeffer's Week Ahead, Fed Gazette, TipRanks
+- Futures/levels: FactSet StreetAccount U.S. Overnight Nov 16 (Gmail label tradedash-brief); CNBC readings via https://simonhertz.com/2026/11/16/nasdaq-futures-slide-nvidia-earnings-warsh-desk-notes-november-2026/ ; https://swingfolio.com/daily/us/2026-11-16/morning ; https://www.investopedia.com/5-things-to-know-stock-market-november-16-2026-12252523 ; https://schwabnetwork.com/articles/us-markets-lower-with-retailer-nvidia-earnings-ahead
+- 1W/1M baselines: briefs/2026-11-13-pm.md (this repo), adjusted by today's day move
+- NVDA leadership/comeback, board approached ARM's Rene Haas: StreetAccount U.S. Overnight Nov 16; WSJ 10-Point Nov 16 ("Wall Street's AI Fever Breaks")
+- NVDA earnings consensus ~$109B revenue (+91% y/y), adj EPS $2.47: https://medium.com/@marketsondeck/everything-waits-on-nvidia-futures-slip-bitcoin-sits-below-65-000-and-tomorrows-109-billion-6a77c9fe7e06 (Saxo/Bloomberg)
+- Commerce remote-access AI chip rule: Bloomberg breaking news alert Nov 16 05:46 PT (Gmail label tradedash-brief; Mac Drive JSON 2026-11-16_0546-desk-bloomberg-1a1e49ba758c1f15)
+- Empire State actual 7.8 vs 18 cons, prior 25.5; employment 18.1; prices paid 45.9: https://investinglive.com/news/us-november-empire-manufacturing-index-7-80-vs-18-00-expected/
+- Eurozone industrial production -1.5% y/y vs +0.6% cons: StreetAccount U.S. Overnight Nov 16
+- FAA ground stop lifted Fri 8:15pm ET; Monday 533 cancels vs 2,858 Sunday; Duffy (R) funding push: https://www.reuters.com/world/us/us-transport-chief-urges-congress-quickly-pass-air-traffic-telecom-funding-2026-11-16/ ; https://www.ghanamma.com/2026/11/16/air-travel-starts-to-normalize-after-ground-stop-caused-weekend-of-unprecedented-disruption/ ; https://edgeconsultancykw.com/faa-nationwide-ground-stop-flights-halted-telecommunications-outage-13-november-2026/
+- Week calendar (retail sales, industrial production, FOMC minutes, claims, U Mich consensus): StreetAccount U.S. Overnight Nov 16; https://simonhertz.com/2026/11/16/nasdaq-futures-slide-nvidia-earnings-warsh-desk-notes-november-2026/
+- NVDA trigger base rates: A402 trigger library seed (11 CEO-scandal cases 2005–2025; Intel 2018, HP 2010, McDonald's 2019, Boeing 2005)
+- Mac status: device.list Nov 16 (MacBook Pro online, last seen 05:14 PT)
