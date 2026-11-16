@@ -401,6 +401,13 @@ export async function computeAndPersistOptionScores(opts?: {
     });
     chainsByTicker = fetched.chainsByTicker;
     failures = fetched.failures;
+    // 11-13: 0 chains came back, the run still exited ok and stamped "scanned today" → the noon fallback skipped and
+    // put_recs priced the next morning on the prior day's chain. Too few chains = failed run: no stamp, caller retries.
+    const minChains = Math.max(1, Math.ceil(candidates.length * 0.25));
+    if (candidates.length > 0 && chainsByTicker.size < minChains) {
+      throw new Error(`option-score-snapshots: only ${chainsByTicker.size}/${candidates.length} chains fetched `
+        + `(${failures} failures; need ≥ ${minChains}) — not persisting or stamping`);
+    }
     if (!dryRun) await persistChainHistory(chainsByTicker, asOf); // same chains, no extra API calls
     if (!dryRun) {
       // Index chains for dealer-gamma research (A109; user 10-15): 2 extra calls, history only — never scored.
