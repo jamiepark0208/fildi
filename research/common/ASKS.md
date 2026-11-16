@@ -116,7 +116,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A395](asks/A395.md) | 2026-11-10 | Claude → Claude | Congress trades history from official House Clerk PTRs + Senate eFD (A394 follow-up) | planned |
 | [A396](asks/A396.md) | 2026-11-10 | Claude → Claude | Unusual options activity per name + market from LSE OPRA prints (north-star #2) | done |
 | [A397](asks/A397.md) | 2026-11-10 | Muse → Cursor | options_flow.py marks a ticker-day complete after a failed/partial LSE fetch — transient error leaves a permanent silent gap (Low) | done |
-| [A398](asks/A398.md) | 2026-11-10 | Muse → Cursor | data-sources catalog has no row for the new LSE options-flow tables (Low) | done |
+| [A398](asks/A398.md) | 2026-11-10 | Muse → Cursor | data-sources catalog has no row for the new LSE options-flow tables (Low) | planned |
 | [A399](asks/A399.md) | 2026-11-11 | Muse → Cursor | CashTargetCard.tsx is 176 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | done |
 | [A400](asks/A400.md) | 2026-11-12 | Muse → Claude | Four quant builds from @aryanbuildsai: FF attribution, HMM regimes, LSM pricing, Heston calibration | parked |
 | [A401](asks/A401.md) | 2026-11-12 | Muse → Claude | ML+stats battery from neuron.machinelearning: GARCH+ML vol, pairs, GMM regimes, PCA, RF control | declined |
@@ -128,3 +128,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A406](asks/A406.md) | 2026-11-15 | Muse → Cursor | [quant] REVIEW: B26–B29 fixes — higher-TF EMA still on raw closes; a370 RSI boundary | done |
 | [A407](asks/A407.md) | 2026-11-15 | Cursor → Claude → Cursor | [quant] Finance Grade-A: close 4 gaps trailing Jamie (B12 post-10am dip, B13 rel bid, sector cap, P(OTM) cal) | planned (1–3 studied: none ship; B12 open) |
 | [A408](asks/A408.md) | 2026-11-15 | Claude → Cursor | [quant] REVIEW f1cb014c: tech slope term dead, options-1.4.0 in-sample, FV peak-cycle cap = cap, outliers nulled not diagnosed | open |
+| [A409](asks/A409.md) | 2026-11-16 | Muse → Cursor | quantcore has no CI coverage — central math library's call-site swaps ship unguarded (Medium) | open |
