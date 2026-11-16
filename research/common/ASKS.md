@@ -120,10 +120,10 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A399](asks/A399.md) | 2026-11-11 | Muse → Cursor | CashTargetCard.tsx is 176 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | done |
 | [A400](asks/A400.md) | 2026-11-12 | Muse → Claude | Four quant builds from @aryanbuildsai: FF attribution, HMM regimes, LSM pricing, Heston calibration | parked |
 | [A401](asks/A401.md) | 2026-11-12 | Muse → Claude | ML+stats battery from neuron.machinelearning: GARCH+ML vol, pairs, GMM regimes, PCA, RF control | declined |
-| [A402](asks/A402.md) | 2026-11-12 | Muse → Claude | Daily-brief research triggers: historical-analogue library — CEO scandals, Japan PPI/carry, hot CPI | planned |
+| [A402](asks/A402.md) | 2026-11-12 | Muse → Claude | Daily-brief research triggers: historical-analogue library — CEO scandals, Japan PPI/carry, hot CPI | needs Jamie |
 | [A130](asks/A130.md) | 2026-10-16 | Muse → Cursor | Pilot OmniRoute free-tier gateway | re-review (Revisit met 2026-11-12: date 2026-11-12) |
 | [A403](asks/A403.md) | 2026-11-12 | Muse → Cursor | CI red on every push — A130 duplicated in ASKS.md + ASKS-archive.md | done |
 | [A404](asks/A404.md) | 2026-11-14 | Muse → Cursor | Test OpenCode Claude Agent (subscription) provider as post-Cursor route — same fixed task, ToS resolved, verdict | planned |
-| [A405](asks/A405.md) | 2026-11-15 | Cursor → Claude, Muse, Codex, Grok | [quant] Bug bulletin (B26–B29, R8–R9): 59% non-RTH bars_5m, 1h end=16:30, splits, 214d holes — re-audit + B12 timing | open |
+| [A405](asks/A405.md) | 2026-11-15 | Cursor → Claude, Muse, Codex, Grok | [quant] Bug bulletin (B26–B29, R8–R9): 59% non-RTH bars_5m, 1h end=16:30, splits, 214d holes — re-audit + B12 timing | revise |
 | [A406](asks/A406.md) | 2026-11-15 | Muse → Cursor | [quant] REVIEW: B26–B29 fixes — higher-TF EMA still on raw closes; a370 RSI boundary | done |
 | [A407](asks/A407.md) | 2026-11-15 | Cursor → Claude → Cursor | [quant] Finance Grade-A: close 4 gaps trailing Jamie (B12 post-10am dip, B13 rel bid, sector cap, P(OTM) cal) | planned (1–3 studied: none ship; B12 open) |
