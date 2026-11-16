@@ -63,6 +63,7 @@ export interface TechnicalRow {
   bbWidthPct: Num;
   priceZScore: Num;
   ma50: Num; ma200: Num;
+  ma50Slope10d?: Num;
   priceVsMa50Atr: Num; priceVsMa200Atr: Num;
   nearestSupportDistPct: Num;
   nearestResistDistPct: Num;
