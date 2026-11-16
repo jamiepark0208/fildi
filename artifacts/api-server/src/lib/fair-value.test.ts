@@ -244,4 +244,27 @@ describe("fv-1.2.0 street anchor + vote floor", () => {
     assert.equal(r.fairValue, null);
     assert.equal(r.nullReason, "too_few_internal_votes");
   });
+  it("fv-1.3.0 guards: profitable pre_revenue_ok unlocks earnings, breakeven/float DCF skipped, peak-cycle P/E capped", () => {
+    const P3: FairValueParams = { ...P2, profitableUseStandard: ["pre_revenue_ok"] };
+    // 1. PANW/PLTR style: pre_revenue_ok cohort with metricExclusions=['pe_ratio'] unlocks all 4 earnings methods when profitable
+    const panw = one(stock({ ticker: "PANW", mode: "pre_revenue_ok", peerGroupId: "consumer.retail", metricExclusions: ["pe_ratio", "fwdpe"] }), P3);
+    assert.equal(panw.mode, "standard");
+    assert.ok(panw.votes.some((v) => v.name === "peerForwardPe"));
+    assert.ok(panw.votes.some((v) => v.name === "grahamForward"));
+    assert.ok(panw.votes.some((v) => v.name === "ohlsonJuettner"));
+
+    // 2. BA style: breakeven FCF ($20M on $95B revenue, <0.5% yield & <2% margin) skips dcfFcfe instead of voting $0.44
+    const ba = one(stock({ ticker: "BA", price: 170, shares: 8e8, fcf: 2e7, revenue: 9.5e10, analystTarget: 230 }), P3);
+    assert.ok(!ba.votes.some((v) => v.name === "dcfFcfe"));
+    assert.ok(ba.fairValue! > 100);
+
+    // 3. FUTU style: brokerage customer-float FCF (>85% of revenue) skips dcfFcfe
+    const futu = one(stock({ ticker: "FUTU", mode: "chinese", price: 95, shares: 1e8, fcf: 5e9, revenue: 3e9, analystTarget: 165 }), P3);
+    assert.ok(!futu.votes.some((v) => v.name === "dcfFcfe"));
+
+    // 4. MU/SNDK style: peak-cycle 4x forward P/E vs ~20x peers caps internal multiple expansion (never 30-48x peak EPS)
+    const mu = one(stock({ ticker: "MU", price: 800, forwardEps: 200, eps2: 220, ltg: 0.2, analystTarget: 1500 }), P3);
+    const grahamVote = mu.votes.find((v) => v.name === "grahamForward")!;
+    assert.ok(grahamVote.value <= 200 * 10.01, `expected capped <= 2000, got ${grahamVote.value}`);
+  });
 });

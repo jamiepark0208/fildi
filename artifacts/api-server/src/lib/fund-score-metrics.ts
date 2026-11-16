@@ -37,7 +37,7 @@ export const METRICS: MetricDef[] = [
   { key: "netmgn", family: "quality", baseIntra: 3.25, higherIsBetter: true },
   { key: "roe", family: "quality", baseIntra: 2, higherIsBetter: true },
   { key: "fcfmgn", family: "quality", baseIntra: 2.25, higherIsBetter: true },
-  { key: "roicwacc", family: "quality", baseIntra: 1.5, higherIsBetter: true },
+  { key: "roicwacc", family: "quality", baseIntra: 1.5, higherIsBetter: true, excludeStyles: ["financial"] },
   { key: "gpa", family: "quality", baseIntra: 2, higherIsBetter: true },
   { key: "accruals", family: "quality", baseIntra: 2, higherIsBetter: false },
   { key: "fScore", family: "quality", baseIntra: 2, higherIsBetter: true },

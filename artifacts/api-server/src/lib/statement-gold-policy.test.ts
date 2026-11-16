@@ -47,4 +47,21 @@ describe("statement-gold-policy A329 r6", () => {
     assert.deepEqual(cleared, ["earningsPerShare"]);
     assert.equal(update.earningsPerShare, undefined);
   });
+
+  it("applyNegativeEquityGoldPolicy clears negative priceToBook alongside D/E and ROE (MCD bug)", async () => {
+    const { applyNegativeEquityGoldPolicy } = await import("./negative-equity-policy.js");
+    const update: Record<string, unknown> = {
+      totalStockholdersEquity: -1.79e9,
+      debtToEquity: -30.5,
+      returnOnEquity: -5.0,
+      priceToBook: -559.6,
+    };
+    const batch = [
+      { field: "priceToBook", result: { source: "sec", value: -559.6, isOverride: false, divergent: false } },
+    ];
+    const cleared = applyNegativeEquityGoldPolicy(update, batch);
+    assert.ok(cleared.includes("priceToBook"));
+    assert.equal(update.priceToBook, null);
+    assert.equal(batch.length, 0);
+  });
 });

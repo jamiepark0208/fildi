@@ -199,6 +199,7 @@ export async function loadInputs(): Promise<FvTickerInput[]> {
       eps2,
       ltg: ltgPct != null ? ltgPct / 100 : null,
       trailingEps: trailing,
+      revenue: money(r.total_revenue),
       revenueGrowth: num(r.revenue_growth_yoy),
       fcf: money(r.free_cash_flow),
       shares,

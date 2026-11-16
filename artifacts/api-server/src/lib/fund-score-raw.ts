@@ -51,7 +51,13 @@ export function rawMetricValue(
     case "evRev":
       return r.evRevenue;
     case "pb":
-      return r.priceToBook;
+      if (
+        hasNegativeEquity(r.totalStockholdersEquity)
+        && extras?.negativeEquityLeverage !== "legacy"
+      ) {
+        return null;
+      }
+      return r.priceToBook != null && r.priceToBook > 0 ? r.priceToBook : null;
     case "ptbv": {
       const tbvps = r.tangibleBookValuePerShare;
       const sh = r.sharesOutstanding;

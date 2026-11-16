@@ -420,6 +420,10 @@ export async function computeAndPersistFundamentalScores(
     optionalMetrics: Array.isArray(fundChamp.params.optionalMetrics)
       ? (fundChamp.params.optionalMetrics as ScoreUniverseParams["optionalMetrics"])
       : undefined,
+    companyVarianceExpand:
+      typeof fundChamp.params.companyVarianceExpand === "number"
+        ? fundChamp.params.companyVarianceExpand
+        : undefined,
   };
   const droppedOptionals = missingDefaultOptionals(fundParams.optionalMetrics);
   if (droppedOptionals.length > 0) {

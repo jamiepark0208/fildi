@@ -396,6 +396,12 @@ export function scoreUniverse(
       familyScores.safety = post.safetyScore;
     }
     totalScore = post.totalScore;
+    const varExpand = params?.companyVarianceExpand;
+    if (totalScore != null && varExpand != null && Number.isFinite(varExpand) && varExpand !== 1) {
+      // Rank-preserving dispersion around 50: averaging 4 uncorrelated families shrinks SD by ~2x (8.5 -> 4.1);
+      // restoring SD (~8.2 at 2.0x) gives fund_total meaningful voice in stockQuality without altering rank order.
+      totalScore = parseFloat(Math.max(5, Math.min(95, 50 + (totalScore - 50) * varExpand)).toFixed(2));
+    }
     const ranked = post.ranked && totalScore != null;
 
     return {

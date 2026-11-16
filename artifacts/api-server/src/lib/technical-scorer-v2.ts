@@ -52,14 +52,16 @@ function scoreVolatilityState(r: TickerTechnicalsRow): number | null {
 }
 
 function scoreTrendContext(r: TickerTechnicalsRow): number | null {
+  // FACTOR_MAP T3: Trend health = regime + price vs MA200 (ATR units) + MA50 slope.
+  // Previously used -priceVsMa50Atr and -vwapPct (mean-reversion dip parts that inverted BULLISH regime!).
   const parts: number[] = [];
   if (r.regime != null) {
-    parts.push(r.regime === "BULLISH" ? 1.0 : r.regime === "BEARISH" ? 0.3 : 0.5);
+    parts.push(r.regime === "BULLISH" ? 1.0 : r.regime === "BEARISH" ? 0.25 : 0.5);
   }
-  const ma50Atr = pf(r.priceVsMa50Atr);
-  if (ma50Atr != null) parts.push(c01(-ma50Atr / 3));
-  const vwapPct = pf(r.priceVsVwapPct);
-  if (vwapPct != null) parts.push(c01(0.5 - vwapPct / 10));
+  const ma200Atr = pf(r.priceVsMa200Atr);
+  if (ma200Atr != null) parts.push(c01(0.5 + ma200Atr / 8)); // -4 ATR -> 0, 0 -> 0.5, +4 ATR -> 1.0
+  const slope = pf(r.ma50Slope10d);
+  if (slope != null) parts.push(c01(0.5 + slope / 4));       // positive 10d MA50 slope confirms trend
   return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
 }
 

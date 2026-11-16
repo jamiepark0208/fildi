@@ -6,7 +6,7 @@ export function hasNegativeEquity(equity: number | null | undefined): boolean {
   return equity != null && Number.isFinite(equity) && equity < 0;
 }
 
-const LEVERAGE_RETURN_FIELDS = ["debtToEquity", "returnOnEquity"] as const;
+const LEVERAGE_RETURN_FIELDS = ["debtToEquity", "returnOnEquity", "priceToBook"] as const;
 const NEGATIVE_TBV_RATIO_FIELDS = ["priceToTbv"] as const;
 
 type ProvenanceEntry = {

@@ -53,6 +53,8 @@ export type ScoreUniverseParams = {
   optionalMetrics?: MetricKey[];
   /** A329 before/after: legacy reads negative vendor D/E; sanitized uses worst leverage + skip ROE. */
   negativeEquityLeverage?: "legacy" | "sanitized";
+  /** Monotonic rank-preserving dispersion factor around 50 on companyScore before 10% sector blend (fund-1.2.0: 2.0). */
+  companyVarianceExpand?: number;
 };
 
 export function withRanks(scored: ScoredTicker[]): (ScoredTicker & { rank: number })[] {

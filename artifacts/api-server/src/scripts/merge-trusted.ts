@@ -1092,6 +1092,123 @@ export async function runMergeTrusted() {
       fieldNullCount[field] = (fieldNullCount[field] ?? 0) + 1;
     }
 
+    // ── 11-15 Stock DB Grade-A producer invariants & derived fills ──────────────────────────
+    const setDerivedCell = (field: string, val: number) => {
+      if (overrideIndex.get(`${ticker}:${field}`)) return;
+      const prior = provenanceBatch.find((p) => p.field === field);
+      if (prior?.result.isOverride) return;
+      (update as Record<string, number>)[field] = val;
+      sourceUsage["derived"] = (sourceUsage["derived"] ?? 0) + 1;
+      const result = { source: "derived", value: val, isOverride: false, divergent: false };
+      if (prior) prior.result = result;
+      else provenanceBatch.push({ field, result });
+    };
+    const clearSuspectCell = (field: string) => {
+      if (overrideIndex.get(`${ticker}:${field}`)) return;
+      const prior = provenanceBatch.find((p) => p.field === field);
+      if (prior?.result.isOverride) return;
+      (update as Record<string, number | null>)[field] = null;
+      clearProvenanceFields.push(field);
+      const pi = provenanceBatch.findIndex((p) => p.field === field);
+      if (pi >= 0) provenanceBatch.splice(pi, 1);
+    };
+
+    // 1. Dual-class / share-class mismatch on TBVPS (e.g. BRK.B $475 getting Class-A $473,026 TBVPS -> P/TBV 0.001x)
+    const curTbv = (update.tangibleBookValuePerShare ?? existing?.tangibleBookValuePerShare) as number | null | undefined;
+    if (price != null && price > 0 && curTbv != null && Number(curTbv) > 0 && price / Number(curTbv) < 0.02) {
+      clearSuspectCell("tangibleBookValuePerShare");
+      clearSuspectCell("priceToTbv");
+      logDataIssue("merge-trusted.ts", "share_class_mismatch", ticker, "tangibleBookValuePerShare",
+        `price=${price} vs tbvps=${curTbv} (ratio ${(price / Number(curTbv)).toFixed(4)} < 0.02)`);
+    }
+
+    // 2. Debt-to-Equity unit / stale-equity mismatch (e.g. GDDY Yahoo 573.34 vs debt/equity 17.86; ALOY 0.003 vs 0.108)
+    const goldDebt = (update.totalDebt ?? existing?.totalDebt) as number | null | undefined;
+    const goldEq = (update.totalStockholdersEquity ?? existing?.totalStockholdersEquity) as number | null | undefined;
+    const derivedDe = computeDebtToEquity(
+      goldDebt != null ? Number(goldDebt) : null,
+      goldEq != null ? Number(goldEq) : null,
+    );
+    const curDe = (update.debtToEquity ?? existing?.debtToEquity) as number | null | undefined;
+    if (derivedDe != null) {
+      if (
+        curDe == null ||
+        !Number.isFinite(Number(curDe)) ||
+        (derivedDe > 0.02 && (Number(curDe) / derivedDe > 3.5 || Number(curDe) / derivedDe < 0.25)) ||
+        (derivedDe <= 0.02 && Number(curDe) > 0.25)
+      ) {
+        setDerivedCell("debtToEquity", derivedDe);
+      }
+    }
+
+    // 3. SEC sub-line revenue margin leak (KOPN SEC rev $2.4M vs gold $43.6M -> grossMargin -795%) & impossible grossMargin > 1.0 (SPCE +291%)
+    const secRev = byField.get("totalRevenue")?.get("sec") ?? null;
+    const goldRev = (update.totalRevenue ?? existing?.totalRevenue) as number | null | undefined;
+    const secRevSublineMismatch =
+      secRev != null && goldRev != null && Number(goldRev) > 0 && Math.abs(secRev / Number(goldRev) - 1) > 0.25;
+    for (const mField of ["grossMargin", "operatingMargin", "netMargin"] as const) {
+      const mProv = provenanceBatch.find((p) => p.field === mField);
+      const curM = (update[mField] ?? existing?.[mField]) as number | null | undefined;
+      const badGm = mField === "grossMargin" && curM != null && (Number(curM) > 1.001 || Number(curM) < -2.0);
+      if ((secRevSublineMismatch && mProv?.result.source === "sec") || badGm) {
+        let fallbackVal: number | null = null;
+        let fallbackSrc: string | null = null;
+        for (const altSrc of ["yahoo", "finnhub", "fmp", "factset"] as const) {
+          const cand = byField.get(mField)?.get(altSrc);
+          if (cand != null && Number.isFinite(cand) && (mField !== "grossMargin" || (cand <= 1.001 && cand >= -2.0))) {
+            fallbackVal = cand;
+            fallbackSrc = altSrc;
+            break;
+          }
+        }
+        if (fallbackVal != null && fallbackSrc != null) {
+          (update as Record<string, number>)[mField] = fallbackVal;
+          const res = { source: fallbackSrc, value: fallbackVal, isOverride: false, divergent: false };
+          if (mProv) mProv.result = res;
+          else provenanceBatch.push({ field: mField, result: res });
+        } else {
+          clearSuspectCell(mField);
+        }
+      }
+    }
+
+    // 4. ROIC on banks/brokers (IBKR +1,959% from customer cash) or absurd >500% vendor outliers
+    const curRoic = (update.roic ?? existing?.roic) as number | null | undefined;
+    if (curRoic != null && (skipEvDerive || Math.abs(Number(curRoic)) > 5.0)) {
+      clearSuspectCell("roic");
+    }
+
+    // 5. Fill 99%-null gold companion ratios (fcfYield, priceToFcf, incomeQuality) from clean USD gold primitives
+    const goldFcf = (update.freeCashFlow ?? existing?.freeCashFlow) as number | null | undefined;
+    const goldOcf = (update.annualOperatingCashFlow ?? existing?.annualOperatingCashFlow) as number | null | undefined;
+    const goldNi = (update.netIncome ?? existing?.netIncome) as number | null | undefined;
+    const goldShares = (update.sharesOutstanding ?? existing?.sharesOutstanding) as number | null | undefined;
+    const goldPs = (update.priceToSales ?? existing?.priceToSales) as number | null | undefined;
+    if (price != null && price > 0 && goldShares != null && Number(goldShares) > 0) {
+      const mcapUsd = price * Number(goldShares);
+      const usdConsistent =
+        !financialCurrency ||
+        financialCurrency.toUpperCase() === "USD" ||
+        (goldRev != null && Number(goldRev) > 0 && goldPs != null && Number(goldPs) > 0 &&
+          Math.abs(mcapUsd / Number(goldRev) / Number(goldPs) - 1) < 0.35);
+      if (usdConsistent && goldFcf != null && Number.isFinite(Number(goldFcf)) && mcapUsd > 0 && !skipEvDerive) {
+        const fy = Number(goldFcf) / mcapUsd;
+        if (Math.abs(fy) <= 1.0 && update.fcfYield == null) {
+          setDerivedCell("fcfYield", fy);
+        }
+        if (Number(goldFcf) > 0 && update.priceToFcf == null) {
+          const pfcf = mcapUsd / Number(goldFcf);
+          if (pfcf > 0 && pfcf < 2000) setDerivedCell("priceToFcf", pfcf);
+        }
+      }
+    }
+    if (goldOcf != null && goldNi != null && Number(goldNi) > 0 && update.incomeQuality == null && !skipEvDerive) {
+      const iq = Number(goldOcf) / Number(goldNi);
+      if (Number.isFinite(iq) && Math.abs(iq) <= 20) {
+        setDerivedCell("incomeQuality", iq);
+      }
+    }
+
     if (Object.keys(update).length === 0 && clearProvenanceFields.length === 0) continue;
     // 10-27: no vendor value at all and no gold data yet → don't create/stamp an empty "fetched" row (289 universe adds were
     // stamped at 11:34 with every field null, so enrich-missing-fundamentals skipped them for good).

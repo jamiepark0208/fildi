@@ -104,6 +104,7 @@ export interface FvTickerInput {
   eps2: number | null;          // FY2 consensus
   ltg: number | null;           // analyst long-term EPS growth, decimal
   trailingEps: number | null;
+  revenue?: number | null;
   revenueGrowth: number | null;
   fcf: number | null;           // levered FCF (OCF − capex) → discounted at cost of equity
   shares: number | null;
@@ -154,7 +155,10 @@ function stdev(xs: number[]): number {
   return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
 }
 const sectorOf = (t: FvTickerInput) => (t.peerGroupId ?? "unknown").split(".")[0]!;
-const isFinancial = (t: FvTickerInput) => ["financial", "insurance", "financial_mixed"].includes(t.mode);
+const isFinancial = (t: FvTickerInput) =>
+  ["financial", "insurance", "financial_mixed"].includes(t.mode)
+  || (t.peerGroupId ?? "").toLowerCase().startsWith("financials.")
+  || /(broker|capital_markets|bank|insur)/i.test(t.peerGroupId ?? "");
 const isReit = (t: FvTickerInput) => t.mode === "reit";
 
 export function shortGrowth(t: FvTickerInput): number | null {
@@ -333,20 +337,32 @@ export function methodValue(
   method: FvMethod, t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: PeerStats,
 ): number | null {
   const fe = pos(t.forwardEps) ? t.forwardEps : null;
+  const ownFwdPe = fe && pos(t.price) ? t.price / fe : null;
+  const peerFwdPe = peers.forwardPe.get(t.ticker) ?? peers.warrantedPe.get(t.ticker) ?? null;
+  // Peak-cycle boom guard (MU 4.5x, SNDK 3.9x vs 28x secular tech peers): when market prices forward EPS at < 8x
+  // while peer median is > 2x own P/E, cap perpetual multiple expansion at max(2.2x ownFwdPe, 10x) so peak-cycle EPS
+  // cannot be multiplied by 30-48x compounder multiples ($6,000-$7,950 hallucinations).
+  const peakCyclePeCap =
+    ownFwdPe != null && ownFwdPe < 8.0 && peerFwdPe != null && peerFwdPe > 2.0 * ownFwdPe
+      ? Math.max(ownFwdPe * 2.2, 10.0)
+      : null;
+  const capCycleVote = (v: number | null) =>
+    v != null && fe != null && peakCyclePeCap != null ? Math.min(v, fe * peakCyclePeCap) : v;
+
   switch (method) {
     case "peerForwardPe": {
       const pe = peers.forwardPe.get(t.ticker);
-      return fe && pe ? fe * pe : null;
+      return capCycleVote(fe && pe ? fe * pe : null);
     }
     case "warrantedPe": {
       const pe = peers.warrantedPe.get(t.ticker);
-      return fe && pe ? fe * pe : null;
+      return capCycleVote(fe && pe ? fe * pe : null);
     }
     case "grahamForward": {
       // Revised Graham: EPS × (8.5 + 2g) × 4.4 / AAA, on forward EPS and capped long-run growth.
       const g = longGrowth(t, p);
       if (!fe || g == null || !(m.aaaYield > 0)) return null;
-      return (fe * (8.5 + 2 * g * 100) * 4.4) / (m.aaaYield * 100);
+      return capCycleVote((fe * (8.5 + 2 * g * 100) * 4.4) / (m.aaaYield * 100));
     }
     case "ohlsonJuettner": {
       // Abnormal-earnings-growth model on FY1/FY2: V = e1/k + e1·(gs − gl) / (k·(k − gl)).
@@ -355,17 +371,34 @@ export function methodValue(
       const gl = clamp(m.riskFree - 0.03, 0, 0.03);
       const gsInputs = [shortGrowth(t), t.ltg].filter((x): x is number => x != null && Number.isFinite(x));
       const gs = clamp(mean(gsInputs), 0, 0.30);
-      return fe / k + (fe * (gs - gl)) / (k * (k - gl));
+      return capCycleVote(fe / k + (fe * (gs - gl)) / (k * (k - gl)));
     }
     case "dcfFcfe": {
-      if (!pos(t.fcf) || !pos(t.shares)) return null;
+      if (!pos(t.fcf) || !pos(t.shares) || isFinancial(t)) return null;
+      // Breakeven / trough ramp FCF guard (BA $0.02B FCF on $95B rev -> $0.44/sh, HIMS $0.01B -> $0.62/sh)
+      // + Brokerage / float FCF surge guard (FUTU $4.97B FCF on $2.93B rev = 170% margin -> $1,814/sh):
+      if (pos(t.price)) {
+        const fcfYield = t.fcf / (t.price * t.shares);
+        const fcfMargin = pos(t.revenue) ? t.fcf / t.revenue : 0;
+        if (fcfYield < 0.005 && fcfMargin < 0.02) return null;
+        if (fcfYield > 0.35 || (pos(t.revenue) && fcfMargin > 0.85)) return null;
+      }
       const g0 = clamp(longGrowth(t, p) ?? 0.03, -0.10, p.growthCap);
       return dcfPerShare(t.fcf, t.shares, g0, costOfEquity(t, m, p), p.terminalGrowth);
     }
     case "peerEvEbitda": {
+      if (isFinancial(t)) return null;
       const mult = peers.evEbitda.get(t.ticker);
       if (!mult || !pos(t.ebitda) || !pos(t.shares)) return null;
-      return (mult * t.ebitda - (t.totalDebt ?? 0) + (t.cash ?? 0)) / t.shares;
+      let effMult = mult;
+      if (pos(t.price)) {
+        const ownEv = t.price * t.shares + (t.totalDebt ?? 0) - (t.cash ?? 0);
+        const ownMult = ownEv / t.ebitda;
+        if (ownMult > 0 && ownMult < 6.0 && mult > 2.0 * ownMult) {
+          effMult = Math.max(ownMult * 2.2, 8.0);
+        }
+      }
+      return (effMult * t.ebitda - (t.totalDebt ?? 0) + (t.cash ?? 0)) / t.shares;
     }
     case "excessReturns": {
       // Banks/insurers: BVps + (ROE − k)·BVps / (k − g), ROE clamped to a sustainable band.
@@ -435,11 +468,23 @@ function computeOne(t: FvTickerInput, m: FvMarket, p: FairValueParams, peers: Pe
   };
   if (!pos(t.price)) return { ...base, nullReason: "no_price" };
   const profitable = pos(t.forwardEps) && pos(t.fcf);
-  const route = profitable && (p.profitableUseStandard ?? []).includes(t.mode) ? "standard" : t.mode;
+  const upgradedProfitable = profitable && (p.profitableUseStandard ?? []).includes(t.mode);
+  const route = upgradedProfitable
+    ? "standard"
+    : !p.methodsByMode[t.mode] && isFinancial(t)
+      ? "financial"
+      : t.mode;
+  base.mode = route;
   const methods = p.methodsByMode[route] ?? p.methodsByMode["standard"] ?? [];
   if (methods.length === 0) return { ...base, nullReason: `mode_${t.mode}` };
 
   const excluded = new Set(t.metricExclusions.map((x) => x.toLowerCase()));
+  if (upgradedProfitable) {
+    // Group-level pe_ratio/fwdpe exclusions on pre_revenue_ok cohorts (e.g. Enterprise Software) exist for
+    // unprofitable members; profitable members (PANW, PLTR, WDAY, ADBE, CRM) must unlock earnings methods.
+    excluded.delete("pe_ratio");
+    excluded.delete("fwdpe");
+  }
   const raw: { name: FvVoterName; value: number }[] = [];
   for (const meth of methods) {
     if ((METHOD_EXCLUSION_KEYS[meth] ?? []).some((k) => excluded.has(k))) continue;

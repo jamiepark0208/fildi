@@ -126,8 +126,8 @@ export const TECHNICAL_SCORECARD_METRICS_V2 = [
   { key: "trendContext",    label: "Trend Context",    weight: W_TREND_CONTEXT,    description: "Regime, price vs MA50 in own ATR units, vs VWAP" },
   { key: "optionsFlow",     label: "Options Flow",     weight: W_OPTIONS_FLOW,     description: "Put/call volume ratio, put skew, IV term structure" },
   { key: "volumeConfirm",   label: "Volume Confirm",   weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
-  { key: "relativePressure",label: "Relative Pressure",weight: W_RELATIVE_PRESSURE, description: "Display only (A155) — price z + 20d vs SPY; not in total" },
-  { key: "analystUpside",   label: "Analyst Upside",   weight: W_ANALYST_UPSIDE,   description: "Display only (A155) — consensus target vs spot; not in total" },
+  { key: "relativePressure",label: "Relative Pressure",weight: W_RELATIVE_PRESSURE, description: "Context only (S042b/A155 failed as predictor) — price z + 20d vs SPY; not in total" },
+  { key: "analystUpside",   label: "Analyst Upside",   weight: W_ANALYST_UPSIDE,   description: "Context only (S042/A155 failed as predictor) — consensus target vs spot; not in total" },
 ] as const;
 
 // Call-side ("sell calls into strength") variant. SAME component keys as the put
@@ -142,8 +142,8 @@ export const TECHNICAL_SCORECARD_METRICS_V2_CALL = [
   { key: "trendContext",    label: "Trend Extension",    weight: W_TREND_CONTEXT,    description: "Regime, price stretched above MA50 in own ATR units, above VWAP" },
   { key: "optionsFlow",     label: "Call-Side Flow",     weight: W_OPTIONS_FLOW,     description: "Call-heavy volume, call wing richness (negative skew), IV term structure" },
   { key: "volumeConfirm",   label: "Volume Confirm",     weight: W_VOLUME_CONFIRM,   description: "Volume ratio vs own 20d average history" },
-  { key: "relativePressure",label: "Relative Extension", weight: W_RELATIVE_PRESSURE, description: "Display only (A155) — price z + 20d vs SPY; not in total" },
-  { key: "analystUpside",   label: "Above Target",       weight: W_ANALYST_UPSIDE,   description: "Display only (A155) — price vs consensus target; not in total" },
+  { key: "relativePressure",label: "Relative Extension", weight: W_RELATIVE_PRESSURE, description: "Context only (S042b/A155 failed as predictor) — price z + 20d vs SPY; not in total" },
+  { key: "analystUpside",   label: "Above Target",       weight: W_ANALYST_UPSIDE,   description: "Context only (S042/A155 failed as predictor) — price vs consensus target; not in total" },
 ] as const;
 
 export function getTechnicalScorecardMetrics(side: ScoreSide) {
@@ -374,16 +374,16 @@ export function softCapPeerGroupInTopN(
 }
 
 function scoreTrendContext(r: TechnicalRow): number | null {
+  // FACTOR_MAP T3: Trend health = regime + price vs MA200 (ATR units) + MA50 slope.
+  // Previously mixed BULLISH (+1) with -priceVsMa50Atr and -vwapPct (cancelling trend signal).
   const parts: number[] = [];
   if (r.regime != null) {
-    // BEARISH reduces to 0.3 — does NOT zero out. Regime is informational, never blocks.
-    parts.push(r.regime === "BULLISH" ? 1.0 : r.regime === "BEARISH" ? 0.3 : 0.5);
+    parts.push(r.regime === "BULLISH" ? 1.0 : r.regime === "BEARISH" ? 0.25 : 0.5);
   }
-  const ma50Atr = pf(r.priceVsMa50Atr);
-  // ATR-normalized distance is already self-relative (own volatility as unit)
-  if (ma50Atr != null) parts.push(c01(-ma50Atr / 3));             // 0→0, -3→1.0
-  const vwapPct = pf(r.priceVsVwapPct);
-  if (vwapPct != null) parts.push(c01(0.5 - vwapPct / 10));      // -5%→1.0, 0%→0.5, +5%→0.0
+  const ma200Atr = pf(r.priceVsMa200Atr);
+  if (ma200Atr != null) parts.push(c01(0.5 + ma200Atr / 8)); // -4 ATR -> 0, 0 -> 0.5, +4 ATR -> 1.0
+  const slope = pf(r.ma50Slope10d);
+  if (slope != null) parts.push(c01(0.5 + slope / 4));
   return parts.length > 0 ? parts.reduce((s, v) => s + v, 0) / parts.length : null;
 }
 
