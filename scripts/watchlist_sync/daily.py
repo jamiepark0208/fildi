@@ -127,6 +127,8 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
 ORDER = list(STAGES)
 # Steps that must stop the run when they fail (everything before them in publish is the plan → Model List chain).
 HARD_PUBLISH = {"publish Model List"}
+# Steps retried once on failure: put_recs reads option_chain_history MAX(as_of), so a failed scan = yesterday's quotes (B33).
+RETRY_ONCE = {"option scan (live)"}
 # Soft steps in `model` stage: optional enrichers that fall back cleanly to yesterday's stored table.
 # Run directly (no `| tail -1` pipe swallow) so real exit codes reach `soft_failures` + `data_issues`.
 SOFT_MODEL = {
@@ -297,6 +299,10 @@ def main() -> None:
                 print(f"↷ {st:<9} {name:<24} done earlier today")
                 continue
             r = run(name, py, cwd, args)
+            if not r["ok"] and name in RETRY_ONCE:   # 11-13: 0 chains → put_recs priced on the prior day; Fridays have no API fallback
+                print(f"↻ {st:<9} {name:<24} failed ({r['cause']}) — one retry in 120 s")
+                time.sleep(120)
+                r = run(name, py, cwd, args)
             log["steps"].append(r)
             save_inflight()
             print(f"{'✓' if r['ok'] else '✗'} {st:<9} {name:<24} {r['seconds']:>6}s  {r['tail'].splitlines()[-1] if r['tail'] else ''}"[:220])
