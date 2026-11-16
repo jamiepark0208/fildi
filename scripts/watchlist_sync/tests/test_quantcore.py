@@ -80,6 +80,10 @@ def test_bs_put_call_parity_and_units():
     assert -0.5 < bs.put_delta(spot=S, strike=K, iv=v, years=t) < 0
     with pytest.raises(ValueError):
         bs.bs_put(spot=S, strike=K, iv=40.0, years=t)  # percent passed as fraction
+    with pytest.raises(ValueError):
+        bs.check_iv([25.0, 40.0, 5.61])  # percent array
+    bs.check_iv(6.26)  # 626 % real penny-stock IV is a fraction, not percent
+    bs.check_iv([0.3, 0.45, 5.61])  # one real wing quote above 5 is fine (11-16 band-table crash)
     with pytest.raises(TypeError):
         bs.bs_put(S, K, v, t)                         # positional → refused
     iv = bs.implied_vol(price=p, spot=S, strike=K, years=float(t))

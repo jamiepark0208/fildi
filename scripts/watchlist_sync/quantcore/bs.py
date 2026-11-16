@@ -38,8 +38,10 @@ def years_from_sessions(n):
 def check_iv(iv) -> None:
     a = np.asarray(iv, dtype=float)
     fin = a[np.isfinite(a)]
-    if fin.size and (fin.max() > 5.0 or fin.min() < 0):
-        raise ValueError(f"iv must be a fraction in [0, 5] (got max {fin.max():.3g}); percent passed by mistake?")
+    # Percent-vs-fraction is judged on the median: a percent IV sits ≥ ~10 (LSEG max real fraction 9.99), while a fraction
+    # can be 3–9.99 on reverse-split pennies (11-16: GOSS-type 5.61 IV killed daily.py band table).
+    if fin.size and (np.median(fin) > 10.0 or fin.min() < 0):
+        raise ValueError(f"iv must be a fraction (got median {np.median(fin):.3g}, max {fin.max():.3g}); percent passed by mistake?")
 
 
 def _d1d2(spot, strike, iv, years, r, q):
