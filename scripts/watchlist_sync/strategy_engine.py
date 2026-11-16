@@ -94,7 +94,7 @@ def rank_key(cands, strategy) -> dict[int, float]:
         return {}
     tot = np.zeros(len(cands))
     for k, s in st["rank"]:
-        v = np.array([float(x) if (x := c.get(k, c.get("_in", {}).get(k))) is not None else np.nan for c in cands], float)
+        v = np.array([float(x) if (x := c.get(k, (c.get("_in") or c.get("inputs") or {}).get(k))) is not None else np.nan for c in cands], float)  # 11-16: structures.py rows carry "inputs", not "_in" → every long call scored 1.0 (alphabetical)
         r = np.full(len(v), 0.5)
         ok = np.isfinite(v)
         if ok.sum() > 1:

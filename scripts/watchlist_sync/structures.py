@@ -207,9 +207,11 @@ def main():
                         pr = I.get(t, {}).get("put_rec") or {}   # + the Model List's live-quote result (verify_plan → live_check, 10-28)
                         g = (pr.get("gates") or []) + ([f"live check — {pr['live_check']}"] if pr.get("live_check") not in (None, "pass") else [])
                         c["fit"], c["fit_why"] = not g, desc + ("" if not g else " · " + "; ".join(g))
+                        c["_gates"] = list(g)
                     else:
                         ok, why = SE.fit(c, I, ctx)
                         c["fit"], c["fit_why"] = ok, desc + ("" if ok else " · " + "; ".join(why))
+                        c["_gates"] = [] if ok else list(why)
                     cands.append(c)
                 except Exception as e:  # noqa: BLE001
                     DI.record("structures.py", "evaluate_failed", ticker=t, field=c.get("structure"), detail=f"{type(e).__name__}: {e}")
@@ -480,7 +482,11 @@ def pick_board(cands, trim):
         used.add(c["ticker"])
 
     # —— more: soft gate on leftover tickers, same pass/untested structures
-    more_pool = [c for c in primary_pool if c["ticker"] not in used and _soft_fit(c)]
+    # 11-16: engine-gated strategies keep their hard gates here (live check, yield floor, stale chain, ret60 ≥ 0, cheap IV rank);
+    # only the one-sale-per-name-per-week dedupe is soft. Before: "more" listed the engine's rejects (CSCO stale IV 0.86 vs Schwab 0.43,
+    # long calls after −50 % crashes = S177 −9 %).
+    more_pool = [c for c in primary_pool if c["ticker"] not in used and _soft_fit(c)
+                 and all(str(g).startswith("already picked") for g in c.get("_gates", []))]
     more_pool.sort(key=lambda c: (-(c["edge_q"] or 0) if c["structure"] == "csp" else 0, -c.get("_score", c["ev_rv_cap"])))
     for c in more_pool:
         if c["ticker"] in used or _n_tier(board, c["structure"], "more") >= TOP_MORE:
