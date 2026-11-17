@@ -12,7 +12,7 @@ try:
     from playwright.sync_api import sync_playwright
 except ModuleNotFoundError:
     py = os.path.join(PW_VENV, "bin", "python")
-    if os.path.realpath(sys.executable) == os.path.realpath(py):
+    if os.path.realpath(sys.prefix) == os.path.realpath(PW_VENV):  # venv python symlinks to the system one; compare prefix
         sys.exit("playwright missing inside ~/.fildi/pw-venv — rm -rf it and re-run")
     if not os.path.exists(py):
         print("ui_check: building ~/.fildi/pw-venv (one time)…", file=sys.stderr)

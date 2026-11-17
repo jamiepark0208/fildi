@@ -37,6 +37,13 @@ interface OddsCell { ddLo: number; ddHi: number; otmLo: number; otmHi: number; p
 interface PutOdds { meta: { n: number; brier: number; brier_base: number; kept: number }; cells: OddsCell[] }
 // A410/S192 confidence scale (Jamie 11-16): producer = scripts/watchlist_sync/jamie_traits.py
 const ODDS_TIP = "Odds your sold put expires worthless, from your own put sales: the further the stock is below its 60-day high and the further the strike is below the price, the higher the odds. Big number = smooth fit; 'actual' = what happened in that box. Fit is checked on months it never saw. Your history, not a forecast.";
+// S194 (Jamie 11-17: "differentiate between good and bad trades"): sold-put opens graded at expiry
+const GRADE_TIP = "How the sold put went, held to expiry. Clean = kept the premium, stock never traded below the strike. Risky win = kept money but the strike was touched. Loss = lost money. Across your 1,526 put sales: clean 66 % (avg +1.09 % of strike), risky win 16 % (+1.05 %), loss 18 % (−3.87 %). In the same week, the one entry trait that splits clean from risky/loss is strike depth (clean median 12 % below price vs 8 %); how beaten-down the stock was mostly reflects the market week, not the pick.";
+function putGrade(r: { action: string; status: string; touched: boolean | null; pct: number | null }): [string, string] | null {
+  if (r.action !== "sell put open" || r.status !== "expired" || r.touched == null || r.pct == null) return null;
+  if (r.pct < 0) return ["Loss", "text-red-400"];
+  return r.touched ? ["Risky win", "text-amber-300"] : ["Clean", "text-emerald-400"];
+}
 interface Sum { trades: number; winPct: number | null; pnl: number; avgPct: number | null }
 interface Resp {
   days: number;
@@ -199,6 +206,7 @@ export function JournalTab() {
               <th className={cn(GRID_TH, "text-right")}>Fill</th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Realized on closes (FIFO vs the open); on opens, the unclosed remainder at expiry or last close.">P&amp;L $</DataTip></th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Per-share P&L as % of strike. Split guard skips grades when spot and close differ > 35%.">% strike</DataTip></th>
+              <th className={cn(GRID_TH, "text-left")}><DataTip tip={GRADE_TIP}>Result</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}><DataTip tip="Put-engine row for the symbol that day (pass / first failed gate / not scanned) and the Model List folders of the latest run on or before the date.">Fildi said</DataTip></th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip={`${ODDS_TIP} Per trade: fit from the other months only.`}>Odds</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}><DataTip tip="Auto tag from the engine's market/stock state that day.">Tag</DataTip></th>
@@ -222,6 +230,7 @@ export function JournalTab() {
                 </td>
                 <td className={cn(GRID_TD, "text-right", tone(r.pnl))}>{money(r.pnl)}</td>
                 <td className={cn(GRID_TD, "text-right", tone(r.pct))}>{pct(r.pct)}</td>
+                <td className={cn(GRID_TD, "whitespace-nowrap", putGrade(r)?.[1])}>{putGrade(r)?.[0] ?? ""}</td>
                 <td className={cn(GRID_TD, "text-white")}>{r.fildi}</td>
                 <td className={cn(GRID_TD, "text-right whitespace-nowrap", oddsTone(r.pKept))}>
                   {r.pKept != null ? (
