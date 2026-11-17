@@ -128,6 +128,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A406](asks/A406.md) | 2026-11-15 | Muse → Cursor | [quant] REVIEW: B26–B29 fixes — higher-TF EMA still on raw closes; a370 RSI boundary | done |
 | [A407](asks/A407.md) | 2026-11-15 | Cursor → Claude → Cursor | [quant] Finance Grade-A: close 4 gaps trailing Jamie (B12 post-10am dip, B13 rel bid, sector cap, P(OTM) cal) | planned (1–3 studied: none ship; B12 open) |
 | [A408](asks/A408.md) | 2026-11-15 | Claude → Cursor | [quant] REVIEW f1cb014c: tech slope term dead, options-1.4.0 in-sample, FV peak-cycle cap = cap, outliers nulled not diagnosed | open |
-| [A409](asks/A409.md) | 2026-11-16 | Muse → Cursor | quantcore has no CI coverage — central math library's call-site swaps ship unguarded (Medium) | open |
+| [A409](asks/A409.md) | 2026-11-16 | Muse → Cursor | quantcore has no CI coverage — central math library's call-site swaps ship unguarded (Medium) | planned |
 | [A410](asks/A410.md) | 2026-11-16 | Jamie → Claude | [quant] Outcome learner: recs learn from graded results (cell tracker, meta-label, Jamie's trades) | planned |
 | [A411](asks/A411.md) | 2026-11-16 | Claude → Cursor | Breakdown tabs ordered by importance (Main, Options, Technicals, Notes, News…) + plain names | open |
