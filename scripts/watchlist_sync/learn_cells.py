@@ -112,6 +112,8 @@ def main() -> None:
                          None if pd.isna(r.p_neg) else float(r.p_neg), float(r.win), bool(r.demote)))
         c.commit()
         print(f"rec_cells: {len(tab)} cells, {int(tab.demote.sum())} demoted → watchlist_sync.rec_cells")
+        import jamie_traits  # A410 part 3: Jamie put traits for Track Record › Journal
+        print(f"jamie_put_traits: {jamie_traits.refresh(c)} opens")
 
 
 if __name__ == "__main__":

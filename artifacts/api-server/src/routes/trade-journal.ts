@@ -124,6 +124,21 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
     const recBy = new Map<string, RecRow>();
     for (const r of recs) recBy.set(`${r.ticker}|${r.as_of}`, r);
 
+    // A410/S192: Jamie's put opens by entry type (jamie_traits.py, daily step "rec cells"). All history, not the window.
+    const traits = rowsOf<{ order_id: string; bucket: string | null; otm: string | null; off_hi: string | null }>(
+      (await Promise.resolve(db.execute(sql`
+        SELECT order_id, bucket, otm_pct::text AS otm, off_hi_pct::text AS off_hi FROM watchlist_sync.jamie_put_traits
+      `)).catch(() => [])) as SqlRows<never>,
+    );
+    const traitBy = new Map(traits.map((t) => [t.order_id, t]));
+    const byType = rowsOf<{ bucket: string; n: string; avg: string | null; win: string | null; worst: string | null }>(
+      (await Promise.resolve(db.execute(sql`
+        SELECT bucket, count(ret_pct)::text AS n, avg(ret_pct)::text AS avg, avg((ret_pct > 0)::int)::text AS win,
+               min(ret_pct)::text AS worst
+        FROM watchlist_sync.jamie_put_traits WHERE bucket IS NOT NULL AND ret_pct IS NOT NULL GROUP BY bucket
+      `)).catch(() => [])) as SqlRows<never>,
+    ).map((b) => ({ bucket: b.bucket, n: Number(b.n), avgPct: num(b.avg), winPct: b.win == null ? null : Number(b.win) * 100, worstPct: num(b.worst) }));
+
     const all = buildJournal(journalOrders, prices);
     const out = all.filter((r) => r.at.slice(0, 10) >= since || r.day >= since);
     const enriched = out.map((r) => {
@@ -131,7 +146,11 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
       const run = runFor(r.day);
       const p = rec?.payload ?? {};
       const tag = rec ? [p.market_state, p.stock_state].filter(Boolean).join("/") || "—" : "—";
-      return { ...r, fildi: fildiSaid(rec, run ? listBy.get(`${run}|${r.symbol}`) : undefined, r.optionSide), tag };
+      const tr = traitBy.get(r.orderId);
+      return {
+        ...r, fildi: fildiSaid(rec, run ? listBy.get(`${run}|${r.symbol}`) : undefined, r.optionSide), tag,
+        putType: tr?.bucket ?? null, otmPct: num(tr?.otm), offHighPct: num(tr?.off_hi),
+      };
     });
 
     // Jamie vs engine, same window (port of rec_scoreboard.py)
@@ -155,6 +174,7 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
         byTag: tags.map((t) => ({ tag: t, ...summarize(asJ, (r) => (r as unknown as { tag: string }).tag === t) })),
         jamiePuts: { n: jamieG.length, avgPct: mean(jamieG) },
         enginePass: { n: engG.length, avgPct: mean(engG) },
+        putsByType: byType,
       },
       rows: enriched.reverse(),
     });

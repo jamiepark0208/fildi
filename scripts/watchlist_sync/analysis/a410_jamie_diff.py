@@ -20,27 +20,8 @@ import pandas as pd
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE.parent))
 import rec_scoreboard as RS  # noqa: E402
-
-
-def feats(df: pd.DataFrame, P: dict) -> pd.DataFrame:
-    rows = []
-    for r in df.itertuples():
-        g = P.get(r.t)
-        h = None if g is None else g[g.index < r.d].tail(260)
-        if h is None or len(h) < 25:
-            rows.append({}); continue
-        s = h["c"].iloc[-1]
-        lr = np.log(h["c"]).diff().dropna()
-        rv = lr.tail(20).std() * np.sqrt(252)
-        dte = max((r.e - r.d).days, 1)
-        otm = 1 - r.k / s
-        rows.append(dict(S=s, otm=otm * 100, dte=dte, rv20=rv * 100,
-                         otm_sd=otm / (rv * np.sqrt(dte / 365)) if rv > 0 else np.nan,
-                         r5=(s / h["c"].iloc[-6] - 1) * 100, r20=(s / h["c"].iloc[-21] - 1) * 100,
-                         off_lo=(s / h["lo"].tail(20).min() - 1) * 100,
-                         off_hi=(s / h["c"].tail(60).max() - 1) * 100,
-                         yld=r.px / r.k * 100, wd=r.d.dayofweek))
-    return pd.concat([df.reset_index(drop=True), pd.DataFrame(rows)], axis=1)
+sys.path.insert(0, str(HERE))
+from jamie_traits import feats  # noqa: E402  (one home for the trait math)
 
 
 def wk_t(a: pd.DataFrame, b: pd.DataFrame) -> tuple[float, int]:

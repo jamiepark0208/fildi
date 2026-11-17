@@ -29,7 +29,20 @@ interface Row {
   matchedOpenDay: string | null;
   fildi: string;
   tag: string;
+  putType: PutType | null;
+  otmPct: number | null;
+  offHighPct: number | null;
 }
+type PutType = "far_beaten" | "far" | "near_beaten" | "near";
+interface TypeStat { bucket: PutType; n: number; avgPct: number | null; winPct: number | null; worstPct: number | null }
+// A410/S192: plain names; cut-offs live in scripts/watchlist_sync/jamie_traits.py (14 % below price, 40 % off 60-day high)
+const PUT_TYPE: Record<PutType, { label: string; short: string }> = {
+  far_beaten: { label: "Far strike, stock already down", short: "far · down" },
+  far: { label: "Far strike, stock not down", short: "far" },
+  near_beaten: { label: "Close strike, stock already down", short: "close · down" },
+  near: { label: "Close strike, stock not down", short: "close" },
+};
+const TYPE_TIP = "Far strike = 14% or more below the stock price (prior close). Stock already down = 40% or more below its 60-day high. Held to expiry, % of strike, your fill. Your history, not a forecast.";
 interface Sum { trades: number; winPct: number | null; pnl: number; avgPct: number | null }
 interface Resp {
   days: number;
@@ -38,6 +51,7 @@ interface Resp {
     byTag: Array<Sum & { tag: string }>;
     jamiePuts: { n: number; avgPct: number | null };
     enginePass: { n: number; avgPct: number | null };
+    putsByType?: TypeStat[];
   };
   rows: Row[];
 }
@@ -104,8 +118,29 @@ export function JournalTab() {
   const s = data.summary;
   const gap = s.jamiePuts.avgPct != null && s.enginePass.avgPct != null ? s.jamiePuts.avgPct - s.enginePass.avgPct : null;
 
+  const types = [...(s.putsByType ?? [])].sort((a, b) => (b.avgPct ?? -99) - (a.avgPct ?? -99));
+
   return (
     <div className="space-y-2" data-testid="journal-tab">
+      {types.length > 0 && (
+        <div data-testid="journal-put-types">
+          <DataTip tip={TYPE_TIP}>
+            <div className="text-[10px] uppercase tracking-wide text-white font-semibold mb-1">Your put sales by type · all history</div>
+          </DataTip>
+          <div className="flex flex-wrap gap-1.5">
+            {types.map((t) => (
+              <Stat
+                key={t.bucket}
+                label={PUT_TYPE[t.bucket]?.label ?? t.bucket}
+                value={pct(t.avgPct)}
+                cls={tone(t.avgPct)}
+                sub={`win ${t.winPct == null ? "—" : t.winPct.toFixed(0)}% · n ${t.n} · worst ${pct(t.worstPct, 1)}`}
+                tip={TYPE_TIP}
+              />
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <Stat label="Graded" value={String(s.trades)} sub={`${data.count} fills`} tip="Fills with a P&L: closes (realized, FIFO vs the matching open) and option opens still open or expired (premium − intrinsic at expiry, or last close)." />
         <Stat label="Win" value={s.winPct == null ? "—" : `${s.winPct.toFixed(0)}%`} tip="Share of graded rows with P&L > 0." />
@@ -141,6 +176,7 @@ export function JournalTab() {
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Realized on closes (FIFO vs the open); on opens, the unclosed remainder at expiry or last close.">P&amp;L $</DataTip></th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Per-share P&L as % of strike. Split guard skips grades when spot and close differ > 35%.">% strike</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}><DataTip tip="Put-engine row for the symbol that day (pass / first failed gate / not scanned) and the Model List folders of the latest run on or before the date.">Fildi said</DataTip></th>
+              <th className={cn(GRID_TH, "text-left")}><DataTip tip={TYPE_TIP}>Put type</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}><DataTip tip="Auto tag from the engine's market/stock state that day.">Tag</DataTip></th>
             </tr>
           </thead>
@@ -163,6 +199,13 @@ export function JournalTab() {
                 <td className={cn(GRID_TD, "text-right", tone(r.pnl))}>{money(r.pnl)}</td>
                 <td className={cn(GRID_TD, "text-right", tone(r.pct))}>{pct(r.pct)}</td>
                 <td className={cn(GRID_TD, "text-white")}>{r.fildi}</td>
+                <td className={cn(GRID_TD, "whitespace-nowrap", r.putType === "near" ? "text-rose-300" : "text-white")}>
+                  {r.putType ? (
+                    <DataTip tip={`${PUT_TYPE[r.putType].label}. Strike ${r.otmPct?.toFixed(1) ?? "—"}% below price · stock ${r.offHighPct?.toFixed(0) ?? "—"}% vs 60-day high.`}>
+                      {PUT_TYPE[r.putType].short}
+                    </DataTip>
+                  ) : "—"}
+                </td>
                 <td className={cn(GRID_TD, "text-amber-100")}>{r.tag}</td>
               </tr>
             ))}
