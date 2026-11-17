@@ -60,7 +60,7 @@
 |---|---|---|---|
 | Empire State mfg (Nov) | 7.8 | ~18 | 25.5 |
 
-- Commerce's overnight rule forces licences for AI chips sent to data centers in five countries. The PHLX Semiconductor Index fell 5.28%; the Nasdaq closed more than 10% below its October 6 high, in correction, a day before Nvidia's print, so chip premium stays bid into it.
+- Commerce's rule forces licences for AI chips sent to data centers in five countries. The PHLX Semiconductor Index fell 5.28%; the Nasdaq closed more than 10% below its October 6 high, in correction, a day before Nvidia's print, so chip premium stays bid into it.
 - Banks joined the selloff in the afternoon — Goldman -2.73%, Morgan Stanley -2.66%, JPMorgan -2.31% — with the December 25bp hike fully priced after last week's hot CPI. Fed Chair Warsh laid out three scenarios for AI and jobs; yields eased anyway, the 10Y down 3bp to 5.12%.
 - Bitcoin fell to $62,000 over the weekend and sits near $65,000. Funds have lost $3B since the Binance hack, and some selling is to raise cash for Thursday's Anthropic IPO.
 - Oil fell with stocks — WTI -3.5% to $85.44, Brent -3.55% to $92.44 — ending energy's five-day winning run; silver fell 4.6%.
