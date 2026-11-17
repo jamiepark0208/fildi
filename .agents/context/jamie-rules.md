@@ -43,6 +43,8 @@
 ## Communication
 - Caveman: answer first, terse, keep numbers and caveats, no code in chat (10-06, 10-15).
 - UI: headline value in the cell, method/source/timestamp in the hover tooltip (10-14, 10-20).
+- **Shape messy prompts before acting (Jamie 11-16):** "I often prompt babble because I am unorganized with thoughts." When a prompt is long, mixes several asks or is unclear, first restate it in ≤ 5 lines: **Goal** (this task, under the app goal = better trading decisions through the Fildi UI) · **Done when** (how success is checked) · **Constraints** (scope, token/time budget, others' files not to touch) · **Params** (tickers, dates, thresholds). Then execute it. Skip for short clear prompts. No wandering: work outside the restated goal needs a stated reason.
+- **UI order = importance (Jamie 11-16):** tabs, sections, columns and cards are ordered by how much they change a trade decision — first tab is most important, then the next. Text is short, plain English, straight to the point; jargon only with a tooltip. Place by importance, not by build date. When you see a surface that breaks this (e.g. Breakdown tabs), fix it or file it to the file's owner.
 - Name rows by what they do, not just their ID (10-16).
 - **No same-hue text on tinted fill** (10-24): never gold/amber text on gold/amber background (e.g. `#d4af37` on `bg-[#d4af37]/15`). Theme/section headers = white (or near-white) text on a clearly different fill (`bg-zinc-800`, solid green/red chips, etc.). Tooltips must say what to *do*, not restate jargon.
 
