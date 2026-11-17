@@ -125,19 +125,24 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
     for (const r of recs) recBy.set(`${r.ticker}|${r.as_of}`, r);
 
     // A410/S192: Jamie's put opens by entry type (jamie_traits.py, daily step "rec cells"). All history, not the window.
-    const traits = rowsOf<{ order_id: string; bucket: string | null; otm: string | null; off_hi: string | null }>(
+    const traits = rowsOf<{ order_id: string; bucket: string | null; otm: string | null; off_hi: string | null; p_kept: string | null }>(
       (await Promise.resolve(db.execute(sql`
-        SELECT order_id, bucket, otm_pct::text AS otm, off_hi_pct::text AS off_hi FROM watchlist_sync.jamie_put_traits
+        SELECT order_id, bucket, otm_pct::text AS otm, off_hi_pct::text AS off_hi, p_kept::text AS p_kept FROM watchlist_sync.jamie_put_traits
       `)).catch(() => [])) as SqlRows<never>,
     );
     const traitBy = new Map(traits.map((t) => [t.order_id, t]));
-    const byType = rowsOf<{ bucket: string; n: string; avg: string | null; win: string | null; worst: string | null }>(
+    // Confidence scale (Jamie 11-16): odds a put expires worthless by % below 60 d high × strike % below price
+    const gridRows = rowsOf<{ dd_lo: number; dd_hi: number; otm_lo: number; otm_hi: number; p_model: number; n: number; kept: number | null; avg_ret: number | null; meta: Record<string, number> }>(
       (await Promise.resolve(db.execute(sql`
-        SELECT bucket, count(ret_pct)::text AS n, avg(ret_pct)::text AS avg, avg((ret_pct > 0)::int)::text AS win,
-               min(ret_pct)::text AS worst
-        FROM watchlist_sync.jamie_put_traits WHERE bucket IS NOT NULL AND ret_pct IS NOT NULL GROUP BY bucket
+        SELECT dd_lo, dd_hi, otm_lo, otm_hi, p_model, n, kept, avg_ret, meta FROM watchlist_sync.jamie_put_grid ORDER BY dd_lo DESC, otm_lo
       `)).catch(() => [])) as SqlRows<never>,
-    ).map((b) => ({ bucket: b.bucket, n: Number(b.n), avgPct: num(b.avg), winPct: b.win == null ? null : Number(b.win) * 100, worstPct: num(b.worst) }));
+    );
+    const putOdds = gridRows.length
+      ? {
+          meta: gridRows[0].meta,
+          cells: gridRows.map((g) => ({ ddLo: g.dd_lo, ddHi: g.dd_hi, otmLo: g.otm_lo, otmHi: g.otm_hi, pModel: g.p_model, n: g.n, kept: g.kept, avgRet: g.avg_ret })),
+        }
+      : null;
 
     const all = buildJournal(journalOrders, prices);
     const out = all.filter((r) => r.at.slice(0, 10) >= since || r.day >= since);
@@ -149,7 +154,7 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
       const tr = traitBy.get(r.orderId);
       return {
         ...r, fildi: fildiSaid(rec, run ? listBy.get(`${run}|${r.symbol}`) : undefined, r.optionSide), tag,
-        putType: tr?.bucket ?? null, otmPct: num(tr?.otm), offHighPct: num(tr?.off_hi),
+        otmPct: num(tr?.otm), offHighPct: num(tr?.off_hi), pKept: num(tr?.p_kept),
       };
     });
 
@@ -174,7 +179,7 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
         byTag: tags.map((t) => ({ tag: t, ...summarize(asJ, (r) => (r as unknown as { tag: string }).tag === t) })),
         jamiePuts: { n: jamieG.length, avgPct: mean(jamieG) },
         enginePass: { n: engG.length, avgPct: mean(engG) },
-        putsByType: byType,
+        putOdds,
       },
       rows: enriched.reverse(),
     });

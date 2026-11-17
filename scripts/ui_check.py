@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
 """Headless UI check for the local app (Vite :8081): log in from .agent-login, open pages, screenshot,
-report console errors + HTTP >= 400. Needs a venv with `pip install playwright && playwright install chromium`.
+report console errors + HTTP >= 400. Run with any python: re-execs into ~/.fildi/pw-venv (built on first use).
 
   ui_check.py /watchlist?ticker=HOOD /live /rankings --out <dir> [--wait 8000] [--width 1500]
 """
-import argparse, os, sys
-from playwright.sync_api import sync_playwright
+import argparse, os, subprocess, sys
+
+# Durable venv (Jamie 11-16: no per-session reinstall). Any python works: re-exec into ~/.fildi/pw-venv, building it once.
+PW_VENV = os.path.expanduser("~/.fildi/pw-venv")
+try:
+    from playwright.sync_api import sync_playwright
+except ModuleNotFoundError:
+    py = os.path.join(PW_VENV, "bin", "python")
+    if os.path.realpath(sys.executable) == os.path.realpath(py):
+        sys.exit("playwright missing inside ~/.fildi/pw-venv — rm -rf it and re-run")
+    if not os.path.exists(py):
+        print("ui_check: building ~/.fildi/pw-venv (one time)…", file=sys.stderr)
+        subprocess.run([sys.executable, "-m", "venv", PW_VENV], check=True)
+        subprocess.run([py, "-m", "pip", "-q", "install", "playwright"], check=True)
+        subprocess.run([py, "-m", "playwright", "install", "chromium"], check=True)
+    os.execv(py, [py, os.path.abspath(__file__), *sys.argv[1:]])
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = "http://localhost:8081"

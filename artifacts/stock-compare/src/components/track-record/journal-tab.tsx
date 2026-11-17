@@ -29,20 +29,14 @@ interface Row {
   matchedOpenDay: string | null;
   fildi: string;
   tag: string;
-  putType: PutType | null;
   otmPct: number | null;
   offHighPct: number | null;
+  pKept: number | null;
 }
-type PutType = "far_beaten" | "far" | "near_beaten" | "near";
-interface TypeStat { bucket: PutType; n: number; avgPct: number | null; winPct: number | null; worstPct: number | null }
-// A410/S192: plain names; cut-offs live in scripts/watchlist_sync/jamie_traits.py (14 % below price, 40 % off 60-day high)
-const PUT_TYPE: Record<PutType, { label: string; short: string }> = {
-  far_beaten: { label: "Far strike, stock already down", short: "far · down" },
-  far: { label: "Far strike, stock not down", short: "far" },
-  near_beaten: { label: "Close strike, stock already down", short: "close · down" },
-  near: { label: "Close strike, stock not down", short: "close" },
-};
-const TYPE_TIP = "Far strike = 14% or more below the stock price (prior close). Stock already down = 40% or more below its 60-day high. Held to expiry, % of strike, your fill. Your history, not a forecast.";
+interface OddsCell { ddLo: number; ddHi: number; otmLo: number; otmHi: number; pModel: number; n: number; kept: number | null; avgRet: number | null }
+interface PutOdds { meta: { n: number; brier: number; brier_base: number; kept: number }; cells: OddsCell[] }
+// A410/S192 confidence scale (Jamie 11-16): producer = scripts/watchlist_sync/jamie_traits.py
+const ODDS_TIP = "Odds your sold put expires worthless, from your own put sales: the further the stock is below its 60-day high and the further the strike is below the price, the higher the odds. Big number = smooth fit; 'actual' = what happened in that box. Fit is checked on months it never saw. Your history, not a forecast.";
 interface Sum { trades: number; winPct: number | null; pnl: number; avgPct: number | null }
 interface Resp {
   days: number;
@@ -51,7 +45,7 @@ interface Resp {
     byTag: Array<Sum & { tag: string }>;
     jamiePuts: { n: number; avgPct: number | null };
     enginePass: { n: number; avgPct: number | null };
-    putsByType?: TypeStat[];
+    putOdds?: PutOdds | null;
   };
   rows: Row[];
 }
@@ -59,6 +53,55 @@ interface Resp {
 const money = (v: number | null) => (v == null ? "—" : `${v < 0 ? "−" : "+"}$${Math.abs(Math.round(v)).toLocaleString()}`);
 const pct = (v: number | null, d = 2) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(d)}%`);
 const tone = (v: number | null) => (v == null ? "text-amber-100" : v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-white");
+const oddsTone = (p: number | null) => (p == null ? "text-amber-100" : p >= 0.9 ? "text-emerald-400" : p >= 0.8 ? "text-white" : p >= 0.7 ? "text-amber-200" : "text-rose-400");
+const band = (lo: number, hi: number) => (lo <= -50 ? `< ${hi}%` : hi >= 99 ? `${lo}%+` : `${lo}–${hi}%`);
+
+function OddsGrid({ odds }: { odds: PutOdds }) {
+  const dd = Array.from(new Map(odds.cells.map((c) => [c.ddLo, c])).values());
+  const otm = Array.from(new Map(odds.cells.map((c) => [c.otmLo, c])).values());
+  const at = (d: number, o: number) => odds.cells.find((c) => c.ddLo === d && c.otmLo === o);
+  return (
+    <div data-testid="journal-put-odds">
+      <DataTip tip={ODDS_TIP}>
+        <div className="text-[10px] uppercase tracking-wide text-white font-semibold mb-1">
+          Odds your put expires worthless · {odds.meta.n} put sales
+        </div>
+      </DataTip>
+      <div className={GRID_WRAP}>
+        <table className="w-auto">
+          <thead>
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-left")}>Stock below 60-day high</th>
+              {otm.map((o) => (
+                <th key={o.otmLo} className={cn(GRID_TH, "text-right")}>Strike {band(o.otmLo, o.otmHi)} below</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dd.map((d, i) => (
+              <tr key={d.ddLo} className={gridRow(i)}>
+                <td className={cn(GRID_TD, "whitespace-nowrap text-white")}>{d.ddHi >= 999 ? `${d.ddLo}%+` : `${d.ddLo}–${d.ddHi}%`}</td>
+                {otm.map((o) => {
+                  const c = at(d.ddLo, o.otmLo);
+                  return (
+                    <td key={o.otmLo} className={cn(GRID_TD, "text-right whitespace-nowrap")}>
+                      {c ? (
+                        <DataTip tip={`Fit ${(c.pModel * 100).toFixed(0)}% · actual ${c.kept == null ? "—" : `${(c.kept * 100).toFixed(0)}%`} of ${c.n} · avg ${pct(c.avgRet)} of strike`}>
+                          <span className={cn("font-bold tabular-nums", oddsTone(c.pModel))}>{(c.pModel * 100).toFixed(0)}%</span>
+                          <span className="ml-1 text-[9px] text-amber-100">actual {c.kept == null ? "—" : `${(c.kept * 100).toFixed(0)}%`} · n {c.n}</span>
+                        </DataTip>
+                      ) : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function Stat({ label, value, sub, tip, cls }: { label: string; value: string; sub?: string; tip: string; cls?: string }) {
   return (
@@ -118,29 +161,10 @@ export function JournalTab() {
   const s = data.summary;
   const gap = s.jamiePuts.avgPct != null && s.enginePass.avgPct != null ? s.jamiePuts.avgPct - s.enginePass.avgPct : null;
 
-  const types = [...(s.putsByType ?? [])].sort((a, b) => (b.avgPct ?? -99) - (a.avgPct ?? -99));
 
   return (
     <div className="space-y-2" data-testid="journal-tab">
-      {types.length > 0 && (
-        <div data-testid="journal-put-types">
-          <DataTip tip={TYPE_TIP}>
-            <div className="text-[10px] uppercase tracking-wide text-white font-semibold mb-1">Your put sales by type · all history</div>
-          </DataTip>
-          <div className="flex flex-wrap gap-1.5">
-            {types.map((t) => (
-              <Stat
-                key={t.bucket}
-                label={PUT_TYPE[t.bucket]?.label ?? t.bucket}
-                value={pct(t.avgPct)}
-                cls={tone(t.avgPct)}
-                sub={`win ${t.winPct == null ? "—" : t.winPct.toFixed(0)}% · n ${t.n} · worst ${pct(t.worstPct, 1)}`}
-                tip={TYPE_TIP}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {s.putOdds && <OddsGrid odds={s.putOdds} />}
       <div className="flex flex-wrap gap-1.5">
         <Stat label="Graded" value={String(s.trades)} sub={`${data.count} fills`} tip="Fills with a P&L: closes (realized, FIFO vs the matching open) and option opens still open or expired (premium − intrinsic at expiry, or last close)." />
         <Stat label="Win" value={s.winPct == null ? "—" : `${s.winPct.toFixed(0)}%`} tip="Share of graded rows with P&L > 0." />
@@ -176,7 +200,7 @@ export function JournalTab() {
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Realized on closes (FIFO vs the open); on opens, the unclosed remainder at expiry or last close.">P&amp;L $</DataTip></th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Per-share P&L as % of strike. Split guard skips grades when spot and close differ > 35%.">% strike</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}><DataTip tip="Put-engine row for the symbol that day (pass / first failed gate / not scanned) and the Model List folders of the latest run on or before the date.">Fildi said</DataTip></th>
-              <th className={cn(GRID_TH, "text-left")}><DataTip tip={TYPE_TIP}>Put type</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip={`${ODDS_TIP} Per trade: fit from the other months only.`}>Odds</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}><DataTip tip="Auto tag from the engine's market/stock state that day.">Tag</DataTip></th>
             </tr>
           </thead>
@@ -199,10 +223,10 @@ export function JournalTab() {
                 <td className={cn(GRID_TD, "text-right", tone(r.pnl))}>{money(r.pnl)}</td>
                 <td className={cn(GRID_TD, "text-right", tone(r.pct))}>{pct(r.pct)}</td>
                 <td className={cn(GRID_TD, "text-white")}>{r.fildi}</td>
-                <td className={cn(GRID_TD, "whitespace-nowrap", r.putType === "near" ? "text-rose-300" : "text-white")}>
-                  {r.putType ? (
-                    <DataTip tip={`${PUT_TYPE[r.putType].label}. Strike ${r.otmPct?.toFixed(1) ?? "—"}% below price · stock ${r.offHighPct?.toFixed(0) ?? "—"}% vs 60-day high.`}>
-                      {PUT_TYPE[r.putType].short}
+                <td className={cn(GRID_TD, "text-right whitespace-nowrap", oddsTone(r.pKept))}>
+                  {r.pKept != null ? (
+                    <DataTip tip={`Strike ${r.otmPct?.toFixed(1) ?? "—"}% below price · stock ${Math.abs(r.offHighPct ?? 0).toFixed(0)}% below its 60-day high.`}>
+                      {(r.pKept * 100).toFixed(0)}%
                     </DataTip>
                   ) : "—"}
                 </td>

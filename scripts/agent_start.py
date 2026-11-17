@@ -155,7 +155,8 @@ def main() -> None:
         say(f"6b stalled ASKS (no change > 3 d): {len(stalled)}" + (" — " + "; ".join(stalled[:12]) + (" …" if len(stalled) > 12 else "")
             + " → owner acts or re-routes; a 'revise' goes back to its author" if stalled else ""))
         # 11-15 (Jamie): findings can't vanish; verdicts can't outrun open High bugs; shared logic copies may only fall.
-        for nm, cmd in (("6h findings", [sys.executable, "scripts/findings_guard.py"]), ("6i copies", [sys.executable, "scripts/copy_ratchet.py"])):
+        for nm, cmd in (("6h findings", [sys.executable, "scripts/findings_guard.py"]), ("6i copies", [sys.executable, "scripts/copy_ratchet.py"]),
+                        ("6k", [sys.executable, "scripts/stale_dirty.py"])):  # 11-16 Jamie: half-edited files block other agents
             fg = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
             say(f"{nm}: " + " | ".join(((fg.stdout or fg.stderr).strip().splitlines() or ["no output"])[:4])[:400])
         try:
