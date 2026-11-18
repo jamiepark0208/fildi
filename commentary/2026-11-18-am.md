@@ -30,9 +30,9 @@ Moves
 Data
 | Print | When | Actual | Consensus | Prior |
 |---|---|---|---|---|
-| UK CPI, Oct (y/y) | Nov 18, 2:00 AM ET | +3.6% | +3.6% | +3.5% |
-| Eurozone CPI, Oct final (y/y) | Nov 18, 5:00 AM ET | +4.0% | +4.0% (prelim) | — |
-| MBA 30Y mortgage rate | Nov 18, 7:00 AM ET | 7.35% | — | 7.21% |
+| UK CPI, Oct (y/y) | Nov 18 2:00a | +3.6% | +3.6% | +3.5% |
+| Eurozone CPI, Oct final (y/y) | Nov 18 5:00a | +4.0% | +4.0% (prelim) | — |
+| MBA 30Y mortgage rate | Nov 18 7:00a | 7.35% | — | 7.21% |
 
 Names
 | Name | Day % | Why |
