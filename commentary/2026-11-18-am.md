@@ -1,7 +1,14 @@
 Morning brief — Wed, Nov 18, 2026
 
+Top stories
 - **Fed hawkish: Waller floated a 50bp December hike on CNBC this morning. Futures faded off overnight highs — Nasdaq futures +0.98% at 5am ET to +0.6% by 8:20am.**
+- NVDA earnings beat: revenue $115.84B vs ~$109B expected, Q4 guide ~$130B (raised from ~$125B expected; FY28 growth raised to ~75% from ~70%). No word on Huang's return — likely caps the pop today.
+- Retail split: Target comps +5.6%, TJX comps +4% beat. But $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds. Market paid TJX (+6%), sold Lowe's (-5.7%).
 
+Overnight
+- KOSPI +1.99% to 5,067.44 on the NVDA print (SK Hynix +4.2%, Samsung +2.3%), reclaimed 5,000 after closing below it Tuesday. Nikkei +0.3%. Europe flat (STOXX -0.1%, FTSE -0.4%) with the 10Y at 5.10%.
+
+Moves
 | Name | Last close | Futures | Overnight % | 1W % | 1M % |
 |---|---|---|---|---|---|
 | S&P 500 | 7,340.53 | 7,375 | +0.2% | -2.4% | -4.6% |
@@ -9,7 +16,7 @@ Morning brief — Wed, Nov 18, 2026
 | Nasdaq 100 | 27,001.78 | 27,245 | +0.6% | -4.1% | -8.1% |
 | Russell 2000 | 2,701.87 | 2,702 | -0.4% | -4.2% | -1.0% |
 | Nikkei 225 | 59,024 | — | +0.3% | -3.6% | -9.1% |
-| Shanghai Comp | 3,588 | — | +0.1% | -2.5% | -4.0% |
+| KOSPI | 5,067.44 | — | +1.99% | -5.7% | -12.2% |
 | STOXX 600 | 657 | — | -0.1% | +0.2% | +4.8% |
 | FTSE 100 | 10,645 | — | -0.4% | -1.8% | -0.8% |
 | 10Y yield | 5.10% | — | -1bp | +18bp | -1bp |
@@ -20,17 +27,14 @@ Morning brief — Wed, Nov 18, 2026
 | Bitcoin | $64,007 | — | +0.1% | -6.3% | -21.7% |
 | VIX | 24.50 | — | -3.8% | +26% | +69% |
 
-- NVDA earnings beat: revenue $115.84B vs ~$109B expected, Q4 guide ~$130B (raised from ~$125B expected; FY28 growth raised to ~75% from ~70%). No word on Huang's return — likely caps the pop today.
-- Tuesday: fourth straight down day. Dow -849 pts (-1.64%), S&P -1.03% to 7,340.53, lowest close in five months.
-- Retail split: Target comps +5.6%, TJX comps +4% beat. But $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds. Market paid TJX (+6%), sold Lowe's (-5.7%).
-- NVDA print is the first read on the founder exit — a beat with a raised guide says the quarter ran on demand, not the CEO. Base rate stays out: trigger-library seed numbers under re-derivation after Grok's Nov 13 review.
+Data
+| Print | When | Actual | Consensus | Prior |
+|---|---|---|---|---|
+| UK CPI, Oct (y/y) | Nov 18, 2:00 AM ET | +3.6% | +3.6% | +3.5% |
+| Eurozone CPI, Oct final (y/y) | Nov 18, 5:00 AM ET | +4.0% | +4.0% (prelim) | — |
+| MBA 30Y mortgage rate | Nov 18, 7:00 AM ET | 7.35% | — | 7.21% |
 
-| Print | Actual | Consensus | Prior |
-|---|---|---|---|
-| UK CPI, Oct (y/y) | +3.6% | +3.6% | +3.5% |
-| Eurozone CPI, Oct final (y/y) | +4.0% | +4.0% (prelim) | — |
-| MBA 30Y mortgage rate | 7.35% | — | 7.21% |
-
+Names
 | Name | Day % | Why |
 |---|---|---|
 | NVDA | +3.0% | Beat on revenue and guide. No Huang word — pop fading. |
@@ -41,8 +45,8 @@ Morning brief — Wed, Nov 18, 2026
 - Also: AAOI -10.3% giving back yesterday's policy spike; GOOGL +0.6% as Waymo pulled vehicles from highways after California banned them from freeways; WULF +4.8% and TTWO +4.7% with the chip bounce.
 
 Desk flagged
-- The US struck an IRGC missile site on Iran's Qeshm Island after a drone attack on a US radar installation in Bahrain. Crude fell anyway (WTI -2.2%) — supply expectations dominate. If it escalates: oil spike + risk-off.
-- Mary Peltola (D) unseated Sen. Dan Sullivan (R) — Democrats take a 56-seat Senate majority. Changes the path for the $41T debt limit, forecast to bind in February or March.
+- Nov 17–18, overnight: the US struck an IRGC missile site on Iran's Qeshm Island after a drone attack on a US radar installation in Bahrain. Crude fell anyway (WTI -2.2%) — supply expectations dominate. If it escalates: oil spike + risk-off.
+- Nov 18: Mary Peltola (D) unseated Sen. Dan Sullivan (R) — Democrats take a 56-seat Senate majority. Changes the path for the $41T debt limit, forecast to bind in February or March.
 
 Implications
 - NVDA premium deflating — no new NVDA short premium into the bounce. Next AI-sentiment print: Anthropic pricing tonight, debut Thursday.
@@ -64,8 +68,8 @@ Sources
 - Futures, commodities, VIX, yields as of 8:30 AM ET: The Trade Signal pre-market brief; CNBC via FirstFeed News.
 - Tuesday closes: OneTrader / Kalkine / Trade Signal.
 - 1W/1M: LiveWorldMarket; Finnhub (NAS100, BTC); Makkler (Brent history).
+- KOSPI: Korea Exchange via Yonhap / Seoul Economic Daily; SK Hynix +4.2%, Samsung +2.3%.
 - NVDA: FactSet StreetAccount U.S. Overnight; Investing.com / Swingfolio.
 - Retail: OneTrader / Sigma Thesis.
 - Calendar: The Trade Signal; StreetAccount U.S. Overnight.
 - Desk: FactSet StreetAccount Politics of the Market via Gmail label tradedash-brief.
-- CEO-succession trigger: directional only — seed numbers under re-derivation (Grok Nov 13 review).
