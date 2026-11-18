@@ -507,7 +507,7 @@ const SIGNALS: { id: string; name: string; trade: string; backtest: string; stud
   { id: "panic-puts-hiv", name: "Panic put", trade: "sell ~0.20Δ put ~30 DTE on the name",
     backtest: "≥ 2σ 5-day drop + IV30 > 48.7: kept +4.05 % vs +0.26 % any day", study: "S054" },
   { id: "vix-uninvert-put", name: "Market bottom (VIX÷VIX3M un-inverts)", trade: "buy 0.50Δ 30 DTE SPY/QQQ calls or sell 0.20Δ puts",
-    backtest: "calls +34–43 % per $ vs any day; SPY +2.98 % next 21 d vs +1.10 %, up 79 % (34 fires since 2010)", study: "S172 · S172b" },
+    backtest: "calls +34–43 % per $ vs any day; SPY +2.98 % next 21 d vs +1.10 %, up 79 % (34 fires since 2010); 0.20Δ puts on ~1,000 names in the 10 days after: +0.58 % vs +0.27 % any day (40 episodes, p 0.03)", study: "S172 · S172b · S197b" },
   { id: "vix-uninvert-put-hibeta", name: "Market bottom, high-beta names", trade: "sell 0.20Δ 30 DTE puts on top-beta fifth",
     backtest: "+3.0 % / +2.0 % per $ collateral per 30 d vs SPY put +0.9 / +0.6 (18 episodes, model prices)", study: "S172" },
   { id: "put_z50_dip_d20", name: "Dip below 50-day mean", trade: "sell 0.20Δ put", backtest: "paper rule — put-timing filter (A370), not yet graded live", study: "A370" },
@@ -575,14 +575,14 @@ router.get("/today/overview", requireAdmin, async (_req, res, next) => {
       LEFT JOIN watchlist_sync.rec_seen v ON v.item_key = 'sig:' || s.strategy_id || ':' || s.ticker || ':' || s.as_of::text
       WHERE s.as_of >= current_date - 7`);
     const putSeen = new Set((await safe<{ k: string }>(sql`SELECT item_key AS k FROM watchlist_sync.rec_seen WHERE kind = 'put'`)).map((r) => r.k));
-    // S197b (11-17): panic puts sold while VIX ÷ VIX3M ≥ 1 earned +0.19 % vs +0.55 % calm, worst 10 % −14.5 vs −9.5 (37 episodes)
+    // S197b (11-17, 2009→): panic puts sold while VIX ÷ VIX3M ≥ 1 earn no more than calm (+0.24 vs +0.25 %, 77 episodes)
     const vixRows = await safe<{ series: string; value: number; date: string }>(sql`
       SELECT DISTINCT ON (series) series, value::float8 AS value, date::text AS date FROM watchlist_sync.macro_daily
       WHERE series IN ('vix', 'vix3m') ORDER BY series, date DESC`);
     const vix = vixRows.find((r) => r.series === "vix"), vix3m = vixRows.find((r) => r.series === "vix3m");
     const vixRatio = vix && vix3m && vix.date === vix3m.date && vix3m.value > 0 ? vix.value / vix3m.value : null;
     const cautionFor = (id: string): string | null => id === "panic-puts-hiv" && vixRatio != null && vixRatio >= 1
-      ? `VIX ÷ VIX3M ${vixRatio.toFixed(2)} (${vix!.date.slice(5)}) — still inverted: panic puts then earned +0.19 % vs +0.55 % calm, worst 10 % −14.5 % (S197b, 37 episodes). Normal size, not bigger; puts on names that did NOT just crash did better (+1.18 %).`
+      ? `VIX ÷ VIX3M ${vixRatio.toFixed(2)} (${vix!.date.slice(5)}) — still inverted: panic puts then earn no more than on calm days (+0.24 % vs +0.25 %, 77 episodes since 2009; since 2017 worst 10 % −11.1 vs −8.2). Normal size, not bigger. Puts on names that did NOT just crash earn +0.74 % here (S197b).`
       : null;
     const signals = SIGNALS.map((s) => {
       const f = byId.get(s.id);

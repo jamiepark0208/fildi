@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """S197b — S197 on the long panel (Jamie 11-17: 'we have more than enough history').
 
-Panel: CRSP dsf (total-return index) for entries 2017-04 → 2019-12; LSEG daily_history (close + iv30_put) for 2020 → now.
+Panel: CRSP dsf by permno (total-return index, price ≥ $5) for entries 2009-04 → 2019-12; LSEG daily_history (close + iv30_put) for 2020 → now.
 Panic event (S049 rule): 5-day log move ≤ −2σ of the prior 60 daily moves; one per name per 10 days.
 Base arm: every name every Wednesday not within 10 days of its own event.
 Trade: enter at the NEXT session's close after the signal (no look-ahead), sell the 0.20Δ put, 30 calendar days (BS, r = 0),
@@ -57,9 +57,12 @@ def cell(d):
 
 # --- price panels
 pan = defaultdict(list)  # ticker → [(date, px, iv)]
-for t, d, ret in c.execute("SELECT ticker, date, ret::float8 FROM wrds_research.crsp_dsf WHERE date < '2020-03-01' AND ret IS NOT NULL ORDER BY ticker, date"):
-    p = pan["C:" + t]
+lowpx = set()
+for t, d, ret, prc in c.execute("SELECT permno, date, ret::float8, abs(prc)::float8 FROM wrds_research.crsp_dsf WHERE date < '2020-03-01' AND ret IS NOT NULL ORDER BY permno, date"):
+    p = pan[f"C:{t}"]  # keyed by permno: tickers get reused across companies
     p.append((d, (p[-1][1] if p else 100.0) * (1 + ret), None))
+    if prc is not None and prc < 5:
+        lowpx.add((f"C:{t}", d))
 for t, d, cl, iv in c.execute("SELECT ticker, date, close::float8, iv30_put::float8 FROM lseg_research.daily_history WHERE close > 0 AND date >= '2019-09-01' ORDER BY ticker, date"):
     pan["L:" + t].append((d, cl, iv if iv and iv > 0 else None))
 
@@ -99,7 +102,7 @@ for key, rows in pan.items():
     evd = set()
     for i in range(66, len(rows) - 23):
         d = rows[i][0]
-        if (src == "C" and not (date(2017, 4, 1) <= d < date(2020, 1, 1))) or (src == "L" and d < date(2020, 1, 1)):
+        if (src == "C" and (not (date(2009, 4, 1) <= d < date(2020, 1, 1)) or (key, d) in lowpx)) or (src == "L" and d < date(2020, 1, 1)):
             continue
         w = lr[i - 64:i - 4]
         sd = w.std(ddof=1)
@@ -170,8 +173,9 @@ def table(sub, label):
             print(f"p(event {cl} ≤ event CALM) = {boot(E[cl], E['CALM']):.3f} · p(base {cl} ≤ base CALM) = {boot(B[cl], B['CALM']):.3f}")
 
 
-table(tr, "all 2017-04 → now")
-table([x for x in tr if x["y"] not in (2022, 2025, 2026)], "OOS years vs S197 (2017–21, 2023–24)")
+table(tr, "all 2009-04 → now")
+table([x for x in tr if x["y"] >= 2017], "2017 → now (S197b first run)")
+table([x for x in tr if x["y"] not in (2022, 2025, 2026)], "OOS years vs S197 (2009–21, 2023–24)")
 table([x for x in tr if x["real"]], "real iv30_put only (LSEG)")
 print("\nevent mean by year × cell:")
 for y in sorted({x["y"] for x in tr}):
