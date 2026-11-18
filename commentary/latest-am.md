@@ -1,5 +1,7 @@
 Morning brief — Wed, Nov 18, 2026
 
+**#1: Nvidia's first print without Huang cleared the bar — revenue $115.84B vs ~$109B, Q4 guide ~$130B. Nasdaq futures +0.6%, but the bounce is narrow: Dow and Russell futures are still red.**
+
 | Name | Level | Day % | 1W % | 1M % |
 |---|---|---|---|---|
 | S&P 500 fut | 7,375 | +0.2% | -2.4% | -4.6% |
@@ -18,10 +20,10 @@ Morning brief — Wed, Nov 18, 2026
 | Bitcoin | $64,007 | +0.1% | -6.3% | -21.7% |
 | VIX | 24.50 | -3.8% | +26% | +69% |
 
-- Nvidia's first print without Huang cleared the bar: revenue $115.84B vs ~$109B expected (+103% y/y), EPS $2.68 vs $2.48, Q4 guide ~$130B, and FY28 revenue growth raised to ~75% from ~70%. Demand still exceeds supply, and the board said it is not considering bringing Huang back. Nasdaq futures +0.6% and NVDA +3% premarket — the demand question is answered; the permanent-successor question is not.
-- Tuesday was the fourth straight down day: the Dow fell 849 points (-1.64%), the S&P -1.03% to 7,340.53, its lowest close in five months, with Salesforce -9.45% leading software lower. The bounce is narrow — Dow and Russell futures are still red — because a December hike is ~95% priced and Waller has floated 50bp while Williams pushed back. Today's 2:00 PM minutes show how wide that split runs.
-- Retail gave a split consumer read: Target comps +5.6% and TJX comps +4% beat, but $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds, and Lowe's gross margin fell to 32.95% from 34.19%. The market paid TJX (+6%) and sold Lowe's (-5.7%); Target is flat after a 60%+ run this year.
-- This print is the first read on the founder exit — a beat with a raised guide says the quarter ran on demand, not on the CEO. The historical base rate stays out: the trigger library's seed numbers are under re-derivation after Grok's Nov 13 review found them flawed, so the read stays directional until A402 is rebuilt.
+- Tuesday: fourth straight down day. Dow -849 pts (-1.64%), S&P -1.03% to 7,340.53, lowest close in five months. Salesforce -9.45% led software lower.
+- December hike ~95% priced. Waller floated 50bp, Williams pushed back. Today's 2:00 PM minutes show how wide the split runs.
+- Retail split: Target comps +5.6% and TJX comps +4% beat. But $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds, and Lowe's margin fell to 32.95% from 34.19%. Market paid TJX (+6%), sold Lowe's (-5.7%).
+- The print is the first read on the founder exit — a beat with a raised guide says the quarter ran on demand, not the CEO. Base rate stays out: trigger-library seed numbers under re-derivation after Grok's Nov 13 review.
 
 | Print | Actual | Consensus | Prior |
 |---|---|---|---|
@@ -36,15 +38,15 @@ Morning brief — Wed, Nov 18, 2026
 | LOW | -5.7% | Adj EPS $3.10 beat $2.90 and comps +1.8% beat, but $0.34 was a tariff refund and gross margin fell 124bp; FY adj EPS guide $12.25 sits just under consensus. The market sold the margin. |
 | TGT | flat | Adj EPS $2.65 vs $2.07, revenue $27.1B, comps +5.6%, traffic +5%; $0.50 was a tariff refund; FY EPS guide raised to $10.65–11.40. Flat after a 60%+ run this year. No book implication. |
 
-Also: AAOI -10.3% giving back yesterday's policy spike; GOOGL +0.6% as Waymo pulled vehicles from highways nationwide after California banned them from freeways; WULF +4.8% and TTWO +4.7% with the chip bounce.
+- Also: AAOI -10.3% giving back yesterday's policy spike; GOOGL +0.6% as Waymo pulled vehicles from highways after California banned them from freeways; WULF +4.8% and TTWO +4.7% with the chip bounce.
 
 Desk flagged
-- The US struck an IRGC missile site on Iran's Qeshm Island after a drone attack on a US radar installation in Bahrain. Crude fell anyway (WTI -2.2%) — supply expectations dominate. If it escalates, the transmission is an oil spike plus risk-off; watch WTI and gold for the first price signal.
-- Mary Peltola (D) unseated Sen. Dan Sullivan (R) — Democrats take a 56-seat Senate majority. That changes the path for the $41T debt limit, forecast to bind in February or March.
+- The US struck an IRGC missile site on Iran's Qeshm Island after a drone attack on a US radar installation in Bahrain. Crude fell anyway (WTI -2.2%) — supply expectations dominate. If it escalates: oil spike + risk-off.
+- Mary Peltola (D) unseated Sen. Dan Sullivan (R) — Democrats take a 56-seat Senate majority. Changes the path for the $41T debt limit, forecast to bind in February or March.
 
 Implications
-- The NVDA print is out and its premium is deflating — no new NVDA short premium into the bounce. The next AI-sentiment print is Anthropic's pricing tonight, debut Thursday.
-- FOMC minutes land at 2:00 PM with the Waller-50bp vs Williams-pushback split unresolved. Keep strikes wide and no new short premium on rate-sensitive small caps (Russell -4.2% in five sessions) into the minutes and the 1:00 PM 20-year auction.
+- NVDA premium deflating — no new NVDA short premium into the bounce. Next AI-sentiment print: Anthropic pricing tonight, debut Thursday.
+- FOMC minutes 2:00 PM, Waller-50bp vs Williams split unresolved. Keep strikes wide; no new short premium on rate-sensitive small caps into the minutes and the 1:00 PM 20Y auction.
 
 What to watch today (ET)
 - 8:30 AM — Housing starts (Oct), consensus 1.245M vs 1.221M; building permits 1.377M vs 1.4M
@@ -58,14 +60,12 @@ What to watch today (ET)
 - Tonight — Anthropic IPO pricing, debut Thursday (ANT)
 - Tomorrow — Philly Fed manufacturing, initial jobless claims; Friday — University of Michigan consumer sentiment
 
-Systems: Mac offline — unverified
-
 Sources
-- Futures, commodities, VIX, yields as of 8:30 AM ET: The Trade Signal pre-market brief, Nov 18; CNBC via FirstFeed News / SimonHertz desk notes.
-- Tuesday closes: S&P 7,340.53 (-1.03%), Dow 50,759.42 (-1.64%), Nasdaq 24,328.38, Russell 2,701.87, VIX 25.46: OneTrader / Kalkine / Trade Signal.
-- 1W/1M: LiveWorldMarket global performance table (cash indices, as of Nov 17 close); Finnhub NAS100 5-session -4.09% / 1-month -8.1%, BTC 5-session -6.28% / 1-month -21.71%; Makkler Brent history (Nov 11 $92.76, Nov 17 $93.14, Nov 18 $90.01). STOXX 600, yields, WTI, gold, VIX 1W/1M derived from the Nov 17 brief's values.
-- NVDA: FactSet StreetAccount Summary — U.S. Overnight, Nov 18, 6:50 AM ET (EPS $2.68 vs $2.48 FactSet; +4.6% post-close); revenue $115.84B vs ~$109B and Q4 guide ~$130B via Investing.com / Swingfolio; FY28 growth ~75% vs ~70% and "not considering bringing Jensen back" via StreetAccount.
-- Retail: OneTrader / Sigma Thesis (TGT adj EPS $2.65 vs $2.07, revenue $27.1B, comps +5.6%, $0.50 tariff refund; LOW adj EPS $3.10 vs $2.90, sales $22.76B, comps +1.8%, $0.34 refund, margin 32.95% vs 34.19%; TJX sales $16.0B, comps +4%, adj EPS $1.34, Q4 guide $1.42–1.45 vs $1.48).
-- Calendar: The Trade Signal (TradingView calendar); StreetAccount U.S. Overnight (20Y auction $16B, FOMC minutes 2:00 PM, Fed speakers, Anthropic IPO pricing tonight).
-- Desk: FactSet StreetAccount Summary — Politics of the Market, Nov 18, 8:15 AM ET (Gmail label tradedash-brief): US strikes on Qeshm Island, Peltola (D) unseats Sullivan (R) for a 56-seat Democratic Senate majority, $41T debt limit Feb/Mar. Mac TradeDash Briefs JSON not checked — Mac offline; Gmail step succeeded first.
-- CEO-succession trigger: directional only — Grok's Nov 13 A402 review found the seed numbers flawed; no seed figures are repeated here pending re-derivation from price history.
+- Futures, commodities, VIX, yields as of 8:30 AM ET: The Trade Signal pre-market brief; CNBC via FirstFeed News.
+- Tuesday closes: OneTrader / Kalkine / Trade Signal.
+- 1W/1M: LiveWorldMarket; Finnhub (NAS100, BTC); Makkler (Brent history).
+- NVDA: FactSet StreetAccount U.S. Overnight; Investing.com / Swingfolio.
+- Retail: OneTrader / Sigma Thesis.
+- Calendar: The Trade Signal; StreetAccount U.S. Overnight.
+- Desk: FactSet StreetAccount Politics of the Market via Gmail label tradedash-brief.
+- CEO-succession trigger: directional only — seed numbers under re-derivation (Grok Nov 13 review).
