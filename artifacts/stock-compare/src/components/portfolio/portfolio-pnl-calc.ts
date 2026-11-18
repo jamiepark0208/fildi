@@ -21,6 +21,7 @@ export const ACCOUNT_TABS = [
   { key: "All", label: "All" },
   { key: "FILDI", label: "FILDI" },
   { key: "IRA", label: "IRA" },
+  { key: "MOM", label: "MOM" },
 ] as const;
 export type AccountTabKey = typeof ACCOUNT_TABS[number]["key"];
 
@@ -30,6 +31,7 @@ export function canonicalizeAccount(raw: string, nickMap: Map<string, string>): 
   const n = nick.trim();
   if (n === "Traditional IRA" || n === "IRA" || /\bIRA\b/i.test(n)) return "IRA";
   if (n === "FILDI") return "FILDI";
+  if (n === "MOM") return "MOM";
   return n;
 }
 

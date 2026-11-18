@@ -182,7 +182,7 @@ router.post("/pm/what-if", requireAdmin, async (req, res) => {
     const iv = Number(req.body?.iv);
     const spot = Number(req.body?.spot);
     const premium = req.body?.premium != null ? Number(req.body.premium) : null;
-    if (!["IRA", "FILDI"].includes(account)) return res.status(400).json({ error: "account must be IRA or FILDI" });
+    if (!["IRA", "FILDI", "MOM"].includes(account)) return res.status(400).json({ error: "account must be IRA, FILDI or MOM" });
     if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) return res.status(400).json({ error: "bad ticker" });
     if (!(strike > 0) || !(iv > 0) || !(spot > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
       return res.status(400).json({ error: "need strike, iv, spot, expiry YYYY-MM-DD" });
@@ -255,7 +255,7 @@ router.post("/pm/risk-override", requireAdmin, async (req, res) => {
     const note = req.body?.note != null ? String(req.body.note).slice(0, 500) : null;
     const surface = req.body?.surface != null ? String(req.body.surface).slice(0, 40) : null;
     const num = (x: unknown) => (x == null || x === "" ? null : Number(x));
-    if (!["IRA", "FILDI"].includes(account)) return res.status(400).json({ error: "account must be IRA or FILDI" });
+    if (!["IRA", "FILDI", "MOM"].includes(account)) return res.status(400).json({ error: "account must be IRA, FILDI or MOM" });
     if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) return res.status(400).json({ error: "bad ticker" });
     if (!(strike > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(expiry)) {
       return res.status(400).json({ error: "need strike + expiry YYYY-MM-DD" });

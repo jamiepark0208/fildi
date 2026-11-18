@@ -31,7 +31,8 @@ from cash_moves import mix, plan as rebalance_plan, reserve
 from build_plan import connect, rows
 
 OUT = Path(__file__).resolve().parent / "out" / "pm"
-ACCOUNTS = {"772445425": "IRA", "5QU47796": "FILDI"}
+ACCOUNTS = {"772445425": "IRA", "5QU47796": "FILDI", "830287199": "MOM"}  # MOM = mom's RH "First" (robinhood-mom MCP), 2026-11-18
+ACCOUNT_IDS = {v: k for k, v in ACCOUNTS.items()}  # nickname -> RH id; the one home (pm_alerts imports it)
 PM_RULES = {  # defaults pending user choice (2026-10-14); see S015 + state.md
     "crash_move": -0.30,     # typical worst 5-day move of the book's names (−25% … −52% observed)
     "crash_budget": 0.25,    # max equity drop in that crash week → RED (user 2026-10-14: "25% is fine")

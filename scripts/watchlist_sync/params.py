@@ -51,7 +51,7 @@ SEED = {
                   "cumulative_limits": False,   # P3 (fit-1.4.2): say how many ideas fit inside the limits, flag the rest
                   "budget_counts_open_puts": True, "fund_by_closing_any_put": False,
                   "no_new_puts_on_margin": True},   # user YES 2026-10-06 (S012): accounts with a margin loan get no new put ideas
-    "rebalance": {"accounts": ["FILDI"], "max_name_pct": 0.15, "max_spec_pct": 0.40},   # user YES 2026-10-06: FILDI rebalance folder   # C1 (fit-1.4.3: False / True): open puts are closable
+    "rebalance": {"accounts": ["FILDI", "MOM"], "max_name_pct": 0.15, "max_spec_pct": 0.40},   # user YES 2026-10-06: FILDI rebalance folder   # C1 (fit-1.4.3: False / True): open puts are closable
     "learning": {"auto_promote": False, "max_rel_step": 0.25, "min_months": 24, "min_t": 2.0, "min_live_grades": 30,
                  "min_live_weeks": 6, "auto_max_verdict_share": 0.10, "min_challenger_verdict_share": 0.05,
                  "last_promotion_date": None},

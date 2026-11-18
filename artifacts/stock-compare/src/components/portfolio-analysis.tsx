@@ -485,11 +485,11 @@ export function PortfolioAnalysis({ entries, priceMap, stockDataMap, portfolioNa
   const [tickerChartScope, setTickerChartScope] = useState<"top" | "all">("top");
   const TOP_N = 10;
 
-  // One account scope for the whole page: top All/FILDI/IRA only (no second picker in detail).
+  // One account scope for the whole page: top All/FILDI/IRA/MOM only (no second picker in detail).
   const accountTab: AccountTabKey = useMemo(() => {
     if (activePortfolio === "All") return "All";
     const canon = canonicalizeAccount(activePortfolio, accountNickMap);
-    return canon === "FILDI" || canon === "IRA" ? canon : "All";
+    return canon === "FILDI" || canon === "IRA" || canon === "MOM" ? canon : "All";
   }, [activePortfolio, accountNickMap]);
 
   // ── Top tickers by trade frequency, net realized P&L YTD — split by account ──

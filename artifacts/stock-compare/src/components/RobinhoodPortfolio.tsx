@@ -76,7 +76,7 @@ function PnlIcon({ v }: { v: string | null }) {
   return <Minus className="h-3 w-3 text-amber-100" />
 }
 
-const KNOWN_PORTFOLIOS = ['IRA', 'FILDI']
+const KNOWN_PORTFOLIOS = ['IRA', 'FILDI', 'MOM']
 
 function groupByAccount<T extends { accountNickname?: string | null; account: string }>(
   rows: T[]

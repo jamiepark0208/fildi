@@ -562,7 +562,7 @@ def what_if_add_put(
     earnings_days_out: int | None = None,
 ) -> dict:
     """A136 — candidate mode. Returns base vs with-candidate risk + badge (green/amber/red)."""
-    acct_ids = {"IRA": "772445425", "FILDI": "5QU47796"}
+    from pm_book import ACCOUNT_IDS as acct_ids
     if acct not in book.get("accounts", {}):
         return {"error": f"unknown account {acct}"}
     days = max((date.fromisoformat(expiry) - date.today()).days, 0)
@@ -792,7 +792,7 @@ def main() -> None:
         write_last(False, f"pm_book failed: {err[:120]}", now)
         return
     book = json.loads((OUT / "book-latest.json").read_text())
-    acct_ids = {"IRA": "772445425", "FILDI": "5QU47796"}
+    from pm_book import ACCOUNT_IDS as acct_ids
     snap = book["snapshot_id"]
     allongs = rows(conn, """SELECT account, UPPER(symbol) AS t, SUM(market_value)::float8 AS mv FROM portfolio_positions
                             WHERE snapshot_id = %s GROUP BY 1, 2""", (snap,))

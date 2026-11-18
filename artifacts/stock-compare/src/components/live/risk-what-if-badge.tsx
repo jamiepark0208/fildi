@@ -35,7 +35,7 @@ export type WhatIfResult = {
 };
 
 export type RiskWhatIfInput = {
-  account: "IRA" | "FILDI";
+  account: "IRA" | "FILDI" | "MOM";
   ticker: string;
   strike: number;
   expiry: string;
@@ -234,8 +234,9 @@ export function RiskWhatIfBadge({
 }
 
 /** Map Model List account strings → what-if account. */
-export function modelAccountToPm(account: string | null | undefined): "IRA" | "FILDI" {
+export function modelAccountToPm(account: string | null | undefined): "IRA" | "FILDI" | "MOM" {
   const a = (account ?? "").toUpperCase();
   if (a.includes("IRA")) return "IRA";
+  if (a.includes("MOM")) return "MOM";
   return "FILDI";
 }

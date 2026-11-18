@@ -346,6 +346,7 @@ function WhatIfPut() {
         <select value={account} onChange={(e) => setAccount(e.target.value)} className="bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px]">
           <option value="FILDI">FILDI</option>
           <option value="IRA">IRA</option>
+          <option value="MOM">MOM</option>
         </select>
         <input placeholder="Ticker" value={ticker} onChange={(e) => setTicker(e.target.value.toUpperCase())}
           className="w-16 bg-black border border-zinc-700 rounded px-1.5 py-1 text-[11px] font-mono" />
