@@ -575,11 +575,20 @@ router.get("/today/overview", requireAdmin, async (_req, res, next) => {
       LEFT JOIN watchlist_sync.rec_seen v ON v.item_key = 'sig:' || s.strategy_id || ':' || s.ticker || ':' || s.as_of::text
       WHERE s.as_of >= current_date - 7`);
     const putSeen = new Set((await safe<{ k: string }>(sql`SELECT item_key AS k FROM watchlist_sync.rec_seen WHERE kind = 'put'`)).map((r) => r.k));
+    // S197b (11-17): panic puts sold while VIX ÷ VIX3M ≥ 1 earned +0.19 % vs +0.55 % calm, worst 10 % −14.5 vs −9.5 (37 episodes)
+    const vixRows = await safe<{ series: string; value: number; date: string }>(sql`
+      SELECT DISTINCT ON (series) series, value::float8 AS value, date::text AS date FROM watchlist_sync.macro_daily
+      WHERE series IN ('vix', 'vix3m') ORDER BY series, date DESC`);
+    const vix = vixRows.find((r) => r.series === "vix"), vix3m = vixRows.find((r) => r.series === "vix3m");
+    const vixRatio = vix && vix3m && vix.date === vix3m.date && vix3m.value > 0 ? vix.value / vix3m.value : null;
+    const cautionFor = (id: string): string | null => id === "panic-puts-hiv" && vixRatio != null && vixRatio >= 1
+      ? `VIX ÷ VIX3M ${vixRatio.toFixed(2)} (${vix!.date.slice(5)}) — still inverted: panic puts then earned +0.19 % vs +0.55 % calm, worst 10 % −14.5 % (S197b, 37 episodes). Normal size, not bigger; puts on names that did NOT just crash did better (+1.18 %).`
+      : null;
     const signals = SIGNALS.map((s) => {
       const f = byId.get(s.id);
       const latest = fires.filter((x) => x.id === s.id && x.d === f?.last);
       return { ...s, lastFired: f?.last ?? null, firingNames: f?.today ?? 0, daysFiredLast7: f?.n5 ?? 0, names: f?.names ?? [],
-               keys: latest.map((x) => x.key), unseen: latest.filter((x) => !x.seen).length };
+               keys: latest.map((x) => x.key), unseen: latest.filter((x) => !x.seen).length, caution: cautionFor(s.id) };
     });
     const puts = await safe<{ ticker: string; rank: number; p: Record<string, unknown> }>(sql`
       SELECT ticker, rank, payload AS p FROM watchlist_sync.put_recs_daily

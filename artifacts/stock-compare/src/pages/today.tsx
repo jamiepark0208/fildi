@@ -12,7 +12,7 @@ const TD = "px-1.5 py-0.5 text-[11px] font-mono";
 
 type Signal = {
   id: string; name: string; trade: string; backtest: string; study: string;
-  lastFired: string | null; firingNames: number; daysFiredLast7: number; names: string[]; keys: string[]; unseen: number;
+  lastFired: string | null; firingNames: number; daysFiredLast7: number; names: string[]; keys: string[]; unseen: number; caution: string | null;
 };
 type Put = {
   ticker: string; rank: number; tier: string; strike: number | null; expiry: string | null; bid: number | null;
@@ -79,7 +79,10 @@ function SignalsTable({ rows, mark, by }: { rows: Signal[]; mark: MarkSeen; by: 
               </td>
               <td className={TD}>{s.lastFired?.slice(5) ?? "never"}</td>
               <td className={cn(TD, "text-amber-100/80")}>{s.trade}</td>
-              <td className={cn(TD, "text-amber-200/60 max-w-[380px] truncate")} title={s.backtest}>{s.backtest}</td>
+              <td className={cn(TD, "text-amber-200/60 max-w-[380px]")} title={s.caution ? `${s.backtest}\n${s.caution}` : s.backtest}>
+                <div className="truncate">{s.backtest}</div>
+                {s.caution && <div className="truncate text-orange-300" data-testid="signal-caution">⚠ {s.caution}</div>}
+              </td>
             </tr>
           ))}
         </tbody>
