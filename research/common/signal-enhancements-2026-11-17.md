@@ -22,6 +22,8 @@ thresholds, or other use cases… keep building on top of them."
 5. **Revisions + momentum calls timed into earnings** — S100 picks entered 5–10 days before the print vs at a random date.
 6. **Is the IV÷RV edge shrinking?** — per-year S003 edge 2010 → 2026; if it fell, lower the size, not the signal.
 
+**Results:** #1 + #3 = S197 → can't answer at this n (6 un-invert episodes, 9 stressed runs in 2022/25/26 option trades); puts sold while VIX is still inverted did best (+2.79 % vs +1.34 calm), against the "wait for un-invert" story. Needs 2008–2021 option trades before either becomes a rank/size boost. Next: #4 strike depth by VIX level.
+
 ## Shipped alongside (11-17)
 - Today page (`/today`): run status, every signal firing with its backtest number, the ranked Today list, all put ideas.
 - Put ideas: odds floor ~90 → 80 % (|Δ| ≤ 0.20), soft gates → cautions: 12 → 106 ideas shown (6 best, 100 options).
