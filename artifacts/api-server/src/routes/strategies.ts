@@ -755,7 +755,12 @@ async function riskReversals() {
         const lv = levelsFromBars(bars, spot);
         const pair = pickRiskReversal(chains, spot, lv);
         if (!pair) { skipped.push({ ticker: t, why: "no quoted put 25–65 DTE / call 85–190 DTE in the Δ bands" }); continue; }
+        // Front IV inflated by a report inside the put window = event gap risk, not skew (ZM 11-18: edge 22 pts, RR25 0.6)
+        const er = await safe<{ d: string }>(sql`SELECT MIN(report_date)::text AS d FROM public.earnings_calendar
+          WHERE ticker = ${t} AND report_date >= current_date AND report_date <= ${pair.call.expiry}::date`);
+        const erDate = er[0]?.d ?? null;
         out.push({ ticker: t, held: held.includes(t), own: row.own, color: row.color, offHigh: row.dd, ...pair,
+          earnings: erDate, earningsInPut: erDate != null && erDate <= pair.put.expiry,
           supports: lv.support.slice(0, 3), resistances: lv.resistance.slice(0, 3) });
       } catch (e) {
         skipped.push({ ticker: t, why: e instanceof Error ? e.message.slice(0, 80) : "error" });

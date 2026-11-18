@@ -56,3 +56,21 @@ describe("pickRiskReversal", () => {
     assert.equal(pickRiskReversal([chain("c120", 120, [], calls120)], 100, lv), null);
   });
 });
+
+describe("same-expiry skew", () => {
+  it("ivAtDelta interpolates on one expiry", async () => {
+    const { ivAtDelta } = await import("./risk-reversal.js");
+    const rows = [row(80, 1, 1.1, 0.7, -0.1), row(90, 2, 2.1, 0.6, -0.3)];
+    assert.ok(Math.abs(ivAtDelta(rows, -0.2)! - 0.65) < 1e-9);
+    assert.equal(ivAtDelta(rows, -0.5), null);
+  });
+  it("vol edge = put IV sold − call IV bought; rolls counted on the call's life", () => {
+    const puts20 = [row(85, 1.0, 1.1, 0.7, -0.2)];
+    const calls = [row(110, 2.0, 2.2, 0.45, 0.3)];
+    const p = pickRiskReversal([chain("p20", 20, puts20, calls), chain("c120", 120, puts20, calls)], 100,
+      { support: [{ price: 86, kind: "swing" }], resistance: [{ price: 115, kind: "swing" }] })!;
+    assert.ok(Math.abs(p.volEdge - 0.25) < 1e-9);
+    assert.equal(p.rollsAvailable, 6);
+    assert.ok(p.rollsToFund > 1.5 && p.rollsToFund < 2.5);
+  });
+});

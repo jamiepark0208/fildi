@@ -11,7 +11,9 @@ type Level = { price: number; kind: string };
 type Row = {
   ticker: string; held: boolean; own: number | null; offHigh: number | null; spot: number;
   put: Leg; call: Leg; net: number; support: Level | null; resistance: Level | null;
-  putSkew: number | null; putOverCall: number; pPutSafe: number; pCallItm: number; pCallBe: number;
+  putSkew: number | null; callSkew: number | null; rr25Put: number | null; rr25Call: number | null; term: number | null;
+  volEdge: number; putOverCall: number; rollsToFund: number; rollsAvailable: number; pPutSafe: number; pCallItm: number; pCallBe: number;
+  earnings: string | null; earningsInPut: boolean;
   cashIfAssigned: number; assignedBasis: number; callMoveToStrike: number;
 };
 
@@ -20,11 +22,14 @@ const TD = "px-1.5 py-0.5 text-[13px] text-white";
 const pc = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)} %`);
 const usd = (x: number) => `${x < 0 ? "−" : ""}$${Math.abs(Math.round(x)).toLocaleString()}`;
 
-const TIP = "Sell 1 put, buy 1 call. Put strike = at or below the nearest support; call strike = below the first resistance ≥ +10 %. "
+const TIP = "Sell 1 put (14–45 days: the expiry that sells the most IV at support), buy 1 call (85–190 days) below the first resistance ≥ +10 %. "
+  + "Skew is per expiry: Skew front = 25Δ put IV − 25Δ call IV on the put's expiry; Skew back = same on the call's expiry. "
+  + "Vol edge = IV you sell − IV you buy (front skew + inverted term together). Term = back ATM IV ÷ front ATM IV (< 1 = back month cheap). "
+  + "Rolls = call cost ÷ one put credit, vs put cycles that fit before the call expires — future credits are not guaranteed (IV falls after a panic). "
   + "Fills = bid/ask ± 23 % of the spread (typical RH fill). Odds use each option's own IV, no drift — not a forecast. "
-  + "History (S178, 15 panic weeks): 0.25Δ put + 0.50Δ call made +6 % per $ of strike vs +2.3 % for the put alone; "
-  + "the losing weeks were early in a panic — the tested entry is after the fear curve un-inverts. Single-name puts are "
-  + "only ~5–20 % richer than calls, so one put rarely pays for a far-OTM call: a small debit is normal. "
+  + "History (S178, 15 panic weeks, matched 30-day legs only): 0.25Δ put + 0.50Δ call +6 % per $ of strike vs +2.3 % put alone; "
+  + "losing weeks were early in a panic — tested entry is after the fear curve un-inverts. Mismatched expiries are untested. "
+  + "ER = earnings before the put expires: its high IV is the report (gap risk), not skew. "
   + "If assigned you own 100 shares at the strike; FILDI has a margin loan → no new puts there (10-06 rule).";
 
 export function RiskReversalCard() {
@@ -51,7 +56,7 @@ export function RiskReversalCard() {
       </div>
       <table className="w-full">
         <thead><tr>
-          {["Ticker", "Quality", "Off high", "Spot", "Sell put", "Credit", "Put safe", "Buy call", "Cost", "Net /pair", "Call ends ITM", "Put ÷ call IV", "Cash if assigned"]
+          {["Ticker", "Quality", "Off high", "Spot", "Sell put", "Credit", "Put safe", "Buy call", "Cost", "Net /pair", "Call ends ITM", "Skew front · back", "Vol edge", "Term", "Rolls to fund", "Cash if assigned"]
             .map((h) => <th key={h} className={TH}>{h}</th>)}
         </tr></thead>
         <tbody>
@@ -64,14 +69,17 @@ export function RiskReversalCard() {
               <td className={TD}>{r.own == null ? "—" : Math.round(r.own)}</td>
               <td className={TD}>{r.offHigh == null ? "—" : `${Math.round(r.offHigh * 100)} %`}</td>
               <td className={TD}>{r.spot.toFixed(2)}</td>
-              <td className={TD}>{r.put.strike}P {r.put.expiry.slice(5)}</td>
+              <td className={TD}>{r.put.strike}P {r.put.expiry.slice(5)}{r.earningsInPut && <span className="ml-1 text-red-400 text-[11px]" title="Earnings before the put expires — the high front IV is the report, not skew (gap risk)">ER {r.earnings!.slice(5)}</span>}</td>
               <td className={cn(TD, "text-green-300")}>{usd(r.put.fill * 100)}</td>
               <td className={TD}>{pc(r.pPutSafe)}</td>
               <td className={TD}>{r.call.strike}C {r.call.expiry.slice(5)}</td>
               <td className={cn(TD, "text-red-300/80")}>{usd(r.call.fill * 100)}</td>
               <td className={cn(TD, "font-semibold", r.net >= -0.1 * r.put.fill ? "text-green-400" : r.net >= -r.put.fill ? "text-amber-300" : "text-red-400")}>{usd(r.net * 100)}</td>
               <td className={TD}>{pc(r.pCallItm)}</td>
-              <td className={TD}>{r.putOverCall.toFixed(2)}×</td>
+              <td className={TD}>{r.rr25Put == null ? "—" : (r.rr25Put * 100).toFixed(1)} · {r.rr25Call == null ? "—" : (r.rr25Call * 100).toFixed(1)}</td>
+              <td className={cn(TD, r.volEdge >= 0.08 ? "text-green-400" : r.volEdge >= 0.03 ? "text-amber-300" : "text-red-400")}>{(r.volEdge * 100).toFixed(1)} pts</td>
+              <td className={TD}>{r.term == null ? "—" : r.term.toFixed(2)}</td>
+              <td className={cn(TD, r.rollsToFund <= Math.min(2, r.rollsAvailable) ? "text-green-400" : "text-amber-300")}>{r.rollsToFund.toFixed(1)} of {r.rollsAvailable}</td>
               <td className={TD}>{usd(r.cashIfAssigned)}</td>
             </tr>
           ))}

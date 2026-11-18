@@ -16,7 +16,7 @@ import type { OptionRow, OptionsChainResult } from "./options.js";
 import { normCDF } from "./options-greeks.js";
 
 export const RR_PARAMS = {
-  putDte: [25, 65] as const,
+  putDte: [14, 45] as const,   // 11-18 surface: same-expiry RR25 6–8 vol pts at 10–31 DTE vs 1–2 at 120–150 → sell the front
   callDte: [85, 190] as const,
   putAbsDelta: [0.1, 0.35] as const,
   callDelta: [0.2, 0.6] as const,
@@ -75,6 +75,16 @@ function deltaOf(r: OptionRow, spot: number, dte: number, side: "put" | "call"):
   const d1 = (Math.log(spot / r.strike) + 0.5 * sd * sd) / sd;
   return side === "call" ? normCDF(d1) : normCDF(d1) - 1;
 }
+/** IV at a target delta on one expiry (linear in Δ between the two bracketing quoted strikes). */
+export function ivAtDelta(rows: OptionRow[], target: number): number | null {
+  const ok = rows.filter((r) => r.delta != null && r.iv > 0.05 && r.iv < 5 && r.bid > 0).sort((a, b) => a.delta! - b.delta!);
+  for (let i = 0; i + 1 < ok.length; i++) {
+    const a = ok[i], b = ok[i + 1];
+    if (a.delta !== b.delta && (a.delta! - target) * (b.delta! - target) <= 0)
+      return a.iv + ((b.iv - a.iv) * (target - a.delta!)) / (b.delta! - a.delta!);
+  }
+  return null;
+}
 /** P(S_T > x), lognormal at the leg's own IV, no drift (market-implied). */
 const pAbove = (spot: number, x: number, iv: number, dte: number) => {
   const sd = iv * Math.sqrt(dte / 365);
@@ -94,10 +104,18 @@ export type RRPair = {
   /** + = credit to you, − = you pay (per share; ×100 per pair) */
   net: number;
   support: Level | null; resistance: Level | null;
-  /** Put IV ÷ ATM IV on the put's expiry (S178: single-name puts +6–20 % rich) */
-  putSkew: number | null;
-  /** Put IV ÷ call IV (the edge the structure harvests) */
+  /** Same-expiry skew (Jamie 11-18: skew is per expiry, never put-at-one-date ÷ call-at-another). */
+  putSkew: number | null;      // put IV ÷ ATM IV, put's expiry
+  callSkew: number | null;     // call IV ÷ ATM IV, call's expiry
+  rr25Put: number | null;      // 25Δ put IV − 25Δ call IV (vol pts ÷ 100), put's expiry
+  rr25Call: number | null;     // same, call's expiry
+  term: number | null;         // ATM IV call expiry ÷ ATM IV put expiry (< 1 = inverted: back month cheap)
+  /** Vol sold − vol bought (the cross-expiry edge the structure harvests = skew + term). */
+  volEdge: number;
   putOverCall: number;
+  /** Call cost ÷ one put credit, and how many put cycles fit before the call expires. */
+  rollsToFund: number;
+  rollsAvailable: number;
   pPutSafe: number;        // P(put expires OTM)
   pCallItm: number;        // P(call ends above its strike)
   pCallBe: number;         // P(call ends above strike + any net debit)
@@ -115,7 +133,7 @@ export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv:
   p = RR_PARAMS): RRPair | null {
   const f = p.fillFrac;
   const putExp = chains.filter((c) => c.daysToExpiry >= p.putDte[0] && c.daysToExpiry <= p.putDte[1])
-    .sort((a, b) => Math.abs(a.daysToExpiry - 45) - Math.abs(b.daysToExpiry - 45));
+    .sort((a, b) => Math.abs(a.daysToExpiry - 30) - Math.abs(b.daysToExpiry - 30));
   const sup = lv.support.find((x) => x.price <= spot * 0.97) ?? lv.support[0] ?? null;
   let put: RRLeg | null = null, putChain: OptionsChainResult | null = null;
   for (const c of putExp) {
@@ -127,10 +145,12 @@ export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv:
     // highest strike at/below support; no strike there in the Δ band → nearest 0.25Δ (S178 panic RR leg)
     const chosen = atSup.length ? atSup.sort((a, b) => b.r.strike - a.r.strike)[0]
       : ok.sort((a, b) => Math.abs(-a.d - 0.25) - Math.abs(-b.d - 0.25))[0];
-    put = { expiry: c.expiry, dte: c.daysToExpiry, strike: chosen.r.strike, bid: chosen.r.bid, ask: chosen.r.ask,
-      fill: sellFill(chosen.r, f), iv: chosen.r.iv, delta: chosen.d };
-    putChain = c;
-    break;
+    // keep the expiry that sells the most vol (front skew + inverted term); ≥ 1 pt better needed to leave ~30 DTE
+    if (!put || chosen.r.iv > put.iv + 0.01) {
+      put = { expiry: c.expiry, dte: c.daysToExpiry, strike: chosen.r.strike, bid: chosen.r.bid, ask: chosen.r.ask,
+        fill: sellFill(chosen.r, f), iv: chosen.r.iv, delta: chosen.d };
+      putChain = c;
+    }
   }
   if (!put || !putChain) return null;
   // Rebound target = first resistance ≥ +10 % (a minor swing 1–3 % above spot would force a near-ATM call that costs
@@ -156,10 +176,19 @@ export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv:
   const choice = even[0] ?? best.sort((a, b) => b.net - a.net)[0];
   const call = choice.leg;
   const atm = atmIv(putChain, spot);
+  const callChain = chains.find((c) => c.expiry === call.expiry)!;
+  const atmC = atmIv(callChain, spot);
+  const rr = (c: OptionsChainResult) => {
+    const p25 = ivAtDelta(c.puts, -0.25), c25 = ivAtDelta(c.calls, 0.25);
+    return p25 != null && c25 != null ? p25 - c25 : null;
+  };
   const debit = Math.max(0, -choice.net);
   return {
     put, call, spot, net: choice.net, support: sup, resistance: res,
-    putSkew: atm ? put.iv / atm : null, putOverCall: put.iv / call.iv,
+    putSkew: atm ? put.iv / atm : null, callSkew: atmC ? call.iv / atmC : null,
+    rr25Put: rr(putChain), rr25Call: rr(callChain), term: atm && atmC ? atmC / atm : null,
+    volEdge: put.iv - call.iv, putOverCall: put.iv / call.iv,
+    rollsToFund: call.fill / put.fill, rollsAvailable: Math.max(1, Math.floor(call.dte / put.dte)),
     pPutSafe: pAbove(spot, put.strike, put.iv, put.dte),
     pCallItm: pAbove(spot, call.strike, call.iv, call.dte),
     pCallBe: pAbove(spot, call.strike + debit, call.iv, call.dte),
