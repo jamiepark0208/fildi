@@ -10,6 +10,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 base="${1:?base}"; head="${2:-HEAD}"
 added="$(git diff -U0 "$base"..."$head" -- research/studies/BOARD.md research/studies/INDEX.md 2>/dev/null \
   | grep -E '^\+[^+]' | grep -iE 'no-lift|NO-LIFT|\bFAIL\b|\bdead\b' | grep -viE 'winner-pass: n/a' || true)"
+# (4) Jamie 11-17: no "can't answer / underpowered / not enough data" without naming the data tried.
+weak="$(git diff -U0 "$base"..."$head" -- research/studies/BOARD.md research/studies/INDEX.md 2>/dev/null \
+  | grep -E '^\+[^+]' | grep -iE "can.t answer|underpowered|not enough data|insufficient data|not possible" | grep -viE 'data checked:' || true)"
+if [ -n "$weak" ]; then
+  echo "verdict-check: an underpowered / can't-answer verdict must say 'Data checked: <sources · span · n>' — rebuild on the longest panel first (jamie-rules § Max the data):" >&2
+  echo "$weak" | cut -c1-140 >&2; exit 1
+fi
 [ -z "$added" ] && exit 0
 bad=0
 # row's own study id: INDEX = first cell; BOARD = the "Study" cell (3rd); first S### in that cell
