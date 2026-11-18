@@ -12,6 +12,8 @@ import { requireAdmin } from "../middleware/requireAdmin.js";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getIvTermStructure } from "../lib/options.js";
+import { ivTermCache } from "./options.js";
 
 const router = Router();
 
@@ -563,16 +565,29 @@ const DEPTH_ODDS: { lo: number; hi: number; label: string; fwd: number; up: numb
   { lo: -0.20, hi: -0.10, label: "10–20 % off", fwd: 12.6, up: 87, worst: -13, months: 52 },
   { lo: -1, hi: -0.20, label: "20 %+ off", fwd: 18.6, up: 98, worst: -1, months: 12 },
 ];
-const CATALYST_TICKERS = ["NVDA"]; // the catalyst Jamie named; NVDA fell the next day after 7 of its last 10 reports (S198)
 type Check = { key: string; label: string; value: string; read: "up" | "down" | "wait"; why: string };
 
-async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null }> {
+// Jamie's stock + option underlyings from the latest broker snapshot (catalysts and tenor cost follow his book, not a pick of ours).
+async function holdingTickers(): Promise<string[]> {
+  const rows = await safe<{ t: string }>(sql`
+    WITH s AS (SELECT id FROM public.portfolio_snapshots ORDER BY id DESC LIMIT 1)
+    SELECT DISTINCT symbol AS t FROM public.portfolio_positions p, s WHERE p.snapshot_id = s.id AND market_value > 500
+    UNION SELECT DISTINCT symbol FROM public.portfolio_options o, s WHERE o.snapshot_id = s.id`);
+  // keep operating companies only (universe = source_fundamentals); drops option-income ETFs like HOOY / NVDY
+  const tickers = rows.map((r) => r.t).filter(Boolean);
+  if (!tickers.length) return [];
+  const known = await safe<{ t: string }>(sql`SELECT DISTINCT ticker AS t FROM public.source_fundamentals WHERE ticker IN (${sql.join(tickers.map((t) => sql`${t}`), sql`, `)})`);
+  return known.map((r) => r.t).sort();
+}
+
+type Series = { ratio: { date: string; value: number }[]; hy: { date: string; value: number }[] };
+async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null; series: Series }> {
   const checks: Check[] = [];
   // 1. VIX ÷ VIX3M: streak inverted, last un-invert fire (≥ 2 inverted days then < 1) = S172 market-bottom signal.
   const vr = await safe<{ date: string; r: number }>(sql`
     SELECT v.date::text AS date, (v.value / NULLIF(m.value, 0))::float8 AS r FROM watchlist_sync.macro_daily v
     JOIN watchlist_sync.macro_daily m ON m.series = 'vix3m' AND m.date = v.date
-    WHERE v.series = 'vix' ORDER BY v.date DESC LIMIT 40`);
+    WHERE v.series = 'vix' ORDER BY v.date DESC LIMIT 260`);
   if (vr.length) {
     const now = vr[0];
     let streak = 0; while (streak < vr.length && vr[streak].r >= 1) streak++;
@@ -581,9 +596,9 @@ async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null
     const tail = vr.slice(0, 6).reverse().map((x) => x.r.toFixed(2)).join(" → ");
     checks.push(streak > 0
       ? { key: "vix", label: "Fear curve (VIX ÷ VIX3M)", value: `${now.r.toFixed(2)} · inverted ${streak} day${streak > 1 ? "s" : ""}`, read: "wait",
-          why: `Panic is still on (${tail}). The tested buy is the day it drops back below 1 after ≥ 2 inverted days: 30-day index calls then +34–43 % per $ vs any day (S172, n 33–38).${streak >= 2 ? " Armed — next close below 1 fires it." : " Needs 1 more inverted day to arm."}` }
+          why: `Panic is on (${tail}). ${streak === 1 ? "Day 1 out of a calm curve usually fades: back below 1 next day 58 %, within 5 days 89 %; SPY next 21 d +1.8 % vs +1.1 % any day (S199, 81 cases since 2009). " : ""}The tested buy is the first close back below 1 after ≥ 2 inverted days: 30-day index calls +34–43 % per $ vs any day (S172). Single names at that fire: a basket of the most volatile fifth beat SPY +2.4 % in 21 d, +6.6 % in 63 d (52 fires, t 2.3–2.8) — but any one name only 52 % of the time; crashed names weaker (t 1.5) (S200).${streak >= 2 ? " Armed — next close below 1 fires it." : " Needs 1 more inverted day to arm."}` }
       : { key: "vix", label: "Fear curve (VIX ÷ VIX3M)", value: `${now.r.toFixed(2)} · calm`, read: fire && Date.parse(fire) >= Date.parse(now.date) - 10 * 864e5 ? "up" : "wait",
-          why: `${fire ? `Last market-bottom fire ${fire.slice(5)} (S172: index calls +34–43 % per $ vs any day).` : "No un-invert fire in 40 days."} ${tail}` });
+          why: `${fire ? `Last market-bottom fire ${fire.slice(5)} (S172: index calls +34–43 % per $ vs any day).` : "No un-invert fire in the last year."} ${tail}` });
   }
   // 2. SPY depth off its high → 6-month odds (deeper = better; S198 C2).
   const spy = await safe<{ date: string; c: number; hi: number }>(sql`
@@ -596,8 +611,18 @@ async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null
     checks.push({ key: "depth", label: "SPY off its high", value: `${(dd * 100).toFixed(1)} % → 6 m +${b.fwd} %, up ${b.up} %`, read: dd <= -0.05 ? "up" : "wait",
       why: `Since 2009, SPY ${b.label} its high: next 6 months +${b.fwd} % on average, up ${b.up} % of the time, worst ${b.worst} % (${b.months} months of data) vs +4.6 % near highs.${deeper ? ` If it falls to ${deeper.label}: +${deeper.fwd} %, up ${deeper.up} % — a further drop is a better entry, not a reason to bail.` : ""} Near-term bounce edge: none (S198).` });
   }
-  // 3. Did the catalyst move hold? Close before the first post-report session vs day 1 and latest.
-  for (const t of CATALYST_TICKERS) {
+  // 3. Did the catalyst move hold? Jamie's holdings reporting in the last 5 days (close before vs day 1 and latest).
+  const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)} %`;
+  const held = await holdingTickers();
+  const cal = held.length ? await safe<{ t: string; rd: string; recent: boolean }>(sql`
+    SELECT ticker AS t, report_date::text AS rd, (report_date <= current_date) AS recent FROM public.earnings_calendar
+    WHERE ticker IN (${sql.join(held.map((t) => sql`${t}`), sql`, `)}) AND report_date BETWEEN current_date - 5 AND current_date + 90
+    ORDER BY report_date`) : [];
+  const recent = [...new Set(cal.filter((c) => c.recent).map((c) => c.t))];
+  const next = cal.find((c) => !c.recent);
+  if (!recent.length) checks.push({ key: "cat-none", label: "Your names' earnings", value: next ? `none this week · next ${next.t} ${next.rd.slice(5)}` : "none in 90 days", read: "wait",
+    why: "Your holdings already reported Q3 — no company catalyst left until the next season. 'Bad news baked in → reversal' does not hold as a rule: names down ≥ 20 % into earnings during a market dip reacted median −1.1 %, up 46 % (S201, 161 reports, 13 quarters)." });
+  for (const t of recent) {
     const rows = await safe<{ rd: string; date: string; c: number }>(sql`
       WITH r AS (SELECT MAX(report_date) AS rd FROM public.earnings_calendar WHERE ticker = ${t} AND report_date <= current_date)
       SELECT r.rd::text AS rd, p.date::text AS date, p.close::float8 AS c FROM r JOIN public.prices_historical p
@@ -607,15 +632,14 @@ async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null
     const post = rows.filter((x) => x.date > rows[0].rd);
     if (!pre || !post.length) {
       checks.push({ key: `cat-${t}`, label: `${t} earnings reaction`, value: `reported ${rows[0].rd.slice(5)} · first session pending`, read: "wait",
-        why: `Watch day 1 and whether it holds through day 2–3. ${t} fell the next day after 7 of its last 10 reports, beats included — a beat that holds is the rare, meaningful case.` });
+        why: "Watch day 1 and whether it holds through day 2–3 — a beat the price keeps is the meaningful case. Names down ≥ 20 % into a report during a market dip reacted median −1.1 % (S201), so 'baked in' alone is not an edge." });
       continue;
     }
     const d1 = post[0].c / pre.c - 1, last = post[post.length - 1], since = last.c / pre.c - 1;
     const held = post.length >= 2 && d1 > 0 && since >= d1 / 2;
-    const pct = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)} %`;
     checks.push({ key: `cat-${t}`, label: `${t} earnings reaction`, value: `day 1 ${pct(d1)} · now ${pct(since)} (${post.length} session${post.length > 1 ? "s" : ""})`,
       read: post.length < 2 ? "wait" : held ? "up" : "down",
-      why: post.length < 2 ? "One session in — wait for day 2–3 before reading it." : held ? "Good news and the price kept it — the market accepts the story." : "Good news the price could not keep — sellers still in charge." });
+      why: post.length < 2 ? "One session in — wait for day 2–3 before reading it." : held ? "Up on the report and still holding most of it — buyers accept the story." : d1 > 0 ? "Up on the report but gave most of it back — sellers used the news to exit." : "Down on the report and not recovered — the report did not mark a low." });
   }
   // 4. Credit (HY OAS, FRED): the selloff started with CoreWeave debt — stocks up while spreads widen = suspect bounce.
   const hy = await safe<{ date: string; v: number; v10: number | null; pct: number }>(sql`
@@ -629,9 +653,34 @@ async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null
     checks.push({ key: "credit", label: "Junk-bond spread", value: `${v.toFixed(2)} % (${ch >= 0 ? "+" : ""}${ch.toFixed(2)} in 10 d)`, read: ch > 0.3 ? "down" : ch < -0.1 ? "up" : "wait",
       why: `${date.slice(5)}: ${pct.toFixed(0)}th percentile of the last 3 years (2020 panic peaked near 10 %). ${ch > 0.3 ? "Widening fast — credit is not buying the bounce." : "Not a credit event: debt markets are calm while stocks fell."} Untested as a timing rule here — context only.` });
   }
+  const hyS = await safe<{ date: string; value: number }>(sql`
+    SELECT date::text AS date, value::float8 AS value FROM watchlist_sync.macro_daily
+    WHERE series = 'hy_oas' AND date >= current_date - 400 ORDER BY date`);
   const asOf = vr[0]?.date ?? null;
-  return { checks, asOf };
+  return { checks, asOf, series: { ratio: vr.map((x) => ({ date: x.date, value: Math.round(x.r * 1000) / 1000 })).reverse(), hy: hyS } };
 }
+
+// Jamie 11-17: "6 m is the worst point on the VIX curve — I'd rather buy the cheaper 3 m." Per holding: ATM IV at 3 M vs 6 M
+// (live chain, cached 1 h, shared with /options/:t/term-structure) and ATM call cost ≈ 0.4·σ·√T as % of spot.
+router.get("/today/tenor-cost", requireAdmin, async (_req, res, next) => {
+  try {
+    const tickers = ["SPY", ...(await holdingTickers())];
+    const rows = await Promise.all(tickers.map(async (t) => {
+      const pts = await Promise.race([
+        ivTermCache.getOrCompute(t, () => getIvTermStructure(t)),
+        new Promise<null>((r) => setTimeout(() => r(null), 8000)), // deadline per vendor call (rule 8c)
+      ]).catch(() => null);
+      const ok = (p?: { iv: number; dte: number }) => (p && p.iv >= 0.05 && p.iv < 5 ? p : undefined); // GOSS 11-17 returned iv 1e-5 = no quote
+      const m3 = ok(pts?.find((p) => p.label === "3M")), m6 = ok(pts?.find((p) => p.label === "6M"));
+      if (!m3?.iv || !m6?.iv) return { ticker: t, iv3: m3?.iv ?? null, iv6: m6?.iv ?? null, cost3: null, cost6: null, dte3: m3?.dte ?? null, dte6: m6?.dte ?? null };
+      const cost = (p: { iv: number; dte: number }) => 0.4 * p.iv * Math.sqrt(p.dte / 365);
+      return { ticker: t, iv3: m3.iv, iv6: m6.iv, cost3: cost(m3), cost6: cost(m6), dte3: m3.dte, dte6: m6.dte };
+    }));
+    res.json({ rows });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get("/today/overview", requireAdmin, async (_req, res, next) => {
   try {

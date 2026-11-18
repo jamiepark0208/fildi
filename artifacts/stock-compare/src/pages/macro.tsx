@@ -21,6 +21,7 @@ import type {
 import { MACRO_TABS } from "@/components/macro/macro-page-types";
 import { fmt, fmtPct, fmtK, fmtB, changeColor, getIndicatorHighlight } from "@/components/macro/macro-format";
 import { VixCurveChart, YieldCurveChart, FedFundsCurveChart } from "@/components/macro/macro-curve-charts";
+import { FearCurvePanel } from "@/components/live/fear-curve-panel";
 import { RegimeChips, CrossTabReadRow, CompactStat, VolStrip } from "@/components/macro/macro-regime-overview";
 import { RegimeAccuracyStrip } from "@/components/macro/regime-accuracy-strip";
 import { RateHistoryChart, DualLineHistoryChart, IndicatorHistoryChart, SepDotsChart, BalanceSheetCard } from "@/components/macro/macro-history-charts";
@@ -648,6 +649,9 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
               {/* Vol stats — compact single-line strip */}
               <VolStrip macroData={macroData!} macroCharts={macroCharts} />
+
+              {/* Fear curve (VIX ÷ VIX3M, S172 panic line) + junk-bond spread — same charts as Today (Jamie 11-17) */}
+              <FearCurvePanel />
 
               {/* 6 charts, 2 rows x 3 */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

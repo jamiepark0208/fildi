@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
+import { FearCurveCharts, TenorCostTable } from "@/components/live/fear-curve-panel";
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
 const TD = "px-1.5 py-0.5 text-[11px] font-mono";
@@ -23,7 +24,7 @@ type Overview = {
   signals: Signal[];
   puts: Put[];
   seen7d: { fired: number; seen: number; bySignal: Record<string, { fired: number; seen: number }> };
-  bottom?: { asOf: string | null; checks: Check[] };
+  bottom?: { asOf: string | null; checks: Check[]; series?: { ratio: { date: string; value: number }[]; hy: { date: string; value: number }[] } };
 };
 type Check = { key: string; label: string; value: string; read: "up" | "down" | "wait"; why: string };
 
@@ -185,6 +186,8 @@ export default function Today() {
       {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
       {data && <StatusStrip s={data.status} seen={data.seen7d} />}
       {data?.bottom && <BottomChecklist b={data.bottom} />}
+      {data?.bottom?.series && <FearCurveCharts ratio={data.bottom.series.ratio} hy={data.bottom.series.hy} />}
+      <TenorCostTable />
       {data && <SignalsTable rows={data.signals} mark={mark} by={data.seen7d.bySignal} />}
       <TodayTradesCard n={20} />
       {data && <PutIdeas rows={data.puts} mark={mark} />}
