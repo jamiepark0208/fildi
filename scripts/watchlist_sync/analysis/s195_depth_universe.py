@@ -110,6 +110,7 @@ def trades(q, px, off, bull, q20):
         out.append(dict(t=root, d=d, wk=d - timedelta(days=d.weekday()), K=k, S=S, otm=otm, dl=dl, iv=iv,
                         depth=next(lbl for lo, hi, lbl in DEPTH if lo <= otm < hi),
                         r=(b + 0.23 * (a - b) - intr) / k * f, r_bid=(b - intr) / k * f,
+                        bid=b, dte=days, bid_wk=b / k * f,
                         loss=intr > b + 0.23 * (a - b), touched=bool(lows) and min(lows) < k,
                         off=off[root].get(d), reg="bull" if bull[d] else "bear", q20=q20.get(d)))
     return pd.DataFrame(out)
