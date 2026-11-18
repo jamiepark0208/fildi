@@ -1,29 +1,29 @@
 Morning brief — Wed, Nov 18, 2026
 
-**#1: Nvidia's first print without Huang cleared the bar — revenue $115.84B vs ~$109B, Q4 guide ~$130B. Nasdaq futures +0.6%, but the bounce is narrow: Dow and Russell futures are still red.**
+- **Fed hawkish: Waller floated a 50bp December hike on CNBC this morning. Futures faded off overnight highs — Nasdaq futures +0.98% at 5am ET to +0.6% by 8:20am.**
 
-| Name | Level | Day % | 1W % | 1M % |
-|---|---|---|---|---|
-| S&P 500 fut | 7,375 | +0.2% | -2.4% | -4.6% |
-| Dow fut | 50,762 | -0.2% | -2.8% | -2.3% |
-| Nasdaq 100 fut | 27,245 | +0.6% | -4.1% | -8.1% |
-| Russell 2000 fut | 2,702 | -0.4% | -4.2% | -1.0% |
-| Nikkei 225 | 59,024 | +0.3% | -3.6% | -9.1% |
-| Shanghai Comp | 3,588 | +0.1% | -2.5% | -4.0% |
-| STOXX 600 | 657 | -0.1% | +0.2% | +4.8% |
-| FTSE 100 | 10,645 | -0.4% | -1.8% | -0.8% |
-| 10Y yield | 5.10% | -1bp | +18bp | -1bp |
-| 30Y yield | 5.45% | -1bp | +11bp | +20bp |
-| WTI crude | $83.79 | -2.2% | -17.0% | +45.7% |
-| Brent crude | $90.01 | -3.4% | -3.0% | -14.8% |
-| Gold | $3,770 | -2.1% | -9.0% | -13.2% |
-| Bitcoin | $64,007 | +0.1% | -6.3% | -21.7% |
-| VIX | 24.50 | -3.8% | +26% | +69% |
+| Name | Last close | Futures | Overnight % | 1W % | 1M % |
+|---|---|---|---|---|---|
+| S&P 500 | 7,340.53 | 7,375 | +0.2% | -2.4% | -4.6% |
+| Dow | 50,759.42 | 50,762 | -0.2% | -2.8% | -2.3% |
+| Nasdaq 100 | 27,001.78 | 27,245 | +0.6% | -4.1% | -8.1% |
+| Russell 2000 | 2,701.87 | 2,702 | -0.4% | -4.2% | -1.0% |
+| Nikkei 225 | 59,024 | — | +0.3% | -3.6% | -9.1% |
+| Shanghai Comp | 3,588 | — | +0.1% | -2.5% | -4.0% |
+| STOXX 600 | 657 | — | -0.1% | +0.2% | +4.8% |
+| FTSE 100 | 10,645 | — | -0.4% | -1.8% | -0.8% |
+| 10Y yield | 5.10% | — | -1bp | +18bp | -1bp |
+| 30Y yield | 5.45% | — | -1bp | +11bp | +20bp |
+| WTI crude | $83.79 | — | -2.2% | -17.0% | +45.7% |
+| Brent crude | $90.01 | — | -3.4% | -3.0% | -14.8% |
+| Gold | $3,770 | — | -2.1% | -9.0% | -13.2% |
+| Bitcoin | $64,007 | — | +0.1% | -6.3% | -21.7% |
+| VIX | 24.50 | — | -3.8% | +26% | +69% |
 
-- Tuesday: fourth straight down day. Dow -849 pts (-1.64%), S&P -1.03% to 7,340.53, lowest close in five months. Salesforce -9.45% led software lower.
-- December hike ~95% priced. Waller floated 50bp, Williams pushed back. Today's 2:00 PM minutes show how wide the split runs.
-- Retail split: Target comps +5.6% and TJX comps +4% beat. But $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds, and Lowe's margin fell to 32.95% from 34.19%. Market paid TJX (+6%), sold Lowe's (-5.7%).
-- The print is the first read on the founder exit — a beat with a raised guide says the quarter ran on demand, not the CEO. Base rate stays out: trigger-library seed numbers under re-derivation after Grok's Nov 13 review.
+- NVDA earnings beat: revenue $115.84B vs ~$109B expected, Q4 guide ~$130B (raised from ~$125B expected; FY28 growth raised to ~75% from ~70%). No word on Huang's return — likely caps the pop today.
+- Tuesday: fourth straight down day. Dow -849 pts (-1.64%), S&P -1.03% to 7,340.53, lowest close in five months.
+- Retail split: Target comps +5.6%, TJX comps +4% beat. But $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds. Market paid TJX (+6%), sold Lowe's (-5.7%).
+- NVDA print is the first read on the founder exit — a beat with a raised guide says the quarter ran on demand, not the CEO. Base rate stays out: trigger-library seed numbers under re-derivation after Grok's Nov 13 review.
 
 | Print | Actual | Consensus | Prior |
 |---|---|---|---|
@@ -33,10 +33,10 @@ Morning brief — Wed, Nov 18, 2026
 
 | Name | Day % | Why |
 |---|---|---|
-| NVDA | +3.0% | Q3 revenue $115.84B vs ~$109B, EPS $2.68 vs $2.48; Q4 guide ~$130B, FY28 growth raised to ~75%. The print is out — yesterday's rich premium is crushing, don't chase the bounce. |
-| TJX | +6.0% | Q3 sales $16.0B (+6%), comps +4% vs 2–3% plan, adj EPS $1.34 in line; raised FY comps guide to 4% but Q4 EPS guide $1.42–1.45 trails $1.48 expected. A name the book doesn't trade. |
-| LOW | -5.7% | Adj EPS $3.10 beat $2.90 and comps +1.8% beat, but $0.34 was a tariff refund and gross margin fell 124bp; FY adj EPS guide $12.25 sits just under consensus. The market sold the margin. |
-| TGT | flat | Adj EPS $2.65 vs $2.07, revenue $27.1B, comps +5.6%, traffic +5%; $0.50 was a tariff refund; FY EPS guide raised to $10.65–11.40. Flat after a 60%+ run this year. No book implication. |
+| NVDA | +3.0% | Beat on revenue and guide. No Huang word — pop fading. |
+| TJX | +6.0% | Comps +4% beat, guide raised. Book doesn't trade it. |
+| LOW | -5.7% | Beat, but margin fell on tariff refunds. Market sold it. |
+| TGT | flat | Beat, $0.50 tariff refund. Flat after a 60%+ run. |
 
 - Also: AAOI -10.3% giving back yesterday's policy spike; GOOGL +0.6% as Waymo pulled vehicles from highways after California banned them from freeways; WULF +4.8% and TTWO +4.7% with the chip bounce.
 
