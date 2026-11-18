@@ -26,6 +26,8 @@ thresholds, or other use cases… keep building on top of them."
 
 **#4 = S202 (11-18):** no tilt — high-VIX deep − near +0.22 %/wk, t 0.6 (sign rises with VIX as Tosi–Ziegler says, not significant). Lean: at VIX ≥ 22 deep strikes earn the same at half the swing (P 0.10, losses 6.6 vs 14 %). S101's 'nearer after drops' not seen on real quotes. Next: #5 revisions + momentum calls timed into earnings.
 
+**#5 = S203 (11-18):** no timing edge — top-10 revisions + 60 d calls bought 5–10 d before the print +71 % vs +49 % without earnings (t 0.46); top 30 flips; win rate flat 37 % (outliers). Random names lose by buying into the print (+14 vs +24 %). Lean: in bear markets calls that skip earnings did best. Next: #6 is the IV÷RV edge shrinking.
+
 ## Shipped alongside (11-17)
 - Today page (`/today`): run status, every signal firing with its backtest number, the ranked Today list, all put ideas.
 - Put ideas: odds floor ~90 → 80 % (|Δ| ≤ 0.20), soft gates → cautions: 12 → 106 ideas shown (6 best, 100 options).
