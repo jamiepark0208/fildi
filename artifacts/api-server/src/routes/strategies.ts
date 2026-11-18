@@ -9,6 +9,9 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const router = Router();
 
@@ -486,6 +489,73 @@ router.get("/strategies/:id", requireAdmin, async (req, res, next) => {
       stats,
       equity,
       trades,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Today page (Jamie 11-17: "I have never seen a signal fire… no clue whether the app is running… no unified view").
+ * GET /api/today/overview → { status, signals, puts }:
+ *   status  last daily.py run (scripts/watchlist_sync/out/runs/*.json) + as-of of each producer table
+ *   signals every working rule (research/studies/BOARD.md 'Works') with its backtest number, firing today?, last fire
+ *   puts    put_recs_daily latest: best (every gate) first, then ≥ 80 %-odds options with their cautions
+ */
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const SIGNALS: { id: string; name: string; trade: string; backtest: string; study: string }[] = [
+  { id: "panic-puts-hiv", name: "Panic put", trade: "sell ~0.20Δ put ~30 DTE on the name",
+    backtest: "≥ 2σ 5-day drop + IV30 > 48.7: kept +4.05 % vs +0.26 % any day", study: "S054" },
+  { id: "vix-uninvert-put", name: "Market bottom (VIX÷VIX3M un-inverts)", trade: "buy 0.50Δ 30 DTE SPY/QQQ calls or sell 0.20Δ puts",
+    backtest: "calls +34–43 % per $ vs any day; SPY +2.98 % next 21 d vs +1.10 %, up 79 % (34 fires since 2010)", study: "S172 · S172b" },
+  { id: "vix-uninvert-put-hibeta", name: "Market bottom, high-beta names", trade: "sell 0.20Δ 30 DTE puts on top-beta fifth",
+    backtest: "+3.0 % / +2.0 % per $ collateral per 30 d vs SPY put +0.9 / +0.6 (18 episodes, model prices)", study: "S172" },
+  { id: "put_z50_dip_d20", name: "Dip below 50-day mean", trade: "sell 0.20Δ put", backtest: "paper rule — put-timing filter (A370), not yet graded live", study: "A370" },
+  { id: "put_gap_up_5pct_d20", name: "Gap up ≥ 5 %", trade: "sell 0.20Δ put", backtest: "paper rule — put-timing filter (A370), not yet graded live", study: "A370" },
+  { id: "put_climax_low_ivrv", name: "Selling climax, IV not rich", trade: "sell put", backtest: "paper rule — put-timing filter (A370)", study: "A370" },
+  { id: "put_climax_spy_oversold", name: "Selling climax + SPY oversold", trade: "sell put", backtest: "paper rule — put-timing filter (A370)", study: "A370" },
+];
+
+function lastRun(): { at: string | null; status: string | null; failed: string[] } {
+  try {
+    const dir = resolve(ROOT, "scripts/watchlist_sync/out/runs");
+    const f = readdirSync(dir).filter((x) => x.endsWith(".json")).sort().pop();
+    if (!f) return { at: null, status: null, failed: [] };
+    const j = JSON.parse(readFileSync(resolve(dir, f), "utf8")) as { started?: string; status?: string; steps?: { step: string; ok: boolean }[] };
+    return { at: j.started ?? null, status: j.status ?? null, failed: (j.steps ?? []).filter((s) => !s.ok).map((s) => s.step) };
+  } catch {
+    return { at: null, status: null, failed: [] };
+  }
+}
+
+router.get("/today/overview", requireAdmin, async (_req, res, next) => {
+  try {
+    const asOf = await safe<{ src: string; d: string | null }>(sql`
+      SELECT 'putIdeas' AS src, MAX(computed_at)::text AS d FROM watchlist_sync.put_recs_daily
+      UNION ALL SELECT 'todayList', MAX(as_of)::text FROM watchlist_sync.trade_funnel_daily WHERE stage = 'today'
+      UNION ALL SELECT 'signals', MAX(as_of)::text FROM watchlist_sync.strategy_signals`);
+    const fired = await safe<{ id: string; last: string; today: number; n5: number; names: string[] }>(sql`
+      SELECT strategy_id AS id, MAX(as_of)::text AS last,
+             (COUNT(DISTINCT ticker) FILTER (WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.strategy_signals)))::int AS today,
+             (COUNT(DISTINCT as_of) FILTER (WHERE as_of >= current_date - 7))::int AS n5,
+             (ARRAY_AGG(DISTINCT ticker) FILTER (WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.strategy_signals)))[1:8] AS names
+      FROM watchlist_sync.strategy_signals GROUP BY strategy_id`);
+    const byId = new Map(fired.map((f) => [f.id, f]));
+    const signals = SIGNALS.map((s) => {
+      const f = byId.get(s.id);
+      return { ...s, lastFired: f?.last ?? null, firingNames: f?.today ?? 0, daysFiredLast7: f?.n5 ?? 0, names: f?.names ?? [] };
+    });
+    const puts = await safe<{ ticker: string; rank: number; p: Record<string, unknown> }>(sql`
+      SELECT ticker, rank, payload AS p FROM watchlist_sync.put_recs_daily
+      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND pass ORDER BY rank`);
+    res.json({
+      status: { lastRun: lastRun(), asOf: Object.fromEntries(asOf.map((r) => [r.src, r.d])) },
+      signals,
+      puts: puts.map(({ ticker, rank, p }) => ({
+        ticker, rank, tier: (p.tier as string) ?? "best", strike: p.strike, expiry: p.expiry, bid: p.bid, delta: p.delta,
+        oddsOtm: p.odds_otm ?? (typeof p.delta === "number" ? 1 - Math.abs(p.delta) : null), incomeWkPct: p.income_wk_pct,
+        why: p.why, cautions: (p.cautions as string[]) ?? [],
+      })),
     });
   } catch (err) {
     next(err);

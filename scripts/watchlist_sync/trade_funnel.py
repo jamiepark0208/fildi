@@ -252,9 +252,13 @@ def today_list(conn, dry: bool, d0: date | None = None):
                            AND jsonb_array_length(COALESCE(payload->'gates', '[]'::jsonb)) = 0""", (today,)):
         p = r["p"]
         items.append({"ticker": r["ticker"], "family": "short_put", "structure": "csp", "source": "put engine",
-                      "tier": "live", "strike": p.get("strike"), "expiry": p.get("expiry"), "bid": p.get("bid"),
+                      # Jamie 11-17: put_recs shows ≥ 80 %-odds options too; only tier 'best' (every gate) is the live strategy
+                      "tier": "live" if p.get("tier", "best") == "best" else "candidate",
+                      "strike": p.get("strike"), "expiry": p.get("expiry"), "bid": p.get("bid"),
                       "metric": p.get("income_wk_pct"), "metric_label": "%/wk", "why": p.get("why"),
-                      "chips": [c for c in ("s054" if p.get("s054") else None, "rich" if p.get("rich") else None) if c]})
+                      "chips": [c for c in ("s054" if p.get("s054") else None, "rich" if p.get("rich") else None,
+                                            f"{round(100 * p['odds_otm'])} % odds" if p.get("odds_otm") else None,
+                                            *(f"caution: {x}" for x in (p.get("cautions") or [])[:2])) if c]})
     # 2. Strategies board primary tier (regime-fit + EV > 0 on real ladders)
     for r in rows(conn, """SELECT structure, ticker, payload p FROM watchlist_sync.structure_rank_daily
                            WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily WHERE as_of <= %s) AND payload->>'tier' = 'primary'""", (today,)):

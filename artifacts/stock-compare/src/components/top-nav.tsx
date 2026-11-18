@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   Bookmark, BriefcaseBusiness, Trophy, User, Settings as SettingsIcon,
-  Activity, Bot,
+  Activity, Bot, Zap,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ type NavItem = {
 };
 
 const LEFT_NAV_ITEMS: NavItem[] = [
+  { id: "today",     href: "/today",      label: "Today",      icon: Zap,               color: "#a3e635", adminOnly: true }, // lime — Jamie 11-17: one view of signals + ideas + run status
   { id: "watchlist", href: "/watchlist",  label: "Watchlist",  icon: Bookmark,          color: "#22d3ee" }, // cyan
   // adminOnly is intentional, not a leftover — enh/8 Phase A1 (unlock nav for
   // everyone) is deferred until the regular-user manual-entry experience in

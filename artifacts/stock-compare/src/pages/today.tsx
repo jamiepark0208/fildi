@@ -1,0 +1,141 @@
+// Today (Jamie 11-17): one page for "is Fildi running, what fired, what should I look at" — ordered by importance:
+// run status → signals firing (with their backtest number) → the ranked Today list → every put idea (best first, then
+// ≥ 80 %-odds options with their cautions; Jamie decides). Data: GET /api/today/overview + /api/trade-funnel/today.
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
+import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
+import { TodayTradesCard } from "@/components/live/today-trades-card";
+
+const TH = cn(GRID_TH, "px-1.5 py-0.5");
+const TD = "px-1.5 py-0.5 text-[11px] font-mono";
+
+type Signal = {
+  id: string; name: string; trade: string; backtest: string; study: string;
+  lastFired: string | null; firingNames: number; daysFiredLast7: number; names: string[];
+};
+type Put = {
+  ticker: string; rank: number; tier: string; strike: number | null; expiry: string | null; bid: number | null;
+  oddsOtm: number | null; incomeWkPct: number | null; why: string | null; cautions: string[];
+};
+type Overview = {
+  status: { lastRun: { at: string | null; status: string | null; failed: string[] }; asOf: Record<string, string | null> };
+  signals: Signal[];
+  puts: Put[];
+};
+
+function ageH(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso.replace(" ", "T"));
+  return Number.isFinite(t) ? (Date.now() - t) / 3_600_000 : null;
+}
+
+function StatusStrip({ s }: { s: Overview["status"] }) {
+  const h = ageH(s.lastRun.at);
+  const ok = s.lastRun.status === "ok" && h != null && h < 30;
+  return (
+    <div className={cn(GRID_WRAP, "flex flex-wrap items-baseline gap-x-3 px-2 py-1 text-[11px]")} data-testid="today-status">
+      <span className={cn("font-semibold", ok ? "text-green-400" : "text-amber-400")}>
+        {ok ? "● Fildi is running" : "● Daily run needs a look"}
+      </span>
+      <span className="text-amber-200/60">
+        last daily run {s.lastRun.at?.slice(5, 16).replace("T", " ") ?? "—"} ({s.lastRun.status ?? "unknown"}
+        {s.lastRun.failed.length ? `, failed: ${s.lastRun.failed.join(", ")}` : ""})
+      </span>
+      <span className="text-amber-200/60">put ideas {s.asOf.putIdeas?.slice(5, 16) ?? "—"}</span>
+      <span className="text-amber-200/60">signals {s.asOf.signals?.slice(5) ?? "—"}</span>
+      <span className="text-amber-200/60">Today list {s.asOf.todayList?.slice(5) ?? "—"}</span>
+    </div>
+  );
+}
+
+function SignalsTable({ rows }: { rows: Signal[] }) {
+  const sorted = [...rows].sort((a, b) => b.firingNames - a.firingNames || String(b.lastFired).localeCompare(String(a.lastFired)));
+  return (
+    <section className={GRID_WRAP} data-testid="today-signals">
+      <div className={cn(GRID_HEADER, "px-1.5")} title="Every rule that passed a backtest (research/studies/BOARD.md 'Works') plus paper rules being graded. Firing = names on the latest signal day.">
+        <span className="font-semibold">Signals</span>
+        <span className="ml-2 text-[10px] text-amber-200/50">what fired, and what it earned in the backtest</span>
+      </div>
+      <table className="w-full">
+        <thead>
+          <tr>{["Signal", "Firing now", "Last fired", "Trade", "Backtest"].map((h) => <th key={h} className={cn(TH, "text-left")}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {sorted.map((s) => (
+            <tr key={s.id} className="border-t border-white/5" title={`${s.study} · fired on ${s.daysFiredLast7} of the last 7 days`}>
+              <td className={cn(TD, "text-white")}>{s.name}</td>
+              <td className={cn(TD, s.firingNames ? "text-green-400" : "text-amber-200/40")}>
+                {s.firingNames ? `${s.firingNames}: ${s.names.join(", ")}${s.firingNames > s.names.length ? " …" : ""}` : "—"}
+              </td>
+              <td className={TD}>{s.lastFired?.slice(5) ?? "never"}</td>
+              <td className={cn(TD, "text-amber-100/80")}>{s.trade}</td>
+              <td className={cn(TD, "text-amber-200/60 max-w-[380px] truncate")} title={s.backtest}>{s.backtest}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function PutIdeas({ rows }: { rows: Put[] }) {
+  const [all, setAll] = useState(false);
+  const best = rows.filter((r) => r.tier === "best").length;
+  const shown = all ? rows : rows.slice(0, 30);
+  return (
+    <section className={GRID_WRAP} data-testid="today-puts">
+      <div className={cn(GRID_HEADER, "px-1.5")} title="Best = passes every tested gate (the live strategy). Option = ≥ 80 % odds of expiring worthless but misses a gate — the caution says which. Ranked best first, then by the engine's edge.">
+        <span className="font-semibold">Sell-put ideas</span>
+        <span className="ml-2 text-[10px] text-amber-200/50">{best} best · {rows.length - best} options (≥ 80 % odds) — you decide</span>
+      </div>
+      <table className="w-full">
+        <thead>
+          <tr>{["#", "Ticker", "Strike", "Exp", "Odds", "%/wk", "Tier", "Caution"].map((h) => <th key={h} className={cn(TH, h === "Caution" ? "text-left" : "")}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {shown.map((p) => (
+            <tr key={p.ticker} className="border-t border-white/5" title={p.why ?? undefined}>
+              <td className={cn(TD, "text-amber-200/40")}>{p.rank}</td>
+              <td className={cn(TD, "text-white")}>{p.ticker}</td>
+              <td className={cn(TD, "text-right")}>{p.strike != null ? Number(p.strike).toFixed(1) : "—"}</td>
+              <td className={TD}>{p.expiry ? String(p.expiry).slice(5, 10) : "—"}</td>
+              <td className={cn(TD, "text-right")}>{p.oddsOtm != null ? `${Math.round(100 * p.oddsOtm)} %` : "—"}</td>
+              <td className={cn(TD, "text-right")}>{p.incomeWkPct != null ? p.incomeWkPct.toFixed(2) : "—"}</td>
+              <td className={cn(TD, p.tier === "best" ? "text-green-400" : "text-sky-300")}>{p.tier}</td>
+              <td className={cn(TD, "text-left text-amber-200/60 max-w-[360px] truncate")} title={p.cautions.join("\n")}>
+                {p.cautions[0] ?? ""}{p.cautions.length > 1 ? ` (+${p.cautions.length - 1})` : ""}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > 30 && (
+        <button className="px-1.5 text-[10px] text-sky-300/70 hover:text-sky-300" onClick={() => setAll(!all)}>
+          {all ? "show top 30" : `show all ${rows.length}`}
+        </button>
+      )}
+    </section>
+  );
+}
+
+export default function Today() {
+  const { data, error } = useQuery<Overview>({
+    queryKey: ["today-overview"],
+    queryFn: async () => {
+      const r = await fetch("/api/today/overview", { credentials: "include" });
+      if (!r.ok) throw new Error(`today ${r.status}`);
+      return r.json();
+    },
+    staleTime: 5 * 60_000,
+  });
+  return (
+    <div className="mx-auto max-w-[1400px] space-y-2 px-3 pb-8 pt-16" data-testid="today-page">
+      {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
+      {data && <StatusStrip s={data.status} />}
+      {data && <SignalsTable rows={data.signals} />}
+      <TodayTradesCard n={20} />
+      {data && <PutIdeas rows={data.puts} />}
+    </div>
+  );
+}

@@ -17,6 +17,7 @@ import Login from "@/pages/login";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Rankings = lazy(() => import("@/pages/rankings"));
+const Today = lazy(() => import("@/pages/today"));
 const Watchlist = lazy(() => import("@/pages/watchlist"));
 const Technical = lazy(() => import("@/pages/technical"));
 const Portfolio = lazy(() => import("@/pages/portfolio"));
@@ -160,6 +161,9 @@ function Router() {
       </Route>
       <Route path="/sentiment">
         <ProtectedRoute><Sentiment /></ProtectedRoute>
+      </Route>
+      <Route path="/today">
+        <ProtectedRoute><Today /></ProtectedRoute>
       </Route>
       <Route path="/live">
         <ProtectedRoute><Live /></ProtectedRoute>

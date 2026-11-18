@@ -76,10 +76,18 @@ def pick_strike(puts: list[dict], band: str):
         inb = [p for p in puts if max(lo, -R.PUT_DELTA[1]) <= -p["delta"] < hi and p["bid"] >= R.PUT_MIN_RESTRIKE_BID and liquid(p)]
         if inb:
             return min(inb, key=lambda p: abs(-p["delta"] - (lo + hi) / 2)), order[j]
+    # Jamie 11-17 ("show me options, don't hide them"): no liquid strike near the band → any liquid put the market prices at
+    # ≥ ~80 % odds of expiring worthless (|Δ| ≤ INCLUSIVE_MAX_DELTA), nearest the band. Tagged as an option, ranked after passes.
+    lo, hi = SE.band_bounds(band)
+    inb = [p for p in puts if -R.PUT_DELTA[1] <= -p["delta"] <= INCLUSIVE_MAX_DELTA and p["bid"] >= R.PUT_MIN_RESTRIKE_BID and liquid(p)]
+    if inb:
+        return min(inb, key=lambda p: abs(-p["delta"] - (lo + hi) / 2)), WIDER_BAND
     return None, None
 
 
-WIDEN_MAX_DELTA = 0.15   # Jamie 10-28: "~0.05–0.15Δ for 1–2 wks" — the farthest-in a put may move to reach the income floor
+INCLUSIVE_MAX_DELTA = 0.20   # ≈ 80 % odds OTM (Jamie 11-17: "≥ 90 % should be ~80 %"); S071: > 0.20Δ loses after 2024
+WIDER_BAND = "0.05-0.20"
+WIDEN_MAX_DELTA = 0.20   # Jamie 10-28: "~0.05–0.15Δ for 1–2 wks"; 11-17 → 0.20 (≈ 80 % odds) so the name shows as an option
 
 
 def widen_for_income(puts: list[dict], used: str, ms: str, ns: str, days: float):
@@ -374,7 +382,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
             continue
         days = (exp - as_of).days + BP._settle_offset(exp)
         widen_why = None
-        if 100 * p["bid"] / p["strike"] * 7 / days < R.MIN_WEEKLY_INCOME_PCT:
+        if 100 * p["bid"] / p["strike"] * 7 / days < R.MIN_WEEKLY_INCOME_PCT and used != WIDER_BAND:
             w, how = widen_for_income([x for x in by[t] if x["expiry"] == exp], used, ms, rec["stock_state"] or "normal", days)
             if w:
                 why = f"{why} · {used}Δ pays {100 * p['bid'] / p['strike'] * 7 / days:.2f} %/wk < {R.MIN_WEEKLY_INCOME_PCT} → {how}Δ"
@@ -399,6 +407,11 @@ def compute(conn) -> tuple[date, list[dict], dict]:
             ok = False
             gates.append(f"pays {rec['income_wk_pct']:.2f} %/wk at the {p['strike']:g} strike (min {R.MIN_WEEKLY_INCOME_PCT})"
                          + (f"; {widen_why}" if widen_why else ""))
+        # Jamie 11-17 ("be inclusive, prioritize, let me decide"): the gates above are judgment calls → caution tags on a
+        # shown option; only the blocks below (earnings across expiry, stale chain, one sale per name-week) hide a name.
+        cautions = list(gates) + ([f"strike at {abs(p['delta']):.2f}Δ, outside the tested {band}Δ band (no liquid strike there)"]
+                                  if used == WIDER_BAND else [])
+        strict, ok, gates = ok and used != WIDER_BAND, True, []
         if far == "earnings before expiry":   # Jamie 10-28 (GOOGL 10-28): no new put across the print by default
             ok = False
             gates.append(f"earnings before the {exp} expiry")
@@ -409,11 +422,12 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         if t in sold_wk and os.environ.get("FILDI_PUT_RESELL_WEEK") != "1":
             ok = False
             gates.append(f"already picked {sold_wk[t]:%m-%d} this week — one sale per name per week, as backtested")
-        rec.update(pass_=ok, gates=gates, put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
+        rec.update(pass_=ok, gates=gates, tier="best" if strict else "option", cautions=cautions,
+                   odds_otm=round(1 - abs(p["delta"]), 3), put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
         out.append(rec)
     ranked = [r for r in out if r.get("strike") is not None]
     score = SE.rank_key(ranked, "sell_put")
-    ranked.sort(key=lambda r: (not r["pass_"], -score.get(id(r), 0.0)))
+    ranked.sort(key=lambda r: (not r["pass_"], r.get("tier") != "best", -score.get(id(r), 0.0)))
     for i, r in enumerate(ranked, 1):
         r["rank"] = i
     rich_context(conn, [r for r in out if r.get("rich")])
