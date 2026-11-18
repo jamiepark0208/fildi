@@ -2,7 +2,7 @@
 // run status → signals firing (with their backtest number) → the ranked Today list → every put idea (best first, then
 // ≥ 80 %-odds options with their cautions; Jamie decides). Data: GET /api/today/overview + /api/trade-funnel/today.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
@@ -12,17 +12,22 @@ const TD = "px-1.5 py-0.5 text-[11px] font-mono";
 
 type Signal = {
   id: string; name: string; trade: string; backtest: string; study: string;
-  lastFired: string | null; firingNames: number; daysFiredLast7: number; names: string[];
+  lastFired: string | null; firingNames: number; daysFiredLast7: number; names: string[]; keys: string[]; unseen: number;
 };
 type Put = {
   ticker: string; rank: number; tier: string; strike: number | null; expiry: string | null; bid: number | null;
-  oddsOtm: number | null; incomeWkPct: number | null; why: string | null; cautions: string[];
+  oddsOtm: number | null; incomeWkPct: number | null; why: string | null; cautions: string[]; key: string; seen: boolean;
 };
 type Overview = {
   status: { lastRun: { at: string | null; status: string | null; failed: string[] }; asOf: Record<string, string | null> };
   signals: Signal[];
   puts: Put[];
+  seen7d: { fired: number; seen: number; bySignal: Record<string, { fired: number; seen: number }> };
 };
+
+// Unread = bright yellow until clicked (Jamie 11-17: "verify that I have truly read the recommendation").
+const UNSEEN = "bg-yellow-300/25 outline outline-1 outline-yellow-300/70 cursor-pointer";
+type MarkSeen = (keys: string[]) => void;
 
 function ageH(iso: string | null): number | null {
   if (!iso) return null;
@@ -30,7 +35,7 @@ function ageH(iso: string | null): number | null {
   return Number.isFinite(t) ? (Date.now() - t) / 3_600_000 : null;
 }
 
-function StatusStrip({ s }: { s: Overview["status"] }) {
+function StatusStrip({ s, seen }: { s: Overview["status"]; seen: Overview["seen7d"] }) {
   const h = ageH(s.lastRun.at);
   const ok = s.lastRun.status === "ok" && h != null && h < 30;
   return (
@@ -45,11 +50,14 @@ function StatusStrip({ s }: { s: Overview["status"] }) {
       <span className="text-amber-200/60">put ideas {s.asOf.putIdeas?.slice(5, 16) ?? "—"}</span>
       <span className="text-amber-200/60">signals {s.asOf.signals?.slice(5) ?? "—"}</span>
       <span className="text-amber-200/60">Today list {s.asOf.todayList?.slice(5) ?? "—"}</span>
+      <span className={seen.seen < seen.fired ? "text-yellow-300" : "text-green-400"} title="Signal fires (rule × name × day) in the last 7 days that you clicked. Yellow rows = not read yet.">
+        seen {seen.seen} of {seen.fired} signal fires this week
+      </span>
     </div>
   );
 }
 
-function SignalsTable({ rows }: { rows: Signal[] }) {
+function SignalsTable({ rows, mark, by }: { rows: Signal[]; mark: MarkSeen; by: Overview["seen7d"]["bySignal"] }) {
   const sorted = [...rows].sort((a, b) => b.firingNames - a.firingNames || String(b.lastFired).localeCompare(String(a.lastFired)));
   return (
     <section className={GRID_WRAP} data-testid="today-signals">
@@ -63,7 +71,8 @@ function SignalsTable({ rows }: { rows: Signal[] }) {
         </thead>
         <tbody>
           {sorted.map((s) => (
-            <tr key={s.id} className="border-t border-white/5" title={`${s.study} · fired on ${s.daysFiredLast7} of the last 7 days`}>
+            <tr key={s.id} className={cn("border-t border-white/5", s.unseen > 0 && UNSEEN)} onClick={() => s.unseen > 0 && mark(s.keys)}
+              title={`${s.study} · fired on ${s.daysFiredLast7} of the last 7 days · you saw ${by[s.id]?.seen ?? 0} of ${by[s.id]?.fired ?? 0} fires this week${s.unseen ? " — click to mark read" : ""}`}>
               <td className={cn(TD, "text-white")}>{s.name}</td>
               <td className={cn(TD, s.firingNames ? "text-green-400" : "text-amber-200/40")}>
                 {s.firingNames ? `${s.firingNames}: ${s.names.join(", ")}${s.firingNames > s.names.length ? " …" : ""}` : "—"}
@@ -79,7 +88,7 @@ function SignalsTable({ rows }: { rows: Signal[] }) {
   );
 }
 
-function PutIdeas({ rows }: { rows: Put[] }) {
+function PutIdeas({ rows, mark }: { rows: Put[]; mark: MarkSeen }) {
   const [all, setAll] = useState(false);
   const best = rows.filter((r) => r.tier === "best").length;
   const shown = all ? rows : rows.slice(0, 30);
@@ -95,7 +104,8 @@ function PutIdeas({ rows }: { rows: Put[] }) {
         </thead>
         <tbody>
           {shown.map((p) => (
-            <tr key={p.ticker} className="border-t border-white/5" title={p.why ?? undefined}>
+            <tr key={p.ticker} className={cn("border-t border-white/5", !p.seen && p.tier === "best" && UNSEEN)}
+              onClick={() => !p.seen && mark([p.key])} title={(p.why ?? "") + (!p.seen ? " — click to mark read" : "")}>
               <td className={cn(TD, "text-amber-200/40")}>{p.rank}</td>
               <td className={cn(TD, "text-white")}>{p.ticker}</td>
               <td className={cn(TD, "text-right")}>{p.strike != null ? Number(p.strike).toFixed(1) : "—"}</td>
@@ -129,13 +139,22 @@ export default function Today() {
     },
     staleTime: 5 * 60_000,
   });
+  const qc = useQueryClient();
+  const seen = useMutation({
+    mutationFn: async (keys: string[]) => {
+      const r = await fetch("/api/today/seen", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) });
+      if (!r.ok) throw new Error(`seen ${r.status}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["today-overview"] }),
+  });
+  const mark: MarkSeen = (keys) => keys.length && seen.mutate(keys);
   return (
     <div className="mx-auto max-w-[1400px] space-y-2 px-3 pb-8 pt-16" data-testid="today-page">
       {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
-      {data && <StatusStrip s={data.status} />}
-      {data && <SignalsTable rows={data.signals} />}
+      {data && <StatusStrip s={data.status} seen={data.seen7d} />}
+      {data && <SignalsTable rows={data.signals} mark={mark} by={data.seen7d.bySignal} />}
       <TodayTradesCard n={20} />
-      {data && <PutIdeas rows={data.puts} />}
+      {data && <PutIdeas rows={data.puts} mark={mark} />}
     </div>
   );
 }

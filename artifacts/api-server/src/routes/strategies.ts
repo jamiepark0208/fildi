@@ -528,8 +528,34 @@ function lastRun(): { at: string | null; status: string | null; failed: string[]
   }
 }
 
+/** Seen tracking (Jamie 11-17: "a way to verify I have truly read the recommendation"): one row per item key the user
+ *  clicked. Keys: sig:<strategy_id>:<ticker>:<as_of> · put:<ticker>:<as_of>. Unseen items render yellow on /today. */
+let seenReady = false;
+async function ensureSeen(): Promise<void> {
+  if (seenReady) return;
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.rec_seen (
+    item_key text PRIMARY KEY, kind text NOT NULL, seen_at timestamptz NOT NULL DEFAULT now())`);
+  seenReady = true;
+}
+
+router.post("/today/seen", requireAdmin, async (req, res, next) => {
+  try {
+    const keys = (Array.isArray(req.body?.keys) ? req.body.keys : []).filter((k: unknown): k is string =>
+      typeof k === "string" && /^(sig|put):[\w.\-:]{1,120}$/.test(k)).slice(0, 500);
+    await ensureSeen();
+    for (const k of keys) {
+      await db.execute(sql`INSERT INTO watchlist_sync.rec_seen (item_key, kind) VALUES (${k}, ${k.split(":")[0]})
+        ON CONFLICT (item_key) DO NOTHING`);
+    }
+    res.json({ ok: true, n: keys.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/today/overview", requireAdmin, async (_req, res, next) => {
   try {
+    await ensureSeen();
     const asOf = await safe<{ src: string; d: string | null }>(sql`
       SELECT 'putIdeas' AS src, MAX(computed_at)::text AS d FROM watchlist_sync.put_recs_daily
       UNION ALL SELECT 'todayList', MAX(as_of)::text FROM watchlist_sync.trade_funnel_daily WHERE stage = 'today'
@@ -541,20 +567,37 @@ router.get("/today/overview", requireAdmin, async (_req, res, next) => {
              (ARRAY_AGG(DISTINCT ticker) FILTER (WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.strategy_signals)))[1:8] AS names
       FROM watchlist_sync.strategy_signals GROUP BY strategy_id`);
     const byId = new Map(fired.map((f) => [f.id, f]));
+    // every fire in the last 7 days (strategy × ticker × day) and whether Jamie clicked it — the seen-rate funnel
+    const fires = await safe<{ key: string; id: string; ticker: string; d: string; seen: boolean }>(sql`
+      SELECT DISTINCT 'sig:' || s.strategy_id || ':' || s.ticker || ':' || s.as_of::text AS key, s.strategy_id AS id, s.ticker,
+             s.as_of::text AS d, (v.item_key IS NOT NULL) AS seen
+      FROM watchlist_sync.strategy_signals s
+      LEFT JOIN watchlist_sync.rec_seen v ON v.item_key = 'sig:' || s.strategy_id || ':' || s.ticker || ':' || s.as_of::text
+      WHERE s.as_of >= current_date - 7`);
+    const putSeen = new Set((await safe<{ k: string }>(sql`SELECT item_key AS k FROM watchlist_sync.rec_seen WHERE kind = 'put'`)).map((r) => r.k));
     const signals = SIGNALS.map((s) => {
       const f = byId.get(s.id);
-      return { ...s, lastFired: f?.last ?? null, firingNames: f?.today ?? 0, daysFiredLast7: f?.n5 ?? 0, names: f?.names ?? [] };
+      const latest = fires.filter((x) => x.id === s.id && x.d === f?.last);
+      return { ...s, lastFired: f?.last ?? null, firingNames: f?.today ?? 0, daysFiredLast7: f?.n5 ?? 0, names: f?.names ?? [],
+               keys: latest.map((x) => x.key), unseen: latest.filter((x) => !x.seen).length };
     });
     const puts = await safe<{ ticker: string; rank: number; p: Record<string, unknown> }>(sql`
       SELECT ticker, rank, payload AS p FROM watchlist_sync.put_recs_daily
       WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND pass ORDER BY rank`);
+    const putAsOf = (asOf.find((r) => r.src === "putIdeas")?.d ?? "").slice(0, 10);
+    const bySig = new Map<string, { fired: number; seen: number }>();
+    for (const x of fires) {
+      const b = bySig.get(x.id) ?? { fired: 0, seen: 0 };
+      b.fired += 1; b.seen += x.seen ? 1 : 0; bySig.set(x.id, b);
+    }
     res.json({
       status: { lastRun: lastRun(), asOf: Object.fromEntries(asOf.map((r) => [r.src, r.d])) },
+      seen7d: { fired: fires.length, seen: fires.filter((x) => x.seen).length, bySignal: Object.fromEntries(bySig) },
       signals,
       puts: puts.map(({ ticker, rank, p }) => ({
         ticker, rank, tier: (p.tier as string) ?? "best", strike: p.strike, expiry: p.expiry, bid: p.bid, delta: p.delta,
         oddsOtm: p.odds_otm ?? (typeof p.delta === "number" ? 1 - Math.abs(p.delta) : null), incomeWkPct: p.income_wk_pct,
-        why: p.why, cautions: (p.cautions as string[]) ?? [],
+        why: p.why, cautions: (p.cautions as string[]) ?? [], key: `put:${ticker}:${putAsOf}`, seen: putSeen.has(`put:${ticker}:${putAsOf}`),
       })),
     });
   } catch (err) {

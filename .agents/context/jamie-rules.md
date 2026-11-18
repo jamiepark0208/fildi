@@ -15,6 +15,7 @@
   Rankings, Structures, Live) shows the same contract from the same run. Classes + guards: `.agents/context/recurring-bugs.md`.
 
 ## Research and verdicts
+- **Enhance = rank + explain, never hide (11-17):** a study result changes the ORDER and the WHY/caution shown on an idea, not whether Jamie sees it. Only safety blocks hide (earnings across expiry, stale chain, no tradable strike, one sale per name-week). "Did you find anything helpful?" → lead with what works and how it's now used in the UI; a no-lift result is a ranking input, not a reason to drop a strategy.
 - **Opportunity mindset (10-28, the frame for every study and trade idea):** buy low / sell high — buy when fear is high, trim when greed is high.
   By the time news reports bad news, most of it is priced; a crash with everyone bearish is where to *look for* opportunity, a big rally with
   everyone bullish is where to get careful. Treat the consensus view as information, not as the answer. Ideate with a slight optimistic bias,
