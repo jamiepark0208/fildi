@@ -126,6 +126,8 @@ def main() -> int:
             L.append(f"- {reg} · {lbl}: {m:+.3f} %/wk, t {t:.2f}, weeks {n}, Δ worst-5 % {dw5:+.2f} → {verdict}\n")
     m, t, n = paired(W.G_rb, W.E_rb)
     L.append(f"- all weeks · G − E: {m:+.3f} %/wk, t {t:.2f}, weeks {n}\n")
+    L.append("\n**Verdict:** RULE tested = EOD entry 3–9 DTE × hold to expiry × 1-week short put: (a) engine proxy without 6–10 % OTM "
+             "strikes, (b) S109 rich lane vs engine proxy per SPY-200 d regime — read PASS / no lift per line above.\n")
     L.append(f"\nn_indep (distinct entry weeks with an engine pick): {W.E_rb.notna().sum()}\n")
     # Winner pass (contract item 11): engine-proxy picks, train weeks only (< 2024-07), winners = kept, losers = loss at expiry
     P = pd.concat(picks)
