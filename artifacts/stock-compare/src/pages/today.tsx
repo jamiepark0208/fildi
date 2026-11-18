@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
 import { FearCurveCharts, TenorCostTable } from "@/components/live/fear-curve-panel";
+import { RiskReversalCard } from "@/components/live/risk-reversal-card";
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
 const TD = "px-1.5 py-0.5 text-[11px] font-mono";
@@ -241,6 +242,7 @@ export default function Today() {
       {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
       {data && <StatusStrip s={data.status} seen={data.seen7d} />}
       <LongCallOdds />
+      <RiskReversalCard />
       {data?.bottom && <BottomChecklist b={data.bottom} />}
       {data?.bottom?.series && <FearCurveCharts ratio={data.bottom.series.ratio} hy={data.bottom.series.hy} />}
       <TenorCostTable />

@@ -15,6 +15,10 @@ import { fileURLToPath } from "node:url";
 import { getIvTermStructure } from "../lib/options.js";
 import { ivTermCache } from "./options.js";
 import { normCDF } from "../lib/options-greeks.js";
+import { TTLCache } from "../lib/ttl-cache.js";
+import { readChainSnapshot } from "../lib/options-chain-store.js";
+import { rankerChains } from "../lib/structures/ranker-chain.js";
+import { levelsFromBars, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
 
 const router = Router();
 
@@ -713,6 +717,57 @@ router.get("/today/long-calls", requireAdmin, async (_req, res, next) => {
         thetaDay: r.theta != null ? r.theta * 100 * r.qty : null };
     });
     res.json({ rows: out, snapAt: rows[0]?.snap_at ?? null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Jamie 11-18: put-funded calls (risk reversal) — sell an OTM put at support on a name worth owning, use the credit
+// to buy a longer OTM call below resistance. Pool = holdings + Model List green names (best `own` + most crashed).
+// Chains = stored + Schwab ladder (rankerChains, 15-min cache, 12 s deadline); 4 names at a time; whole answer cached 15 min.
+const rrCache = new TTLCache<unknown>(15 * 60 * 1000, "today-risk-reversals", 4);
+async function riskReversals() {
+  const held = await holdingTickers();
+  const pool = await safe<{ t: string; own: number | null; color: string | null; dd: number | null }>(sql`
+    WITH v AS (SELECT model_version FROM watchlist_sync.fit_scores ORDER BY computed_at DESC LIMIT 1),
+    f AS (SELECT s.ticker, s.own::float8 AS own, s.color FROM watchlist_sync.fit_scores s, v WHERE s.model_version = v.model_version),
+    d AS (SELECT ticker, (ARRAY_AGG(close ORDER BY date DESC))[1]::float8 / NULLIF(MAX(high), 0)::float8 - 1 AS dd
+          FROM public.prices_historical WHERE date >= current_date - 365 GROUP BY ticker),
+    g AS (SELECT f.ticker, f.own, f.color, d.dd FROM f LEFT JOIN d USING (ticker) WHERE f.color = 'green'),
+    pick AS ((SELECT ticker FROM g ORDER BY own DESC NULLS LAST LIMIT 12)
+             UNION (SELECT ticker FROM g WHERE dd <= -0.25 ORDER BY own DESC NULLS LAST LIMIT 12)
+             UNION (SELECT UNNEST(ARRAY[${sql.join((held.length ? held : ["__"]).map((t) => sql`${t}`), sql`, `)}]::text[])))
+    SELECT p.ticker AS t, f.own, f.color, d.dd FROM pick p LEFT JOIN f USING (ticker) LEFT JOIN d USING (ticker)`);
+  const out: unknown[] = [];
+  const skipped: { ticker: string; why: string }[] = [];
+  let i = 0;
+  async function worker() {
+    while (i < pool.length) {
+      const row = pool[i++]!;
+      const t = row.t;
+      try {
+        const snap = await readChainSnapshot(t).catch(() => null);
+        const { chains, filled } = await rankerChains(t, snap?.chains ?? [], RR_PARAMS.callDte[1]);
+        const spot = chains[0]?.spot;
+        if (!spot || !filled) { skipped.push({ ticker: t, why: filled ? "no spot" : "no live chain (Schwab ladder)" }); continue; }
+        const bars = await safe<Bar>(sql`SELECT date::text AS date, high::float8 AS high, low::float8 AS low, close::float8 AS close
+          FROM (SELECT * FROM public.prices_historical WHERE ticker = ${t} ORDER BY date DESC LIMIT 260) x ORDER BY date`);
+        const lv = levelsFromBars(bars, spot);
+        const pair = pickRiskReversal(chains, spot, lv);
+        if (!pair) { skipped.push({ ticker: t, why: "no quoted put 25–65 DTE / call 85–190 DTE in the Δ bands" }); continue; }
+        out.push({ ticker: t, held: held.includes(t), own: row.own, color: row.color, offHigh: row.dd, ...pair,
+          supports: lv.support.slice(0, 3), resistances: lv.resistance.slice(0, 3) });
+      } catch (e) {
+        skipped.push({ ticker: t, why: e instanceof Error ? e.message.slice(0, 80) : "error" });
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: 4 }, () => worker()));
+  return { rows: out, skipped, asOf: new Date().toISOString() };
+}
+router.get("/today/risk-reversals", requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await rrCache.getOrComputeStale("all", riskReversals));
   } catch (err) {
     next(err);
   }
