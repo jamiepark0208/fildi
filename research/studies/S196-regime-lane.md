@@ -26,7 +26,7 @@ G − E all weeks +0.09 (t 2.5). n_indep = 186 entry weeks with an engine pick (
 
 **Live (shadow) check, 3 graded weeks 10-26 → 11-09:** rich lane (every name's rich put, n 390) −1.46 % per trade vs engine top-10 (n 69) −1.42; rich trailed in both calm weeks (−0.19 vs +0.83, +0.23 vs +0.78). Can't answer at this n.
 
-**Verdict:**
+**Verdict:** RULE tested = EOD entry 3–9 DTE × hold to expiry × 1-week short put, two changes to the engine pick:
 - Drop 6–10 % OTM: `RULE NO-LIFT: EOD entry 3–9 DTE, engine-proxy pick without 6–10 % OTM strikes × hold to expiry × 1-week short put` — +0.05 to +0.16 %/wk at stress, t ≤ 1.1 (sign right, not significant).
 - Gate rich lane to SPY < 200 d: **wrong shape** — on history the rich lane beats the engine proxy in bull weeks too (+0.70, t 3.7), so a bear-only gate drops the bigger cell. Bear: higher mean but worse worst week (fails the pre-set risk bar). Same finding as S109 (+101 vs +14 bp), not new evidence. Live 3 weeks say the opposite → stays shadow.
 
