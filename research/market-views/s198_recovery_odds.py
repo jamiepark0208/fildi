@@ -129,3 +129,37 @@ for nm, (st, S, K, prem, h) in NEED.items():
     be = (K + prem) / S - 1; ks = K / S - 1
     payoff = np.maximum(S * (1 + f) - K, 0) / prem - 1
     print(f"{nm:16} needs {be:+.0%} in {h} sessions · P(≥ breakeven) {100*(f>=be).mean():3.0f} % · P(worthless) {100*(f<=ks).mean():3.0f} % · avg return on premium {payoff.mean():+.0%} (median {np.median(payoff):+.0%}) · n {len(f)}")
+
+# ---- Part C (Jamie 11-17 follow-up: 'further OTM calls, longer expiry; deeper drawdown = more opportunity')
+# Needs forward 63 / 126 sessions: rebuild samples with longer horizons (same states, SPY 3–10 % off cell + all).
+from quantcore.bs import bs_call, years_from_sessions  # noqa: E402
+HC = (41, 63, 126)
+samp2 = defaultdict(list)
+for key, r in pan.items():
+    if len(r) < 300:
+        continue
+    d = [x[0] for x in r]; px = np.array([x[1] for x in r]); raw = np.array([x[2] if x[2] is not None else np.nan for x in r])
+    s = pd.Series(px); hi252 = s.rolling(252, min_periods=200).max().values
+    argage = s.rolling(252, min_periods=200).apply(lambda w: len(w) - 1 - int(np.argmax(w)), raw=True).values
+    for i in range(252, len(r) - max(HC)):
+        if d[i].weekday() != 2 or (key[0] == "C" and d[i].year >= 2020) or (key[0] == "L" and d[i].year < 2020) or not raw[i] >= 1:
+            continue
+        ddv = px[i] / hi252[i] - 1
+        st = "SPEC_CRASHED" if ddv <= -0.60 and argage[i] >= 120 else "FAST_CRASH" if -0.40 <= ddv <= -0.25 and argage[i] <= 60 else None
+        if st:
+            samp2[st].append((pd.Timestamp(d[i]).to_period("W"), {h: px[i + h] / px[i] - 1 for h in HC}))
+print("\n== C. Call grid: mean return on premium / P(profit), priced at today's IV (spec 90 %, NVDA-type 62 %)")
+for st, iv in (("SPEC_CRASHED", 0.90), ("FAST_CRASH", 0.62)):
+    for h in HC:
+        f = np.array([x[1][h] for x in samp2[st]])
+        cells = []
+        for m in (1.0, 1.2, 1.4, 1.6, 2.0):
+            prem = bs_call(spot=1.0, strike=m, iv=iv, years=years_from_sessions(h))
+            pay = np.maximum(1 + f - m, 0) / prem - 1
+            cells.append(f"K {m:.1f}×: {pay.mean():+.0%} (win {100*(pay>0).mean():.0f} %)")
+        print(f"{st:12} {h:3} sessions n {len(f):5} · " + " · ".join(cells))
+print("\n== C2. SPY: deeper drawdown → better long? forward 126 sessions by depth")
+sd["f126"] = spy.shift(-126) / spy - 1
+for lo, hi_ in ((-0.03, 0.01), (-0.05, -0.03), (-0.10, -0.05), (-0.20, -0.10), (-1, -0.20)):
+    s = sd[(sd.dd > lo) & (sd.dd <= hi_)].dropna(subset=["f126"])
+    print(f"SPY {hi_:+.0%}..{lo:+.0%} off high: n {len(s):4} ({s.index.to_period('M').nunique()} months) · +126d {s.f126.mean():+.1%} · up {100*(s.f126>0).mean():.0f} % · worst {s.f126.min():+.0%}")
