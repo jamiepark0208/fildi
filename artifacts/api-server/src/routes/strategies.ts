@@ -18,7 +18,7 @@ import { normCDF } from "../lib/options-greeks.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { readChainSnapshot } from "../lib/options-chain-store.js";
 import { rankerChains } from "../lib/structures/ranker-chain.js";
-import { levelsFromBars, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
+import { frontSkew, levelsFromBars, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
 
 const router = Router();
 
@@ -740,6 +740,7 @@ async function riskReversals() {
     SELECT p.ticker AS t, f.own, f.color, d.dd FROM pick p LEFT JOIN f USING (ticker) LEFT JOIN d USING (ticker)`);
   const out: unknown[] = [];
   const skipped: { ticker: string; why: string }[] = [];
+  const liveSkew: (NonNullable<ReturnType<typeof frontSkew>> & { ticker: string })[] = [];
   let i = 0;
   async function worker() {
     while (i < pool.length) {
@@ -753,6 +754,8 @@ async function riskReversals() {
         const bars = await safe<Bar>(sql`SELECT date::text AS date, high::float8 AS high, low::float8 AS low, close::float8 AS close
           FROM (SELECT * FROM public.prices_historical WHERE ticker = ${t} ORDER BY date DESC LIMIT 260) x ORDER BY date`);
         const lv = levelsFromBars(bars, spot);
+        const fs = frontSkew(chains);
+        if (fs) liveSkew.push({ ticker: t, ...fs });
         let any = false;
         for (const dir of ["bull", "bear"] as const) {
           const pair = pickRiskReversal(chains, spot, lv, RR_PARAMS, dir);
@@ -773,6 +776,15 @@ async function riskReversals() {
     }
   }
   await Promise.all(Array.from({ length: 4 }, () => worker()));
+  // Step 2 (Jamie 11-18 "relative ranking"): front-month 25Δ skew vs the name's own last 60 days + vs its sector today
+  // (watchlist_sync.rr_skew_daily ← scripts/watchlist_sync/rr_skew.py, ~200–400 names/day from option_chain_history).
+  // Live chains → today's row in the same history (big names the chain store skips: MU, NVDA, AMZN, SKHY …).
+  if (liveSkew.length) await db.execute(sql`INSERT INTO watchlist_sync.rr_skew_daily (ticker, as_of, expiry, dte, rr25, atm_iv, p25, c25)
+    VALUES ${sql.join(liveSkew.map((x) => sql`(${x.ticker}, current_date, ${x.expiry}::date, ${x.dte}, ${x.rr25}, ${x.atm}, ${x.p25}, ${x.c25})`), sql`, `)}
+    ON CONFLICT (ticker, as_of) DO UPDATE SET expiry = EXCLUDED.expiry, dte = EXCLUDED.dte, rr25 = EXCLUDED.rr25,
+      atm_iv = EXCLUDED.atm_iv, p25 = EXCLUDED.p25, c25 = EXCLUDED.c25, computed_at = now()`).catch(() => undefined);
+  const ranks = await skewRanks([...new Set(out.map((r) => (r as { ticker: string }).ticker))]);
+  for (const r of out as { ticker: string; skewRank?: unknown }[]) r.skewRank = ranks.get(r.ticker) ?? null;
   // Regime picks which list shows first (both always shown): fear curve ≥ 0.95 or the pool's median name ≥ 20 % off
   // its high → bull (crashed + fear rich → sell puts); else bear (calm + extended → sell calls).
   const vr = await safe<{ r: number }>(sql`SELECT (v.value / NULLIF(m.value, 0))::float8 AS r FROM watchlist_sync.macro_daily v
@@ -783,9 +795,66 @@ async function riskReversals() {
   const defaultDirection = (fear != null && fear >= 0.95) || (medDd != null && medDd <= -0.2) ? "bull" : "bear";
   return { rows: out, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
 }
+type SkewRank = { rr25: number; asOf: string; dte: number; ownPct: number | null; ownN: number; ownMedian: number | null;
+  sector: string | null; sectorPct: number | null; sectorN: number; sectorMedian: number | null; universePct: number | null };
+async function skewRanks(tickers: string[]): Promise<Map<string, SkewRank>> {
+  const m = new Map<string, SkewRank>();
+  if (!tickers.length) return m;
+  const rows = await safe<SkewRank & { ticker: string }>(sql`
+    WITH d AS (SELECT MAX(as_of) AS a FROM watchlist_sync.rr_skew_daily),
+    last AS (SELECT DISTINCT ON (ticker) ticker, as_of, rr25, dte FROM watchlist_sync.rr_skew_daily, d
+             WHERE as_of >= d.a - 4 AND rr25 IS NOT NULL ORDER BY ticker, as_of DESC),
+    -- GICS industry (TSM vs semis, SNDK vs storage); under 5 peers today → GICS sector
+    g AS (SELECT l.*, c.gics_industry AS ind, c.gics_sector AS gsec FROM last l LEFT JOIN research_common.security_class c USING (ticker)),
+    gn AS (SELECT g.*, COUNT(*) OVER (PARTITION BY ind) AS ind_n FROM g),
+    sec AS (SELECT ticker, as_of, rr25, dte, CASE WHEN ind IS NOT NULL AND ind_n >= 5 THEN ind ELSE gsec END AS sector FROM gn),
+    xs AS (SELECT ticker, sector, PERCENT_RANK() OVER (ORDER BY rr25) AS upct,
+             CASE WHEN sector IS NULL THEN NULL ELSE PERCENT_RANK() OVER (PARTITION BY sector ORDER BY rr25) END AS spct,
+             COUNT(*) OVER (PARTITION BY sector) AS sn FROM sec),
+    sm AS (SELECT sector, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rr25) AS smed FROM sec WHERE sector IS NOT NULL GROUP BY sector),
+    own AS (SELECT h.ticker, COUNT(*) AS n, AVG((h.rr25 <= l.rr25)::int)::float8 AS pct,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY h.rr25) AS med
+            FROM watchlist_sync.rr_skew_daily h JOIN last l USING (ticker)
+            WHERE h.as_of >= l.as_of - 60 AND h.as_of < l.as_of AND h.rr25 IS NOT NULL GROUP BY h.ticker)
+    SELECT s.ticker, s.rr25::float8 AS "rr25", s.as_of::text AS "asOf", s.dte AS "dte",
+           o.pct AS "ownPct", COALESCE(o.n, 0)::int AS "ownN", o.med::float8 AS "ownMedian",
+           s.sector, x.spct::float8 AS "sectorPct", x.sn::int AS "sectorN", sm.smed::float8 AS "sectorMedian", x.upct::float8 AS "universePct"
+    FROM sec s JOIN xs x USING (ticker) LEFT JOIN sm ON sm.sector = s.sector LEFT JOIN own o USING (ticker)
+    WHERE s.ticker IN (${sql.join(tickers.map((t) => sql`${t}`), sql`, `)})`);
+  for (const r of rows) {
+    // n floors: own pct needs ≥ 10 prior days, sector pct ≥ 5 peers — else null (shown as "—", never a guess)
+    m.set(r.ticker, { ...r, ownPct: r.ownN >= 10 ? r.ownPct : null, ownMedian: r.ownN >= 10 ? r.ownMedian : null,
+      sectorPct: r.sectorN >= 5 ? r.sectorPct : null, sectorMedian: r.sectorN >= 5 ? r.sectorMedian : null });
+  }
+  return m;
+}
+
+// Cold start (8 restarts on 11-18 → p50 18.7 s): serve the last saved answer (≤ 24 h) and recompute behind.
+async function rrSaved(): Promise<unknown | null> {
+  const r = await safe<{ payload: unknown }>(sql`SELECT payload FROM watchlist_sync.rr_answer
+    WHERE id = 1 AND saved_at > now() - interval '24 hours'`);
+  return r[0]?.payload ?? null;
+}
+async function riskReversalsSaved() {
+  const v = await riskReversals();
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.rr_answer (id int PRIMARY KEY, saved_at timestamptz NOT NULL, payload jsonb NOT NULL)`).catch(() => undefined);
+  await db.execute(sql`INSERT INTO watchlist_sync.rr_answer (id, saved_at, payload) VALUES (1, now(), ${JSON.stringify(v)}::jsonb)
+    ON CONFLICT (id) DO UPDATE SET saved_at = now(), payload = EXCLUDED.payload`).catch(() => undefined);
+  rrLive = true;
+  return v;
+}
+let rrLive = false;   // false until this process has computed once → until then serve the saved answer
 router.get("/today/risk-reversals", requireAdmin, async (_req, res, next) => {
   try {
-    res.json(await rrCache.getOrComputeStale("all", riskReversals));
+    if (!rrLive) {
+      const saved = await rrSaved().catch(() => null);
+      if (saved) {
+        void rrCache.getOrCompute("all", riskReversalsSaved).catch(() => undefined);
+        res.json({ ...(saved as object), stale: true });
+        return;
+      }
+    }
+    res.json(await rrCache.getOrComputeStale("all", riskReversalsSaved));
   } catch (err) {
     next(err);
   }

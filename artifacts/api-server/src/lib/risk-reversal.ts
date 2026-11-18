@@ -85,6 +85,20 @@ export function ivAtDelta(rows: OptionRow[], target: number): number | null {
   }
   return null;
 }
+/** Front-month skew on the expiry in 7–45 DTE nearest 30 — same definition as scripts/watchlist_sync/rr_skew.py
+ *  (rr_skew_daily history), so a live value ranks against stored days. */
+export function frontSkew(chains: OptionsChainResult[]): { expiry: string; dte: number; rr25: number; p25: number; c25: number; atm: number | null } | null {
+  const c = chains.filter((x) => x.daysToExpiry >= 7 && x.daysToExpiry <= 45)
+    .sort((a, b) => Math.abs(a.daysToExpiry - 30) - Math.abs(b.daysToExpiry - 30));
+  for (const ch of c) {
+    const p25 = ivAtDelta(ch.puts, -0.25), c25 = ivAtDelta(ch.calls, 0.25);
+    if (p25 == null || c25 == null) continue;
+    const ap = ivAtDelta(ch.puts, -0.5), ac = ivAtDelta(ch.calls, 0.5);
+    const atm = ap != null && ac != null ? (ap + ac) / 2 : (ap ?? ac);
+    return { expiry: ch.expiry, dte: ch.daysToExpiry, rr25: p25 - c25, p25, c25, atm };
+  }
+  return null;
+}
 /** P(S_T > x), lognormal at the leg's own IV, no drift (market-implied). */
 const pAbove = (spot: number, x: number, iv: number, dte: number) => {
   const sd = iv * Math.sqrt(dte / 365);

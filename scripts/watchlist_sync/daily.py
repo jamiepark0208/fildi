@@ -80,6 +80,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("turning points", PY, HERE, ["turning_points.py"]),  # A330: S151 odds → turning_point_scores (soft)
         ("put edge", PY, HERE, ["put_edge.py"]),   # today's quintiles before the engine reads them (10-28: it read yesterday's)
         ("put recs", PY, HERE, ["put_recs.py"]),
+        ("skew history", PY, HERE, ["rr_skew.py"]),   # 11-18: front 25Δ skew per name/day → rr_skew_daily (Today › Risk reversals own/sector rank)
         ("put manage", PY, HERE, ["put_manage.py"]),   # A279 / S103: open short puts → take + re-sell at ≥ 4× pace (weeklies), else hold; never trend stops   # A277: the one sold-put pick per name → put_recs_daily (Model List, Structures, Rankings, Live)
         ("plan (L1)", PY, HERE, ["build_plan.py"]),
     ],

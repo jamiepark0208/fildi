@@ -58,6 +58,14 @@ describe("pickRiskReversal", () => {
 });
 
 describe("same-expiry skew", () => {
+  it("frontSkew uses the 7–45 DTE expiry nearest 30 with both 25Δ sides", async () => {
+    const { frontSkew } = await import("./risk-reversal.js");
+    const puts = [row(85, 1, 1.1, 0.7, -0.15), row(92, 2, 2.1, 0.6, -0.35)];
+    const calls = [row(108, 1, 1.1, 0.48, 0.35), row(115, 0.5, 0.6, 0.46, 0.15)];
+    const fs = frontSkew([chain("d10", 10, puts, calls), chain("d28", 28, puts, calls), chain("d60", 60, puts, calls), chain("d33", 33, puts, [])]);
+    assert.equal(fs!.expiry, "d28");   // d33 nearer 30 but has no calls → skipped; d60 outside the window
+    assert.ok(Math.abs(fs!.rr25 - (0.65 - 0.47)) < 1e-9);
+  });
   it("ivAtDelta interpolates on one expiry", async () => {
     const { ivAtDelta } = await import("./risk-reversal.js");
     const rows = [row(80, 1, 1.1, 0.7, -0.1), row(90, 2, 2.1, 0.6, -0.3)];
