@@ -24,6 +24,8 @@ thresholds, or other use cases… keep building on top of them."
 
 **Results:** #1 + #3 = S197 → can't answer at this n (6 un-invert episodes, 9 stressed runs in 2022/25/26 option trades); puts sold while VIX is still inverted did best (+2.79 % vs +1.34 calm), against the "wait for un-invert" story. Needs 2008–2021 option trades before either becomes a rank/size boost. Next: #4 strike depth by VIX level.
 
+**#4 = S202 (11-18):** no tilt — high-VIX deep − near +0.22 %/wk, t 0.6 (sign rises with VIX as Tosi–Ziegler says, not significant). Lean: at VIX ≥ 22 deep strikes earn the same at half the swing (P 0.10, losses 6.6 vs 14 %). S101's 'nearer after drops' not seen on real quotes. Next: #5 revisions + momentum calls timed into earnings.
+
 ## Shipped alongside (11-17)
 - Today page (`/today`): run status, every signal firing with its backtest number, the ranked Today list, all put ideas.
 - Put ideas: odds floor ~90 → 80 % (|Δ| ≤ 0.20), soft gates → cautions: 12 → 106 ideas shown (6 best, 100 options).
