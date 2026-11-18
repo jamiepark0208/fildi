@@ -30,6 +30,61 @@ type Check = { key: string; label: string; value: string; read: "up" | "down" | 
 
 const READ = { up: ["▲ leans up", "text-green-400"], down: ["▼ leans down", "text-red-400"], wait: ["… wait", "text-amber-300"] } as const;
 
+type LongCall = {
+  account: string; ticker: string; strike: number; expiry: string; days: number; qty: number; cost: number; mark: number | null;
+  breakeven: number; spot: number | null; spotDate: string | null; moveToBe: number | null; sdMove: number | null;
+  pBreakeven: number | null; pTouch: number | null; pItm: number | null; valueLeft: number | null; paid: number; thetaDay: number | null;
+};
+const pc = (v: number | null, d = 0) => (v == null ? "—" : `${(v * 100).toFixed(d)} %`);
+const usd = (v: number | null) => (v == null ? "—" : `${v < 0 ? "−" : ""}$${Math.abs(Math.round(v)).toLocaleString()}`);
+
+// Jamie 11-17 (S198): odds each open long call ends above breakeven — the call is the bet, so show what it needs.
+function LongCallOdds() {
+  const { data } = useQuery<{ rows: LongCall[]; snapAt: string | null }>({
+    queryKey: ["today-long-calls"],
+    queryFn: async () => {
+      const r = await fetch("/api/today/long-calls", { credentials: "include" });
+      if (!r.ok) throw new Error(`long-calls ${r.status}`);
+      return r.json();
+    },
+    staleTime: 10 * 60_000,
+  });
+  if (!data?.rows.length) return null;
+  const paid = data.rows.reduce((a, r) => a + r.paid, 0), left = data.rows.reduce((a, r) => a + (r.valueLeft ?? 0), 0);
+  const burn = data.rows.reduce((a, r) => a + (r.thetaDay ?? 0), 0);
+  return (
+    <div className={GRID_WRAP} data-testid="today-long-calls">
+      <div className={cn(GRID_HEADER, "px-1.5")} title={`Market odds from each option's own IV (Robinhood snapshot ${data.snapAt?.slice(0, 16) ?? "?"}), no drift — not a forecast. Touch ≈ 2 × end-above (you can sell before expiry if it gets there). S198 history: 1-month calls on crashed high-beta names ended above breakeven 7–26 % of the time.`}>
+        Your open long calls — odds to breakeven · paid {usd(paid)} · worth {usd(left)} · time decay {usd(burn)}/day
+      </div>
+      <table className="w-full">
+        <thead><tr>
+          {["Ticker", "Strike · expiry", "Days", "Spot", "Breakeven", "Move needed", "1σ move", "Ends above BE", "Touches BE", "Paid → now", "Decay/day", "Acct"].map((h) => <th key={h} className={TH}>{h}</th>)}
+        </tr></thead>
+        <tbody>
+          {data.rows.map((r) => (
+            <tr key={`${r.account}-${r.ticker}-${r.strike}-${r.expiry}`} className="border-t border-white/5"
+              title={`Needs ${r.ticker} at ${r.breakeven.toFixed(2)} by ${r.expiry} (strike + ${r.cost.toFixed(2)} paid). Odds it ends in the money at all: ${pc(r.pItm)}. Spot = close ${r.spotDate ?? "?"}.`}>
+              <td className={cn(TD, "text-left font-semibold")}>{r.ticker}</td>
+              <td className={TD}>{r.strike}C {r.expiry.slice(5)}</td>
+              <td className={TD}>{r.days}</td>
+              <td className={TD}>{r.spot?.toFixed(2) ?? "—"}</td>
+              <td className={TD}>{r.breakeven.toFixed(2)}</td>
+              <td className={TD}>{r.moveToBe == null ? "—" : `${r.moveToBe >= 0 ? "+" : ""}${(r.moveToBe * 100).toFixed(0)} %`}</td>
+              <td className={TD}>±{pc(r.sdMove)}</td>
+              <td className={cn(TD, "font-semibold", (r.pBreakeven ?? 0) >= 0.4 ? "text-green-400" : (r.pBreakeven ?? 0) >= 0.2 ? "text-amber-300" : "text-red-400")}>{pc(r.pBreakeven)}</td>
+              <td className={TD}>{pc(r.pTouch)}</td>
+              <td className={TD}>{usd(r.paid)} → {usd(r.valueLeft)}</td>
+              <td className={cn(TD, "text-red-300/80")}>{usd(r.thetaDay)}</td>
+              <td className={cn(TD, "text-amber-100")}>{r.account}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // Jamie 11-17 ("how will you know it's time to get long?"): no forecast — four reads that build or kill conviction.
 function BottomChecklist({ b }: { b: NonNullable<Overview["bottom"]> }) {
   if (!b.checks.length) return null;
@@ -185,6 +240,7 @@ export default function Today() {
     <div className="mx-auto max-w-[1400px] space-y-2 px-3 pb-8 pt-16" data-testid="today-page">
       {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
       {data && <StatusStrip s={data.status} seen={data.seen7d} />}
+      <LongCallOdds />
       {data?.bottom && <BottomChecklist b={data.bottom} />}
       {data?.bottom?.series && <FearCurveCharts ratio={data.bottom.series.ratio} hy={data.bottom.series.hy} />}
       <TenorCostTable />

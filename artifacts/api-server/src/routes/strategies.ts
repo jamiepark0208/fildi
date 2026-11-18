@@ -14,6 +14,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getIvTermStructure } from "../lib/options.js";
 import { ivTermCache } from "./options.js";
+import { normCDF } from "../lib/options-greeks.js";
 
 const router = Router();
 
@@ -677,6 +678,41 @@ router.get("/today/tenor-cost", requireAdmin, async (_req, res, next) => {
       return { ticker: t, iv3: m3.iv, iv6: m6.iv, cost3: cost(m3), cost6: cost(m6), dte3: m3.dte, dte6: m6.dte };
     }));
     res.json({ rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Jamie 11-17 (S198 follow-up): "your open long calls — odds to breakeven". Latest RH snapshot, market-implied (IV, no drift):
+// P(expire above breakeven), P(touch it before expiry) ≈ 2 × that (reflection), move needed, value left, theta/day.
+router.get("/today/long-calls", requireAdmin, async (_req, res, next) => {
+  try {
+    const rows = await safe<{ account: string; ticker: string; strike: number; expiry: string; qty: number; cost: number; mark: number | null;
+      iv: number | null; theta: number | null; spot: number | null; spot_date: string | null; snap_at: string }>(sql`
+      WITH s AS (SELECT id, imported_at FROM public.portfolio_snapshots ORDER BY id DESC LIMIT 1)
+      SELECT o.account, UPPER(o.symbol) AS ticker, o.strike::float8 AS strike, o.expiration::text AS expiry, o.qty::float8 AS qty,
+             o.avg_premium::float8 / 100 AS cost, o.mark_price::float8 AS mark, o.iv::float8 AS iv, o.theta::float8 AS theta,
+             p.close AS spot, p.date AS spot_date, s.imported_at::text AS snap_at
+      FROM public.portfolio_options o JOIN s ON o.snapshot_id = s.id
+      LEFT JOIN LATERAL (SELECT close::float8 AS close, date::text AS date FROM public.prices_historical h
+                         WHERE UPPER(h.ticker) = UPPER(o.symbol) ORDER BY date DESC LIMIT 1) p ON true
+      WHERE o.direction = 'long' AND o.option_type = 'call' AND o.expiration >= CURRENT_DATE
+      ORDER BY o.expiration, o.symbol, o.strike`);
+    const today = Date.now();
+    const out = rows.map((r) => {
+      const days = Math.max(1, Math.round((Date.parse(r.expiry + "T16:00:00-05:00") - today) / 86_400_000));
+      const be = r.strike + r.cost;
+      const iv = r.iv != null && r.iv > 0.05 && r.iv < 5 ? r.iv : null; // same junk-IV guard as tenor-cost
+      const sd = iv != null ? iv * Math.sqrt(days / 365) : null;
+      const pBe = r.spot && sd ? 1 - normCDF((Math.log(be / r.spot) + 0.5 * sd * sd) / sd) : null;
+      const pK = r.spot && sd ? 1 - normCDF((Math.log(r.strike / r.spot) + 0.5 * sd * sd) / sd) : null;
+      return { account: r.account.slice(-4), ticker: r.ticker, strike: r.strike, expiry: r.expiry, days, qty: r.qty,
+        cost: r.cost, mark: r.mark, breakeven: be, spot: r.spot, spotDate: r.spot_date,
+        moveToBe: r.spot ? be / r.spot - 1 : null, sdMove: sd, pBreakeven: pBe, pTouch: pBe != null ? Math.min(1, 2 * pBe) : null, pItm: pK,
+        valueLeft: r.mark != null ? r.mark * 100 * r.qty : null, paid: r.cost * 100 * r.qty,
+        thetaDay: r.theta != null ? r.theta * 100 * r.qty : null };
+    });
+    res.json({ rows: out, snapAt: rows[0]?.snap_at ?? null });
   } catch (err) {
     next(err);
   }
