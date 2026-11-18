@@ -37,19 +37,19 @@ describe("pickRiskReversal", () => {
 
   it("sells the highest put strike at/below support and buys a call under resistance near zero net", () => {
     const p = pickRiskReversal(chains, 100, lv)!;
-    assert.equal(p.put.strike, 85);
-    assert.ok(p.call.strike <= 125);
-    assert.ok(Math.abs(p.net) <= 0.1 * p.put.fill + 1e-9 || p.net < 0, "near-even or smallest debit");
-    assert.ok(p.put.fill > 1.6 && p.put.fill < 1.8, "sell fill between bid and ask");
+    assert.equal(p.short.strike, 85);
+    assert.ok(p.long.strike <= 125);
+    assert.ok(Math.abs(p.net) <= 0.1 * p.short.fill + 1e-9 || p.net < 0, "near-even or smallest debit");
+    assert.ok(p.short.fill > 1.6 && p.short.fill < 1.8, "sell fill between bid and ask");
     assert.equal(p.cashIfAssigned, 8500);
-    assert.ok(p.pPutSafe > 0.5 && p.pPutSafe < 1);
+    assert.ok(p.pShortSafe > 0.5 && p.pShortSafe < 1);
   });
 
   it("prefers the longest call expiry that is still near even", () => {
     const p = pickRiskReversal(chains, 100, lv)!;
     // put credit ≈ 1.65: c120 130C costs ≈ 1.85 (−0.2, within 10 %? no → −12 %); c170 has no call that cheap ≤ 125 → fallback
-    assert.ok(["c120", "c170"].includes(p.call.expiry));
-    assert.ok(p.pCallBe <= p.pCallItm);
+    assert.ok(["c120", "c170"].includes(p.long.expiry));
+    assert.ok(p.pLongBe <= p.pLongItm);
   });
 
   it("returns null with no quoted put in the band", () => {
@@ -72,5 +72,21 @@ describe("same-expiry skew", () => {
     assert.ok(Math.abs(p.volEdge - 0.25) < 1e-9);
     assert.equal(p.rollsAvailable, 6);
     assert.ok(p.rollsToFund > 1.5 && p.rollsToFund < 2.5);
+  });
+});
+
+describe("bear mirror", () => {
+  it("sells a call at/above resistance and buys a longer put toward support", () => {
+    const calls20 = [row(105, 2.0, 2.2, 0.5, 0.3), row(112, 1.0, 1.1, 0.55, 0.18), row(120, 0.4, 0.5, 0.6, 0.08)];
+    const puts120 = [row(95, 4.0, 4.3, 0.45, -0.4), row(88, 2.2, 2.4, 0.47, -0.27), row(80, 1.0, 1.1, 0.5, -0.15)];
+    const lv = { support: [{ price: 97, kind: "swing" as const }, { price: 88, kind: "sma200" as const }], resistance: [{ price: 110, kind: "swing" as const }] };
+    const p = pickRiskReversal([chain("s20", 20, [], calls20), chain("l120", 120, puts120, [])], 100, lv, undefined, "bear")!;
+    assert.equal(p.direction, "bear");
+    assert.equal(p.short.side, "call");
+    assert.equal(p.short.strike, 112, "nearest call strike at/above resistance 110");
+    assert.equal(p.long.side, "put");
+    assert.ok(p.long.strike < 100 && p.long.strike >= 88, "long put between spot and target support");
+    assert.equal(p.cashIfAssigned, null, "short call = uncapped unless covered");
+    assert.ok(p.pShortSafe > 0.5 && p.pShortSafe < 1);
   });
 });

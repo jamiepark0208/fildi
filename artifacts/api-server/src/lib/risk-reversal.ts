@@ -98,101 +98,109 @@ function atmIv(c: OptionsChainResult, spot: number): number | null {
   return near.reduce((s, r) => s + r.iv, 0) / near.length;
 }
 
-export type RRLeg = { expiry: string; dte: number; strike: number; bid: number; ask: number; fill: number; iv: number; delta: number };
+export type Direction = "bull" | "bear";
+export type RRLeg = { side: "put" | "call"; expiry: string; dte: number; strike: number; bid: number; ask: number; fill: number; iv: number; delta: number };
 export type RRPair = {
-  put: RRLeg; call: RRLeg; spot: number;
+  direction: Direction;
+  /** bull: short put at support + long call to resistance · bear: short call at resistance + long put to support */
+  short: RRLeg; long: RRLeg; spot: number;
   /** + = credit to you, − = you pay (per share; ×100 per pair) */
   net: number;
-  support: Level | null; resistance: Level | null;
-  /** Same-expiry skew (Jamie 11-18: skew is per expiry, never put-at-one-date ÷ call-at-another). */
-  putSkew: number | null;      // put IV ÷ ATM IV, put's expiry
-  callSkew: number | null;     // call IV ÷ ATM IV, call's expiry
-  rr25Put: number | null;      // 25Δ put IV − 25Δ call IV (vol pts ÷ 100), put's expiry
-  rr25Call: number | null;     // same, call's expiry
-  term: number | null;         // ATM IV call expiry ÷ ATM IV put expiry (< 1 = inverted: back month cheap)
-  /** Vol sold − vol bought (the cross-expiry edge the structure harvests = skew + term). */
-  volEdge: number;
-  putOverCall: number;
-  /** Call cost ÷ one put credit, and how many put cycles fit before the call expires. */
-  rollsToFund: number;
-  rollsAvailable: number;
-  pPutSafe: number;        // P(put expires OTM)
-  pCallItm: number;        // P(call ends above its strike)
-  pCallBe: number;         // P(call ends above strike + any net debit)
-  cashIfAssigned: number;  // strike × 100
-  assignedBasis: number;   // strike − put credit
-  callMoveToStrike: number;
+  anchor: Level | null;   // level the short strike sits behind (support for bull, resistance for bear)
+  target: Level | null;   // level the long strike aims at (≥ ±10 % away)
+  /** Same-expiry skew (Jamie 11-18: skew is per expiry, never one date ÷ another). */
+  shortSkew: number | null;    // short-leg IV ÷ ATM IV, short expiry
+  longSkew: number | null;     // long-leg IV ÷ ATM IV, long expiry
+  rr25Short: number | null;    // 25Δ put IV − 25Δ call IV on the short expiry (+ = puts rich, − = calls rich)
+  rr25Long: number | null;     // same on the long expiry
+  term: number | null;         // ATM IV long expiry ÷ ATM IV short expiry (< 1 = back month cheap)
+  volEdge: number;             // IV sold − IV bought (skew + term together)
+  rollsToFund: number;         // long cost ÷ one short credit
+  rollsAvailable: number;      // short cycles that fit before the long leg expires
+  pShortSafe: number;          // P(short leg expires OTM)
+  pLongItm: number;            // P(long leg ends ITM)
+  pLongBe: number;             // P(long leg ends past strike ∓ net debit)
+  /** bull: strike × 100 (cash-secured) · bear: null = uncapped unless you own 100 shares */
+  cashIfAssigned: number | null;
+  assignedBasis: number | null;
+  longMoveToStrike: number;    // signed move to the long strike
 };
 
 /**
- * Pick the pair: put = highest-strike quoted put at/below the nearest support (|Δ| in band, 25–65 DTE, nearest 45 DTE);
- * call = for each 85–190 DTE expiry, strike between spot and the first resistance (Δ band) whose cost best matches the
- * put credit; prefer the longest expiry within 10 % of zero net, else the smallest debit.
+ * One engine, both directions (Jamie 11-18: "dynamic and applicable for the opposite bearish risk reversals").
+ * Short leg: 14–45 DTE, strike at/behind the nearest anchor level (support for bull, resistance for bear), |Δ| in band;
+ * the expiry that sells the most IV wins (≥ 1 pt to leave ~30 DTE). Long leg: 85–190 DTE, strike between spot and the
+ * first level ≥ 10 % away, cost matched to one short credit; longest expiry within 10 % of even, else smallest debit.
  */
 export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv: { support: Level[]; resistance: Level[] },
-  p = RR_PARAMS): RRPair | null {
+  p = RR_PARAMS, direction: Direction = "bull"): RRPair | null {
   const f = p.fillFrac;
-  const putExp = chains.filter((c) => c.daysToExpiry >= p.putDte[0] && c.daysToExpiry <= p.putDte[1])
+  const bull = direction === "bull";
+  const shortSide: "put" | "call" = bull ? "put" : "call";
+  const longSide: "put" | "call" = bull ? "call" : "put";
+  const rowsOf = (c: OptionsChainResult, side: "put" | "call") => (side === "put" ? c.puts : c.calls);
+  const otm = (k: number, side: "put" | "call") => (side === "put" ? k < spot : k > spot);
+  const absD = (r: OptionRow, dte: number, side: "put" | "call") => Math.abs(deltaOf(r, spot, dte, side));
+
+  const anchor = bull ? (lv.support.find((x) => x.price <= spot * 0.97) ?? lv.support[0] ?? null)
+    : (lv.resistance.find((x) => x.price >= spot * 1.03) ?? lv.resistance[0] ?? null);
+  const behind = (k: number) => (anchor ? (bull ? k <= anchor.price : k >= anchor.price) : false);
+  let short: RRLeg | null = null, shortChain: OptionsChainResult | null = null;
+  const shortExp = chains.filter((c) => c.daysToExpiry >= p.putDte[0] && c.daysToExpiry <= p.putDte[1])
     .sort((a, b) => Math.abs(a.daysToExpiry - 30) - Math.abs(b.daysToExpiry - 30));
-  const sup = lv.support.find((x) => x.price <= spot * 0.97) ?? lv.support[0] ?? null;
-  let put: RRLeg | null = null, putChain: OptionsChainResult | null = null;
-  for (const c of putExp) {
-    const ok = c.puts.filter((r) => r.strike < spot && quoted(r, p))
-      .map((r) => ({ r, d: deltaOf(r, spot, c.daysToExpiry, "put") }))
-      .filter((x) => -x.d >= p.putAbsDelta[0] && -x.d <= p.putAbsDelta[1]);
+  for (const c of shortExp) {
+    const ok = rowsOf(c, shortSide).filter((r) => otm(r.strike, shortSide) && quoted(r, p))
+      .map((r) => ({ r, d: absD(r, c.daysToExpiry, shortSide) }))
+      .filter((x) => x.d >= p.putAbsDelta[0] && x.d <= p.putAbsDelta[1]);
     if (!ok.length) continue;
-    const atSup = sup ? ok.filter((x) => x.r.strike <= sup.price) : [];
-    // highest strike at/below support; no strike there in the Δ band → nearest 0.25Δ (S178 panic RR leg)
-    const chosen = atSup.length ? atSup.sort((a, b) => b.r.strike - a.r.strike)[0]
-      : ok.sort((a, b) => Math.abs(-a.d - 0.25) - Math.abs(-b.d - 0.25))[0];
-    // keep the expiry that sells the most vol (front skew + inverted term); ≥ 1 pt better needed to leave ~30 DTE
-    if (!put || chosen.r.iv > put.iv + 0.01) {
-      put = { expiry: c.expiry, dte: c.daysToExpiry, strike: chosen.r.strike, bid: chosen.r.bid, ask: chosen.r.ask,
-        fill: sellFill(chosen.r, f), iv: chosen.r.iv, delta: chosen.d };
-      putChain = c;
+    const at = ok.filter((x) => behind(x.r.strike));
+    // nearest strike behind the anchor; none in the Δ band → nearest 0.25Δ (S178 RR leg)
+    const chosen = at.length ? at.sort((a, b) => (bull ? b.r.strike - a.r.strike : a.r.strike - b.r.strike))[0]
+      : ok.sort((a, b) => Math.abs(a.d - 0.25) - Math.abs(b.d - 0.25))[0];
+    if (!short || chosen.r.iv > short.iv + 0.01) {
+      short = { side: shortSide, expiry: c.expiry, dte: c.daysToExpiry, strike: chosen.r.strike, bid: chosen.r.bid, ask: chosen.r.ask,
+        fill: sellFill(chosen.r, f), iv: chosen.r.iv, delta: deltaOf(chosen.r, spot, c.daysToExpiry, shortSide) };
+      shortChain = c;
     }
   }
-  if (!put || !putChain) return null;
-  // Rebound target = first resistance ≥ +10 % (a minor swing 1–3 % above spot would force a near-ATM call that costs
-  // 2–3× the put credit — live 11-18 run); none → +30 %. Call strike sits between spot and that target.
-  const res = lv.resistance.find((x) => x.price >= spot * 1.1) ?? null;
-  const cap = res ? res.price : spot * 1.3;
-  type Cand = { leg: RRLeg; net: number };
-  const best: Cand[] = [];
+  if (!short || !shortChain) return null;
+
+  // Target = first level ≥ 10 % away (a minor swing 1–3 % away forces a near-ATM long leg costing 2–3× the credit).
+  const target = bull ? (lv.resistance.find((x) => x.price >= spot * 1.1) ?? null) : (lv.support.find((x) => x.price <= spot * 0.9) ?? null);
+  const cap = target ? target.price : bull ? spot * 1.3 : spot * 0.7;
+  const inRange = (k: number) => (bull ? k > spot && k <= cap : k < spot && k >= cap);
+  const best: { leg: RRLeg; net: number }[] = [];
   for (const c of chains.filter((x) => x.daysToExpiry >= p.callDte[0] && x.daysToExpiry <= p.callDte[1])) {
-    const ok = c.calls.filter((r) => r.strike > spot && r.strike <= cap && quoted(r, p))
-      .map((r) => ({ r, d: deltaOf(r, spot, c.daysToExpiry, "call") }))
+    const ok = rowsOf(c, longSide).filter((r) => inRange(r.strike) && quoted(r, p))
+      .map((r) => ({ r, d: absD(r, c.daysToExpiry, longSide) }))
       .filter((x) => x.d >= p.callDelta[0] && x.d <= p.callDelta[1]);
     if (!ok.length) continue;
-    const scored = ok.map((x) => ({ x, net: put!.fill - buyFill(x.r, f) }))
-      .sort((a, b) => Math.abs(a.net) - Math.abs(b.net));
-    const s = scored[0];
-    best.push({ leg: { expiry: c.expiry, dte: c.daysToExpiry, strike: s.x.r.strike, bid: s.x.r.bid, ask: s.x.r.ask,
-      fill: buyFill(s.x.r, f), iv: s.x.r.iv, delta: s.x.d }, net: s.net });
+    const s = ok.map((x) => ({ x, net: short!.fill - buyFill(x.r, f) })).sort((a, b) => Math.abs(a.net) - Math.abs(b.net))[0];
+    best.push({ leg: { side: longSide, expiry: c.expiry, dte: c.daysToExpiry, strike: s.x.r.strike, bid: s.x.r.bid, ask: s.x.r.ask,
+      fill: buyFill(s.x.r, f), iv: s.x.r.iv, delta: deltaOf(s.x.r, spot, c.daysToExpiry, longSide) }, net: s.net });
   }
   if (!best.length) return null;
-  const tol = 0.1 * put.fill;
-  const even = best.filter((b) => b.net >= -tol).sort((a, b) => b.leg.dte - a.leg.dte);
-  const choice = even[0] ?? best.sort((a, b) => b.net - a.net)[0];
-  const call = choice.leg;
-  const atm = atmIv(putChain, spot);
-  const callChain = chains.find((c) => c.expiry === call.expiry)!;
-  const atmC = atmIv(callChain, spot);
+  const tol = 0.1 * short.fill;
+  const choice = best.filter((b) => b.net >= -tol).sort((a, b) => b.leg.dte - a.leg.dte)[0] ?? best.sort((a, b) => b.net - a.net)[0];
+  const long = choice.leg;
+  const longChain = chains.find((c) => c.expiry === long.expiry)!;
+  const atmS = atmIv(shortChain, spot), atmL = atmIv(longChain, spot);
   const rr = (c: OptionsChainResult) => {
     const p25 = ivAtDelta(c.puts, -0.25), c25 = ivAtDelta(c.calls, 0.25);
     return p25 != null && c25 != null ? p25 - c25 : null;
   };
   const debit = Math.max(0, -choice.net);
+  const pS = pAbove(spot, short.strike, short.iv, short.dte);
+  const pL = pAbove(spot, long.strike, long.iv, long.dte);
+  const pLbe = pAbove(spot, bull ? long.strike + debit : long.strike - debit, long.iv, long.dte);
   return {
-    put, call, spot, net: choice.net, support: sup, resistance: res,
-    putSkew: atm ? put.iv / atm : null, callSkew: atmC ? call.iv / atmC : null,
-    rr25Put: rr(putChain), rr25Call: rr(callChain), term: atm && atmC ? atmC / atm : null,
-    volEdge: put.iv - call.iv, putOverCall: put.iv / call.iv,
-    rollsToFund: call.fill / put.fill, rollsAvailable: Math.max(1, Math.floor(call.dte / put.dte)),
-    pPutSafe: pAbove(spot, put.strike, put.iv, put.dte),
-    pCallItm: pAbove(spot, call.strike, call.iv, call.dte),
-    pCallBe: pAbove(spot, call.strike + debit, call.iv, call.dte),
-    cashIfAssigned: put.strike * 100, assignedBasis: put.strike - put.fill,
-    callMoveToStrike: call.strike / spot - 1,
+    direction, short, long, spot, net: choice.net, anchor, target,
+    shortSkew: atmS ? short.iv / atmS : null, longSkew: atmL ? long.iv / atmL : null,
+    rr25Short: rr(shortChain), rr25Long: rr(longChain), term: atmS && atmL ? atmL / atmS : null,
+    volEdge: short.iv - long.iv,
+    rollsToFund: long.fill / short.fill, rollsAvailable: Math.max(1, Math.floor(long.dte / short.dte)),
+    pShortSafe: bull ? pS : 1 - pS, pLongItm: bull ? pL : 1 - pL, pLongBe: bull ? pLbe : 1 - pLbe,
+    cashIfAssigned: bull ? short.strike * 100 : null, assignedBasis: bull ? short.strike - short.fill : null,
+    longMoveToStrike: long.strike / spot - 1,
   };
 }

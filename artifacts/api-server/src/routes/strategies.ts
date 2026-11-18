@@ -753,22 +753,35 @@ async function riskReversals() {
         const bars = await safe<Bar>(sql`SELECT date::text AS date, high::float8 AS high, low::float8 AS low, close::float8 AS close
           FROM (SELECT * FROM public.prices_historical WHERE ticker = ${t} ORDER BY date DESC LIMIT 260) x ORDER BY date`);
         const lv = levelsFromBars(bars, spot);
-        const pair = pickRiskReversal(chains, spot, lv);
-        if (!pair) { skipped.push({ ticker: t, why: "no quoted put 25–65 DTE / call 85–190 DTE in the Δ bands" }); continue; }
-        // Front IV inflated by a report inside the put window = event gap risk, not skew (ZM 11-18: edge 22 pts, RR25 0.6)
-        const er = await safe<{ d: string }>(sql`SELECT MIN(report_date)::text AS d FROM public.earnings_calendar
-          WHERE ticker = ${t} AND report_date >= current_date AND report_date <= ${pair.call.expiry}::date`);
-        const erDate = er[0]?.d ?? null;
-        out.push({ ticker: t, held: held.includes(t), own: row.own, color: row.color, offHigh: row.dd, ...pair,
-          earnings: erDate, earningsInPut: erDate != null && erDate <= pair.put.expiry,
-          supports: lv.support.slice(0, 3), resistances: lv.resistance.slice(0, 3) });
+        let any = false;
+        for (const dir of ["bull", "bear"] as const) {
+          const pair = pickRiskReversal(chains, spot, lv, RR_PARAMS, dir);
+          if (!pair) continue;
+          any = true;
+          // Front IV inflated by a report inside the short window = event gap risk, not skew (ZM 11-18: edge 22 pts, RR25 0.6)
+          const er = await safe<{ d: string }>(sql`SELECT MIN(report_date)::text AS d FROM public.earnings_calendar
+            WHERE ticker = ${t} AND report_date >= current_date AND report_date <= ${pair.long.expiry}::date`);
+          const erDate = er[0]?.d ?? null;
+          out.push({ ticker: t, held: held.includes(t), own: row.own, color: row.color, offHigh: row.dd, ...pair,
+            earnings: erDate, earningsInShort: erDate != null && erDate <= pair.short.expiry,
+            supports: lv.support.slice(0, 3), resistances: lv.resistance.slice(0, 3) });
+        }
+        if (!any) skipped.push({ ticker: t, why: "no quoted short 14–45 DTE / long 85–190 DTE in the Δ bands" });
       } catch (e) {
         skipped.push({ ticker: t, why: e instanceof Error ? e.message.slice(0, 80) : "error" });
       }
     }
   }
   await Promise.all(Array.from({ length: 4 }, () => worker()));
-  return { rows: out, skipped, asOf: new Date().toISOString() };
+  // Regime picks which list shows first (both always shown): fear curve ≥ 0.95 or the pool's median name ≥ 20 % off
+  // its high → bull (crashed + fear rich → sell puts); else bear (calm + extended → sell calls).
+  const vr = await safe<{ r: number }>(sql`SELECT (v.value / NULLIF(m.value, 0))::float8 AS r FROM watchlist_sync.macro_daily v
+    JOIN watchlist_sync.macro_daily m ON m.series = 'vix3m' AND m.date = v.date WHERE v.series = 'vix' ORDER BY v.date DESC LIMIT 1`);
+  const dds = pool.map((x) => x.dd).filter((x): x is number => x != null).sort((a, b) => a - b);
+  const medDd = dds.length ? dds[Math.floor(dds.length / 2)] : null;
+  const fear = vr[0]?.r ?? null;
+  const defaultDirection = (fear != null && fear >= 0.95) || (medDd != null && medDd <= -0.2) ? "bull" : "bear";
+  return { rows: out, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
 }
 router.get("/today/risk-reversals", requireAdmin, async (_req, res, next) => {
   try {
