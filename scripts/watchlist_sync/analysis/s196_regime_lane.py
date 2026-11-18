@@ -84,10 +84,11 @@ def main() -> int:
 
     L = [f"# S196 — regime-gated rich lane + drop 6–10 % OTM vs engine proxy (A410)\n",
          f"universe {len(T):,} put trades · {T.t.nunique()} names · {T.wk.nunique()} weeks · {T.d.min()} → {T.d.max()}\n"]
-    rows = []
+    rows, picks = [], []
     for wk, g in T.groupby("wk"):
         reg = g.reg.mode().iat[0]
         E, Em, R_ = pick_engine(g, False), pick_engine(g, True), pick_rich(g)
+        picks.append(E)
         G = R_ if reg == "bear" else E
         rec = dict(wk=wk, reg=reg)
         for k, s in [("E", E), ("Em", Em), ("R", R_), ("G", G)]:
@@ -125,10 +126,15 @@ def main() -> int:
             L.append(f"- {reg} · {lbl}: {m:+.3f} %/wk, t {t:.2f}, weeks {n}, Δ worst-5 % {dw5:+.2f} → {verdict}\n")
     m, t, n = paired(W.G_rb, W.E_rb)
     L.append(f"- all weeks · G − E: {m:+.3f} %/wk, t {t:.2f}, weeks {n}\n")
-    for half, w in W.assign(h=W.wk.astype(str) >= "2024-07-01").groupby("h"):
-        for a, lbl in [("Em", "E- − E"), ("G", "G − E")]:
-            m, t, n = paired(w[f"{a}_rb"], w.E_rb)
-            L.append(f"- half {'2024-07→' if half else '→2024-06'} · {lbl}: {m:+.3f}, t {t:.2f}, weeks {n}\n")
+    L.append(f"\nn_indep (distinct entry weeks with an engine pick): {W.E_rb.notna().sum()}\n")
+    # Winner pass (contract item 11): engine-proxy picks, train weeks only (< 2024-07), winners = kept, losers = loss at expiry
+    P = pd.concat(picks)
+    P = P[P.wk.astype(str) < "2024-07-01"]
+    L.append("\n## Winner pass — engine-proxy picks, train weeks < 2024-07, median pre-entry features (kept vs loss)\n")
+    cols = ["otm", "dl", "inc", "ivrv", "off52", "off"]
+    for reg, g in P.groupby("reg"):
+        tab = g.groupby("loss")[cols].median().round(3)
+        L.append(f"\n**{reg}** (picks {len(g)}, losses {int(g.loss.sum())}, weeks {g.wk.nunique()})\n" + tab.to_string() + "\n")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("".join(L))
     print("".join(L))

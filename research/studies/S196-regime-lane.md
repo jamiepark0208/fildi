@@ -17,12 +17,17 @@
 
 Paired weeks: E- − E bear +0.16 (t 1.1, 37 wk) · bull +0.05 (t 0.9, 125 wk) → **no lift** (right sign, not significant).
 R − E bear +0.49 (t 2.7, 31 wk) but worst week −0.76 pt worse → **fails the risk bar**; bull +0.70 (t 3.7, 60 wk), worst week −0.47 → **pass**.
-G − E all weeks +0.09 (t 2.5); halves +0.14 (t 2.3) → 2024-06 · +0.02 (t 1.3) 2024-07 →.
+G − E all weeks +0.09 (t 2.5). n_indep = 186 entry weeks with an engine pick (bear 38, bull 148).
+
+## Winner pass (engine-proxy picks, train weeks < 2024-07, medians kept vs loss)
+- Bear (147 picks, 18 losses, 32 wk): kept puts were deeper (11.1 vs 9.1 % OTM) on more beaten names (−48 vs −42 % off 252 d high, −19 vs −12 % off 60 d high). Same IV÷RV (1.50 vs 1.47).
+- Bull (131 picks, 28 losses, 72 wk): no feature separates (OTM 8.6 vs 9.3, IV÷RV 1.52 vs 1.61, off-high equal).
+- Next rule to test: in bear weeks, engine band floor at ≥ 10 % OTM only on names ≥ 40 % off the 252 d high (S195 beaten +0.63 t 2.4) — narrower than the full rich lane, so the worst week may not widen.
 
 **Live (shadow) check, 3 graded weeks 10-26 → 11-09:** rich lane (every name's rich put, n 390) −1.46 % per trade vs engine top-10 (n 69) −1.42; rich trailed in both calm weeks (−0.19 vs +0.83, +0.23 vs +0.78). Can't answer at this n.
 
 **Verdict:**
-- Drop 6–10 % OTM: **NO-LIFT** — rule tested = remove 6–10 % OTM strikes before the engine-proxy pick, same weeks, stress fill. +0.05 to +0.16 %/wk, t ≤ 1.1.
+- Drop 6–10 % OTM: `RULE NO-LIFT: EOD entry 3–9 DTE, engine-proxy pick without 6–10 % OTM strikes × hold to expiry × 1-week short put` — +0.05 to +0.16 %/wk at stress, t ≤ 1.1 (sign right, not significant).
 - Gate rich lane to SPY < 200 d: **wrong shape** — on history the rich lane beats the engine proxy in bull weeks too (+0.70, t 3.7), so a bear-only gate drops the bigger cell. Bear: higher mean but worse worst week (fails the pre-set risk bar). Same finding as S109 (+101 vs +14 bp), not new evidence. Live 3 weeks say the opposite → stays shadow.
 
 ## So what
