@@ -1,12 +1,12 @@
 Morning brief — Wed, Nov 18, 2026
 
 Top stories
-- **Fed hawkish: Waller floated a 50bp December hike on CNBC this morning. Futures faded off overnight highs — Nasdaq futures +0.98% at 5am ET to +0.6% by 8:20am.**
-- NVDA earnings beat: revenue $115.84B vs ~$109B expected, Q4 guide ~$130B (raised from ~$125B expected; FY28 growth raised to ~75% from ~70%). No word on Huang's return — likely caps the pop today.
-- Retail split: Target comps +5.6%, TJX comps +4% beat. But $0.50 of Target's $2.65 EPS and $0.34 of Lowe's $3.10 came from tariff refunds. Market paid TJX (+6%), sold Lowe's (-5.7%).
+- **Fed hawkish:** Waller floated a 50bp December hike on CNBC this morning. Futures faded off overnight highs — Nasdaq futures +0.98% at 5am ET to +0.6% by 8:20am.
+- **NVDA earnings beat:** revenue $115.84B vs ~$109B expected, Q4 guide ~$130B (raised from ~$125B expected; FY28 growth raised to ~75% from ~70%). No word on Huang's return — likely caps the pop today.
+- **Retail split:** **TGT** comps +5.6%, **TJX** comps +4% beat. But $0.50 of **TGT**'s $2.65 EPS and $0.34 of **LOW**'s $3.10 came from tariff refunds. Market paid **TJX** (+6%), sold **LOW** (-5.7%).
 
 Overnight
-- KOSPI +1.99% to 5,067.44 on the NVDA print (SK Hynix +4.2%, Samsung +2.3%), reclaimed 5,000 after closing below it Tuesday. Nikkei +0.3%. Europe flat (STOXX -0.1%, FTSE -0.4%) with the 10Y at 5.10%.
+- **KOSPI** +1.99% to 5,067.44 on the **NVDA** print (**SK Hynix** +4.2%, **Samsung** +2.3%), reclaimed 5,000 after closing below it Tuesday. **Nikkei** +0.3%. Europe flat (**STOXX** -0.1%, **FTSE** -0.4%) with the 10Y at 5.10%.
 
 Moves
 | Name | Last close | Futures | Overnight % | 1W % | 1M % |
@@ -37,19 +37,19 @@ Data
 Names
 | Name | Day % | Why |
 |---|---|---|
-| NVDA | +3.0% | Beat on revenue and guide. No Huang word — pop fading. |
-| TJX | +6.0% | Comps +4% beat, guide raised. Book doesn't trade it. |
-| LOW | -5.7% | Beat, but margin fell on tariff refunds. Market sold it. |
-| TGT | flat | Beat, $0.50 tariff refund. Flat after a 60%+ run. |
+| **NVDA** | +3.0% | Beat on revenue and guide. No Huang word — pop fading. |
+| **TJX** | +6.0% | Comps +4% beat, guide raised. Book doesn't trade it. |
+| **LOW** | -5.7% | Beat, but margin fell on tariff refunds. Market sold it. |
+| **TGT** | flat | Beat, $0.50 tariff refund. Flat after a 60%+ run. |
 
-- Also: AAOI -10.3% giving back yesterday's policy spike; GOOGL +0.6% as Waymo pulled vehicles from highways after California banned them from freeways; WULF +4.8% and TTWO +4.7% with the chip bounce.
+- **Also:** **AAOI** -10.3% giving back yesterday's policy spike; **GOOGL** +0.6% as **Waymo** pulled vehicles from highways after California banned them from freeways; **WULF** +4.8% and **TTWO** +4.7% with the chip bounce.
 
 Desk flagged
-- Nov 17–18, overnight: the US struck an IRGC missile site on Iran's Qeshm Island after a drone attack on a US radar installation in Bahrain. Crude fell anyway (WTI -2.2%) — supply expectations dominate. If it escalates: oil spike + risk-off.
-- Nov 18: Mary Peltola (D) unseated Sen. Dan Sullivan (R) — Democrats take a 56-seat Senate majority. Changes the path for the $41T debt limit, forecast to bind in February or March.
+- **Nov 17–18, overnight:** the US struck an IRGC missile site on Iran's Qeshm Island after a drone attack on a US radar installation in Bahrain. Crude fell anyway (WTI -2.2%) — supply expectations dominate. If it escalates: oil spike + risk-off.
+- **Nov 18:** Mary Peltola (D) unseated Sen. Dan Sullivan (R) — Democrats take a 56-seat Senate majority. Changes the path for the $41T debt limit, forecast to bind in February or March.
 
 Implications
-- NVDA premium deflating — no new NVDA short premium into the bounce. Next AI-sentiment print: Anthropic pricing tonight, debut Thursday.
+- **NVDA** premium deflating — no new **NVDA** short premium into the bounce. Next AI-sentiment print: Anthropic pricing tonight, debut Thursday.
 - FOMC minutes 2:00 PM, Waller-50bp vs Williams split unresolved. Keep strikes wide; no new short premium on rate-sensitive small caps into the minutes and the 1:00 PM 20Y auction.
 
 What to watch today (ET)
