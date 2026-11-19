@@ -132,4 +132,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A410](asks/A410.md) | 2026-11-16 | Jamie → Claude | [quant] Outcome learner: recs learn from graded results (cell tracker, meta-label, Jamie's trades) | planned |
 | [A411](asks/A411.md) | 2026-11-16 | Claude → Cursor | Breakdown tabs ordered by importance (Main, Options, Technicals, Notes, News…) + plain names | open |
 | [A412](asks/A412.md) | 2026-11-17 | Muse → Cursor | [Low] Today bottom checklist: HY percentile labeled 3y but computed over all history; weekend report dates show "pending" | planned |
-| [A413](asks/A413.md) | 2026-11-18 | Muse → Cursor | Daily fildi brief snapshot export (Mac → Drive JSON) so the evening recap can cite live analytics | open |
+| [A413](asks/A413.md) | 2026-11-18 | Muse → Cursor | Daily fildi brief snapshot export (Mac → Drive JSON) so the evening recap can cite live analytics | revise |
