@@ -248,6 +248,9 @@ export type FundingPut = {
   breakeven: number; breakevenAfter: number;   // call breakeven now vs after this put expires worthless
   pBe: number | null; pBeAfter: number | null; // P(call ends past breakeven) before / after (IV lognormal, no drift)
   pShortSafe: number; cashIfAssigned: number; assignedBasis: number;
+  /** Lower-collateral version (Jamie 11-19 "easier for lower cash collateral"): same short put + a lower bought put.
+   * Collateral = width × 100 × qty − credit; picked = smallest collateral that keeps ≥ 50 % of the plain put's credit. */
+  spread: { longStrike: number; longFill: number; credit: number; collateral: number; maxLoss: number; keepPct: number } | null;
 };
 
 /**
@@ -259,7 +262,17 @@ export function pickFundingPut(chains: OptionsChainResult[], spot: number, lv: {
   call: HeldCall, callIv: number | null, p = RR_PARAMS): FundingPut | null {
   const picked = pickShortLeg(chains, spot, lv, p, "bull", call.expiry);
   if (!picked) return null;
-  const { short, anchor } = picked;
+  const { short, anchor, chain } = picked;
+  const f = p.fillFrac;
+  let spread: FundingPut["spread"] = null;
+  for (const r of chain.puts.filter((x) => x.strike < short.strike && quoted(x, p)).sort((a, b) => b.strike - a.strike)) {
+    const net = short.fill - buyFill(r, f);
+    if (net < 0.5 * short.fill) continue;            // keeps ≥ half the credit; nearest such strike = least collateral
+    const width = short.strike - r.strike;
+    spread = { longStrike: r.strike, longFill: buyFill(r, f), credit: net * 100 * call.qty,
+      collateral: (width - net) * 100 * call.qty, maxLoss: (width - net) * 100 * call.qty, keepPct: net / short.fill };
+    break;
+  }
   const credit = short.fill * 100 * call.qty, paid = call.cost * 100 * call.qty;
   const valueLeft = call.mark != null ? call.mark * 100 * call.qty : null;
   const be = call.strike + call.cost, beAfter = be - short.fill;
@@ -272,6 +285,6 @@ export function pickFundingPut(chains: OptionsChainResult[], spot: number, lv: {
     breakeven: be, breakevenAfter: beAfter,
     pBe: iv ? pAbove(spot, be, iv, call.days) : null, pBeAfter: iv ? pAbove(spot, beAfter, iv, call.days) : null,
     pShortSafe: pAbove(spot, short.strike, short.iv, short.dte),
-    cashIfAssigned: short.strike * 100 * call.qty, assignedBasis: short.strike - short.fill,
+    cashIfAssigned: short.strike * 100 * call.qty, assignedBasis: short.strike - short.fill, spread,
   };
 }

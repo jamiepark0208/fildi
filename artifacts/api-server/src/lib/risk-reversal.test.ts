@@ -100,7 +100,7 @@ describe("bear mirror", () => {
 });
 
 describe("pickFundingPut (fund a held call)", () => {
-  const puts30 = [row(80, 0.9, 1.0, 0.7, -0.12), row(85, 1.6, 1.8, 0.65, -0.2), row(90, 2.8, 3.0, 0.6, -0.3)];
+  const puts30 = [row(75, 0.4, 0.5, 0.75, -0.06), row(80, 0.9, 1.0, 0.7, -0.12), row(85, 1.6, 1.8, 0.65, -0.2), row(90, 2.8, 3.0, 0.6, -0.3)];
   const puts40 = [row(85, 2.2, 2.4, 0.8, -0.22)];
   const lv = { support: [{ price: 86, kind: "swing" as const }], resistance: [] };
   const call = { strike: 110, expiry: "2026-12-24", days: 35, qty: 2, cost: 4, mark: 2.5 };
@@ -114,6 +114,13 @@ describe("pickFundingPut (fund a held call)", () => {
     assert.ok(f.breakevenAfter < 114 && f.pBeAfter! > f.pBe!, "lower breakeven → higher odds");
     assert.equal(f.cashIfAssigned, 17000);
     assert.ok(f.rollsToCover > 2 && f.rollsToCover < 2.5);
+  });
+
+  it("offers a put spread that keeps ≥ half the credit for far less collateral", () => {
+    const f = pickFundingPut([chain("2026-12-19", 30, puts30, [])], 100, lv, call, 0.6)!;
+    assert.ok(f.spread, "spread exists");
+    assert.equal(f.spread!.longStrike, 75, "80P keeps only 41 % of the credit → next strike down");
+    assert.ok(f.spread!.keepPct >= 0.5 && f.spread!.collateral < f.cashIfAssigned / 5, "≥ 50 % credit, < 1/5 the cash");
   });
 
   it("never sells a put that outlives the call", () => {

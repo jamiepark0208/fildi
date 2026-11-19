@@ -24,7 +24,9 @@ type HeldCall = { strike: number; expiry: string; days: number; qty: number; cos
 type Funding = { ticker: string; account: string; call?: HeldCall; short: Leg | null; why?: string; anchor?: Level | null;
   credit?: number; paid?: number; valueLeft?: number | null; coverPaid?: number; coverLeft?: number | null; rollsToCover?: number;
   rollsAvailable?: number; breakeven?: number; breakevenAfter?: number; pBe?: number | null; pBeAfter?: number | null;
-  pShortSafe?: number; cashIfAssigned?: number; assignedBasis?: number };
+  pShortSafe?: number; cashIfAssigned?: number; assignedBasis?: number;
+  spread?: { longStrike: number; longFill: number; credit: number; collateral: number; maxLoss: number; keepPct: number } | null;
+  fit?: { name: string | null; cash: number; loan: number; putFits: boolean; spreadFits: boolean; needPut: number; needSpread: number | null } | null };
 type Resp = { rows: Row[]; funding?: Funding[]; skipped: { ticker: string; why: string }[]; asOf: string;
   regime?: { fear: number | null; medianOffHigh: number | null; defaultDirection: "bull" | "bear" } };
 
@@ -58,17 +60,30 @@ const TIP = "Bull = sell a put at support, buy a longer call toward resistance. 
 const FUND_TIP = "Calls you already hold (latest RH export): one put per call on the same name, 14–45 days, at/below support, "
   + "expiring on or before the call. Credit at bid + 23 % of the spread. Breakeven after = call breakeven − put credit, only if the put expires "
   + "worthless. Odds = call's own IV, no drift. Pays back = this put's credit ÷ what you paid (and ÷ what the call is worth now). "
-  + "Assigned = you buy 100 sh per put at strike while still long the call — same bet twice, sized as shown. FILDI with a margin loan → no new puts. Untested as a strategy.";
+  + "Assigned = you buy 100 sh per put at strike while still long the call — same bet twice, sized as shown. "
+  + "Spread = same put + a lower bought put: keeps ≥ 50 % of the credit, collateral = width − credit (= max loss); needs spread approval. "
+  + "Cash = account cash in the latest RH export; any margin loan → no new puts until it is paid down (rule 10-06, S012). "
+  + "Management: hold these to expiry — closing 2+ week puts early lost on real quotes (S017, S103); the Put management alerts track them. "
+  + "Mechanical pick (support + chain + IV only): no news, fundamentals, signals or put-engine score — not a market call. Untested as a strategy.";
+const fitCell = (f: Funding) => {
+  const a = f.fit;
+  if (!a) return <span className="text-amber-100">no account data</span>;
+  if (a.loan > 0) return <span className="text-red-400" title={`Margin loan ${usd(a.loan)} → no new puts (rule 10-06)`}>loan {usd(a.loan)}</span>;
+  if (a.putFits) return <span className="text-green-400">put fits ({usd(a.cash)})</span>;
+  if (a.spreadFits) return <span className="text-amber-300">spread only ({usd(a.cash)})</span>;
+  return <span className="text-red-400" title={`Cash ${usd(a.cash)}`}>free up {usd(a.needSpread ?? a.needPut)}{a.needSpread != null ? " (spread)" : ""}</span>;
+};
 
 function FundCalls({ rows }: { rows: Funding[] }) {
   return (
     <div className="border-b border-white/10">
       <div className="px-2 py-1">
         <DataTip tip={FUND_TIP}><span className="text-[12px] font-semibold uppercase tracking-wide text-amber-300">Fund your open calls · {rows.length}</span></DataTip>
+        <span className="ml-2 text-[11px] text-amber-100">chain + support only, not a market call</span>
       </div>
       <table className="w-full">
         <thead><tr>
-          {["Your call", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned"]
+          {["Your call", "Account cash", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned", "Spread: buy · credit · collateral"]
             .map((h) => <th key={h} className={TH}>{h}</th>)}
         </tr></thead>
         <tbody>
@@ -78,7 +93,8 @@ function FundCalls({ rows }: { rows: Funding[] }) {
                 + `${f.rollsToCover!.toFixed(1)} puts to recover what you paid, ${f.rollsAvailable} fit before the call expires · assigned basis ${f.assignedBasis!.toFixed(2)}` : f.why}>
               <td className={cn(TD, "text-left font-semibold")}>{f.ticker} {f.call ? `${f.call.strike}C ${f.call.expiry.slice(5)} ×${f.call.qty}` : ""}
                 <span className="ml-1 text-amber-100 text-[11px]">…{f.account}</span></td>
-              {!f.short ? <td className={cn(TD, "text-left text-amber-100")} colSpan={8}>{f.why}</td> : <>
+              {!f.short ? <td className={cn(TD, "text-left text-amber-100")} colSpan={10}>{f.why}</td> : <>
+                <td className={TD}>{fitCell(f)}</td>
                 <td className={TD}>{usd(f.paid!)} · {f.valueLeft != null ? usd(f.valueLeft) : "—"}</td>
                 <td className={TD}>{leg(f.short)}</td>
                 <td className={cn(TD, "text-green-300")}>{usd(f.credit!)}</td>
@@ -88,6 +104,8 @@ function FundCalls({ rows }: { rows: Funding[] }) {
                 <td className={TD}>{pc(f.pBe)} → {pc(f.pBeAfter)}</td>
                 <td className={TD}>{pc(f.pShortSafe)}</td>
                 <td className={TD}>{usd(f.cashIfAssigned!)}</td>
+                <td className={TD} title={f.spread ? `Max loss ${usd(f.spread.maxLoss)} · keeps ${pc(f.spread.keepPct)} of the plain put's credit` : "No lower strike keeps ≥ 50 % of the credit"}>
+                  {f.spread ? `${f.spread.longStrike}P · ${usd(f.spread.credit)} · ${usd(f.spread.collateral)}` : "—"}</td>
               </>}
             </tr>
           ))}

@@ -746,6 +746,19 @@ async function riskReversals() {
            o.avg_premium::float8 / 100 AS cost, o.mark_price::float8 AS mark, o.iv::float8 AS iv
     FROM public.portfolio_options o JOIN s ON o.snapshot_id = s.id
     WHERE o.direction = 'long' AND o.option_type = 'call' AND o.expiration >= CURRENT_DATE`);
+  // Step 4 (Jamie 11-19 "I don't have enough cash for NVDA puts"): fit each idea to its account's cash. Margin loan →
+  // no new puts (standing rule 10-06, S012; applied to every margin account — same process across IRA/FILDI/MOM).
+  const accts = new Map((await safe<{ account: string; nickname: string | null; cash: number; loan: number }>(sql`
+    SELECT account, nickname, cash::float8 AS cash, COALESCE(margin_used, 0)::float8 AS loan FROM public.portfolio_account_summaries
+    WHERE snapshot_id = (SELECT MAX(id) FROM public.portfolio_snapshots)`)).map((a) => [a.account, a]));
+  const cashFit = (account: string, fp: { cashIfAssigned: number; spread: { collateral: number } | null }) => {
+    const a = accts.get(account);
+    if (!a) return null;
+    const cash = Math.max(0, a.cash), loan = a.loan > 0 || a.cash < 0 ? Math.max(a.loan, -a.cash) : 0;
+    return { name: a.nickname, cash, loan, putFits: loan === 0 && cash >= fp.cashIfAssigned,
+      spreadFits: fp.spread != null && loan === 0 && cash >= fp.spread.collateral,
+      needPut: Math.max(0, fp.cashIfAssigned - cash) + loan, needSpread: fp.spread ? Math.max(0, fp.spread.collateral - cash) + loan : null };
+  };
   const funding: unknown[] = [];
   const out: unknown[] = [];
   const skipped: { ticker: string; why: string }[] = [];
@@ -782,7 +795,7 @@ async function riskReversals() {
           const days = Math.max(1, Math.round((Date.parse(hc.expiry + "T16:00:00-05:00") - Date.now()) / 86_400_000));
           const call = { strike: hc.strike, expiry: hc.expiry, days, qty: hc.qty, cost: hc.cost, mark: hc.mark };
           const fp = pickFundingPut(chains, spot, lv, call, hc.iv);
-          funding.push(fp ? { ticker: t, account: hc.account.slice(-4), call, ...fp }
+          funding.push(fp ? { ticker: t, account: hc.account.slice(-4), call, ...fp, fit: cashFit(hc.account, fp) }
             : { ticker: t, account: hc.account.slice(-4), call, short: null,
                 why: days < RR_PARAMS.putDte[0] ? `call expires in ${days} d — no put window left` : "no quoted put 14–45 DTE at support before the call expires" });
         }
