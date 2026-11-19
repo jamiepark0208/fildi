@@ -20,7 +20,12 @@ type Row = {
 };
 type SkewRank = { rr25: number; asOf: string; dte: number; ownPct: number | null; ownN: number; ownMedian: number | null;
   sector: string | null; sectorPct: number | null; sectorN: number; sectorMedian: number | null; universePct: number | null };
-type Resp = { rows: Row[]; skipped: { ticker: string; why: string }[]; asOf: string;
+type HeldCall = { strike: number; expiry: string; days: number; qty: number; cost: number; mark: number | null };
+type Funding = { ticker: string; account: string; call?: HeldCall; short: Leg | null; why?: string; anchor?: Level | null;
+  credit?: number; paid?: number; valueLeft?: number | null; coverPaid?: number; coverLeft?: number | null; rollsToCover?: number;
+  rollsAvailable?: number; breakeven?: number; breakevenAfter?: number; pBe?: number | null; pBeAfter?: number | null;
+  pShortSafe?: number; cashIfAssigned?: number; assignedBasis?: number };
+type Resp = { rows: Row[]; funding?: Funding[]; skipped: { ticker: string; why: string }[]; asOf: string;
   regime?: { fear: number | null; medianOffHigh: number | null; defaultDirection: "bull" | "bear" } };
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -49,6 +54,48 @@ const TIP = "Bull = sell a put at support, buy a longer call toward resistance. 
   + "Odds use each option's IV, no drift. History: same-expiry 30-day bull RR +6 %/$ strike vs +2.3 % put alone, 15 panic weeks (S178); "
   + "mismatched expiries and the bear side are untested. Bull short put = cash-secured (FILDI margin loan → no new puts). "
   + "Bear short call = uncapped unless you own 100 shares (then covered call + bought put = a funded collar).";
+
+const FUND_TIP = "Calls you already hold (latest RH export): one put per call on the same name, 14–45 days, at/below support, "
+  + "expiring on or before the call. Credit at bid + 23 % of the spread. Breakeven after = call breakeven − put credit, only if the put expires "
+  + "worthless. Odds = call's own IV, no drift. Pays back = this put's credit ÷ what you paid (and ÷ what the call is worth now). "
+  + "Assigned = you buy 100 sh per put at strike while still long the call — same bet twice, sized as shown. FILDI with a margin loan → no new puts. Untested as a strategy.";
+
+function FundCalls({ rows }: { rows: Funding[] }) {
+  return (
+    <div className="border-b border-white/10">
+      <div className="px-2 py-1">
+        <DataTip tip={FUND_TIP}><span className="text-[12px] font-semibold uppercase tracking-wide text-amber-300">Fund your open calls · {rows.length}</span></DataTip>
+      </div>
+      <table className="w-full">
+        <thead><tr>
+          {["Your call", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned"]
+            .map((h) => <th key={h} className={TH}>{h}</th>)}
+        </tr></thead>
+        <tbody>
+          {rows.map((f, i) => (
+            <tr key={`${f.ticker}-${f.account}-${f.call?.strike ?? i}-${f.call?.expiry ?? ""}`} className="border-t border-white/5"
+              title={f.short ? `Support ${f.anchor ? `${f.anchor.price.toFixed(2)} (${f.anchor.kind})` : "none"} · put Δ${f.short.delta.toFixed(2)} IV ${pc(f.short.iv)} (${f.short.bid}/${f.short.ask}) · `
+                + `${f.rollsToCover!.toFixed(1)} puts to recover what you paid, ${f.rollsAvailable} fit before the call expires · assigned basis ${f.assignedBasis!.toFixed(2)}` : f.why}>
+              <td className={cn(TD, "text-left font-semibold")}>{f.ticker} {f.call ? `${f.call.strike}C ${f.call.expiry.slice(5)} ×${f.call.qty}` : ""}
+                <span className="ml-1 text-amber-100 text-[11px]">…{f.account}</span></td>
+              {!f.short ? <td className={cn(TD, "text-left text-amber-100")} colSpan={8}>{f.why}</td> : <>
+                <td className={TD}>{usd(f.paid!)} · {f.valueLeft != null ? usd(f.valueLeft) : "—"}</td>
+                <td className={TD}>{leg(f.short)}</td>
+                <td className={cn(TD, "text-green-300")}>{usd(f.credit!)}</td>
+                <td className={cn(TD, f.coverPaid! >= 0.5 ? "text-green-400" : f.coverPaid! >= 0.25 ? "text-amber-300" : undefined)}>
+                  {pc(f.coverPaid!)}{f.coverLeft != null ? ` · ${pc(f.coverLeft)} now` : ""}</td>
+                <td className={TD}>{f.breakeven!.toFixed(2)} → {f.breakevenAfter!.toFixed(2)}</td>
+                <td className={TD}>{pc(f.pBe)} → {pc(f.pBeAfter)}</td>
+                <td className={TD}>{pc(f.pShortSafe)}</td>
+                <td className={TD}>{usd(f.cashIfAssigned!)}</td>
+              </>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function RiskReversalCard() {
   const { data, isLoading } = useQuery<Resp>({
@@ -83,6 +130,7 @@ export function RiskReversalCard() {
         ))}
         {rg?.fear != null && <span className="text-[12px] text-amber-100">fear curve {rg.fear.toFixed(2)}{rg.medianOffHigh != null ? ` · median name ${Math.round(rg.medianOffHigh * 100)} % off high` : ""}</span>}
       </div>
+      {data.funding && data.funding.length > 0 && <FundCalls rows={data.funding} />}
       <table className="w-full">
         <thead><tr>
           {["Ticker", "Quality", "Off high", "Spot", "Sell", "Credit", "Short safe", "Buy", "Cost", "Net /pair", "Long ITM", "Skew short · long", "Skew rank own · sector", "Vol edge", "Term", "Rolls to fund", "Cash if assigned"]

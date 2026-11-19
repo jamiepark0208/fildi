@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { levelsFromBars, pickRiskReversal, type Bar } from "./risk-reversal.js";
+import { levelsFromBars, pickFundingPut, pickRiskReversal, type Bar } from "./risk-reversal.js";
 import type { OptionRow, OptionsChainResult } from "./options.js";
 
 const row = (strike: number, bid: number, ask: number, iv: number, delta: number): OptionRow => ({
@@ -96,5 +96,29 @@ describe("bear mirror", () => {
     assert.ok(p.long.strike < 100 && p.long.strike >= 88, "long put between spot and target support");
     assert.equal(p.cashIfAssigned, null, "short call = uncapped unless covered");
     assert.ok(p.pShortSafe > 0.5 && p.pShortSafe < 1);
+  });
+});
+
+describe("pickFundingPut (fund a held call)", () => {
+  const puts30 = [row(80, 0.9, 1.0, 0.7, -0.12), row(85, 1.6, 1.8, 0.65, -0.2), row(90, 2.8, 3.0, 0.6, -0.3)];
+  const puts40 = [row(85, 2.2, 2.4, 0.8, -0.22)];
+  const lv = { support: [{ price: 86, kind: "swing" as const }], resistance: [] };
+  const call = { strike: 110, expiry: "2026-12-24", days: 35, qty: 2, cost: 4, mark: 2.5 };
+
+  it("sells one put per call at support and lowers the call breakeven by the credit", () => {
+    const f = pickFundingPut([chain("2026-12-19", 30, puts30, [])], 100, lv, call, 0.6)!;
+    assert.equal(f.short.strike, 85);
+    assert.ok(Math.abs(f.credit - f.short.fill * 200) < 1e-9, "2 calls → 2 puts");
+    assert.equal(f.paid, 800);
+    assert.equal(f.breakeven, 114);
+    assert.ok(f.breakevenAfter < 114 && f.pBeAfter! > f.pBe!, "lower breakeven → higher odds");
+    assert.equal(f.cashIfAssigned, 17000);
+    assert.ok(f.rollsToCover > 2 && f.rollsToCover < 2.5);
+  });
+
+  it("never sells a put that outlives the call", () => {
+    const f = pickFundingPut([chain("2026-12-19", 30, puts30, []), chain("2027-01-02", 40, puts40, [])], 100, lv, call, 0.6)!;
+    assert.equal(f.short.expiry, "2026-12-19", "richer 40-DTE put skipped: expires after the call");
+    assert.equal(pickFundingPut([chain("2027-01-02", 40, puts40, [])], 100, lv, call, 0.6), null);
   });
 });

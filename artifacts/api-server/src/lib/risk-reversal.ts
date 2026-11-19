@@ -141,26 +141,22 @@ export type RRPair = {
 };
 
 /**
- * One engine, both directions (Jamie 11-18: "dynamic and applicable for the opposite bearish risk reversals").
- * Short leg: 14–45 DTE, strike at/behind the nearest anchor level (support for bull, resistance for bear), |Δ| in band;
- * the expiry that sells the most IV wins (≥ 1 pt to leave ~30 DTE). Long leg: 85–190 DTE, strike between spot and the
- * first level ≥ 10 % away, cost matched to one short credit; longest expiry within 10 % of even, else smallest debit.
+ * Short leg for either mode: 14–45 DTE, strike at/behind the nearest anchor level (support for bull, resistance for bear),
+ * |Δ| in band; the expiry selling the most IV wins (≥ 1 pt to leave ~30 DTE). `maxExpiry` = never outlive a leg it funds.
  */
-export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv: { support: Level[]; resistance: Level[] },
-  p = RR_PARAMS, direction: Direction = "bull"): RRPair | null {
+export function pickShortLeg(chains: OptionsChainResult[], spot: number, lv: { support: Level[]; resistance: Level[] },
+  p = RR_PARAMS, direction: Direction = "bull", maxExpiry?: string): { short: RRLeg; chain: OptionsChainResult; anchor: Level | null } | null {
   const f = p.fillFrac;
   const bull = direction === "bull";
   const shortSide: "put" | "call" = bull ? "put" : "call";
-  const longSide: "put" | "call" = bull ? "call" : "put";
   const rowsOf = (c: OptionsChainResult, side: "put" | "call") => (side === "put" ? c.puts : c.calls);
   const otm = (k: number, side: "put" | "call") => (side === "put" ? k < spot : k > spot);
   const absD = (r: OptionRow, dte: number, side: "put" | "call") => Math.abs(deltaOf(r, spot, dte, side));
-
   const anchor = bull ? (lv.support.find((x) => x.price <= spot * 0.97) ?? lv.support[0] ?? null)
     : (lv.resistance.find((x) => x.price >= spot * 1.03) ?? lv.resistance[0] ?? null);
   const behind = (k: number) => (anchor ? (bull ? k <= anchor.price : k >= anchor.price) : false);
   let short: RRLeg | null = null, shortChain: OptionsChainResult | null = null;
-  const shortExp = chains.filter((c) => c.daysToExpiry >= p.putDte[0] && c.daysToExpiry <= p.putDte[1])
+  const shortExp = chains.filter((c) => c.daysToExpiry >= p.putDte[0] && c.daysToExpiry <= p.putDte[1] && (!maxExpiry || c.expiry <= maxExpiry))
     .sort((a, b) => Math.abs(a.daysToExpiry - 30) - Math.abs(b.daysToExpiry - 30));
   for (const c of shortExp) {
     const ok = rowsOf(c, shortSide).filter((r) => otm(r.strike, shortSide) && quoted(r, p))
@@ -178,6 +174,26 @@ export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv:
     }
   }
   if (!short || !shortChain) return null;
+  return { short, chain: shortChain, anchor };
+}
+
+/**
+ * One engine, both directions (Jamie 11-18: "dynamic and applicable for the opposite bearish risk reversals").
+ * Short leg: 14–45 DTE, strike at/behind the nearest anchor level (support for bull, resistance for bear), |Δ| in band;
+ * the expiry that sells the most IV wins (≥ 1 pt to leave ~30 DTE). Long leg: 85–190 DTE, strike between spot and the
+ * first level ≥ 10 % away, cost matched to one short credit; longest expiry within 10 % of even, else smallest debit.
+ */
+export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv: { support: Level[]; resistance: Level[] },
+  p = RR_PARAMS, direction: Direction = "bull"): RRPair | null {
+  const f = p.fillFrac;
+  const bull = direction === "bull";
+  const longSide: "put" | "call" = bull ? "call" : "put";
+  const rowsOf = (c: OptionsChainResult, side: "put" | "call") => (side === "put" ? c.puts : c.calls);
+  const absD = (r: OptionRow, dte: number, side: "put" | "call") => Math.abs(deltaOf(r, spot, dte, side));
+
+  const picked = pickShortLeg(chains, spot, lv, p, direction);
+  if (!picked) return null;
+  const { short, chain: shortChain, anchor } = picked;
 
   // Target = first level ≥ 10 % away (a minor swing 1–3 % away forces a near-ATM long leg costing 2–3× the credit).
   const target = bull ? (lv.resistance.find((x) => x.price >= spot * 1.1) ?? null) : (lv.support.find((x) => x.price <= spot * 0.9) ?? null);
@@ -216,5 +232,46 @@ export function pickRiskReversal(chains: OptionsChainResult[], spot: number, lv:
     pShortSafe: bull ? pS : 1 - pS, pLongItm: bull ? pL : 1 - pL, pLongBe: bull ? pLbe : 1 - pLbe,
     cashIfAssigned: bull ? short.strike * 100 : null, assignedBasis: bull ? short.strike - short.fill : null,
     longMoveToStrike: long.strike / spot - 1,
+  };
+}
+
+/** A long call you already hold (RH snapshot, per-share cost / mark). */
+export type HeldCall = { strike: number; expiry: string; days: number; qty: number; cost: number; mark: number | null };
+export type FundingPut = {
+  short: RRLeg; anchor: Level | null; spot: number;
+  credit: number;            // $ for qty puts (1 put per call, 100 sh each)
+  paid: number; valueLeft: number | null;
+  coverPaid: number;         // one credit ÷ what you paid (1 = this put alone pays the call back)
+  coverLeft: number | null;  // one credit ÷ the call's mark today
+  rollsToCover: number;      // puts needed to recover what you paid
+  rollsAvailable: number;    // put cycles that fit before the call expires
+  breakeven: number; breakevenAfter: number;   // call breakeven now vs after this put expires worthless
+  pBe: number | null; pBeAfter: number | null; // P(call ends past breakeven) before / after (IV lognormal, no drift)
+  pShortSafe: number; cashIfAssigned: number; assignedBasis: number;
+};
+
+/**
+ * Step 3 (Jamie 11-18 "fund an existing long call"): one short put per held call, same name, 14–45 DTE at/behind support,
+ * expiring on or before the call. Credit lowers the call's breakeven only if the put expires OTM; assigned = you own
+ * 100 sh per put at strike − credit while still holding the call (doubles the bet — shown, never hidden).
+ */
+export function pickFundingPut(chains: OptionsChainResult[], spot: number, lv: { support: Level[]; resistance: Level[] },
+  call: HeldCall, callIv: number | null, p = RR_PARAMS): FundingPut | null {
+  const picked = pickShortLeg(chains, spot, lv, p, "bull", call.expiry);
+  if (!picked) return null;
+  const { short, anchor } = picked;
+  const credit = short.fill * 100 * call.qty, paid = call.cost * 100 * call.qty;
+  const valueLeft = call.mark != null ? call.mark * 100 * call.qty : null;
+  const be = call.strike + call.cost, beAfter = be - short.fill;
+  const iv = callIv != null && callIv > 0.05 && callIv < 5 ? callIv : null;
+  return {
+    short, anchor, spot, credit, paid, valueLeft,
+    coverPaid: paid > 0 ? credit / paid : 0, coverLeft: valueLeft && valueLeft > 0 ? credit / valueLeft : null,
+    rollsToCover: short.fill > 0 ? call.cost / short.fill : Infinity,
+    rollsAvailable: Math.max(1, Math.floor(call.days / Math.max(1, short.dte))),
+    breakeven: be, breakevenAfter: beAfter,
+    pBe: iv ? pAbove(spot, be, iv, call.days) : null, pBeAfter: iv ? pAbove(spot, beAfter, iv, call.days) : null,
+    pShortSafe: pAbove(spot, short.strike, short.iv, short.dte),
+    cashIfAssigned: short.strike * 100 * call.qty, assignedBasis: short.strike - short.fill,
   };
 }

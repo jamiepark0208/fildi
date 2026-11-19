@@ -18,7 +18,7 @@ import { normCDF } from "../lib/options-greeks.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { readChainSnapshot } from "../lib/options-chain-store.js";
 import { rankerChains } from "../lib/structures/ranker-chain.js";
-import { frontSkew, levelsFromBars, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
+import { frontSkew, levelsFromBars, pickFundingPut, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
 
 const router = Router();
 
@@ -738,6 +738,15 @@ async function riskReversals() {
              UNION (SELECT ticker FROM g WHERE dd <= -0.25 ORDER BY own DESC NULLS LAST LIMIT 12)
              UNION (SELECT UNNEST(ARRAY[${sql.join((held.length ? held : ["__"]).map((t) => sql`${t}`), sql`, `)}]::text[])))
     SELECT p.ticker AS t, f.own, f.color, d.dd FROM pick p LEFT JOIN f USING (ticker) LEFT JOIN d USING (ticker)`);
+  // Step 3 (Jamie 11-18 "fund an existing long call"): open long calls in the latest RH snapshot → a put on the same name.
+  const heldCalls = await safe<{ account: string; ticker: string; strike: number; expiry: string; qty: number; cost: number;
+    mark: number | null; iv: number | null }>(sql`
+    WITH s AS (SELECT id FROM public.portfolio_snapshots ORDER BY id DESC LIMIT 1)
+    SELECT o.account, UPPER(o.symbol) AS ticker, o.strike::float8 AS strike, o.expiration::text AS expiry, o.qty::float8 AS qty,
+           o.avg_premium::float8 / 100 AS cost, o.mark_price::float8 AS mark, o.iv::float8 AS iv
+    FROM public.portfolio_options o JOIN s ON o.snapshot_id = s.id
+    WHERE o.direction = 'long' AND o.option_type = 'call' AND o.expiration >= CURRENT_DATE`);
+  const funding: unknown[] = [];
   const out: unknown[] = [];
   const skipped: { ticker: string; why: string }[] = [];
   const liveSkew: (NonNullable<ReturnType<typeof frontSkew>> & { ticker: string })[] = [];
@@ -769,6 +778,14 @@ async function riskReversals() {
             earnings: erDate, earningsInShort: erDate != null && erDate <= pair.short.expiry,
             supports: lv.support.slice(0, 3), resistances: lv.resistance.slice(0, 3) });
         }
+        for (const hc of heldCalls.filter((x) => x.ticker === t)) {
+          const days = Math.max(1, Math.round((Date.parse(hc.expiry + "T16:00:00-05:00") - Date.now()) / 86_400_000));
+          const call = { strike: hc.strike, expiry: hc.expiry, days, qty: hc.qty, cost: hc.cost, mark: hc.mark };
+          const fp = pickFundingPut(chains, spot, lv, call, hc.iv);
+          funding.push(fp ? { ticker: t, account: hc.account.slice(-4), call, ...fp }
+            : { ticker: t, account: hc.account.slice(-4), call, short: null,
+                why: days < RR_PARAMS.putDte[0] ? `call expires in ${days} d — no put window left` : "no quoted put 14–45 DTE at support before the call expires" });
+        }
         if (!any) skipped.push({ ticker: t, why: "no quoted short 14–45 DTE / long 85–190 DTE in the Δ bands" });
       } catch (e) {
         skipped.push({ ticker: t, why: e instanceof Error ? e.message.slice(0, 80) : "error" });
@@ -793,7 +810,12 @@ async function riskReversals() {
   const medDd = dds.length ? dds[Math.floor(dds.length / 2)] : null;
   const fear = vr[0]?.r ?? null;
   const defaultDirection = (fear != null && fear >= 0.95) || (medDd != null && medDd <= -0.2) ? "bull" : "bear";
-  return { rows: out, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
+  // every held call gets a row — a missing chain says why instead of vanishing
+  const done = new Set((funding as { ticker: string }[]).map((x) => x.ticker));
+  for (const hc of heldCalls) if (!done.has(hc.ticker))
+    funding.push({ ticker: hc.ticker, account: hc.account.slice(-4), short: null,
+      why: skipped.find((x) => x.ticker === hc.ticker)?.why ?? "not in the pool (holdings list missed it)" });
+  return { rows: out, funding, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
 }
 type SkewRank = { rr25: number; asOf: string; dte: number; ownPct: number | null; ownN: number; ownMedian: number | null;
   sector: string | null; sectorPct: number | null; sectorN: number; sectorMedian: number | null; universePct: number | null };
