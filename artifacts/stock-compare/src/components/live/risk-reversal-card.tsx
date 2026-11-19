@@ -62,6 +62,8 @@ const FUND_TIP = "Calls you already hold (latest RH export): one put per call on
   + "worthless. Odds = call's own IV, no drift. Pays back = this put's credit ÷ what you paid (and ÷ what the call is worth now). "
   + "Assigned = you buy 100 sh per put at strike while still long the call — same bet twice, sized as shown. "
   + "Spread = same put + a lower bought put: keeps ≥ 50 % of the credit, collateral = width − credit (= max loss); needs spread approval. "
+  + "Still bullish (wins above the sold strike); the bought put is insurance paid at crash-level skew. On your own 342 entries spreads lost "
+  + "$17.5k vs plain puts (wing ate a median 55 % of premium, S020) → plain put when the cash exists, spread only when cash is the limit. "
   + "Cash = account cash in the latest RH export; any margin loan → no new puts until it is paid down (rule 10-06, S012). "
   + "Management: hold these to expiry — closing 2+ week puts early lost on real quotes (S017, S103); the Put management alerts track them. "
   + "Mechanical pick (support + chain + IV only): no news, fundamentals, signals or put-engine score — not a market call. Untested as a strategy.";
