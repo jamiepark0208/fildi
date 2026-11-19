@@ -10,7 +10,7 @@ import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 
 type Leg = { side: "put" | "call"; expiry: string; dte: number; strike: number; bid: number; ask: number; fill: number; iv: number; delta: number };
 type Level = { price: number; kind: string };
-type Row = {
+type Row = { view?: FildiView | null;
   ticker: string; held: boolean; own: number | null; offHigh: number | null; spot: number; direction: "bull" | "bear";
   short: Leg; long: Leg; net: number; anchor: Level | null; target: Level | null;
   rr25Short: number | null; rr25Long: number | null; term: number | null;
@@ -26,8 +26,30 @@ type Funding = { ticker: string; account: string; call?: HeldCall; short: Leg | 
   rollsAvailable?: number; breakeven?: number; breakevenAfter?: number; pBe?: number | null; pBeAfter?: number | null;
   pShortSafe?: number; cashIfAssigned?: number; assignedBasis?: number;
   spread?: { longStrike: number; longFill: number; credit: number; collateral: number; maxLoss: number; keepPct: number } | null;
+  view?: FildiView | null;
   fit?: { name: string | null; cash: number; loan: number; putFits: boolean; spreadFits: boolean; needPut: number; needSpread: number | null } | null };
-type Resp = { rows: Row[]; funding?: Funding[]; skipped: { ticker: string; why: string }[]; asOf: string;
+type FildiView = { engine: { pass: boolean; tier: string | null; rank: number; strike: number | null; expiry: string | null;
+  why: string | null; cautions: string[] } | null; engineAsOf: string | null; notes: { date: string; kind: string; text: string }[] };
+type Market = { fear: number | null; invertedDays: number; justUninverted: boolean; hy: number | null; hy5: number | null; read: string };
+// Fildi's own put engine on this name today + recent event notes (CEO change, earnings reaction) — Jamie 11-19 "all perspectives"
+const viewTip = (v: FildiView) => [
+  v.engine ? `Put engine ${v.engineAsOf ?? ""}: ${v.engine.pass ? "PASS" : "not passed"} (${v.engine.tier ?? "—"}, rank ${v.engine.rank})`
+    + `${v.engine.strike ? ` · its pick ${v.engine.strike}P ${v.engine.expiry?.slice(5) ?? ""}` : ""}${v.engine.why ? ` · ${v.engine.why}` : ""}`
+    + `${v.engine.cautions.length ? ` · cautions: ${v.engine.cautions.join("; ")}` : ""}` : "Not in today's put engine list.",
+  ...v.notes.map((n) => `${n.date.slice(5)} ${n.kind}: ${n.text}`),
+].join("\n");
+function ViewCell({ v }: { v?: FildiView | null }) {
+  if (!v) return <span className="text-amber-100">—</span>;
+  const e = v.engine;
+  const ev = v.notes.some((n) => n.kind === "character");
+  return <span title={viewTip(v)}>
+    {e ? <span className={e.pass && !e.cautions.length ? "text-green-400" : e.pass ? "text-amber-300" : "text-red-400"}>
+      {e.pass ? "pass" : "no"}{e.cautions.length ? ` · ${e.cautions.length} caution${e.cautions.length > 1 ? "s" : ""}` : ""}</span>
+      : <span className="text-amber-100">not ranked</span>}
+    {ev && <span className="ml-1 text-red-300 text-[11px]">event</span>}
+  </span>;
+}
+type Resp = { rows: Row[]; funding?: Funding[]; market?: Market; skipped: { ticker: string; why: string }[]; asOf: string;
   regime?: { fear: number | null; medianOffHigh: number | null; defaultDirection: "bull" | "bear" } };
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -66,7 +88,8 @@ const FUND_TIP = "Calls you already hold (latest RH export): one put per call on
   + "$17.5k vs plain puts (wing ate a median 55 % of premium, S020) → plain put when the cash exists, spread only when cash is the limit. "
   + "Cash = account cash in the latest RH export; any margin loan → no new puts until it is paid down (rule 10-06, S012). "
   + "Management: hold these to expiry — closing 2+ week puts early lost on real quotes (S017, S103); the Put management alerts track them. "
-  + "Mechanical pick (support + chain + IV only): no news, fundamentals, signals or put-engine score — not a market call. Untested as a strategy.";
+  + "Pick = support + chain + IV. 'Engine · news' = Fildi's put engine verdict on the name today (pass / cautions, hover for why) + event notes "
+  + "of the last 14 days; engine passes sort first. Untested as a strategy.";
 const fitCell = (f: Funding) => {
   const a = f.fit;
   if (!a) return <span className="text-amber-100">no account data</span>;
@@ -81,11 +104,11 @@ function FundCalls({ rows }: { rows: Funding[] }) {
     <div className="border-b border-white/10">
       <div className="px-2 py-1">
         <DataTip tip={FUND_TIP}><span className="text-[12px] font-semibold uppercase tracking-wide text-amber-300">Fund your open calls · {rows.length}</span></DataTip>
-        <span className="ml-2 text-[11px] text-amber-100">chain + support only, not a market call</span>
+        <span className="ml-2 text-[11px] text-amber-100">check Engine · news + Market before selling</span>
       </div>
       <table className="w-full">
         <thead><tr>
-          {["Your call", "Account cash", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned", "Spread: buy · credit · collateral"]
+          {["Your call", "Engine · news", "Account cash", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned", "Spread: buy · credit · collateral"]
             .map((h) => <th key={h} className={TH}>{h}</th>)}
         </tr></thead>
         <tbody>
@@ -95,7 +118,8 @@ function FundCalls({ rows }: { rows: Funding[] }) {
                 + `${f.rollsToCover!.toFixed(1)} puts to recover what you paid, ${f.rollsAvailable} fit before the call expires · assigned basis ${f.assignedBasis!.toFixed(2)}` : f.why}>
               <td className={cn(TD, "text-left font-semibold")}>{f.ticker} {f.call ? `${f.call.strike}C ${f.call.expiry.slice(5)} ×${f.call.qty}` : ""}
                 <span className="ml-1 text-amber-100 text-[11px]">…{f.account}</span></td>
-              {!f.short ? <td className={cn(TD, "text-left text-amber-100")} colSpan={10}>{f.why}</td> : <>
+              {!f.short ? <td className={cn(TD, "text-left text-amber-100")} colSpan={11}>{f.why}</td> : <>
+                <td className={TD}><ViewCell v={f.view} /></td>
                 <td className={TD}>{fitCell(f)}</td>
                 <td className={TD}>{usd(f.paid!)} · {f.valueLeft != null ? usd(f.valueLeft) : "—"}</td>
                 <td className={TD}>{leg(f.short)}</td>
@@ -132,7 +156,8 @@ export function RiskReversalCard() {
   if (!data?.rows.length) return null;
   const dir = pick ?? data.regime?.defaultDirection ?? "bull";
   const rows = data.rows.filter((r) => r.direction === dir)
-    .sort((a, b) => (Number(a.earningsInShort) - Number(b.earningsInShort)) || (b.volEdge - a.volEdge));
+    .sort((a, b) => (Number(a.earningsInShort) - Number(b.earningsInShort))
+      || (Number(!!b.view?.engine?.pass) - Number(!!a.view?.engine?.pass)) || (b.volEdge - a.volEdge));
   const rg = data.regime;
   return (
     <div className={GRID_WRAP} data-testid="today-risk-reversals">
@@ -150,10 +175,12 @@ export function RiskReversalCard() {
         ))}
         {rg?.fear != null && <span className="text-[12px] text-amber-100">fear curve {rg.fear.toFixed(2)}{rg.medianOffHigh != null ? ` · median name ${Math.round(rg.medianOffHigh * 100)} % off high` : ""}</span>}
       </div>
-      {data.funding && data.funding.length > 0 && <FundCalls rows={data.funding} />}
+      {data.market && <div className={cn("px-2 py-1 text-[12px] border-b border-white/10", data.market.justUninverted ? "text-green-300" : data.market.invertedDays > 0 ? "text-amber-300" : "text-white")}>
+        Market: {data.market.read}</div>}
+      {data.funding && data.funding.length > 0 && <FundCalls rows={[...data.funding].sort((a, b) => Number(!!b.view?.engine?.pass) - Number(!!a.view?.engine?.pass))} />}
       <table className="w-full">
         <thead><tr>
-          {["Ticker", "Quality", "Off high", "Spot", "Sell", "Credit", "Short safe", "Buy", "Cost", "Net /pair", "Long ITM", "Skew short · long", "Skew rank own · sector", "Vol edge", "Term", "Rolls to fund", "Cash if assigned"]
+          {["Ticker", "Engine · news", "Quality", "Off high", "Spot", "Sell", "Credit", "Short safe", "Buy", "Cost", "Net /pair", "Long ITM", "Skew short · long", "Skew rank own · sector", "Vol edge", "Term", "Rolls to fund", "Cash if assigned"]
             .map((h) => <th key={h} className={TH}>{h}</th>)}
         </tr></thead>
         <tbody>
@@ -163,6 +190,7 @@ export function RiskReversalCard() {
                 + `Short ${leg(r.short)} Δ${r.short.delta.toFixed(2)} IV ${pc(r.short.iv)} (${r.short.bid}/${r.short.ask}); long ${leg(r.long)} Δ${r.long.delta.toFixed(2)} IV ${pc(r.long.iv)} (${r.long.bid}/${r.long.ask}). `
                 + `Long needs ${(r.longMoveToStrike * 100).toFixed(0)} % to its strike; past strike + net debit ${pc(r.pLongBe)}.`}>
               <td className={cn(TD, "text-left font-semibold")}>{r.ticker}{r.held && <span className="ml-1 text-amber-300 text-[11px]">held</span>}</td>
+              <td className={TD}><ViewCell v={r.view} /></td>
               <td className={TD}>{r.own == null ? "—" : Math.round(r.own)}</td>
               <td className={TD}>{r.offHigh == null ? "—" : `${Math.round(r.offHigh * 100)} %`}</td>
               <td className={TD}>{r.spot.toFixed(2)}</td>

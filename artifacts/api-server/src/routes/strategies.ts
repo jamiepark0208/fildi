@@ -828,7 +828,55 @@ async function riskReversals() {
   for (const hc of heldCalls) if (!done.has(hc.ticker))
     funding.push({ ticker: hc.ticker, account: hc.account.slice(-4), short: null,
       why: skipped.find((x) => x.ticker === hc.ticker)?.why ?? "not in the pool (holdings list missed it)" });
-  return { rows: out, funding, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
+  // Jamie 11-19 "is Fildi set up to highlight all these perspectives?": every RR / funding row carries Fildi's own put-engine
+  // verdict (pass, tier, cautions), news/event notes from the last 14 days, and the market state — rank + explain, never hide.
+  const views = await fildiViews([...new Set([...(out as { ticker: string }[]), ...(funding as { ticker: string }[])].map((r) => r.ticker))]);
+  for (const r of [...out, ...funding] as { ticker: string; view?: unknown }[]) r.view = views.get(r.ticker) ?? null;
+  const market = await marketRead();
+  return { rows: out, funding, market, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
+}
+type FildiView = { engine: { pass: boolean; tier: string | null; rank: number; strike: number | null; expiry: string | null;
+  why: string | null; cautions: string[] } | null; engineAsOf: string | null; notes: { date: string; kind: string; text: string }[] };
+async function fildiViews(tickers: string[]): Promise<Map<string, FildiView>> {
+  const m = new Map<string, FildiView>();
+  if (!tickers.length) return m;
+  const list = sql.join(tickers.map((t) => sql`${t}`), sql`, `);
+  const eng = await safe<{ ticker: string; as_of: string; pass: boolean; rank: number; p: Record<string, unknown> }>(sql`
+    SELECT ticker, as_of::text AS as_of, pass, rank, payload AS p FROM watchlist_sync.put_recs_daily
+    WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND ticker IN (${list})`);
+  const notes = await safe<{ ticker: string; d: string; kind: string; body: string }>(sql`
+    SELECT ticker, as_of::text AS d, tags->>0 AS kind, body FROM public.fund_score_notes
+    WHERE ticker IN (${list}) AND as_of >= current_date - 14 AND tags ?| array['character', 'earnings', 'trade', 'levels']
+    ORDER BY as_of DESC, id DESC`);
+  const asOf = eng[0]?.as_of ?? null;
+  for (const t of tickers) {
+    const e = eng.find((x) => x.ticker === t);
+    const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
+    m.set(t, {
+      engine: e ? { pass: e.pass, tier: (e.p.tier as string) ?? null, rank: e.rank, strike: num(e.p.strike), expiry: (e.p.expiry as string) ?? null,
+        why: (e.p.why as string) ?? null, cautions: Array.isArray(e.p.cautions) ? (e.p.cautions as string[]) : [] } : null,
+      engineAsOf: asOf,
+      notes: notes.filter((n) => n.ticker === t).slice(0, 3).map((n) => ({ date: n.d, kind: n.kind, text: n.body.slice(0, 220) })),
+    });
+  }
+  return m;
+}
+// One line on the market for put sellers, from the studies (S172 / S197b / S199) + credit (HY OAS).
+async function marketRead() {
+  const vr = await safe<{ date: string; r: number }>(sql`
+    SELECT v.date::text AS date, (v.value / NULLIF(m.value, 0))::float8 AS r FROM watchlist_sync.macro_daily v
+    JOIN watchlist_sync.macro_daily m ON m.series = 'vix3m' AND m.date = v.date WHERE v.series = 'vix' ORDER BY v.date DESC LIMIT 30`);
+  const hy = await safe<{ v: number }>(sql`SELECT value::float8 AS v FROM watchlist_sync.macro_daily WHERE series = 'hy_oas' ORDER BY date DESC LIMIT 6`);
+  let streak = 0; while (streak < vr.length && vr[streak].r >= 1) streak++;
+  const justUninverted = vr.length > 2 && vr[0].r < 1 && vr[1].r >= 1 && vr[2].r >= 1;
+  const hy5 = hy.length >= 6 ? hy[0].v - hy[5].v : null;
+  const read = justUninverted
+    ? "Fear curve just un-inverted — the tested time to sell puts: +0.50 % vs +0.25 % on calm days, names that did not just crash +0.58 % vs +0.27 % (S197b, 2009→)."
+    : streak > 0
+      ? `Fear curve inverted ${streak} day${streak > 1 ? "s" : ""} (VIX ÷ VIX3M ${vr[0].r.toFixed(2)}): puts sold now earn no more than on calm days (+0.24 % vs +0.25 %, S197b) — the better entry is the first close back below 1.`
+      : "Fear curve calm: ordinary put returns (S197b baseline).";
+  const credit = hy5 == null ? "" : hy5 >= 0.2 ? ` Junk-bond spread +${hy5.toFixed(2)} in 5 sessions (${hy[0].v.toFixed(2)} %) — credit is widening.` : "";
+  return { fear: vr[0]?.r ?? null, invertedDays: streak, justUninverted, hy: hy[0]?.v ?? null, hy5, read: read + credit };
 }
 type SkewRank = { rr25: number; asOf: string; dte: number; ownPct: number | null; ownN: number; ownMedian: number | null;
   sector: string | null; sectorPct: number | null; sectorN: number; sectorMedian: number | null; universePct: number | null };
