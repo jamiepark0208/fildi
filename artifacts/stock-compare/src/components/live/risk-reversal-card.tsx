@@ -10,7 +10,10 @@ import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 
 type Leg = { side: "put" | "call"; expiry: string; dte: number; strike: number; bid: number; ask: number; fill: number; iv: number; delta: number };
 type Level = { price: number; kind: string };
-type Row = { view?: FildiView | null;
+type CashPlan = { account: string; name: string; need: number; cashUsed: number; loanRepaid: number; fits: boolean;
+  sells: { what: string; cash: number; why: string; tier: number }[]; shortBy: number; note: string | null };
+type CapitalAcct = { name: string; cash: number; loan: number; taxable: boolean; sellOrder: { what: string; cash: number; tier: number; why: string }[] };
+type Row = { view?: FildiView | null; capital?: CashPlan | null;
   ticker: string; held: boolean; own: number | null; offHigh: number | null; spot: number; direction: "bull" | "bear";
   short: Leg; long: Leg; net: number; anchor: Level | null; target: Level | null;
   rr25Short: number | null; rr25Long: number | null; term: number | null;
@@ -26,7 +29,7 @@ type Funding = { ticker: string; account: string; call?: HeldCall; short: Leg | 
   rollsAvailable?: number; breakeven?: number; breakevenAfter?: number; pBe?: number | null; pBeAfter?: number | null;
   pShortSafe?: number; cashIfAssigned?: number; assignedBasis?: number;
   spread?: { longStrike: number; longFill: number; credit: number; collateral: number; maxLoss: number; keepPct: number } | null;
-  view?: FildiView | null;
+  view?: FildiView | null; capital?: CashPlan | null;
   fit?: { name: string | null; cash: number; loan: number; putFits: boolean; spreadFits: boolean; needPut: number; needSpread: number | null } | null };
 type FildiView = { engine: { pass: boolean; tier: string | null; rank: number; strike: number | null; expiry: string | null;
   why: string | null; cautions: string[] } | null; engineAsOf: string | null; notes: { date: string; kind: string; text: string }[] };
@@ -49,7 +52,7 @@ function ViewCell({ v }: { v?: FildiView | null }) {
     {ev && <span className="ml-1 text-red-300 text-[11px]">event</span>}
   </span>;
 }
-type Resp = { rows: Row[]; funding?: Funding[]; market?: Market; skipped: { ticker: string; why: string }[]; asOf: string;
+type Resp = { rows: Row[]; funding?: Funding[]; capital?: { accounts: CapitalAcct[] } | { error: string }; market?: Market; skipped: { ticker: string; why: string }[]; asOf: string;
   regime?: { fear: number | null; medianOffHigh: number | null; defaultDirection: "bull" | "bear" } };
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -57,6 +60,22 @@ const TD = "px-1.5 py-0.5 text-[13px] text-white";
 const pc = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)} %`);
 const usd = (x: number) => `${x < 0 ? "−" : ""}$${Math.abs(Math.round(x)).toLocaleString()}`;
 const leg = (l: Leg) => `${l.strike}${l.side === "put" ? "P" : "C"} ${l.expiry.slice(5)}`;
+// Jamie 11-19 "don't exclude ideas based on capital … recommend how best to create that capital" (lib/capital-plan.ts)
+const planTip = (c: CashPlan) => [
+  `${c.name}: needs ${usd(c.need)}${c.loanRepaid > 0 ? ` + repay ${usd(c.loanRepaid)} margin loan` : ""}${c.cashUsed > 0 ? ` · uses ${usd(c.cashUsed)} cash` : ""}`,
+  ...c.sells.map((x, i) => `${i + 1}. ${x.what} → ${usd(x.cash)} · ${x.why}`),
+  c.shortBy > 0 ? `Still ${usd(c.shortBy)} short after every listed sale — wait for open puts to expire or skip.` : "",
+  c.note ?? "", "Cash is shared down the list: rows above use it first. Sell order = Model List avoid/trim → low-odds options → rich → green last; tax losses first in taxable accounts. Rules, not a tested edge.",
+].filter(Boolean).join("\n");
+function CashPlanCell({ c }: { c?: CashPlan | null }) {
+  if (!c) return <span className="text-amber-100">—</span>;
+  if (c.fits) return /left over/.test(c.note ?? "")
+    ? <span className="text-amber-300" title={planTip(c)}>fits after sales above · {c.name}</span>
+    : <span className="text-green-400" title={planTip(c)}>fits · {c.name}</span>;
+  const raised = c.sells.reduce((s, x) => s + x.cash, 0);
+  return <span className={c.shortBy > 0 ? "text-red-400" : "text-amber-300"} title={planTip(c)}>
+    {c.shortBy > 0 ? `short ${usd(c.shortBy)}` : `sell ${c.sells.length} → ${usd(raised)}`} · {c.name}{c.loanRepaid > 0 ? " (loan)" : ""}</span>;
+}
 const vp = (x: number | null) => (x == null ? "—" : (x * 100).toFixed(1));
 const pct = (x: number | null) => (x == null ? "—" : String(Math.round(x * 100)));
 // Rich side for the trade: bull sells puts → high put-skew rank good; bear sells calls → low rank (calls rich) good
@@ -76,7 +95,7 @@ const TIP = "Bull = sell a put at support, buy a longer call toward resistance. 
   + "Skew rank own · sector = today's front-month 25Δ skew as a percentile of the name's own last 60 days and of its sector today "
   + "(bull wants high = puts rich, bear wants low = calls rich). "
   + "Odds use each option's IV, no drift. History: same-expiry 30-day bull RR +6 %/$ strike vs +2.3 % put alone, 15 panic weeks (S178); "
-  + "mismatched expiries and the bear side are untested. Bull short put = cash-secured (FILDI margin loan → no new puts). "
+  + "mismatched expiries and the bear side are untested. Bull short put = cash-secured; Cash plan shows where the cash comes from (margin loan repaid first). "
   + "Bear short call = uncapped unless you own 100 shares (then covered call + bought put = a funded collar).";
 
 const FUND_TIP = "Calls you already hold (latest RH export): one put per call on the same name, 14–45 days, at/below support, "
@@ -86,7 +105,7 @@ const FUND_TIP = "Calls you already hold (latest RH export): one put per call on
   + "Spread = same put + a lower bought put: keeps ≥ 50 % of the credit, collateral = width − credit (= max loss); needs spread approval. "
   + "Still bullish (wins above the sold strike); the bought put is insurance paid at crash-level skew. On your own 342 entries spreads lost "
   + "$17.5k vs plain puts (wing ate a median 55 % of premium, S020) → plain put when the cash exists, spread only when cash is the limit. "
-  + "Cash = account cash in the latest RH export; any margin loan → no new puts until it is paid down (rule 10-06, S012). "
+  + "Cash plan = account cash in the latest RH export, shared down the list; short → the holdings to sell first (hover). A margin loan is repaid before any new put (rule 10-06, S012). "
   + "Management: hold these to expiry — closing 2+ week puts early lost on real quotes (S017, S103); the Put management alerts track them. "
   + "Pick = support + chain + IV. 'Engine · news' = Fildi's put engine verdict on the name today (pass / cautions, hover for why) + event notes "
   + "of the last 14 days; engine passes sort first. Untested as a strategy.";
@@ -108,7 +127,7 @@ function FundCalls({ rows }: { rows: Funding[] }) {
       </div>
       <table className="w-full">
         <thead><tr>
-          {["Your call", "Engine · news", "Account cash", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned", "Spread: buy · credit · collateral"]
+          {["Your call", "Engine · news", "Cash plan", "Paid · worth", "Sell", "Credit", "Pays back", "Breakeven → after", "Odds → after", "Short safe", "Cash if assigned", "Spread: buy · credit · collateral"]
             .map((h) => <th key={h} className={TH}>{h}</th>)}
         </tr></thead>
         <tbody>
@@ -120,7 +139,7 @@ function FundCalls({ rows }: { rows: Funding[] }) {
                 <span className="ml-1 text-amber-100 text-[11px]">…{f.account}</span></td>
               {!f.short ? <td className={cn(TD, "text-left text-amber-100")} colSpan={11}>{f.why}</td> : <>
                 <td className={TD}><ViewCell v={f.view} /></td>
-                <td className={TD}>{fitCell(f)}</td>
+                <td className={TD}>{f.capital ? <CashPlanCell c={f.capital} /> : fitCell(f)}</td>
                 <td className={TD}>{usd(f.paid!)} · {f.valueLeft != null ? usd(f.valueLeft) : "—"}</td>
                 <td className={TD}>{leg(f.short)}</td>
                 <td className={cn(TD, "text-green-300")}>{usd(f.credit!)}</td>
@@ -177,10 +196,18 @@ export function RiskReversalCard() {
       </div>
       {data.market && <div className={cn("px-2 py-1 text-[12px] border-b border-white/10", data.market.justUninverted ? "text-green-300" : data.market.invertedDays > 0 ? "text-amber-300" : "text-white")}>
         Market: {data.market.read}</div>}
+      {data.capital && "accounts" in data.capital && <div className="px-2 py-1 text-[12px] border-b border-white/10 text-white">
+        <DataTip tip="If an idea needs more cash than the account has, sell in this order (lib/capital-plan.ts): ≥ 50 %-captured short puts → Model List avoid/trim → options under 15 % odds to breakeven → rich (≥ fair value or within 10 % of high) → no view → green last. Taxable accounts: tax-loss sales first. A margin loan is repaid before any new put (rule 10-06). Hover a name for why.">
+          <span className="font-semibold uppercase tracking-wide text-amber-300 text-[11px]">Raise cash · sell first</span></DataTip>
+        {data.capital.accounts.map((a) => <span key={a.name} className="ml-3">
+          <span className="text-amber-100">{a.name}{a.loan > 0 ? ` (loan ${usd(a.loan)})` : ` (cash ${usd(a.cash)})`}:</span>{" "}
+          {a.sellOrder.slice(0, 3).map((x, i) => <span key={x.what} title={x.why}>{i ? ", " : ""}{x.what.replace(/^sell /, "")} {usd(x.cash)}</span>)}
+        </span>)}
+      </div>}
       {data.funding && data.funding.length > 0 && <FundCalls rows={[...data.funding].sort((a, b) => Number(!!b.view?.engine?.pass) - Number(!!a.view?.engine?.pass))} />}
       <table className="w-full">
         <thead><tr>
-          {["Ticker", "Engine · news", "Quality", "Off high", "Spot", "Sell", "Credit", "Short safe", "Buy", "Cost", "Net /pair", "Long ITM", "Skew short · long", "Skew rank own · sector", "Vol edge", "Term", "Rolls to fund", "Cash if assigned"]
+          {["Ticker", "Engine · news", "Quality", "Off high", "Spot", "Sell", "Credit", "Short safe", "Buy", "Cost", "Net /pair", "Long ITM", "Skew short · long", "Skew rank own · sector", "Vol edge", "Term", "Rolls to fund", "Cash if assigned", "Cash plan"]
             .map((h) => <th key={h} className={TH}>{h}</th>)}
         </tr></thead>
         <tbody>
@@ -213,6 +240,7 @@ export function RiskReversalCard() {
               <td className={TD}>{r.term == null ? "—" : r.term.toFixed(2)}</td>
               <td className={cn(TD, r.rollsToFund <= Math.min(2, r.rollsAvailable) ? "text-green-400" : "text-amber-300")}>{r.rollsToFund.toFixed(1)} of {r.rollsAvailable}</td>
               <td className={TD}>{r.cashIfAssigned != null ? usd(r.cashIfAssigned) : r.held ? "covered?" : "uncapped"}</td>
+              <td className={TD}>{r.direction === "bull" ? <CashPlanCell c={r.capital} /> : <span className="text-amber-100">—</span>}</td>
             </tr>
           ))}
         </tbody>

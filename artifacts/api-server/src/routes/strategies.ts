@@ -19,6 +19,7 @@ import { TTLCache } from "../lib/ttl-cache.js";
 import { readChainSnapshot } from "../lib/options-chain-store.js";
 import { rankerChains } from "../lib/structures/ranker-chain.js";
 import { frontSkew, levelsFromBars, pickFundingPut, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
+import { allocate, optionSource, rankSources, stockSource, type Need, type Source } from "../lib/capital-plan.js";
 
 const router = Router();
 
@@ -795,7 +796,7 @@ async function riskReversals() {
           const days = Math.max(1, Math.round((Date.parse(hc.expiry + "T16:00:00-05:00") - Date.now()) / 86_400_000));
           const call = { strike: hc.strike, expiry: hc.expiry, days, qty: hc.qty, cost: hc.cost, mark: hc.mark };
           const fp = pickFundingPut(chains, spot, lv, call, hc.iv);
-          funding.push(fp ? { ticker: t, account: hc.account.slice(-4), call, ...fp, fit: cashFit(hc.account, fp) }
+          funding.push(fp ? { ticker: t, account: hc.account.slice(-4), fullAccount: hc.account, call, ...fp, fit: cashFit(hc.account, fp) }
             : { ticker: t, account: hc.account.slice(-4), call, short: null,
                 why: days < RR_PARAMS.putDte[0] ? `call expires in ${days} d — no put window left` : "no quoted put 14–45 DTE at support before the call expires" });
         }
@@ -832,8 +833,94 @@ async function riskReversals() {
   // verdict (pass, tier, cautions), news/event notes from the last 14 days, and the market state — rank + explain, never hide.
   const views = await fildiViews([...new Set([...(out as { ticker: string }[]), ...(funding as { ticker: string }[])].map((r) => r.ticker))]);
   for (const r of [...out, ...funding] as { ticker: string; view?: unknown }[]) r.view = views.get(r.ticker) ?? null;
+  // Jamie 11-19 "don't exclude ideas based on capital … recommend how best to create that capital": every row keeps showing;
+  // each gets a cash plan — fits now, or which holdings to sell (lib/capital-plan.ts), cash shared across rows per account.
+  const capital = await capitalPlans(accts, funding as FundRow[], out as RRRow[]).catch((e) => ({ error: String(e).slice(0, 120) }));
   const market = await marketRead();
-  return { rows: out, funding, market, skipped, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
+  return { rows: out, funding, market, skipped, capital, asOf: new Date().toISOString(), regime: { fear, medianOffHigh: medDd, defaultDirection } };
+}
+type FundRow = { ticker: string; account: string; fullAccount?: string; call?: { strike: number; expiry: string };
+  short: unknown; cashIfAssigned?: number; view?: FildiView | null; payback?: number; capital?: unknown };
+type RRRow = { ticker: string; direction?: string; earningsInShort?: boolean; volEdge?: number; cashIfAssigned: number | null; view?: FildiView | null; capital?: unknown };
+async function capitalPlans(accts: Map<string, { account: string; nickname: string | null; cash: number; loan: number }>,
+  funding: FundRow[], rr: RRRow[]) {
+  const snap = sql`(SELECT MAX(id) FROM public.portfolio_snapshots)`;
+  const stocks = await safe<{ account: string; t: string; q: number; px: number; avg: number | null }>(sql`
+    SELECT account, UPPER(symbol) AS t, quantity::float8 AS q, (market_value / NULLIF(quantity, 0))::float8 AS px, avg_cost::float8 AS avg
+    FROM public.portfolio_positions WHERE snapshot_id = ${snap} AND quantity > 0`);
+  const opts = await safe<{ account: string; t: string; type: "call" | "put"; dir: "long" | "short"; k: number; e: string; q: number;
+    mark: number | null; cost: number | null; iv: number | null }>(sql`
+    SELECT account, UPPER(symbol) AS t, option_type AS type, direction AS dir, strike::float8 AS k, expiration::text AS e, qty::float8 AS q,
+           mark_price::float8 AS mark, avg_premium::float8 / 100 AS cost, iv::float8 AS iv
+    FROM public.portfolio_options WHERE snapshot_id = ${snap} AND expiration >= CURRENT_DATE`);
+  const tickers = [...new Set([...stocks.map((s) => s.t), ...opts.map((o) => o.t)])];
+  const list = sql.join((tickers.length ? tickers : ["__"]).map((t) => sql`${t}`), sql`, `);
+  const views = await safe<{ t: string; f: string | null; v: string | null; p2f: number | null }>(sql`
+    WITH mi AS (SELECT UPPER(ticker) t, (array_agg(folder_key ORDER BY CASE folder_key WHEN 'avoid' THEN 0 WHEN 'trim_risk' THEN 1
+                  WHEN 'own' THEN 2 ELSE 3 END))[1] f, MAX(verdict) v
+                FROM watchlist_sync.model_items WHERE run_id = (SELECT MAX(id) FROM watchlist_sync.model_runs) GROUP BY 1),
+         fv AS (SELECT DISTINCT ON (ticker) UPPER(ticker) t, price_to_fair::float8 p2f FROM public.fair_value_snapshots
+                WHERE UPPER(ticker) IN (${list}) ORDER BY ticker, as_of DESC)
+    SELECT x.t, mi.f, mi.v, fv.p2f FROM UNNEST(ARRAY[${list}]::text[]) x(t) LEFT JOIN mi USING (t) LEFT JOIN fv USING (t)`);
+  const vmap = new Map(views.map((v) => [v.t, v]));
+  const lv = new Map<string, { spot: number; sup: number | null; res: number | null; offHigh: number | null }>();
+  for (const t of tickers) {
+    const bars = await safe<Bar>(sql`SELECT date::text AS date, high::float8 AS high, low::float8 AS low, close::float8 AS close
+      FROM (SELECT * FROM public.prices_historical WHERE ticker = ${t} ORDER BY date DESC LIMIT 260) x ORDER BY date`);
+    const spot = bars[bars.length - 1]?.close;
+    if (!spot) continue;
+    const l = levelsFromBars(bars, spot);
+    const hi = Math.max(...bars.map((b) => b.high));
+    // a level 1–2 % away is noise for a hold/sell call (ONDS 11-19: R/R 20.8) → nearest level ≥ 3 % from spot
+    lv.set(t, { spot, sup: l.support.find((x) => x.price <= spot * 0.97)?.price ?? null,
+      res: l.resistance.find((x) => x.price >= spot * 1.03)?.price ?? null, offHigh: hi > 0 ? spot / hi - 1 : null });
+  }
+  const A = [...accts.values()].map((a) => ({ account: a.account, name: a.nickname ?? a.account.slice(-4),
+    cash: a.cash, loan: a.loan > 0 || a.cash < 0 ? Math.max(a.loan, -a.cash) : 0, taxable: !/ira/i.test(a.nickname ?? "") }));
+  const taxable = new Map(A.map((a) => [a.account, a.taxable]));
+  const locked = (acct: string, t: string) => 100 * opts.filter((o) => o.account === acct && o.t === t && o.type === "call" && o.dir === "short")
+    .reduce((s, o) => s + o.q, 0);
+  const sources: Source[] = [];
+  for (const s of stocks) {
+    const v = vmap.get(s.t), l = lv.get(s.t);
+    const src = stockSource({ account: s.account, ticker: s.t, qty: s.q, px: s.px, avgCost: s.avg, folder: v?.f ?? null, verdict: v?.v ?? null,
+      p2f: v?.p2f ?? null, offHigh: l?.offHigh ?? null, support: l?.sup ?? null, resistance: l?.res ?? null, lockedShares: locked(s.account, s.t) },
+      taxable.get(s.account) ?? true);
+    if (src) sources.push(src);
+  }
+  for (const o of opts) {
+    const spot = lv.get(o.t)?.spot;
+    const days = Math.max(1, Math.round((Date.parse(o.e + "T16:00:00-05:00") - Date.now()) / 86_400_000));
+    const iv = o.iv != null && o.iv > 0.05 && o.iv < 5 ? o.iv : null;
+    const be = o.type === "call" ? o.k + (o.cost ?? 0) : o.k - (o.cost ?? 0);
+    const sd = iv && spot ? iv * Math.sqrt(days / 365) : null;
+    const pAbv = sd && spot ? 1 - normCDF((Math.log(be / spot) + 0.5 * sd * sd) / sd) : null;
+    const src = optionSource({ account: o.account, ticker: o.t, type: o.type, dir: o.dir, strike: o.k, expiry: o.e, qty: o.q, mark: o.mark,
+      cost: o.cost, pBe: pAbv == null ? null : o.type === "call" ? pAbv : 1 - pAbv }, taxable.get(o.account) ?? true);
+    if (src) sources.push(src);
+  }
+  // Priority: puts that fund calls you already own (engine passes first, as the card sorts), then new bullish RR ideas.
+  // same order the card shows: engine passes first; RR rows: earnings-in-short last, engine passes, then vol edge
+  const pass = (v?: FildiView | null) => Number(!!v?.engine?.pass);
+  const fOrder = funding.map((f, i) => ({ f, i })).sort((a, b) => pass(b.f.view) - pass(a.f.view));
+  const rOrder = rr.map((r, i) => ({ r, i })).sort((a, b) => Number(!!a.r.earningsInShort) - Number(!!b.r.earningsInShort)
+    || pass(b.r.view) - pass(a.r.view) || (b.r.volEdge ?? 0) - (a.r.volEdge ?? 0));
+  const needs: Need[] = [];
+  fOrder.forEach(({ f, i }) => {
+    if (!f.short || !f.cashIfAssigned || !f.fullAccount || !f.call) return;
+    needs.push({ id: `f${i}`, account: f.fullAccount, ticker: f.ticker, need: f.cashIfAssigned,
+      excludeKeys: [`opt:${f.fullAccount}:${f.ticker} ${f.call.strike}C ${f.call.expiry.slice(5)}`] });
+  });
+  rOrder.forEach(({ r, i }) => {
+    if (r.direction === "bear" || !r.cashIfAssigned) return;
+    needs.push({ id: `r${i}`, account: null, ticker: r.ticker, need: r.cashIfAssigned });
+  });
+  const plans = allocate(A, sources, needs);
+  funding.forEach((f, i) => { if (plans.has(`f${i}`)) f.capital = plans.get(`f${i}`); });
+  rr.forEach((r, i) => { if (plans.has(`r${i}`)) r.capital = plans.get(`r${i}`); });
+  return { accounts: A.map((a) => ({ name: a.name, cash: Math.max(0, a.cash), loan: a.loan, taxable: a.taxable,
+    sellOrder: rankSources(sources.filter((s) => s.account === a.account)).slice(0, 8)
+      .map((s) => ({ what: s.what, cash: Math.round(s.cash), tier: s.tier, why: s.why })) })) };
 }
 type FildiView = { engine: { pass: boolean; tier: string | null; rank: number; strike: number | null; expiry: string | null;
   why: string | null; cautions: string[] } | null; engineAsOf: string | null; notes: { date: string; kind: string; text: string }[] };
