@@ -35,7 +35,8 @@ const rankGood = (x: number | null, dir: "bull" | "bear") => x != null && (dir =
 const rankTip = (k: SkewRank) => `Front-month (${k.dte} d, ${k.asOf.slice(5)}) 25Δ put − call IV ${vp(k.rr25)} pts. `
   + `Own: ${pct(k.ownPct)}th pct of its last ${k.ownN} days (median ${vp(k.ownMedian)}). `
   + `${k.sector ?? "No sector"}: ${pct(k.sectorPct)}th of ${k.sectorN} names (median ${vp(k.sectorMedian)}). All names: ${pct(k.universePct)}th. `
-  + "Needs ≥ 10 days / ≥ 5 peers, else —. History starts 10-08 (Schwab chain store, mostly weeklies) — a rank, not a backtested edge.";
+  + "Needs ≥ 10 days / ≥ 5 peers, else —. History starts 10-08 (Schwab chain store, mostly weeklies). Tested 11-18 (S185c, 59 names, 13 months): can't answer yet "
+  + "(≤ 6 independent weeks per regime) → no proven edge; don't pick a trade on this rank alone.";
 
 const TIP = "Bull = sell a put at support, buy a longer call toward resistance. Bear = sell a call at resistance, buy a longer put toward support. "
   + "Short leg 14–45 days (the expiry that sells the most IV), long leg 85–190 days. Fills = bid/ask ± 23 % of the spread. "
