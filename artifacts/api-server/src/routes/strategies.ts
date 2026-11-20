@@ -21,6 +21,7 @@ import { readChainSnapshot } from "../lib/options-chain-store.js";
 import { rankerChains } from "../lib/structures/ranker-chain.js";
 import { frontSkew, levelsFromBars, pickFundingPut, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
 import { allocate, optionSource, rankSources, stockSource, type Need, type Source } from "../lib/capital-plan.js";
+import { betaVsSpy, cushion, CUSHION_TARGET, deRisk, ratioAfter, RH_FLOOR, type Pt, type Sellable } from "../lib/book-risk.js";
 
 const router = Router();
 
@@ -849,8 +850,13 @@ async function riskReversals() {
 type FundRow = { ticker: string; account: string; fullAccount?: string; call?: { strike: number; expiry: string };
   short: unknown; cashIfAssigned?: number; view?: FildiView | null; payback?: number; capital?: unknown };
 type RRRow = { ticker: string; direction?: string; earningsInShort?: boolean; volEdge?: number; cashIfAssigned: number | null; view?: FildiView | null; capital?: unknown };
-async function capitalPlans(accts: Map<string, { account: string; nickname: string | null; cash: number; loan: number }>,
-  funding: FundRow[], rr: RRRow[]) {
+type AcctRow = { account: string; nickname: string | null; cash: number; loan: number };
+async function capitalPlans(accts: Map<string, AcctRow>, funding: FundRow[], rr: RRRow[]) {
+  const { A, sources } = await holdingSources(accts);
+  return planFromSources(A, sources, funding, rr);
+}
+/** Latest RH snapshot → every holding as a cash source in capital-plan order (shared by Fund-your-calls and Book risk). */
+async function holdingSources(accts: Map<string, AcctRow>) {
   const snap = sql`(SELECT MAX(id) FROM public.portfolio_snapshots)`;
   const stocks = await safe<{ account: string; t: string; q: number; px: number; avg: number | null }>(sql`
     SELECT account, UPPER(symbol) AS t, quantity::float8 AS q, (market_value / NULLIF(quantity, 0))::float8 AS px, avg_cost::float8 AS avg
@@ -906,6 +912,9 @@ async function capitalPlans(accts: Map<string, { account: string; nickname: stri
       cost: o.cost, pBe: pAbv == null ? null : o.type === "call" ? pAbv : 1 - pAbv }, taxable.get(o.account) ?? true);
     if (src) sources.push(src);
   }
+  return { A, sources, stocks, vmap, lv };
+}
+function planFromSources(A: Parameters<typeof allocate>[0], sources: Source[], funding: FundRow[], rr: RRRow[]) {
   // Priority: puts that fund calls you already own (engine passes first, as the card sorts), then new bullish RR ideas.
   // same order the card shows: engine passes first; RR rows: earnings-in-short last, engine passes, then vol edge
   const pass = (v?: FildiView | null) => Number(!!v?.engine?.pass);
@@ -1041,6 +1050,94 @@ router.get("/today/risk-reversals", requireAdmin, async (_req, res, next) => {
 setInterval(() => {
   if (isMarketOpen()) void rrCache.getOrCompute("all", riskReversalsSaved).catch(() => undefined);   // ~45 ladder calls / 15 min
 }, 15 * 60 * 1000).unref();
+
+// Jamie 11-20 "you are not looking at the unrealized losses" + "should I really turn margin off… at the low?": book-level
+// risk on the RH snapshot (lib/book-risk.ts). DB only (snapshot + prices_historical + fit history), no vendor calls.
+const bookCache = new TTLCache<unknown>(5 * 60 * 1000, "today-book-risk", 2);
+router.get("/today/book-risk", requireAdmin, async (_req, res, next) => {
+  try { res.json(await bookCache.getOrCompute("all", bookRisk)); } catch (err) { next(err); }
+});
+async function bookRisk() {
+  const accts = new Map((await safe<AcctRow & { total: number; gross: number; bp: number | null }>(sql`
+    SELECT account, nickname, cash::float8 AS cash, COALESCE(margin_used, 0)::float8 AS loan, total_value::float8 AS total,
+           equity_value::float8 AS gross, buying_power::float8 AS bp
+    FROM public.portfolio_account_summaries WHERE snapshot_id = (SELECT MAX(id) FROM public.portfolio_snapshots)`)).map((a) => [a.account, a]));
+  const snapAt = (await safe<{ at: string }>(sql`SELECT imported_at::text AS at FROM public.portfolio_snapshots ORDER BY id DESC LIMIT 1`))[0]?.at ?? null;
+  const { sources, stocks } = await holdingSources(accts);
+  const tickers = [...new Set(stocks.map((s) => s.t))];
+  const pts = async (t: string) => safe<Pt>(sql`SELECT date::text AS date, close::float8 AS close
+    FROM (SELECT date, close FROM public.prices_historical WHERE ticker = ${t} ORDER BY date DESC LIMIT 140) x ORDER BY date`);
+  const spy = await pts("SPY");
+  const beta = new Map<string, number>(), ret10 = new Map<string, number>(), hist = new Map<string, Pt[]>();
+  for (const t of tickers) {
+    const p = await pts(t);
+    hist.set(t, p);
+    beta.set(t, betaVsSpy(p, spy) ?? 1.5);   // no history → 1.5 (book median-ish), said in the tooltip
+    if (p.length > 10) ret10.set(t, p[p.length - 1].close / p[p.length - 11].close - 1);
+  }
+  const champ = (await safe<{ v: string }>(sql`SELECT version AS v FROM watchlist_sync.model_params WHERE status = 'champion' LIMIT 1`))[0]?.v ?? "";
+  const list = sql.join((tickers.length ? tickers : ["__"]).map((t) => sql`${t}`), sql`, `);
+  const fh = await safe<{ t: string; d: string; v: string | null; own: number | null }>(sql`
+    SELECT DISTINCT ON (ticker, computed_at::date) ticker AS t, computed_at::date::text AS d, verdict AS v, own::float8 AS own
+    FROM watchlist_sync.fit_score_history WHERE model_version = ${champ} AND ticker IN (${list}) AND computed_at > now() - interval '120 days'
+    ORDER BY ticker, computed_at::date, computed_at DESC`);
+  const fk = new Map((await safe<{ t: string; fk: number | null }>(sql`SELECT ticker AS t, falling_knife AS fk FROM public.ticker_technicals
+    WHERE ticker IN (${list})`)).map((r) => [r.t, r.fk]));
+  // the champion's history starts when it was promoted → a streak that starts on that day may be older ("since ≤")
+  const champStart = fh.reduce<string | null>((m, r) => (m == null || r.d < m ? r.d : m), null);
+  const verdictNow = new Map<string, { v: string | null; own: number | null; redSince: string | null }>();
+  for (const t of tickers) {
+    const rows = fh.filter((r) => r.t === t);
+    const last = rows[rows.length - 1];
+    let since: string | null = null;
+    if (last?.v === "red") for (let i = rows.length - 1; i >= 0 && rows[i].v === "red"; i--) since = rows[i].d;
+    verdictNow.set(t, { v: last?.v ?? null, own: last?.own ?? null, redSince: since });
+  }
+  const market = await marketRead();
+  const accounts = [];
+  const red: unknown[] = [], alarms: unknown[] = [];
+  for (const a of accts.values()) {
+    const mine = stocks.filter((s) => s.account === a.account);
+    const value = mine.reduce((s, x) => s + x.q * x.px, 0);
+    const B = mine.reduce((s, x) => s + x.q * x.px * (beta.get(x.t) ?? 1.5), 0);
+    const loan = a.loan > 0 || a.cash < 0 ? Math.max(a.loan, -a.cash) : 0;
+    const net = a.total, gross = a.gross;
+    const c = loan > 0 ? cushion(net, gross, B) : null;
+    const ranked: Sellable[] = rankSources(sources.filter((s) => s.account === a.account && s.kind === "sell stock"))
+      .map((s) => ({ key: s.key, ticker: s.ticker, what: s.what, cash: s.cash, tier: s.tier, why: s.why, beta: beta.get(s.ticker) ?? 1.5 }));
+    const plan = loan > 0 && c != null && c < CUSHION_TARGET ? deRisk(net, gross, B, loan, ranked) : null;
+    accounts.push({ name: a.nickname ?? a.account.slice(-4), stockValue: Math.round(value), gross: Math.round(gross), net: Math.round(net),
+      loan: Math.round(loan), buyingPower: a.bp, beta: value > 0 ? B / value : null,
+      loss5: Math.round(B * 0.05), loss10: Math.round(B * 0.10),
+      ratio: gross > 0 && loan > 0 ? net / gross : null, ratioAt10: loan > 0 ? ratioAfter(net, gross, B, -0.10) : null, cushion: c,
+      trims: plan?.trims.map((t) => ({ ...t, sell: Math.round(t.sell), ofCash: Math.round(t.ofCash) })) ?? [],
+      cushionAfter: plan?.cushionAfter ?? null, reached: plan?.reached ?? null });
+    for (const s of mine) {
+      const v = verdictNow.get(s.t);
+      const val = s.q * s.px;
+      if (v?.v === "red" && v.redSince) {
+        const at = hist.get(s.t)?.filter((p) => p.date <= v.redSince!).pop()?.close ?? null;
+        red.push({ ticker: s.t, account: a.nickname ?? a.account.slice(-4), value: Math.round(val), since: v.redSince, sinceAtLeast: v.redSince === champStart,
+          sinceChange: at ? Math.round(s.q * (s.px - at)) : null, pnl: s.avg != null ? Math.round(s.q * (s.px - s.avg)) : null });
+      }
+      const r10 = ret10.get(s.t) ?? null;
+      if (v?.v === "green" && ((r10 != null && r10 <= -0.15) || fk.get(s.t) === 1))
+        alarms.push({ ticker: s.t, account: a.nickname ?? a.account.slice(-4), value: Math.round(val), own: v.own, ret10: r10,
+          fallingKnife: fk.get(s.t) === 1 });
+    }
+  }
+  const allValue = accounts.reduce((s, a) => s + a.stockValue, 0);
+  const allB = accounts.reduce((s, a) => s + a.loss10 * 10, 0);
+  const marginAccts = accounts.filter((a) => a.loan > 0);
+  const tight = marginAccts.filter((a) => a.cushion != null && a.cushion < CUSHION_TARGET);
+  const fear = market.fear;
+  return {
+    asOf: new Date().toISOString(), snapshotAt: snapAt, market, beta: allValue > 0 ? allB / allValue : null,
+    loss5: Math.round(allB * 0.05), loss10: Math.round(allB * 0.10), loan: marginAccts.reduce((s, a) => s + a.loan, 0),
+    state: tight.length ? "call-risk" : fear != null && fear >= 1 && marginAccts.length ? "watch" : "ok",
+    accounts, red, alarms, floor: RH_FLOOR, target: CUSHION_TARGET,
+  };
+}
 
 router.get("/today/overview", requireAdmin, async (_req, res, next) => {
   try {

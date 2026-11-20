@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
 import { RiskReversalCard } from "@/components/live/risk-reversal-card";
+import { BookRiskCard } from "@/components/live/book-risk-card";
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
 const TD = "px-1.5 py-0.5 text-[11px] font-mono";
@@ -216,6 +217,7 @@ export default function Today() {
       {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
       {data && <StatusStrip s={data.status} seen={data.seen7d} />}
       {/* Jamie 11-20: decisions only, by importance; market context (bottom checklist, fear curve, tenor cost) → Live › Market */}
+      <BookRiskCard />
       {data && <SignalsTable rows={data.signals} mark={mark} by={data.seen7d.bySignal} />}
       <TodayTradesCard n={20} />
       {data && <PutIdeas rows={data.puts} mark={mark} />}
