@@ -5,6 +5,29 @@ import { ChevronDown, X } from "lucide-react";
 import type { OptionScoreResult } from "@/lib/option-scorer";
 import { StrikeDetailPanel } from "@/components/strike-detail-panel";
 import type { OptionRow, OptionsChainResult } from "./options-scanner-types";
+import { ticket } from "@/lib/trade-ticket-store";
+
+/** Robinhood-style quote chip: bid (sell, red) / ask (buy, green); click adds a ticket leg, never expands the row. */
+function QuoteButton({ side, price, tip, onAdd }: { side: "long" | "short"; price: number | null; tip: string; onAdd: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={price == null}
+      title={tip}
+      onClick={(e) => { e.stopPropagation(); if (price != null) onAdd(); }}
+      className={cn(
+        "w-[52px] rounded border px-1 font-mono text-[11px] leading-4",
+        price == null
+          ? "cursor-default border-transparent text-amber-200/35"
+          : side === "short"
+            ? "border-red-500/40 text-red-200 hover:bg-red-900/50"
+            : "border-emerald-500/40 text-emerald-200 hover:bg-emerald-900/50",
+      )}
+    >
+      {price == null ? "—" : `$${price.toFixed(2)}`}
+    </button>
+  );
+}
 
 // ── Strike row (one put per expiry table row) ─────────────────────────────────
 
@@ -73,13 +96,17 @@ export function StrikeRow({
   const dqLabel = isBest && dataQuality != null
     ? dataQuality < 0.50 ? "sparse" : dataQuality < 0.80 ? "partial" : null
     : null;
+  const addLeg = (side: "long" | "short", price: number) => ticket.add({
+    ticker: chain.ticker, kind: isCall ? "call" : "put", side, strike: put.strike, expiry: chain.expiry,
+    price, iv: put.iv, spot: chain.spot,
+  });
 
   return (
     <div ref={rowRef}>
       <div
         className={cn(
           "grid items-center gap-x-3 px-3 py-0.5 text-xs border-l-2 transition-colors cursor-pointer select-none",
-          "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
+          "grid-cols-[80px_112px_72px_60px_52px_52px_60px_48px_1fr]",
           isBest
             ? "border-l-amber-400 bg-zinc-900 hover:bg-zinc-800 ring-1 ring-inset ring-amber-400/40"
             : gammaRisk
@@ -96,19 +123,23 @@ export function StrikeRow({
           </span>
           {gammaRisk && <span className="text-[10px] text-orange-400" title="Gamma risk">⚡</span>}
         </div>
-        {/* Bid — sellable price only. Never show "~last" as if it were a bid (Yahoo lastPrice
-            is often stale/inverted across strikes). */}
-        <div
-          className={cn("font-mono", put.bidIsLive && put.bid > 0 ? "text-white" : "text-amber-200/35")}
-          title={
-            put.bidIsLive && put.bid > 0
-              ? "Live bid (sellable)"
-              : put.lastPrice > 0
-                ? `No live bid — last trade $${put.lastPrice.toFixed(2)} (not used for ranking)`
-                : "No live bid"
-          }
-        >
-          {put.bidIsLive && put.bid > 0 ? `$${put.bid.toFixed(2)}` : "—"}
+        {/* Bid / Ask — tap to add a leg to the trade ticket (bid = sell, ask = buy). Never show
+            "~last" as if it were a bid (Yahoo lastPrice is often stale/inverted across strikes). */}
+        <div className="flex items-center gap-1">
+          <QuoteButton
+            side="short"
+            price={put.bidIsLive && put.bid > 0 ? put.bid : null}
+            tip={put.bidIsLive && put.bid > 0
+              ? `Sell at bid $${put.bid.toFixed(2)} → add to trade ticket`
+              : put.lastPrice > 0 ? `No live bid — last trade $${put.lastPrice.toFixed(2)} (not used for ranking)` : "No live bid"}
+            onAdd={() => addLeg("short", put.bid)}
+          />
+          <QuoteButton
+            side="long"
+            price={put.ask > 0 && put.ask >= put.bid ? put.ask : null}
+            tip={put.ask > 0 ? `Buy at ask $${put.ask.toFixed(2)} → add to trade ticket` : "No ask"}
+            onAdd={() => addLeg("long", put.ask)}
+          />
         </div>
         {/* %/wk */}
         <div
@@ -206,11 +237,11 @@ export function StrikeTableHeader() {
   return (
     <div className={cn(
       "grid items-center gap-x-3 px-3 py-0.5 text-[10px] font-semibold tracking-wide uppercase",
-      "grid-cols-[80px_56px_72px_60px_52px_52px_60px_48px_1fr]",
+      "grid-cols-[80px_112px_72px_60px_52px_52px_60px_48px_1fr]",
       "border-b border-[#d4af37]/25 bg-black text-[#d4af37]",
     )}>
       <div>Strike</div>
-      <div>Bid</div>
+      <div title="Tap Bid to sell or Ask to buy — adds the leg to the trade ticket payoff">Bid · Ask</div>
       <div>%/wk</div>
       <div>OTM%</div>
       <div>Delta</div>

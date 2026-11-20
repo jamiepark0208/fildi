@@ -16,6 +16,9 @@ import { rankerChains } from "../lib/structures/ranker-chain.js";
 import { buildTemplate, type TemplateId } from "../lib/structures/templates.js";
 import { getSchwabChainForExpiry } from "../lib/schwab-client.js";
 import { logger } from "../lib/logger.js";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
+import { betaVsSpy, type Pt } from "../lib/book-risk.js";
 
 const router = Router();
 
@@ -344,6 +347,38 @@ router.get("/options/quote-dq", async (req, res) => {
   });
 });
 
+// GET /api/options/betas?tickers=NVDA,HOOD — 120-d beta vs SPY per ticker (trade ticket beta-weighted payoff).
+// One query for all names; 6 h cache per ticker (daily bars). No history → beta null (UI uses 1).
+const betaCache = new TTLCache<number | null>(6 * 60 * 60 * 1000, 'options-beta', 2000);
+router.get("/options/betas", async (req, res) => {
+  const want = [...new Set(String(req.query.tickers ?? "").toUpperCase().split(",").map((t) => t.trim())
+    .filter((t) => /^[A-Z.]{1,10}$/.test(t)))].slice(0, 40);
+  const out: Record<string, number | null> = {};
+  const miss = want.filter((t) => { const v = betaCache.get(t); if (v !== undefined) out[t] = v; return v === undefined; });
+  if (miss.length) {
+    try {
+      const names = sql.join([...miss, "SPY"].map((t) => sql`${t}`), sql`, `);
+      const r = await db.execute(sql`SELECT ticker, date::text AS date, close::float8 AS close FROM (
+          SELECT ticker, date, close, ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
+          FROM public.prices_historical WHERE ticker IN (${names})) x
+        WHERE rn <= 140 ORDER BY ticker, date`);
+      const rows = (Array.isArray(r) ? r : (r as { rows?: unknown[] }).rows ?? []) as { ticker: string; date: string; close: number }[];
+      const by = new Map<string, Pt[]>();
+      for (const x of rows) (by.get(x.ticker) ?? by.set(x.ticker, []).get(x.ticker)!).push({ date: x.date, close: x.close });
+      const spy = by.get("SPY") ?? [];
+      for (const t of miss) {
+        const b = t === "SPY" ? 1 : betaVsSpy(by.get(t) ?? [], spy);
+        betaCache.set(t, b);
+        out[t] = b;
+      }
+    } catch (err) {
+      logger.warn({ err }, "options/betas query failed");
+      for (const t of miss) out[t] = null;
+    }
+  }
+  res.json({ betas: out, window: "120d vs SPY" });
+});
+
 const MARKET_VIEWS = new Set(["bull", "bear", "neutral", "vol_up", "vol_down"]);
 
 // GET /api/options/:ticker/structures/rank — A192 Part L view ranker (stored chain only)
@@ -399,7 +434,9 @@ router.get("/options/:ticker", async (req, res) => {
     const result = await fetchOptionsChain(ticker);
     return res.json(result);
   } catch (err: any) {
-    return res.status(500).json({ error: String(err?.message ?? err) });
+    const msg = String(err?.message ?? err);
+    // No listed expiries (e.g. LICN) = nothing to serve, not a server fault.
+    return res.status(/^No viable expiry/.test(msg) ? 404 : 500).json({ error: msg });
   }
 });
 

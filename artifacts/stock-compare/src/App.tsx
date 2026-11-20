@@ -14,7 +14,14 @@ import { PageSkeleton } from "@/components/skeletons/PageSkeleton";
 import { useSessionState } from "@/hooks/use-session-state";
 import { idlePrefetchRouteChunks } from "@/lib/prefetch-policy";
 import Login from "@/pages/login";
+import { useTicket } from "@/lib/trade-ticket-store";
 
+const TradeTicketDock = lazy(() => import("@/components/trade-ticket/TradeTicketDock").then((m) => ({ default: m.TradeTicketDock })));
+/** Loads the payoff dock chunk only once a leg exists. */
+function TicketGate() {
+  const { legs } = useTicket();
+  return legs.length ? <Suspense fallback={null}><TradeTicketDock /></Suspense> : null;
+}
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Rankings = lazy(() => import("@/pages/rankings"));
 const Today = lazy(() => import("@/pages/today"));
@@ -194,6 +201,7 @@ function App() {
             </StockNavProvider>
           </WouterRouter>
           <FeedbackWidget />
+          <TicketGate />
           <Toaster />
           </LenisProvider>
         </TooltipProvider>
