@@ -6,7 +6,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
-import { FearCurveCharts, TenorCostTable } from "@/components/live/fear-curve-panel";
 import { RiskReversalCard } from "@/components/live/risk-reversal-card";
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -29,7 +28,6 @@ type Overview = {
 };
 type Check = { key: string; label: string; value: string; read: "up" | "down" | "wait"; why: string };
 
-const READ = { up: ["▲ leans up", "text-green-400"], down: ["▼ leans down", "text-red-400"], wait: ["… wait", "text-amber-300"] } as const;
 
 type LongCall = {
   account: string; ticker: string; strike: number; expiry: string; days: number; qty: number; cost: number; mark: number | null;
@@ -87,30 +85,6 @@ function LongCallOdds() {
 }
 
 // Jamie 11-17 ("how will you know it's time to get long?"): no forecast — four reads that build or kill conviction.
-function BottomChecklist({ b }: { b: NonNullable<Overview["bottom"]> }) {
-  if (!b.checks.length) return null;
-  const up = b.checks.filter((c) => c.read === "up").length, down = b.checks.filter((c) => c.read === "down").length;
-  return (
-    <section className={GRID_WRAP} data-testid="today-bottom">
-      <div className={cn(GRID_HEADER, "px-1.5")} title="Each row is a tested rule (study id in the hover) or plain context. Nobody times the exact low: scale in — part now, more when the fear curve fires or SPY drops further (deeper = better 6-month odds).">
-        Market bottom checklist · {up} lean up · {down} lean down · {b.checks.length - up - down} wait
-      </div>
-      <table className="w-full">
-        <tbody>
-          {b.checks.map((c) => (
-            <tr key={c.key} className="border-t border-white/5" title={c.why}>
-              <td className={cn(TD, "w-[180px] text-amber-100")}>{c.label}</td>
-              <td className={cn(TD, "w-[300px]")}>{c.value}</td>
-              <td className={cn(TD, "w-[100px] font-semibold", READ[c.read][1])}>{READ[c.read][0]}</td>
-              <td className={cn(TD, "text-amber-200/60 max-w-[520px] truncate")}>{c.why}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
 // Unread = bright yellow until clicked (Jamie 11-17: "verify that I have truly read the recommendation").
 const UNSEEN = "bg-yellow-300/25 outline outline-1 outline-yellow-300/70 cursor-pointer";
 type MarkSeen = (keys: string[]) => void;
@@ -241,14 +215,12 @@ export default function Today() {
     <div className="mx-auto max-w-[1400px] space-y-2 px-3 pb-8 pt-16" data-testid="today-page">
       {error && <div className="text-[11px] text-red-400">Today overview failed to load: {String(error)}</div>}
       {data && <StatusStrip s={data.status} seen={data.seen7d} />}
-      <LongCallOdds />
-      <RiskReversalCard />
-      {data?.bottom && <BottomChecklist b={data.bottom} />}
-      {data?.bottom?.series && <FearCurveCharts ratio={data.bottom.series.ratio} hy={data.bottom.series.hy} />}
-      <TenorCostTable />
+      {/* Jamie 11-20: decisions only, by importance; market context (bottom checklist, fear curve, tenor cost) → Live › Market */}
       {data && <SignalsTable rows={data.signals} mark={mark} by={data.seen7d.bySignal} />}
       <TodayTradesCard n={20} />
       {data && <PutIdeas rows={data.puts} mark={mark} />}
+      <RiskReversalCard />
+      <LongCallOdds />
     </div>
   );
 }

@@ -6,6 +6,7 @@
  * GET /api/strategies/:id          — meta, stats, equity, trades (admin)
  */
 import { Router } from "express";
+import { isMarketOpen } from "../lib/market-hours.js";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
@@ -764,16 +765,21 @@ async function riskReversals() {
   const out: unknown[] = [];
   const skipped: { ticker: string; why: string }[] = [];
   const liveSkew: (NonNullable<ReturnType<typeof frontSkew>> & { ticker: string })[] = [];
+  // A Schwab ladder that times out (12 s) or comes back empty gets ONE retry after the first pass (Jamie 11-20: "no live
+  // chain" rows vanished from Today); only a second failure is reported.
+  let queue = pool;
+  const retry: typeof pool = [];
   let i = 0;
   async function worker() {
-    while (i < pool.length) {
-      const row = pool[i++]!;
+    while (i < queue.length) {
+      const row = queue[i++]!;
       const t = row.t;
       try {
         const snap = await readChainSnapshot(t).catch(() => null);
         const { chains, filled } = await rankerChains(t, snap?.chains ?? [], RR_PARAMS.callDte[1]);
         const spot = chains[0]?.spot;
-        if (!spot || !filled) { skipped.push({ ticker: t, why: filled ? "no spot" : "no live chain (Schwab ladder)" }); continue; }
+        if (!filled && queue === pool) { retry.push(row); continue; }
+        if (!spot || !filled) { skipped.push({ ticker: t, why: filled ? "no spot" : "Schwab chain did not answer twice — next refresh retries" }); continue; }
         const bars = await safe<Bar>(sql`SELECT date::text AS date, high::float8 AS high, low::float8 AS low, close::float8 AS close
           FROM (SELECT * FROM public.prices_historical WHERE ticker = ${t} ORDER BY date DESC LIMIT 260) x ORDER BY date`);
         const lv = levelsFromBars(bars, spot);
@@ -807,6 +813,7 @@ async function riskReversals() {
     }
   }
   await Promise.all(Array.from({ length: 4 }, () => worker()));
+  if (retry.length) { queue = retry; i = 0; await Promise.all(Array.from({ length: 2 }, () => worker())); }
   // Step 2 (Jamie 11-18 "relative ranking"): front-month 25Δ skew vs the name's own last 60 days + vs its sector today
   // (watchlist_sync.rr_skew_daily ← scripts/watchlist_sync/rr_skew.py, ~200–400 names/day from option_chain_history).
   // Live chains → today's row in the same history (big names the chain store skips: MU, NVDA, AMZN, SKHY …).
@@ -1010,25 +1017,30 @@ async function riskReversalsSaved() {
   await db.execute(sql`CREATE TABLE IF NOT EXISTS watchlist_sync.rr_answer (id int PRIMARY KEY, saved_at timestamptz NOT NULL, payload jsonb NOT NULL)`).catch(() => undefined);
   await db.execute(sql`INSERT INTO watchlist_sync.rr_answer (id, saved_at, payload) VALUES (1, now(), ${JSON.stringify(v)}::jsonb)
     ON CONFLICT (id) DO UPDATE SET saved_at = now(), payload = EXCLUDED.payload`).catch(() => undefined);
-  rrLive = true;
   return v;
 }
-let rrLive = false;   // false until this process has computed once → until then serve the saved answer
+// Jamie 11-20 "Today too slow": the in-memory lastGood lived 90 min, so the first open after a quiet stretch waited for a
+// full recompute (p90 18.7 s, 09:30 open 24.6 s). Now: fresh cache → else the last saved answer (≤ 24 h, every compute
+// writes it) right away + recompute behind → only a never-computed day waits. Market hours: refresh every 15 min so the
+// saved answer is never older than one cycle.
 router.get("/today/risk-reversals", requireAdmin, async (_req, res, next) => {
   try {
-    if (!rrLive) {
-      const saved = await rrSaved().catch(() => null);
-      if (saved) {
-        void rrCache.getOrCompute("all", riskReversalsSaved).catch(() => undefined);
-        res.json({ ...(saved as object), stale: true });
-        return;
-      }
+    const hit = rrCache.get("all");
+    if (hit !== undefined) { res.json(hit); return; }
+    const saved = await rrSaved().catch(() => null);
+    if (saved) {
+      void rrCache.getOrCompute("all", riskReversalsSaved).catch(() => undefined);
+      res.json({ ...(saved as object), stale: true });
+      return;
     }
-    res.json(await rrCache.getOrComputeStale("all", riskReversalsSaved));
+    res.json(await rrCache.getOrCompute("all", riskReversalsSaved));
   } catch (err) {
     next(err);
   }
 });
+setInterval(() => {
+  if (isMarketOpen()) void rrCache.getOrCompute("all", riskReversalsSaved).catch(() => undefined);   // ~45 ladder calls / 15 min
+}, 15 * 60 * 1000).unref();
 
 router.get("/today/overview", requireAdmin, async (_req, res, next) => {
   try {

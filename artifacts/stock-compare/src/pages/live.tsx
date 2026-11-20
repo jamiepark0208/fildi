@@ -29,6 +29,7 @@ import { IndexMoversStrip } from "@/components/live/index-movers-strip";
 import { TopOptionsTable } from "@/components/live/top-options-table";
 import { ProvenPutsTable } from "@/components/live/proven-puts-table";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
+import { MarketBottomPanel } from "@/components/live/market-bottom-panel";
 import { LongOptionBoard } from "@/components/options-structures/LongOptionBoard";
 import { DailyNewsPanel } from "@/components/live/daily-news-panel";
 import { MarketContextStrip } from "@/components/live/market-context-strip";
@@ -594,6 +595,7 @@ export default function Live() {
             <MarketContextStrip />
 
             <RegimeBanner checkpoints={regime} outlook={regimeOutlook} live={regimeLive} />
+            <MarketBottomPanel />
             <TodayTradesCard />
             <RegimeSessionChart
               symbol={chartSymbol}

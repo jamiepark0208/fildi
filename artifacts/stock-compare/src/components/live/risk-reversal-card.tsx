@@ -52,7 +52,7 @@ function ViewCell({ v }: { v?: FildiView | null }) {
     {ev && <span className="ml-1 text-red-300 text-[11px]">event</span>}
   </span>;
 }
-type Resp = { rows: Row[]; funding?: Funding[]; capital?: { accounts: CapitalAcct[] } | { error: string }; market?: Market; skipped: { ticker: string; why: string }[]; asOf: string;
+type Resp = { rows: Row[]; funding?: Funding[]; capital?: { accounts: CapitalAcct[] } | { error: string }; market?: Market; skipped: { ticker: string; why: string }[]; asOf: string; stale?: boolean;
   regime?: { fear: number | null; medianOffHigh: number | null; defaultDirection: "bull" | "bear" } };
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -169,6 +169,8 @@ export function RiskReversalCard() {
       return r.json();
     },
     staleTime: 15 * 60_000,
+    // the API answers with the last saved run (stale) and recomputes behind (~30 s) → pick the fresh one up
+    refetchInterval: (q) => (q.state.data?.stale ? 30_000 : false),
   });
   const [pick, setPick] = useState<"bull" | "bear" | null>(null);
   if (isLoading) return <div className="text-[12px] text-amber-100 px-2 py-1">Risk reversals: pricing live chains…</div>;
@@ -192,6 +194,7 @@ export function RiskReversalCard() {
             {d === "bull" ? "Bullish" : "Bearish"}{rg?.defaultDirection === d ? " (regime)" : ""}
           </button>
         ))}
+        <span className="text-[12px] text-amber-100">prices {new Date(data.asOf).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}{data.stale ? " · updating…" : ""}</span>
         {rg?.fear != null && <span className="text-[12px] text-amber-100">fear curve {rg.fear.toFixed(2)}{rg.medianOffHigh != null ? ` · median name ${Math.round(rg.medianOffHigh * 100)} % off high` : ""}</span>}
       </div>
       {data.market && <div className={cn("px-2 py-1 text-[12px] border-b border-white/10", data.market.justUninverted ? "text-green-300" : data.market.invertedDays > 0 ? "text-amber-300" : "text-white")}>
