@@ -51,8 +51,10 @@ router.get("/stocks/:ticker/options-history", async (req, res) => {
     ORDER BY 1`);
   const iv = await safe(sql`SELECT date::text, iv::float8, rv20::float8, iv_rank::float8 AS "ivRank"
     FROM optlab.iv30 WHERE ticker = ${t} ORDER BY date`);
-  // optlab.iv30 covers ~9 book names; everyone else gets LSEG IV30 (~900 names, put/call avg), same shape, last 2 years.
-  const ivOut = iv.length > 0 ? iv : await safe(sql`
+  // optlab.iv30 covers a few book names and its feed decays (11-20: 1 name live, 8 stuck at Oct/early Nov);
+  // LSEG IV30 (~900 names, put/call avg) is the fallback, same shape, last 2 years. Use optlab only when it is at least
+  // as fresh as LSEG — a stale source must never shadow a fresh one.
+  const lseg = await safe<{ date: string; iv: number; rv20: number | null; ivRank: number | null }>(sql`
     WITH d AS (
       SELECT date, (iv30_put + iv30_call) / 200.0 AS iv,
              ln(close / NULLIF(lag(close) OVER (ORDER BY date), 0)) AS r
@@ -68,7 +70,9 @@ router.get("/stocks/:ticker/options-history", async (req, res) => {
     SELECT date::text, iv::float8, rv20::float8,
            CASE WHEN n >= 60 AND hi > lo THEN ((iv - lo) / (hi - lo))::float8 END AS "ivRank"
     FROM w WHERE date > current_date - 2 * 365 ORDER BY date`);
-  return res.json({ ticker: t, earnings, iv: ivOut, ivSource: iv.length > 0 ? "optlab" : "lseg" });
+  const lastOf = (xs: { date: string }[]) => (xs.length ? xs[xs.length - 1].date : "");
+  const useOptlab = iv.length > 0 && lastOf(iv as { date: string }[]) >= lastOf(lseg);
+  return res.json({ ticker: t, earnings, iv: useOptlab ? iv : lseg, ivSource: useOptlab ? "optlab" : "lseg" });
 });
 
 router.get("/pm/trades/:ticker", requireAdmin, async (req, res) => {

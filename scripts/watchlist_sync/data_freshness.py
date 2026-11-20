@@ -40,7 +40,7 @@ CHECKS = [
     ("public.street_pt_daily", "fetched_at", 1, "street PT · API analyst feed"),
     ("public.market_breadth_daily", "date", 1, "breadth · maintain (Polygon grouped, 1-day lag on free tier)"),
     ("optlab.underlying", "date", 1, "Breakdown › Options history · option_history.py 03:00"),
-    ("optlab.iv30", "date", 1, "IV rank · option_history.py → option_derive"),
+    ("optlab.iv30", "date", 30, "legacy few-name IV (Breakdown › Options history uses it only when fresher than LSEG; recs use iv_rank_daily) · option_derive"),
     ("public.model_recs", "created_at", 5, "model track record (weekly) · API model snapshot"),
     ("lseg_research.signals_daily", "as_of", 1, "live StarMine alpha/ARM, PT, short interest → fit model · daily.py lseg signals"),
     ("lseg_research.starmine_history", "fetched_at", 20, "research history (monthly frequency, 28-day TTL by design)"),
@@ -66,8 +66,8 @@ def lag_trading_days(last: date, ref: date) -> int:
     return n
 
 
-def daily_run_today(today: date) -> str:
-    runs = []
+def _run_logs(today: date) -> list[tuple[datetime, dict]]:
+    out = []
     for f in (HERE / "out" / "runs").glob("*.json"):
         try:
             log = json.loads(f.read_text())
@@ -75,8 +75,26 @@ def daily_run_today(today: date) -> str:
         except (ValueError, KeyError, OSError):
             continue
         if st.date() == today and {"lseg", "model"} <= set(log.get("stages", [])):
-            runs.append(f"{st:%H:%M} ET {log.get('status')}")
+            out.append((st, log))
+    return out
+
+
+def daily_run_today(today: date) -> str:
+    runs = [f"{st:%H:%M} ET {log.get('status')}" for st, log in _run_logs(today)]
     return ", ".join(sorted(runs)) or "none"
+
+
+def list_published_today(today: date) -> bool:
+    """True once today's log contains a successful Model List publish.
+
+    A failed run, or one still marked running before publish, is not a list.
+    Steps after publish (options flow can run 40 min) may still be going — the desk already has the list.
+    """
+    for _st, log in _run_logs(today):
+        for step in log.get("steps") or []:
+            if step.get("step") == "publish Model List" and step.get("ok"):
+                return True
+    return False
 
 
 def snapshot_as_of(conn, now: datetime) -> str | None:
@@ -222,9 +240,11 @@ def main() -> None:
         stale.append("strategy_signals")
         lines.append("✗ strategy_signals: unpriced > 2 sessions — " + " · ".join(f"{s} {n} (since {d})" for s, n, d in late))
     run = daily_run_today(now.date())
-    if R.is_trading_day(now.date()) and now.hour >= 11 and run == "none":
+    published = list_published_today(now.date())
+    # 11:00 ET: maintain starts the list at 10:00. A failed run used to count as "a run happened" and stay green (11-16).
+    if R.is_trading_day(now.date()) and now.hour >= 11 and not published:
         stale.append("daily.py")
-        lines.append(f"✗ daily.py: no full run today ({now.date()}) — Model List built on old inputs")
+        lines.append(f"✗ daily.py: Model List not published today ({now.date()}) — desk is on an older list · runs: {run}")
     print(f"freshness: {len(CHECKS) - len([s for s in stale if s in dict((c[0], 1) for c in CHECKS)])}/{len(CHECKS)} fresh · "
           f"daily.py today: {run}")
     print("\n".join(lines))
