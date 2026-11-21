@@ -9,6 +9,7 @@ import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-e
 import { DataTip } from "@/components/data-tip";
 import { formatMd } from "@/lib/format";
 import { TickerLink } from "@/components/ticker-link";
+import { AddToTicket } from "@/components/trade-ticket/TicketButtons";
 
 export type StructureLeg = {
   side: "put" | "call"; strike: number; expiry: string; qty: number; px: number; bid: number; ask: number; iv: number;
@@ -174,7 +175,12 @@ function PicksBlock({
                     <span className="text-amber-100 ml-1 text-[10px]">${r.spot.toFixed(0)}</span>
                   </td>
                   <td className={cn(GRID_TD, "!py-1")}>
-                    <LegsCell r={r} asOf={asOf} />
+                    <span className="inline-flex items-center gap-1">
+                      <LegsCell r={r} asOf={asOf} />
+                      <AddToTicket label="+" tip="Add this structure to the trade ticket at live bid/ask"
+                        legs={r.legs.map((l) => ({ ticker: r.ticker, kind: l.side, side: l.qty > 0 ? "long" as const : "short" as const,
+                          qty: Math.abs(l.qty), strike: l.strike, expiry: l.expiry }))} />
+                    </span>
                   </td>
                   <td className={cn(GRID_TD, "text-right font-mono font-semibold !py-1", r.credit >= 0 ? "text-emerald-300" : "text-red-300")}>
                     <DataTip tip={r.credit >= 0 ? `Collect ${usd(r.credit)} now.` : `Pay ${usd(r.credit)} now.`}>

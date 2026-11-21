@@ -788,6 +788,7 @@ export function OptionsScannerContent({
       const res = await fetch(`/api/options/${ticker}`, { signal: ac.signal });
       if (!res.ok) throw new Error(`options fetch failed: ${ticker}`);
       const data = await res.json() as OptionsChainResult[];
+      if (!Array.isArray(data) || !data.length) throw new Error(`no listed options: ${ticker}`);   // server: [] = no expiries
       setRefreshedOptions(prev => new Map(prev).set(ticker, data));
       // Saved chain while the server refreshes it → re-ask shortly so fresh quotes replace it without a reload (10-28).
       if (data.some((c) => c.stale) && attempt < 1) {   // 11-11: one re-ask (3 × per name was a poll storm after hours)

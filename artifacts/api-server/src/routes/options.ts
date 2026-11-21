@@ -19,6 +19,7 @@ import { logger } from "../lib/logger.js";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { betaVsSpy, type Pt } from "../lib/book-risk.js";
+import { cleanQuoteReqs, quoteFromChains, type LegQuote, type QuoteReq } from "../lib/structures/ticket-quotes.js";
 
 const router = Router();
 
@@ -376,7 +377,68 @@ router.get("/options/betas", async (req, res) => {
       for (const t of miss) out[t] = null;
     }
   }
-  res.json({ betas: out, window: "120d vs SPY" });
+  res.json({ betas: out, window: "120d vs SPY", marketVol: await spyRealizedVol() });
+});
+
+// SPY 20-d realized vol (annualised) — market σ for the ticket's chance-of-profit model. 6 h cache.
+async function spyRealizedVol(): Promise<number | null> {
+  const hit = betaCache.get("__SPY_RV20");
+  if (hit !== undefined) return hit;
+  try {
+    const r = await db.execute(sql`SELECT close::float8 AS close FROM public.prices_historical
+      WHERE ticker = 'SPY' ORDER BY date DESC LIMIT 21`);
+    const c = ((Array.isArray(r) ? r : (r as { rows?: unknown[] }).rows ?? []) as { close: number }[]).map((x) => x.close).reverse();
+    const rets = c.slice(1).map((v, i) => Math.log(v / c[i])).filter(Number.isFinite);
+    const m = rets.reduce((s, x) => s + x, 0) / (rets.length || 1);
+    const v = rets.length >= 15 ? Math.sqrt((rets.reduce((s, x) => s + (x - m) ** 2, 0) / (rets.length - 1)) * 252) : null;
+    betaCache.set("__SPY_RV20", v);
+    return v;
+  } catch { return null; }
+}
+
+// POST /api/options/ticket-quotes {legs:[{ticker,kind,strike,expiry}]} — live bid/ask/IV/spot per trade-ticket leg.
+// Same chains as /options/structures/price (stored chain + Schwab ladder); an expiry outside them → one
+// per-expiry Schwab fetch (8 s deadline). ≤ 40 legs, ≤ 12 names, 3 names at a time.
+router.post("/options/ticket-quotes", async (req, res) => {
+  const reqs = cleanQuoteReqs(req.body?.legs);
+  if (!reqs.length) return res.status(400).json({ error: "legs required" });
+  const byTicker = new Map<string, QuoteReq[]>();
+  for (const q of reqs) (byTicker.get(q.ticker) ?? byTicker.set(q.ticker, []).get(q.ticker)!).push(q);
+  const names = [...byTicker.keys()].slice(0, 12);
+  const quotes: (LegQuote & QuoteReq)[] = [];
+  const withDeadline = <T,>(p: Promise<T>, ms: number) =>
+    Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+  // One spot per name for every leg (live quote, else the chain's) so shares and options share an axis.
+  const live = (await withDeadline(getLivePrices(names).catch(() => null), 5000)) ?? new Map();
+  const one = async (t: string) => {
+    const legsT = byTicker.get(t)!;
+    const livePx = live.get(t)?.price ?? null;
+    if (legsT.every((l) => l.kind === "stock")) {   // shares only → no chain call
+      for (const q of legsT) quotes.push({ ...q, ...quoteFromChains([], q, livePx) });
+      return;
+    }
+    const maxDte = Math.max(30, ...legsT.filter((l) => l.expiry).map((l) => (Date.parse(l.expiry!) - Date.now()) / 86_400_000));
+    let chains: OptionsChainResult[] = [];
+    try {
+      const snap = await readChainSnapshot(t).catch(() => null);
+      const base = snap?.chains?.length ? snap.chains : await fetchOptionsChain(t).catch(() => []);
+      chains = (await rankerChains(t, base, Math.ceil(maxDte))).chains;
+    } catch (err) {
+      logger.warn({ t, err: String(err) }, "ticket-quotes: chain load failed");
+    }
+    const missing = [...new Set(legsT.filter((l) => l.expiry && !chains.some((c) => c.expiry === l.expiry)).map((l) => l.expiry!))];
+    for (const ex of missing.slice(0, 4)) {
+      const c = await withDeadline(getSchwabChainForExpiry(t, ex).catch(() => null), 8000);
+      if (c) chains = [...chains, c];
+    }
+    const spot = chains.find((c) => c.spot > 0)?.spot ?? null;
+    for (const q of legsT) quotes.push({ ...q, ...quoteFromChains(chains, q, livePx ?? spot) });
+  };
+  for (let i = 0; i < names.length; i += 3) await Promise.all(names.slice(i, i + 3).map(one));
+  for (const t of [...byTicker.keys()].slice(12)) {
+    for (const q of byTicker.get(t)!) quotes.push({ ...q, bid: null, ask: null, iv: null, spot: null, quoted: false, reason: "over 12 names" });
+  }
+  return res.json({ asOf: Date.now(), quotes });
 });
 
 const MARKET_VIEWS = new Set(["bull", "bear", "neutral", "vol_up", "vol_down"]);
@@ -435,8 +497,9 @@ router.get("/options/:ticker", async (req, res) => {
     return res.json(result);
   } catch (err: any) {
     const msg = String(err?.message ?? err);
-    // No listed expiries (e.g. LICN) = nothing to serve, not a server fault.
-    return res.status(/^No viable expiry/.test(msg) ? 404 : 500).json({ error: msg });
+    // No listed expiries (e.g. LICN) = an empty chain, not a fault (callers show "no usable chain"; no console 4xx).
+    if (/^No viable expiry/.test(msg)) return res.json([]);
+    return res.status(500).json({ error: msg });
   }
 });
 

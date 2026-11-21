@@ -21,6 +21,7 @@ import { StructureBuilder } from "./StructureBuilder";
 import { StructureRanker } from "./StructureRanker";
 import { StrategyGuide } from "./StrategyGuide";
 import { blendScores, deskAction } from "./structure-desk";
+import { bsPrice } from "@/lib/trade-ticket";
 
 type Sum = {
   n: number; mean: number; median: number; win: number; worst5: number; worst1: number; best5: number; t: number;
@@ -95,19 +96,6 @@ function Chip({ s }: { s: S }) {
 }
 
 /* ---------- pricing helpers ---------- */
-function ncdf(x: number): number {
-  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2);
-  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t
-    * Math.exp(-(x * x) / 2);
-  return 0.5 * (1 + (x >= 0 ? y : -y));
-}
-function bsPrice(side: "put" | "call", S: number, K: number, iv: number, tYears: number): number {
-  if (tYears <= 0 || iv <= 0) return side === "call" ? Math.max(S - K, 0) : Math.max(K - S, 0);
-  const sd = iv * Math.sqrt(tYears);
-  const d1 = (Math.log(S / K) + 0.5 * sd * sd) / sd;
-  const d2 = d1 - sd;
-  return side === "call" ? S * ncdf(d1) - K * ncdf(d2) : K * ncdf(-d2) - S * ncdf(-d1);
-}
 
 type Tpl = NonNullable<S["template"]>;
 function payoff(t: Tpl): { x: number; y: number; pos: number; neg: number }[] {

@@ -24,6 +24,27 @@ export interface TicketLeg {
   /** Underlying price when the leg was added. */
   spot: number;
   addedAt: number;
+  /** When price/iv/spot last came from a live quote (addedAt if added from a quoted row). */
+  quotedAt?: number;
+  /** Set while the leg has no usable quote (reason); such legs are left out of the payoff. */
+  unquoted?: string;
+}
+
+/** Legs the payoff can use: quoted, with a spot. */
+export const pricedLegs = (legs: TicketLeg[]) => legs.filter((l) => !l.unquoted && l.spot > 0 && l.price >= 0);
+
+/**
+ * One spot per name: every leg takes the spot of that name's most recently quoted leg, so legs added at
+ * different times share one X axis (fills stay as paid — the gap shows up as today's P&L).
+ */
+export function alignSpots(legs: TicketLeg[]): TicketLeg[] {
+  const ref = new Map<string, { at: number; spot: number }>();
+  for (const l of legs) {
+    const at = l.quotedAt ?? l.addedAt;
+    const cur = ref.get(l.ticker);
+    if (!cur || at > cur.at) ref.set(l.ticker, { at, spot: l.spot });
+  }
+  return legs.map((l) => (ref.get(l.ticker)!.spot === l.spot ? l : { ...l, spot: ref.get(l.ticker)!.spot }));
 }
 
 const DAY_MS = 86_400_000;
@@ -145,4 +166,108 @@ export function dollarDeltaPer1Pct(legs: TicketLeg[], betas: Record<string, numb
   const h = 0.005;
   const [dn, up] = ticketCurve(legs, [-h, h], nowMs, betas);
   return ((up.total - dn.total) / (2 * h)) * 0.01;
+}
+
+// ── Chance of profit (Monte Carlo, one-factor) ─────────────────────────────────
+/** mulberry32 — seeded so the number doesn't flicker between renders. */
+function rng(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gauss(r: () => number) {
+  const u = Math.max(r(), 1e-12), v = r();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+export interface PopResult { pop: number; ev: number; paths: number; horizonDays: number }
+
+/**
+ * P(total P&L > 0) at the first expiry. Each name: ln return = β·σm·√T·Zm + σe·√T·Zi − ½σ²T (zero drift),
+ * σ = mean IV of its option legs (stock-only name → |β|·σm), σe² = max(0, σ² − β²σm²). Shared factor ⇒ names
+ * move together by beta; the rest is their own noise. Not a forecast: options-implied spread, no drift.
+ */
+export function popMonteCarlo(
+  legs: TicketLeg[], betas: Record<string, number>, marketVol: number, nowMs = Date.now(), paths = 4000, seed = 7,
+): PopResult | null {
+  const L = pricedLegs(legs);
+  const exp = firstExpiryMs(L);
+  if (!L.length || exp == null || exp <= nowMs) return null;
+  const T = (exp - nowMs) / (365 * DAY_MS);
+  const names = tickersOf(L).map((t) => {
+    const ivs = L.filter((l) => l.ticker === t && l.kind !== "stock" && (l.iv ?? 0) > 0).map((l) => l.iv!);
+    const beta = betas[t] ?? 1;
+    const sigma = ivs.length ? ivs.reduce((s, x) => s + x, 0) / ivs.length : Math.abs(beta) * marketVol;
+    const sysV = Math.min((beta * marketVol) ** 2, sigma * sigma);
+    return {
+      t, sigma, spot: L.find((l) => l.ticker === t)!.spot,
+      sigSys: Math.sqrt(sysV) * (beta < 0 ? -1 : 1), sigE: Math.sqrt(sigma * sigma - sysV),
+    };
+  });
+  const r = rng(seed);
+  const sq = Math.sqrt(T);
+  let wins = 0, sum = 0;
+  const S: Record<string, number> = {};
+  for (let p = 0; p < paths; p++) {
+    const zm = gauss(r);
+    for (const n of names) {
+      S[n.t] = n.spot * Math.exp(n.sigSys * sq * zm + n.sigE * sq * gauss(r) - 0.5 * n.sigma * n.sigma * T);
+    }
+    let pnl = 0;
+    for (const l of L) pnl += legPnl(l, S[l.ticker], exp);
+    if (pnl > 0) wins++;
+    sum += pnl;
+  }
+  return { pop: wins / paths, ev: sum / paths, paths, horizonDays: T * 365 };
+}
+
+// ── Robinhood order text ───────────────────────────────────────────────────────
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+export const RH_MAX_LEGS = 4;
+
+export interface OrderTicket {
+  ticker: string;
+  kind: "options" | "stock";
+  /** Number of spreads (or shares). */
+  quantity: number;
+  /** Per spread, per share: debit > 0, credit < 0. */
+  limit: number;
+  lines: string[];
+}
+
+/** One order per name; shares separate (RH won't combine shares + options); ≤ 4 option legs per order. */
+export function orderTickets(legs: TicketLeg[]): OrderTicket[] {
+  const out: OrderTicket[] = [];
+  for (const t of tickersOf(legs)) {
+    const mine = legs.filter((l) => l.ticker === t);
+    const stock = mine.filter((l) => l.kind === "stock");
+    const net = stock.reduce((s, l) => s + sign(l) * l.qty, 0);
+    if (net !== 0) {
+      const px = stock[stock.length - 1].price;
+      out.push({ ticker: t, kind: "stock", quantity: Math.abs(net), limit: px,
+        lines: [`${net > 0 ? "Buy" : "Sell"} ${Math.abs(net)} ${t} shares · limit $${px.toFixed(2)}`] });
+    }
+    const opts = mine.filter((l) => l.kind !== "stock");
+    for (let i = 0; i < opts.length; i += RH_MAX_LEGS) {
+      const chunk = opts.slice(i, i + RH_MAX_LEGS);
+      const g = chunk.reduce((a, l) => gcd(a, l.qty), 0) || 1;
+      const limit = chunk.reduce((s, l) => s + sign(l) * l.price * (l.qty / g), 0);
+      out.push({
+        ticker: t, kind: "options", quantity: g, limit,
+        lines: chunk.map((l) => `${l.side === "long" ? "Buy" : "Sell"} ${l.qty / g > 1 ? `${l.qty / g}× ` : ""}${t} ${l.expiry} $${l.strike} ${l.kind === "call" ? "Call" : "Put"} @ $${l.price.toFixed(2)}`),
+      });
+    }
+  }
+  return out;
+}
+
+export function orderText(o: OrderTicket): string {
+  if (o.kind === "stock") return o.lines.join("\n");
+  const head = `${o.ticker} · ${o.quantity}× · limit $${Math.abs(o.limit).toFixed(2)} ${o.limit >= 0 ? "debit" : "credit"}`;
+  return [head, ...o.lines.map((l) => `  ${l}`)].join("\n");
 }

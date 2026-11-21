@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { DataTip } from "@/components/data-tip";
+import { AddToTicket } from "@/components/trade-ticket/TicketButtons";
 
 type Leg = {
   kind: "stock" | "call" | "put";
@@ -108,7 +109,11 @@ export function StructureBuilder({
         >
           Price at fill
         </button>
-        {priceMut.isError ? <span className="text-red-300">{(priceMut.error as Error).message}</span> : null}
+        <AddToTicket label="Send to ticket"
+          tip="Add these legs to the trade ticket (live bid/ask) to combine with other stocks"
+          legs={legs.filter((l) => l.qty > 0 && (l.kind === "stock" || ((l.strike ?? 0) > 0 && l.expiry)))
+            .map((l) => ({ ticker, kind: l.kind, side: l.side, qty: l.qty, strike: l.kind === "stock" ? undefined : l.strike, expiry: l.kind === "stock" ? undefined : l.expiry }))} />
+        {priceMut.isError ?<span className="text-red-300">{(priceMut.error as Error).message}</span> : null}
       </div>
 
       <div className={cn(GRID_WRAP, "overflow-x-auto")}>

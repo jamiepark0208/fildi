@@ -2,7 +2,7 @@
  * Trade ticket dock — multi-leg, multi-stock payoff (legs come from Bid/Ask buttons on option rows).
  * Math: lib/trade-ticket.ts (tested). Store: lib/trade-ticket-store.ts. Betas: GET /api/options/betas.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Line, LineChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis, ReferenceLine, CartesianGrid,
@@ -13,10 +13,12 @@ import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-e
 import { ticket, useTicket } from "@/lib/trade-ticket-store";
 import {
   dollarDeltaPer1Pct, firstExpiryMs, moveGrid, netCost, ticketCurve, ticketSummary, tickersOf, spotAt,
-  type TicketLeg,
+  pricedLegs, alignSpots, popMonteCarlo, orderTickets, orderText, type TicketLeg,
 } from "@/lib/trade-ticket";
 
 const DAY_MS = 86_400_000;
+/** SPY σ when the realized number is unavailable (long-run ~18 %). */
+const DEFAULT_MKT_VOL = 0.18;
 const LINE_COLORS = ["#60a5fa", "#f472b6", "#34d399", "#fb923c", "#a78bfa", "#facc15", "#22d3ee", "#f87171"];
 const RANGES = [0.1, 0.2, 0.4] as const;
 
@@ -30,8 +32,21 @@ function legLabel(l: TicketLeg): string {
 }
 
 export function TradeTicketDock() {
-  const { legs, open } = useTicket();
+  const { legs: allLegs, open, pricing } = useTicket();
+  // Payoff uses quoted legs only; unquoted ones are listed with their reason (never priced at a fake 0).
+  const legs = useMemo(() => alignSpots(pricedLegs(allLegs)), [allLegs]);
+  const unpriced = allLegs.length - legs.length;
   const tickers = useMemo(() => tickersOf(legs), [legs]);
+  const [showOrders, setShowOrders] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  // Legs left unpriced by a reload / failed fetch → reprice once when the dock opens.
+  useEffect(() => {
+    if (!open) return;
+    const stuck = allLegs.filter((l) => l.unquoted === "pricing…" || l.unquoted === "quote failed — retry").map((l) => l.id);
+    if (stuck.length && !pricing) void ticket.reprice(stuck);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const [useBeta, setUseBeta] = useState(true);
   const [range, setRange] = useState<(typeof RANGES)[number]>(0.2);
   const [dayFrac, setDayFrac] = useState(0); // 0 = today … 1 = first expiry
@@ -41,9 +56,10 @@ export function TradeTicketDock() {
     queryFn: async () => {
       const r = await fetch(`/api/options/betas?tickers=${encodeURIComponent(tickers.join(","))}`, { credentials: "include" });
       if (!r.ok) throw new Error("betas failed");
-      return (await r.json()) as { betas: Record<string, number | null> };
+      return (await r.json()) as { betas: Record<string, number | null>; marketVol: number | null };
     },
-    enabled: open && useBeta && tickers.length > 1,
+    // Fetched for any multi-name ticket: chance of profit always uses real betas, whatever the chart axis.
+    enabled: open && tickers.length > 1,
     staleTime: 6 * 60 * 60 * 1000,
   });
 
@@ -55,6 +71,19 @@ export function TradeTicketDock() {
     for (const t of tickers) out[t] = betaQ.data?.betas[t] ?? 1;
     return out;
   }, [useBeta, multi, tickers, betaQ.data]);
+
+  const marketVol = betaQ.data?.marketVol ?? DEFAULT_MKT_VOL;
+  const pop = useMemo(() => {
+    if (!open || !legs.length) return null;
+    const real: Record<string, number> = {};
+    for (const t of tickers) real[t] = betaQ.data?.betas[t] ?? 1;
+    return popMonteCarlo(legs, real, marketVol);
+  }, [open, legs, tickers, betaQ.data, marketVol]);
+  const orders = useMemo(() => orderTickets(legs), [legs]);
+  const copy = async (key: string, text: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(key); setTimeout(() => setCopied(null), 1500); }
+    catch { setCopied("fail"); }
+  };
 
   const model = useMemo(() => {
     if (!open || !legs.length) return null;
@@ -76,7 +105,7 @@ export function TradeTicketDock() {
     };
   }, [open, legs, betas, range, dayFrac, tickers]);
 
-  if (!legs.length) return null;
+  if (!allLegs.length) return null;
 
   if (!open) {
     return (
@@ -86,7 +115,8 @@ export function TradeTicketDock() {
         className="fixed bottom-4 left-4 z-40 rounded-md border border-[#d4af37]/60 bg-black/90 px-3 py-1.5 text-xs text-[#fef3c7] shadow-lg hover:bg-zinc-900"
         title="Open the trade ticket payoff"
       >
-        Ticket · {legs.length} leg{legs.length > 1 ? "s" : ""} · {usd(netCost(legs))} {netCost(legs) >= 0 ? "debit" : "credit"}
+        Ticket · {allLegs.length} leg{allLegs.length > 1 ? "s" : ""} · {usd(Math.abs(netCost(legs)))} {netCost(legs) >= 0 ? "debit" : "credit"}
+        {unpriced ? ` · ${unpriced} unpriced` : ""}
       </button>
     );
   }
@@ -97,23 +127,26 @@ export function TradeTicketDock() {
   const daysToExp = model?.exp != null ? Math.max(0, (model.exp - Date.now()) / DAY_MS) : 0;
   const daysAt = model?.exp != null ? Math.round(((model.atMs - Date.now()) / DAY_MS)) : 0;
   const addShares = (t: string) => {
-    const ref = legs.find((l) => l.ticker === t)!;
-    ticket.add({ ticker: t, kind: "stock", side: "long", qty: 100, price: ref.spot, spot: ref.spot });
+    ticket.addContracts([{ ticker: t, kind: "stock", side: "long", qty: 100 }]);   // live price via reprice
   };
 
   return (
     <div className="fixed bottom-4 left-4 z-40 w-[600px] max-w-[calc(100vw-32px)] max-h-[85vh] overflow-y-auto rounded-md border border-[#d4af37]/50 bg-black/95 p-2 text-xs text-amber-100 shadow-2xl">
       <div className="mb-1 flex items-center gap-2">
         <span className="font-semibold text-[#d4af37]">Trade ticket</span>
-        <span>{legs.length} leg{legs.length > 1 ? "s" : ""} · {tickers.join(", ")}</span>
+        <span>{allLegs.length} leg{allLegs.length > 1 ? "s" : ""} · {tickersOf(allLegs).join(", ")}</span>
         <span className="ml-auto" />
+        <button type="button" disabled={pricing} onClick={() => void ticket.reprice()}
+          className="text-[#d4af37] hover:text-white disabled:text-amber-200/50" title="Fetch live bid/ask/IV for every leg (buys at ask, sells at bid)">
+          {pricing ? "Pricing…" : "Reprice all"}
+        </button>
         <button type="button" className="text-amber-200/70 hover:text-red-300" onClick={() => ticket.clear()} title="Remove every leg">Clear</button>
         <button type="button" className="text-amber-200/70 hover:text-white" onClick={() => ticket.setOpen(false)} title="Minimise"><X className="h-3.5 w-3.5" /></button>
       </div>
 
       {/* 1 — the numbers that decide the trade */}
       {s ? (
-        <div className="mb-1.5 grid grid-cols-3 gap-x-3 gap-y-0.5 sm:grid-cols-6">
+        <div className="mb-1.5 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
           <Stat label={cost >= 0 ? "Debit" : "Credit"} value={usd(Math.abs(cost))} tip="Net paid (ask on buys) or received (bid on sells)." />
           <Stat label="Max gain" value={s.maxGain == null ? "unlimited" : usd(s.maxGain)} good tip="At the first expiry; later legs keep time value (BS at leg IV)." />
           <Stat label="Max loss" value={s.maxLoss == null ? "unlimited" : usd(s.maxLoss)} bad tip="At the first expiry, across −100 % … +300 % moves." />
@@ -127,6 +160,19 @@ export function TradeTicketDock() {
           <Stat label={multi ? "$ / 1 % mkt" : `$ / 1 % ${tickers[0]}`} value={usd(model!.delta)}
             tip={multi ? "P&L today for a 1 % market move (beta-weighted delta)." : "P&L today for a 1 % move in the stock (delta in $)."} />
           <Stat label="Expiry" value={model?.exp != null ? `${daysToExp.toFixed(0)} d` : "stock only"} tip="Days to the first option expiry." />
+          <Stat label="Chance of profit" value={pop ? `${Math.round(pop.pop * 100)}%` : "—"}
+            good={!!pop && pop.pop >= 0.5} bad={!!pop && pop.pop < 0.5}
+            tip={pop
+              ? `P&L > 0 at the first expiry over ${pop.paths.toLocaleString()} simulated paths: each name at its option IV, moving together by beta`
+                + ` with SPY σ ${(marketVol * 100).toFixed(0)}% (${betaQ.data?.marketVol != null ? "20-d realized" : "default"}). Zero drift — the options-implied spread, not a forecast.`
+              : "Needs at least one option leg that has not expired."} />
+          <Stat label="Expected P&L" value={pop ? usd(pop.ev) : "—"}
+            tip="Mean P&L at the first expiry over the same paths. Near 0 minus the spread you pay is normal: options are priced fair to their IV." />
+        </div>
+      ) : null}
+      {unpriced ? (
+        <div className="mb-1 text-amber-300">
+          {unpriced} leg{unpriced > 1 ? "s" : ""} not in the payoff ({allLegs.filter((l) => !legs.some((p) => p.id === l.id)).map((l) => `${l.ticker} ${legLabel(l)}: ${l.unquoted}`).join(" · ")}).
         </div>
       ) : null}
 
@@ -216,12 +262,15 @@ export function TradeTicketDock() {
             </tr>
           </thead>
           <tbody>
-            {legs.map((l, i) => (
+            {allLegs.map((l, i) => (
               <tr key={l.id} className={gridRow(i)}>
                 <td className={cn(GRID_TD, "font-mono text-white")}>{l.ticker}</td>
                 <td className={GRID_TD}>
-                  <button type="button" title="Flip buy / sell (fill price stays — re-add from the chain for the other side's quote)"
-                    onClick={() => ticket.update(l.id, { side: l.side === "long" ? "short" : "long" })}
+                  <button type="button" title="Flip buy / sell — reprices the leg (a buy fills at the ask, a sell at the bid)"
+                    onClick={() => {
+                      ticket.update(l.id, { side: l.side === "long" ? "short" : "long", unquoted: l.kind === "stock" ? undefined : "pricing…" });
+                      if (l.kind !== "stock") void ticket.reprice([l.id]);
+                    }}
                     className={cn("rounded px-1.5 font-semibold", l.side === "long" ? "bg-emerald-900/50 text-emerald-300" : "bg-red-900/50 text-red-300")}>
                     {l.side === "long" ? "Buy" : "Sell"}
                   </button>
@@ -236,8 +285,10 @@ export function TradeTicketDock() {
                   </span>
                 </td>
                 <td className={cn(GRID_TD, "font-mono text-white")}>{legLabel(l)}</td>
-                <td className={cn(GRID_TD, "font-mono tabular-nums")}>${l.price.toFixed(2)}</td>
-                <td className={cn(GRID_TD, "font-mono tabular-nums")}>${l.spot.toFixed(2)}</td>
+                <td className={cn(GRID_TD, "font-mono tabular-nums")}>
+                  {l.unquoted ? <span className="text-amber-300" title="Left out of the payoff until it has a quote">{l.unquoted}</span> : `$${l.price.toFixed(2)}`}
+                </td>
+                <td className={cn(GRID_TD, "font-mono tabular-nums")}>{l.spot > 0 ? `$${l.spot.toFixed(2)}` : "—"}</td>
                 <td className={GRID_TD}>
                   <button type="button" aria-label="Remove leg" className="text-amber-200/60 hover:text-red-300" onClick={() => ticket.remove(l.id)}>
                     <Trash2 className="h-3 w-3" />
@@ -251,16 +302,49 @@ export function TradeTicketDock() {
       <div className="mt-1 flex flex-wrap items-center gap-2 text-amber-200/70">
         {tickers.map((t) => (
           <button key={t} type="button" className="text-[#d4af37] hover:text-white" onClick={() => addShares(t)}
-            title={`Add 100 ${t} shares at the spot when its first leg was added`}>+100 {t} sh</button>
+            title={`Add 100 ${t} shares at the live price (covered call / collar / hedge)`}>+100 {t} sh</button>
         ))}
         <span className="ml-auto" title="Re-tapping the same Bid / Ask adds 1 contract and refreshes that leg's fill to the latest quote">
           {(() => {
-            const ageMin = (Date.now() - Math.min(...legs.map((l) => l.addedAt))) / 60_000;
+            if (!legs.length) return <span>No priced legs</span>;
+            const ageMin = (Date.now() - Math.min(...legs.map((l) => l.quotedAt ?? l.addedAt))) / 60_000;
             const age = ageMin < 60 ? `${Math.round(ageMin)} min` : ageMin < 2880 ? `${Math.round(ageMin / 60)} h` : `${Math.round(ageMin / 1440)} d`;
             return <span className={ageMin > 60 ? "text-amber-300" : undefined}>Oldest fill {age} old</span>;
-          })()} · add legs with Bid / Ask on option rows
+          })()} · add legs with Bid / Ask or + on option rows
         </span>
       </div>
+
+      {/* 4 — orders to place (Fildi can't send orders; copy into Robinhood) */}
+      {orders.length ? (
+        <div className="mt-1.5 border-t border-[#d4af37]/20 pt-1">
+          <button type="button" className="text-[#d4af37] hover:text-white" onClick={() => setShowOrders((v) => !v)}
+            title="One order per stock (Robinhood can't mix stocks in one order, or shares with options); ≤ 4 option legs each">
+            {showOrders ? "▾" : "▸"} Orders to place ({orders.length})
+          </button>
+          {showOrders ? (
+            <div className="mt-1 space-y-1">
+              {orders.map((o, i) => {
+                const key = `${o.ticker}-${i}`;
+                return (
+                  <div key={key} className="flex items-start gap-2 rounded border border-zinc-700 bg-zinc-950 px-1.5 py-1">
+                    <pre className="flex-1 whitespace-pre-wrap font-mono text-[11px] text-white">{orderText(o)}</pre>
+                    <button type="button" className="text-[#d4af37] hover:text-white" onClick={() => void copy(key, orderText(o))}>
+                      {copied === key ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                );
+              })}
+              <div className="flex items-center gap-2 text-amber-200/70">
+                <button type="button" className="text-[#d4af37] hover:text-white" onClick={() => void copy("all", orders.map(orderText).join("\n\n"))}>
+                  {copied === "all" ? "Copied all" : "Copy all"}
+                </button>
+                {copied === "fail" ? <span className="text-red-300">Clipboard blocked — select the text instead</span> : null}
+                <span className="ml-auto">Limits = the fills above; check the live quote before sending</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

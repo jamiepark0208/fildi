@@ -11,6 +11,7 @@ import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-e
 import { DataTip } from "@/components/data-tip";
 import { formatMdYy } from "@/lib/format";
 import { TickerLink } from "@/components/ticker-link";
+import { AddToTicket } from "@/components/trade-ticket/TicketButtons";
 
 type Name = { ticker: string; sector: string | null; beta: number | null; overlap: number; strike: number | null;
   debit: number | null; breakeven: number | null; spot: number | null; src: string | null };
@@ -122,7 +123,7 @@ function S171Paper({ picks, sum }: { picks: S171Pick[]; sum: S171Summary }) {
                     <tr key={`${p.ticker}-${p.entry}`} className={gridRow(i)}>
                       <td className={GRID_TD}><TickerLink ticker={p.ticker} /></td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{formatMdYy(p.entry)}</td>
-                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.strike}C {formatMdYy(p.expiry)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.strike}C {formatMdYy(p.expiry)} <AddToTicket label="+" legs={[{ ticker: p.ticker, kind: "call", side: "long", qty: 1, strike: p.strike, expiry: p.expiry }]} /></td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{px(p.ask)}</td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.delta.toFixed(2)}</td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>
@@ -234,7 +235,7 @@ function BottomSignal({ d }: { d: S172Data }) {
                     <tr key={`${p.ticker}-${p.entry}`} className={gridRow(i)}>
                       <td className={GRID_TD}><TickerLink ticker={p.ticker} /></td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{formatMdYy(p.entry)}</td>
-                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.strike}C {formatMdYy(p.expiry)}</td>
+                      <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.strike}C {formatMdYy(p.expiry)} <AddToTicket label="+" legs={[{ ticker: p.ticker, kind: "call", side: "long", qty: 1, strike: p.strike, expiry: p.expiry }]} /></td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{px(p.ask)}</td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{p.delta.toFixed(2)}</td>
                       <td className={cn(GRID_TD, "text-right tabular-nums")}>{formatMdYy(p.gradeOn)}</td>

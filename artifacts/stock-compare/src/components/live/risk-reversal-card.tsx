@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { DataTip } from "@/components/data-tip";
+import { AddToTicket } from "@/components/trade-ticket/TicketButtons";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 
 type Leg = { side: "put" | "call"; expiry: string; dte: number; strike: number; bid: number; ask: number; fill: number; iv: number; delta: number };
@@ -141,7 +142,13 @@ function FundCalls({ rows }: { rows: Funding[] }) {
                 <td className={TD}><ViewCell v={f.view} /></td>
                 <td className={TD}>{f.capital ? <CashPlanCell c={f.capital} /> : fitCell(f)}</td>
                 <td className={TD}>{usd(f.paid!)} · {f.valueLeft != null ? usd(f.valueLeft) : "—"}</td>
-                <td className={TD}>{leg(f.short)}</td>
+                <td className={TD}>{leg(f.short)}{" "}
+                  <AddToTicket label="+" tip="Add your held call + this put to the trade ticket (both at today's quote — what you paid is sunk)"
+                    legs={[
+                      ...(f.call ? [{ ticker: f.ticker, kind: "call" as const, side: "long" as const, qty: Math.max(1, Math.abs(f.call.qty)), strike: f.call.strike, expiry: f.call.expiry }] : []),
+                      { ticker: f.ticker, kind: f.short!.side, side: "short" as const, qty: Math.max(1, Math.abs(f.call?.qty ?? 1)), strike: f.short!.strike, expiry: f.short!.expiry },
+                    ]} />
+                </td>
                 <td className={cn(TD, "text-green-300")}>{usd(f.credit!)}</td>
                 <td className={cn(TD, f.coverPaid! >= 0.5 ? "text-green-400" : f.coverPaid! >= 0.25 ? "text-amber-300" : undefined)}>
                   {pc(f.coverPaid!)}{f.coverLeft != null ? ` · ${pc(f.coverLeft)} now` : ""}</td>
@@ -227,7 +234,11 @@ export function RiskReversalCard() {
               <td className={TD}>{leg(r.short)}{r.earningsInShort && <span className="ml-1 text-red-400 text-[11px]" title="Earnings before the short leg expires — its high IV is the report (gap risk), not skew">ER {r.earnings!.slice(5)}</span>}</td>
               <td className={cn(TD, "text-green-300")}>{usd(r.short.fill * 100)}</td>
               <td className={TD}>{pc(r.pShortSafe)}</td>
-              <td className={TD}>{leg(r.long)}</td>
+              <td className={TD}>{leg(r.long)}{" "}
+                <AddToTicket label="+" tip="Add both legs (sell short, buy long) to the trade ticket at live bid/ask"
+                  legs={[{ ticker: r.ticker, kind: r.short.side, side: "short", qty: 1, strike: r.short.strike, expiry: r.short.expiry },
+                    { ticker: r.ticker, kind: r.long.side, side: "long", qty: 1, strike: r.long.strike, expiry: r.long.expiry }]} />
+              </td>
               <td className={cn(TD, "text-red-300/80")}>{usd(r.long.fill * 100)}</td>
               <td className={cn(TD, "font-semibold", r.net >= -0.1 * r.short.fill ? "text-green-400" : "text-amber-300")}>{usd(r.net * 100)}</td>
               <td className={TD}>{pc(r.pLongItm)}</td>
