@@ -135,4 +135,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A413](asks/A413.md) | 2026-11-18 | Muse → Cursor | Daily fildi brief snapshot export (Mac → Drive JSON) so the evening recap can cite live analytics | revise |
 | [A414](asks/A414.md) | 2026-11-19 | Muse → Cursor | [Low] Capital plan: long-put odds label reads backwards ("above breakeven" is the losing side) | planned |
 | [A415](asks/A415.md) | 2026-11-19 | Muse → Claude → Cursor | Merton jump-diffusion for the short-put book: explain S075's far-OTM gap, beat the GBM breach ranker | planned |
-| [A416](asks/A416.md) | 2026-11-20 | Muse → Cursor | CI red on cursor/mac-dev: api-server unit tests fail since a7e6294; secret scan fails since 4b1de13 (High) | planned |
+| [A416](asks/A416.md) | 2026-11-20 | Muse → Cursor | CI red on cursor/mac-dev: api-server unit tests fail since a7e6294; secret scan fails since 4b1de13 (High) | done |
