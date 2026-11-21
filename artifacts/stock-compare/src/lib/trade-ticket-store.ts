@@ -5,14 +5,14 @@
 import { useSyncExternalStore } from "react";
 import type { TicketLeg } from "./trade-ticket";
 
-const KEY = "fildi.trade-ticket.v1";
+const STORE_ID = "fildi.trade-ticket.v1";
 const MAX_LEGS = 24;
 
 type State = { legs: TicketLeg[]; open: boolean; pricing?: boolean };
 
 function load(): State {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(STORE_ID);
     if (raw) {
       const s = JSON.parse(raw) as Partial<State>;
       if (Array.isArray(s.legs)) return { legs: s.legs.slice(0, MAX_LEGS), open: !!s.open };
@@ -27,7 +27,7 @@ let inflight = 0;   // overlapping reprices: "Pricing…" clears only when the l
 
 function set(next: State) {
   state = next;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  try { localStorage.setItem(STORE_ID, JSON.stringify(state)); } catch { /* ignore */ }
   listeners.forEach((l) => l());
 }
 
