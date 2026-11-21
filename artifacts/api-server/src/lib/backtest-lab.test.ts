@@ -13,6 +13,7 @@ test("backtest param hash is stable", async () => {
 test("A331 S151 preset reproduces breach/n (integration)", { timeout: 180_000 }, async (t) => {
   if (process.env.BACKTEST_LAB_SELF_TEST !== "1") {
     t.skip("set BACKTEST_LAB_SELF_TEST=1 with DB + s151_p4_base_cache.pkl");
+    return;
   }
   process.env.DATABASE_URL ??= "postgres://localhost/fildi";
   const { runSelfTest } = await import("./backtest-lab.js");

@@ -10,6 +10,18 @@ import {
   type SchwabChainResponse,
 } from "./schwab-client.js";
 
+function nextThirdFridayKey(minDays: number): string {
+  const min = new Date();
+  min.setUTCDate(min.getUTCDate() + minDays);
+  for (let m = 0; m < 3; m++) {
+    const d = new Date(Date.UTC(min.getUTCFullYear(), min.getUTCMonth() + m, 1));
+    while (d.getUTCDay() !== 5) d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCDate(d.getUTCDate() + 14);
+    if (d >= min) return `${d.toISOString().slice(0, 10)}:${minDays}`;
+  }
+  throw new Error("no third Friday");
+}
+
 function futureExpKey(daysOut: number): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + daysOut);
@@ -113,8 +125,8 @@ describe("mapChainResponse edge cases", () => {
   });
 
   it("monthly-only calendar keeps puts and marks isWeekly=false", () => {
-    // Pin to a known 3rd Friday so isWeekly is false (monthly).
-    const monthly = "2026-11-20:33";
+    // Next 3rd Friday ≥ 7 d out so isWeekly is false (monthly) and the expiry never ages out.
+    const monthly = nextThirdFridayKey(7);
     const raw: SchwabChainResponse = {
       underlyingPrice: 125,
       callExpDateMap: {
