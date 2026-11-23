@@ -134,6 +134,7 @@ RETRY_ONCE = {"option scan (live)"}
 # Soft steps in `model` stage: optional enrichers that fall back cleanly to yesterday's stored table.
 # Run directly (no `| tail -1` pipe swallow) so real exit codes reach `soft_failures` + `data_issues`.
 SOFT_MODEL = {
+    "strategy signals",   # 11-23: LSEG Workspace logged out at 08:01 → whole Model List unpublished; plan falls back to the last signals
     "tastytrade metrics",
     "IV rank resolver",
     "outside intrinsic values",
@@ -179,7 +180,7 @@ STEP_TIMEOUT_S = 1800
 CAUSES = [
     ("network", r"ENOTFOUND|getaddrinfo|EADDRNOTAVAIL|ECONNREFUSED|ENETUNREACH|Network is unreachable|nodename nor servname|"
                 r"Temporary failure in name resolution|No route to host|fetch failed"),
-    ("auth", r"\b401\b|Unauthorized|refresh token|invalid_grant|re-?auth|login required|Duo"),
+    ("auth", r"\b401\b|Unauthorized|refresh token|invalid_grant|re-?auth|login required|Duo|session did not open|Log in to Workspace"),
     ("vendor", r"\b(429|502|503|504)\b|rate limit|circuit open|vendor unreachable|ReadTimeout|timed out"),
     ("code", r"Traceback \(most recent call last\)|SyntaxError|TypeError|NameError|AttributeError|KeyError|ImportError|ModuleNotFoundError"),
 ]

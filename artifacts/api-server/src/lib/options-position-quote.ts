@@ -48,32 +48,30 @@ export async function getOptionPositionQuote(
   const iv = contract?.impliedVolatility ?? null;
   const midPrice = bid != null && ask != null ? (bid + ask) / 2 : lastPrice;
 
-  const T = (date.getTime() - Date.now()) / (365.25 * 24 * 3600 * 1000);
-  const r = RISK_FREE_RATE;
+  return buildPositionQuote(ticker, expiry, strike, optionType, { bid, ask, lastPrice, midPrice, iv, spot });
+}
 
+/** Shared shape + BS greeks — Yahoo path above and the stored/Schwab chain fallback (11-23: Yahoo 'fetch failed' → Portfolio 500s). */
+export function buildPositionQuote(
+  ticker: string, expiry: string, strike: number, optionType: "call" | "put",
+  q: { bid: number | null; ask: number | null; lastPrice: number | null; midPrice: number | null; iv: number | null; spot: number },
+): OptionPositionQuoteResult {
+  const { bid, ask, lastPrice, midPrice, iv, spot } = q;
+  const T = (new Date(expiry + "T00:00:00Z").getTime() - Date.now()) / (365.25 * 24 * 3600 * 1000);
   let delta: number | null = null;
   let gamma: number | null = null;
   let theta: number | null = null;
-
   if (iv && iv > 0 && spot > 0 && T > 0) {
-    const g = bsGreeks(spot, strike, T, r, iv, optionType === "call");
+    const g = bsGreeks(spot, strike, T, RISK_FREE_RATE, iv, optionType === "call");
     delta = parseFloat(g.delta.toFixed(4));
     gamma = parseFloat(g.gamma.toFixed(5));
     theta = parseFloat(g.theta.toFixed(4));
   }
-
+  const r3 = (v: number | null) => (v != null ? parseFloat(v.toFixed(3)) : null);
   return {
-    ticker,
-    strike,
-    expiry,
-    optionType,
-    bid: bid != null ? parseFloat(bid.toFixed(3)) : null,
-    ask: ask != null ? parseFloat(ask.toFixed(3)) : null,
-    lastPrice: lastPrice != null ? parseFloat(lastPrice.toFixed(3)) : null,
-    midPrice: midPrice != null ? parseFloat(midPrice.toFixed(3)) : null,
+    ticker, strike, expiry, optionType,
+    bid: r3(bid), ask: r3(ask), lastPrice: r3(lastPrice), midPrice: r3(midPrice),
     impliedVolatility: iv != null ? parseFloat(iv.toFixed(4)) : null,
-    delta,
-    gamma,
-    theta,
+    delta, gamma, theta,
   };
 }

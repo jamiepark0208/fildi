@@ -59,6 +59,21 @@ async function httpCheck(name, url, { headers = {}, expectOk = true, timeoutMs =
   }
 }
 
+/** api_healthz + 11-23 wedge guard: API says outbound=false while this process can fetch → fail it (maintain restarts the API). */
+async function apiHealthCheck() {
+  const r = await httpCheck("api_healthz", "http://127.0.0.1:8080/api/healthz", { timeoutMs: 15000 });
+  if (!r.ok) return r;
+  try {
+    const j = await (await fetch("http://127.0.0.1:8080/api/healthz", { signal: AbortSignal.timeout(15000) })).json();
+    if (j.outbound !== false) return r;
+    const mine = await httpCheck("outbound_self", "https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1d", { expectOk: false, timeoutMs: 5000 });
+    if (mine.status > 0) return { ...r, ok: false, detail: `api outbound wedged (${j.outboundErr ?? "fetch failed"}) while this Mac is online` };
+    return { ...r, detail: "ok (Mac offline: api outbound down too)" };
+  } catch {
+    return r;
+  }
+}
+
 function tcpCheck(name, host, port, timeoutMs = 3000) {
   return new Promise((resolvePromise) => {
     const started = Date.now();
@@ -98,7 +113,7 @@ async function runOnce() {
   loadEnvLocal();
   const results = [];
 
-  results.push(await httpCheck("api_healthz", "http://127.0.0.1:8080/api/healthz"));
+  results.push(await apiHealthCheck());
   results.push(await httpCheck("vite", "http://127.0.0.1:8081/"));
   results.push(await pgReadyCheck());
 

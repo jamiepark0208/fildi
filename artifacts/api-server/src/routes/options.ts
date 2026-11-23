@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getOptionsChain, getOptionPositionQuote, getIvTermStructure, withFreshDte, type OptionsChainResult, type IvTermPoint } from "../lib/options.js";
+import { buildPositionQuote } from "../lib/options-position-quote.js";
 import { TTLCache } from "../lib/ttl-cache.js";
 import { readLatestOptionRankings, computeAndPersistOptionScores, readStructuresBoard } from "../lib/option-score-snapshots.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
@@ -38,14 +39,16 @@ router.get("/options/position-quote", async (req, res) => {
   ) {
     return res.status(400).json({ error: "Invalid parameters" });
   }
+  const T = ticker.toUpperCase(), K = Number(strike), kind = type as "call" | "put";
+  // Yahoo first (6 s); fails / no contract → stored chain + Schwab (same path as the trade ticket).
+  const yahoo = await withDeadline(getOptionPositionQuote(T, expiry, K, kind).catch(() => null), 6000);
+  if (yahoo && (yahoo.bid != null || yahoo.ask != null || yahoo.lastPrice != null)) return res.json(yahoo);
   try {
-    const result = await getOptionPositionQuote(
-      ticker.toUpperCase(),
-      expiry,
-      Number(strike),
-      type as "call" | "put",
-    );
-    return res.json(result);
+    const chains = await legChains(T, [expiry]);
+    const q = quoteFromChains(chains, { ticker: T, kind, strike: K, expiry }, null);
+    if (!q.quoted) return res.status(404).json({ error: q.reason ?? "no quote" });
+    const mid = q.bid != null && q.ask != null ? (q.bid + q.ask) / 2 : (q.bid ?? q.ask);
+    return res.json(buildPositionQuote(T, expiry, K, kind, { bid: q.bid, ask: q.ask, lastPrice: null, midPrice: mid, iv: q.iv, spot: q.spot ?? 0 }));
   } catch (err: any) {
     return res.status(500).json({ error: String(err?.message ?? err) });
   }
@@ -396,6 +399,28 @@ async function spyRealizedVol(): Promise<number | null> {
   } catch { return null; }
 }
 
+const withDeadline = <T,>(p: Promise<T>, ms: number) =>
+  Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
+
+/** Chains covering these expiries: stored chain + Schwab ladder, then one per-expiry Schwab fetch (8 s) per missing expiry (≤ 4). */
+async function legChains(t: string, expiries: string[]): Promise<OptionsChainResult[]> {
+  const maxDte = Math.max(30, ...expiries.map((e) => (Date.parse(e) - Date.now()) / 86_400_000));
+  let chains: OptionsChainResult[] = [];
+  try {
+    const snap = await readChainSnapshot(t).catch(() => null);
+    const base = snap?.chains?.length ? snap.chains : await fetchOptionsChain(t).catch(() => []);
+    chains = (await rankerChains(t, base, Math.ceil(maxDte))).chains;
+  } catch (err) {
+    logger.warn({ t, err: String(err) }, "legChains: chain load failed");
+  }
+  const missing = [...new Set(expiries.filter((e) => !chains.some((c) => c.expiry === e)))];
+  for (const ex of missing.slice(0, 4)) {
+    const c = await withDeadline(getSchwabChainForExpiry(t, ex).catch(() => null), 8000);
+    if (c) chains = [...chains, c];
+  }
+  return chains;
+}
+
 // POST /api/options/ticket-quotes {legs:[{ticker,kind,strike,expiry}]} — live bid/ask/IV/spot per trade-ticket leg.
 // Same chains as /options/structures/price (stored chain + Schwab ladder); an expiry outside them → one
 // per-expiry Schwab fetch (8 s deadline). ≤ 40 legs, ≤ 12 names, 3 names at a time.
@@ -406,8 +431,6 @@ router.post("/options/ticket-quotes", async (req, res) => {
   for (const q of reqs) (byTicker.get(q.ticker) ?? byTicker.set(q.ticker, []).get(q.ticker)!).push(q);
   const names = [...byTicker.keys()].slice(0, 12);
   const quotes: (LegQuote & QuoteReq)[] = [];
-  const withDeadline = <T,>(p: Promise<T>, ms: number) =>
-    Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
   // One spot per name for every leg (live quote, else the chain's) so shares and options share an axis.
   const live = (await withDeadline(getLivePrices(names).catch(() => null), 5000)) ?? new Map();
   const one = async (t: string) => {
@@ -417,20 +440,7 @@ router.post("/options/ticket-quotes", async (req, res) => {
       for (const q of legsT) quotes.push({ ...q, ...quoteFromChains([], q, livePx) });
       return;
     }
-    const maxDte = Math.max(30, ...legsT.filter((l) => l.expiry).map((l) => (Date.parse(l.expiry!) - Date.now()) / 86_400_000));
-    let chains: OptionsChainResult[] = [];
-    try {
-      const snap = await readChainSnapshot(t).catch(() => null);
-      const base = snap?.chains?.length ? snap.chains : await fetchOptionsChain(t).catch(() => []);
-      chains = (await rankerChains(t, base, Math.ceil(maxDte))).chains;
-    } catch (err) {
-      logger.warn({ t, err: String(err) }, "ticket-quotes: chain load failed");
-    }
-    const missing = [...new Set(legsT.filter((l) => l.expiry && !chains.some((c) => c.expiry === l.expiry)).map((l) => l.expiry!))];
-    for (const ex of missing.slice(0, 4)) {
-      const c = await withDeadline(getSchwabChainForExpiry(t, ex).catch(() => null), 8000);
-      if (c) chains = [...chains, c];
-    }
+    const chains = await legChains(t, legsT.filter((l) => l.expiry).map((l) => l.expiry!));
     const spot = chains.find((c) => c.spot > 0)?.spot ?? null;
     for (const q of legsT) quotes.push({ ...q, ...quoteFromChains(chains, q, livePx ?? spot) });
   };
