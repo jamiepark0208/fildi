@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { getJson } from "@/lib/get-json";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -188,7 +189,7 @@ export function MacroHighlightsPanel() {
 
   const { data, isLoading } = useQuery<HighlightsResponse>({
     queryKey: ["macro-highlights"],
-    queryFn: () => fetch("/api/macro/highlights").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/highlights"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });

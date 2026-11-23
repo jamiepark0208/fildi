@@ -21,7 +21,7 @@ export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   // 11-09: 300 starved the one real user — a Model List load is ~100 calls and open Live/Agents tabs poll, so 2 loads + tabs
   // 429'd Model List, IV Term and prices for 10 min. 1000 still stops a runaway loop (≈ 1.1 req/s sustained).
-  max: 1000,
+  max: 3000,   // 11-23: a click-through (tabs + Breakdown ≈ 40 calls each) 429'd every panel in < 5 min; single-user app, a runaway loop still trips 3000
   standardHeaders: true,
   legacyHeaders: false,
   skip: skipGeneralLimit,

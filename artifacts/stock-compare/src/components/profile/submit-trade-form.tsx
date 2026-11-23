@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useSearchStocks, getSearchStocksQueryKey } from "@workspace/api-client-react"
 import { useDebounce } from "@/hooks/use-debounce"
 import { cn } from "@/lib/utils"
+import { getJson } from "@/lib/get-json";
 
 interface OptionRow { strike: number; bid: number; ask: number; iv: number; volume: number | null; openInterest: number | null }
 interface OptionsChain { expiry: string; dte: number; calls: OptionRow[]; puts: OptionRow[] }
@@ -49,7 +50,7 @@ export function SubmitForm({ onSuccess }: { onSuccess: () => void }) {
   // Fetch options chain when ticker set and trade is option type
   const { data: chains, isFetching: chainLoading } = useQuery<OptionsChain[]>({
     queryKey: ["options-chain", ticker],
-    queryFn: () => fetch(`/api/options/${ticker}`, { credentials: "include" }).then(r => r.json()),
+    queryFn: () => getJson(`/api/options/${ticker}`, { credentials: "include" }),
     enabled: isOption && ticker.length >= 1,
     staleTime: 15 * 60 * 1000,
     gcTime: 30 * 60 * 1000,

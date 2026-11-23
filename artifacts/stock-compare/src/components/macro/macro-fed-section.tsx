@@ -5,6 +5,7 @@ import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/componen
 import { cn } from "@/lib/utils";
 import type { FedMember, BankResearch, NewsArticle } from "./macro-page-types";
 import { stanceBadgeClass, stanceLabel } from "./macro-format";
+import { getJson } from "@/lib/get-json";
 
 // ── Fed stance group ─────────────────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ export function BankCard({ bank }: { bank: BankResearch }) {
   const { data: news, isLoading: newsLoading } = useQuery<NewsArticle[]>({
     queryKey: ["bank-news", bank.name],
     queryFn: () =>
-      fetch(`/api/macro/bank-news?bank=${encodeURIComponent(bank.name)}`).then((r) => r.json()),
+      getJson(`/api/macro/bank-news?bank=${encodeURIComponent(bank.name)}`),
     enabled: isExpanded,
     staleTime: 15 * 60 * 1000,
     gcTime: 30 * 60 * 1000,

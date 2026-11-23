@@ -1,6 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import type { CoverageDomain } from "@/lib/scorecard-guide-metadata";
 import { formatMdYy } from "@/lib/format";
+import { getJson } from "@/lib/get-json";
 
 type TickerStatus = { ticker: string; lastFetched: string | null; coveragePct: number | null };
 type FundStatus = { tickers: TickerStatus[]; apiBudget?: { remaining: number } };
@@ -47,9 +48,9 @@ function isStale(d: Date | null, maxDays: number): boolean {
 export function useGuideStatus() {
   const results = useQueries({
     queries: [
-      { queryKey: ["guide", "fundamentals-status"], queryFn: () => fetch("/api/fundamentals/status").then(r => r.json()) as Promise<FundStatus>, staleTime: 60_000 },
-      { queryKey: ["guide", "technicals-status"], queryFn: () => fetch("/api/technicals/status", { credentials: "include" }).then(r => r.json()) as Promise<TechStatus>, staleTime: 60_000 },
-      { queryKey: ["guide", "sdm-status"], queryFn: () => fetch("/api/sdm/status").then(r => r.json()) as Promise<SdmStatus>, staleTime: 60_000 },
+      { queryKey: ["guide", "fundamentals-status"], queryFn: () => getJson("/api/fundamentals/status") as Promise<FundStatus>, staleTime: 60_000 },
+      { queryKey: ["guide", "technicals-status"], queryFn: () => getJson("/api/technicals/status", { credentials: "include" }) as Promise<TechStatus>, staleTime: 60_000 },
+      { queryKey: ["guide", "sdm-status"], queryFn: () => getJson("/api/sdm/status") as Promise<SdmStatus>, staleTime: 60_000 },
     ],
   });
 

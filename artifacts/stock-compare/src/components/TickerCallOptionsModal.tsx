@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CreateSellPutDialog, type OptionRow, type OptionsChainResult } from "@/components/strike-detail-panel"
+import { getJson } from "@/lib/get-json";
 
 // Lightweight, ticker-scoped call chain — deliberately not the full scanner scoring
 // pipeline (RSI/IV-rank/technicals), just enough to pick a strike. Submitting reuses
@@ -18,7 +19,7 @@ export function TickerCallOptionsModal({ ticker, availableShares, onClose, onPos
 
   const { data: chains, isFetching, error } = useQuery<OptionsChainResult[]>({
     queryKey: ["options-chain", ticker],
-    queryFn: () => fetch(`/api/options/${ticker}`, { credentials: "include" }).then(r => r.json()),
+    queryFn: () => getJson(`/api/options/${ticker}`, { credentials: "include" }),
     staleTime: 5 * 60 * 1000,
   })
 

@@ -5,6 +5,7 @@ import {
   Clock, Settings, X, Check, ChevronDown, ChevronUp, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getJson } from "@/lib/get-json";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ function ContextEditor({ onClose }: { onClose: () => void }) {
   const [saved,  setSaved]  = useState(false);
 
   useEffect(() => {
-    fetch("/api/daily-brief/context").then(r => r.json()).then(setCtx).catch(() => {});
+    getJson("/api/daily-brief/context").then(setCtx).catch(() => {});
   }, []);
 
   const save = async () => {

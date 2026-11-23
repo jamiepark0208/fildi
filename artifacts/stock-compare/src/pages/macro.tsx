@@ -40,6 +40,7 @@ import { KeyThemesTab } from "@/components/macro/key-themes-tab";
 import {
   TradingViewHeatmap, TradingViewEconomicCalendar, TradingViewMarketOverview, TradingViewForexCrossRates,
 } from "@/components/macro/macro-tradingview-embeds";
+import { getJson } from "@/lib/get-json";
 
 const COT_MACRO_IDS = ["sp500", "nasdaq100", "tbonds"];
 
@@ -144,7 +145,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: macroCharts } = useQuery<MacroCharts>({
     queryKey: ["macro-charts"],
-    queryFn: () => fetch("/api/macro/charts").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/charts"),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsCharts && chartsReady,
@@ -152,7 +153,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: sectorRotation } = useQuery<SectorRotationPoint[]>({
     queryKey: ["macro-sector-rotation"],
-    queryFn: () => fetch("/api/macro/sector-rotation").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/sector-rotation"),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: activeTab === "liquidity" || activeTab === "heatmap",
@@ -183,7 +184,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: fedMembers } = useQuery<FedMember[]>({
     queryKey: ["macro-fed-members"],
-    queryFn: () => fetch("/api/macro/fed-members").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/fed-members"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     enabled: needsPolicy,
@@ -191,7 +192,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: events } = useQuery<MacroEvent[]>({
     queryKey: ["macro-events"],
-    queryFn: () => fetch("/api/macro/events").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/events"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     enabled: needsRegimeExtras || needsCalendar || needsPolicy,
@@ -199,7 +200,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: wlEarnings } = useQuery<{ earnings: { ticker: string; date: string }[] }>({
     queryKey: ["macro-watchlist-earnings"],
-    queryFn: () => fetch("/api/macro/watchlist-earnings", { credentials: "include" }).then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/watchlist-earnings", { credentials: "include" }),
     staleTime: 30 * 60_000,
     refetchOnWindowFocus: false,
     enabled: needsCalendar,
@@ -207,7 +208,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: bankResearch } = useQuery<BankResearch[]>({
     queryKey: ["macro-bank-research"],
-    queryFn: () => fetch("/api/macro/bank-research").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/bank-research"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     enabled: needsPolicy,
@@ -215,7 +216,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: sepData } = useQuery<SepData>({
     queryKey: ["macro-sep"],
-    queryFn: () => fetch("/api/macro/sep-projections").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/sep-projections"),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     enabled: needsPolicy || needsRegimeExtras,
@@ -224,7 +225,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
   const { data: indicatorHistory, isLoading: indicatorLoading } = useQuery<IndicatorHistory>({
     queryKey: ["macro-indicator-history", selectedIndicatorKey],
     queryFn: () =>
-      fetch(`/api/macro/indicator-history?key=${selectedIndicatorKey}`).then((r) => r.json()),
+      getJson(`/api/macro/indicator-history?key=${selectedIndicatorKey}`),
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsRegimeExtras,
@@ -232,7 +233,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: sepActuals } = useQuery<SepActuals>({
     queryKey: ["macro-sep-actuals"],
-    queryFn: () => fetch("/api/macro/sep-actuals").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/sep-actuals"),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsPolicy,
@@ -240,7 +241,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: breadthHist } = useQuery<{ points: { date: string; pctAbove50: number | null; pctAbove200: number | null; advanceDecline: number | null }[]; note?: string }>({
     queryKey: ["macro-breadth"],
-    queryFn: () => fetch("/api/macro/breadth").then((r) => r.json()),
+    queryFn: () => getJson("/api/macro/breadth"),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsRegimeExtras,
@@ -248,7 +249,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: cotSummaries } = useQuery<COTSummary[]>({
     queryKey: ["cot-summary"],
-    queryFn: () => fetch("/api/cot/summary").then((r) => r.json()),
+    queryFn: () => getJson("/api/cot/summary"),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsRegimeExtras,
@@ -256,7 +257,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: macroCotHistory } = useQuery<COTRecord[]>({
     queryKey: ["cot-history", selectedMacroCotId],
-    queryFn: () => fetch(`/api/cot/history?instrument=${selectedMacroCotId}&weeks=52`).then((r) => r.json()),
+    queryFn: () => getJson(`/api/cot/history?instrument=${selectedMacroCotId}&weeks=52`),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsRegimeExtras && !!selectedMacroCotId,
@@ -264,7 +265,7 @@ export default function MacroDashboard({ embedded = false }: { embedded?: boolea
 
   const { data: sentCotHistory } = useQuery<COTRecord[]>({
     queryKey: ["cot-history", selectedSentCotId],
-    queryFn: () => fetch(`/api/cot/history?instrument=${selectedSentCotId}&weeks=52`).then((r) => r.json()),
+    queryFn: () => getJson(`/api/cot/history?instrument=${selectedSentCotId}&weeks=52`),
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: needsRegimeExtras && !!selectedSentCotId,

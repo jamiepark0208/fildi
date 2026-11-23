@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getJson } from "@/lib/get-json";
 
 interface RegimeResult {
   regime: string;
@@ -55,7 +56,7 @@ function confColor(v: number): string {
 export function RegimeBanner() {
   const { data, isLoading, isError } = useQuery<RegimeResult>({
     queryKey: ["regime-macro"],
-    queryFn: () => fetch("/api/regime/macro").then((r) => r.json()),
+    queryFn: () => getJson("/api/regime/macro"),
     staleTime: 1000 * 60 * 60,
     refetchOnWindowFocus: false,
   });

@@ -1,7 +1,7 @@
 // Generalizes the cache-lookup -> Haiku-call -> upsert pattern so every "Explain AI"
 // surface (score, options scanner, live regime, model pick, ...) shares one path
 // instead of re-inlining it.
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db, explainCache } from "@workspace/db";
 import type { Logger } from "pino";
 import type { ContextBundle } from "./explain-context.js";
@@ -86,14 +86,29 @@ async function lookupOrGenerate<TExtra>(
   const prompt = surface.buildPrompt(bundle, extra);
   log.info({ ticker, surfaceType: surface.surfaceType, chars: prompt.length, step: "anthropic-call" }, "ai-explain: calling Haiku");
 
-  const { text: explanation, inputTokens, outputTokens } = await callHaiku({
-    prompt,
-    maxTokens: opts?.maxTokens ?? 300,
-    trigger: `explain/${surface.surfaceType}`,
-    surfaceType: surface.surfaceType,
-    userId: opts?.userId,
-    ticker,
-  });
+  let call;
+  try {
+    call = await callHaiku({
+      prompt,
+      maxTokens: opts?.maxTokens ?? 300,
+      trigger: `explain/${surface.surfaceType}`,
+      surfaceType: surface.surfaceType,
+      userId: opts?.userId,
+      ticker,
+    });
+  } catch (err) {
+    // 11-23: Anthropic credit out → every Rankings 'Why' was a 500. Serve the last saved explanation (dated) instead.
+    const prev = await db.select().from(explainCache)
+      .where(and(eq(explainCache.ticker, ticker), eq(explainCache.scoreType, surface.surfaceType)))
+      .orderBy(desc(explainCache.generatedAt)).limit(1).catch(() => []);
+    if (prev.length > 0) {
+      log.warn({ ticker, surfaceType: surface.surfaceType, err: String(err), step: "stale-fallback" }, "ai-explain: AI failed, serving last saved");
+      const d = new Date(prev[0].generatedAt).toISOString().slice(0, 10);
+      return { explanation: `${prev[0].explanation}\n\n(Saved ${d}; scores may have moved since. AI explain is offline.)`, cached: true, inputTokens: 0, outputTokens: 0 };
+    }
+    throw err;
+  }
+  const { text: explanation, inputTokens, outputTokens } = call;
   log.info({ ticker, surfaceType: surface.surfaceType, chars: explanation.length, inputTokens, outputTokens, step: "anthropic-ok" }, "ai-explain: got response");
 
   // One row per (ticker, surfaceType): a new hash replaces the old explanation. Surfaces

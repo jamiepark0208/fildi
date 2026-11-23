@@ -43,9 +43,9 @@ export function useScoreExplanation() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticker, scoreType, ...payload }),
       });
-      const data = await res.json() as { explanation?: string };
+      const data = await res.json() as { explanation?: string; unavailable?: boolean };
       const text = data.explanation ?? "Unable to generate explanation at this time.";
-      memCache.set(key, text);
+      if (res.ok && !data.unavailable) memCache.set(key, text);   // a failure must not stick for the session (11-23)
       setStates(prev => ({ ...prev, [key]: { text, status: "done" } }));
     } catch {
       const text = "Unable to generate explanation at this time.";

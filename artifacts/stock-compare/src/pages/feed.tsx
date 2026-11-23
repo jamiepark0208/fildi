@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { apiFeed } from "@/lib/feed-api"
 import { CongressFeedPanel } from "@/components/congress-feed-panel"
 import { OptionsFlowFeedPanel } from "@/components/options-flow-feed-panel"
+import { getJson } from "@/lib/get-json";
 
 // ── API ────────────────────────────────────────────────────────────────────────
 
@@ -233,7 +234,7 @@ export default function Feed() {
   // Separate "top 100" query for the performers panel — always runs
   const { data: topPosts = [] } = useQuery<TradePost[]>({
     queryKey: ["feed", "posts", "top100"],
-    queryFn: () => fetch("/api/feed/posts?sort=top&limit=100", { credentials: "include" }).then(r => r.json()),
+    queryFn: () => getJson("/api/feed/posts?sort=top&limit=100", { credentials: "include" }),
     staleTime: 120000,
     refetchOnWindowFocus: false,
   })

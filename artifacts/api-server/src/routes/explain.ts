@@ -274,7 +274,15 @@ router.post("/explain/score", validate(explainScoreSchema), async (req, res) => 
     return res.json({ explanation: result.explanation, cached: result.cached });
   } catch (err) {
     log.error({ err, step: "failed" }, "explain/score error");
-    return res.status(500).json({ error: String(err) });
+    // Plain-English reason in `explanation` (the hook shows it); `unavailable` so it is never cached as an answer.
+    // 200 not 5xx: the row still renders the scores; a 5xx only adds a red console line per click.
+    const credit = /credit balance/i.test(String(err));
+    return res.json({
+      unavailable: true,
+      explanation: credit
+        ? "AI explanation is offline (Anthropic API credit is out). The scores and breakdown are current."
+        : "AI explanation failed. The scores and breakdown are current; try again shortly.",
+    });
   }
 });
 
