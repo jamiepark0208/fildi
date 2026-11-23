@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { Fragment, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, AlertTriangle, RefreshCw, ChevronUp, ChevronDown, ChevronRight, Search, Pin, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -983,7 +983,7 @@ export function StockDBTab() {
                 const colSpan = (viewMode === "fundamentals" ? fundColCount : TECH_COLS.length) + 3;
                 const isFirstSector = !displayData.slice(0, idx).some((x) => x.kind === "sector");
                 return (
-                  <>
+                  <Fragment key={`sector-${item.sectorId}`}>
                   {!isFirstSector && (
                     <tr key={`gap-${item.sectorId}`} aria-hidden>
                       <td colSpan={colSpan} className="h-3 p-0 border-0 bg-zinc-950" />
@@ -1032,7 +1032,7 @@ export function StockDBTab() {
                       </div>
                     </td>
                   </tr>
-                  </>
+                  </Fragment>
                 );
               }
 
@@ -1042,7 +1042,7 @@ export function StockDBTab() {
                 const isCollapsed = collapsedGroups.has(item.groupId);
                 const pal = getSectorPalette(item.sectorId);
                 return (
-                  <>
+                  <Fragment key={`group-${item.groupId}-${idx}`}>
                   <tr
                     key={`group-${item.groupId}-${idx}`}
                     className="cursor-pointer select-none hover:bg-[#d4af37]/10 transition-colors border-b border-zinc-800"
@@ -1118,7 +1118,7 @@ export function StockDBTab() {
                       ))}
                     </tr>
                   ))}
-                </>
+                </Fragment>
                 );
               }
 
