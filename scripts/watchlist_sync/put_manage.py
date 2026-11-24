@@ -16,15 +16,141 @@ import json
 import sys
 import time
 import urllib.request
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from math import erf, log, sqrt
 
 from build_plan import connect
 
 CHAIN_URL = "http://127.0.0.1:8080/api/schwab/chain-ladder"
+ROLL_LINK_WINDOW = timedelta(minutes=10)
 MAX_CHAIN = 15            # A392: ≤ 15 chain calls per run (one per ticker, worst loss first)
 ROLL_DTE = (5, 45)        # roll expiries: 5–45 days past the current one
 SPREAD_BUY, SPREAD_SELL = 0.23, 0.10   # buy-back at ask − 23 % of spread (as `captured`); sell at bid + 10 % of spread
+
+
+@dataclass(frozen=True)
+class Fill:
+    account: str
+    symbol: str
+    strike: float
+    expiry: date
+    effect: str
+    side: str
+    ts: datetime
+    qty: float
+    price: float
+    order_id: str
+
+
+@dataclass
+class PriorRollResult:
+    prior_per_share: float
+    prior_total_usd: float
+    roll_hops: int
+    roll_note: str | None
+
+
+def _contract_key(f: Fill) -> tuple[str, str, float, date]:
+    return (f.account, f.symbol, f.strike, f.expiry)
+
+
+def _position_open_fill(
+    fills: list[Fill], account: str, symbol: str, strike: float, expiry: date
+) -> Fill | None:
+    key = (account, symbol, strike, expiry)
+    ev = sorted((f for f in fills if _contract_key(f) == key), key=lambda x: x.ts)
+    last_close = max((f.ts for f in ev if f.effect == "close"), default=None)
+    opens = [
+        f
+        for f in ev
+        if f.effect == "open" and f.side == "sell" and (last_close is None or f.ts > last_close)
+    ]
+    if opens:
+        return min(opens, key=lambda x: x.ts)
+    opens = [f for f in ev if f.effect == "open" and f.side == "sell"]
+    return max(opens, key=lambda x: x.ts) if opens else None
+
+
+def _match_close_before_open(fills: list[Fill], account: str, symbol: str, open_fill: Fill) -> Fill | None:
+    cands = []
+    for f in fills:
+        if f.account != account or f.symbol != symbol:
+            continue
+        if f.effect != "close" or f.side != "buy":
+            continue
+        if open_fill.expiry < f.expiry:
+            continue
+        if open_fill.qty > f.qty + 1e-9:
+            continue
+        dt = open_fill.ts - f.ts
+        if timedelta(0) <= dt <= ROLL_LINK_WINDOW:
+            cands.append((dt, f))
+    return min(cands, key=lambda x: x[0])[1] if cands else None
+
+
+def _open_before_close(fills: list[Fill], close: Fill) -> Fill | None:
+    key = _contract_key(close)
+    opens = [
+        f
+        for f in fills
+        if _contract_key(f) == key and f.effect == "open" and f.side == "sell" and f.ts < close.ts
+    ]
+    return max(opens, key=lambda x: x.ts) if opens else None
+
+
+def _same_day_unlinked_note(fills: list[Fill], account: str, symbol: str, open_fill: Fill) -> str | None:
+    od = open_fill.ts.date()
+    for f in fills:
+        if f.account != account or f.symbol != symbol:
+            continue
+        if f.effect != "close" or f.side != "buy":
+            continue
+        if f.ts.date() != od:
+            continue
+        dt = open_fill.ts - f.ts
+        if ROLL_LINK_WINDOW < dt < timedelta(hours=24):
+            return f"possible roll on {od.isoformat()} not counted"
+    return None
+
+
+def compute_prior_roll_credits(
+    fills: list[Fill],
+    account: str,
+    symbol: str,
+    strike: float,
+    expiry: date,
+    qty: float,
+) -> PriorRollResult:
+    if qty <= 0:
+        return PriorRollResult(0.0, 0.0, 0, None)
+    open_cur = _position_open_fill(fills, account, symbol, strike, expiry)
+    if open_cur is None:
+        return PriorRollResult(0.0, 0.0, 0, "roll credits unknown")
+    note: str | None = None
+    hops = 0
+    prior_ps = 0.0
+    walk_open = open_cur
+    while True:
+        close_a = _match_close_before_open(fills, account, symbol, walk_open)
+        if close_a is None:
+            unlinked = _same_day_unlinked_note(fills, account, symbol, walk_open)
+            if unlinked and hops == 0 and prior_ps == 0:
+                note = unlinked
+            break
+        open_a = _open_before_close(fills, close_a)
+        if open_a is None:
+            return PriorRollResult(0.0, 0.0, hops, "roll credits unknown")
+        match_qty = min(close_a.qty, walk_open.qty)
+        prior_ps += (open_a.price - close_a.price) * (match_qty / walk_open.qty)
+        hops += 1
+        walk_open = open_a
+    return PriorRollResult(
+        prior_per_share=round(prior_ps, 4),
+        prior_total_usd=round(prior_ps * qty * 100, 2),
+        roll_hops=hops,
+        roll_note=note,
+    )
 
 
 def chain(t: str, frm: date, to: date) -> dict | None:
@@ -56,21 +182,49 @@ def _leg(spot: float, k: float, iv, days: int, basis: float, net: float | None =
     return {"p_itm": None if pi is None else round(100 * pi, 1), "p_touch": None if pi is None else round(100 * min(1.0, 2 * pi), 1)}
 
 
-def build_options(strike: float, expiry: date, qty: float, credit: float, buy: float, ch: dict | None, band: str | None, today: date) -> dict:
+def build_options(
+    strike: float,
+    expiry: date,
+    qty: float,
+    credit: float,
+    buy: float,
+    ch: dict | None,
+    band: str | None,
+    today: date,
+    prior_roll_ps: float = 0.0,
+    prior_roll_total: float = 0.0,
+    roll_hops: int = 0,
+    roll_note: str | None = None,
+) -> dict:
     """hold / close / assign / rolls for one open short put. Per-share dollars unless `_usd` (× 100 × qty)."""
     usd = 100 * qty
-    out: dict = {"close": {"pnl_usd": round((credit - buy) * usd, 2), "buy_back": round(buy, 4)}}
+    out: dict = {
+        "close": {"pnl_usd": round((credit - buy) * usd, 2), "buy_back": round(buy, 4)},
+        "prior_roll_credit": round(prior_roll_ps, 4),
+        "prior_roll_credit_usd": prior_roll_total,
+        "roll_hops": roll_hops,
+    }
+    if roll_note:
+        out["roll_note"] = roll_note
     spot = (ch or {}).get("spot")
     rows = [r for r in (ch or {}).get("rows", []) if r.get("side") == "put"]
     dte_cur = max((expiry - today).days, 0)
     cur = next((r for r in rows if r["expiry"] == str(expiry) and abs(r["strike"] - strike) < 1e-6), None)
     out["spot"] = spot
     if spot:
-        basis = strike - credit
-        out["assign"] = {"basis": round(basis, 4), "spot": spot, "vs_spot_pct": round(100 * (spot / basis - 1), 1),
-                         "loss_usd": round(min(spot - basis, 0) * usd, 2)}
-        out["hold"] = {"pnl_usd": round((credit - buy) * usd, 2), "breakeven": round(basis, 4),
-                       **_leg(spot, strike, cur and cur.get("iv"), dte_cur, basis)}
+        hold_be = strike - credit
+        assign_basis = strike - (credit + prior_roll_ps) if roll_note != "roll credits unknown" else hold_be
+        out["assign"] = {
+            "basis": round(assign_basis, 4),
+            "spot": spot,
+            "vs_spot_pct": round(100 * (spot / assign_basis - 1), 1),
+            "loss_usd": round(min(spot - assign_basis, 0) * usd, 2),
+        }
+        out["hold"] = {
+            "pnl_usd": round((credit - buy) * usd, 2),
+            "breakeven": round(hold_be, 4),
+            **_leg(spot, strike, cur and cur.get("iv"), dte_cur, hold_be),
+        }
     if not rows or not spot:
         out["rolls"] = []
         out["rolls_note"] = "no chain" if ch is None else "chain empty"
@@ -85,7 +239,8 @@ def build_options(strike: float, expiry: date, qty: float, credit: float, buy: f
         net = sell - buy
         dte = (e - today).days
         extra = (e - expiry).days
-        basis = r["strike"] - (credit + net)
+        total_cr = credit + (prior_roll_ps if roll_note != "roll credits unknown" else 0.0)
+        basis = r["strike"] - (total_cr + net)
         cands.append({"strike": r["strike"], "expiry": r["expiry"], "dte": dte, "extra_days": extra, "sell": round(sell, 4),
                       "net": round(net, 4), "net_usd": round(net * usd, 2), "breakeven": round(basis, 4), "delta": r.get("delta"),
                       "ann_pct": round(100 * net / r["strike"] * 365 / extra, 1) if extra > 0 else None,
@@ -140,14 +295,20 @@ def main():
                JOIN portfolio_snapshots p ON p.id = o.snapshot_id WHERE o.direction = 'short' AND o.option_type ILIKE 'put%%'
                GROUP BY 1, 2, 3, 4"""))
         fills: dict = {}
-        for a, s, k, e, eff, ts in conn.execute(
+        all_fills: list[Fill] = []
+        for a, s, k, e, eff, side, ts, qty, px, oid in conn.execute(
             """SELECT DISTINCT ON (coalesce(order_id, id::text)) coalesce(account, ''), symbol, option_strike::float8, option_expiration,
-                      leg_effect, coalesce(last_transaction_at, created_at)
+                      leg_effect, leg_side, coalesce(last_transaction_at, created_at),
+                      quantity::float8, avg_fill_price::float8, coalesce(order_id, id::text)
                FROM portfolio_orders WHERE is_option AND option_side ILIKE 'put%%' AND state = 'filled'
                  AND ((leg_side = 'sell' AND leg_effect = 'open') OR (leg_side = 'buy' AND leg_effect = 'close'))
                ORDER BY coalesce(order_id, id::text), snapshot_id DESC"""):
             if ts is not None:
                 fills.setdefault((a, s, k, e), []).append((ts, eff))
+                if px is not None and px > 0:
+                    all_fills.append(
+                        Fill(a, s, k, e, eff, side, ts, qty or 0.0, float(px), oid)
+                    )
         def opened_on(key):
             ev = sorted(fills.get(key, []))
             last_close = max((t for t, eff in ev if eff == "close"), default=None)
@@ -219,11 +380,25 @@ def main():
                               + ("" if r["days_total"] <= WEEKLY_DAYS else " · 2+ week put: hold (S103: early exits lost)")),
                          resell=[{"ticker": n["ticker"], "strike": n["strike"], "expiry": n["expiry"], "income_wk_pct": n["income_wk_pct"]}
                                  for n in nxt] if take else [])
+            exp = date.fromisoformat(r["expiry"])
+            roll = compute_prior_roll_credits(
+                all_fills, r["account"], r["ticker"], r["strike"], exp, q
+            )
+            bo_kw = dict(
+                prior_roll_ps=roll.prior_per_share,
+                prior_roll_total=roll.prior_total_usd,
+                roll_hops=roll.roll_hops,
+                roll_note=roll.roll_note,
+            )
             if r["ticker"] in chains:
-                r.update(build_options(r["strike"], date.fromisoformat(r["expiry"]), q, r["credit"], r["buy_back"],
-                                       chains[r["ticker"]], band.get(r["ticker"]), today))
+                r.update(
+                    build_options(
+                        r["strike"], exp, q, r["credit"], r["buy_back"],
+                        chains[r["ticker"]], band.get(r["ticker"]), today, **bo_kw
+                    )
+                )
             else:
-                r.update(build_options(r["strike"], date.fromisoformat(r["expiry"]), q, r["credit"], r["buy_back"], None, None, today))
+                r.update(build_options(r["strike"], exp, q, r["credit"], r["buy_back"], None, None, today, **bo_kw))
                 r["rolls_note"] = "over 15-chain cap"
         print(f"roll analysis: {calls} chain calls, {time.time() - t0:.1f}s")
         conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_manage_daily (as_of date, account text NOT NULL DEFAULT '', ticker text,
