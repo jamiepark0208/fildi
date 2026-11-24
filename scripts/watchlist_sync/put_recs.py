@@ -293,6 +293,15 @@ def compute(conn) -> tuple[date, list[dict], dict]:
     chain = rows(conn, """SELECT ticker, expiry, strike::float8, dte, spot::float8, bid::float8, ask::float8, iv::float8, delta::float8,
                                  open_interest, volume
                           FROM option_chain_history WHERE as_of = %s AND side = 'put' AND bid > 0 AND delta < 0""", (as_of,))
+    # 11-24 V1 (Codex A192 #2): the CSP producer gets the same numeric checks as every structure leg — finite positive
+    # strike/spot/bid, ask ≥ bid, IV finite and > 0 when present. Crossed or NaN rows never reach a pick.
+    fin = lambda x: x is not None and math.isfinite(x)  # noqa: E731
+    ok = [r for r in chain if fin(r["strike"]) and r["strike"] > 0 and fin(r["spot"]) and r["spot"] > 0 and fin(r["bid"])
+          and fin(r["ask"]) and r["ask"] >= r["bid"] and fin(r["delta"]) and (r["iv"] is None or (fin(r["iv"]) and r["iv"] > 0))]
+    if len(ok) < len(chain):
+        import data_issues as DI
+        DI.record("put_recs.py", "bad_quote", value=len(chain) - len(ok), detail=f"{len(chain) - len(ok)}/{len(chain)} put rows dropped (crossed / NaN / non-positive), {as_of}")
+    chain = ok
     by = defaultdict(list)
     for r in chain:
         by[r["ticker"]].append(r)

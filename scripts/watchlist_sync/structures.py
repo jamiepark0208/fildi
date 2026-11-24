@@ -138,11 +138,12 @@ def main():
             print(f"structures: using skew survey as_of={as_of} (no survey for {today})", flush=True)
         q = rows(conn, """SELECT ticker, expiry, side, strike, spot, bid, ask, iv, delta FROM optlab.skew_survey
                           WHERE as_of = %s AND bid IS NOT NULL AND ask > 0""", (as_of,))
-        rv, hist = {}, {}
+        rv, rv5, hist = {}, {}, {}
         for t, cl in rows_closes(conn):
             if len(cl) >= 260:
                 lr = np.diff(np.log(cl[-21:]))
                 rv[t] = float(np.std(lr) * math.sqrt(252))
+                rv5[t] = float(np.std(lr[-5:]) * math.sqrt(252))   # V1: pin vs cheap-IV split
                 hist[t] = np.log(np.asarray(cl[-505:], float))
         er = {r["ticker"]: r["d"] for r in rows(conn, """SELECT ticker, MIN(d) d FROM (
               SELECT ticker, event_date d FROM lseg_research.events WHERE event_type = 'EarningsReleases' AND event_date >= CURRENT_DATE
@@ -192,7 +193,10 @@ def main():
             for c in built:
                 try:
                     c.update(evaluate(c, rv[t], as_of, hist[t]))
+                    c["rv5"] = round(rv5[t], 3)
                     c["iv_suspect"] = iv_suspect(c)
+                    if c.get("iv_cheap"):
+                        DI.record("structures.py", "iv_cheap", ticker=t, field=c["structure"], detail=c["iv_cheap"])
                     if c["iv_suspect"]:
                         DI.record("structures.py", "iv_suspect", ticker=t, field=c["structure"], detail=c["iv_suspect"])
                     if c.get("s088"):   # one engine for sold puts: show the ladder model's numbers; keep the board's own as ev_board
@@ -240,8 +244,20 @@ def main():
             for i, c in enumerate(lst, 1):
                 conn.execute("INSERT INTO watchlist_sync.structure_rank_daily VALUES (%s, %s, %s, %s, %s)",
                              (as_of, sid, i, c["ticker"], json.dumps(public(c), default=str)))
-        n_log = 0 if "--no-log" in sys.argv else log_ledger(conn, board, as_of)
-        conn.commit()
+        # 11-24 V1 (Codex A192 #3): board and ledger publish together or not at all. A --no-log rerun once rewrote the board
+        # (10 Jan long calls) while the ledger kept the Dec rows → 10/22 primary picks ungraded. --no-log is now a dry run.
+        if "--no-log" in sys.argv:
+            conn.rollback()
+            n_log = 0
+            print("structures: --no-log = dry run, board and ledger unchanged")
+        else:
+            n_log = log_ledger(conn, board, as_of)
+            miss = unmatched_primary(conn, as_of)
+            if miss:
+                conn.rollback()
+                DI.record("structures.py", "ledger_identity", detail=f"{len(miss)} primary rows without a ledger question: {miss[:5]}")
+                raise SystemExit(f"structures: board/ledger mismatch {miss[:5]} → nothing published")
+            conn.commit()
     shown = sum(len(v) for v in board.values())
     n_pri = sum(1 for v in board.values() for c in v if c.get("tier") == "primary")
     n_more = sum(1 for v in board.values() for c in v if c.get("tier") == "more")
@@ -271,6 +287,13 @@ def _tradable(r):
     if iv is None or b is None or a is None or not all(math.isfinite(float(x)) for x in (iv, b, a)):
         return False
     return iv > 0 and b > 0 and a >= b and (a - b) <= 0.5 * (a + b) / 2
+
+
+def _pos(x) -> bool:
+    try:
+        return x is not None and math.isfinite(float(x)) and float(x) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def _pick(chain, side, target, below=None, above=None):
@@ -321,7 +344,11 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
     # A277: the CSP is the engine's pick (put_recs.py → watchlist_sync.put_recs_daily) — the same contract the Model List, Rankings
     # and Live show; no engine strike (panic, no weekly, gated band empty) → no CSP. S088's ladder rides along for the Ladder view.
     pr = (inputs or {}).get("put_rec") or {}
-    if pr.get("strike") is not None:
+    csp_bad = pr.get("strike") is not None and not (all(_pos(pr.get(k)) for k in ("bid", "ask", "iv", "strike", "spot"))
+                                                  and float(pr["ask"]) >= float(pr["bid"]))   # numeric only; the engine owns its liquidity rules
+    if csp_bad:   # 11-24 V1 (Codex A192 #2): the CSP leg skipped the numeric checks every other leg gets
+        DI.record("structures.py", "csp_bad_quote", ticker=t, detail=f"put_rec strike {pr.get('strike')} bid {pr.get('bid')} ask {pr.get('ask')} iv {pr.get('iv')} spot {pr.get('spot')}")
+    if pr.get("strike") is not None and not csp_bad:
         x = date.fromisoformat(pr["expiry"])
         lp = (ladder or {}).get(pr["band"])
         add("csp", [_leg({"side": "put", "strike": pr["strike"], "expiry": x, "iv": pr["iv"], "bid": pr["bid"], "ask": pr["ask"]}, -1, x)],
@@ -353,7 +380,13 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
         else:
             if lc:
                 r = _pick(chains[(t, lc)], "call", 0.50)
-                add("long_call", [_leg(r, +1, lc) if r else None])
+                if r:
+                    # 11-24 V1 (Codex A192 #1): nearest available ≠ the tested spec. Declared tolerance (not an optimum):
+                    # 35–60 calendar DTE and 0.45–0.55 |Δ|. Outside it → priced, labelled, never primary / never S100-graded.
+                    dte, dl = (lc - today).days, abs(float(r["delta"]))
+                    ok = 35 <= dte <= 60 and 0.45 <= dl <= 0.55
+                    add("long_call", [_leg(r, +1, lc)], {"spec_match": ok, "spec_delta": round(dl, 3), "spec_dte": dte,
+                        "spec_note": None if ok else f"not the tested S100 spec (Δ {dl:.2f}, {dte} DTE; tested 0.45–0.55Δ, 35–60 DTE)"})
             add("long_put", [L("put", 0.40, +1)])
             add("long_straddle", [A("put", +1), A("call", +1)])
             add("long_strangle", [L("put", 0.25, +1), L("call", 0.25, +1)])
@@ -465,7 +498,13 @@ def iv_suspect(c) -> str | None:
     if ivs and max(ivs) > 2.5:
         return f"leg IV {max(ivs):.2f} > 2.5 (solver blowup)"
     if ivs and rv > 0 and min(ivs) < 0.3 * rv:
-        return f"leg IV {min(ivs):.2f} < 0.3× RV20 {rv:.2f} (deal pin / stale history)"
+        # 11-24 V1 (Codex A192 #2): a pin is a model-applicability problem, not bad data; low IV with the stock still moving
+        # may be genuinely cheap → iv_cheap (kept, labelled, never primary). Pin = last-5-day RV also collapsed (< 0.5× RV20).
+        rv5 = c.get("rv5")
+        if rv5 is not None and rv5 >= 0.5 * rv:
+            c["iv_cheap"] = f"leg IV {min(ivs):.2f} < 0.3× RV20 {rv:.2f}, stock still moving (RV5 {rv5:.2f}) — check for a deal / event before trading"
+            return None
+        return f"leg IV {min(ivs):.2f} < 0.3× RV20 {rv:.2f}, RV5 {rv5 if rv5 is None else round(rv5, 2)} (deal pin: history model can't apply)"
     return None
 
 
@@ -489,6 +528,14 @@ def _soft_fit(c) -> bool:
     return True
 
 
+def _off_spec(c) -> bool:
+    return c.get("spec_match") is False or bool(c.get("iv_cheap"))
+
+
+def _labels(c) -> str:
+    return "".join(f" · {x}" for x in (c.get("spec_note"), c.get("iv_cheap")) if x)
+
+
 def _n_tier(board, sid, tier: str) -> int:
     return sum(1 for x in board[sid] if x.get("tier") == tier)
 
@@ -504,8 +551,8 @@ def pick_board(cands, trim):
     # CSP claims a ticker before other structures (S076 return÷risk 0.15 vs jade 0.11; its EV comes from the put ladder, a different model)
     primary_pool.sort(key=lambda c: (not c["fit"], c["structure"] != "csp", -(c["edge_q"] or 0) if c["structure"] == "csp" else 0, -c.get("_score", c["ev_rv_cap"])))
     for c in primary_pool:
-        if not c["fit"] or c["ticker"] in used or _n_tier(board, c["structure"], "primary") >= TOP:
-            continue
+        if not c["fit"] or c["ticker"] in used or _n_tier(board, c["structure"], "primary") >= TOP or _off_spec(c):
+            continue   # V1: off the tested spec / IV-vs-RV unexplained → never primary (never graded as the study's pick)
         board[c["structure"]].append({**c, "tier": "primary"})
         used.add(c["ticker"])
 
@@ -519,7 +566,7 @@ def pick_board(cands, trim):
     for c in more_pool:
         if c["ticker"] in used or _n_tier(board, c["structure"], "more") >= TOP_MORE:
             continue
-        board[c["structure"]].append({**c, "tier": "more", "fit_why": (c.get("fit_why") or "") + " · soft gate"})
+        board[c["structure"]].append({**c, "tier": "more", "fit_why": (c.get("fit_why") or "") + " · soft gate" + _labels(c)})
         used.add(c["ticker"])
 
     # —— margin: short strangle/straddle (S076 pass, below CSP on ret÷risk)
@@ -528,7 +575,7 @@ def pick_board(cands, trim):
     for c in margin_pool:
         if c["ticker"] in used or _n_tier(board, c["structure"], "margin") >= TOP_MARGIN:
             continue
-        board[c["structure"]].append({**c, "tier": "margin", "fit_why": (c.get("fit_why") or "") + " · margin (below CSP ret÷risk)"})
+        board[c["structure"]].append({**c, "tier": "margin", "fit_why": (c.get("fit_why") or "") + " · margin (below CSP ret÷risk)" + _labels(c)})
         used.add(c["ticker"])
 
     # —— study: each fail structure gets its own top names (may reuse tickers already on primary —
@@ -544,7 +591,7 @@ def pick_board(cands, trim):
                 break
             if c["ticker"] in seen_here:
                 continue
-            board[sid].append({**c, "tier": "study", "fit_why": (c.get("fit_why") or "priced") + " · study only (S076 fail)"})
+            board[sid].append({**c, "tier": "study", "fit_why": (c.get("fit_why") or "priced") + " · study only (S076 fail)" + _labels(c)})
             seen_here.add(c["ticker"])
 
     return board
@@ -555,12 +602,26 @@ def public(c):
             "legs": [{k: lg[k] for k in ("side", "strike", "expiry", "qty", "px", "bid", "ask", "iv")} for lg in c["legs"]]}
 
 
+def unmatched_primary(conn, as_of) -> list:
+    """Primary board rows (this transaction) with no same-day sim_structure question of the same structure/ticker/expiry."""
+    return [tuple(r) for r in conn.execute("""
+        SELECT b.structure, b.ticker, b.payload->>'expiry' FROM watchlist_sync.structure_rank_daily b
+        WHERE b.as_of = %s AND b.payload->>'tier' = 'primary' AND NOT EXISTS (
+          SELECT 1 FROM watchlist_sync.forecast_ledger f WHERE f.qtype = 'sim_structure' AND f.made_on = %s
+            AND f.question_id = 'struct:' || b.structure || ':' || b.ticker || ':' || (b.payload->>'expiry') || ':' || %s::text)""",
+        (as_of, as_of, str(as_of))).fetchall()]
+
+
 def log_ledger(conn, board, today):
     from forecast_ledger import UPSERT
-    # a re-run replaces today's picks: drop today's unresolved rows first so only what the board shows gets graded
-    # scoped to this board's rows (question_id struct:…): the S081/S086/S088 paper arms share qtype sim_structure
-    conn.execute("DELETE FROM watchlist_sync.forecast_ledger WHERE qtype = 'sim_structure' AND made_on = %s AND outcome IS NULL "
-                 "AND question_id LIKE 'struct:%%'", (today,))
+    # a re-run replaces today's picks; scoped to struct:… (the S081/S086/S088 paper arms share qtype sim_structure).
+    # 11-24 V1: picks the new board drops are kept as superseded (advisory_* qtype → never graded, never pooled), not deleted.
+    keep = {f"struct:{sid}:{c['ticker']}:{c['expiry']}:{today}" for sid, lst in board.items() for c in lst if c.get("tier", "primary") == "primary"}
+    conn.execute("""UPDATE watchlist_sync.forecast_ledger SET qtype = 'advisory_structure_superseded',
+                      question_id = question_id || ':sup' || to_char(now(), 'HH24MISS'),
+                      meta = meta || jsonb_build_object('superseded_at', now()::text)
+                    WHERE qtype = 'sim_structure' AND made_on = %s AND outcome IS NULL AND question_id LIKE 'struct:%%'
+                      AND NOT (question_id = ANY(%s))""", (today, list(keep)))
     n = 0
     for sid, lst in board.items():
         for c in lst:
