@@ -30,6 +30,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from build_plan import connect, rows  # noqa: E402
 import strategy_engine as SE  # noqa: E402  (A271: gates / inputs / put ladder / rank from strategy_rules.json)
+import structure_context as CX  # noqa: E402  (A192 V3: shared scenario context per idea)
 
 FILL = 0.23
 TOP = 10        # primary (strict regime-fit)
@@ -229,6 +230,24 @@ def main():
             for c in cs:
                 c["_score"] = k.get(id(c), c["ev_rv_cap"])
         board = pick_board(cands, trim)
+        # A192 V3: one scenario context per idea; every candidate on that ticker valued on the same paths (structure_context.py)
+        by_t = defaultdict(list)
+        for c in cands:
+            by_t[c["ticker"]].append(c)
+        idea_ctx = {}
+        for t, cs in by_t.items():
+            try:
+                ctx = CX.build(t, as_of, cs[0]["spot"], hist.get(t), I.get(t, {}), f"skew_survey:{as_of}")
+                idea_ctx[t] = CX.compare(ctx, cs)
+            except Exception as e:  # noqa: BLE001
+                DI.record("structures.py", "context_failed", ticker=t, detail=f"{type(e).__name__}: {e}")
+        conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.structure_idea_context (
+          as_of date NOT NULL, ticker text NOT NULL, scenario_id text, policy_version text NOT NULL, payload jsonb NOT NULL,
+          PRIMARY KEY (as_of, ticker))""")
+        conn.execute("DELETE FROM watchlist_sync.structure_idea_context WHERE as_of = %s", (as_of,))
+        for t, x in idea_ctx.items():
+            conn.execute("INSERT INTO watchlist_sync.structure_idea_context VALUES (%s, %s, %s, %s, %s)",
+                         (as_of, t, x.get("scenario_id"), x["policy_version"], json.dumps(x, default=str)))
         conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.structure_rank_daily (
           as_of date NOT NULL, structure text NOT NULL, rank int NOT NULL, ticker text NOT NULL, payload jsonb NOT NULL,
           PRIMARY KEY (as_of, structure, rank))""")
@@ -629,7 +648,9 @@ def log_ledger(conn, board, today):
                 continue  # grade only strict-fit primary picks
             qid = f"struct:{sid}:{c['ticker']}:{c['expiry']}:{today}"
             meta = json.dumps({"structure": sid, "legs": public(c)["legs"], "credit": c["credit"], "spot": c["spot"],
-                               "from": str(today), "stock": bool(c.get("stock")), "tier": "primary"}, default=str)
+                               "from": str(today), "stock": bool(c.get("stock")), "tier": "primary",
+                               "spec_hash": c.get("spec_hash"), "scenario_id": (c.get("context") or {}).get("scenario_id"),
+                               "policy_version": CX.POLICY_VERSION}, default=str)
             for fc, p in (("market_iv", c["p_mkt"]), ("realized_vol", c["p_rv"])):
                 conn.execute(UPSERT, (qid, f"Will the {CATALOG[sid][0]} on {c['ticker']} (exp {c['expiry']}) make money at expiry?",
                                       "sim_structure", c["ticker"], fc, round(p, 4), datetime.now(), today, c["expiry"], meta))

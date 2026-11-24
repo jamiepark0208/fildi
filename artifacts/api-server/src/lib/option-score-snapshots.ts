@@ -766,3 +766,16 @@ export async function computeAndPersistOptionScores(opts?: {
     return { asOf: null, stance: null, stanceAsOf: null, structures: [] };
   }
 }
+
+/** A192 V3: one idea's shared scenario context (structure_context.py) — every candidate structure + no trade / cash / 100 shares
+ *  valued on the same paths, three lenses (cash, finite-loss, matched downside), `best` per lens, `lenses_agree`, `read`.
+ *  Latest day only; null when the ticker had no priced structures. Contract fields: see structure_context.py docstring. */
+export async function readIdeaStructures(ticker: string): Promise<{ asOf: string; context: Record<string, unknown> } | null> {
+  const t = ticker.trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(t)) return null;
+  const { rows } = await db.execute(sql`SELECT as_of::text AS as_of, payload FROM watchlist_sync.structure_idea_context
+    WHERE ticker = ${t} AND as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_idea_context)`)
+    .catch(() => ({ rows: [] as unknown[] }));
+  const r = rows[0] as { as_of: string; payload: Record<string, unknown> } | undefined;
+  return r ? { asOf: r.as_of, context: r.payload } : null;
+}

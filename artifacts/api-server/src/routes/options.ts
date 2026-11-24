@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getOptionsChain, getOptionPositionQuote, getIvTermStructure, withFreshDte, type OptionsChainResult, type IvTermPoint } from "../lib/options.js";
 import { buildPositionQuote } from "../lib/options-position-quote.js";
 import { TTLCache } from "../lib/ttl-cache.js";
-import { readLatestOptionRankings, computeAndPersistOptionScores, readStructuresBoard } from "../lib/option-score-snapshots.js";
+import { readLatestOptionRankings, computeAndPersistOptionScores, readStructuresBoard, readIdeaStructures } from "../lib/option-score-snapshots.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import { readStructureBacktest } from "../lib/structure-backtest.js";
 import { getAllTechnicalsRows } from "../lib/technicals-db.js";
@@ -181,6 +181,12 @@ router.get("/options/rankings", async (req, res) => {
 // GET /api/options/structures — A192 Strategies board (nightly table; ≤ 5 names per structure, each ticker once).
 router.get("/options/structures", async (_req, res) => {
   return res.json(await readStructuresBoard());
+});
+
+// GET /api/options/structures/idea/:ticker — A192 V3: every structure for one idea on one shared scenario set (3 lenses + baselines).
+router.get("/options/structures/idea/:ticker", async (req, res) => {
+  const out = await readIdeaStructures(String(req.params.ticker ?? ""));
+  return out ? res.json(out) : res.status(404).json({ error: "no structure context for this ticker today" });
 });
 
 // GET /api/options/structures/backtest — S076: every structure backtested (summary, eras, regimes, equity, histogram, payoff template).
