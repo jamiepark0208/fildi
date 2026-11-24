@@ -24,7 +24,49 @@ export type StructurePick = {
 export type StructureMeta = {
   id: string; name: string; family: string; description: string; regime: string; evidence: string;
   evidenceNote: string; rows: StructurePick[];
+  /** A192 V2: realized track record (structure_grades.py) — primary picks and all tiers */
+  grade?: { asOf?: string; primary?: StructureGrade; all?: StructureGrade } | null;
 };
+export type StructureGrade = {
+  n: number; entry_dates: number; expiries: number; first: string; last_expiry: string;
+  pred_mean: number | null; real_mean: number; real_median: number; win: number;
+  rho: number | null; rho_within_date: number | null; ci_cluster: [number, number] | null;
+  n_big: number; real_mean_ex_big: number | null; one_regime: boolean; ledger_matched: number;
+};
+
+const pctG = (x: number | null | undefined) => (x == null ? "—" : `${x >= 0 ? "+" : ""}${Math.round(100 * x)}%`);
+
+/** A192 V2: how this structure's past board picks actually did, in the board's own units (P&L ÷ capital, whole trade). */
+function TrackRecord({ structureId }: { structureId: string }) {
+  const { data } = useStructuresBoard();
+  const gr = data?.structures.find((s) => s.id === structureId)?.grade;
+  const g = gr?.primary ?? gr?.all;
+  if (!g) return null;
+  const scope = gr?.primary ? "Today-tier picks" : "All tiers (incl. study)";
+  const early = g.expiries < 3 || g.one_regime;
+  const tip = [
+    `${scope} since ${g.first}, graded at each expiry close (last ${g.last_expiry}). Graded ${gr?.asOf ?? "—"}.`,
+    `${g.n} trades · ${g.entry_dates} entry days · ${g.expiries} expiries. Expiries share market risk, so they are the real sample size.`,
+    `Median ${pctG(g.real_median)}. Range of the average across expiries: ${g.ci_cluster ? `${pctG(g.ci_cluster[0])} to ${pctG(g.ci_cluster[1])}` : "needs ≥ 3 expiries"}.`,
+    `Does the board's ranking order results? rank correlation ${g.rho ?? "—"} (same day: ${g.rho_within_date ?? "—"}). 0 = no, 1 = perfect.`,
+    g.n_big ? `${g.n_big} moves > 60 % kept (no split on record); without them ${pctG(g.real_mean_ex_big)}.` : "",
+    gr?.all && gr?.primary ? `All tiers: ${gr.all.n} trades, avg ${pctG(gr.all.real_mean)}, won ${pct(gr.all.win)}.` : "",
+  ].filter(Boolean).join("\n");
+  return (
+    <div className="text-[11px] text-white px-1">
+      <DataTip tip={tip}>
+        <span>
+          Track record: {g.n} trades, avg {pctG(g.real_mean)} vs predicted {pctG(g.pred_mean)}, won {pct(g.win)}
+        </span>
+      </DataTip>
+      {early && (
+        <span className="ml-2 text-amber-200">
+          {g.one_regime ? "· one market direction only" : `· ${g.expiries} expir${g.expiries === 1 ? "y" : "ies"}`} — too early to judge
+        </span>
+      )}
+    </div>
+  );
+}
 export type StructuresBoardData = {
   asOf: string | null;
   stance: string | null;
@@ -232,9 +274,12 @@ export const StructurePicksTable = memo(function StructurePicksTable({
 }) {
   if (!rows.length) {
     return (
-      <p className="text-[11px] text-amber-100 px-1 py-1">
-        No trade today — market doesn&apos;t match when this structure fits.
-      </p>
+      <div className="space-y-1">
+        <TrackRecord structureId={structureId} />
+        <p className="text-[11px] text-amber-100 px-1 py-1">
+          No trade today — market doesn&apos;t match when this structure fits.
+        </p>
+      </div>
     );
   }
   const primary = rows.filter((r) => !r.tier || r.tier === "primary");
@@ -243,6 +288,7 @@ export const StructurePicksTable = memo(function StructurePicksTable({
   const study = rows.filter((r) => r.tier === "study");
   return (
     <div className="space-y-2 w-full min-w-0">
+      <TrackRecord structureId={structureId} />
       <PicksBlock
         title="Today"
         tip="Strict regime-fit · real Schwab fills · one ticker once · logged for grading."

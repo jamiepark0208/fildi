@@ -105,6 +105,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("skew survey", PY, HERE, ["skew_survey.py"]),   # A192 Phase 0: full strike ladders (~120 names) for wing pricing
         ("regime grades", SH, API, ["-c", "PATH=/opt/homebrew/bin:$PATH pnpm exec tsx src/scripts/backfill-intraday-history.ts 3"]),
         ("strategies board", PY, HERE, ["structures.py"]),
+        ("structure grades", PY, HERE, ["structure_grades.py"]),   # A192 V2: realized track record per structure → structure_grades (soft, DB only, < 1 s)
         ("put consistency", PY, HERE, ["put_consistency.py"]),   # A277 §3: WARN if a surface shows a different put than the engine   # A192: Rankings › Strategies (≤ 5 names/structure) + ledger grading   # S057/S058: daily odds → forecast ledger + coherence gate on the published list
         ("revisions from LSEG", PY, HERE, ["analysis/lab_fund_lseg.py"]),   # 11-09: WRDS IBES ends 08-20 → ibes_drift/_3m/breadth/disp/fwd_growth from LSEG signals_daily for the board
         ("long-call strategy board", PY, HERE, ["analysis/s086_strategy_board.py"]),   # A244 S086: 11 angles, top 10 each → out/opt/S086_flags.json (angles with analog t ≥ 2)
@@ -134,6 +135,7 @@ RETRY_ONCE = {"option scan (live)"}
 # Soft steps in `model` stage: optional enrichers that fall back cleanly to yesterday's stored table.
 # Run directly (no `| tail -1` pipe swallow) so real exit codes reach `soft_failures` + `data_issues`.
 SOFT_MODEL = {
+    "structure grades",   # A192 V2: display-only track record
     "strategy signals",   # 11-23: LSEG Workspace logged out at 08:01 → whole Model List unpublished; plan falls back to the last signals
     "tastytrade metrics",
     "IV rank resolver",

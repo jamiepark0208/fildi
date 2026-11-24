@@ -713,13 +713,23 @@ export async function computeAndPersistOptionScores(opts?: {
     stance: string | null;
     stanceAsOf: string | null;
     structures: Array<{ id: string; name: string; family: string; description: string; regime: string; evidence: string;
-      evidenceNote: string; rows: Array<Record<string, unknown>> }>;
+      evidenceNote: string; rows: Array<Record<string, unknown>>;
+      /** A192 V2: { asOf, primary?, all? } — n, expiries, pred_mean, real_mean, real_median, win, rho, rho_within_date, ci_cluster, one_regime … */
+      grade: Record<string, unknown> | null }>;
   }> {
     try {
       const { rows: cat } = await db.execute(sql`SELECT id, name, family, description, regime, evidence, evidence_note FROM watchlist_sync.structure_catalog`);
       const { rows: rk } = await db.execute(sql`SELECT as_of::text AS as_of, structure, rank, payload FROM watchlist_sync.structure_rank_daily
         WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily) ORDER BY structure, rank`);
       const { rows: hv } = await db.execute(sql`SELECT view_date::text AS view_date, memo FROM watchlist_sync.house_view ORDER BY view_date DESC LIMIT 1`);
+      // A192 V2: realized track record per structure (structure_grades.py, daily). Missing table → no grades, board still loads.
+      const gr = await db.execute(sql`SELECT as_of::text AS as_of, structure, scope, payload FROM watchlist_sync.structure_grades
+        WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_grades)`).catch(() => ({ rows: [] as unknown[] }));
+      const grades = new Map<string, Record<string, unknown>>();
+      for (const g of gr.rows as Array<Record<string, unknown>>) {
+        const k = String(g.structure);
+        grades.set(k, { ...(grades.get(k) ?? { asOf: g.as_of }), [String(g.scope)]: g.payload });
+      }
       const memo = String((hv[0] as Record<string, unknown> | undefined)?.memo ?? "");
       const stanceAsOf = ((hv[0] as Record<string, unknown> | undefined)?.view_date as string | undefined) ?? null;
       // Drop the "Stance (rules, not vibes)." label — desk only needs the action clause.
@@ -743,6 +753,7 @@ export async function computeAndPersistOptionScores(opts?: {
     const structures = (cat as Array<Record<string, unknown>>).map((c) => ({
       id: String(c.id), name: String(c.name), family: String(c.family), description: String(c.description), regime: String(c.regime),
       evidence: String(c.evidence), evidenceNote: String(c.evidence_note), rows: by.get(String(c.id)) ?? [],
+      grade: grades.get(String(c.id)) ?? null,
     })).sort((a, b) => (b.rows.length > 0 ? 1 : 0) - (a.rows.length > 0 ? 1 : 0) || order.indexOf(a.evidence) - order.indexOf(b.evidence));
     return {
       asOf: (rk[0] as Record<string, unknown> | undefined)?.as_of as string ?? null,
