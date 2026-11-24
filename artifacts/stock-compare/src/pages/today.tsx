@@ -193,8 +193,8 @@ function PutIdeas({ rows, mark }: { rows: Put[]; mark: MarkSeen }) {
               <td className={cn(TD, p.tier === "best" ? "text-green-400" : "text-sky-300")}>{p.tier}</td>
               <td className={cn(TD, "whitespace-nowrap")}>
                 {(() => { const m = movesWith(p.bookGroup); return m
-                  ? <DataTip tip={m.tip}><span className={m.hot ? "text-amber-300" : "text-white/70"}>{m.label}</span></DataTip>
-                  : <span className="text-white/40">—</span>; })()}
+                  ? <DataTip tip={m.tip}><span className={m.hot ? "text-amber-300" : "text-white"}>{m.label}</span></DataTip>
+                  : <span>—</span>; })()}
               </td>
               <td className={cn(TD, "text-left text-amber-200/60 max-w-[360px] truncate")} title={p.cautions.join("\n")}>
                 {p.cautions[0] ?? ""}{p.cautions.length > 1 ? ` (+${p.cautions.length - 1})` : ""}
