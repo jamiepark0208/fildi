@@ -55,25 +55,43 @@ def load_inputs(conn, tickers) -> dict[str, dict]:
     return I
 
 
+def _finite(v) -> bool:
+    try:
+        return math.isfinite(float(v))
+    except (TypeError, ValueError):
+        return False
+
+
 def _val(c, I, k):
     return c[k] if k in c and c[k] is not None else I.get(c["ticker"], {}).get(k)
 
 
 def fit(c, I, ctx) -> tuple[bool, list[str]]:
     """All gates of the candidate's strategy. ctx = {'iv_median': today's median IV rank across priced names}."""
+    # 11-24 V3 (Codex A192 counterexample): an unregistered structure used to fall through to "no strategy" → fit. Now unsupported.
+    if c.get("structure") not in ENGINE["structure_strategy"]:
+        return False, [f"unsupported structure '{c.get('structure')}' (not in strategy_rules.json)"]
     st = ENGINE["strategies"].get(strategy_of(c["structure"]))
     if not st:
-        return True, []
+        return True, []   # registered, declared without gates (calendar, collar → strategy 'none')
     why, ok = [], True
     for g in st["gates"]:
         if c.get("market_state") in (g.get("relax") or {}).get("market_state", []):
             continue   # e.g. put-edge in a sector drop (S102); the caller applies relax.max_band
         v = _val(c, I, g["input"])
+        name = g['input'].removesuffix('_q').replace('_', '-')
+        # 11-24 V3 (Codex): NaN/±inf compared False against every bound → the gate passed. Invalid ≠ missing ≠ a number.
+        if v is not None and not isinstance(v, str) and not _finite(v):
+            if g.get("if_known"):
+                continue   # optional input: omitted, same as unknown
+            ok = False
+            why.append(f"{name} invalid ({v}) — not compared")
+            continue
         if v is None:
             if g.get("if_known"):
                 continue
             ok = False
-            why.append(f"{g['input'].removesuffix('_q').replace('_', '-')} unknown (no inputs)")
+            why.append(f"{name} unknown (no inputs)")
             continue
         if "not_in" in g and v in g["not_in"]:
             ok = False
@@ -87,6 +105,21 @@ def fit(c, I, ctx) -> tuple[bool, list[str]]:
     return ok, why
 
 
+def _avg_rank(x: np.ndarray) -> np.ndarray:
+    """0-based ranks; tied values share their mean rank (scipy rankdata 'average' − 1)."""
+    o = np.argsort(x, kind="stable")
+    xs = x[o]
+    r = np.empty(len(x))
+    i = 0
+    while i < len(x):
+        j = i
+        while j + 1 < len(x) and xs[j + 1] == xs[i]:
+            j += 1
+        r[o[i:j + 1]] = (i + j) / 2
+        i = j + 1
+    return r
+
+
 def rank_key(cands, strategy) -> dict[int, float]:
     """id(candidate) → score (higher = better) from the strategy's rank inputs; missing input = middle rank."""
     st = ENGINE["strategies"].get(strategy)
@@ -97,9 +130,8 @@ def rank_key(cands, strategy) -> dict[int, float]:
         v = np.array([float(x) if (x := c.get(k, (c.get("_in") or c.get("inputs") or {}).get(k))) is not None else np.nan for c in cands], float)  # 11-16: structures.py rows carry "inputs", not "_in" → every long call scored 1.0 (alphabetical)
         r = np.full(len(v), 0.5)
         ok = np.isfinite(v)
-        if ok.sum() > 1:
-            o = np.argsort(v[ok]); rr = np.empty(ok.sum()); rr[o] = np.arange(ok.sum()) / (ok.sum() - 1)
-            r[ok] = rr
+        if ok.sum() > 1:   # 11-24 V3 (Codex): average ranks for ties — equal ARM / ret60 / quintile no longer flip with input order
+            r[ok] = _avg_rank(v[ok]) / (ok.sum() - 1)
         tot += s * r
     return {id(c): float(x) for c, x in zip(cands, tot)}
 
