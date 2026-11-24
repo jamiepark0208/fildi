@@ -449,11 +449,21 @@ def write(conn, as_of, recs):
     conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.put_recs_daily (
                       as_of date NOT NULL, ticker text NOT NULL, rank int, pass boolean NOT NULL, payload jsonb NOT NULL,
                       computed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (as_of, ticker))""")
+    # 11-23: chain not collected 11-13 → that run reused MAX(as_of)=11-12 and replaced 11-12's picks with ones computed a day
+    # later (graded record rewritten, 11-13 lost). A prior day's rows are history: only a same-day re-run may replace them.
+    prev = conn.execute("""SELECT MIN(computed_at)::date FROM watchlist_sync.put_recs_daily WHERE as_of = %s""", (as_of,)).fetchone()[0]
+    if prev is not None and prev < date.today() and "--overwrite" not in sys.argv[1:]:
+        import data_issues as DI
+        DI.record("put_recs.py", "stale_chain", detail=f"option_chain_history newest as_of {as_of} already published {prev}; "
+                  f"no chain for {date.today()} → kept {as_of} picks (re-run with --overwrite to replace)")
+        print(f"put_recs: STALE chain — newest option_chain_history {as_of} was published {prev}; not overwriting (no picks for today)")
+        return False
     conn.execute("DELETE FROM watchlist_sync.put_recs_daily WHERE as_of = %s", (as_of,))
     for r in recs:
         conn.execute("INSERT INTO watchlist_sync.put_recs_daily (as_of, ticker, rank, pass, payload) VALUES (%s,%s,%s,%s,%s)",
                      (as_of, r["ticker"], r.get("rank"), r["pass_"], json.dumps({k: v for k, v in r.items() if k != "pass_"}, default=str)))
     conn.commit()
+    return True
 
 
 def main():
@@ -467,9 +477,9 @@ def main():
             print(f"  #{r['rank']:>3} {r['ticker']:6s} {r['expiry']} {r['strike']:>8g} {-r['delta']:.3f}Δ {r['income_wk_pct']:.2f}%/wk "
                   f"{'PASS' if r['pass_'] else 'gated: ' + '; '.join(r['gates'])} | {r['why']}")
         if "--print" not in sys.argv[1:]:
-            write(conn, as_of, recs)
-            print("→ watchlist_sync.put_recs_daily")
-            score_picks()
+            if write(conn, as_of, recs):
+                print("→ watchlist_sync.put_recs_daily")
+                score_picks()
 
 
 def score_picks():

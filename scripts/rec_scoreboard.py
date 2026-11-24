@@ -138,12 +138,14 @@ def main() -> None:
         worst = w.groupby("t").ret.agg(["size", "sum"]).sort_values("sum").head(5)
         lines.append(f"{nm} worst names (sum % of strike): " + " · ".join(f"{t} {r['sum']:+.1f} (n {int(r['size'])})" for t, r in worst.iterrows()))
     # producer health: days with zero passes / no model_recs
-    ed = set(pd.to_datetime(eng_all.d)); md = set(pd.to_datetime(ml.d))
+    # weekend chain snapshots keep the calendar as_of (Sun 11-01 = Monday 11-02's picks) → roll to the business day they serve
+    bd = lambda s: set(pd.to_datetime(s) + pd.offsets.BDay(0))
+    ed = bd(eng_all.d); md = set(pd.to_datetime(ml.d))
     de = pd.bdate_range(min(ed), last) if ed else []
     wk = sorted({d.to_period("W") for d in md})
     miss_w = [w for w in pd.period_range(min(md).to_period("W"), last.to_period("W") - 1, freq="W") if w not in wk] if md else []
     lines.append(f"\nProducer gaps: put engine missing {sum(d not in ed for d in de)} business days · engine 0-pass "
-                 f"{sum((d in ed) and d not in set(pd.to_datetime(eng.d)) for d in de)} · Model List (weekly Fri snapshot) missing weeks {len(miss_w)}"
+                 f"{sum((d in ed) and d not in bd(eng.d) for d in de)} · Model List (weekly Fri snapshot) missing weeks {len(miss_w)}"
                  + (f" ({', '.join(str(w.start_time.date())[5:] for w in miss_w)})" if miss_w else ""))
     ung = q(c, "SELECT count(*) n FROM model_recs WHERE expiry < CURRENT_DATE - 1 AND status = 'PENDING'").n.iloc[0]
     lines.append(f"Model List expired but ungraded: {ung}")
