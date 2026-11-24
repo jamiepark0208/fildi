@@ -266,8 +266,11 @@ def rows_closes(conn):
 def _tradable(r):
     """11-11: a leg needs a two-sided quote within 50 % of mid — bid-0 / 0–4.9 quotes (QGEN, PTC) made debit spreads
     'cost' less than nothing and printed +24,000 % EV on the board."""
-    b, a = r["bid"], r["ask"]
-    return bool(r["iv"]) and b is not None and a is not None and b > 0 and (a - b) <= 0.5 * (a + b) / 2
+    b, a, iv = r["bid"], r["ask"], r["iv"]
+    # 11-24 (Codex A192 #2): NaN IV and crossed quotes (ask < bid) used to pass
+    if iv is None or b is None or a is None or not all(math.isfinite(float(x)) for x in (iv, b, a)):
+        return False
+    return iv > 0 and b > 0 and a >= b and (a - b) <= 0.5 * (a + b) / 2
 
 
 def _pick(chain, side, target, below=None, above=None):
@@ -455,7 +458,9 @@ def iv_suspect(c) -> str | None:
     long strangle 'EV +2,773 %'. The history-based EV can't price a pinned / broken surface → keep it off every tier (CSP = engine pick)."""
     if c["structure"] == "csp":
         return None
-    ivs = [lg["iv"] for lg in c["legs"] if lg.get("iv")]
+    ivs = [lg.get("iv") for lg in c["legs"]]
+    if any(v is None or not math.isfinite(float(v)) or v <= 0 for v in ivs):
+        return "leg IV missing / NaN"
     rv = c.get("rv20") or 0
     if ivs and max(ivs) > 2.5:
         return f"leg IV {max(ivs):.2f} > 2.5 (solver blowup)"
