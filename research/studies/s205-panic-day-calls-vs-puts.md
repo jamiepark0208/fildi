@@ -23,3 +23,22 @@ Median wait 3 td; index already +3.4 % above the panic close at the un-invert. S
 - Best $ per risk = **ATM/+5 % call spread** (+27 % mean, keeps upside, caps the IV you pay). Best consistency = **5 % OTM index short put** (85 % win). Both beat stock per $ at risk.
 - Short puts were not the wrong instrument on 11-20 — a Friday-sold 5 % OTM SPY put banked ~80 % of max by Monday.
 - No pre-registered claim on single names (NVDA): the reversal came from news (CEO return). S177: long calls after single-name crashes −9 % on average.
+
+## Part B (11-24, Jamie: 'is Fildi able to consider the best structure, not just selling?') — Structures board audit
+**Grade:** every board pick 10-19 → 11-20, first appearance of each contract, held to expiry at the close (`s205/grade_structures_board.py`). 1,765 expired rows → ~1,700 unique. **One falling month (SPY −10 %) — bearish wins = tape, not skill. Read the rank columns, not the sign.**
+| structure (tier) | n | board EV | realized mean | win | rank ρ pred→real |
+|---|---|---|---|---|---|
+| long call (primary) | 38 | +71 % | −78 % | 8 % | −0.29 (all tiers) |
+| CSP (primary / more) | 132 / 136 | +0.4 / +0.3 % | −2.4 / −0.7 % | 66 / 80 % | +0.31 |
+| jade lizard (primary) | 127 | +0.9 % | −1.5 % | 63 % | +0.11 |
+| short strangle (margin) | 105 | +5.8 % | +2.2 % | 73 % | +0.34 |
+| call credit spread (study) | 125 | +5.2 % | +11.2 % | 92 % | +0.60 |
+| iron condor / iron fly (study) | 123 / 126 | +10 / +18 % | −36 / −37 % | 45 / 28 % | ≈ 0 |
+| bull call spread (study) | 55 | +381 % | +11 % (med −100 %) | 9 % | −0.05 |
+| long put / strangle / straddle (study) | 42 / 53 / 49 | +34 / +29 / +16 % | +231 / +154 / +64 % | 83 / 79 / 80 % | ≈ 0–0.2 |
+**Why the board can't pick the best structure yet:**
+1. EV = the stock's own 2-y returns, **de-meaned** (zero drift) → a pure vol-vs-history model. No directional edge (S100, S172, S205) ever enters EV; long-vol looks great on names with wild histories (BMNR strangle +349 %), short-vol whenever IV > history. ρ ≈ 0 in 9 of 14 structures.
+2. Evidence badges = one unconditional backtest (S076) → conditional winners (panic call spreads S177/S205) are 'study only'.
+3. Cross-structure order is hard-coded (CSP claims a ticker first) and EV units differ (% of debit vs % of cash strike), so 'best structure per name' is never computed.
+4. Spec drift: board long call was 0.40Δ ~24 DTE; the tested call (S100) is 0.50Δ ~45 DTE — survey stored no 35–60 DTE ladder.
+**Shipped 11-24:** skew_survey adds the third Friday nearest 45 DTE (same 1 Schwab call/name; +0.18 s/call, full run 2 m 47 s, 0 fails); board long call = 0.50Δ on it (13 picks, all 2027-01-15, K/S 0.99). iv_suspect guard drops non-CSP rows with a leg IV > 2.5 or < 0.3× RV20 (INSM deal pin +2,773 % gone; 5 names hit this month) → data_issues.

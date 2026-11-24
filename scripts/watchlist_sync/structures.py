@@ -67,8 +67,8 @@ CATALOG = {
                        "S076: +2.4 %/trade on margin, t 6.9, worst 5 % −24 %; return÷risk 0.11 < CSP 0.15 → not ranked (CSP better, margin only)."),
     "short_straddle": ("Short straddle", "short_premium", "Sell the ATM put and call (undefined risk).",
                        "Pinned stock, extreme IV; margin only.", "pass", "S076: +2.6 %/trade on margin, t 5.2, worst 5 % −33 %; return÷risk 0.11 < CSP 0.15 → not ranked (CSP better, margin only)."),
-    "long_call": ("Long call", "long_premium", "Buy a ~0.40Δ monthly call.", "Strong uptrend and cheap IV (IV ≤ realized).", "untested",
-                  "S076: promising +14 %/trade when IV is cheap, but t 1.1, 28 % win, mostly 2024→ (bull tape)."),
+    "long_call": ("Long call", "long_premium", "Buy a ~0.50Δ call ~45 DTE, hold to expiry (the S100 spec).", "Rising revisions / earnings surprise / strong trend, IV rank below the week's median.", "untested",
+                  "S100 (0.50Δ ~45 DTE, cheap-IV gate): revisions +44 % per $ debit, holdout +24 pts, t 2.1. Board grade 10-19→11-20 (0.40Δ ~24 DTE, falling tape): −78 %, 8 % win (S205)."),
     "long_put": ("Long put", "long_premium", "Buy a ~0.40Δ monthly put.", "Downtrend / hedge, cheap IV.", "fail",
                  "S076: −6.3 %/trade, 31 % win."),
     "long_straddle": ("Long straddle", "long_premium", "Buy the ATM monthly put and call: profit on a big move either way.",
@@ -192,6 +192,9 @@ def main():
             for c in built:
                 try:
                     c.update(evaluate(c, rv[t], as_of, hist[t]))
+                    c["iv_suspect"] = iv_suspect(c)
+                    if c["iv_suspect"]:
+                        DI.record("structures.py", "iv_suspect", ticker=t, field=c["structure"], detail=c["iv_suspect"])
                     if c.get("s088"):   # one engine for sold puts: show the ladder model's numbers; keep the board's own as ev_board
                         c["ev_board"], c["p_board"] = c["ev_rv_cap"], c["p_rv"]
                         c["ev_rv_cap"] = c["s088"]["expPnlBpWk"] / 1e4
@@ -298,6 +301,8 @@ def _leg(r, qty, front):
 def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
     wk = next((e for e in exps if 5 <= (e - today).days <= 14), None)
     mo = next((e for e in exps if 15 <= (e - today).days <= 52), None)  # A193: 45 left calendar holes
+    # 11-24: long call = the S100 spec (0.50Δ ~45 DTE, hold to expiry) when the survey has a 35–60 DTE ladder; else monthly 0.50Δ
+    lc = next((e for e in exps if 35 <= (e - today).days <= 60 and e != mo), None) or mo
     out = []
 
     def add(sid, legs, extra=None):
@@ -343,7 +348,9 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
                 add("iron_fly", [ap, ac, L("put", 0.16, +1, below=ap["strike"]), L("call", 0.16, +1, above=ac["strike"])])
             add("short_strangle", [L("put", 0.16, -1), L("call", 0.16, -1)])
         else:
-            add("long_call", [L("call", 0.40, +1)])
+            if lc:
+                r = _pick(chains[(t, lc)], "call", 0.50)
+                add("long_call", [_leg(r, +1, lc) if r else None])
             add("long_put", [L("put", 0.40, +1)])
             add("long_straddle", [A("put", +1), A("call", +1)])
             add("long_strangle", [L("put", 0.25, +1), L("call", 0.25, +1)])
@@ -438,7 +445,23 @@ def _clean(c, trim) -> bool:
         return False
     if c["structure"] in BULLISH and c["ticker"] in trim:
         return False
+    if c.get("iv_suspect"):
+        return False
     return True
+
+
+def iv_suspect(c) -> str | None:
+    """11-24 (S205 audit): INSM deal-pinned at ~$170 (leg IV 0.08–0.12, one solver blowup 2.65) vs 2-y history vol 0.86 →
+    long strangle 'EV +2,773 %'. The history-based EV can't price a pinned / broken surface → keep it off every tier (CSP = engine pick)."""
+    if c["structure"] == "csp":
+        return None
+    ivs = [lg["iv"] for lg in c["legs"] if lg.get("iv")]
+    rv = c.get("rv20") or 0
+    if ivs and max(ivs) > 2.5:
+        return f"leg IV {max(ivs):.2f} > 2.5 (solver blowup)"
+    if ivs and rv > 0 and min(ivs) < 0.3 * rv:
+        return f"leg IV {min(ivs):.2f} < 0.3× RV20 {rv:.2f} (deal pin / stale history)"
+    return None
 
 
 def _soft_fit(c) -> bool:

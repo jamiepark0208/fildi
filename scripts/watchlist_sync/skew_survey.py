@@ -35,7 +35,10 @@ def expiries(d: date) -> list[date]:
     ms = [third_friday(d.year + (d.month + k - 1) // 12, (d.month + k - 1) % 12 + 1) for k in range(3)]
     # A193: third Fridays sit 28 or 35 days apart, so a 15–45 DTE window has holes (e.g. 2027-01-01); ≤ 52 always holds one
     mo = min((m for m in ms if 15 <= (m - d).days <= 52), key=lambda m: abs((m - d).days - 30))
-    return sorted({wk, mo})
+    # 11-24 (S205 follow-up): long calls are tested at 0.50Δ ~45 DTE (S100); the board had only ≤ 52 DTE ladders → priced 0.40Δ ~24 DTE.
+    # Third Friday nearest 45 DTE within 35–60 (same one /chains call; the range just widens).
+    lc = [m for m in ms + [third_friday(d.year + (d.month + 2) // 12, (d.month + 2) % 12 + 1)] if 35 <= (m - d).days <= 60]
+    return sorted({wk, mo} | ({min(lc, key=lambda m: abs((m - d).days - 45))} if lc else set()))
 
 
 def universe(conn, n: int) -> list[dict]:
