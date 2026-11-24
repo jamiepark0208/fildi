@@ -76,4 +76,19 @@ describe("put-manage-format (A280)", () => {
     assert.equal(l[4].ann, "-7 % vs spot");
     assert.deepEqual(optionsLines(holdRow), []);
   });
+
+  it("optionsLines assign shows prior roll credits and roll_note (A417)", () => {
+    const row: PutManageRow = {
+      ...holdRow,
+      prior_roll_credit_usd: 60,
+      roll_hops: 1,
+      roll_note: "possible roll on 2025-11-05 not counted",
+      assign: { basis: 14.5, spot: 15.2, vs_spot_pct: 4.8, loss_usd: 0 },
+    };
+    const assign = optionsLines(row).find((l) => l.label === "Assign");
+    assert.ok(assign);
+    assert.match(assign!.newPut, /basis 14\.50/);
+    assert.match(assign!.newPut, /prior roll credits \$60 \(1 roll\)/);
+    assert.match(assign!.newPut, /possible roll on 2025-11-05 not counted/);
+  });
 });

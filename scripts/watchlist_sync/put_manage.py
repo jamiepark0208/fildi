@@ -72,12 +72,16 @@ def _position_open_fill(
     return max(opens, key=lambda x: x.ts) if opens else None
 
 
-def _match_close_before_open(fills: list[Fill], account: str, symbol: str, open_fill: Fill) -> Fill | None:
+def _match_close_before_open(
+    fills: list[Fill], account: str, symbol: str, open_fill: Fill, used: set[str] | None = None
+) -> Fill | None:
     cands = []
     for f in fills:
         if f.account != account or f.symbol != symbol:
             continue
         if f.effect != "close" or f.side != "buy":
+            continue
+        if used is not None and f.order_id in used:
             continue
         if open_fill.expiry < f.expiry:
             continue
@@ -121,6 +125,7 @@ def compute_prior_roll_credits(
     strike: float,
     expiry: date,
     qty: float,
+    used: set[str] | None = None,
 ) -> PriorRollResult:
     if qty <= 0:
         return PriorRollResult(0.0, 0.0, 0, None)
@@ -132,12 +137,14 @@ def compute_prior_roll_credits(
     prior_ps = 0.0
     walk_open = open_cur
     while True:
-        close_a = _match_close_before_open(fills, account, symbol, walk_open)
+        close_a = _match_close_before_open(fills, account, symbol, walk_open, used)
         if close_a is None:
             unlinked = _same_day_unlinked_note(fills, account, symbol, walk_open)
             if unlinked and hops == 0 and prior_ps == 0:
                 note = unlinked
             break
+        if used is not None:
+            used.add(close_a.order_id)
         open_a = _open_before_close(fills, close_a)
         if open_a is None:
             return PriorRollResult(0.0, 0.0, hops, "roll credits unknown")
@@ -212,8 +219,9 @@ def build_options(
     cur = next((r for r in rows if r["expiry"] == str(expiry) and abs(r["strike"] - strike) < 1e-6), None)
     out["spot"] = spot
     if spot:
-        hold_be = strike - credit
-        assign_basis = strike - (credit + prior_roll_ps) if roll_note != "roll credits unknown" else hold_be
+        total_cr = credit + (prior_roll_ps if roll_note != "roll credits unknown" else 0.0)
+        hold_be = strike - total_cr
+        assign_basis = hold_be
         out["assign"] = {
             "basis": round(assign_basis, 4),
             "spot": spot,
@@ -364,6 +372,19 @@ def main():
             exps = [date.fromisoformat(r["expiry"]) for r in out if r["ticker"] == tkr]
             chains[tkr] = chain(tkr, max(min(exps), today), max(exps) + timedelta(days=ROLL_DTE[1]))
             calls += 1
+        used_closes: set[str] = set()
+
+        def _open_fill_ts(r: dict) -> datetime:
+            exp = date.fromisoformat(r["expiry"])
+            o = _position_open_fill(all_fills, r["account"], r["ticker"], r["strike"], exp)
+            return o.ts if o else datetime.max
+
+        roll_cache: dict[tuple[str, str, float, str], PriorRollResult] = {}
+        for r in sorted(out, key=_open_fill_ts):
+            exp = date.fromisoformat(r["expiry"])
+            roll_cache[(r["account"], r["ticker"], r["strike"], r["expiry"])] = compute_prior_roll_credits(
+                all_fills, r["account"], r["ticker"], r["strike"], exp, r["_q"], used=used_closes
+            )
         for r in out:
             q = r.pop("_q")
             r.pop("_bidask", None)
@@ -381,9 +402,7 @@ def main():
                          resell=[{"ticker": n["ticker"], "strike": n["strike"], "expiry": n["expiry"], "income_wk_pct": n["income_wk_pct"]}
                                  for n in nxt] if take else [])
             exp = date.fromisoformat(r["expiry"])
-            roll = compute_prior_roll_credits(
-                all_fills, r["account"], r["ticker"], r["strike"], exp, q
-            )
+            roll = roll_cache[(r["account"], r["ticker"], r["strike"], r["expiry"])]
             bo_kw = dict(
                 prior_roll_ps=roll.prior_per_share,
                 prior_roll_total=roll.prior_total_usd,

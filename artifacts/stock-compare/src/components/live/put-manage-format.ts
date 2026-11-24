@@ -28,6 +28,9 @@ export type PutManageOptions = {
   spot?: number | null;
   rolls?: PutManageRoll[];
   rolls_note?: string;
+  prior_roll_credit_usd?: number;
+  roll_hops?: number;
+  roll_note?: string;
   hold?: { pnl_usd: number; breakeven: number; p_itm?: number | null; p_touch?: number | null };
   close?: { pnl_usd: number; buy_back: number };
   assign?: { basis: number; spot: number; vs_spot_pct: number; loss_usd: number };
@@ -152,15 +155,24 @@ export function optionsLines(row: PutManageRow): OptionsLine[] {
       pTouch: pct(c.p_touch),
       ann: pct(c.ann_pct),
     });
-  if (row.assign)
+  if (row.assign) {
+    const rollUsd = row.prior_roll_credit_usd;
+    const hops = row.roll_hops ?? 0;
+    let assignPut = `basis ${num(row.assign.basis)}`;
+    if (rollUsd != null && rollUsd > 0) {
+      const n = hops === 1 ? "1 roll" : `${hops} rolls`;
+      assignPut += ` · prior roll credits $${Math.round(rollUsd)} (${n})`;
+    }
+    if (row.roll_note) assignPut += ` · ${row.roll_note}`;
     lines.push({
       label: "Assign",
       net: usd(row.assign.loss_usd),
-      newPut: `basis ${num(row.assign.basis)}`,
+      newPut: assignPut,
       breakeven: num(row.assign.basis),
       pItm: "—",
       pTouch: "—",
       ann: `${row.assign.vs_spot_pct >= 0 ? "+" : ""}${row.assign.vs_spot_pct.toFixed(0)} % vs spot`,
     });
+  }
   return lines;
 }
