@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { DataTip } from "@/components/data-tip";
+import type { BookGroupAwareness } from "@/lib/model-list-awareness";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
 import { RiskReversalCard } from "@/components/live/risk-reversal-card";
@@ -19,7 +21,19 @@ type Signal = {
 type Put = {
   ticker: string; rank: number; tier: string; strike: number | null; expiry: string | null; bid: number | null;
   oddsOtm: number | null; incomeWkPct: number | null; why: string | null; cautions: string[]; key: string; seen: boolean;
+  bookGroup?: BookGroupAwareness | null;
 };
+
+/** A407 sector flag (Jamie 11-17: flag, never cap): other ideas today + held names that move with this one (6-mo corr ≥ 0.5). */
+function movesWith(bg: BookGroupAwareness | null | undefined): { label: string; tip: string; hot: boolean } | null {
+  const others = (bg?.list?.length ?? 0) - 1;
+  const held = bg?.held?.length ?? 0;
+  if (!bg || (others < 1 && held < 1)) return null;
+  const label = [others > 0 && `${others} idea${others > 1 ? "s" : ""}`, held > 0 && `${held} held`].filter(Boolean).join(" · ");
+  const tip = `Moves with (avg 6-mo daily corr ${bg.corr}): ${bg.list.join(", ")}`
+    + `${held ? `\nYou hold: ${bg.held.join(", ")}` : ""}\n${bg.same_expiry} of ${bg.of_list} ideas share this expiry. A sell-off hits them together.`;
+  return { label, tip, hot: others + held >= 3 };
+}
 type Overview = {
   status: { lastRun: { at: string | null; status: string | null; failed: string[] }; asOf: Record<string, string | null> };
   signals: Signal[];
@@ -164,7 +178,7 @@ function PutIdeas({ rows, mark }: { rows: Put[]; mark: MarkSeen }) {
       </div>
       <table className="w-full">
         <thead>
-          <tr>{["#", "Ticker", "Strike", "Exp", "Odds", "%/wk", "Tier", "Caution"].map((h) => <th key={h} className={cn(TH, h === "Caution" ? "text-left" : "")}>{h}</th>)}</tr>
+          <tr>{["#", "Ticker", "Strike", "Exp", "Odds", "%/wk", "Tier", "Moves with", "Caution"].map((h) => <th key={h} className={cn(TH, h === "Caution" ? "text-left" : "")}>{h}</th>)}</tr>
         </thead>
         <tbody>
           {shown.map((p) => (
@@ -177,6 +191,11 @@ function PutIdeas({ rows, mark }: { rows: Put[]; mark: MarkSeen }) {
               <td className={cn(TD, "text-right")}>{p.oddsOtm != null ? `${Math.round(100 * p.oddsOtm)} %` : "—"}</td>
               <td className={cn(TD, "text-right")}>{p.incomeWkPct != null ? p.incomeWkPct.toFixed(2) : "—"}</td>
               <td className={cn(TD, p.tier === "best" ? "text-green-400" : "text-sky-300")}>{p.tier}</td>
+              <td className={cn(TD, "whitespace-nowrap")}>
+                {(() => { const m = movesWith(p.bookGroup); return m
+                  ? <DataTip tip={m.tip}><span className={m.hot ? "text-amber-300" : "text-white/70"}>{m.label}</span></DataTip>
+                  : <span className="text-white/40">—</span>; })()}
+              </td>
               <td className={cn(TD, "text-left text-amber-200/60 max-w-[360px] truncate")} title={p.cautions.join("\n")}>
                 {p.cautions[0] ?? ""}{p.cautions.length > 1 ? ` (+${p.cautions.length - 1})` : ""}
               </td>

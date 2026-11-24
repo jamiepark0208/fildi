@@ -1194,6 +1194,7 @@ router.get("/today/overview", requireAdmin, async (_req, res, next) => {
         ticker, rank, tier: (p.tier as string) ?? "best", strike: p.strike, expiry: p.expiry, bid: p.bid, delta: p.delta,
         oddsOtm: p.odds_otm ?? (typeof p.delta === "number" ? 1 - Math.abs(p.delta) : null), incomeWkPct: p.income_wk_pct,
         why: p.why, cautions: (p.cautions as string[]) ?? [], key: `put:${ticker}:${putAsOf}`, seen: putSeen.has(`put:${ticker}:${putAsOf}`),
+        bookGroup: p.book_group ?? null, // A407 sector flag (11-17): co-moving ideas + held names; awareness only, never a cap
       })),
     });
   } catch (err) {
