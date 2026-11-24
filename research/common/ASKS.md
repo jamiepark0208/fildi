@@ -136,4 +136,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A414](asks/A414.md) | 2026-11-19 | Muse → Cursor | [Low] Capital plan: long-put odds label reads backwards ("above breakeven" is the losing side) | planned |
 | [A415](asks/A415.md) | 2026-11-19 | Muse → Claude → Cursor | Merton jump-diffusion for the short-put book: explain S075's far-OTM gap, beat the GBM breach ranker | planned |
 | [A416](asks/A416.md) | 2026-11-20 | Muse → Cursor | CI red on cursor/mac-dev: api-server unit tests fail since a7e6294; secret scan fails since 4b1de13 (High) | done |
-| [A417](asks/A417.md) | 2026-11-23 | Muse → Claude → Cursor | Roll/defend analyzer ignores prior-roll credits — assign basis overstates cost on every rolled put | planned |
+| [A417](asks/A417.md) | 2026-11-23 | Muse → Claude → Cursor | Roll/defend analyzer ignores prior-roll credits — assign basis overstates cost on every rolled put | verified |

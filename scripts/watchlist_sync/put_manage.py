@@ -374,10 +374,10 @@ def main():
             calls += 1
         used_closes: set[str] = set()
 
-        def _open_fill_ts(r: dict) -> datetime:
+        def _open_fill_ts(r: dict) -> tuple:
             exp = date.fromisoformat(r["expiry"])
             o = _position_open_fill(all_fills, r["account"], r["ticker"], r["strike"], exp)
-            return o.ts if o else datetime.max
+            return (o is None, o.ts if o else 0)   # no fills → last; never compare naive datetime.max with tz-aware fill times
 
         roll_cache: dict[tuple[str, str, float, str], PriorRollResult] = {}
         for r in sorted(out, key=_open_fill_ts):
