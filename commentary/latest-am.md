@@ -1,106 +1,106 @@
-Morning brief — Tue, Nov 24, 2026
+Morning brief — Wed, Nov 25, 2026
 
 Top stories
-- **NVDA gives back: -4.8% premarket after Monday's +31.48%; Nasdaq futures -1.88% to 26,302.75. Wrong if the S&P closes above 7,347.**
-- **Tariff hike coming:** WSJ reports USTR may announce Section 301 findings this week — China, the EU + 14 economies; the EU, Japan and Korea face 15% or lower, China higher; duties stack on July's 10–12.5%.
-- **Iran pressure rises:** Bessent sanctioned 2 dozen+ Iranian exchange houses and front companies (Operation Economic Outcast, Nov 24); the IRGC claims tankers hit mines near Hormuz (unverified); **WTI** +0.85% to $80.85, **Brent** -2.07% to $87.52 — supply surplus still caps oil.
+- **NVDA -4.8% as Trump (R) pardon talk and Dec 1/3 testimony hit AI: Nasdaq futures -3.31%. Wrong if the S&P closes above its 50-day (~7,612).**
+- **Core PCE hot:** core PCE +3.3% y/y vs +3.2% expected, headline +3.8% in line; Q3 GDP revised to +4.3% vs +3.6% expected; a Dec 25bp hike is ~96% priced (CME FedWatch).
+- **Tariffs return:** the US will impose new Section 301 duties on 14 partners including China, the EU and Japan, with an announcement as soon as this week; duties stay capped at trade-deal levels.
 
 Overnight
-- **Asia higher on chips:** **KOSPI** +6.32% to 5,006.03 (sidecar triggered); **Nikkei** +3.91% to 58,644.63; **TAIEX** +9% — semis led on Huang's return.
-- **Europe lower:** **STOXX** -0.54% to 633.53; **FTSE** -0.23% to 10,456.61; **DAX** -0.63% to 25,293.75.
-- **Futures vs two baselines:** **S&P** futures ~7,176 sit below Monday's close (7,237.17) and below the morning brief's ~7,213 level.
+- **Asia slides on semis:** **KOSPI** -6.16% to 4,697.51 and **Nikkei** -2.78% to 57,011.62; Japan's services PPI rose at its fastest pace since 1990.
+- **Europe steadier:** **STOXX 600** -0.29% intraday and **FTSE 100** +0.07%; German Q3 GDP revised down to +0.1% from +0.2% prelim.
+- **Futures:** **S&P** futures -2.09% vs Tuesday's close, lower than the -1.83% StreetAccount printed at 6:49 ET.
 
 Desk lines
-- **Gamma:** CBOE chain blocked (403) for **SPY** and **QQQ** — no flip/walls read today.
-- **Sectors:** best **XLK** +8.97%, **XLY** +3.97%; worst **XLE** -1.06%, **XLP** -0.09% (Monday) — chips led the bounce, energy lagged.
-- **Levels:** **S&P** 30-day range 6,910.39–7,805.45; close 7,237.17, -5.0% below the 50-day (~7,618); reclaim line 7,347.
-- **Credit:** HY OAS 3.76% (Nov 20, FRED — latest print), +24bp from 3.52% Nov 19; 2s10s +20bp (2Y 4.69% vs 10Y 4.89%).
+- **Gamma:** **SPY** spot 704.38, expiry Nov 27 (2 DTE) — no flip, net GEX negative; call wall 715, put wall 700, max pain 721. **QQQ** 617.90, walls 640/600, max pain 644 — dealers amplify moves both ways, trend day.
+- **Sectors:** best **XLV** +2.95%, **XLP** +1.66%; worst **XLK** -3.26%, **XLI** -0.53% — defensives led while tech lagged (Nov 24).
+- **Levels:** **S&P** 30-day range 6,910.39–7,757.17; close 7,201.09, -5.4% below the 50-day (~7,612).
+- **Credit:** HY OAS 3.63% (Nov 23, FRED), -13bp from 3.76% Nov 20; 2s10s +20bp (2Y 4.63% Nov 23 vs 10Y 4.83%) — spreads tight, no credit warning.
 
 Moves
 | Name | Last close | Futures | Overnight % | 1W % | 1M % |
 |---|---|---|---|---|---|
-| S&P 500 | 7,237.17 | ~7,176 | -1.08% | -2.42% | -5.07% |
-| Dow | 49,595.31 | ~49,298 | -0.60% | -3.90% | -5.02% |
-| Nasdaq 100 | 26,746.10 | ~26,303 | -1.88% | -1.66% | -7.64% |
-| Russell 2000 | 2,669.66 | ~2,656 | -0.69% | -2.67% | -3.83% |
-| Nikkei 225 | 58,644.63 | — | +3.91% | -1.71% | -6.46% |
-| KOSPI | 5,006.03 | — | +6.32% | +0.76% | -9.81% |
-| STOXX 600 | 633.53 | — | -0.54% | -2.64% | -0.35% |
-| FTSE 100 | 10,456.61 | — | -0.23% | -2.18% | -2.19% |
-| 10Y yield | 4.89% | — | -3bp | -22bp | -10bp |
-| 30Y yield | 5.27% | — | -2bp | -19bp | -4bp |
-| WTI crude | $80.85 | — | +0.85% | -6.00% | -21.71% |
-| Brent crude | $87.52 | — | -2.07% | -6.03% | -25.02% |
-| Gold | $3,619.30 | — | -0.88% | -6.34% | -9.70% |
-| Bitcoin | $60,270 | — | -1.54% | -2.64% | -24.68% |
-| VIX | 29.55 | — | +11.01% | +16.06% | +51.93% |
+| S&P 500 | 7,201.09 | 7,067.00 | -2.09% | -1.90% | -5.54% |
+| Dow | 50,018.70 | 49,387.00 | -1.35% | -1.46% | -4.21% |
+| Nasdaq 100 | 26,214.17 | 25,405.00 | -3.31% | -2.92% | -9.47% |
+| Russell 2000 | 2,684.94 | 2,650.90 | -1.43% | -0.63% | -3.28% |
+| 10Y yield | 4.83% | — | -7bp | -23bp | -15bp |
+| 30Y yield | 5.25% | — | -4bp | -17bp | -5bp |
+| WTI crude | $82.52 | — | +0.57% | -1.07% | -19.05% |
+| Brent crude | $89.32 | — | +0.61% | -3.05% | -23.02% |
+| Gold | $3,507.00 | — | -2.34% | -6.16% | -13.05% |
+| Bitcoin | $58,281.53 | — | -2.45% | -0.87% | -27.14% |
+| VIX | 31.49 | — | +19.46% | +28.26% | +71.29% |
+| Nikkei 225 | 57,011.62 | — | -2.78% | -3.14% | -8.33% |
+| KOSPI | 4,697.51 | — | -6.16% | -7.30% | -14.11% |
+| STOXX 600 (intraday) | 630.91 | — | -0.29% | -2.06% | -1.54% |
+| FTSE 100 (intraday) | 10,474.89 | — | +0.07% | -0.75% | -2.74% |
 
 Data
 | Print | When | Actual | Consensus | Prior |
 |---|---|---|---|---|
-| ADP weekly private payrolls, 4-week avg | Nov 24 ~5:16a ET | 21,000 | — | — |
-| Consumer confidence, Nov | Nov 24 10:00a ET | — | ~92.1 | — |
-| FHFA house prices / Case-Shiller, Sep | Nov 24 10:00a ET | — | — | — |
-| Richmond Fed manufacturing, Nov | Nov 24 10:00a ET | — | — | — |
+| Core PCE m/m, Oct | Nov 25 8:30a ET | +0.3% | +0.3% | +0.3% |
+| Core PCE y/y, Oct | Nov 25 8:30a ET | 3.3% | 3.2% | 3.1% |
+| Headline PCE y/y, Oct | Nov 25 8:30a ET | 3.8% | 3.8% | 3.6% |
+| GDP Q3, 2nd est | Nov 25 8:30a ET | 4.3% | 3.6% | 3.4% (1st est) |
+| Durable goods, Oct | Nov 25 8:30a ET | +0.2% | +1.1% | +1.8% |
+| Jobless claims | Nov 25 8:30a ET | 189K | 200K | 202K rev |
+| Personal income, Oct | Nov 25 8:30a ET | +0.7% | +0.4% | +0.2% |
+| Personal spending, Oct | Nov 25 8:30a ET | +0.3% | +0.4% | +0.6% rev |
+| New home sales, Oct | Nov 25 10:00a ET | — | 645K | 676K |
+| Beige Book | Nov 25 2:00p ET | — | — | — |
 
 Names
 | Name | Day % | Why |
 |---|---|---|
-| NVDA | -4.8% | Gives back part of Monday's +31.48% surge. |
-| ADI | -11.0% | Beat EPS $4.06 vs $3.89, guide light; bar high. |
-| HPE | -11.1% | Beat and raised FY27, Q1 guide lagged estimates. |
-| SMTC | -12.6% | Beat, fell anyway; hardware bar above a beat. |
-| MU | -6.9% | Memory gives back Monday's +19.04% jump. |
-| DKS | +16.0% | Strong Q3; retailer beat rewarded. |
-| INSM | +14.6% | Sanofi buys at $175/sh cash, $41B total. |
-| BBY | +4.1% | Beat $1.62 vs $1.49, raised FY27 guide. |
-| DLTR | +7.7% | Beat $1.16 vs $0.92, raised guide. |
-| DELL | -6.8% | Reports after close; options price ±13.11%. |
+| NVDA | -4.8% | Trump (R) pardon talk, Dec 1/3 testimony; Monday's +31% rally nearly gone. |
+| AMBA | -36.2% | Q4 guide $70–75M vs $112M; memory crunch chokes orders. |
+| WDAY | -10.0% | Solid Q3, weak subscription backlog; software sold. |
+| DELL | -7.8% | Beat and $25B buyback, still sold; demand fears beat numbers. |
+| MU | -5.9% | Memory gives back Monday's +19.04% jump. |
+| HPE | -5.4% | AI-server shortage warning still weighing. |
+| ANT | -5.2% | Below $83 IPO price; AI-IPO premium gone. |
+| ADSK | -4.4% | Guidance underwhelms; software joins the slide. |
+| DE | -3.5% | EPS $3.89 vs $4.03; inside its ±7.9% implied move. |
+| MSFT | -2.5% | Mag 7 all lower; no shelter in hyperscalers. |
 
-**Also:** **A** +6.8% on a beat-and-raise; **MDT** -4.7% on a revenue miss; **KSS** +8.6%.
-**After close:** **DELL** ±13.11%, **HPQ** ±9.90%, **ADSK** ±9.75%, **WDAY** ±9.42% (TipRanks, Nov 24).
-**Before open implied:** **ADI** ±7.54%, **BBY** ±8.70% (TipRanks, Nov 24).
+Premarket moves, ~8:30 ET.
 
-**Breadth (Monday):** gainers outnumbered decliners by more than 5:1, but equal-weight trailed cap-weight by 200+bp — a top-heavy bounce.
-**Breadth (premarket):** decliners lead advancers 1,820 to 1,174; only 26.5% of stocks sit above their 40-day average.
+**Breadth:** NYSE advancers led ~1.2:1 on Nov 24 while Nasdaq decliners barely led; equal-weight **S&P** gained +0.5% against cap-weighted -0.50%; new lows outnumbered new highs on both exchanges.
 
 Desk flagged
-- **Nov 24:** Vance and Rubio met separately with Qatar's prime minister to revive Iran talks (Al Arabiya via StreetAccount) — a diplomatic channel runs alongside the sanctions and blockade; if talks stall, the Hormuz premium returns.
-- **Nov 24:** Shutdown odds rise as senators scramble for a fragile deal tied to Iran (The Hill via StreetAccount) — a shutdown would freeze data releases into the Dec 9 FOMC.
+- **Nov 25:** Japan's services PPI rose at its fastest pace since 1990, reinforcing Dec **BOJ** hike expectations; yen 159.34, **BOJ** 1.25% vs Fed 3.75–4.00%.
+- **Nov 25:** a hot print compresses that differential and yen strength unwinds carry trades (**CFTC** yen shorts ~92K, ~$500B carry per Morgan Stanley), and forced selling hits US risk.
+- **Nov 25:** Aug 2024 is the precedent (**BOJ** +15bp, **Nikkei** -12.4%, **S&P** -3%, **VIX** 65); Sep 2026 is the counter-case — the Fed hiked first and nothing unwound.
+- **Nov 25:** tougher US chip curbs push Southeast Asian lenders to review data-center financing (Maybank) — the credit side of the AI buildout is tightening.
 
 Voices
-- **Jim Cramer** (CNBC Mad Money, Nov 24): **NVDA** deserves ~12x next year's earnings, a $199 target; $215 stays out of reach for now — data-center ballot losses (40 of 41), chip-export scrutiny, and Fed hike talk cap the multiple.
-- **Mike Wilson** (Morgan Stanley, note Nov 23): "Markets bottom on bad news and deleveraging" — the **S&P** trades at 16.4x forward earnings, below his 19–19.6x fair value; sentiment matches Dec 2018 lows.
-- **Stephanie Link** (Hightower, CNBC Closing Bell, Nov 23): added to **Micron** — "super cheap," organic growth 37%, down 23% from highs; agrees with Wilson: "this is the fat pitch."
-- **Ed Yardeni** (Yardeni Research, morning briefing, Nov 23): the selloff is a correction inside a bull market — valuations shrank while 2028 consensus EPS rose to $498.44; forward P/E 16.4, lowest since the 2022 bear market.
+- **Ed Yardeni** (Yardeni Research, CNBC, Nov 24): Monday's rebound may be a "one-day wonder"; the Fed should hike 50bp, though a 25bp hike is "certainly" on the cards. Hawkish.
+- **Tom Lee** (Fundstrat, CNBC, Nov 24): Lee calls this the "max pain" moment for patient investors and expects a 15% **Nasdaq** rally; he called the bottom Nov 2 and the **S&P** fell ~8% after.
+- **Jim Cramer** (CNBC Mad Money, Nov 25): a "great bifurcation" is moving money from speculative neocloud names into hyperscalers; he is buying the dip with the **S&P** oscillator at -8.75% oversold, and singled out **AMD** as a buy.
+- **Jeremy Siegel** (Wharton/WisdomTree, Nov 25): the market is overlooking a tailwind in sharply falling energy prices.
 
 Implications
-- **Event-stack guard still triggered:** **VIX** 29.55 above **VIX3M** 25.50 (Nov 23) — backwardation — with core PCE/GDP Wednesday inside the window.
-- **December hike fully priced:** 100% odds of a 25bp hike (CME FedWatch via Benzinga, Nov 24) vs ~93% Monday — the hike is in the price; the Dec 9 surprise would be the dots, not the move.
-- **Reclaim line unchanged:** 7,347 — the open (~7,176) stays below it, so don't chase; wait for a close above it before re-adding.
-- **Thin week:** market closed Thu for Thanksgiving, early close Fri 1:00 PM ET; keep size small into Wednesday's core PCE/GDP.
+- **Event-stack guard triggered:** **VIX** 31.49 vs **VIX3M** 25.47 — backwardation widened to ~6 pts from 0.89 pts — with this morning's data wall inside the window.
+- **No new short premium into the holiday gap:** market closed Thu for Thanksgiving, early close Fri 1:00 PM ET; Friday's 2-DTE **SPY** expiry carries net GEX negative, so gaps run both ways.
+- **Earnings vol:** **DE** moved -3.5% premarket, inside its ±7.9% implied move; **CRM**, **SNOW** and **MRVL** report after the close, with implied moves unavailable in the sources checked.
 
 What to watch (next 5 sessions)
-- **Tue Nov 24 10:00 AM ET:** consumer confidence (~92.1 cons), house prices, Richmond Fed; $70B 5-year auction; **DELL** ±13.11%, **HPQ** ±9.90%, **ADSK** ±9.75%, **WDAY** ±9.42% after close.
-- **Wed Nov 25 8:30 AM ET:** core PCE, GDP 2nd est, durables, claims, new home sales; Beige Book; **DE** reports (EPS ~$4.06 est).
-- **Thu Nov 26:** Thanksgiving, market closed.
-- **Fri Nov 27:** trade balance; market closes 1:00 PM ET.
-- **Mon Nov 30:** December opens; Fed blackout starts Nov 28; Dec 9 FOMC in view.
+- **Thu Nov 26:** Thanksgiving — market closed; Bank of Korea decision expected (+25bp to 3.25%); **OPEC+** meets this weekend on 2027 baselines.
+- **Fri Nov 27:** market closes 1:00 PM ET; trade balance; **SPY**/**QQQ** 2-DTE expiry.
+- **Mon Nov 30:** December opens; Fed blackout starts Nov 28; Dec 9 **FOMC** in view (25bp hike ~96% priced).
+- **Tue Dec 1:** ISM manufacturing; Huang testifies behind closed doors to House committees.
+- **Wed Dec 2:** ADP employment.
 
 Sources
-- Desk: Gmail label tradedash-brief (FactSet StreetAccount U.S. Overnight, 7:00 AM ET; StreetAccount Politics of the Market, Nov 24; Bloomberg breaking tariff alert, 06:05 PT; GuruFocus First Look).
-- Futures: Options Recap pre-market brief (ES 7,176.25 -1.08%, NQ 26,302.75 -1.88%, RUT 2,655.70 -0.69%, ~7:46 AM ET); WSJ (NQ -1.8%, SPX -1%, Dow -0.6%); Reuters (5:26 AM ET: Dow -0.14%, SPX -0.46%, NQ -1.11%).
-- Closes: Yahoo Finance daily closes (^GSPC/^DJI/^NDX/^RUT/^KS11/^N225/^STOXX/^FTSE/^TNX/^TYX/^FVX/^VIX/^VIX3M/CL=F/BZ=F/GC=F/BTC-USD) via closes-1w1m.py; rates/commodities/VIX levels are the ~06:15 PT intraday snapshot.
-- Asia/Europe: Yahoo ^KS11/^N225 closes (KOSPI 5,006.03 +6.32%, Nikkei 58,644.63 +3.91%); Newsquawk (TAIEX +9%, KOSPI sidecar); Reuters (STOXX 635.92 -0.16% at 09:20 GMT); Analytics Insight (DAX -0.63% to 25,293.75).
-- Tariffs: Bloomberg Law/Bloomberg (announcement as soon as Tuesday, China/EU + 14 economies, replaces Supreme Court-struck levies); WSJ via DailyFoxNews/Seeking Alpha (EU/Japan/Korea likely ≤15%, China higher, stacks on July 10–12.5%, futures legged lower ~8:00 AM ET); USTR Section 301 probe opened Mar 11, 2026.
-- Iran: Benzinga via TradingView (Bessent sanctions, 2 dozen+ exchange houses/front companies, Operation Economic Outcast); Analytics Insight (IRGC mine claims unverified, WSJ tanker cyberattack probe); LinkedIn State of the Strait (Brent $89.37, WTI $80.17 Monday).
-- Earnings: TipRanks (implied moves Nov 24); Wall Street Journal via wallsti.com (ADI $4.06 vs $3.89, $4.4B, -11.0% pre; BBY $1.62 vs $1.49, +4.1%; DLTR $1.16 vs $0.92, +7.7%; MDT $1.34 vs $1.33, revenue miss, -4.7%; HPE $1.43 vs $1.29, -11.1%); Options Recap (DKS +15.96%, INSM +14.63%, SMTC -12.61%, MU -6.9%, SOXL -13%, breadth 1,820/1,174, 26.5% above 40-day).
-- Fed: Benzinga via TradingView (Dec hike 100% priced, CME FedWatch); StreetAccount Overnight (Williams: inflation expectations anchored, inflation to just above 2% next year; $70B 5-year auction).
-- Sectors: Yahoo sector ETF Monday closes via closes-1w1m.py (XLK +8.97%, XLY +3.97%, XLE -1.06%, XLP -0.09%).
-- Credit: FRED BAMLH0A0HYM2 (3.76% Nov 20, +24bp from 3.52% Nov 19; no Nov 23 print posted); Yahoo ^FVX/^TNX (2Y 4.69%, 10Y 4.89%, 2s10s +20bp).
-- Data: Raydn (ADP 4-week avg 21,000, 5:16 AM ET); StreetAccount Overnight (confidence/house prices/Richmond Fed 10:00 AM ET; ~92.1 cons from Monday brief).
-- Breadth: StreetAccount via Monday recap (gainers >5:1, equal-weight -200bp); Confluence Trading Tools pre-market brief (decliners 1,820 vs advancers 1,174, 26.5% above 40-day).
-- Voices: TipRanks/Chorus (Cramer, Mad Money Nov 24, $199 target, oscillator -8.6); CNBC TV18 via TradingView (Wilson note Nov 23, 16.4x, sentiment -1.6); EliteCurrensea/OnTape (Link, Closing Bell Nov 23, added Micron); Finwire (Yardeni briefing Nov 23, 2028 EPS $498.44).
-- Gamma: gex-levels.py failed — CBOE returned HTTP 403 for SPY and QQQ.
-- Levels: make-chart.py (S&P 30-day range 6,910.39–7,805.45, -5.0% vs 50-day).
-- Verification notes: STOXX/FTSE Monday closes revised in Yahoo data (STOXX 636.97 / FTSE 10,480.82) vs the Nov 23 brief's 633.77 / 10,434.64 — Yahoo series used for 1W/1M. Brent Monday $89.37 (Yahoo/LinkedIn) vs the Nov 23 recap's $86.79 — Yahoo series used. WTI Monday $80.17 (Yahoo/LinkedIn) vs recap's $80.25 — Yahoo series used. VIX 29.55 and rates/commodities levels are the ~06:15 PT Yahoo intraday snapshot, not closes. 10Y/30Y 1W/1M converted from relative % to bp (10Y -22bp/-10bp, 30Y -19bp/-4bp). A402 CEO-succession seed numbers are directional per Grok's Nov 13 review; no succession trigger fired today. No Japan trigger: no hot PPI/BOJ news; yen ~159. Tariff trigger: no seed base rate in the A402 library for tariffs; the bullet carries the mechanism plus the April 2025 tariff-turmoil anchor (worst week since that month's turmoil, per Finwire). No fildi snapshot: morning edition is public-data-only per standing rule.
+- Closes: Yahoo Finance daily closes via closes-1w1m.py + live quotes (^GSPC/^DJI/^NDX/^RUT/^TNX/^TYX/CL=F/BZ=F/GC=F/BTC-USD/^VIX/^VIX3M/^KS11/^N225/^STOXX/^FTSE; futures ES=F/NQ=F/YM=F/RTY=F).
+- Desk: Gmail label tradedash-brief (StreetAccount U.S. Overnight 6:50 AM ET Nov 25; StreetAccount Politics of the Market; Bloomberg tariff alert 5:22 AM PT; GuruFocus First Look; Daily Upside; WSJ Markets A.M.).
+- Data: BEA via Reuters/WSJ/IBD (core PCE 3.3%, GDP 4.3%, claims 189K, durables +0.2%); WSJ survey consensus.
+- Earnings: StreetAccount (DE $3.89 vs $4.03, DELL $9.45 vs $6.60, $25B buyback); BRF premarket movers; Reuters (AMBA -36%); Barron's (ANT -5.2% to $78.17); Tapeboard (CRM/SNOW/MRVL after close).
+- Gamma: gex-levels.py (CBOE delayed chain, SPY + QQQ).
+- Levels: make-chart.py (S&P 30-day range, 50-day gap; NVDA chart 2).
+- Credit: FRED BAMLH0A0HYM2 (3.63% Nov 23) and DGS2 (4.63% Nov 23); Yahoo ^TNX.
+- Breadth: Nov 24 close (CAMS recap via Nov 24 pm brief).
+- Voices: TradingView/Stocktwits (Yardeni CNBC Nov 24); mitrade (Lee CNBC video Nov 24); Chorus/CNBC (Cramer Mad Money Nov 25); TradingView/Benzinga (Siegel Nov 25).
+- Fed: CME FedWatch via BigGo/TradingView (~96% 25bp).
+- Desk flagged: StreetAccount (Japan services PPI, BOK, chip curbs/Maybank).
+- Verification notes: A402 CEO-succession seed numbers NOT used (directional per Grok Nov 13 review); Japan carry trigger uses body-seeded positioning (CFTC ~92K, ~$500B Morgan Stanley) with Aug 2024 precedent and Sep 2026 counter-case; Brent/Gold 1W/1M from Yahoo daily bars; STOXX/FTSE Moves values are intraday levels; no fildi snapshot — A413 planned, not built; Mac Postgres unreachable from this VM.
