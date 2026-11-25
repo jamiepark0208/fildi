@@ -599,5 +599,888 @@
       "promise": {"pnl_wk_bp": 9.3, "breach_max": 0.25},
       "floor": {"pnl_wk_bp": 0, "breach_max": 0.35}
     }
+  },
+  "structure_roles": {
+    "_doc": "A192 V3 / Codex D1 (11-24): one registry, canonical TS builder IDs (templates.ts ALL_TEMPLATES). Metadata only — no new weights or thresholds; legacy engine rules unchanged. Unknown id → unsupported (strategy_engine.fit). Roles are geometry jobs, not proven signals.",
+    "version": "roles-1.0",
+    "templates": {
+      "long_stock": {
+        "allowed_roles": [
+          "directional_up",
+          "baseline"
+        ],
+        "default_role": "directional_up",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Directional up; continuation/reclaim context; cash/financing and downside baseline."
+      },
+      "short_stock": {
+        "allowed_roles": [
+          "directional_down"
+        ],
+        "default_role": "directional_down",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Directional down; rejection/downtrend; borrow/dividend costs and unlimited upside loss."
+      },
+      "cash_secured_put": {
+        "allowed_roles": [
+          "bullish_income",
+          "acquire_stock"
+        ],
+        "default_role": "bullish_income",
+        "technical_uses": [
+          {
+            "feature": "put_edge_q",
+            "use": "filter",
+            "policy": "legacy:sell_put",
+            "evidence": "S059: put-edge Q1–Q3 lose after fills"
+          },
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_put",
+            "evidence": "not rich: IV/RV < 1.15 (S059 t +12)"
+          },
+          {
+            "feature": "put_edge_q",
+            "use": "rank",
+            "policy": "legacy:sell_put",
+            "weight": 1
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_put",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "put_edge_q",
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_put",
+        "board_id": "csp",
+        "note": "Acquire stock / bullish income; support and downside-path risk; premium richness is separate."
+      },
+      "covered_call": {
+        "allowed_roles": [
+          "overlay_long_shares"
+        ],
+        "default_role": "overlay_long_shares",
+        "technical_uses": [
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_call",
+            "evidence": "not rich: IV/RV < 1.15"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_call",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_call",
+        "board_id": "covered_call",
+        "note": "Overlay on long shares; upside cap versus resistance/breakout risk; grade total position AND overlay versus shares."
+      },
+      "collar": {
+        "allowed_roles": [
+          "protect_long_shares"
+        ],
+        "default_role": "protect_long_shares",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "board_context_only",
+        "board_id": "collar",
+        "note": "Protect long shares; adverse-path protection versus cost/upside surrendered, not standalone positive return."
+      },
+      "long_call": {
+        "allowed_roles": [
+          "directional_up"
+        ],
+        "default_role": "directional_up",
+        "technical_uses": [
+          {
+            "feature": "iv_pctile",
+            "use": "filter",
+            "policy": "legacy:long_call",
+            "evidence": "not cheap: IV rank ≥ today's median (Jamie 10-24; S100 +10/13 angles)"
+          },
+          {
+            "feature": "verdict",
+            "use": "filter",
+            "policy": "legacy:long_call",
+            "evidence": "Model List risk flag (red) → no bullish trade"
+          },
+          {
+            "feature": "ret60",
+            "use": "filter",
+            "policy": "legacy:long_call",
+            "evidence": "S100: 60-day strength is the best single long-call input"
+          },
+          {
+            "feature": "arm",
+            "use": "rank",
+            "policy": "legacy:long_call",
+            "weight": 1
+          },
+          {
+            "feature": "ret60",
+            "use": "rank",
+            "policy": "legacy:long_call",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_pctile"
+        ],
+        "optional_inputs": [
+          "verdict",
+          "ret60"
+        ],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:long_call",
+        "board_id": "long_call",
+        "note": "Directional up; move magnitude and timing must cover debit; no call-writing-score inversion."
+      },
+      "long_put": {
+        "allowed_roles": [
+          "directional_down",
+          "protect_long_shares"
+        ],
+        "default_role": "directional_down",
+        "technical_uses": [
+          {
+            "feature": "iv_pctile",
+            "use": "filter",
+            "policy": "legacy:long_put",
+            "evidence": "not cheap: IV rank ≥ today's median"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:long_put",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_pctile"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:long_put",
+        "board_id": "long_put",
+        "note": "Directional down OR protect long shares; explicit role, distinct comparator and evidence."
+      },
+      "bull_put_spread": {
+        "allowed_roles": [
+          "bullish_income"
+        ],
+        "default_role": "bullish_income",
+        "technical_uses": [
+          {
+            "feature": "put_edge_q",
+            "use": "filter",
+            "policy": "legacy:sell_put",
+            "evidence": "S059: put-edge Q1–Q3 lose after fills"
+          },
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_put",
+            "evidence": "not rich: IV/RV < 1.15 (S059 t +12)"
+          },
+          {
+            "feature": "put_edge_q",
+            "use": "rank",
+            "policy": "legacy:sell_put",
+            "weight": 1
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_put",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "put_edge_q",
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_put",
+        "board_id": "put_spread",
+        "note": "Bullish income; downside path versus short/long strikes; do not inherit CSP evidence."
+      },
+      "bear_call_spread": {
+        "allowed_roles": [
+          "bearish_income"
+        ],
+        "default_role": "bearish_income",
+        "technical_uses": [
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_call",
+            "evidence": "not rich: IV/RV < 1.15"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_call",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_call",
+        "board_id": "call_spread",
+        "note": "Bearish/capped-income view; upside rejection and adverse breakout path; not a covered-call overlay."
+      },
+      "debit_call_vertical": {
+        "allowed_roles": [
+          "directional_up"
+        ],
+        "default_role": "directional_up",
+        "technical_uses": [
+          {
+            "feature": "iv_pctile",
+            "use": "filter",
+            "policy": "legacy:long_call",
+            "evidence": "not cheap: IV rank ≥ today's median (Jamie 10-24; S100 +10/13 angles)"
+          },
+          {
+            "feature": "verdict",
+            "use": "filter",
+            "policy": "legacy:long_call",
+            "evidence": "Model List risk flag (red) → no bullish trade"
+          },
+          {
+            "feature": "ret60",
+            "use": "filter",
+            "policy": "legacy:long_call",
+            "evidence": "S100: 60-day strength is the best single long-call input"
+          },
+          {
+            "feature": "arm",
+            "use": "rank",
+            "policy": "legacy:long_call",
+            "weight": 1
+          },
+          {
+            "feature": "ret60",
+            "use": "rank",
+            "policy": "legacy:long_call",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_pctile"
+        ],
+        "optional_inputs": [
+          "verdict",
+          "ret60"
+        ],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:long_call",
+        "board_id": "bull_call_spread",
+        "note": "Moderate upside / target; probability mass below entry, in payoff ramp and above cap."
+      },
+      "debit_put_vertical": {
+        "allowed_roles": [
+          "directional_down"
+        ],
+        "default_role": "directional_down",
+        "technical_uses": [
+          {
+            "feature": "iv_pctile",
+            "use": "filter",
+            "policy": "legacy:long_put",
+            "evidence": "not cheap: IV rank ≥ today's median"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:long_put",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_pctile"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:long_put",
+        "board_id": "bear_put_spread",
+        "note": "Moderate downside OR hedge; target and cap; hedge assessed with underlying exposure."
+      },
+      "iron_condor": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_vol",
+            "evidence": "not rich: IV/RV < 1.15"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_vol",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_vol",
+        "board_id": "iron_condor",
+        "note": "Range income; two boundaries, breakout/tail/event risk."
+      },
+      "long_strangle": {
+        "allowed_roles": [
+          "long_vol"
+        ],
+        "default_role": "long_vol",
+        "technical_uses": [
+          {
+            "feature": "iv_pctile",
+            "use": "filter",
+            "policy": "legacy:buy_vol",
+            "evidence": "not cheap: IV rank ≥ today's median"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:buy_vol",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_pctile"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:buy_vol",
+        "board_id": "long_strangle",
+        "note": "Large move either way; magnitude, timing and both paid wings."
+      },
+      "short_strangle": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_vol",
+            "evidence": "not rich: IV/RV < 1.15"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_vol",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "legacy_policy:sell_vol",
+        "board_id": "short_strangle",
+        "note": "Short both tails; range persistence and unlimited upside exposure."
+      },
+      "long_straddle": {
+        "allowed_roles": [
+          "long_vol"
+        ],
+        "default_role": "long_vol",
+        "technical_uses": [
+          {
+            "feature": "iv_pctile",
+            "use": "filter",
+            "policy": "legacy:buy_vol",
+            "evidence": "not cheap: IV rank ≥ today's median"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:buy_vol",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_pctile"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:buy_vol",
+        "board_id": "long_straddle",
+        "note": "Large move either way; near-spot movement, timing and volatility crush."
+      },
+      "short_straddle": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_vol",
+            "evidence": "not rich: IV/RV < 1.15"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_vol",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "legacy_policy:sell_vol",
+        "board_id": "short_straddle",
+        "note": "Pin/range income; both tails and unlimited upside exposure."
+      },
+      "calendar": {
+        "allowed_roles": [
+          "term_structure"
+        ],
+        "default_role": "term_structure",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "payoff_only",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "board_context_only",
+        "board_id": "calendar",
+        "note": "Call time spread; front-strike location plus front/back volatility and event timing."
+      },
+      "diagonal": {
+        "allowed_roles": [
+          "term_structure",
+          "directional_up"
+        ],
+        "default_role": "term_structure",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "payoff_only",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Call time/strike spread; actual directional payoff plus front/back state; not universally long volatility."
+      },
+      "pmcc": {
+        "allowed_roles": [
+          "directional_up",
+          "term_structure"
+        ],
+        "default_role": "directional_up",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "payoff_only",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Levered long-call plus short-call overlay; continuation versus capped upside, assignment and remaining back-leg value."
+      },
+      "jade_lizard": {
+        "allowed_roles": [
+          "bullish_income"
+        ],
+        "default_role": "bullish_income",
+        "technical_uses": [
+          {
+            "feature": "put_edge_q",
+            "use": "filter",
+            "policy": "legacy:sell_put",
+            "evidence": "S059: put-edge Q1–Q3 lose after fills"
+          },
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_put",
+            "evidence": "not rich: IV/RV < 1.15 (S059 t +12)"
+          },
+          {
+            "feature": "put_edge_q",
+            "use": "rank",
+            "policy": "legacy:sell_put",
+            "weight": 1
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_put",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "put_edge_q",
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_put",
+        "board_id": "jade_lizard",
+        "note": "Asymmetric range/bullish income; downside path and actual call-wing coverage after credit."
+      },
+      "iron_fly": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [
+          {
+            "feature": "iv_rv",
+            "use": "filter",
+            "policy": "legacy:sell_vol",
+            "evidence": "not rich: IV/RV < 1.15"
+          },
+          {
+            "feature": "ev_rv_cap",
+            "use": "rank",
+            "policy": "legacy:sell_vol",
+            "weight": 1
+          }
+        ],
+        "required_inputs": [
+          "iv_rv"
+        ],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "legacy_policy:sell_vol",
+        "board_id": "iron_fly",
+        "note": "Pin income; mass near body versus either wing, not interchangeable with a wide condor."
+      },
+      "call_zebra": {
+        "allowed_roles": [
+          "directional_up"
+        ],
+        "default_role": "directional_up",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Bullish stock-like option position; net payoff, financing and residual gamma/vega, not a vanilla-call score."
+      },
+      "put_zebra": {
+        "allowed_roles": [
+          "directional_down"
+        ],
+        "default_role": "directional_down",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Bearish stock-like option position; same checks with downside direction."
+      },
+      "put_calendar": {
+        "allowed_roles": [
+          "term_structure"
+        ],
+        "default_role": "term_structure",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "payoff_only",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Put time spread; front-strike location and term/event path."
+      },
+      "call_butterfly": {
+        "allowed_roles": [
+          "target_pin"
+        ],
+        "default_role": "target_pin",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Target-price/pin payoff; probability at body and wings; can target above or below spot."
+      },
+      "put_butterfly": {
+        "allowed_roles": [
+          "target_pin"
+        ],
+        "default_role": "target_pin",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Target-price/pin payoff; same full payoff test; put name does not imply bearish."
+      },
+      "big_lizard": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Asymmetric pin/range income; exact residual tail from legs and credit."
+      },
+      "reverse_big_lizard": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Mirrored asymmetric pin/range income; audit uncovered upside, not a generic bearish score."
+      },
+      "covered_put": {
+        "allowed_roles": [
+          "overlay_short_shares"
+        ],
+        "default_role": "overlay_short_shares",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Overlay on short shares; compare with short shares, include borrow/dividends/upside loss."
+      },
+      "put_diagonal": {
+        "allowed_roles": [
+          "term_structure",
+          "directional_down"
+        ],
+        "default_role": "term_structure",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "payoff_only",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Put time/strike spread; actual directional payoff and term/event path."
+      },
+      "put_front_ratio": {
+        "allowed_roles": [
+          "target_down"
+        ],
+        "default_role": "target_down",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Target/down-move payoff with residual short downside; test beyond short strikes, not just local delta."
+      },
+      "call_front_ratio": {
+        "allowed_roles": [
+          "target_up"
+        ],
+        "default_role": "target_up",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Target/up-move payoff with residual short upside; unlimited upside loss cannot be hidden."
+      },
+      "put_broken_wing_butterfly": {
+        "allowed_roles": [
+          "target_down"
+        ],
+        "default_role": "target_down",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Asymmetric target payoff; actual body/wing distances, credit and downside tail."
+      },
+      "call_broken_wing_butterfly": {
+        "allowed_roles": [
+          "target_up"
+        ],
+        "default_role": "target_up",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Asymmetric target payoff; actual body/wing distances, credit and upside tail."
+      },
+      "put_broken_heart": {
+        "allowed_roles": [
+          "target_down"
+        ],
+        "default_role": "target_down",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Four-leg asymmetric payoff; derive profit regions/tails from legs, no inherited ratio/butterfly evidence."
+      },
+      "call_broken_heart": {
+        "allowed_roles": [
+          "target_up"
+        ],
+        "default_role": "target_up",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Four-leg asymmetric payoff; same geometry-driven treatment."
+      },
+      "dynamic_iron_condor": {
+        "allowed_roles": [
+          "range_income"
+        ],
+        "default_role": "range_income",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "finite_or_capital",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Current fixed-leg template treated as range income; “dynamic” is not a tested adjustment policy."
+      },
+      "short_naked_call": {
+        "allowed_roles": [
+          "bearish_income"
+        ],
+        "default_role": "bearish_income",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Bearish/capped-reward short call; unlimited upside loss, never eligible for a finite-max-loss comparison."
+      },
+      "reverse_jade_lizard": {
+        "allowed_roles": [
+          "bearish_income"
+        ],
+        "default_role": "bearish_income",
+        "technical_uses": [],
+        "required_inputs": [],
+        "optional_inputs": [],
+        "valuation_capability": "horizon_mark",
+        "max_loss": "unlimited",
+        "recommendation_mode": "context_only",
+        "board_id": null,
+        "note": "Asymmetric range/bearish income; actual put-wing coverage and uncovered upside."
+      }
+    }
+  },
+  "board_aliases": {
+    "bear_put_spread": "debit_put_vertical",
+    "bull_call_spread": "debit_call_vertical",
+    "calendar": "calendar",
+    "call_spread": "bear_call_spread",
+    "collar": "collar",
+    "covered_call": "covered_call",
+    "csp": "cash_secured_put",
+    "iron_condor": "iron_condor",
+    "iron_fly": "iron_fly",
+    "jade_lizard": "jade_lizard",
+    "long_call": "long_call",
+    "long_put": "long_put",
+    "long_straddle": "long_straddle",
+    "long_strangle": "long_strangle",
+    "put_spread": "bull_put_spread",
+    "short_straddle": "short_straddle",
+    "short_strangle": "short_strangle"
   }
 }
