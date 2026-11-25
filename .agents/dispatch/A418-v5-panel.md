@@ -5,3 +5,6 @@ Follow existing fetch pattern in structure-picks.tsx (react-query; staleTime >= 
 structure-picks.tsx may have another agent's uncommitted hunks: build on them, commit only your hunks/paths.
 Acceptance: scripts/agent-ship-check.sh passes for stock-compare typecheck; NVDA panel = 16 rows incl. 3 baselines; unknown ticker → "no structure comparison today".
 Commit with trailers "Refs: A418" and "Agent: cursor", sync with scripts/agent-git-sync.sh, set A418 status done in research/common/ASKS.md and asks/A418.md.
+
+## Smoke gate
+Before building the panel (≤ 2 min): (1) curl the API logged in (cookie via POST /api/auth/login with .agent-login creds, never print them): GET /api/options/structures/idea/NVDA → 200 with context.candidates length 16; /idea/ZZZZ → 404. (2) `cd artifacts/stock-compare && npx tsc --noEmit` baseline errors noted (other agents' WIP may already fail; only your files must be clean). Stop and report if (1) fails.
