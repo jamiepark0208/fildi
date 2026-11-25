@@ -2,14 +2,15 @@
  * Today's structure picks (A192) — table inside StructureLab expand.
  * Click a row → parent updates payoff + metrics (selection owned by StructureLab).
  */
-import { type ReactNode, memo } from "react";
+import { type ReactNode, memo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { DataTip } from "@/components/data-tip";
 import { formatMd } from "@/lib/format";
 import { TickerLink } from "@/components/ticker-link";
 import { AddToTicket } from "@/components/trade-ticket/TicketButtons";
+import { IdeaStructuresPanel } from "./idea-structures-panel";
 
 export type StructureLeg = {
   side: "put" | "call"; strike: number; expiry: string; qty: number; px: number; bid: number; ask: number; iv: number;
@@ -177,10 +178,11 @@ function LegsCell({ r, asOf }: { r: StructurePick; asOf: string | null }) {
 }
 
 function PicksBlock({
-  title, tip, structureId, rows, asOf, selected, onSelect, startIdx = 0,
+  title, tip, structureId, rows, asOf, selected, onSelect, onOpenIdea, startIdx = 0,
 }: {
   title: string; tip: string; structureId: string; rows: StructurePick[]; asOf: string | null;
-  selected?: string | null; onSelect?: (ticker: string) => void; startIdx?: number;
+  selected?: string | null; onSelect?: (ticker: string) => void; onOpenIdea?: (ticker: string) => void;
+  startIdx?: number;
 }) {
   if (!rows.length) return null;
   return (
@@ -188,12 +190,12 @@ function PicksBlock({
       <div className="text-[10px] font-semibold text-white tracking-wide">
         <DataTip tip={tip}>{title} ({rows.length})</DataTip>
       </div>
-      <div className={cn(GRID_WRAP, "w-full min-w-0")}>
-        <table className="w-full min-w-0 border-collapse">
-          <thead>
-            <tr className={GRID_HEADER}>
+      <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black w-full min-w-0">
+        <table className="w-full min-w-0 border-collapse bg-black">
+          <thead className="bg-black">
+            <tr className={cn(GRID_HEADER, "bg-black")}>
               {HEADS.map((h) => (
-                <th key={h.label} className={cn(GRID_TH, "!py-1 !text-[9px]", h.right ? "text-right" : "text-left")}>
+                <th key={h.label} className={cn(GRID_TH, "!py-1 bg-black", h.right ? "text-right" : "text-left")}>
                   <DataTip tip={h.tip}>{h.label}</DataTip>
                 </th>
               ))}
@@ -213,7 +215,13 @@ function PicksBlock({
                   onClick={onSelect ? () => onSelect(r.ticker) : undefined}
                 >
                   <td className={cn(GRID_TD, "font-mono !py-1")}>
-                    <TickerLink ticker={r.ticker} returnLabel="Structures" />
+                    <DataTip tip="Every structure for this stock on the same 2y paths (three lenses).">
+                      <TickerLink
+                        ticker={r.ticker}
+                        returnLabel="Structures"
+                        onClick={onOpenIdea ? (t) => onOpenIdea(t) : undefined}
+                      />
+                    </DataTip>
                     <span className="text-amber-100 ml-1 text-[10px]">${r.spot.toFixed(0)}</span>
                   </td>
                   <td className={cn(GRID_TD, "!py-1")}>
@@ -272,6 +280,9 @@ export const StructurePicksTable = memo(function StructurePicksTable({
   selected?: string | null;
   onSelect?: (ticker: string) => void;
 }) {
+  const [ideaTicker, setIdeaTicker] = useState<string | null>(null);
+  const openIdea = (t: string) => setIdeaTicker(t);
+
   if (!rows.length) {
     return (
       <div className="space-y-1">
@@ -288,29 +299,30 @@ export const StructurePicksTable = memo(function StructurePicksTable({
   const study = rows.filter((r) => r.tier === "study");
   return (
     <div className="space-y-2 w-full min-w-0">
+      <IdeaStructuresPanel ticker={ideaTicker} onClose={() => setIdeaTicker(null)} />
       <TrackRecord structureId={structureId} />
       <PicksBlock
         title="Today"
         tip="Strict regime-fit · real Schwab fills · one ticker once · logged for grading."
         structureId={structureId} rows={primary}
-        asOf={asOf} selected={selected} onSelect={onSelect}
+        asOf={asOf} selected={selected} onSelect={onSelect} onOpenIdea={openIdea}
       />
       <PicksBlock
         title="More (soft gate)"
         tip="Leftover names: positive EV + softer IV/RV (sell ≥1.05, buy ≤1.05) / CSP edge Q≥3. Not ledgered."
-        structureId={structureId} rows={more} asOf={asOf} selected={selected} onSelect={onSelect}
+        structureId={structureId} rows={more} asOf={asOf} selected={selected} onSelect={onSelect} onOpenIdea={openIdea}
         startIdx={primary.length}
       />
       <PicksBlock
         title="Margin alts"
         tip="Short strangle/straddle: S076 made money on margin but return÷risk below CSP. Margin account only · not ledgered."
-        structureId={structureId} rows={margin} asOf={asOf} selected={selected} onSelect={onSelect}
+        structureId={structureId} rows={margin} asOf={asOf} selected={selected} onSelect={onSelect} onOpenIdea={openIdea}
         startIdx={primary.length + more.length}
       />
       <PicksBlock
         title="Study only"
         tip="S076 fail structures — priced with real fills so you can see the shape. Not a recommendation; not ledgered."
-        structureId={structureId} rows={study} asOf={asOf} selected={selected} onSelect={onSelect}
+        structureId={structureId} rows={study} asOf={asOf} selected={selected} onSelect={onSelect} onOpenIdea={openIdea}
         startIdx={primary.length + more.length + margin.length}
       />
     </div>
