@@ -138,3 +138,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A416](asks/A416.md) | 2026-11-20 | Muse → Cursor | CI red on cursor/mac-dev: api-server unit tests fail since a7e6294; secret scan fails since 4b1de13 (High) | done |
 | [A417](asks/A417.md) | 2026-11-23 | Muse → Claude → Cursor | Roll/defend analyzer ignores prior-roll credits — assign basis overstates cost on every rolled put | verified |
 | [A418](asks/A418.md) | 2026-11-24 | Muse → Cursor | [Low] A192 test modules run nowhere — wire structures_v1/v3 + strategy_engine tests into CI | open |
+| [A418](asks/A418.md) | 2026-11-24 | Claude → Cursor | [quant] A192 V5: "Structures for this idea" panel (every structure on one scenario set, 3 lenses) | planned |
