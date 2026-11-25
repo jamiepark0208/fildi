@@ -14,7 +14,7 @@ def leg(side, k, px, days, qty, iv=0.3):
 
 
 def cand(sid, legs, **kw):
-    return {"structure": sid, "ticker": "X", "spot": 100.0, "legs": legs, "expiry": min(l["expiry"] for l in legs), **kw}
+    return {"structure": sid, "ticker": "X", "spot": 100.0, "legs": legs, "expiry": min(l["expiry"] for l in legs), "fit": True, **kw}
 
 
 FLAT = np.log(np.full(400, 100.0)) + 0.001 * np.arange(400)          # pure drift → de-meaned paths are flat at spot
@@ -103,6 +103,33 @@ class Lenses(unittest.TestCase):
         out = CX.compare(ctx, [cal])
         self.assertEqual(cal["context"]["status"], "model_limitation")
         self.assertNotIn("calendar", out["best"].values())
+
+
+class CodexX(unittest.TestCase):
+    """A419/A192 Codex X1–X3 (11-24 afternoon)."""
+    def test_x3_exact_max_loss_whole_position(self):
+        self.assertAlmostEqual(CX.exact_max_loss(cand("csp", [leg("put", 95, 2, 30, -1)])), 93.0)
+        self.assertAlmostEqual(CX.exact_max_loss(cand("covered_call", [leg("call", 105, 2, 30, -1)])), 98.0)
+        col = cand("collar", [leg("put", 90, 1.5, 30, 1), leg("call", 110, 1.0, 30, -1)], stock=True)
+        self.assertAlmostEqual(CX.exact_max_loss(col), 10.5)            # 100 − 90 + 0.5 net debit
+        self.assertIsNone(CX.exact_max_loss(cand("short_strangle", [leg("put", 90, 1, 30, -1), leg("call", 110, 1, 30, -1)])))
+        self.assertAlmostEqual(CX.exact_max_loss(cand("bull_call_spread", [leg("call", 100, 3, 30, 1), leg("call", 110, 1, 30, -1)])), 2.0)
+
+    def test_x3_csp_gets_finite_lens(self):
+        ctx = CX.build("X", T0, 100.0, NOISY)
+        c = cand("csp", [leg("put", 95, 2, 30, -1)], capital=95)
+        CX.compare(ctx, [c])
+        self.assertAlmostEqual(c["context"]["finite_loss"]["max_loss"], 93.0)
+
+    def test_x2_failed_fit_never_best(self):
+        ctx = CX.build("X", T0, 100.0, NOISY)
+        bad = cand("iron_fly", [leg("put", 90, 0.5, 30, 1), leg("put", 100, 4, 30, -1), leg("call", 100, 4, 30, -1),
+                                leg("call", 110, 0.5, 30, 1)], capital=2, fit=False, fit_why="trend up")
+        out = CX.compare(ctx, [bad])
+        self.assertNotIn("iron_fly", out["best"].values())
+        row = out["candidates"][-1]
+        self.assertFalse(row["eligible"]); self.assertIn("trend up", row["eligibility_why"])
+        self.assertTrue(set(out["hypothetical_leaders"].values()) <= {"iron_fly"})
 
 
 if __name__ == "__main__":

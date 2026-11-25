@@ -229,8 +229,8 @@ def main():
             k = SE.rank_key(cs, stg) if sid in ("long_call", "bull_call_spread") else {}
             for c in cs:
                 c["_score"] = k.get(id(c), c["ev_rv_cap"])
-        board = pick_board(cands, trim)
-        # A192 V3: one scenario context per idea; every candidate on that ticker valued on the same paths (structure_context.py)
+        # A192 V3: one scenario context per idea; every candidate on that ticker valued on the same paths (structure_context.py).
+        # X1 (Codex 11-24): value BEFORE pick_board copies the dicts, so board + ledger rows carry spec_hash / scenario_id.
         by_t = defaultdict(list)
         for c in cands:
             by_t[c["ticker"]].append(c)
@@ -241,6 +241,12 @@ def main():
                 idea_ctx[t] = CX.compare(ctx, cs)
             except Exception as e:  # noqa: BLE001
                 DI.record("structures.py", "context_failed", ticker=t, detail=f"{type(e).__name__}: {e}")
+        board = pick_board(cands, trim)
+        tier_of = {c.get("spec_hash"): c.get("tier") for lst in board.values() for c in lst}
+        for x in idea_ctx.values():                     # board tier back onto the context rows, joined on the full spec hash
+            for r in x.get("candidates", []):
+                if r.get("kind") == "structure":
+                    r["tier"] = tier_of.get(r.get("spec_hash")) or "not_on_board"
         conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.structure_idea_context (
           as_of date NOT NULL, ticker text NOT NULL, scenario_id text, policy_version text NOT NULL, payload jsonb NOT NULL,
           PRIMARY KEY (as_of, ticker))""")

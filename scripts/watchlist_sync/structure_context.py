@@ -39,6 +39,12 @@ LIMITS = ["no early assignment / exercise", "no dividends", "no deliverable adju
           "future IV = entry IV (sticky strike)", "overlapping windows: effective n ≈ paths / 21"]
 
 
+LENS_NOTES = {  # X4 (Codex 11-24): what each lens is, so no one reads it as 'beats T-bills at matched risk'
+    "cash": "EV ÷ cash the trade ties up, over 30 d; legs settled earlier sit in cash with no interest; not a same-budget comparison",
+    "finite_loss": "EV ÷ exact worst terminal loss of the whole position (stock legs included); unlimited-loss trades excluded",
+    "matched_downside": "EV at the size where the worst-5 % mean loss = $1,000; fractional contracts (theoretical); cash has no tail so never ranks here"}
+
+
 def _h(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
@@ -117,6 +123,36 @@ def pnl(c: dict, ctx: dict) -> np.ndarray:
     return v
 
 
+def exact_max_loss(c: dict) -> float | None:
+    """X3 (Codex 11-24): worst terminal loss $/share of the WHOLE position (option legs + 100 shares for overlays) at the
+    common expiry: piecewise-linear payoff → exact at S=0 and every strike knot; negative slope past the top strike →
+    unlimited (None). Multi-expiry (calendar) → None (needs a term/IV path). Credit = entry fills (px)."""
+    legs = c["legs"]
+    if len({str(lg["expiry"])[:10] for lg in legs}) != 1:
+        return None
+    stock = bool(c.get("stock")) or c["structure"] == "covered_call"
+    s0, cr = float(c["spot"]), -sum(lg["qty"] * lg["px"] for lg in legs)
+
+    def pay(S):
+        v = cr + sum(lg["qty"] * (max(S - lg["strike"], 0) if lg["side"] == "call" else max(lg["strike"] - S, 0)) for lg in legs)
+        return v + (S - s0 if stock else 0.0)
+    slope = sum(lg["qty"] for lg in legs if lg["side"] == "call") + (1 if stock else 0)
+    if slope < 0:
+        return None
+    worst = min(pay(S) for S in [0.0] + [float(lg["strike"]) for lg in legs])
+    return max(-worst, 0.0)
+
+
+def eligibility(c: dict, status: str) -> tuple[bool, str]:
+    """X2: a candidate may be called 'best' only if it passed the declared comparison policy: modelled (status ok) AND
+    regime/policy fit (structures.py fit gate). Failed ones stay visible as hypothetical leaders, never as best."""
+    if status != "ok":
+        return False, "payoff only (model limitation)"
+    if c.get("fit") is not True:
+        return False, "fails fit gate: " + (c.get("fit_why") or "no fit verdict")
+    return True, "passes fit gate"
+
+
 def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, unlimited: bool) -> dict:
     """Per-share pnl x → the three budgets. cash = $/share the trade ties up; max_loss = finite worst case or None."""
     ev = float(w @ x)
@@ -159,20 +195,31 @@ def compare(ctx: dict, cands: list[dict]) -> dict:
         sid = c["structure"]
         cash = float(c.get("capital") or 0)
         lim = sid == "calendar"   # back-leg value needs a term/IV path → payoff illustration only
-        L = lenses(x, w, cash, c.get("max_loss"), sid in UNLIMITED)
-        c["context"] = {"scenario_id": ctx["scenario_id"], "exit_policy_id": EXIT_POLICY, "status": "model_limitation" if lim else "ok", **L}
+        ml = exact_max_loss(c)
+        L = lenses(x, w, cash, ml, sid in UNLIMITED or (ml is None and not lim))
+        st = "model_limitation" if lim else "ok"
+        ok, why = eligibility(c, st)
+        c["context"] = {"scenario_id": ctx["scenario_id"], "exit_policy_id": EXIT_POLICY, "status": st, "eligible": ok, **L}
         rows.append({"id": sid, "kind": "structure", "spec_hash": c["spec_hash"], "expiry": str(c["expiry"]), "tier": c.get("tier"),
-                     "fit": c.get("fit"), "status": c["context"]["status"], "lenses": L,
+                     "fit": c.get("fit"), "status": st, "eligible": ok, "eligibility_why": why, "lenses": L,
                      "legs": [{k: lg[k] for k in ("side", "strike", "qty", "px")} | {"expiry": str(lg["expiry"])} for lg in c["legs"]]})
-    rankable = [r for r in rows if r.get("status", "ok") == "ok" and r["id"] != "no_trade"]
-    best = {}
-    for lens in ("cash", "finite_loss", "matched_downside"):
-        xs = [r for r in rankable if r["lenses"][lens].get("ret") is not None]
-        if xs:
-            b = max(xs, key=lambda r: r["lenses"][lens]["ret"])
-            best[lens] = b["id"] if b["lenses"][lens]["ret"] > 0 else "no_trade"
+    def winners(pool):
+        out = {}
+        for lens in ("cash", "finite_loss", "matched_downside"):
+            xs = [r for r in pool if r["lenses"][lens].get("ret") is not None]
+            if xs:
+                b = max(xs, key=lambda r: r["lenses"][lens]["ret"])
+                out[lens] = b["id"] if b["lenses"][lens]["ret"] > 0 else "no_trade"
+        return out
+    base = [r for r in rows if r["kind"] == "baseline" and r["id"] != "no_trade"]
+    best = winners(base + [r for r in rows if r.get("eligible")])                       # X2: eligible only
+    any_lead = winners(base + [r for r in rows if r.get("status") == "ok" and r["kind"] == "structure"])
+    hypo = {k: v for k, v in any_lead.items() if v != best.get(k)}                      # failed-gate leaders, labelled
     agree = len(set(best.values())) == 1 if best else None
     return {k: v for k, v in ctx.items() if not k.startswith("_")} | {
-        "candidates": rows, "best": best, "lenses_agree": agree,
-        "read": (f"all lenses → {next(iter(best.values()))}" if agree else
+        "candidates": rows, "best": best, "best_basis": "eligible only (status ok + fit gate)", "hypothetical_leaders": hypo,
+        "lens_notes": LENS_NOTES, "lenses_agree": agree,
+        "read": ("no eligible trade beats cash / no trade" + (f" (failed-gate leaders: {', '.join(sorted(set(hypo.values())))})" if hypo else "")
+                 if best and set(best.values()) <= {"cash", "no_trade"} else
+                 f"all lenses → {next(iter(best.values()))}" if agree else
                  "lenses disagree → alternatives: " + ", ".join(f"{k} {v}" for k, v in best.items())) if best else "nothing rankable"}
