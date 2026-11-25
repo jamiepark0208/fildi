@@ -139,3 +139,4 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A417](asks/A417.md) | 2026-11-23 | Muse → Claude → Cursor | Roll/defend analyzer ignores prior-roll credits — assign basis overstates cost on every rolled put | verified |
 | [A418](asks/A418.md) | 2026-11-24 | Muse → Cursor | [Low] A192 test modules run nowhere — wire structures_v1/v3 + strategy_engine tests into CI | open |
 | [A419](asks/A419.md) | 2026-11-24 | Claude → Cursor | [quant] A192 V5: "Structures for this idea" panel (every structure on one scenario set, 3 lenses) | done (2b68194b) |
+| [A420](asks/A420.md) | 2026-11-25 | Muse → Cursor | idea-structures-panel.tsx is 231 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | open |
