@@ -42,7 +42,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A277](asks/A277.md) | 2026-10-26 | Jamie → Claude → Cursor | [quant] One recommendation per structure: Model List, Rankings, Live, Structures read one engine (sell puts first) | done |
 | [A281](asks/A281.md) | 2026-10-26 | Claude → Muse, Cursor, Grok | Indicator use cases for Fildi — add (Muse), challenge (Grok), cost (Cursor); map in .agents/context/indicators.md | parked (Claude re-review 11-07 after A370) |
 | [A308](asks/A308.md) | 2026-10-28 | Claude → Cursor | [quant] Forward ledger earnings_up: skew + StarMine forecasters (S127 follow-up) | revise (Claude 11-03 commit review: see file) |
-| [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude → Cursor | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | planned |
+| [A318](asks/A318.md) | 2026-10-30 | Cursor → Claude → Cursor | [quant] Stock DB gold: cheapest source inside the FactSet band, then timeliness and derives | done (repair be3dffb1; seg 4–6 open) |
 | [A320](asks/A320.md) | 2026-11-02 | Muse → Cursor | Chronos-Bolt fair retest: less-smooth targets, adopt/drop gate + catalog row | parked (Claude triage 2026-11-07) |
 | [A321](asks/A321.md) | 2026-11-02 | Muse → Cursor | FinBERT real-headline validation: adopt as triage or drop + catalog row | done (Cursor 11-07, drop, uncommitted) |
 | [A322](asks/A322.md) | 2026-11-02 | Muse → Cursor | Setup-but-unused credentials verdict: Codiv keep/drop, S&P Global auth+license check | done (Cursor 11-07) |
