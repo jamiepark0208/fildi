@@ -219,7 +219,7 @@ def compare(ctx: dict, cands: list[dict]) -> dict:
     return {k: v for k, v in ctx.items() if not k.startswith("_")} | {
         "candidates": rows, "best": best, "best_basis": "eligible only (status ok + fit gate)", "hypothetical_leaders": hypo,
         "lens_notes": LENS_NOTES, "lenses_agree": agree,
-        "read": ("no eligible trade beats cash / no trade" + (f" (failed-gate leaders: {', '.join(sorted(set(hypo.values())))})" if hypo else "")
+        "read": ("no eligible trade beats cash / no trade"
                  if best and set(best.values()) <= {"cash", "no_trade"} else
                  f"all lenses → {next(iter(best.values()))}" if agree else
                  "lenses disagree → alternatives: " + ", ".join(f"{k} {v}" for k, v in best.items())) if best else "nothing rankable"}
