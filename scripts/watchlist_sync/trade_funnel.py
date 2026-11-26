@@ -239,6 +239,39 @@ def provisional(conn, items) -> None:
         it.update(strike=k, expiry=str(e), bid=round((b + a) / 2, 2), provisional=True)
         it["chips"] = [*it.get("chips", []), f"provisional {td:.2f}Δ (today's chain; graded at next close)"]
 
+def _contract(i: dict):
+    """Exact-contract key for source attribution; None = name-level signal (no strike or no expiry)."""
+    k, e = i.get("strike"), i.get("expiry")
+    try:
+        return (round(float(k), 2), str(e)[:10]) if k is not None and e else None
+    except (TypeError, ValueError):
+        return None
+
+
+def merge_today(items: list) -> dict:
+    best: dict = {}
+    for it in items:
+        k = (it["ticker"], it["family"])
+        # 11-11: same tier → the row with a contract wins (TEAM: unpriced put_z50 'open' hid the priced panic-puts 130P → "— —")
+        if k not in best or TIER[it["tier"]] > TIER[best[k]["tier"]] or (
+                TIER[it["tier"]] == TIER[best[k]["tier"]] and best[k].get("strike") is None and it.get("strike") is not None):
+            best[k] = it
+    for k, top in best.items():
+        same = [i for i in items if (i["ticker"], i["family"]) == k]
+        top["sources"] = sorted({i["source"] for i in same if _contract(i) and _contract(i) == _contract(top)} | {top["source"]})
+        top["name_signals"] = sorted({i["source"] for i in same if not _contract(i)} - set(top["sources"]))
+        alts: dict = {}
+        for i in same:
+            c = _contract(i)
+            if c and c != _contract(top):
+                a = alts.setdefault(c, {"strike": i.get("strike"), "expiry": i.get("expiry"), "tier": i["tier"], "sources": set()})
+                a["sources"].add(i["source"])
+                if TIER[i["tier"]] > TIER[a["tier"]]:
+                    a["tier"] = i["tier"]
+        top["alternatives"] = [a | {"sources": sorted(a["sources"])} for a in alts.values()]
+    return best
+
+
 def today_list(conn, dry: bool, d0: date | None = None):
     today = d0 or date.today()
     lib = {r["strategy_id"]: r for r in rows(conn, "SELECT strategy_id, status, name FROM watchlist_sync.strategies")}
@@ -299,17 +332,10 @@ def today_list(conn, dry: bool, d0: date | None = None):
                       "strike": m.get("strike"), "expiry": m.get("expiry"), "bid": m.get("debit"), "metric": None,
                       "metric_label": "", "why": m.get("rule"), "chips": []})
     provisional(conn, items)
-    # one row per (ticker, family): keep the highest tier, merge sources
-    best: dict = {}
-    for it in items:
-        k = (it["ticker"], it["family"])
-        # 11-11: same tier → the row with a contract wins (TEAM: unpriced put_z50 'open' hid the priced panic-puts 130P → "— —")
-        if k not in best or TIER[it["tier"]] > TIER[best[k]["tier"]] or (
-                TIER[it["tier"]] == TIER[best[k]["tier"]] and best[k].get("strike") is None and it.get("strike") is not None):
-            it["sources"] = sorted({it["source"], *(best[k]["sources"] if k in best else [])})
-            best[k] = it
-        else:
-            best[k]["sources"] = sorted({*best[k]["sources"], it["source"]})
+    # one row per (ticker, family): keep the highest tier. Codex X5 (11-24): a source counts for the kept row only when it
+    # names the SAME contract (strike + expiry); other contracts stay as `alternatives` with their own sources/tier, and
+    # contract-less (name-level) signals are `name_signals` context — never counted as agreeing with someone else's strike.
+    best = merge_today(items)
     reg = regime(conn, today)
     ok_s = allowed(reg["label"])
     for it in best.values():
