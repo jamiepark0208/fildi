@@ -21,6 +21,7 @@ import { readChainSnapshot } from "../lib/options-chain-store.js";
 import { rankerChains } from "../lib/structures/ranker-chain.js";
 import { frontSkew, levelsFromBars, pickFundingPut, pickRiskReversal, RR_PARAMS, type Bar } from "../lib/risk-reversal.js";
 import { allocate, optionSource, rankSources, stockSource, type Need, type Source } from "../lib/capital-plan.js";
+import { splitReportSessions } from "../lib/earnings-reaction.js";
 import { betaVsSpy, cushion, CUSHION_TARGET, deRisk, ratioAfter, RH_FLOOR, type Pt, type Sellable } from "../lib/book-risk.js";
 
 const router = Router();
@@ -634,13 +635,12 @@ async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null
     const rows = await safe<{ rd: string; date: string; c: number }>(sql`
       WITH r AS (SELECT MAX(report_date) AS rd FROM public.earnings_calendar WHERE ticker = ${t} AND report_date <= current_date)
       SELECT r.rd::text AS rd, p.date::text AS date, p.close::float8 AS c FROM r JOIN public.prices_historical p
-        ON p.ticker = ${t} AND p.date >= r.rd ORDER BY p.date LIMIT 6`);
+        ON p.ticker = ${t} AND p.date BETWEEN r.rd - 10 AND r.rd + 10 ORDER BY p.date`);
     if (!rows.length) continue;
-    const pre = rows[0].date === rows[0].rd ? rows[0] : null; // report after the close of rd
-    const post = rows.filter((x) => x.date > rows[0].rd);
+    const { pre, post } = splitReportSessions(rows[0].rd, rows);
     if (!pre || !post.length) {
       checks.push({ key: `cat-${t}`, label: `${t} earnings reaction`, value: `reported ${rows[0].rd.slice(5)} · first session pending`, read: "wait",
-        why: "Watch day 1 and whether it holds through day 2–3 — a beat the price keeps is the meaningful case. Names down ≥ 20 % into a report during a market dip reacted median −1.1 % (S201), so 'baked in' alone is not an edge." });
+        why: "After-close assumed (the calendar has no before-open flag). A weekend report uses Friday's close. Watch day 1 and whether it holds through day 2–3. Names down ≥ 20 % into a report during a market dip reacted median −1.1 % (S201), so 'baked in' alone is not an edge." });
       continue;
     }
     const d1 = post[0].c / pre.c - 1, last = post[post.length - 1], since = last.c / pre.c - 1;
@@ -651,7 +651,7 @@ async function bottomChecklist(): Promise<{ checks: Check[]; asOf: string | null
   }
   // 4. Credit (HY OAS, FRED): the selloff started with CoreWeave debt — stocks up while spreads widen = suspect bounce.
   const hy = await safe<{ date: string; v: number; v10: number | null; pct: number }>(sql`
-    WITH s AS (SELECT date, value::float8 AS v FROM watchlist_sync.macro_daily WHERE series = 'hy_oas')
+    WITH s AS (SELECT date, value::float8 AS v FROM watchlist_sync.macro_daily WHERE series = 'hy_oas' AND date >= current_date - interval '3 years')
     SELECT (SELECT MAX(date)::text FROM s) AS date, (SELECT v FROM s ORDER BY date DESC LIMIT 1) AS v,
            (SELECT v FROM s ORDER BY date DESC OFFSET 10 LIMIT 1) AS v10,
            (100 * AVG((v <= (SELECT v FROM s ORDER BY date DESC LIMIT 1))::int))::float8 AS pct FROM s`);
