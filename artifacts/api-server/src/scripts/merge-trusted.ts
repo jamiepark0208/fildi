@@ -799,23 +799,12 @@ export async function runMergeTrusted() {
       const alternates = vendorRatioAlternates(field).filter(
         (v) => vendorGold == null || Math.abs(v - vendorGold) > 1e-9,
       );
-      let allowForce = shouldForceDerivedPriceRatio({
+      const allowForce = shouldForceDerivedPriceRatio({
         financialCurrency,
         derived: value,
         vendorGold,
         vendorAlternates: alternates,
       });
-      if (
-        !allowForce &&
-        field === "evEbitda" &&
-        value != null &&
-        isEvEbitdaGoldCandidate(value) &&
-        vendorGold != null &&
-        isFinite(vendorGold) &&
-        !isEvEbitdaGoldCandidate(vendorGold)
-      ) {
-        allowForce = true;
-      }
       if (!allowForce) {
         return;
       }
@@ -871,34 +860,46 @@ export async function runMergeTrusted() {
       computeEvRatio(price, update.sharesOutstanding, update.totalDebt, update.cashAndEquivalents, update.totalRevenue),
     );
     {
-      let evGold: number | null =
-        update.evEbitda ??
-        (existing?.evEbitda != null && existing.evEbitda !== ""
-          ? Number(existing.evEbitda)
-          : null);
-      if (evGold != null && Number.isFinite(evGold) && !isEvEbitdaGoldCandidate(evGold)) {
-        const derivedEv = skipEvDerive
-          ? null
-          : computeEvRatio(
-              price,
-              update.sharesOutstanding,
-              update.totalDebt,
-              update.cashAndEquivalents,
-              update.ebitda,
-            );
-        if (derivedEv != null && isEvEbitdaGoldCandidate(derivedEv)) {
-          update.evEbitda = derivedEv;
-          sourceUsage["derived"] = (sourceUsage["derived"] ?? 0) + 1;
-          const prev = provenanceBatch.find((p) => p.field === "evEbitda");
-          const result = { source: "derived", value: derivedEv, isOverride: false, divergent: false };
-          if (prev) prev.result = result;
-          else provenanceBatch.push({ field: "evEbitda", result });
-        } else {
-          (update as Record<string, unknown>).evEbitda = null;
-          const prev = provenanceBatch.find((p) => p.field === "evEbitda");
-          const nr = { source: "none", value: evGold, isOverride: false, divergent: true };
-          if (prev) prev.result = nr;
-          else provenanceBatch.push({ field: "evEbitda", result: nr });
+      let evGold: number | null = null;
+      if (overrideIndex.get(`${ticker}:evEbitda`)) {
+        // Manual override — do not repair or replace vendor EV/EBITDA.
+      } else {
+        const evPrev = provenanceBatch.find((p) => p.field === "evEbitda");
+        if (!evPrev?.result.isOverride) {
+          evGold =
+            update.evEbitda ??
+            (existing?.evEbitda != null && existing.evEbitda !== ""
+              ? Number(existing.evEbitda)
+              : null);
+          if (evGold != null && Number.isFinite(evGold) && !isEvEbitdaGoldCandidate(evGold)) {
+            const derivedEv = skipEvDerive
+              ? null
+              : computeEvRatio(
+                  price,
+                  update.sharesOutstanding,
+                  update.totalDebt,
+                  update.cashAndEquivalents,
+                  update.ebitda,
+                );
+            if (derivedEv != null && isEvEbitdaGoldCandidate(derivedEv)) {
+              forceDerived("evEbitda", derivedEv);
+            }
+            const after = update.evEbitda != null && isFinite(update.evEbitda) ? update.evEbitda : null;
+            const pb = provenanceBatch.find((p) => p.field === "evEbitda");
+            const repaired =
+              after != null && isEvEbitdaGoldCandidate(after) && pb?.result.source === "derived";
+            if (!repaired) {
+              (update as Record<string, unknown>).evEbitda = null;
+              const nr = {
+                source: "none",
+                value: evGold,
+                isOverride: false,
+                divergent: true,
+              };
+              if (pb) pb.result = nr;
+              else provenanceBatch.push({ field: "evEbitda", result: nr });
+            }
+          }
         }
       }
     }

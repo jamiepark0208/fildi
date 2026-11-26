@@ -23,7 +23,10 @@ function probe(stage, currency, override = false) {
     vendorRatioAlternates: () => [], overrideIndex: new Map(override ? [['TEST:evEbitda', {}]] : []),
     isChanged: (a,b) => ({ changed: a !== b }),
   };
-  vm.runInNewContext(transpile(stage === 'force' ? `const forceDerived = ${force}; forceDerived('evEbitda', 7);` : repair), context);
+  const body = stage === 'force'
+    ? `const forceDerived = ${force}; forceDerived('evEbitda', 7);`
+    : `const forceDerived = ${force}; ${repair}`;
+  vm.runInNewContext(transpile(body), context);
   const actual = context.provenanceBatch[0].result;
   const shouldDerive = currency === 'USD' && !override;
   return { stage, currency, override, expectedDerived: shouldDerive, actual, pass: (actual.source === 'derived') === shouldDerive };
