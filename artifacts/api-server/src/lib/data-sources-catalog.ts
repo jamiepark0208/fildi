@@ -59,9 +59,9 @@ export const DATA_SOURCES_CATALOG: DataSourceCatalogRow[] = [
   {
     id: "lse", usageKey: "lse", name: "London Strategic Edge",
     plan: "Free · 60/min · 12.5M rows/day · 2.5M/export",
-    feeds: "US options OPRA trades (daily export) · US stock bars · macro",
-    tables: "lse_option_daily · lse_option_fetch_log · vendor_raw (source lse)",
-    unusedAvailable: "1m US stock bars (A184 ORB) · macro 41k series · options flow",
+    feeds: "US options OPRA trades (daily export) · US stock bars · macro · OPRA prints ≥ $25k (/v3/options/flow, ~1-day publish lag, data_freshness 3-day threshold; no bid/ask so bought-vs-sold unknown) → Breakdown/Feed Options flow (A396, display only)",
+    tables: "lse_option_daily · lse_option_fetch_log · vendor_raw (source lse) · watchlist_sync.options_flow_prints · options_flow_daily",
+    unusedAvailable: "1m US stock bars (A184 ORB) · macro 41k series · flow prints < $25k",
     dailyLimit: 12_500_000,
   },
   {
