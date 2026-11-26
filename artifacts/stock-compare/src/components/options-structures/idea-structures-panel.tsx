@@ -67,7 +67,7 @@ export function IdeaStructuresPanel({ ticker, onClose }: { ticker: string | null
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto bg-zinc-950 border-[#d4af37]/30">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto bg-zinc-950 border-[#d4af37]/30">
         <DialogHeader>
           <DialogTitle className="text-[#d4af37] font-mono">
             Structures for this idea — {ticker}

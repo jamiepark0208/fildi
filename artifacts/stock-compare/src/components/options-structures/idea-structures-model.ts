@@ -18,6 +18,7 @@ export type IdeaCandidate = {
   lenses?: {
     p_win?: number | null;
     cash?: LensCash;
+    same_budget?: { ret?: number | null; contracts?: number; pnl_usd?: number; worst5_usd?: number; why?: string };
     finite_loss?: LensFinite;
     matched_downside?: LensMatched;
   };
@@ -28,10 +29,10 @@ export type IdeaContext = {
   reason?: string;
   read?: string;
   lenses_agree?: boolean;
-  best?: { cash?: string; finite_loss?: string; matched_downside?: string };
+  best?: { same_budget?: string; cash?: string; finite_loss?: string; matched_downside?: string };
   candidates?: IdeaCandidate[];
   hypothetical_leaders?: Record<string, string>;
-  lens_notes?: { cash?: string; finite_loss?: string; matched_downside?: string };
+  lens_notes?: { same_budget?: string; cash?: string; finite_loss?: string; matched_downside?: string };
   decision_at?: string;
   holding_horizon_at?: string;
   capability_limits?: string[];
@@ -52,6 +53,7 @@ export const BASELINE_ORDER = ["no_trade", "cash", "stock"] as const;
 export const HEADS: { key: string; label: string; tip: string; right?: boolean }[] = [
   { key: "structure", label: "Structure", tip: "Baseline or structure id — same 2y paths for every row." },
   { key: "expiry", label: "Expiry", tip: "Nearest leg expiry used for horizon marks." },
+  { key: "same", label: "Same $ ret", right: true, tip: "Same dollars in every row; leftover cash earns T-bills." },
   { key: "cash", label: "Cash ret", right: true, tip: "Expected return ÷ cash tied up (per share basis on baselines)." },
   { key: "finite", label: "Max-loss ret", right: true, tip: "EV ÷ max loss when finite; otherwise why." },
   { key: "matched", label: "Matched $ EV", right: true, tip: "Units sized so worst 5% mean loss = $1,000 — expected P&L in dollars." },
@@ -81,7 +83,7 @@ export function sortCandidates(rows: IdeaCandidate[]): IdeaCandidate[] {
   return [...baselines, ...rest];
 }
 
-export function lensBest(id: string, best: IdeaContext["best"], lens: "cash" | "finite_loss" | "matched_downside") {
+export function lensBest(id: string, best: IdeaContext["best"], lens: "same_budget" | "cash" | "finite_loss" | "matched_downside") {
   return best?.[lens] === id;
 }
 
@@ -91,5 +93,5 @@ export function rowTip(c: IdeaCandidate): string | undefined {
   return simpleOf(c.id);
 }
 
-export const LENS_LABEL: Record<string, string> = { cash: "cash", finite_loss: "max loss", matched_downside: "same downside" };
+export const LENS_LABEL: Record<string, string> = { same_budget: "same $", cash: "cash", finite_loss: "max loss", matched_downside: "same downside" };
 export const TIER_LABEL: Record<string, string> = { not_on_board: "not picked" };

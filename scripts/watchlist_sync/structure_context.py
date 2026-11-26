@@ -42,6 +42,7 @@ LIMITS = ["no early assignment / exercise", "no dividends", "no deliverable adju
 LENS_NOTES = {  # X4 (Codex 11-24): what each lens is, so no one reads it as 'beats T-bills at matched risk'
     "cash": "EV ÷ cash the trade ties up, over 30 d; legs settled earlier sit in cash with no interest; not a same-budget comparison",
     "finite_loss": "EV ÷ exact worst terminal loss of the whole position (stock legs included); unlimited-loss trades excluded",
+    "same_budget": "Every row gets the same $ (100 shares' cash): whole contracts only, leftover cash earns the 4.5 % T-bill for 30 d. The fair 'beats cash?' test",
     "matched_downside": "EV at the size where the worst-5 % mean loss = $1,000; fractional contracts (theoretical); cash has no tail so never ranks here"}
 
 
@@ -153,7 +154,7 @@ def eligibility(c: dict, status: str) -> tuple[bool, str]:
     return True, "passes fit gate"
 
 
-def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, unlimited: bool) -> dict:
+def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, unlimited: bool, budget: float | None = None) -> dict:
     """Per-share pnl x → the three budgets. cash = $/share the trade ties up; max_loss = finite worst case or None."""
     ev = float(w @ x)
     k = max(1, int(round(TAIL_Q * len(x))))
@@ -164,6 +165,15 @@ def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, un
         out["finite_loss"] = {"ret": None, "why": "unlimited loss" if unlimited else "no finite max loss"}
     else:
         out["finite_loss"] = {"max_loss": round(max_loss, 4), "ret": round(ev / max_loss, 4)}
+    if budget:   # X4: same $ budget for every row; whole contracts only; leftover cash earns the T-bill over the horizon
+        n = math.floor(budget / (cash * 100) + 1e-9) if cash > 0 else 0
+        idle = budget - n * cash * 100
+        if cash > 0 and n == 0:
+            out["same_budget"] = {"ret": None, "why": "1 contract > budget"}
+        else:
+            tot = n * 100 * ev + idle * RF * H_CAL / 365
+            out["same_budget"] = {"budget": round(budget, 0), "contracts": n, "idle_usd": round(idle, 0), "pnl_usd": round(tot, 2),
+                                  "worst5_usd": round(n * 100 * tail + idle * RF * H_CAL / 365, 2), "ret": round(tot / budget, 4)}
     if tail >= 0:
         out["matched_downside"] = {"ret": None, "why": "no tail loss on these paths"}
     else:
@@ -181,10 +191,11 @@ def compare(ctx: dict, cands: list[dict]) -> dict:
         return {k: v for k, v in ctx.items() if not k.startswith("_")} | {"candidates": [], "best": {}, "lenses_agree": None}
     P, w, S0 = ctx["_paths"], ctx["_w"], ctx["spot"]
     yrs = H_CAL / 365
+    B = round(S0 * 100, 2)   # X4: common budget = 100 shares' cash
     rows = [{"id": "no_trade", "kind": "baseline", "lenses": lenses(np.zeros(len(P)), w, 0.0, None, False)},
             {"id": "cash", "kind": "baseline", "note": f"T-bill {RF:.1%} on the shares' cash",
-             "lenses": lenses(np.full(len(P), S0 * RF * yrs), w, S0, None, False)},
-            {"id": "stock", "kind": "baseline", "note": "100 shares", "lenses": lenses(P[:, -1] - S0, w, S0, S0, False)}]
+             "lenses": lenses(np.full(len(P), S0 * RF * yrs), w, S0, None, False, B)},
+            {"id": "stock", "kind": "baseline", "note": "100 shares", "lenses": lenses(P[:, -1] - S0, w, S0, S0, False, B)}]
     for c in cands:
         c["spec_hash"] = spec_hash(c)
         try:
@@ -196,7 +207,7 @@ def compare(ctx: dict, cands: list[dict]) -> dict:
         cash = float(c.get("capital") or 0)
         lim = sid == "calendar"   # back-leg value needs a term/IV path → payoff illustration only
         ml = exact_max_loss(c)
-        L = lenses(x, w, cash, ml, sid in UNLIMITED or (ml is None and not lim))
+        L = lenses(x, w, cash, ml, sid in UNLIMITED or (ml is None and not lim), B)
         st = "model_limitation" if lim else "ok"
         ok, why = eligibility(c, st)
         c["context"] = {"scenario_id": ctx["scenario_id"], "exit_policy_id": EXIT_POLICY, "status": st, "eligible": ok, **L}
@@ -205,8 +216,8 @@ def compare(ctx: dict, cands: list[dict]) -> dict:
                      "legs": [{k: lg[k] for k in ("side", "strike", "qty", "px")} | {"expiry": str(lg["expiry"])} for lg in c["legs"]]})
     def winners(pool):
         out = {}
-        for lens in ("cash", "finite_loss", "matched_downside"):
-            xs = [r for r in pool if r["lenses"][lens].get("ret") is not None]
+        for lens in ("same_budget", "cash", "finite_loss", "matched_downside"):
+            xs = [r for r in pool if (r["lenses"].get(lens) or {}).get("ret") is not None]
             if xs:
                 b = max(xs, key=lambda r: r["lenses"][lens]["ret"])
                 out[lens] = b["id"] if b["lenses"][lens]["ret"] > 0 else "no_trade"

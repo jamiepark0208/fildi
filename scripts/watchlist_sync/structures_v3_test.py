@@ -94,7 +94,7 @@ class Lenses(unittest.TestCase):
         ctx = CX.build("X", T0, 100.0, NOISY)
         out = CX.compare(ctx, [cand("long_call", [leg("call", 100, 3, 45, 1)], capital=3, max_loss=3)])
         self.assertEqual([r["id"] for r in out["candidates"][:3]], ["no_trade", "cash", "stock"])
-        self.assertEqual(set(out["best"]), {"cash", "finite_loss", "matched_downside"})
+        self.assertEqual(set(out["best"]), {"same_budget", "cash", "finite_loss", "matched_downside"})
         self.assertTrue(out["read"].startswith(("all lenses", "lenses disagree")))
 
     def test_calendar_not_ranked(self):
@@ -130,6 +130,24 @@ class CodexX(unittest.TestCase):
         row = out["candidates"][-1]
         self.assertFalse(row["eligible"]); self.assertIn("trend up", row["eligibility_why"])
         self.assertTrue(set(out["hypothetical_leaders"].values()) <= {"iron_fly"})
+
+
+class SameBudget(unittest.TestCase):
+    """X4: one $ budget for every row, whole contracts, idle cash at the T-bill."""
+    def test_cash_and_contracts(self):
+        ctx = CX.build("X", T0, 100.0, NOISY)
+        c = cand("long_call", [leg("call", 100, 3, 45, 1)], capital=3, max_loss=3)
+        out = CX.compare(ctx, [c])
+        cash = next(r for r in out["candidates"] if r["id"] == "cash")["lenses"]["same_budget"]
+        self.assertAlmostEqual(cash["ret"], round(CX.RF * CX.H_CAL / 365, 4))
+        sb = c["context"]["same_budget"]
+        self.assertEqual(sb["contracts"], 33)                   # floor(10,000 / 300)
+        self.assertAlmostEqual(sb["idle_usd"], 100.0)
+        self.assertIn("same_budget", out["best"])
+
+    def test_too_big_for_budget(self):
+        L = CX.lenses(np.ones(10), np.full(10, 0.1), 200.0, 200.0, False, 10_000.0)
+        self.assertIsNone(L["same_budget"]["ret"])
 
 
 if __name__ == "__main__":
