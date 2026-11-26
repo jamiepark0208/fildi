@@ -33,7 +33,15 @@ def main(argv: list[str]) -> int:
         p = ROOT / f
         if not p.exists():
             continue
-        for m in re.finditer(r"^\s*(?:from\s+([A-Za-z_]\w*)\s+import|import\s+([A-Za-z_]\w*))", p.read_text(errors="ignore"), re.M):
+        # check the committed blob, not the working copy: another agent's uncommitted import in the same file
+        # must not block (or pass) this commit (11-26: put_recs.py)
+        src = p.read_text(errors="ignore")
+        if len(argv) >= 2 and argv[0] != "--all":
+            try:
+                src = git("show", f"{argv[1]}:{f}")
+            except Exception:
+                pass
+        for m in re.finditer(r"^\s*(?:from\s+([A-Za-z_]\w*)\s+import|import\s+([A-Za-z_]\w*))", src, re.M):
             name = m.group(1) or m.group(2)
             if name in untracked and name not in tracked_stems:
                 bad.append(f"{f} imports {name} → {untracked[name]} is not committed")
