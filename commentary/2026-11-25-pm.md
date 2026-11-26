@@ -64,8 +64,8 @@ Data
 | Durable goods, Oct | Nov 25 8:30a ET | +0.2% | +0.6% | +1.8% |
 | Jobless claims | Nov 25 8:30a ET | 189K | 200K | 202K rev |
 | New home sales, Oct | Nov 25 10:00a ET | 701K | 650K | 614K rev |
-| 7Y auction, $44B | Nov 25 ~1:00p ET | tailed 1bp | — | — |
-| Beige Book | Nov 25 2:00p ET | slight-to-moderate growth | — | — |
+| 7Y auction, $44B | Nov 25 1:00p ET | tailed 1bp | — | — |
+| Beige Book | Nov 25 2:00p ET | slight-mod. growth | — | — |
 
 - **Breadth:** **NYSE** advancers led 2.55:1 and **Nasdaq** 1.46:1; equal-weight **S&P** beat cap-weight by more than 100bp.
 
