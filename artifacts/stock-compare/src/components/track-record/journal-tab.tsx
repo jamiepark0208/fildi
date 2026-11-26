@@ -53,6 +53,7 @@ interface Resp {
     jamiePuts: { n: number; avgPct: number | null };
     enginePass: { n: number; avgPct: number | null };
     putOdds?: PutOdds | null;
+    vsEngine?: VsEngine | null;
   };
   rows: Row[];
 }
@@ -62,6 +63,74 @@ const pct = (v: number | null, d = 2) => (v == null ? "—" : `${v >= 0 ? "+" : 
 const tone = (v: number | null) => (v == null ? "text-amber-100" : v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-white");
 const oddsTone = (p: number | null) => (p == null ? "text-amber-100" : p >= 0.9 ? "text-emerald-400" : p >= 0.8 ? "text-white" : p >= 0.7 ? "text-amber-200" : "text-rose-400");
 const band = (lo: number, hi: number) => (lo <= -50 ? `< ${hi}%` : hi >= 99 ? `${lo}%+` : `${lo}–${hi}%`);
+
+// S207 (Jamie 11-26: "not enough evidence … our model is … better than the trades that i placed"): producer
+// scripts/watchlist_sync/analysis/s207_jamie_vs_engine.py (daily via learn_cells). Same weeks, same unit.
+interface VsRow { book: string; bpWk: number; medianBpWk: number; sdBp: number; worst3Bp: number; vsEngineBp: number | null; t: number | null; n: number }
+interface VsEngine {
+  asOf: string; bookEnd: string; weeks: number; jamieFrom: string; jamiePositions: number; jamieNames: number;
+  rows: VsRow[]; beatEngineWeeksPct: number; worstWeeks: Array<{ week: string; vsEngineBp: number }>;
+  earlyClose: { usdIfHeld: number; n: number; profitTakesUsd: number; lossClosesUsd: number }; calibration: number | null;
+}
+const VS_LABELS: Array<[string, string]> = [
+  ["Engine picks", "Top third of the week's ~1σ weekly puts by the live put score (A352 rebuild, inputs known at entry, net of fill cost)."],
+  ["Random pick", "Every name's ~1σ weekly put that week — what picking blind at the same distance earns."],
+  ["You, as traded", "Your real fills and your real exits (buy-to-close matched first-in first-out), all RH accounts."],
+  ["You, held to expiry", "Your same contracts if you had never closed early: premium − intrinsic at the expiry close."],
+  ["Your names, engine strike", "The names you sold that week, but at the engine's ~1σ weekly strike — separates your name choice from your strike/exit choice."],
+];
+const bpf = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(0)}`);
+
+function VsEngineCard({ v }: { v: VsEngine }) {
+  const [eng, rnd, act] = v.rows;
+  const sig = (r?: VsRow) => r?.t != null && Math.abs(r.t) >= 2;
+  return (
+    <div className="rounded border border-[#d4af37]/15 bg-zinc-950/80 px-2.5 py-2 space-y-1.5" data-testid="journal-vs-engine">
+      <DataTip tip={`Every short put you sold since ${v.jamieFrom} (${v.jamiePositions} positions, ${v.jamieNames} names) against the engine in the same ${v.weeks} weeks (engine history ends ${v.bookEnd}). Unit: bp of strike per week the collateral was tied up (cash-secured). 'vs engine' is paired by week; t ≥ 2 = real difference. Engine side is model-priced; your real fills ran ${v.calibration?.toFixed(2) ?? "—"}× the model price on your own contracts, so the engine numbers are not inflated. Updated ${v.asOf}.`}>
+        <div className="text-[10px] uppercase tracking-wide text-white font-semibold">You vs the engine — all your put sales, same weeks</div>
+      </DataTip>
+      <div className="text-[11px] text-amber-100 space-y-0.5">
+        <div>
+          <span className="text-white font-semibold">Engine beats random</span> by {bpf(eng.bpWk - rnd.bpWk)} bp/wk{sig(rnd) ? " (real, t " + Math.abs(rnd.t ?? 0).toFixed(1) + ")" : " (not significant)"} — the ranking works.
+        </div>
+        <div>
+          <span className="text-white font-semibold">You vs engine:</span> {bpf(act.bpWk)} vs {bpf(eng.bpWk)} bp/wk{sig(act) ? "" : " — no real return difference"}; you win more weeks ({v.beatEngineWeeksPct.toFixed(0)}%) but swing {(act.sdBp / eng.sdBp).toFixed(1)}× more. Your worst 3 weeks avg {bpf(act.worst3Bp)} vs {bpf(eng.worst3Bp)}.
+        </div>
+        <div>
+          <span className="text-white font-semibold">Holding to expiry instead of closing early would have added {money(v.earlyClose.usdIfHeld)}</span> over {v.earlyClose.n} positions (profit-takes {money(v.earlyClose.profitTakesUsd)}, loss closes {money(v.earlyClose.lossClosesUsd)}).
+        </div>
+      </div>
+      <div className={GRID_WRAP}>
+        <table className="w-full">
+          <thead className={GRID_HEADER}>
+            <tr>
+              <th className={cn(GRID_TH, "text-left")}>Book</th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Mean bp of strike per collateral-week across the paired weeks.">Avg bp/wk</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Median week.">Typical wk</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Standard deviation of weekly bp — how much it swings.">Swing</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Average of the 3 worst weeks.">Worst 3 wks</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Mean weekly difference vs Engine picks, same weeks; t in brackets (|t| ≥ 2 = real).">vs engine</DataTip></th>
+            </tr>
+          </thead>
+          <tbody>
+            {v.rows.map((r, i) => (
+              <tr key={r.book} className={gridRow(i)}>
+                <td className={cn(GRID_TD, "text-left")}><DataTip tip={VS_LABELS[i]?.[1] ?? r.book}>{VS_LABELS[i]?.[0] ?? r.book}</DataTip></td>
+                <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.bpWk))}>{bpf(r.bpWk)}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums")}>{bpf(r.medianBpWk)}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums")}>{r.sdBp.toFixed(0)}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.worst3Bp))}>{bpf(r.worst3Bp)}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.vsEngineBp))}>
+                  {r.vsEngineBp == null ? "—" : `${bpf(r.vsEngineBp)} (${r.t?.toFixed(1) ?? "—"})`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function OddsGrid({ odds }: { odds: PutOdds }) {
   const dd = Array.from(new Map(odds.cells.map((c) => [c.ddLo, c])).values());
@@ -171,6 +240,7 @@ export function JournalTab() {
 
   return (
     <div className="space-y-2" data-testid="journal-tab">
+      {s.vsEngine && <VsEngineCard v={s.vsEngine} />}
       {s.putOdds && <OddsGrid odds={s.putOdds} />}
       <div className="flex flex-wrap gap-1.5">
         <Stat label="Graded" value={String(s.trades)} sub={`${data.count} fills`} tip="Fills with a P&L: closes (realized, FIFO vs the matching open) and option opens still open or expired (premium − intrinsic at expiry, or last close)." />

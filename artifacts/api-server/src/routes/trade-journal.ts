@@ -144,6 +144,12 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
         }
       : null;
 
+    // S207: Jamie vs engine over all history, same weeks (s207_jamie_vs_engine.py via learn_cells, daily)
+    const vsEngineRow = rowsOf<{ card: Record<string, unknown>; updated_at: string }>(
+      (await Promise.resolve(db.execute(sql`SELECT card, updated_at::text AS updated_at FROM watchlist_sync.jamie_vs_engine WHERE id = 1`)).catch(() => [])) as SqlRows<never>,
+    )[0];
+    const vsEngine = vsEngineRow ? { ...vsEngineRow.card, updatedAt: vsEngineRow.updated_at } : null;
+
     const all = buildJournal(journalOrders, prices);
     const out = all.filter((r) => r.at.slice(0, 10) >= since || r.day >= since);
     const enriched = out.map((r) => {
@@ -180,6 +186,7 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
         jamiePuts: { n: jamieG.length, avgPct: mean(jamieG) },
         enginePass: { n: engG.length, avgPct: mean(engG) },
         putOdds,
+        vsEngine,
       },
       rows: enriched.reverse(),
     });

@@ -114,6 +114,13 @@ def main() -> None:
         print(f"rec_cells: {len(tab)} cells, {int(tab.demote.sum())} demoted → watchlist_sync.rec_cells")
         import jamie_traits  # A410 part 3: Jamie put traits for Track Record › Journal
         print(f"jamie_put_traits: {jamie_traits.refresh(c)} opens")
+        try:  # S207: Jamie vs engine, all history, same weeks → Track Record › Journal card
+            sys.path.insert(0, str(Path(__file__).resolve().parent / "analysis"))
+            import s207_jamie_vs_engine as S207
+            print(f"jamie_vs_engine: {S207.refresh(c)} paired weeks")
+        except Exception as e:  # never blocks the rec cells above
+            c.rollback()
+            print(f"jamie_vs_engine: failed ({e})")
 
 
 if __name__ == "__main__":
