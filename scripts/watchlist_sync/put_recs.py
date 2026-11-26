@@ -227,6 +227,40 @@ NEWS_8K = {"merger_agreement", "acquisition_agreement", "tender_offer", "going_p
            "restructuring_plan", "asset_impairment", "public_offering", "private_placement"}
 
 
+def pick_grade(conn, recs: list[dict], as_of: date) -> None:
+    """S208 (Jamie 11-26 'differentiate what was a good and bad pick'): flags vs the other passing picks that day.
+    A352 book, top-third picks, within-week terciles, held out 2024→: 0 flags +31.5 bp/pick (loss 9.4 %), 1 flag +15.8,
+    2+ flags −4.9 (loss 11.9 %); train 2021–23 same order (+27.1 / −0.8 / −3.3). Caution only, never a gate."""
+    picks = [r for r in recs if r.get("pass_") and r.get("strike") is not None]
+    if len(picks) < 6:
+        return
+    names = [r["ticker"] for r in picks]
+    px = defaultdict(list)
+    for t, c in conn.execute("""SELECT UPPER(ticker), close::float8 FROM prices_historical
+                                WHERE UPPER(ticker) = ANY(%s) AND date < %s AND date >= %s - 14 ORDER BY date""",
+                             (names, as_of, as_of)).fetchall():
+        px[t].append(c)
+    sue = {t: v for t, v in conn.execute("""SELECT DISTINCT ON (ticker) ticker, (features->>'ibes_sue')::float8 FROM watchlist_sync.lab_fund
+                                             WHERE ticker = ANY(%s) AND as_of <= %s AND features ? 'ibes_sue'
+                                             ORDER BY ticker, as_of DESC""", (names, as_of)).fetchall()}
+    vals = {"ret5": {r["ticker"]: (px[r["ticker"]][-1] / px[r["ticker"]][-6] - 1) for r in picks if len(px[r["ticker"]]) >= 6},
+            "sue": {t: v for t, v in sue.items() if v is not None}, "iv": {r["ticker"]: r["iv"] for r in picks if r.get("iv")}}
+    cut = {k: (float(np.percentile(list(v.values()), 33.3)), float(np.percentile(list(v.values()), 66.7))) if len(v) >= 6 else None
+           for k, v in vals.items()}
+    text = {"ret5": "ran up most in 5 days", "sue": "fresh big earnings beat", "iv": "lowest IV of today's picks"}
+    for r in picks:
+        t, fl = r["ticker"], []
+        for k, hi in (("ret5", True), ("sue", True), ("iv", False)):
+            v = vals[k].get(t)
+            if cut[k] and v is not None and (v >= cut[k][1] if hi else v <= cut[k][0]):
+                fl.append(text[k])
+        grade = "strong" if not fl else "ok" if len(fl) == 1 else "weak"
+        r["pick_grade"] = {"grade": grade, "flags": fl}
+        if grade == "weak":
+            # first: Today › Caution column shows cautions[0]
+            r["cautions"] = [f"Weak pick: {' + '.join(fl)} — such picks averaged −5 bp vs +32 for clean ones (S208)"] + list(r.get("cautions") or [])
+
+
 def news_flags(conn, recs: list[dict], as_of: date, rv: dict) -> None:
     """News check (10-29 MRVL −12 % on Lumentum deal news, no 8-K yet): awareness only, never a gate — S025/S031 found gap
     drops recover no worse than other drops. rec['news'] = today's move vs the prior close when it is ≥ 3σ (21-day RV) and
@@ -444,6 +478,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         print(f"  book group: {len(bg['list'])} of {bg['of_list']} published move together ({', '.join(bg['list'])}; corr {bg['corr']}); "
               f"held {', '.join(bg['held']) or 'none'}")
     news_flags(conn, [r for r in out if r.get("strike") is not None], as_of, rv)
+    pick_grade(conn, out, as_of)
     for r in out:
         if (r.get("news") or {}).get("gap") and r["pass_"]:
             g = r["news"]["gap"]
