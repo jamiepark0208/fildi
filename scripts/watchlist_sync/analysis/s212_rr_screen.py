@@ -202,18 +202,14 @@ def chains(n: int):
 
 
 # ---------------------------------------------------------------- pricing helpers
-def ncdf(x):
-    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+from quantcore.bs import bs_call, bs_put, norm_cdf as ncdf  # noqa: E402 — one home (copy ratchet)
 
 
 def bs(S, K, T, r, qd, s, side):
     if T <= 0 or s <= 0:
         return max(0.0, (K - S) if side == "put" else (S - K))
-    d1 = (math.log(S / K) + (r - qd + s * s / 2) * T) / (s * math.sqrt(T))
-    d2 = d1 - s * math.sqrt(T)
-    if side == "call":
-        return S * math.exp(-qd * T) * ncdf(d1) - K * math.exp(-r * T) * ncdf(d2)
-    return K * math.exp(-r * T) * ncdf(-d2) - S * math.exp(-qd * T) * ncdf(-d1)
+    f = bs_call if side == "call" else bs_put
+    return float(f(spot=S, strike=K, iv=s, years=T, r=r, q=qd))
 
 
 def implied(price, S, K, T, r, qd, side):
