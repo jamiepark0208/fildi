@@ -481,6 +481,47 @@ def unvalued(x: dict) -> str | None:
     return f"Operating loss (margin {x['m0']:.0%}): {why}"
 
 
+# Mature GAAP operating margin by gross-margin bucket (11-27, ticker_fundamentals cross-section: revenue > $2B, growth −5…15 %,
+# profitable; n 142/130/110/65/60). The scaler endpoint: a high-gross-margin loss-maker converges to what mature peers earn.
+MATURE_OM = [(0.30, 0.107), (0.45, 0.175), (0.60, 0.221), (0.75, 0.309), (9.0, 0.289)]
+ARCH_G_CAP = 0.30   # years 2–5 growth cap for persistence archetypes (≈ top-decile 5-y CAGR for large firms, S112)
+
+
+def cons_cagr(x: dict) -> float | None:
+    c = x.get("cons")
+    return float(np.prod(1 + c["g"]) ** (1 / 3) - 1) if c is not None else None
+
+
+def gross_margin(x: dict) -> float | None:
+    """Gross margin, or None when the filing tag can't be one (below the operating margin: AMZN's cost-of-sales tag picks
+    up total costs → 1 %)."""
+    gm = x.get("gm")
+    return None if gm is None or gm < max(x["m0"], 0.0) else gm
+
+
+def mature_om(gm: float | None) -> float | None:
+    return None if gm is None else next(om for hi, om in MATURE_OM if gm < hi)
+
+
+def archetype(x: dict) -> str:
+    """Stock type from fundamentals only (never price). Jamie 11-27: one generic rule set left the watchlist DCF −52 %
+    median vs price; growth compounders and capital-light scalers need their own growth/margin paths.
+      scaler      consensus 3-y revenue CAGR ≥ 15 %, margin ≥ 3 pp below what mature peers at its gross margin earn,
+                  capital-light (sales-to-capital ≥ 1; CRWV-style capex builds stay on the base path)
+      compounder  margin ≥ 10 %, consensus CAGR ≥ 10 %, ROIC ≥ 15 % or gross margin ≥ 45 %
+      base        everything else (current base-rate model)"""
+    g3 = cons_cagr(x)
+    if g3 is None:
+        return "base"
+    gm, s2c = gross_margin(x), x.get("s2c_own") or x.get("s2c_capex")
+    mo = mature_om(gm)
+    if g3 >= 0.15 and mo is not None and x["m0"] < mo - 0.03 and (s2c or 0) >= 1.0:
+        return "scaler"
+    if x["m0"] >= 0.10 and g3 >= 0.10 and ((x.get("roic0") or 0) >= 0.15 or (gm or 0) >= 0.45):
+        return "compounder"
+    return "base"
+
+
 def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict | None = None, scenario: str = "base") -> dict:
     rng = np.random.default_rng(seed)
     fx = fixed or {}
@@ -548,6 +589,12 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         gr[:, 1:5] = ga
         for k in range(5, 10):
             gr[:, k] = ga + (g_T - ga) * ((k - 4) / 6)
+    arch = archetype(x) if fx.get("arch") else "base"
+    if arch in ("compounder", "scaler"):  # consensus 3-y CAGR held through year 5 (capped), then fade to terminal by year 10
+        ga = min(cons_cagr(x), ARCH_G_CAP, float(q5(np.array([0.9]))[0]))   # ≤ base-rate P90 for its size × start growth
+        gr[:, 1:5] = ga + (gr[:, 1:5] - np.median(gr[:, 1:5], axis=0)[None, :])   # keep the base-rate spread around it
+        for k in range(5, 10):
+            gr[:, k] = ga + (g_T - ga) * ((k - 4) / 6)
     rev = x["rev"] * np.cumprod(1 + gr, axis=1)
     m_t = np.full(n, x["m0"]) if fx.get("hold_margin") else qm(u_m)
     m_mid = None if fx.get("hold_margin") else x.get("m_mid")  # trough floor: see trough_margin()
@@ -568,8 +615,13 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
         if m_mid is not None:
             m_t = np.maximum(m_t, m_mid)
         margin[:, 3:] = m3[:, None] + (m_t - m3)[:, None] * ((years[3:] - 3) / 7)[None, :]
+    if arch == "scaler":  # mature-peer GAAP margin (already net of mature stock pay) reached by year 7; street years 1–2 kept
+        m_T = mature_om(gross_margin(x)) * np.exp(rng.normal(0, 0.25, n) * (0 if fx.get("u_m") is not None else 1))
+        m_t = m_T
+        m2 = margin[:, 1]
+        margin[:, 2:] = m2[:, None] + (m_T - m2)[:, None] * np.clip((years[2:] - 2) / 5, 0, 1)[None, :]
     sbc_T = next(tg for hi, tg in SBC_10Y if x.get("sbc0", 0) < hi)
-    if sbc_T is not None and x.get("sbc0", 0) > sbc_T and not fx.get("hold_margin"):  # S114: stock pay shrinks → GAAP margin gains
+    if arch != "scaler" and sbc_T is not None and x.get("sbc0", 0) > sbc_T and not fx.get("hold_margin"):  # S114: stock pay shrinks → GAAP margin gains
         margin = margin + (x["sbc0"] - sbc_T) * np.minimum(years / 10, 1)[None, :]
     tax_T = 0.25 if x["tax0"] >= 0.25 else x["tax0"] + 0.5 * (0.25 - x["tax0"])
     tax = np.full(10, x["tax0"]) if fx.get("hold_tax") else x["tax0"] + (tax_T - x["tax0"]) * (years / 10)
@@ -617,7 +669,7 @@ def simulate(x: dict, br: BaseRates, n: int = 4000, seed: int = 0, fixed: dict |
     bridge = sum((x.get("assets") or {}).values()) - sum((x.get("claims") or {}).values())
     equity = np.maximum(ev - x["debt"] + x["cash"] - x["minority"] + bridge, 0) * (1 - p_fail)  # limited liability
     vps = equity / x["shares"]
-    return {"vps": vps, "tv_share": float(np.median(pv_tv / ev)), "why": {"growth": gwhy, "margin": mwhy, "roic": rwhy},
+    return {"vps": vps, "arch": arch, "tv_share": float(np.median(pv_tv / ev)), "why": {"growth": gwhy, "margin": mwhy, "roic": rwhy},
             "b0": b0, "bT": bT, "kd": kd, "wd": wd, "p_fail": p_fail, "rf": rf,
             "parts": {"nopat1": float(np.median(nopat[:, 0])), "reinv1": float(np.median(reinv[:, 0])), "fcff1": float(np.median(fcff[:, 0])),
                       "pv_explicit": float(np.median(pv)), "pv_tv": float(np.median(pv_tv)), "ev": float(np.median(ev)),
