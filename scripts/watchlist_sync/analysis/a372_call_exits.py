@@ -25,16 +25,13 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 import s045_put_retest as M  # noqa: E402
 from build_plan import connect  # noqa: E402
+from quantcore.bs import bs_call as bs_call_px, years_from_days  # noqa: E402
 from quantcore.ta import ema, rsi  # noqa: E402
 
 OUT = HERE.parent.parent.parent / "research" / "studies" / "out" / "a372-call-exits.md"
 HOLD = 5
 SPLIT = date(2023, 1, 1)
 EXITS = ("hold", "rsi_turn", "macd_shrink", "ema20_break", "any_atd")
-
-
-def bs_call(S, K, vol, t):
-    return M.bs_put(S, K, vol, t) + S - K
 
 
 def macd_hist(close: np.ndarray):
@@ -60,7 +57,7 @@ def call_pnl_path(pre, i, iv, hold=HOLD):
         return None
     tt0 = hold / 252
     Kc = S * math.exp(ivf * math.sqrt(tt0))
-    prem0 = bs_call(S, Kc, ivf, tt0)
+    prem0 = bs_call_px(spot=S, strike=Kc, iv=ivf, years=years_from_days(HOLD))
     ST = float(c[i + hold])
     hold_pnl = (prem0 - max(0.0, ST - Kc)) / S
     early = {}
@@ -71,7 +68,7 @@ def call_pnl_path(pre, i, iv, hold=HOLD):
         dleft = hold - j
         tt = dleft / 252
         Sj = float(c[idx])
-        prem_j = bs_call(Sj, Kc, ivf, tt)
+        prem_j = bs_call_px(spot=Sj, strike=Kc, iv=ivf, years=years_from_days(dleft))
         pnl_j = (prem0 - prem_j) / S  # cover: pay prem_j vs collected prem0
         flags = []
         if idx >= 2 and np.isfinite(r[idx]) and np.isfinite(r[idx - 1]) and r[idx - 1] > 70 and r[idx] < r[idx - 1]:
