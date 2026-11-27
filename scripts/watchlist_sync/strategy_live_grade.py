@@ -152,8 +152,8 @@ def src_ira_puts(c):
     """Jamie's real IRA fills: ira-puts strategy_trades (RH IRA), bp/wk per trade, clustered by ENTRY week so the row
     lines up with the same-weeks comparators (ira_same_weeks)."""
     return [((r["id"],), monday(r["d"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
-            for r in rows(c, """SELECT id, entry_ts::date d, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
-                                WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL""")]
+            for r in rows(c, """SELECT id, expiry d, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+                                WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL""")]   # expiry week (see ira_same_weeks)
 
 
 def src_ira_covered_calls(c):
@@ -254,10 +254,12 @@ def _paired(jam: dict, other: dict):
 
 def ira_same_weeks(c):
     """Jamie 11-27: his IRA puts graded against what else the same weeks paid, not a frozen backtest number.
-    Keyed by entry week (Monday). Comparators: engine (backtest A352 book until it ends, then the live Today picks at
+    Keyed by expiry week (Monday). Comparators: engine (backtest A352 book until it ends, then the live Today picks at
     bid + 23 % of spread), SPY/QQQ 1σ weekly puts (index-1sigma-puts, model-priced), SPY held the week, 3-month T-bill."""
-    jam = _week_means((monday(r["d0"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
-                      for r in rows(c, """SELECT entry_ts::date d0, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+    # 11-27: keyed by EXPIRY week — the week the market decides the trade. Entry-week keys put Jamie's 10-07/10-09 sales
+    # of 10-16 puts into "week 10-05" (−515) while the engine's 4-DTE 10-05 puts had already expired 10-09 (+38).
+    jam = _week_means((monday(r["e"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
+                      for r in rows(c, """SELECT expiry e, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
                                           WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL"""))
     eng = {r["week"]: r["bp"] for r in rows(c, "SELECT week, bp FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = 'ENGINE'")}
     live = _week_means((monday(r["as_of"]), per_week_bp(
