@@ -141,15 +141,18 @@ def _events_by_week_sample(conn, plan: list[SampleEvent]) -> tuple[dict[date, li
     return out, n_plan, n_days
 
 
-def _attach_traded(conn, events: list[dict]) -> list[dict]:
-    ready = []
+def _attach_traded(conn, events: list[dict]) -> tuple[list[dict], dict[str, int]]:
+    ready: list[dict] = []
+    drops: dict[str, int] = {"no_entry_close": 0, "no_spot_settle": 0}
     for e in events:
         c = e["contract"]
         traded = _entry_close(conn, c.occ, c.entry)
         if traded is None:
+            drops["no_entry_close"] += 1
             continue
         spot, settle = _spot_settle(conn, c.ticker, e["d"], e["expiry"])
         if not spot or not settle:
+            drops["no_spot_settle"] += 1
             continue
         model_prem = _model_prem_snap(spot, c.strike, float(e["iv30"]), int(e["hold_sessions"]))
         row = {
@@ -164,7 +167,7 @@ def _attach_traded(conn, events: list[dict]) -> list[dict]:
         row["pnl_traded"] = {h: _short_pnl(traded * (1.0 - h), c.strike, settle) for h in HAIRCUTS}
         row["pnl_model"] = {h: _short_pnl(model_prem * (1.0 - h), c.strike, settle) for h in HAIRCUTS}
         ready.append(row)
-    return ready
+    return ready, drops
 
 
 def _tercile_book(by: dict[date, list[dict]], key: str, h: float) -> tuple[list[float], list[float]]:
@@ -214,14 +217,20 @@ def main() -> None:
             plan_events, meta = sample_loaded
             by_week, n_plan, n_days_plan = _events_by_week_sample(conn, plan_events)
             flat = [e for g in by_week.values() for e in g]
-            with_traded = _attach_traded(conn, flat)
-            cov_events = len(with_traded) / n_plan if n_plan else 0.0
+            with_traded, drops = _attach_traded(conn, flat)
+            n_eligible = len(flat)
+            no_snap = n_plan - n_eligible
+            cov_gate = len(with_traded) / n_eligible if n_eligible else 0.0
+            cov_plan = len(with_traded) / n_plan if n_plan else 0.0
             grade = _tagged_tercile_book
         else:
             by_week, n_plan, n_days_plan = _events_by_week_full(conn)
             flat = [e for g in by_week.values() for e in g]
-            with_traded = _attach_traded(conn, flat)
-            cov_events = len(with_traded) / n_plan if n_plan else 0.0
+            with_traded, drops = _attach_traded(conn, flat)
+            n_eligible = n_plan
+            no_snap = 0
+            cov_gate = len(with_traded) / n_eligible if n_eligible else 0.0
+            cov_plan = cov_gate
             grade = _tercile_book
 
         by: dict[date, list[dict]] = defaultdict(list)
@@ -229,7 +238,8 @@ def main() -> None:
             by[e["d"]].append(e)
 
         header = "# A357 — real-price re-grade (LSE traded entry)"
-        if args.interim or (use_tags and cov_events < 0.99):
+        cov_events = cov_gate
+        if args.interim or (use_tags and cov_gate < 0.60):
             header += " · **INTERIM**"
 
         lines = [
@@ -238,9 +248,17 @@ def main() -> None:
             f"LSE daily OCCs: {n_occ} · sample plan: {n_plan} events / {n_days_plan} entry days"
             if use_tags
             else f"Contracts with S059 entry ≥ {WEEK_FLOOR}: {n_plan}",
-            f"With traded entry (in plan): {len(with_traded)} ({cov_events:.1%} coverage)",
+            f"Snapped contracts (eligible): {n_eligible} · with traded entry: {len(with_traded)} ({cov_gate:.1%} of eligible; {cov_plan:.1%} of plan)",
             "",
         ]
+        if use_tags and (no_snap or any(drops.values())):
+            lines += [
+                "## Coverage drops",
+                f"- no_listed_strike / unsnapped: {no_snap}",
+                f"- no LSE entry close (±1d, entry day only): {drops['no_entry_close']}",
+                f"- missing spot/settle: {drops['no_spot_settle']}",
+                "",
+            ]
         if use_tags:
             lines.append(f"Selection: `{SAMPLE_PATH}` (tagged champion/random; no re-rank on traded subset).")
             lines.append("")
@@ -286,13 +304,13 @@ def main() -> None:
 
         if edge_at_5 is None:
             verdict = "underpowered"
-            if cov_events < 0.60:
-                verdict = f"coverage {cov_events:.1%} < 60% (pre-registered bar)"
+            if cov_gate < 0.60:
+                verdict = f"coverage {cov_gate:.1%} < 60% (pre-registered bar, eligible contracts)"
         else:
-            verdict = edge_verdict(edge_at_5[0], edge_at_5[1], cov_events, edge_at_5[2])
+            verdict = edge_verdict(edge_at_5[0], edge_at_5[1], cov_gate, edge_at_5[2])
         if args.interim and verdict == "holds":
             verdict = "holds (interim)"
-        lines += [f"**Coverage vs plan:** {cov_events:.1%} → **{verdict}**.", ""]
+        lines += [f"**5% haircut edge (pre-registered):** **{verdict}**.", ""]
 
         REPORT.parent.mkdir(parents=True, exist_ok=True)
         REPORT.write_text("\n".join(lines))

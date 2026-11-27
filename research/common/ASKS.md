@@ -64,7 +64,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A338](asks/A338.md) | 2026-11-04 | Muse → Cursor | Settings › Indicators defaults don't match the charts (Live chart ignores them) | done (Cursor 11-07) |
 | [A341](asks/A341.md) | 2026-11-05 | Muse → Claude → Cursor | Quant research starter pack: test engines (NautilusTrader, VectorBT), probe Databento, adopt AFML methods | done (Claude 11-06: verdicts in; S151 → UNPROVEN; Muse radar line open) |
 | [A356](asks/A356.md) | 2026-11-06 | Jamie → Claude → Cursor | External tools audit: every outside source/API/tool — usage, limit, UI home, Settings, AI-context wiring, correctness, overlaps | done (Claude 11-06: phases closed; Codiv graded, LSE_KEY -> A357) |
-| [A357](asks/A357.md) | 2026-11-06 | Jamie → Claude → Cursor | [quant] Wire London Strategic Edge: real option trades re-price the put-score history | planned |
+| [A357](asks/A357.md) | 2026-11-06 | Jamie → Claude → Cursor | [quant] Wire London Strategic Edge: real option trades re-price the put-score history | done |
 | [A342](asks/A342.md) | 2026-11-05 | Muse → Cursor | [quant] Learning loop: threshold-only proposals can never promote (no posterior branch) | done |
 | [A343](asks/A343.md) | 2026-11-05 | Muse → Cursor | Learning loop: apply_rationale drops the premium redistribution, challenger weights don't sum to 1 | done |
 | [A344](asks/A344.md) | 2026-11-05 | Muse → Cursor | Turning points: NaN holdout lift bypasses the 1.5 STOP gate and scores get written anyway | done |
