@@ -28,6 +28,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -150,6 +151,12 @@ SOFT_MODEL = {
     "tech components",
     "turning points",
 }
+
+
+# 11-27 pipeline audit: vendor-bound, display-only publish steps that no other step reads. Each chain runs in a background
+# thread (in order) from where its first step sits, joined at the end of the stage. Yahoo insights (1.2 s/name × 950 ≈ 21 min,
+# kept sequential for the Yahoo circuit) → DCF grades (reads it); LSE options flow (~20 min). Saves ~40 min of wall time.
+BACKGROUND = {"Yahoo insights (Trading Central)": "yahoo", "DCF grades": "yahoo", "options flow": "lse"}
 
 
 def quotes_ingested() -> bool:
@@ -303,9 +310,26 @@ def main() -> None:
             if login.returncode == 0:
                 STAGES["verify"] = [("Robinhood quotes (rh_client)", PY, HERE, ["rh_client.py", "fetch"])]
             # else: verify_plan evaluate re-prices on Schwab live quotes (exit 3 if Schwab is unavailable too)
+        bg: dict[str, threading.Thread] = {}
+        bg_out: list[dict] = []
+
+        def chain(steps):
+            for n_, py_, cwd_, args_ in steps:
+                r_ = run(n_, py_, cwd_, args_)
+                print(f"{'✓' if r_['ok'] else '✗'} {st:<9} {n_:<24} {r_['seconds']:>6}s  (background)")
+                bg_out.append(r_)
+
         for name, py, cwd, args in STAGES[st]:
             if name in done:
                 print(f"↷ {st:<9} {name:<24} done earlier today")
+                continue
+            if st == "publish" and name in BACKGROUND:
+                key = BACKGROUND[name]
+                if key not in bg:
+                    steps = [x for x in STAGES[st] if BACKGROUND.get(x[0]) == key and x[0] not in done]
+                    bg[key] = threading.Thread(target=chain, args=(steps,), daemon=True)
+                    bg[key].start()
+                    print(f"⇉ {st:<9} {key} chain started in background: {', '.join(x[0] for x in steps)}")
                 continue
             r = run(name, py, cwd, args)
             if not r["ok"] and name in RETRY_ONCE:   # 11-13: 0 chains → put_recs priced on the prior day; Fridays have no API fallback
@@ -338,6 +362,15 @@ def main() -> None:
                 status = f"failed at {name} ({cause})"
                 print(r["tail"])
                 break
+        for th in bg.values():
+            th.join()
+        for r in bg_out:   # background steps are all soft publish steps
+            log["steps"].append(r)
+            if not r["ok"]:
+                log.setdefault("soft_failures", []).append({"step": r["step"], "cause": r["cause"], "tail": (r["tail"] or "")[-300:]})
+                DI.record("daily.py", "soft_step_failed", field=r["step"], detail=f"{r['cause']}: {(r['tail'] or '').splitlines()[-1:]}")
+        if bg_out:
+            save_inflight()
         if status != "ok":
             break
     if status.startswith("failed"):   # 10-19: a crash left Jamie on Friday's list silently → the gate records it as STALE

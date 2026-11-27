@@ -57,6 +57,38 @@ def _polygon(conn, t: str, frm: date) -> list[tuple[date, float]]:
     return [(O.day(r["t"]), float(r["c"])) for r in d.get("results") or [] if r.get("c")]
 
 
+_GROUPED: dict[date, dict[str, float]] = {}
+
+
+def _grouped(conn, d: date) -> dict[str, float]:
+    """All US closes for one day in ONE Polygon call (grouped daily), memoised per run. Polygon is 5/min, so the
+    old per-ETF aggs walk cost 49 calls ≈ 10 min a day (11-27 profile: 432 s); this is 1–2 calls a day."""
+    if d not in _GROUPED:
+        import option_history as O
+        g = O.get(f"/v2/aggs/grouped/locale/us/market/stocks/{d}?adjusted=true")
+        if g:
+            payload = json.dumps(g)
+            conn.execute("""INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
+                            VALUES ('polygon', 'grouped/day', %s, %s, %s::jsonb, %s)
+                            ON CONFLICT (source, endpoint, key, fetched_on) DO UPDATE SET payload = EXCLUDED.payload,
+                            payload_sha = EXCLUDED.payload_sha""",
+                         (str(d), date.today(), payload, hashlib.sha256(payload.encode()).hexdigest()))
+        O.flush_usage(conn)
+        _GROUPED[d] = {r["T"]: float(r["c"]) for r in (g or {}).get("results") or [] if r.get("T") and r.get("c")}
+    return _GROUPED[d]
+
+
+def _polygon_inc(conn, t: str, frm: date, to: date) -> list[tuple[date, float]]:
+    """frm..to closes for t from grouped daily (weekdays only; holidays come back empty). Per-ETF aggs fallback
+    when the base day is missing from grouped (e.g. a grouped call failed)."""
+    days = [frm + timedelta(days=k) for k in range((to - frm).days + 1)]
+    out = [(d, _grouped(conn, d).get(t)) for d in days if d.weekday() < 5]
+    out = [(d, c) for d, c in out if c]
+    if not out or out[0][0] != frm:
+        return _polygon(conn, t, frm)
+    return out
+
+
 def _crsp(conn, t: str) -> list[tuple[date, float]]:
     """retx-chained index (split-safe, ex-dividend like a close); the permno with the latest data (old SMH HOLDRS etc. dropped)."""
     rs = conn.execute("""WITH p AS (SELECT permno FROM wrds_research.crsp_dsf WHERE ticker = %s GROUP BY 1 ORDER BY MAX(date) DESC LIMIT 1)
@@ -84,7 +116,7 @@ def refresh():
             elif have.get(t) and have[t] >= date.today() - timedelta(days=1):
                 continue
             elif have.get(t):   # incremental: Polygon from the last stored day, scaled to the stored level
-                pol = _polygon(conn, t, have[t])
+                pol = _polygon_inc(conn, t, have[t], date.today())
                 last = conn.execute("SELECT close FROM watchlist_sync.sector_etf_daily WHERE ticker = %s AND date = %s",
                                     (t, have[t])).fetchone()[0]
                 base = next((c for d, c in pol if d == have[t]), None)

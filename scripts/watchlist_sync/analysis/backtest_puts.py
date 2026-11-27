@@ -59,6 +59,24 @@ def rsi(closes, n=14):
     return rsi_last(closes, n)
 
 
+def rsi_windows(cl, ks, back=60, n=14):
+    """{k: rsi(cl[max(0, k-back):k+1])} for every k, in ONE 2-D quantcore call (columns = windows).
+    Short windows are NaN-padded on top: NaN resets the Wilder seed and adds exact 0.0 to the prefix
+    sums, so each value is bit-identical to the per-window rsi() above (verified 11-27, 20 min → s)."""
+    import numpy as np
+    from quantcore.ta import rsi as rsi_vec
+    ks = sorted(set(ks))
+    if not ks:
+        return {}
+    M = np.full((back + 1, len(ks)), np.nan)
+    for c, k in enumerate(ks):
+        w = cl[max(0, k - back):k + 1]
+        M[back + 1 - len(w):, c] = w
+    last = rsi_vec(M, n)[-1]
+    ok = np.isfinite(M).sum(axis=0) > n  # rsi_last: None when ≤ n finite bars
+    return {k: (float(last[c]) if ok[c] and np.isfinite(last[c]) else None) for c, k in enumerate(ks)}
+
+
 def pct_rank(v, hist, min_n=60):
     hist = [h for h in hist if h is not None]
     if v is None or len(hist) < min_n:
@@ -105,6 +123,7 @@ def build_trades(H, peer, er, sm, haircut, target_delta):
         ds = [d for d, _, _ in series]
         cl = [c for _, c, _ in series]
         iv = [v for _, _, v in series]
+        valid = []
         for e in entries:
             i = bisect_left(ds, e)
             if i >= len(ds) or ds[i] != e or i < 60 or iv[i] is None or iv[i] <= 0:
@@ -113,6 +132,10 @@ def build_trades(H, peer, er, sm, haircut, target_delta):
             j = bisect_right(ds, expiry) - 1  # last close on/before expiry
             if j <= i or ds[j] < expiry - timedelta(days=4):
                 continue  # no exit price (end of data or a gap)
+            valid.append((e, i, j))
+        R = rsi_windows(cl, [k for _, i, _ in valid for k in (i, *range(max(15, i - 252), i, 5))])
+        smt = {m: ([d for d, _ in obs], [v for _, v in obs]) for m, obs in sm.get(t, {}).items()}
+        for e, i, j in valid:
             S, s = cl[i], iv[i] / 100
             T = (ds[j] - e).days / 365
             r = RF.get(e.year, 0.03)
@@ -127,8 +150,8 @@ def build_trades(H, peer, er, sm, haircut, target_delta):
             hist_iv = [x for x in iv[max(0, i - 252):i]]
             mom20 = S / cl[i - 20] - 1
             ma50 = mean(cl[i - 49:i + 1]) if i >= 49 else None
-            rs = rsi(cl[max(0, i - 60):i + 1])
-            rsi_hist = [rsi(cl[max(0, k - 60):k + 1]) for k in range(max(15, i - 252), i, 5)]
+            rs = R[i]
+            rsi_hist = [R[k] for k in range(max(15, i - 252), i, 5)]
             k_spy = bisect_right(spy_dates, e) - 1
             spy_m20 = (spy[spy_dates[k_spy]] / spy[spy_dates[k_spy - 20]] - 1) if k_spy >= 20 else None
             ers = er.get(t, [])
@@ -142,8 +165,9 @@ def build_trades(H, peer, er, sm, haircut, target_delta):
                 "earnings_in_window": 1.0 if nxt else 0.0,
             }
             for metric in ("combined_alpha_rank", "pred_surprise_pct_fq1"):
-                obs = [v for d, v in sm.get(t, {}).get(metric, []) if d <= e]
-                feats[metric] = obs[-1] if obs else None
+                sd, sv = smt.get(metric, ((), ()))
+                q = bisect_right(sd, e)  # obs sorted by obs_date → last obs on/before entry
+                feats[metric] = sv[q - 1] if q else None
             trades.append({"ticker": t, "peer": peer.get(t), "entry": e, "exit": ds[j], "S": S, "K": K, "iv": iv[i], "prem": prem,
                            "ST": ST, "ret": pnl / K, "ret_ra": (pnl / K) / (s * math.sqrt(T)), "kept": pnl / prem if prem > 0 else None,
                            "fwd63": (cl[i + 63] / S - 1) if i + 63 < len(cl) else None, "tail_ra": (pnl / K) < -(s * math.sqrt(T)),
