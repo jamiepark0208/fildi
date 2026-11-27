@@ -2,7 +2,7 @@ import sys,pickle,random; sys.path[:0]=['.','analysis']
 from strategy_live_grade import monday
 from collections import defaultdict
 from statistics import mean
-book=pickle.load(open('/private/tmp/claude-501/-Users-jamiepark-Cursor-fildi/d93909f0-f3bc-4dfb-8136-eb6c7b2c0262/scratchpad/book.pkl','rb'))
+book=pickle.load(open(sys.argv[1],'rb')  # pickle of a352_score_rank.rebuild_book(conn); run from scripts/watchlist_sync)
 by=defaultdict(list)
 for e in book: by[monday(e['d'])].append(e)
 random.seed(7)
