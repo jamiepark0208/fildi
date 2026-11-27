@@ -359,6 +359,9 @@ def restrike_puts(conn, ctx: dict) -> None:
         r["far_why"], r["band_why"], r["engine_market"] = e.get("far"), e["why"], e.get("market_state")
         r["engine_rank"] = e.get("rank")
         r["engine_gates"] = list(e.get("gates") or [])   # 10-26: the engine's gate set is the only one (put-edge, income, stale chain)
+        r["engine_cautions"] = list(e.get("cautions") or [])
+        # The canonical producer already judged regime; do not resurrect its former panic hard gate.
+        r.pop("engine_pause", None)
         r["engine_edge_q"] = e.get("put_edge_q")
         note = f"engine pick {e['strike']:g} {exp:%m-%d} ({-e['delta']:.2f}Δ, was {-(r.get('delta') or 0):.2f}Δ): {e['why']}"
         ref = [c for c in cs if c["ticker"] == r["ticker"] and c["expiry"] == exp]

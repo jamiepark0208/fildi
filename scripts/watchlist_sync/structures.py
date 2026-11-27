@@ -215,6 +215,10 @@ def main():
                         pr = I.get(t, {}).get("put_rec") or {}   # + the Model List's live-quote result (verify_plan → live_check, 10-28)
                         g = (pr.get("gates") or []) + ([f"live check — {pr['live_check']}"] if pr.get("live_check") not in (None, "pass") else [])
                         c["fit"], c["fit_why"] = not g, desc + ("" if not g else " · " + "; ".join(g))
+                        c["cautions"] = pr.get("cautions") or []
+                        c["quality_policy"] = pr.get("quality_policy")
+                        if c["cautions"]:
+                            c["fit_why"] += " · caution: " + "; ".join(c["cautions"])
                         c["_gates"] = list(g)
                     else:
                         ok, why = SE.fit(c, I, ctx)
@@ -388,7 +392,7 @@ def build_all(t, exps, chains, today, held, ladder=None, inputs=None):
         A = lambda side, q: (lambda r: _leg(r, q, e) if r else None)(_atm(ch, side))  # noqa: E731
         if tag == "weekly":
             if t in held:
-                add("covered_call", [L("call", 0.20, -1)])
+                add("covered_call", [L("call", 0.20, -1)], {"stock": True})
             s25p, s25c = L("put", 0.25, -1), L("call", 0.25, -1)
             if s25p:
                 add("put_spread", [s25p, L("put", 0.10, +1, below=s25p["strike"])])
@@ -453,13 +457,15 @@ def evaluate(c, rv20, today, logc):
     h = max(1, round((c["expiry"] - today).days * 5 / 7))
     SH = empirical(S, logc, h)
     pnl_r = credit + sum(lg["qty"] * leg_value(SH, lg, back_left if lg["expiry"] != c["expiry"] else 0.0) for lg in legs)
-    if c.get("stock"):   # collar: include the shares
+    if c.get("stock") or c["structure"] == "covered_call":
         pnl_m = pnl_m + (ST - S); pnl_r = pnl_r + (SH - S)
     # capital at risk per share
     sid = c["structure"]
     wide = np.linspace(S * 0.2, S * 3, 2000)
     pay = credit + sum(lg["qty"] * (np.maximum(wide - lg["strike"], 0) if lg["side"] == "call" else np.maximum(lg["strike"] - wide, 0))
                        for lg in legs if lg["expiry"] == c["expiry"])
+    if c.get("stock") or sid == "covered_call":
+        pay += wide - S
     if sid == "csp":
         cap = legs[0]["strike"]
     elif sid in ("covered_call", "collar"):
@@ -470,7 +476,8 @@ def evaluate(c, rv20, today, logc):
         cap = max(-credit, 0.01)
     else:
         cap = max(-float(pay.min()), 0.01)
-    return {"credit": round(credit, 3), "capital": round(cap, 2), "max_loss": round(float(-pay.min()), 2) if sid not in ("short_strangle", "short_straddle", "covered_call", "collar", "calendar", "csp") else None,
+    overlay_loss = CX.exact_max_loss(c) if sid in ("covered_call", "collar") else None
+    return {"credit": round(credit, 3), "capital": round(cap, 2), "max_loss": overlay_loss if sid in ("covered_call", "collar") else round(float(-pay.min()), 2) if sid not in ("short_strangle", "short_straddle", "calendar", "csp") else None,
             "max_gain": round(float(pay.max()), 2) if sid not in ("long_call", "long_strangle", "long_straddle") else None,
             "p_mkt": float((W * (pnl_m > 0)).sum()), "p_rv": float(np.mean(pnl_r > 0)),
             "ev_mkt": round(float((W * pnl_m).sum()), 3), "ev_rv": round(float(np.mean(pnl_r)), 3),
@@ -646,7 +653,8 @@ def log_ledger(conn, board, today):
                       question_id = question_id || ':sup' || to_char(now(), 'HH24MISS'),
                       meta = meta || jsonb_build_object('superseded_at', now()::text)
                     WHERE qtype = 'sim_structure' AND made_on = %s AND outcome IS NULL AND question_id LIKE 'struct:%%'
-                      AND NOT (question_id = ANY(%s))""", (today, list(keep)))
+                      AND (NOT (question_id = ANY(%s)) OR meta->>'policy_version' IS DISTINCT FROM %s)""",
+                 (today, list(keep), CX.POLICY_VERSION))
     n = 0
     for sid, lst in board.items():
         for c in lst:
@@ -654,7 +662,7 @@ def log_ledger(conn, board, today):
                 continue  # grade only strict-fit primary picks
             qid = f"struct:{sid}:{c['ticker']}:{c['expiry']}:{today}"
             meta = json.dumps({"structure": sid, "legs": public(c)["legs"], "credit": c["credit"], "spot": c["spot"],
-                               "from": str(today), "stock": bool(c.get("stock")), "tier": "primary",
+                               "from": str(today), "stock": bool(c.get("stock")) or sid == "covered_call", "tier": "primary",
                                "spec_hash": c.get("spec_hash"), "scenario_id": (c.get("context") or {}).get("scenario_id"),
                                "policy_version": CX.POLICY_VERSION}, default=str)
             for fc, p in (("market_iv", c["p_mkt"]), ("realized_vol", c["p_rv"])):

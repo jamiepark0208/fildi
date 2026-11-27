@@ -1,5 +1,6 @@
 """A192 V3 (Codex D2): shared scenario context — identity, same paths for every candidate, lenses, missing data."""
 import unittest
+from unittest.mock import patch
 from datetime import date, timedelta
 
 import numpy as np
@@ -80,6 +81,35 @@ class KnownAnswer(unittest.TestCase):
 
 
 class Lenses(unittest.TestCase):
+    def test_board_prices_the_whole_covered_call(self):
+        import structures as S
+        c = cand("covered_call", [leg("call", 105, 2, 7, -1)], expiry_max=T0 + timedelta(days=7))
+        with patch.object(S, "outcome", return_value=(np.array([2., -13.]), np.array([80., 120.]))), patch.object(S, "empirical", return_value=np.array([80., 120.])), patch.object(S, "W", np.array([.5, .5])):
+            actual = S.evaluate(c, .3, T0, FLAT)
+        self.assertAlmostEqual(actual["ev_rv"], -5.5)
+        self.assertAlmostEqual(actual["max_loss"], 98.)
+        self.assertAlmostEqual(actual["max_gain"], 7.)
+        self.assertAlmostEqual(actual["p_rv"], .5)
+
+    def test_expired_overlay_has_no_post_expiry_stock_exposure(self):
+        ctx = CX.build("X", T0, 100.0, FLAT)
+        ctx["_paths"] = np.full((3, CX.H_TD + 1), 100.0)
+        ctx["_paths"][:, 5] = [120., 120., 80.]
+        ctx["_paths"][:, -1] = [150., 0., 150.]
+        cc = cand("covered_call", [leg("call", 105, 2, 7, -1)])
+        actual = CX.pnl(cc, ctx)
+        np.testing.assert_allclose(actual, [7., 7., -18.])
+        self.assertTrue(np.all(actual >= -CX.exact_max_loss(cc)))
+        collar = cand("collar", [leg("call", 105, 2, 7, -1), leg("put", 95, 2, 7, 1)], stock=True)
+        np.testing.assert_allclose(CX.pnl(collar, ctx), [5., 5., -5.])
+        self.assertTrue(np.all(CX.pnl(collar, ctx) >= -CX.exact_max_loss(collar)))
+
+    def test_staggered_overlay_is_not_silently_modelled(self):
+        ctx = CX.build("X", T0, 100.0, FLAT)
+        c = cand("collar", [leg("call", 105, 2, 7, -1), leg("put", 95, 2, 14, 1)], stock=True)
+        with self.assertRaisesRegex(ValueError, "assignment lifecycle"):
+            CX.pnl(c, ctx)
+
     def test_matched_downside_hits_budget(self):
         x = np.linspace(-10, 10, 200); w = np.full(200, 1 / 200)
         L = CX.lenses(x, w, 50.0, 10.0, False)
@@ -133,6 +163,28 @@ class CodexX(unittest.TestCase):
 
 
 class SameBudget(unittest.TestCase):
+    def test_released_principal_and_profit_earn_cash_interest(self):
+        out = CX.lenses(np.array([1.]), np.array([1.]), 10., 10., False, 1000., released_days=23)
+        self.assertAlmostEqual(out['same_budget']['pnl_usd'], 103.12)
+        self.assertAlmostEqual(out['same_budget']['released_cash_interest_usd'], 1100 * CX.RF * 23 / 365, places=4)
+        self.assertEqual(out['ev'], 1.)  # standalone trade payoff remains distinct
+
+    def test_loss_and_deficit_are_not_treated_as_full_principal_return(self):
+        for payoff in [-5., -12.]:
+            out = CX.lenses(np.array([payoff]), np.array([1.]), 10., None, True, 1000., released_days=23)
+            expected = 100 * payoff + 100 * (10 + payoff) * CX.RF * 23 / 365
+            self.assertAlmostEqual(out['same_budget']['pnl_usd'], round(expected, 2))
+
+    def test_compare_applies_early_expiry_carry_but_not_future_mark_carry(self):
+        ctx = CX.build('X', T0, 100., FLAT)
+        c = cand('csp', [leg('put', 100, 2, 7, -1)], capital=100.)
+        CX.compare(ctx, [c])
+        self.assertEqual(c['context']['same_budget']['released_days'], 23)
+        self.assertAlmostEqual(c['context']['same_budget']['released_cash_interest_usd'], 10200 * CX.RF * 23 / 365, places=4)
+        c = cand('long_call', [leg('call', 100, 2, 45, 1)], capital=2.)
+        CX.compare(ctx, [c])
+        self.assertEqual(c['context']['same_budget']['released_cash_interest_usd'], 0)
+
     """X4: one $ budget for every row, whole contracts, idle cash at the T-bill."""
     def test_cash_and_contracts(self):
         ctx = CX.build("X", T0, 100.0, NOISY)

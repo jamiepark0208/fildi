@@ -6,9 +6,9 @@ never the user's watchlist.color_tag, never Robinhood.
 Scores come from the champion parameter version (watchlist_sync.model_params → fit_score_history), falling back to
 fit-1.3's fit_scores if the champion hasn't been scored yet.
 
-Verdict cross-check (gap #1: lists and tags must not contradict each other):
-  sell_puts   needs an ownable name: verdict not red, severity-weighted risk < thresholds.put_block_risk, effective OWN
-              (after the STREET reward/penalty) ≥ thresholds.yellow_own, and no regime pause. Otherwise → Needs Review.
+Eligibility:
+  sell_puts   exact canonical picks reuse producer hard gates and quality cautions. Judgment concerns stay visible.
+              Other strategy contracts do not inherit the canonical pick's approval or rank.
   sell_calls  any verdict (writing calls on a flagged holding reduces risk); unscored → Needs Review.
   L2 'pass_after_hours' → status provisional (re-verify on live quotes in session before acting).
 
@@ -33,6 +33,7 @@ import setup as SU
 import strategy_engine as SE
 import wheel as WH
 import winrates as W
+from put_eligibility import published_cautions, canonical_block_reason
 
 VERIFIED = {"pass", "pass_after_hours"}
 
@@ -83,9 +84,8 @@ def held_back_reason(list_key: str, f: dict | None, P: dict, spy20: float | None
     # Regime pause removed for puts (S069, Jamie 10-20): puts entered when SPY 20d < −5 % earned +16.8 bp/wk vs +0.8 otherwise.
     # Put risk ≠ ownership risk (10-20): weak credit (S063: +13 bp/wk, same breach, fatter tail → warned + sized in L1) and
     # falling-knife charts (S045 step 4, S058) don't hurt put sellers, so they can't hold a put back or make it "red" for puts.
-    kept, put_risk = _put_risk(f, P)
-    if f["verdict"] == "red" and put_risk >= P["thresholds"]["red_risk"]:
-        return "verdict is red (avoid): " + "; ".join(kept)
+    # Judgment risks are producer cautions (Jamie 11-17), not a second eligibility gate.
+    # put_size_note and the canonical engine assessment preserve the risk explanation.
     return None
 
 
@@ -153,16 +153,17 @@ def contract_context(conn) -> tuple[dict, dict, dict]:
 
 
 ENGINE_KEYS = ("market_state", "sector", "stock_state", "band_target", "band", "strike", "expiry", "delta", "rank", "put_edge_q",
-               "iv_rv", "hist_bp", "hist_kept", "income_wk_pct", "why", "book_group", "news")   # last two: awareness only
+               "iv_rv", "hist_bp", "hist_kept", "income_wk_pct", "why", "book_group", "news", "cautions", "quality_policy", "tier")
 TECH_KEYS = ("ut_dir", "stc_bull", "fear_greed", "sweep_age", "bos_dir")
 
 
 def engine_decisions(conn, day) -> dict[str, dict]:
     """The band engine's decision per name on the plan's day (put_recs_daily): state, band, rank, put-edge, history promise."""
     out = {}
-    for t, pl in conn.execute("""SELECT ticker, payload FROM watchlist_sync.put_recs_daily WHERE as_of = (
+    for t, ok, pl in conn.execute("""SELECT ticker, pass, payload FROM watchlist_sync.put_recs_daily WHERE as_of = (
                                    SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily WHERE as_of <= %s)""", (day,)):
-        out[t] = {**{k: pl.get(k) for k in ENGINE_KEYS}, "tech": {k: (pl.get("tech") or {}).get(k) for k in TECH_KEYS}}
+        out[t] = {**{k: pl.get(k) for k in ENGINE_KEYS}, "pass": bool(ok), "gates": pl.get("gates") or [],
+                  "tech": {k: (pl.get("tech") or {}).get(k) for k in TECH_KEYS}}
     return out
 
 
@@ -330,7 +331,8 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
     atm = W.atm_iv(conn)
     rv20, next_er, record = contract_context(conn)
     today = datetime.now().date()
-    engine = engine_decisions(conn, plan["created_at"].date())
+    # A newer engine generation must invalidate stale canonical approvals, even before the next full plan run.
+    engine = engine_decisions(conn, today)
 
     for p in rows(conn, """SELECT * FROM watchlist_sync.plan_items WHERE plan_id = %s AND l1_pass
                            ORDER BY list_key, rank NULLS LAST""", (plan["id"],)):
@@ -344,6 +346,10 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         contract = {"type": p["option_type"], "strike": float(p["strike"]), "expiry": str(p["expiry"]),
                     "premium": float(p["model_premium"]) if p["model_premium"] is not None else None,
                     "account": p["account"], "verify_status": p["verify_status"]}
+        contract["eligibility_source"] = next((c["detail"] for c in p.get("l1_checks") or []
+                                                if c.get("check") == "eligibility_source"), "legacy_unlabelled")
+        if contract["eligibility_source"].startswith("strategy:"):
+            reasons.append("Eligibility: separately assessed by " + contract["eligibility_source"].split(":", 1)[1])
         live_delta = (p["live"] or {}).get("delta") if isinstance(p["live"], dict) else None
         win = W.lookup(wr, p["option_type"], live_delta if live_delta is not None else p["model_delta"], (p["expiry"] - today).days)
         if win:
@@ -377,6 +383,8 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
                                   and engine[p["ticker"]]["expiry"] == str(p["expiry"])}
         status = "provisional" if p["verify_status"] == "pass_after_hours" else "ok"
         held_back = held_back_reason(p["list_key"], f, P, spy20)
+        if p["option_type"] == "put":
+            held_back = canonical_block_reason(contract) or held_back
         v = contract.get("vol")
         if P["premium"]["contract_iv_pre_earnings"] and v and f and contract.get("earnings"):
             e = contract["earnings"]
@@ -390,9 +398,11 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
                     "pillar_30d": f.get("premium"),
                     "basis": f"scored on this contract's own IV instead of the 30-day IV, which includes earnings on {e['date']} that this contract expires before"}
         floor = P["thresholds"]["min_contract_iv_rv"]
-        if not held_back and floor and p["option_type"] == "put" and v and v["contract_iv_rv"] < floor:
-            held_back = (f"this contract's IV is {v['contract_iv_rv']:.2f}× the stock's 20-day realized vol (floor {floor:.2f}): "
-                         "the option is priced below recent moves, the edge the lab validated runs the other way")
+        if p["option_type"] == "put":
+            # Reuse the exact contract's producer assessment; account/funding checks remain separate.
+            cautions = published_cautions(contract, floor)
+            contract["cautions"] = list(cautions)
+            reasons += [f"caution: {c}" for c in cautions]
         if held_back:
             out.append(item("review", f, ticker=p["ticker"], score=p["score"], status="review", contract=contract,
                             why=[f"{p['list_key'].replace('_', ' ')} idea held back: {held_back}"] + reasons))
@@ -478,10 +488,28 @@ def build(conn, live_spy: float | None = None) -> tuple[dict, list[dict]]:
         by[o["folder_key"]].append(o)
     final = []
     for k, items in by.items():
-        if k not in ("sell_puts", "rich_puts", "sell_calls", "trim_risk", "review", "manage", "rebalance"):
+        if k == "sell_puts":
+            # Engine pass, then fundable. A gated name that only fits by closing a better put does not lead the list.
+            def put_order(o):
+                eng = (o.get("contract") or {}).get("engine") or {}
+                passed = eng.get("is_pick") is True and eng.get("pass") is True
+                rank = eng.get("rank") if eng.get("is_pick") is True and isinstance(eng.get("rank"), (int, float)) else 999
+                funded = o.get("status") not in ("unfunded", "review")
+                return (0 if passed else 1, 0 if funded else 1, rank)
+            items.sort(key=put_order)
+        elif k not in ("rich_puts", "sell_calls", "trim_risk", "review", "manage", "rebalance"):
             items.sort(key=lambda o: (-(o["score"] if o["score"] is not None else -1), o["ticker"]))
         for i, o in enumerate(items[: caps.get(k) or None], 1):
             final.append({**o, "rank": i})
+    puts = [o for o in final if o["folder_key"] == "sell_puts"]
+
+    def _actionable(o):
+        eng = (o.get("contract") or {}).get("engine") or {}
+        worse = any("gives up a better yield" in str(w) for w in (o.get("why") or []))
+        return eng.get("is_pick") is True and eng.get("pass") is True and o.get("status") not in ("unfunded", "review") and not worse
+
+    if puts and not any(_actionable(o) for o in puts):
+        puts[0]["why"] = ["No exact engine-approved put has confirmed funding here; other strategy contracts require their own assessment."] + list(puts[0]["why"])
     gaps = ma200_gap(conn)
     fvs = fair_values(conn)
     wheel = WH.wheel_pnl(conn)

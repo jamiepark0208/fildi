@@ -1,0 +1,193 @@
+{
+  "scope": "Two controls and two desired contracts against current source; sign-only historical counterfactual is not a recommended new ranking.",
+  "checks": [
+    {
+      "name": "higher return ranks higher (control)",
+      "expected": [
+        0,
+        1
+      ],
+      "actual": [
+        0,
+        1
+      ],
+      "pass": true
+    },
+    {
+      "name": "null is not a high score (control)",
+      "expected": [
+        0,
+        1
+      ],
+      "actual": [
+        0,
+        1
+      ],
+      "pass": true
+    },
+    {
+      "name": "milder loss receives tail reward",
+      "expected": [
+        0.15,
+        0
+      ],
+      "actual": [
+        0,
+        0.15
+      ],
+      "pass": false
+    },
+    {
+      "name": "equal inputs receive equal ranks",
+      "expected": [
+        0.5,
+        0.5
+      ],
+      "actual": [
+        0,
+        1
+      ],
+      "pass": false
+    }
+  ],
+  "before": [
+    {
+      "structure": "short_strangle",
+      "score": 0.79375
+    },
+    {
+      "structure": "csp",
+      "score": 0.76875
+    },
+    {
+      "structure": "short_straddle",
+      "score": 0.7125
+    },
+    {
+      "structure": "jade_lizard",
+      "score": 0.6531250000000001
+    },
+    {
+      "structure": "long_call",
+      "score": 0.646875
+    },
+    {
+      "structure": "covered_call",
+      "score": 0.625
+    },
+    {
+      "structure": "long_strangle",
+      "score": 0.6
+    },
+    {
+      "structure": "put_spread",
+      "score": 0.59375
+    },
+    {
+      "structure": "long_straddle",
+      "score": 0.55
+    },
+    {
+      "structure": "bull_call_spread",
+      "score": 0.446875
+    },
+    {
+      "structure": "iron_fly",
+      "score": 0.44062500000000004
+    },
+    {
+      "structure": "call_spread",
+      "score": 0.4125
+    },
+    {
+      "structure": "iron_condor",
+      "score": 0.36874999999999997
+    },
+    {
+      "structure": "long_put",
+      "score": 0.33125
+    },
+    {
+      "structure": "bear_put_spread",
+      "score": 0.24062499999999998
+    },
+    {
+      "structure": "calendar",
+      "score": 0.1875
+    },
+    {
+      "structure": "collar",
+      "score": 0.128125
+    }
+  ],
+  "tail_sign_only": [
+    {
+      "structure": "csp",
+      "score": 0.9
+    },
+    {
+      "structure": "short_strangle",
+      "score": 0.8687499999999999
+    },
+    {
+      "structure": "covered_call",
+      "score": 0.775
+    },
+    {
+      "structure": "short_straddle",
+      "score": 0.76875
+    },
+    {
+      "structure": "jade_lizard",
+      "score": 0.765625
+    },
+    {
+      "structure": "long_straddle",
+      "score": 0.5875
+    },
+    {
+      "structure": "put_spread",
+      "score": 0.55625
+    },
+    {
+      "structure": "long_call",
+      "score": 0.54375
+    },
+    {
+      "structure": "long_strangle",
+      "score": 0.49687499999999996
+    },
+    {
+      "structure": "call_spread",
+      "score": 0.39375
+    },
+    {
+      "structure": "iron_fly",
+      "score": 0.384375
+    },
+    {
+      "structure": "iron_condor",
+      "score": 0.36874999999999997
+    },
+    {
+      "structure": "bull_call_spread",
+      "score": 0.34375
+    },
+    {
+      "structure": "collar",
+      "score": 0.221875
+    },
+    {
+      "structure": "calendar",
+      "score": 0.20625
+    },
+    {
+      "structure": "long_put",
+      "score": 0.18125
+    },
+    {
+      "structure": "bear_put_spread",
+      "score": 0.13749999999999998
+    }
+  ]
+}

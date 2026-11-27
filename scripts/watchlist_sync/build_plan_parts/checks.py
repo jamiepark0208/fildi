@@ -22,6 +22,12 @@ def _edge_q(ctx: dict, rec: dict) -> int:
 def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     t, side = rec["ticker"], rec["side"]
     c: list[dict] = []
+    canonical = side == "put" and bool(rec.get("restruck"))
+    if side == "put":
+        source = "canonical" if canonical else f"strategy:{rec['strategy']}" if rec.get("strategy") else "unassessed"
+        c.append(chk("eligibility_source", True, source))
+        for caution in rec.get("engine_cautions") or []:
+            c.append(chk("engine_caution", False, caution, "warn"))
     age = R.trading_days_between(ctx["snapshot_date"], R.last_close_date())
     c.append(chk("fresh_snapshot", age <= R.MAX_SNAPSHOT_AGE_TRADING_DAYS,
                  f"priced {ctx['snapshot_date']} ({age} trading day(s) before last close; model {ctx.get('model_date', ctx['snapshot_date'])})"))
@@ -39,7 +45,7 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
     wk = rec["weekly_income_pct"] or 0
     c.append(chk("min_income", wk >= R.MIN_WEEKLY_INCOME_PCT,
                  f"{wk:.2f}%/week at this strike" + (f"; name pays {ni:.2f}% at {R.PUT_NAME_INCOME_ABS_DELTA}Δ" if ni is not None else "")
-                 + f" (min {R.MIN_WEEKLY_INCOME_PCT})"))
+                 + f" (min {R.MIN_WEEKLY_INCOME_PCT})", "warn" if canonical else "block"))
     if side == "put" and not rec.get("strategy"):   # the S088-vs-ML test only sold strikes bidding ≥ $0.10 (10-24)
         c.append(chk("min_bid", (rec["premium"] or 0) >= R.PUT_MIN_RESTRIKE_BID,
                      f"bid ${rec['premium'] or 0:.2f} (min ${R.PUT_MIN_RESTRIKE_BID:.2f})"))
@@ -91,7 +97,9 @@ def option_checks(rec: dict, ctx: dict) -> tuple[list[dict], str | None]:
                          # 10-20 (Jamie OK): no inputs = unknown edge, and S059 says most weekly puts lose after fills → block;
                          # the old warn fallback applies only when the drift check has demoted put edge for everyone
                          "block" if e or not ctx.get("edge_demoted") else "warn"))
-        c.append(chk("market_not_panic", not rec.get("engine_pause"), rec.get("engine_pause") or "vol curve normal (VIX < VIX3M)"))   # S101
+        c.append(chk("market_not_panic", not rec.get("engine_pause"),
+                     rec.get("engine_pause") or "regime assessed by producer" if canonical else rec.get("engine_pause") or "vol curve normal (VIX < VIX3M)",
+                     "warn" if canonical else "block"))
         if rec.get("engine_gates"):   # A277 consistency: the engine's own gates (verdict, IV/RV) block here too
             c.append(chk("engine_gates", False, "engine gates: " + "; ".join(rec["engine_gates"])))
         if rec.get("engine_none") and not rec.get("carried"):   # A277: no engine put for this name → not on the list

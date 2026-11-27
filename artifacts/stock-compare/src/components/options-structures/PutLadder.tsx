@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { DataTip } from "@/components/data-tip";
 import { TickerLink } from "@/components/ticker-link";
 import { formatMdYy } from "@/lib/format";
+import { GRID_HEADER, GRID_TH, GRID_TD } from "@/lib/score-explain-format";
+import { SUB_TAB_BAR, guideSubTabClass } from "@/lib/sub-tabs";
 
 type Stats = { n: number; kept: number; p_model: number; bp_hc: number; worst5: number;
   hiP_worst5: number; loP_worst5: number; hiP_kept: number; loP_kept: number;
@@ -20,96 +22,22 @@ type Band = { band: string; stats: Stats; picks: Pick[] };
 type Ladder = { asOf: string; default: string; callDefault?: string; statsFrom: string; horizons: Record<string, Band[]>; callHorizons?: Record<string, Band[]> };
 
 const pct = (v: number, dp = 1) => `${(v * 100).toFixed(dp)}%`;
-const SHOW = 15;
+const SHOW = 8;
+const bandLabel = (b: string) => `${b.replace("-", "–")}Δ`;
 
-function BandColumn({ b, isDefault, showAll }: { b: Band; isDefault: boolean; showAll: boolean }) {
-  const s = b.stats;
-  const picks = showAll ? b.picks : b.picks.slice(0, SHOW);
-  return (
-    <div className={cn("rounded border p-1.5 min-w-[190px] flex-1",
-      isDefault ? "border-[#d4af37] bg-[#d4af37]/5" : "border-zinc-800 bg-zinc-950")}>
-      <div className="flex items-baseline justify-between">
-        <span className={cn("text-[12px] font-semibold", isDefault ? "text-[#d4af37]" : "text-zinc-200")}>
-          {b.band.replace("-", "–")}Δ
-        </span>
-        {isDefault && <span className="text-[10px] text-[#d4af37]">default</span>}
-      </div>
-      {s ? (
-        <DataTip tip={`Holdout 2023 →, ${s.n.toLocaleString()} sold puts. Model said ${pct(s.p_model)} kept. Safer half (higher model P) worst 5 %: ${s.hiP_worst5.toFixed(0)} bp vs riskier half ${s.loP_worst5.toFixed(0)} bp.`}>
-          <div className="text-[10px] text-amber-100 leading-tight mt-0.5 cursor-help">
-            kept <span className="text-zinc-200">{pct(s.kept)}</span> · <span className="text-zinc-200">{s.bp_hc >= 0 ? "+" : ""}{s.bp_hc.toFixed(0)}</span> bp/wk
-            <br />worst 5 % <span className={s.worst5 < -100 ? "text-red-300" : "text-zinc-200"}>{s.worst5.toFixed(0)}</span> bp
-          </div>
-        </DataTip>
-      ) : <div className="text-[10px] text-amber-100/80 mt-0.5">no holdout stats</div>}
-      {s?.hold && Object.keys(s.hold).length > 0 && (
-        <DataTip tip={"If assigned, keep the shares N more weeks and mark them then (recovery counted, further drops too). bp per collateral-week incl. the holding weeks; worst 5 % per trade-week."}>
-          <div className="text-[10px] text-amber-100/80 leading-tight cursor-help">
-            {Object.entries(s.hold).map(([n, x]) => (
-              <div key={n}>hold {n}w: <span className="text-zinc-300">{x.bp_hc >= 0 ? "+" : ""}{x.bp_hc.toFixed(0)}</span> · {x.worst5.toFixed(0)}</div>
-            ))}
-          </div>
-        </DataTip>
-      )}
-      <div className="text-[10px] text-amber-100/80 mt-1 mb-0.5">{b.picks.length} names today</div>
-      <table className="w-full text-[11px]">
-        <tbody>
-          {picks.map((p) => (
-            <tr key={p.ticker} className="border-t border-zinc-900">
-              <td className="py-0.5">
-                <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1", p.tier === "lower tail" ? "bg-emerald-400" : "bg-amber-400")} />
-                <TickerLink ticker={p.ticker} />
-                {p.earningsInWindow && <DataTip tip={`Earnings in ${p.earningsDays} days — inside this expiry`}><span className="ml-0.5 text-red-300">E</span></DataTip>}
-              </td>
-              <td className="text-right text-zinc-300">
-                <DataTip tip={`Spot ${p.spot} · strike ${p.strike} · ${p.delta.toFixed(2)}Δ · credit $${p.credit.toFixed(2)}${p.zone ? " · at a support zone" : ""} · model expected ${p.expPnlBpWk >= 0 ? "+" : ""}${p.expPnlBpWk} bp/wk`}>
-                  <span className="cursor-help">{p.strike}</span>
-                </DataTip>
-              </td>
-              <td className="text-right text-zinc-300">{p.creditPctWk.toFixed(2)}%</td>
-              <td className="text-right text-amber-100">{pct(p.pKept, 0)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** DTE side by side (Jamie 10-24: no single cutoff): real-fill bp/wk and worst 5 % per band for every horizon. */
-function HorizonStrip({ H, def }: { H: Record<string, Band[]>; def: string }) {
-  const hs = Object.keys(H);
-  const bands = H[hs[0]]?.map((b) => b.band) ?? [];
-  return (
-    <div className="overflow-x-auto">
-      <table className="text-[10px] text-amber-100">
-        <thead>
-          <tr>
-            <th className="text-left pr-2 font-normal">bp/wk · worst 5 %</th>
-            {bands.map((b) => <th key={b} className={cn("px-1.5 font-normal", b === def && "text-[#d4af37]")}>{b.replace("-", "–")}Δ</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {hs.map((h) => (
-            <tr key={h}>
-              <td className="pr-2 text-zinc-300">{h.replace("w", " wk")}</td>
-              {H[h].map((b) => (
-                <td key={b.band} className={cn("px-1.5 tabular-nums", b.band === def && "text-[#d4af37]")}>
-                  {b.stats ? <>{b.stats.bp_hc >= 0 ? "+" : ""}{b.stats.bp_hc.toFixed(0)} · <span className={b.stats.worst5 < -100 ? "text-red-300" : ""}>{b.stats.worst5.toFixed(0)}</span></> : "—"}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+function statTip(s: Stats, engine: boolean) {
+  if (!s) return "No history for this distance.";
+  const hold = s.hold && Object.keys(s.hold).length
+    ? " " + Object.entries(s.hold).map(([w, x]) => `If assigned and held ${w}w: ${x.bp_hc >= 0 ? "+" : ""}${x.bp_hc.toFixed(0)} bp/wk, worst ${x.worst5.toFixed(0)}.`).join(" ")
+    : "";
+  return `${s.n.toLocaleString()} past trades. Finished kept ${pct(s.kept)}. Model had said ${pct(s.p_model)}. Safer half worst 5%: ${s.hiP_worst5.toFixed(0)} bp. Riskier half: ${s.loP_worst5.toFixed(0)} bp.${hold}${engine ? " This is the distance the engine sells." : ""}`;
 }
 
 export function PutLadder() {
   const [h, setH] = useState("1w");
   const [side, setSide] = useState<"put" | "call">("put");
   const [showAll, setShowAll] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["put-ladder"],
     queryFn: async () => {
@@ -125,45 +53,113 @@ export function PutLadder() {
   const H = side === "call" && L.callHorizons ? L.callHorizons : L.horizons;
   const def = side === "call" ? (L.callDefault ?? "") : L.default;
   const bands = H[h] ?? [];
+  const open = bands.some((b) => b.band === picked) ? picked! : def;
+  const chosen = bands.find((b) => b.band === open) ?? bands[0];
+  const picks = chosen ? (showAll ? chosen.picks : chosen.picks.slice(0, SHOW)) : [];
+  const week = h.replace("w", " wk");
   return (
-    <div className="space-y-2 min-w-0">
-      <div className="flex items-center gap-2 flex-wrap text-[11px]">
+    <div className="space-y-1 min-w-0">
+      <div className="flex items-center gap-2 flex-wrap">
         {L.callHorizons && (
-          <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 h-6">
+          <div className={SUB_TAB_BAR}>
             {(["put", "call"] as const).map((k) => (
-              <button key={k} onClick={() => setSide(k)}
-                className={cn("px-2 h-5 rounded-full font-semibold", side === k ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]")}>
+              <button key={k} type="button" onClick={() => { setSide(k); setPicked(null); setShowAll(false); }} className={guideSubTabClass(side === k)}>
                 {k === "put" ? "Sell puts" : "Sell calls"}
               </button>
             ))}
           </div>
         )}
-        <div className="flex items-center rounded-full border border-[#d4af37]/25 bg-zinc-950 p-0.5 h-6">
+        <div className={SUB_TAB_BAR}>
           {Object.keys(H).map((k) => (
-            <button key={k} onClick={() => setH(k)}
-              className={cn("px-2 h-5 rounded-full font-semibold", h === k ? "bg-[#d4af37]/25 text-[#d4af37]" : "text-amber-200/50 hover:text-[#d4af37]")}>
+            <button key={k} type="button" onClick={() => setH(k)} className={guideSubTabClass(h === k)}>
               {k.replace("w", " wk")}
             </button>
           ))}
         </div>
-        <button onClick={() => setShowAll((v) => !v)} className="text-amber-200/60 hover:text-[#d4af37]">
-          {showAll ? `top ${SHOW} per band` : "show every name"}
-        </button>
-        <span className="text-amber-100/80">
-          as of {formatMdYy(L.asOf)} · columns = |Δ| bands · per name: strike · credit %/wk · model P(kept) ·
-          <span className="text-emerald-400"> ●</span> safer half <span className="text-amber-400">●</span> riskier half of its band · E = earnings before expiry
-        </span>
+        <DataTip tip={`${L.statsFrom}. A band is how far the strike sits from the price (|Δ|). Farther = expires kept more often and pays less per week. Nearer pays more and the bad week is worse. ${side === "put" ? "bp/wk is profit per week of cash set aside, after real fills." : "bp/wk is what the call added versus just holding the shares."} Switch the week to see the same distances at a longer hold.`}>
+          <span className="text-[13px] text-white">
+            <span className="font-semibold text-[#d4af37]">How far out to sell.</span>
+            {" "}Gold row is what the engine sells. Click a row for today’s names.
+            {" "}<span className="text-[#d4af37]">{formatMdYy(L.asOf)}</span>
+          </span>
+        </DataTip>
       </div>
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {bands.map((b) => <BandColumn key={b.band} b={b} isDefault={b.band === def} showAll={showAll} />)}
+
+      <div className="flex items-start gap-4">
+      <div className="overflow-auto shrink-0">
+        <table className="w-auto border-collapse bg-black">
+          <thead className="bg-black">
+            <tr className={GRID_HEADER}>
+              <th className={cn(GRID_TH, "text-left")}>Distance</th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Share of past trades that expired kept (put finished worthless, or the call stayed out of the money).">Kept</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Average profit per week on past trades in this distance, after real fills.">bp/wk</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="The bad case: worst 5% of those trades, in bp.">Worst 5%</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}>Names</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bands.map((b, i) => {
+              const s = b.stats;
+              const engine = b.band === def;
+              const on = b.band === open;
+              return (
+                <tr key={b.band} className={cn("cursor-pointer bg-black border-b border-[#d4af37]/15 hover:bg-white/[0.04]", on && "shadow-[inset_2px_0_0_#fff]")} onClick={() => { setPicked(b.band); setShowAll(false); }}>
+                  <td className={cn(GRID_TD, "bg-black text-left font-semibold text-white")}>
+                    <DataTip tip={statTip(s, engine)}>{bandLabel(b.band)}{engine ? " · engine" : ""}</DataTip>
+                  </td>
+                  <td className={cn(GRID_TD, "text-right")}>{s ? pct(s.kept, 0) : "—"}</td>
+                  <td className={cn(GRID_TD, "text-right")}>{s ? `${s.bp_hc >= 0 ? "+" : ""}${s.bp_hc.toFixed(0)}` : "—"}</td>
+                  <td className={cn(GRID_TD, "text-right", s && s.worst5 < -100 && "text-red-300")}>{s ? s.worst5.toFixed(0) : "—"}</td>
+                  <td className={cn(GRID_TD, "text-right")}>{b.picks.length}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      <HorizonStrip H={H} def={def} />
-      <p className="text-[10px] text-amber-100/80">
-        Stats: {L.statsFrom}. {side === "put"
-          ? "Puts: bp per week of collateral after real fills. Farther bands keep more often at similar weekly pay; nearer bands carry a bigger worst 5 %."
-          : "Covered calls: bp per week per $ of stock vs just holding it (negative = the call cost you upside). Kept = stock stayed below the strike."}{" "}
-        The model's P(kept) mainly sorts tail risk inside a band.
-      </p>
+
+      {chosen && (
+        <div className="overflow-auto shrink-0">
+          <table className="w-auto border-collapse bg-black">
+            <thead className="bg-black">
+              <tr className={GRID_HEADER}>
+                <th className={cn(GRID_TH, "text-left")}>
+                  {bandLabel(chosen.band)} · {week}
+                  {chosen.picks.length > SHOW && (
+                    <button type="button" onClick={() => setShowAll((v) => !v)} className="ml-2 normal-case tracking-normal text-[#d4af37]">
+                      {showAll ? `top ${SHOW}` : `all ${chosen.picks.length}`}
+                    </button>
+                  )}
+                </th>
+                <th className={cn(GRID_TH, "text-right")}>Strike</th>
+                <th className={cn(GRID_TH, "text-right")}><DataTip tip="Credit collected per week, as a percent of the strike.">Credit/wk</DataTip></th>
+                <th className={cn(GRID_TH, "text-right")}><DataTip tip="Model chance this strike finishes kept. Green dot = safer half of this distance. Gold dot = riskier half. E = earnings before expiry.">P(kept)</DataTip></th>
+              </tr>
+            </thead>
+            <tbody>
+              {picks.map((p, i) => (
+                <tr key={p.ticker} className="bg-black border-b border-[#d4af37]/15">
+                  <td className={cn(GRID_TD, "text-left")}>
+                    <span className="inline-flex items-center">
+                      <span className={cn("inline-block w-1.5 h-1.5 rounded-full mr-1", p.tier === "lower tail" ? "bg-emerald-400" : "bg-amber-400")} />
+                      <TickerLink ticker={p.ticker} />
+                      {p.earningsInWindow && <DataTip tip={`Earnings in ${p.earningsDays} days — inside this expiry`}><span className="ml-0.5 text-red-300">E</span></DataTip>}
+                    </span>
+                  </td>
+                  <td className={cn(GRID_TD, "text-right")}>
+                    <DataTip tip={`Spot ${p.spot} · ${p.delta.toFixed(2)}Δ · credit $${p.credit.toFixed(2)}${p.zone ? " · at a support zone" : ""} · model ${p.expPnlBpWk >= 0 ? "+" : ""}${p.expPnlBpWk} bp/wk`}>
+                      <span>{p.strike}</span>
+                    </DataTip>
+                  </td>
+                  <td className={cn(GRID_TD, "text-right")}>{p.creditPctWk.toFixed(2)}%</td>
+                  <td className={cn(GRID_TD, "text-right")}>{pct(p.pKept, 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      </div>
     </div>
   );
 }

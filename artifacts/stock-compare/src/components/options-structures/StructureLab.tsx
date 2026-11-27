@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis,
 } from "recharts";
 import { cn } from "@/lib/utils";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { DataTip } from "@/components/data-tip";
 import { formatMdYy } from "@/lib/format";
 import { THEME_META, THEME_ORDER, themeOf, simpleOf, type TradeTheme } from "./structure-themes";
@@ -136,12 +136,12 @@ type MetricCell = { label: string; tip?: string; value: ReactNode; cls?: string 
 /** One-row dense metrics (ag-grid look). */
 function CompactMetrics({ cells }: { cells: MetricCell[] }) {
   return (
-    <div className={cn(GRID_WRAP, "w-full min-w-0")}>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className={GRID_HEADER}>
+    <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black w-full min-w-0">
+      <table className="w-full border-collapse bg-black">
+        <thead className="bg-black">
+          <tr className={cn(GRID_HEADER, "bg-black")}>
             {cells.map((c) => (
-              <th key={c.label} className={cn(GRID_TH, "!py-0.5 !px-1.5 !text-[9px] text-right")}>
+              <th key={c.label} className={cn(GRID_TH, "text-right bg-black")}>
                 <DataTip tip={c.tip}>{c.label}</DataTip>
               </th>
             ))}
@@ -150,7 +150,7 @@ function CompactMetrics({ cells }: { cells: MetricCell[] }) {
         <tbody>
           <tr className={gridRow(0)}>
             {cells.map((c) => (
-              <td key={c.label} className={cn(GRID_TD, "!py-0.5 !px-1.5 text-right font-mono text-[11px] font-semibold tabular-nums", c.cls ?? "text-white")}>
+              <td key={c.label} className={cn(GRID_TD, "text-right font-semibold", c.cls ?? "text-white")}>
                 {c.value}
               </td>
             ))}
@@ -492,8 +492,8 @@ export function StructureLab() {
           key={t}
           type="button"
           className={cn(
-            "px-2 py-0.5 rounded-t text-[10px] uppercase font-semibold",
-            labTab === t ? "bg-[#d4af37]/25 text-[#fef3c7] border border-[#d4af37]/40" : "text-amber-100",
+            "px-2 py-0.5 rounded text-[11px] uppercase font-semibold",
+            labTab === t ? "bg-black text-[#d4af37] border border-[#d4af37]/50" : "text-white/80 hover:text-white",
           )}
           onClick={() => setLabTab(t)}
         >
@@ -588,43 +588,43 @@ export function StructureLab() {
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-0.5">{metaBar}</div>
       )}
 
-      <div className={cn(GRID_WRAP, "w-full min-w-0")}>
-          <table className="w-full min-w-0 border-collapse">
-            <thead>
-              <tr className={GRID_HEADER}>
-                <th className={cn(GRID_TH, "text-left w-4")} aria-label="expand" />
-                <th className={cn(GRID_TH, "text-left")}>
+      <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black w-full min-w-0">
+          <table className="w-full min-w-0 border-collapse bg-black">
+            <thead className="bg-black">
+              <tr className={cn(GRID_HEADER, "bg-black")}>
+                <th className={cn(GRID_TH, "text-left w-4 bg-black")} aria-label="expand" />
+                <th className={cn(GRID_TH, "text-left bg-black")}>
                   <DataTip tip="Option structure by trade theme. Hover a name for a plain-English shape.">
                     Structure
                   </DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-left")}>
+                <th className={cn(GRID_TH, "text-left bg-black")}>
                   <DataTip tip="S076 historical verdict only (2021→ after fills). NOT a forward forecast.">
                     Verdict
                   </DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right")}>
+                <th className={cn(GRID_TH, "text-right bg-black")}>
                   <DataTip tip="Sort key: blend of four backtest ratios (within this table) — ret÷risk 40%, win rate 25%, avg return 20%, milder bad-tail 15%. Higher = better overall historically. Not a forecast.">
                     Score
                   </DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right")}>
+                <th className={cn(GRID_TH, "text-right bg-black")}>
                   <DataTip tip="One ratio: mean ÷ sd of past trades (steadiness). Used inside Score at 40%. Green ≥ 0.10.">
                     Ret ÷ risk
                   </DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right hidden sm:table-cell")}>
+                <th className={cn(GRID_TH, "text-right bg-black hidden sm:table-cell")}>
                   <DataTip tip="% of past trades that made any money. Inside Score at 25%.">Win</DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right hidden md:table-cell")}>
+                <th className={cn(GRID_TH, "text-right bg-black hidden md:table-cell")}>
                   <DataTip tip="1-in-20 bad case ÷ capital. −100% = wiped capital in that case. Milder tails raise Score (15%).">
                     Worst 5 %
                   </DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right hidden lg:table-cell")}>
+                <th className={cn(GRID_TH, "text-right bg-black hidden lg:table-cell")}>
                   <DataTip tip="Average past trade ÷ capital. Inside Score at 20%.">Avg</DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right")}>
+                <th className={cn(GRID_TH, "text-right bg-black")}>
                   <DataTip tip="Today's morning picks for this structure (structures.py). Click a row in the expand to drive payoff + metrics.">
                     Today
                   </DataTip>
@@ -638,20 +638,20 @@ export function StructureLab() {
                 return (
                   <Fragment key={theme}>
                     <tr
-                      className={cn(meta.headerCls, "cursor-pointer")}
+                      className="cursor-pointer border-b border-[#d4af37]/25 bg-black hover:bg-[#d4af37]/5"
                       onClick={() => toggleTheme(theme)}
                     >
-                      <td colSpan={9} className={cn(GRID_TD, "!py-0.5 leading-none")}>
-                        <span className="inline-flex items-center gap-1">
+                      <td colSpan={9} className={cn(GRID_TD, "text-left")}>
+                        <span className="inline-flex items-center gap-1.5">
                           {isCollapsed
-                            ? <ChevronRight className="w-3 h-3 text-white" />
-                            : <ChevronDown className="w-3 h-3 text-white" />}
+                            ? <ChevronRight className="w-3.5 h-3.5 text-[#d4af37]" />
+                            : <ChevronDown className="w-3.5 h-3.5 text-[#d4af37]" />}
                           <DataTip tip={meta.tip}>
-                            <span className="text-white font-bold uppercase tracking-wide text-[10px]">
+                            <span className="text-[13px] font-semibold uppercase tracking-wide text-[#d4af37]">
                               {meta.label}
                             </span>
                           </DataTip>
-                          <span className="text-white/90 tabular-nums text-[10px] font-semibold">{rows.length}</span>
+                          <span className="text-[13px] tabular-nums text-white">{rows.length}</span>
                         </span>
                       </td>
                     </tr>

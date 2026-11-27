@@ -22,11 +22,12 @@ def main():
             SELECT ticker, payload FROM watchlist_sync.put_recs_daily
             WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily) AND payload->>'strike' IS NOT NULL""")}
         surfaces = {
-            "Model List": rows(conn, """SELECT pi.ticker, pi.strike::float8 strike, pi.expiry::text expiry
+            "Model List": rows(conn, """SELECT pi.ticker, pi.strike::float8 strike, pi.expiry::text expiry, pi.l1_checks
                                        FROM watchlist_sync.plan_items pi WHERE pi.plan_id = (SELECT MAX(id) FROM watchlist_sync.plans)
                                        AND pi.list_key = 'sell_puts' AND pi.l1_pass"""),
             # what the app's Model List actually shows (published copy, not the plan)
-            "Model List (published)": rows(conn, """SELECT i.ticker, (i.contract->>'strike')::float8 strike, i.contract->>'expiry' expiry
+            "Model List (published)": rows(conn, """SELECT i.ticker, (i.contract->>'strike')::float8 strike, i.contract->>'expiry' expiry,
+                                       i.contract->>'eligibility_source' eligibility_source
                                        FROM watchlist_sync.model_items i WHERE i.folder_key = 'sell_puts'
                                        AND i.run_id = (SELECT MAX(id) FROM watchlist_sync.model_runs)"""),
             "Structures CSP": rows(conn, """SELECT ticker, (payload->'legs'->0->>'strike')::float8 strike, payload->'legs'->0->>'expiry' expiry
@@ -39,6 +40,11 @@ def main():
             bad += 1
         for name, rs in surfaces.items():
             for r in rs:
+                source = r.get("eligibility_source") or next((x.get("detail", "") for x in r.get("l1_checks") or []
+                                                             if x.get("check") == "eligibility_source"), "")
+                if source.startswith("strategy:"):
+                    print(f"INFO put consistency: {name} {r['ticker']} is separately assessed by {source}")
+                    continue
                 e = eng.get(r["ticker"])
                 if not e:
                     print(f"WARN put consistency: {name} shows {r['ticker']} but the engine has no pick"); bad += 1
@@ -57,8 +63,24 @@ def main():
             if not r or why:
                 print(f"WARN put consistency: engine passes {t} but the Model List " + ("never saw it" if not r else f"blocks it: {why}")); bad += 1
         for t, r in l1.items():
-            if r["l1_pass"] and t not in ok:
+            separate = any(x.get("check") == "eligibility_source" and x.get("detail", "").startswith("strategy:")
+                           for x in r["l1_checks"] or [])
+            if r["l1_pass"] and t not in ok and not separate:
                 print(f"WARN put consistency: Model List passes {t} but the engine gates it"); bad += 1
+        # Check the published consumer, not only its upstream plan. Cautions must survive publication.
+        for r in rows(conn, """SELECT i.ticker, i.folder_key, i.contract, e.pass, e.payload
+                FROM watchlist_sync.model_items i JOIN watchlist_sync.put_recs_daily e ON e.ticker=i.ticker
+                AND e.as_of=(SELECT MAX(as_of) FROM watchlist_sync.put_recs_daily)
+                WHERE i.run_id=(SELECT MAX(id) FROM watchlist_sync.model_runs)
+                AND i.folder_key IN ('sell_puts','review') AND i.contract->>'type'='put'"""):
+            c, p = r["contract"], r["payload"]
+            exact = c.get("strike") == p.get("strike") and c.get("expiry") == p.get("expiry")
+            if exact and p.get("quality_policy"):
+                missing = set(p.get("cautions") or []) - set(c.get("cautions") or [])
+                if missing:
+                    print(f"WARN put consistency: published {r['ticker']} loses producer cautions: {sorted(missing)}"); bad += 1
+                if r["folder_key"] == "sell_puts" and not r["pass"]:
+                    print(f"WARN put consistency: published {r['ticker']} is engine-ineligible"); bad += 1
         for r in rows(conn, """SELECT ticker, (payload->>'fit')::bool fit FROM watchlist_sync.structure_rank_daily WHERE structure = 'csp'
                                AND as_of = (SELECT MAX(as_of) FROM watchlist_sync.structure_rank_daily)"""):
             if r["fit"] is not None and r["fit"] != (r["ticker"] in ok):

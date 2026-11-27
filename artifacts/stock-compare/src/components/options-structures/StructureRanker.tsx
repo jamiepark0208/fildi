@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { GRID_WRAP, GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
+import { GRID_HEADER, GRID_TH, GRID_TD, gridRow } from "@/lib/score-explain-format";
 import { DataTip } from "@/components/data-tip";
 
 const VIEWS = [
@@ -119,18 +119,18 @@ export function StructureRanker() {
       {q.isError ? <p className="text-red-300">{(q.error as Error).message}</p> : null}
 
       {q.data?.rows?.length ? (
-        <div className={cn(GRID_WRAP, "overflow-x-auto")}>
-          <table className="w-full border-collapse min-w-[640px]">
-            <thead>
-              <tr className={GRID_HEADER}>
-                <th className={cn(GRID_TH, "text-left")}>Structure</th>
-                <th className={cn(GRID_TH, "text-right")}>
+        <div className="rounded-md border border-[#d4af37]/25 overflow-x-auto bg-black">
+          <table className="w-full border-collapse min-w-[640px] bg-black">
+            <thead className="bg-black">
+              <tr className={cn(GRID_HEADER, "bg-black")}>
+                <th className={cn(GRID_TH, "text-left bg-black")}>Structure</th>
+                <th className={cn(GRID_TH, "text-right bg-black")}>
                   <DataTip tip="Monte Carlo expected P&L at horizon ÷ buying power. Not a backtest.">E[$/BP]</DataTip>
                 </th>
-                <th className={cn(GRID_TH, "text-right")}>Fill</th>
-                <th className={cn(GRID_TH, "text-right")}>POP</th>
-                <th className={cn(GRID_TH, "text-right")}>Max loss</th>
-                <th className={cn(GRID_TH, "text-left")}>Evidence</th>
+                <th className={cn(GRID_TH, "text-right bg-black")}>Fill</th>
+                <th className={cn(GRID_TH, "text-right bg-black")}>POP</th>
+                <th className={cn(GRID_TH, "text-right bg-black")}>Max loss</th>
+                <th className={cn(GRID_TH, "text-left bg-black")}>Evidence</th>
               </tr>
             </thead>
             <tbody>

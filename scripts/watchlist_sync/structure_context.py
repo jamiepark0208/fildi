@@ -11,9 +11,10 @@ Contract (Codex D2, research/common/reviews/2026-11-09-opportunity-quality-revie
 
 Scenario policy hist2y_demeaned-1: every overlapping 21-trading-day path of the stock's own last ~2 y closes, de-meaned
 (no directional view: mean terminal price = spot). V4 swaps in signal-conditioned episode sets under a new policy id.
-Exit policy hold_h_settle-1: legs expiring before the horizon settle at intrinsic on the path's expiry day and sit in cash
-(no roll, no interest); legs alive at the horizon are marked Black-Scholes at their ENTRY IV (sticky strike, declared:
-not a forecast of future IV). Early assignment, dividends, deliverable adjustments: not modelled (capability_limits).
+Exit policy hold_h_close_package-2: legs expiring before the horizon settle at intrinsic on the path's expiry day and sit in cash
+(no roll; raw trade P&L excludes interest, the same-cash-budget lens accrues released cash); legs alive at the horizon are marked Black-Scholes at their ENTRY IV (sticky strike, declared:
+not a forecast of future IV). Stock overlays close the entire package at their common option expiry, including OTM cases;
+they do not retain shares after expiry. Early assignment, dividends, deliverable adjustments: not modelled (capability_limits).
 """
 from __future__ import annotations
 
@@ -24,9 +25,9 @@ from datetime import date, timedelta
 
 import numpy as np
 
-POLICY_VERSION = "ctx-1.0"
+POLICY_VERSION = "ctx-1.2"
 SCENARIO_POLICY = "hist2y_demeaned-1"
-EXIT_POLICY = "hold_h_settle-1"
+EXIT_POLICY = "hold_h_close_package-2"
 IV_POLICY = "entry_iv_sticky_strike"
 H_CAL = 30                      # decision horizon, calendar days
 H_TD = round(H_CAL * 5 / 7)     # 21 trading days (same calendar→trading map as structures.evaluate)
@@ -36,13 +37,15 @@ TAIL_BUDGET = 1000.0            # $ lost on that tail, the same for every candid
 RF = 0.045                      # T-bill for the unused-cash arm (legs.ts default)
 UNLIMITED = {"short_strangle", "short_straddle"}   # naked short call side
 LIMITS = ["no early assignment / exercise", "no dividends", "no deliverable adjustments", "terminal + expiry-day marks only (no stops/TP)",
-          "future IV = entry IV (sticky strike)", "overlapping windows: effective n ≈ paths / 21"]
+          "future IV = entry IV (sticky strike)", "stock overlays close entirely at option expiry; released cash accrues only in same-budget lens",
+          "entry premiums/collateral reserved until expiry; fixed 4.5% cash and deficit financing, no broker margin-call model",
+          "overlapping windows: effective n ≈ paths / 21"]
 
 
 LENS_NOTES = {  # X4 (Codex 11-24): what each lens is, so no one reads it as 'beats T-bills at matched risk'
     "cash": "EV ÷ cash the trade ties up, over 30 d; legs settled earlier sit in cash with no interest; not a same-budget comparison",
     "finite_loss": "EV ÷ exact worst terminal loss of the whole position (stock legs included); unlimited-loss trades excluded",
-    "same_budget": "Every row gets the same $ (100 shares' cash): whole contracts only, leftover cash earns the 4.5 % T-bill for 30 d. The fair 'beats cash?' test",
+    "same_budget": "Same starting cash (100 shares), whole contracts. Idle cash earns 4.5% for 30 d; net cash released at package expiry earns 4.5% until day 30. Negative settlement balances incur the same assumed rate. Entry premiums stay reserved. Initial-cash comparison, not equal risk or actual broker financing",
     "matched_downside": "EV at the size where the worst-5 % mean loss = $1,000; fractional contracts (theoretical); cash has no tail so never ranks here"}
 
 
@@ -119,8 +122,16 @@ def pnl(c: dict, ctx: dict) -> np.ndarray:
             v += lg["qty"] * _bs(P[:, k], lg, 0.0)
         else:           # alive at the horizon: mark at entry IV
             v += lg["qty"] * _bs(P[:, -1], lg, (e - hz).days / 365)
-    if c.get("stock") or c["structure"] == "covered_call":   # overlays carry the 100 shares (legacy evaluate dropped them for covered calls)
-        v += P[:, -1] - S0
+    if c.get("stock") or c["structure"] == "covered_call":
+        # X6: close the entire overlay at its common option expiry. Retaining the
+        # shares after settling an ITM call invented exposure beyond assignment
+        # and could exceed the advertised whole-position maximum loss.
+        expiries = {str(lg["expiry"])[:10] for lg in c["legs"]}
+        if len(expiries) != 1:
+            raise ValueError("staggered stock overlay requires an explicit assignment lifecycle")
+        expiry = date.fromisoformat(next(iter(expiries)))
+        stock_day = min(max(round((expiry - d0).days * 5 / 7), 0), H_TD) if expiry <= hz else H_TD
+        v += P[:, stock_day] - S0
     return v
 
 
@@ -154,7 +165,8 @@ def eligibility(c: dict, status: str) -> tuple[bool, str]:
     return True, "passes fit gate"
 
 
-def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, unlimited: bool, budget: float | None = None) -> dict:
+def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, unlimited: bool, budget: float | None = None,
+           released_days: int = 0) -> dict:
     """Per-share pnl x → the three budgets. cash = $/share the trade ties up; max_loss = finite worst case or None."""
     ev = float(w @ x)
     k = max(1, int(round(TAIL_Q * len(x))))
@@ -171,9 +183,15 @@ def lenses(x: np.ndarray, w: np.ndarray, cash: float, max_loss: float | None, un
         if cash > 0 and n == 0:
             out["same_budget"] = {"ret": None, "why": "1 contract > budget"}
         else:
-            tot = n * 100 * ev + idle * RF * H_CAL / 365
+            # Complete-package proceeds include returned principal, not just profit.
+            # Keep the pre-financing payoff lenses separate from the cash account.
+            carry = (cash + x) * RF * released_days / 365
+            total_paths = n * 100 * (x + carry) + idle * RF * H_CAL / 365
+            tot = float(w @ total_paths)
             out["same_budget"] = {"budget": round(budget, 0), "contracts": n, "idle_usd": round(idle, 0), "pnl_usd": round(tot, 2),
-                                  "worst5_usd": round(n * 100 * tail + idle * RF * H_CAL / 365, 2), "ret": round(tot / budget, 4)}
+                                  "worst5_usd": round(float(np.sort(total_paths)[:k].mean()), 2), "ret": round(tot / budget, 4),
+                                  "released_days": released_days, "released_cash_interest_usd": round(float(w @ carry) * n * 100, 4),
+                                  "cash_rate": RF, "deficit_financing_rate": RF}
     if tail >= 0:
         out["matched_downside"] = {"ret": None, "why": "no tail loss on these paths"}
     else:
@@ -207,7 +225,9 @@ def compare(ctx: dict, cands: list[dict]) -> dict:
         cash = float(c.get("capital") or 0)
         lim = sid == "calendar"   # back-leg value needs a term/IV path → payoff illustration only
         ml = exact_max_loss(c)
-        L = lenses(x, w, cash, ml, sid in UNLIMITED or (ml is None and not lim), B)
+        expiries = {str(lg["expiry"])[:10] for lg in c["legs"]}
+        release_days = max(0, (date.fromisoformat(ctx["holding_horizon_at"]) - date.fromisoformat(next(iter(expiries)))).days) if len(expiries) == 1 else 0
+        L = lenses(x, w, cash, ml, sid in UNLIMITED or (ml is None and not lim), B, released_days=release_days)
         st = "model_limitation" if lim else "ok"
         ok, why = eligibility(c, st)
         c["context"] = {"scenario_id": ctx["scenario_id"], "exit_policy_id": EXIT_POLICY, "status": st, "eligible": ok, **L}
