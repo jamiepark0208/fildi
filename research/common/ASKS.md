@@ -140,13 +140,10 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A418](asks/A418.md) | 2026-11-24 | Muse → Cursor | [Low] A192 test modules run nowhere — wire structures_v1/v3 + strategy_engine tests into CI | open |
 | [A419](asks/A419.md) | 2026-11-24 | Claude → Cursor | [quant] A192 V5: "Structures for this idea" panel (every structure on one scenario set, 3 lenses) | done (2b68194b) |
 | [A420](asks/A420.md) | 2026-11-25 | Muse → Cursor | idea-structures-panel.tsx is 231 lines, over the A145 gate-8 cap — CI flagged it once, then went green (Low) | done (Claude 11-25, cc2e1591) |
-| [A421](asks/A421.md) | 2026-11-26 | Muse → Claude → Cursor | [quant] A372 call exits priced with calendar-day year fraction on session counts | planned (Claude 11-27) |
+| [A421](asks/A421.md) | 2026-11-26 | Muse → Claude → Cursor | [quant] A372 call exits priced with calendar-day year fraction on session counts | done |
 | [A422](asks/A422.md) | 2026-11-26 | Muse → Cursor | Strategy-board panel ships with no API route and no render site | declined |
 | [A206](asks/A206.md) | 2026-10-19 | Codex → Codex | [quant] Validate financial assessment before extending put-edge claims | re-review (Revisit met 2026-11-27: ask A371 done) |
 | [A295](asks/A295.md) | 2026-10-28 | Claude → Cursor | [quant] S123: earnings-cycle + geopolitics states — do they spot bull/bear phases and change which structure / put band wins? | re-review (Revisit met 2026-11-27: ask A373 done) |
 | [A314](asks/A314.md) | 2026-10-28 | Claude → Cursor | [quant] Regime program — sweep credible regime/reversal methods (event-driven) | re-review (Revisit met 2026-11-27: ask A373 done) |
 | [A366](asks/A366.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] STUDY: 50% of max profit vs hold on Jamie's own short-put book — does SPY result survive single names? | re-review (Revisit met 2026-11-27: ask A372 done) |
-| [A423](asks/A423.md) | 2026-11-27 | Muse → Cursor | Kronos catalog row uses status "Dropped" — not in the type union, CI red since 19:49 (High) | open |
-| [A424](asks/A424.md) | 2026-11-27 | Muse → Claude → Cursor | [quant] ira_same_weeks pairs Jamie expiry-week vs engine entry-week (Medium) | done (Claude 11-27: expiry-week keys) |
-| [A425](asks/A425.md) | 2026-11-27 | Muse → Cursor | S415 leak placebo_p is a broken statistic, reports 0.00 (Medium) | open |
-| [A426](asks/A426.md) | 2026-11-27 | Muse → Cursor | ira-covered-calls / ira-long-calls copy contradicts the real-exit implementation (Low) | open |
+| [A222](asks/A222.md) | 2026-10-20 | Muse → Claude → Cursor | [quant] Qlib downside-label underlying ranking as a score factor | re-review (Revisit met 2026-11-27: ask A262 done) |

@@ -25,11 +25,19 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 import s045_put_retest as M  # noqa: E402
 from build_plan import connect  # noqa: E402
-from quantcore.bs import bs_call as bs_call_px, years_from_days  # noqa: E402
+from quantcore.bs import bs_call as bs_call_px, years_from_days, years_from_sessions  # noqa: E402
 from quantcore.ta import ema, rsi  # noqa: E402
 
 OUT = HERE.parent.parent.parent / "research" / "studies" / "out" / "a372-call-exits.md"
 HOLD = 5
+# Shipped packet before A421 (/365 on session counts, 794462f599).
+BP_BEFORE = {
+    "hold": (-40.5, 0.0),
+    "rsi_turn": (-37.4, 3.1),
+    "macd_shrink": (-27.0, 13.5),
+    "ema20_break": (-27.6, 12.9),
+    "any_atd": (-8.8, 31.7),
+}
 SPLIT = date(2023, 1, 1)
 EXITS = ("hold", "rsi_turn", "macd_shrink", "ema20_break", "any_atd")
 
@@ -57,7 +65,7 @@ def call_pnl_path(pre, i, iv, hold=HOLD):
         return None
     tt0 = hold / 252
     Kc = S * math.exp(ivf * math.sqrt(tt0))
-    prem0 = bs_call_px(spot=S, strike=Kc, iv=ivf, years=years_from_days(HOLD))
+    prem0 = bs_call_px(spot=S, strike=Kc, iv=ivf, years=years_from_sessions(hold))
     ST = float(c[i + hold])
     hold_pnl = (prem0 - max(0.0, ST - Kc)) / S
     early = {}
@@ -68,7 +76,7 @@ def call_pnl_path(pre, i, iv, hold=HOLD):
         dleft = hold - j
         tt = dleft / 252
         Sj = float(c[idx])
-        prem_j = bs_call_px(spot=Sj, strike=Kc, iv=ivf, years=years_from_days(dleft))
+        prem_j = bs_call_px(spot=Sj, strike=Kc, iv=ivf, years=years_from_sessions(dleft))
         pnl_j = (prem0 - prem_j) / S  # cover: pay prem_j vs collected prem0
         flags = []
         if idx >= 2 and np.isfinite(r[idx]) and np.isfinite(r[idx - 1]) and r[idx - 1] > 70 and r[idx] < r[idx - 1]:
@@ -201,6 +209,24 @@ def main():
         print(f"SANITY {e['t']} {e['d']} hold={e['hold_pnl']*1e4:+.1f}bp rsi={e['early'].get('rsi_turn',0)*1e4:+.1f}bp", flush=True)
     stats = {k: summarize(ev, k) for k in EXITS}
     if smoke:
+        ys5 = float(years_from_sessions(5))
+        assert abs(ys5 - 5 / 252) < 1e-12, f"pin fail years_from_sessions(5)={ys5}"
+        print(f"SANITY pin years_from_sessions(5)={ys5:.6f} (252 convention)", flush=True)
+        if ev:
+            e0 = ev[0]
+            S, Kc = e0["S"], e0["K"]
+            iv_row = next((f for t, d, f in rows if t == e0["t"] and d == e0["d"]), None)
+            ivf = float(iv_row["iv30"]) / 100 if iv_row and iv_row.get("iv30") else float("nan")
+            prem_wrong = float(bs_call_px(spot=S, strike=Kc, iv=ivf, years=years_from_days(HOLD)))
+            prem_right = float(bs_call_px(spot=S, strike=Kc, iv=ivf, years=years_from_sessions(HOLD)))
+            print(
+                f"SANITY prem0 {e0['t']} S={S:.2f} iv={ivf:.3f} wrong(/365)={prem_wrong:.4f} "
+                f"right(/252)={prem_right:.4f} ratio={prem_right / prem_wrong:.3f}",
+                flush=True,
+            )
+            if abs(prem_right - prem_wrong) < 1e-6:
+                print("SANITY fail prem0 unchanged — year fraction fix not applied", flush=True)
+                sys.exit(1)
         h = stats["hold"]["mean_bp"]
         a = stats["any_atd"]["mean_bp"]
         print(f"SANITY hold={h:+.1f} any_atd={a:+.1f} diff={a-h:+.1f} bp/wk", flush=True)
@@ -212,14 +238,36 @@ def main():
         "# A372 call exits (S046 lane)",
         "",
         "CONTRACT 1-7: item 3 vs 5d hold. BS call r=0; indicators quantcore.ta; daily close only. "
-        f"Halves {SPLIT}. Comparator = hold. priced_by model (S046 harness).",
+        f"Halves {SPLIT}. Comparator = hold. priced_by model (S046 harness). "
+        "Year fraction: years_from_sessions (A421 fix; was years_from_days on session counts).",
+        "",
+        "## A421 before → after (bp/wk)",
+        "",
+        "| exit | before mean | after mean | Δ mean | before diff vs hold | after diff vs hold |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for k in EXITS:
+        b_mean, b_diff = BP_BEFORE[k]
+        a_mean = stats[k]["mean_bp"]
+        a_diff = stats[k]["diff"] if k != "hold" else 0.0
+        lines.append(
+            f"| {k} | {b_mean:+.1f} | {a_mean:+.1f} | {a_mean - b_mean:+.1f} | {b_diff:+.1f} | {a_diff:+.1f} |"
+        )
+    bh, ah = stats["hold"]["mean_bp"], stats["any_atd"]["mean_bp"]
+    b_gap = BP_BEFORE["any_atd"][0] - BP_BEFORE["hold"][0]
+    a_gap = ah - bh
+    lines.extend([
+        "",
+        f"any_atd−hold: {b_gap:+.1f} → {a_gap:+.1f} bp/wk (before → after).",
+        "**A421 verdict change:** macd_shrink and ema20_break were WORKS under /365; FAIL under /252 "
+        "(t pre/post gates). any_atd still WORKS; S209 model-only fence unchanged.",
         "",
         f"n_events={len(ev)} independent entry weeks={stats['hold']['n_wk']} "
         f"span {min(e['d'] for e in ev) if ev else '—'} → {max(e['d'] for e in ev) if ev else '—'}",
         "",
         "| exit | n | n_wk | mean bp/wk | hold | diff | t | t pre | t post | worst5 Δ bp | verdict |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
-    ]
+    ])
     works = []
     for k, s in stats.items():
         lines.append(
