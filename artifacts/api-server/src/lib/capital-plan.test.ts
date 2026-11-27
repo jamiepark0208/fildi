@@ -48,4 +48,13 @@ describe("capital plan", () => {
     assert.equal(p.get("a")!.fits, false);
     assert.equal(p.get("a")!.shortBy, 0);
   });
+
+  it("names the winning side of breakeven", () => {
+    const call = optionSource({ account: "I", ticker: "N", type: "call", dir: "long", strike: 165, expiry: "2026-12-24", qty: 1, mark: 5, cost: 6, pBe: 0.1 }, false)!;
+    const put = optionSource({ account: "I", ticker: "Z", type: "put", dir: "long", strike: 40, expiry: "2026-12-18", qty: 1, mark: 3, cost: 8, pBe: 0.1 }, false)!;
+    assert.match(call.why, /10 % odds to finish above breakeven/);
+    assert.match(put.why, /10 % odds to finish below breakeven/);
+    assert.equal(call.tier, 2);
+    assert.equal(put.tier, 2);
+  });
 });

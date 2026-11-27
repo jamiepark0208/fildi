@@ -133,7 +133,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A411](asks/A411.md) | 2026-11-16 | Claude → Cursor | Breakdown tabs ordered by importance (Main, Options, Technicals, Notes, News…) + plain names | open |
 | [A412](asks/A412.md) | 2026-11-17 | Muse → Cursor | [Low] Today bottom checklist: HY percentile labeled 3y but computed over all history; weekend report dates show "pending" | done |
 | [A413](asks/A413.md) | 2026-11-18 | Muse → Cursor | Daily fildi brief snapshot export (Mac → Drive JSON) so the evening recap can cite live analytics | planned |
-| [A414](asks/A414.md) | 2026-11-19 | Muse → Cursor | [Low] Capital plan: long-put odds label reads backwards ("above breakeven" is the losing side) | planned |
+| [A414](asks/A414.md) | 2026-11-19 | Muse → Cursor | [Low] Capital plan: long-put odds label reads backwards ("above breakeven" is the losing side) | done |
 | [A415](asks/A415.md) | 2026-11-19 | Muse → Claude → Cursor | Merton jump-diffusion for the short-put book: explain S075's far-OTM gap, beat the GBM breach ranker | planned |
 | [A416](asks/A416.md) | 2026-11-20 | Muse → Cursor | CI red on cursor/mac-dev: api-server unit tests fail since a7e6294; secret scan fails since 4b1de13 (High) | done |
 | [A417](asks/A417.md) | 2026-11-23 | Muse → Claude → Cursor | Roll/defend analyzer ignores prior-roll credits — assign basis overstates cost on every rolled put | verified |

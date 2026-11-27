@@ -11,7 +11,7 @@
  * Sell order (tier, lowest first) — rules, not a backtested edge:
  *   0 short put ≥ 50 % of premium captured: little reward left, closing frees its collateral (cash_moves.py order)
  *   1 Model List Avoid / Trim / red: Fildi's own verdict says weak odds
- *   2 long option with < 15 % odds to finish above breakeven (IV lognormal, no drift): a lottery ticket, sell its mark
+ *   2 long option with < 15 % win odds (call: finish above breakeven; put: finish below): a lottery ticket, sell its mark
  *   3 rich: price ≥ fair value or within 10 % of the 52-week high, not green
  *   4 everything else not green
  *   5 green (Fildi would own it) — last; flagged
@@ -80,7 +80,8 @@ export function optionSource(o: OptIn, taxable: boolean): Source | null {
   if (cash < 1) return null;
   const tier = o.pBe != null && o.pBe < 0.15 ? 2 : 4;
   const taxPnl = taxable && o.cost != null ? (o.mark - o.cost) * 100 * o.qty : null;
-  const why = [o.pBe != null ? `${Math.round(o.pBe * 100)} % odds to finish above breakeven` : "odds unknown (no IV)"];
+  const side = o.type === "put" ? "below" : "above";
+  const why = [o.pBe != null ? `${Math.round(o.pBe * 100)} % odds to finish ${side} breakeven` : "odds unknown (no IV)"];
   if (taxPnl != null) why.push(taxPnl < 0 ? `books a ${usd(-taxPnl)} tax loss` : `taxable gain ${usd(taxPnl)}`);
   return { account: o.account, key: `opt:${o.account}:${label}`, ticker: o.ticker, kind: "sell option", what: `sell ${label} ×${o.qty}`,
     cash, tier, rr: null, pWin: o.pBe, taxPnl, why: why.join(" · ") };
