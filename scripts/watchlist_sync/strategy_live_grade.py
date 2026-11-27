@@ -62,6 +62,59 @@ def src_model_puts(c):
     return [(k, w, v) for k, (w, v) in out.items()]
 
 
+def src_engine_puts(c):
+    """Put engine PASS picks (put_recs_daily → Today), sold at bid + 23 % of the spread (RH median fill), held to expiry."""
+    out = {}
+    for r in rows(c, """SELECT DISTINCT ON (d.ticker, d.payload->>'expiry', d.payload->>'strike')
+                               d.ticker, d.as_of, (d.payload->>'expiry')::date e, (d.payload->>'strike')::float8 k,
+                               (d.payload->>'bid')::float8 bid, (d.payload->>'ask')::float8 ask, (d.payload->>'spot')::float8 s, h.close::float8 sc
+                        FROM watchlist_sync.put_recs_daily d
+                        JOIN prices_historical h ON h.ticker = d.ticker AND h.date = (d.payload->>'expiry')::date
+                        WHERE d.pass AND d.payload->>'bid' IS NOT NULL AND d.payload->>'ask' IS NOT NULL
+                        ORDER BY d.ticker, d.payload->>'expiry', d.payload->>'strike', d.as_of"""):
+        if not r["s"] or abs(r["sc"] / r["s"] - 1) > 0.35:   # split / bad print
+            continue
+        ret = (r["bid"] + 0.23 * (r["ask"] - r["bid"]) - max(r["k"] - r["sc"], 0.0)) / r["k"]
+        out[(r["ticker"], r["e"], r["k"])] = (monday(r["e"]), per_week_bp(ret, (r["e"] - r["as_of"]).days))
+    return [(k, w, v) for k, (w, v) in out.items()]
+
+
+BT_DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_backtest_weeks (
+  rule_id text NOT NULL, week date NOT NULL, bp double precision, computed_at timestamptz DEFAULT now(), PRIMARY KEY (rule_id, week))"""
+
+
+def refresh_backtest(c, force=False) -> None:
+    """Engine weekly backtest series (A352 book, top third by live score, net of fill cost) — the S207/S208 unit.
+    ~1 min to rebuild; refreshed when older than 7 days."""
+    c.execute(BT_DDL)
+    age = rows(c, "SELECT max(computed_at) > now() - interval '7 days' AS fresh FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = 'ENGINE'")
+    if age and age[0]["fresh"] and not force:
+        return
+    import sys
+    sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent / "analysis"))
+    import a352_score_rank as A
+    by = {}
+    for e in A.rebuild_book(c):
+        by.setdefault(monday(e["d"]), []).append(e)
+    c.execute("DELETE FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = 'ENGINE'")
+    for w, g in sorted(by.items()):
+        if len(g) < 20:
+            continue
+        top = sorted(g, key=lambda e: (-e["score"], e["t"]))[: max(1, len(g) // 3)]
+        bp = 1e4 * sum(e["pnl"] for e in top) / sum(max(e["dte"], 1) / 7 for e in top)
+        c.execute("INSERT INTO watchlist_sync.strategy_backtest_weeks (rule_id, week, bp) VALUES ('ENGINE', %s, %s)", (w, bp))
+    c.commit()
+
+
+def history_pct(c, rule_bt: str, live: float, k: int):
+    """Share of the backtest's k-week stretches that were as bad as or worse than the live k-week mean."""
+    s = [r["bp"] for r in rows(c, "SELECT bp FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = %s ORDER BY week", (rule_bt,))]
+    if len(s) < k + 20 or k < 1:
+        return None, None
+    roll = [mean(s[i:i + k]) for i in range(len(s) - k + 1)]
+    return sum(x <= live for x in roll) / len(roll), mean(s)
+
+
 def src_model_calls(c):
     """S046: Model List covered-call recs (options-1.2.0+ call lane), expiry hold on spot."""
     out = {}
@@ -117,7 +170,8 @@ def src_long_calls(c):
 
 RULES = [
     # rule_id, label, claim, unit, source fn, fill basis
-    ("S088", "Model List puts (engine)", 77.0, "bp/wk", src_model_puts, "stored bid · expiry hold"),
+    ("ENGINE", "Put engine picks (Today)", None, "bp/wk", src_engine_puts, "bid + 23 % of spread · expiry"),
+    ("MODEL-PUTS", "Model tab option-score puts (legacy, not a Works rule)", None, "bp/wk", src_model_puts, "stored bid · expiry hold"),
     ("S088-IRA", "Model List puts on Jamie's IRA fills", 77.0, "bp/wk", src_ira_puts, "RH real fills"),
     ("S109", "Rich-put lane (shadow)", 101.0, "bp/wk", src_rich_puts, "L2 realistic fill · expiry"),
     ("S054", "Panic puts, IV30 > 48.7", 4.05, "%/trade", src_panic_puts, "entry mid (paper) · expiry"),
@@ -161,7 +215,7 @@ def ira_equity_note(c) -> str:
     return f"equity {x['eq'] - 1:+.1%} vs SPY {x['spy'] - 1:+.1%} ({x['d0']:%m-%d}→{x['d1']:%m-%d}); fills stop {x['d1']:%m-%d}"
 
 
-def run(c):
+def run(c, refresh=True):
     out = []
     for rid, label, claim, unit, fn, fill in RULES:
         note = ""
@@ -176,10 +230,26 @@ def run(c):
             note = fill
         if rid == "S088-IRA":
             note = ira_equity_note(c)
+        hist = None
+        if rid == "ENGINE" and refresh:
+            refresh_backtest(c)
         g = grade_rule(obs, claim)
+        if rid in ("ENGINE", "MODEL-PUTS") and g["live"] is not None:
+            # Jamie 11-27: never 'too few weeks' — place the live stretch inside the backtest's own same-length stretches
+            hist, bt_mean = history_pct(c, "ENGINE", g["live"], g["n_clusters"])
+            if hist is not None:
+                claim = bt_mean
+                g["flag"] = ("worse than history" if hist < 0.025 else "bad patch, in range" if hist < 0.25
+                             else "on track")
+                note = (f"worse than {1 - hist:.0%} of {g['n_clusters']}-week stretches 2021→ (backtest {bt_mean:+.0f} bp/wk); "
+                        f"S210: no entry/exit lever avoids crash weeks; 2+ flag gate +10.5 bp/wk")
+        elif g["flag"] == "underpowered" and claim is None:
+            g["flag"] = "no claim"
+        elif g["flag"] == "underpowered":
+            g["flag"] = "below claim" if (claim is not None and g["live"] is not None and g["live"] < claim) else "at/above claim"
         span = g.pop("span")
         note = " · ".join(x for x in (span, note) if x)
-        out.append(dict(rule_id=rid, label=label, claim=claim, unit=unit, fill=fill, note=note, **g))
+        out.append(dict(rule_id=rid, label=label, claim=claim, unit=unit, fill=fill, note=note, hist_pct=hist, **g))
     return out
 
 
@@ -187,6 +257,7 @@ DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_live_grade (
   rule_id text NOT NULL, week date NOT NULL, label text, claim double precision, unit text, fill text,
   n_trades int, n_clusters int, live double precision, ci_lo double precision, ci_hi double precision,
   flag text, note text, computed_at timestamptz DEFAULT now(), PRIMARY KEY (rule_id, week))"""
+DDL2 = "ALTER TABLE watchlist_sync.strategy_live_grade ADD COLUMN IF NOT EXISTS hist_pct double precision"
 
 
 def main() -> None:
@@ -194,7 +265,7 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     c = connect()
-    res = run(c)
+    res = run(c, refresh=not a.dry_run)
     wk = monday(date.today())
     for r in res:
         live = "—" if r["live"] is None else f"{r['live']:+.1f}"
@@ -205,15 +276,16 @@ def main() -> None:
     if a.dry_run:
         return
     c.execute(DDL)
+    c.execute(DDL2)
     for r in res:
         c.execute("""INSERT INTO watchlist_sync.strategy_live_grade
-                     (rule_id, week, label, claim, unit, fill, n_trades, n_clusters, live, ci_lo, ci_hi, flag, note)
-                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     (rule_id, week, label, claim, unit, fill, n_trades, n_clusters, live, ci_lo, ci_hi, flag, note, hist_pct)
+                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                      ON CONFLICT (rule_id, week) DO UPDATE SET label=EXCLUDED.label, claim=EXCLUDED.claim, unit=EXCLUDED.unit,
                        fill=EXCLUDED.fill, n_trades=EXCLUDED.n_trades, n_clusters=EXCLUDED.n_clusters, live=EXCLUDED.live,
-                       ci_lo=EXCLUDED.ci_lo, ci_hi=EXCLUDED.ci_hi, flag=EXCLUDED.flag, note=EXCLUDED.note, computed_at=now()""",
+                       ci_lo=EXCLUDED.ci_lo, ci_hi=EXCLUDED.ci_hi, flag=EXCLUDED.flag, note=EXCLUDED.note, hist_pct=EXCLUDED.hist_pct, computed_at=now()""",
                   (r["rule_id"], wk, r["label"], r["claim"], r["unit"], r["fill"], r["n_trades"], r["n_clusters"],
-                   r["live"], r["ci_lo"], r["ci_hi"], r["flag"], r["note"]))
+                   r["live"], r["ci_lo"], r["ci_hi"], r["flag"], r["note"], r["hist_pct"]))
     c.commit()
 
 

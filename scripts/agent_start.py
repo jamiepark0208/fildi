@@ -170,9 +170,9 @@ def main() -> None:
             lg = subprocess.run([str(ROOT / "scripts/watchlist_sync/.venv/bin/python"), "strategy_live_grade.py", "--dry-run"],
                                 cwd=ROOT / "scripts" / "watchlist_sync", capture_output=True, text=True, timeout=60, env=env)
             lines = lg.stdout.strip().splitlines()
-            drift = [x[:160] for x in lines if " drift " in x]
+            drift = [x[:160] for x in lines if " drift " in x or " worse than history " in x]
             say("6l live vs claim: " + ("DRIFT " + "; ".join(drift) + " → open a re-test row" if drift
-                                        else f"no drift ({len(lines)} rules; most underpowered < 30 expiry weeks)" if lines
+                                        else f"no drift ({len(lines)} rules; puts placed vs same-length backtest stretches)" if lines
                                         else "no output: " + (lg.stderr or "")[-200:]))
         except subprocess.TimeoutExpired:
             say("6l live vs claim: timeout (60 s)")

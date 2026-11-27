@@ -38,6 +38,7 @@ import numpy as np
 import build_plan as BP
 import rules as R
 import strategy_engine as SE
+from put_eligibility import iv_rv_cautions
 from build_plan import connect, rows
 
 FAR_BAND = "0.06-0.08"   # far rule (rules.PUT_EARNINGS_ABS_DELTA 0.10 cap / 0.07 target) as a band
@@ -230,7 +231,10 @@ NEWS_8K = {"merger_agreement", "acquisition_agreement", "tender_offer", "going_p
 def pick_grade(conn, recs: list[dict], as_of: date) -> None:
     """S208 (Jamie 11-26 'differentiate what was a good and bad pick'): flags vs the other passing picks that day.
     A352 book, top-third picks, within-week terciles, held out 2024→: 0 flags +31.5 bp/pick (loss 9.4 %), 1 flag +15.8,
-    2+ flags −4.9 (loss 11.9 %); train 2021–23 same order (+27.1 / −0.8 / −3.3). Caution only, never a gate."""
+    2+ flags −4.9 (loss 11.9 %); train 2021–23 same order (+27.1 / −0.8 / −3.3).
+    S210 (11-27, Jamie: make it good enough, not 'too few weeks'): as a weekly book, skipping 2+ flag picks lifts the engine
+    +22 → +32 bp/wk, paired +10.5 bp/wk t 5.2 (2021–23 t 2.9, 2024→ t 4.6); worst-5 % week −299 → −320 (fewer names).
+    → 2+ flags = gate (pass off, reason shown, still listed). Must run before ranking."""
     picks = [r for r in recs if r.get("pass_") and r.get("strike") is not None]
     if len(picks) < 6:
         return
@@ -259,6 +263,8 @@ def pick_grade(conn, recs: list[dict], as_of: date) -> None:
         if grade == "weak":
             # first: Today › Caution column shows cautions[0]
             r["cautions"] = [f"Weak pick: {' + '.join(fl)} — such picks averaged −5 bp vs +32 for clean ones (S208)"] + list(r.get("cautions") or [])
+            r["pass_"] = False
+            r["gates"] = list(r.get("gates") or []) + [f"weak pick ({' + '.join(fl)}): skipping these adds +10.5 bp/wk, t 5.2 (S210)"]
 
 
 def news_flags(conn, recs: list[dict], as_of: date, rv: dict) -> None:
@@ -324,6 +330,9 @@ S054_BAND = "0.15-0.20"   # panic-puts-hiv sells the ~0.20Δ put (strategy_signa
 
 def compute(conn) -> tuple[date, list[dict], dict]:
     as_of = conn.execute("SELECT MAX(as_of) FROM option_chain_history").fetchone()[0]
+    policy = conn.execute("SELECT version, params FROM watchlist_sync.model_params WHERE status='champion'").fetchone()
+    policy_version = policy[0] if policy else None
+    iv_rv_floor = (policy[1].get("thresholds") or {}).get("min_contract_iv_rv") if policy else None
     chain = rows(conn, """SELECT ticker, expiry, strike::float8, dte, spot::float8, bid::float8, ask::float8, iv::float8, delta::float8,
                                  open_interest, volume
                           FROM option_chain_history WHERE as_of = %s AND side = 'put' AND bid > 0 AND delta < 0""", (as_of,))
@@ -454,7 +463,11 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         # shown option; only the blocks below (earnings across expiry, stale chain, one sale per name-week) hide a name.
         cautions = list(gates) + ([f"strike at {abs(p['delta']):.2f}Δ, outside the tested {band}Δ band (no liquid strike there)"]
                                   if used == WIDER_BAND else [])
-        strict, ok, gates = ok and used != WIDER_BAND, True, []
+        richness_cautions = iv_rv_cautions(rec["iv_rv"], iv_rv_floor)
+        cautions.extend(richness_cautions)
+        strict, ok, gates = ok and used != WIDER_BAND and not richness_cautions, True, []
+        rec["quality_policy"] = {"version": policy_version, "min_contract_iv_rv": iv_rv_floor,
+                                 "quote_as_of": str(as_of), "iv_rv": rec["iv_rv"], "judgment_action": "caution"}
         if far == "earnings before expiry":   # Jamie 10-28 (GOOGL 10-28): no new put across the print by default
             ok = False
             gates.append(f"earnings before the {exp} expiry")
@@ -468,6 +481,7 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         rec.update(pass_=ok, gates=gates, tier="best" if strict else "option", cautions=cautions,
                    odds_otm=round(1 - abs(p["delta"]), 3), put_edge_q=I.get(t, {}).get("put_edge_q"), verdict=I.get(t, {}).get("verdict"))
         out.append(rec)
+    pick_grade(conn, out, as_of)   # S210: 2+ flags = gate → must run before the pass-first sort
     ranked = [r for r in out if r.get("strike") is not None]
     score = SE.rank_key(ranked, "sell_put")
     ranked.sort(key=lambda r: (not r["pass_"], r.get("tier") != "best", -score.get(id(r), 0.0)))
@@ -478,7 +492,6 @@ def compute(conn) -> tuple[date, list[dict], dict]:
         print(f"  book group: {len(bg['list'])} of {bg['of_list']} published move together ({', '.join(bg['list'])}; corr {bg['corr']}); "
               f"held {', '.join(bg['held']) or 'none'}")
     news_flags(conn, [r for r in out if r.get("strike") is not None], as_of, rv)
-    pick_grade(conn, out, as_of)
     for r in out:
         if (r.get("news") or {}).get("gap") and r["pass_"]:
             g = r["news"]["gap"]

@@ -138,13 +138,17 @@ interface LiveGradeRow {
   ruleId: string; label: string; claim: number | null; unit: string; fill: string; nTrades: number; nWeeks: number;
   live: number | null; ciLo: number | null; ciHi: number | null; flag: string; note: string; week: string;
 }
-const FLAG_TONE: Record<string, string> = { drift: "text-rose-400", "on track": "text-emerald-400", underpowered: "text-amber-200", "no data": "text-amber-100" };
+const FLAG_TONE: Record<string, string> = {
+  drift: "text-rose-400", "worse than history": "text-rose-400", "on track": "text-emerald-400",
+  "bad patch, in range": "text-amber-200", "below claim": "text-amber-200", "at/above claim": "text-emerald-400",
+  "no claim": "text-amber-100", "no data": "text-amber-100",
+};
 const num1 = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`);
 
 function LiveVsClaimCard({ rows }: { rows: LiveGradeRow[] }) {
   return (
     <div className="rounded border border-[#d4af37]/15 bg-zinc-950/80 px-2.5 py-2 space-y-1.5" data-testid="journal-live-vs-claim">
-      <DataTip tip={`Each 'Works' rule on the strategy board: its live record against the backtest number it was promoted on. n = expiry weeks (contracts in one week share one market draw). Drift = 30+ weeks and even the top of the 95% range is under half the claim. Underpowered = under 30 weeks: watch the sign, don't act on it. Week of ${rows[0]?.week ?? "—"}.`}>
+      <DataTip tip={`Each 'Works' rule on the strategy board: its live record against the backtest number it was promoted on. n = expiry weeks (contracts in one week share one market draw). Put rows are placed against the backtest's own stretches of the same length (2021→): 'bad patch, in range' = history had stretches this bad; 'worse than history' = worse than 97.5% of them → re-test. Drift = 30+ weeks and even the top of the 95% range is under half the claim. Hover a rule for its percentile. Week of ${rows[0]?.week ?? "—"}.`}>
         <div className="text-[10px] uppercase tracking-wide text-white font-semibold">Live vs backtest — is each working rule still working?</div>
       </DataTip>
       <div className={GRID_WRAP}>

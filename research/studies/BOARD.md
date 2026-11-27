@@ -13,6 +13,7 @@
 | Calls: low volume + not stretched above 200d | N_eff≈100+ wk · H1/H2 +/+ · +42.9 bp/wk OOS, t 4.6 | S046 | options-1.2.0 |
 | Watchlist RSI14 < 25 → buy next open, 5 d | N_eff≈107 ev · t 0.35 · IPO mix confound | S160 | not promoted (IPO-name effect untested) | if a recent-IPO RSI study passes out of sample |
 | Wide credit spreads → market-drop warning | N_eff≈50+ events · S&P −5 % in 21 d: 25 % vs 13 % | S028 | display |
+| Skip engine put picks with 2+ bad-pick flags (5-day run-up, fresh earnings beat, lowest IV of the list) | N_eff 299 wk · paired +10.5 bp/wk t 5.2 · H1 t 2.9 / H2 t 4.6 · +22 → +32 bp/wk | S208 · S210 | live gate (put_recs, 11-27) |
 | IV ÷ RV is the put edge | N_eff large · t 4+ | S003 / S004 | in fit score |
 
 ## Low N_eff (OOS edge; N_eff < 100 — Data checked per row)
