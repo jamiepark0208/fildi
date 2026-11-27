@@ -74,15 +74,23 @@ def screen(min_cap_b: float):
     df = df[df["Instrument Type"].isin(["Ordinary Shares", "American Depository Receipts", "Fully Paid Ordinary Shares"])]
     df = df.dropna(subset=["Ticker Symbol"])
     df = df[~df["Ticker Symbol"].str.contains(" ", regex=False)]   # "BRK A"-style share classes: the B line is listed separately
+    import pandas as pd
+
+    def num(v) -> float:   # LSEG returns pd.NA for missing; `pd.NA or 0` raises (crashed the 11-05 monthly re-test)
+        return 0.0 if pd.isna(v) else float(v)
+
+    def txt(v) -> str:
+        return "" if pd.isna(v) else str(v)
+
     out = {}
     for _, r in df.iterrows():
         t = r["Ticker Symbol"]
-        cap = float(r["Company Market Cap"] or 0) / 1e9
-        dvol = float(r["Price Close"] or 0) * float(r["Average Daily Volume - 3 Months"] or 0) / 1e6
-        exch = str(r["Exchange Name"] or "").upper()
+        cap = num(r["Company Market Cap"]) / 1e9
+        dvol = num(r["Price Close"]) * num(r["Average Daily Volume - 3 Months"]) / 1e6
+        exch = txt(r["Exchange Name"]).upper()
         listed = bool(exch) and not any(k in exch for k in ("OTC", "PINK", "GREY"))
         if t not in out or cap > out[t][1]:
-            out[t] = (r["Company Common Name"], cap, dvol, r["TRBC Industry Group Name"] or None, listed)
+            out[t] = (txt(r["Company Common Name"]), cap, dvol, txt(r["TRBC Industry Group Name"]) or None, listed)
     return out
 
 

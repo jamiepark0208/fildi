@@ -88,7 +88,9 @@ def main() -> None:
         with connect() as conn:
             L += [f"- {x}" for x in win_rate_moves(conn)]
         L += ["", "Full reports: out/lab/report.md, out/proto/gate1.md, gate1b.md, gate1c.md. Anything worth acting on → ASKS + user approval."]
-    out = RUNS / f"monthly_{datetime.now():%Y%m%d}.md"
+    # 11-27: a failed run must not reset the 28-day clock (11-05 universe-review crash froze lab_outcomes at 10-05 for
+    # 7 weeks → engine backtest and Jamie's IRA comparison lost Oct). Failed runs are kept but don't match the glob.
+    out = RUNS / f"{'' if ok_all else 'failed_'}monthly_{datetime.now():%Y%m%d}.md"
     out.write_text("\n".join(L) + "\n")
     print(f"→ {out}")
     sys.exit(0 if ok_all else 1)

@@ -142,6 +142,7 @@ const FLAG_TONE: Record<string, string> = {
   drift: "text-rose-400", "worse than history": "text-rose-400", "on track": "text-emerald-400",
   "bad patch, in range": "text-amber-200", "below claim": "text-amber-200", "at/above claim": "text-emerald-400",
   "no claim": "text-amber-100", "no data": "text-amber-100",
+  "ahead of engine": "text-emerald-400", "level with engine": "text-amber-100", "behind engine": "text-rose-400",
 };
 const num1 = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`);
 
@@ -157,7 +158,7 @@ function LiveVsClaimCard({ rows }: { rows: LiveGradeRow[] }) {
             <tr>
               <th className={cn(GRID_TH, "text-left")}>Rule</th>
               <th className={cn(GRID_TH, "text-right")}>Live</th>
-              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Backtest number from the strategy board, same unit.">Claim</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Backtest number from the strategy board, same unit. Your IRA row: what the engine earned in the same weeks you traded (hover the row for 1σ index puts, SPY and T-bill over those weeks).">Claim</DataTip></th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="95% range of the live mean over expiry weeks.">Range</DataTip></th>
               <th className={cn(GRID_TH, "text-right")}><DataTip tip="Independent expiry weeks / contracts graded.">Weeks</DataTip></th>
               <th className={cn(GRID_TH, "text-left")}>Status</th>

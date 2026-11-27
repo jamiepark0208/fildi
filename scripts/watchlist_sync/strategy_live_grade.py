@@ -149,9 +149,10 @@ def src_panic_puts(c):
 
 
 def src_ira_puts(c):
-    """S088 on Jamie's real fills: ira-puts strategy_trades (RH IRA), bp/wk per trade."""
+    """Jamie's real IRA fills: ira-puts strategy_trades (RH IRA), bp/wk per trade, clustered by ENTRY week so the row
+    lines up with the same-weeks comparators (ira_same_weeks)."""
     return [((r["id"],), monday(r["d"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
-            for r in rows(c, """SELECT id, coalesce(expiry, exit_ts::date) d, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+            for r in rows(c, """SELECT id, entry_ts::date d, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
                                 WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL""")]
 
 
@@ -172,7 +173,7 @@ RULES = [
     # rule_id, label, claim, unit, source fn, fill basis
     ("ENGINE", "Put engine picks (Today)", None, "bp/wk", src_engine_puts, "bid + 23 % of spread · expiry"),
     ("MODEL-PUTS", "Model tab option-score puts (legacy, not a Works rule)", None, "bp/wk", src_model_puts, "stored bid · expiry hold"),
-    ("S088-IRA", "Model List puts on Jamie's IRA fills", 77.0, "bp/wk", src_ira_puts, "RH real fills"),
+    ("S088-IRA", "Your IRA puts (real fills) vs the same weeks", None, "bp/wk", src_ira_puts, "RH real fills · expiry"),
     ("S109", "Rich-put lane (shadow)", 101.0, "bp/wk", src_rich_puts, "L2 realistic fill · expiry"),
     ("S054", "Panic puts, IV30 > 48.7", 4.05, "%/trade", src_panic_puts, "entry mid (paper) · expiry"),
     ("S046", "Covered calls, call-lane tech", 42.9, "bp/wk", src_model_calls, "stored bid · expiry hold"),
@@ -215,6 +216,85 @@ def ira_equity_note(c) -> str:
     return f"equity {x['eq'] - 1:+.1%} vs SPY {x['spy'] - 1:+.1%} ({x['d0']:%m-%d}→{x['d1']:%m-%d}); fills stop {x['d1']:%m-%d}"
 
 
+def _week_means(pairs):
+    by = {}
+    for w, v in pairs:
+        by.setdefault(w, []).append(v)
+    return {w: mean(v) for w, v in by.items()}
+
+
+def _paired(jam: dict, other: dict):
+    """Jamie − comparator over the entry weeks both have: (n weeks, mean diff, ci lo, ci hi, comparator mean)."""
+    ws = sorted(set(jam) & set(other))
+    if not ws:
+        return None
+    d = [jam[w] - other[w] for w in ws]
+    m = mean(d)
+    h = t975(len(d) - 1) * stdev(d) / math.sqrt(len(d)) if len(d) >= 2 else None
+    return dict(n=len(ws), diff=m, lo=None if h is None else m - h, hi=None if h is None else m + h,
+                other=mean(other[w] for w in ws), you=mean(jam[w] for w in ws))
+
+
+def ira_same_weeks(c):
+    """Jamie 11-27: his IRA puts graded against what else the same weeks paid, not a frozen backtest number.
+    Keyed by entry week (Monday). Comparators: engine (backtest A352 book until it ends, then the live Today picks at
+    bid + 23 % of spread), SPY/QQQ 1σ weekly puts (index-1sigma-puts, model-priced), SPY held the week, 3-month T-bill."""
+    jam = _week_means((monday(r["d0"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
+                      for r in rows(c, """SELECT entry_ts::date d0, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+                                          WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL"""))
+    eng = {r["week"]: r["bp"] for r in rows(c, "SELECT week, bp FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = 'ENGINE'")}
+    live = _week_means((monday(r["as_of"]), per_week_bp(
+        (r["bid"] + 0.23 * (r["ask"] - r["bid"]) - max(r["k"] - r["sc"], 0.0)) / r["k"], (r["e"] - r["as_of"]).days))
+        for r in rows(c, """SELECT DISTINCT ON (d.ticker, d.payload->>'expiry', d.payload->>'strike')
+                                   d.as_of, (d.payload->>'expiry')::date e, (d.payload->>'strike')::float8 k,
+                                   (d.payload->>'bid')::float8 bid, (d.payload->>'ask')::float8 ask, (d.payload->>'spot')::float8 s,
+                                   h.close::float8 sc
+                            FROM watchlist_sync.put_recs_daily d
+                            JOIN prices_historical h ON h.ticker = d.ticker AND h.date = (d.payload->>'expiry')::date
+                            WHERE d.pass AND d.payload->>'bid' IS NOT NULL AND d.payload->>'ask' IS NOT NULL
+                            ORDER BY d.ticker, d.payload->>'expiry', d.payload->>'strike', d.as_of""")
+        if r["s"] and abs(r["sc"] / r["s"] - 1) <= 0.35)
+    for w, v in live.items():
+        eng.setdefault(w, v)
+    sig = _week_means((monday(r["d0"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
+                      for r in rows(c, """SELECT entry_ts::date d0, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+                                          WHERE strategy_id = 'index-1sigma-puts' AND ret_pct IS NOT NULL"""))
+    px = [(r["date"], float(r["close"])) for r in rows(c, "SELECT date, close FROM prices_historical WHERE ticker = 'SPY' AND date >= '2025-12-01' ORDER BY date")]
+    spy = {}
+    for w in jam:
+        before = [p for d, p in px if d < w]
+        after = [p for d, p in px if d < w + timedelta(days=7)]
+        if before and after and after[-1] != before[-1]:
+            spy[w] = (after[-1] / before[-1] - 1) * 1e4
+    tb = {}
+    for w in jam:
+        r = rows(c, """SELECT value FROM watchlist_sync.macro_daily WHERE series = 'tbill3m' AND date <= %s
+                       ORDER BY date DESC LIMIT 1""", (w,))
+        if r:
+            tb[w] = float(r[0]["value"]) / 100 / 52 * 1e4
+    return {k: _paired(jam, v) for k, v in (("engine", eng), ("1σ index puts", sig), ("SPY", spy), ("T-bill", tb))}
+
+
+def ira_note(cmp) -> tuple[str, str, float | None]:
+    """(flag, note, engine same-weeks mean) for the Journal row."""
+    e = cmp.get("engine")
+    if e is None:
+        return "no engine weeks", "", None
+    parts = []
+    for k, v in cmp.items():
+        if v is None:
+            continue
+        ci = "" if v["lo"] is None else f" [{v['lo']:+.0f}, {v['hi']:+.0f}]"
+        parts.append(f"{k} {v['other']:+.0f} (you {v['you']:+.0f}, diff {v['diff']:+.0f}{ci}, {v['n']} wk)")
+    if e["lo"] is not None and e["lo"] > 0:
+        flag = "ahead of engine"
+    elif e["hi"] is not None and e["hi"] < 0:
+        flag = "behind engine"
+    else:
+        flag = "level with engine"
+    return flag, "same weeks, bp/wk: " + "; ".join(parts), e["other"]
+
+
 def run(c, refresh=True):
     out = []
     for rid, label, claim, unit, fn, fill in RULES:
@@ -243,6 +323,11 @@ def run(c, refresh=True):
                              else "on track")
                 note = (f"worse than {1 - hist:.0%} of {g['n_clusters']}-week stretches 2021→ (backtest {bt_mean:+.0f} bp/wk); "
                         f"S210: no entry/exit lever avoids crash weeks; 2+ flag gate +10.5 bp/wk")
+        elif rid == "S088-IRA":
+            # 11-27 Jamie: '+77 was some backtest, not me' — target = what the engine earned in the weeks he traded
+            flag, cmp_note, claim = ira_note(ira_same_weeks(c))
+            g["flag"] = flag
+            note = " · ".join(x for x in (cmp_note, note) if x)
         elif g["flag"] == "underpowered" and claim is None:
             g["flag"] = "no claim"
         elif g["flag"] == "underpowered":

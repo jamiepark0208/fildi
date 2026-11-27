@@ -25,33 +25,42 @@ def fetch(sym: str) -> dict:
         return json.loads(r.read().decode())
 
 
-def load_hy_oas(conn, backfill: bool = False) -> int:
-    """ICE BofA US High Yield OAS (FRED BAMLH0A0HYM2, free, no key) → macro_daily 'hy_oas' (%). Jamie 11-17: the selloff
-    started with CoreWeave debt — if stocks bounce while this widens, the bounce is suspect (Today › bottom checklist)."""
+FRED = {
+    # ICE BofA US High Yield OAS (%). Jamie 11-17: the selloff started with CoreWeave debt — if stocks bounce while this
+    # widens, the bounce is suspect (Today › bottom checklist).
+    "hy_oas": "BAMLH0A0HYM2",
+    # 3-month T-bill (% yield). 11-27: the cash comparator for every strategy line (Jamie: same-risk + T-bill).
+    "tbill3m": "DTB3",
+}
+
+
+def load_fred(conn, series: str, backfill: bool = False) -> int:
+    """FRED series (free, no key) → macro_daily."""
+    fid = FRED[series]
     since = "2010-01-01" if backfill else date.fromordinal(date.today().toordinal() - 45).isoformat()
-    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLH0A0HYM2&cosd={since}"
+    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={fid}&cosd={since}"
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "curl/8"}), timeout=20) as r:  # FRED stalls browser UAs
             text = r.read().decode()
     except Exception as e:  # FRED down must not fail the VIX load
-        print(f"  hy_oas: fetch failed ({e})")
+        print(f"  {series}: fetch failed ({e})")
         return 0
     conn.execute("""INSERT INTO vendor_raw (source, endpoint, key, fetched_on, payload, payload_sha)
-                    VALUES ('fred', 'fredgraph.csv', 'BAMLH0A0HYM2', %s, %s::jsonb, %s)
+                    VALUES ('fred', 'fredgraph.csv', %s, %s, %s::jsonb, %s)
                     ON CONFLICT (source, endpoint, key, fetched_on) DO UPDATE SET payload = EXCLUDED.payload,
                     payload_sha = EXCLUDED.payload_sha""",
-                 (date.today(), json.dumps({"csv": text}), hashlib.sha256(text.encode()).hexdigest()))
+                 (fid, date.today(), json.dumps({"csv": text}), hashlib.sha256(text.encode()).hexdigest()))
     rows = []
     for line in text.strip().splitlines()[1:]:
         d, _, v = line.partition(",")
         if v and v != ".":
-            rows.append(("hy_oas", date.fromisoformat(d), float(v), "fred"))
+            rows.append((series, date.fromisoformat(d), float(v), "fred"))
     with conn.cursor() as cur:
         cur.executemany("""INSERT INTO watchlist_sync.macro_daily (series, date, value, source) VALUES (%s,%s,%s,%s)
                            ON CONFLICT (series, date) DO UPDATE SET value = EXCLUDED.value, source = EXCLUDED.source,
                            updated_at = now()""", rows)
     if rows:
-        print(f"  hy_oas: {len(rows)} days, last {rows[-1][1]} {rows[-1][2]:.2f}")
+        print(f"  {series}: {len(rows)} days, last {rows[-1][1]} {rows[-1][2]:.2f}")
     return len(rows)
 
 
@@ -79,7 +88,8 @@ def main() -> None:
                                    updated_at = now()""", data)
             n += len(data)
             print(f"  {series}: {len(data)} days, last {data[-1][1]} {data[-1][2]:.2f}")
-        n += load_hy_oas(conn, backfill="--backfill" in sys.argv)
+        for series in FRED:
+            n += load_fred(conn, series, backfill="--backfill" in sys.argv)
         conn.commit()
     print(f"vix_daily: {n} rows → macro_daily")
 
