@@ -25,6 +25,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 
+import { ideaPhase } from "../lib/idea-phase.js";
 import { openjevUsage } from "../lib/openjev-usage.js";
 import { codexActivity, mergeCodexActivity } from "../lib/codex-activity.js";
 import { codexUsage } from "../lib/codex-usage.js";
@@ -80,6 +81,8 @@ type Idea = {
   stale: boolean;
   /** Same calendar day as the newest touch across the board → "this wave" glow. */
   hot: boolean;
+  /** What would prove the idea wrong (A373). */
+  falsifier?: string;
 };
 
 /**
@@ -124,20 +127,34 @@ function ideaReviews(id: string): string {
   }
 }
 
-function ideaPhase(status: string): string {
-  const raw = status.trim();
-  const s = raw.toLowerCase();
-  if (s.startsWith("verified")) return "verified";
-  if (s.startsWith("done")) return "done";
-  if (s.startsWith("declined") || s.startsWith("deferred") || s.startsWith("parked")) return "parked";
-  // Grok STOP / "no build" — not Inbox; Claude still owns decline text (Jamie 10-18).
-  if (/\bSTOP\b/.test(raw) || /\bstop:\s*no build\b/i.test(raw) || /\bstop:\s*no library\b/i.test(raw)) {
-    return "parked";
+/** Pass/fail bar or explicit falsifier line from the ask file (A373). */
+function ideaFalsifier(id: string): string {
+  try {
+    const txt = readFileSync(resolve(ROOT, `research/common/asks/${id}.md`), "utf8");
+    const explicit =
+      txt.match(/## Falsifier\s*\n+([^\n#]+)/)?.[1]?.trim()
+      ?? txt.match(/\*\*Falsifier:\*\*\s*([^\n]+)/)?.[1]?.trim()
+      ?? txt.match(/\*\*Invalidation:\*\*\s*([^\n]+)/)?.[1]?.trim();
+    if (explicit) return explicit.slice(0, 280);
+    const pass = txt.match(/Pass\s*=\s*([^\n]+)/)?.[1]?.trim();
+    if (pass) return `Wrong if: ${pass.slice(0, 240)}`;
+    const check = txt.match(/Pass\/fail check:\s*([^\n]+)/)?.[1]?.trim();
+    if (check) return `Wrong if: ${check.slice(0, 240)}`;
+    return "";
+  } catch {
+    return "";
   }
-  if (s.startsWith("accepted") || s.startsWith("partial")) return "building";
-  if (s.startsWith("planned")) return "reviewed";
-  if (/needs jamie|user call/.test(s)) return "needs you";
-  return "filed";
+}
+
+/** A dispatch claim with a heartbeat in the last 2 hours is the only "live" work. */
+function claimFresh(id: string): boolean {
+  try {
+    const raw = JSON.parse(readFileSync(resolve(ROOT, `.agents/claims/dispatch-${id}.json`), "utf8")) as { heartbeat_at?: string; claimed_at?: string };
+    const t = Date.parse(raw.heartbeat_at || raw.claimed_at || "");
+    return Number.isFinite(t) && Date.now() - t < 2 * 3600e3;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeTouchDate(raw: string, fallbackYear: number): string | null {
@@ -208,9 +225,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
     if (onBoard) {
       const phase = ideaPhase(st);
       const touch = ideaTouch(id!, st, d!);
-      const touchAgeD = touch.at ? (Date.now() - Date.parse(touch.at)) / 864e5 : Infinity;
-      const inProgress = /\bin progress\b/i.test(st)
-        || (phase === "building" && Number.isFinite(touchAgeD) && touchAgeD <= 3);
+      const inProgress = claimFresh(id!);
       const stale = phase === "building" && !inProgress;
       ideas.push({
         id: id!, date: d!, from, to: dest,
@@ -220,6 +235,7 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
         assignee: ideaAssignee(from, dest, phase, st, viaClaude),
         quant: /\[quant\]/i.test(title!),
         blurb: ideaBlurb(id!),
+        falsifier: ideaFalsifier(id!),
         reviews: ideaReviews(id!),
         commits: [],
         touchedAt: touch.at,
@@ -247,10 +263,11 @@ function asks(): { ev: Ev[]; queue: Record<AgentId, number>; ideas: Idea[] } {
       const body = bodyLines.join("\n").trim();
       const own = body.match(/^\s*Owner:\s*(claude|cursor|muse|grok|codex)\b/im)?.[1]?.toLowerCase() as AgentId | undefined;
       const agentOwner: AgentId = own && own !== "jamie" ? own : "muse"; // Muse = default first responder (A153)
+      const optional = /^(later|optional)\b/i.test(m[2]!.trim());
       ideas.push({
-        id: m[1]!, date: "", from: agentOwner, to: "jamie", title: m[2]!.trim(), status: "needs you",
-        // Cube letter = agent owner (who replies / owns the work); phase still "needs you" for Jamie.
-        phase: "needs you", assignee: agentOwner, quant: false, blurb: body,
+        id: m[1]!, date: "", from: agentOwner, to: "jamie", title: m[2]!.trim(),
+        status: optional ? "parked (optional — not waiting on you)" : "needs you",
+        phase: optional ? "parked" : "needs you", assignee: agentOwner,         quant: false, blurb: body, falsifier: "",
         reviews: "", commits: [],
         touchedAt: null, touchedBy: null, inProgress: false, stale: false, hot: false,
       });
@@ -699,14 +716,21 @@ function cursorLimits(): CursorLimits | null {
 }
 
 /** Refresh Cursor usage snap when file missing or older than 5 min (fire-and-forget; never blocks overview). */
+let cursorRefreshInFlight = false;
+let cursorRefreshAttemptAt = 0;
 function maybeRefreshCursorLimits(): void {
+  if (cursorRefreshInFlight || Date.now() - cursorRefreshAttemptAt < 60_000) return;
   try {
     const p = join(homedir(), ".fildi/cursor-limits.json");
     let stale = true;
     try { stale = Date.now() - statSync(p).mtimeMs > 5 * 60_000; } catch { stale = true; }
     if (!stale) return;
     const script = join(ROOT, "scripts/cursor-usage-snap.mjs");
-    void run("node", [script], { timeout: 20_000 }).catch(() => { /* next poll retries */ });
+    cursorRefreshInFlight = true;
+    cursorRefreshAttemptAt = Date.now();
+    void run("node", [script], { timeout: 20_000 })
+      .catch(() => { /* bounded retry on a later poll */ })
+      .finally(() => { cursorRefreshInFlight = false; });
   } catch { /* ignore */ }
 }
 

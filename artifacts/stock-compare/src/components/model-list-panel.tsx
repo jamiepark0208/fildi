@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import {
   useModelList,
   VERDICT_CHIPS,
+  VERDICT_COLORS,
   VERDICT_LABELS,
   type ModelListFolder,
   type ModelListHealth,
@@ -29,7 +30,7 @@ export const WATCHLIST_ROW =
 
 /** My List only — trailing 14px for always-visible remove X (keeps headers aligned). */
 export const WATCHLIST_ROW_MINE =
-  "grid grid-cols-[14px_minmax(4.5ch,1fr)_minmax(5ch,1.1fr)_minmax(4.5ch,1fr)_minmax(4.5ch,1fr)_14px] items-center gap-x-1.5 px-1.5 h-[26px] text-[11px] w-full";
+  "grid grid-cols-[14px_minmax(4.5ch,0.8fr)_minmax(8ch,1.4fr)_minmax(6.5ch,1fr)_minmax(6ch,0.9fr)_14px] items-center gap-x-1 px-1.5 h-7 text-[13px] w-full";
 
 /** Per-folder metric column labels (SCR = put universe score; CONF/URG = section-native). */
 const FOLDER_METRIC: Record<string, { score: string; rank: string; tip: string; invert?: boolean }> = {
@@ -93,6 +94,16 @@ const STALE_CLOSE_MS = 5 * 24 * 3600 * 1000;
 function fmtExpiry(iso: string) {
   const [, m, d] = iso.split("-");
   return `${Number(m)}/${Number(d)}`;
+}
+
+function tradeFalsifier(item: ModelListItem): string | null {
+  const c = item.contract;
+  if (!c?.strike || !c.expiry) return null;
+  const exp = c.expiry.slice(0, 10);
+  const k = c.strike.toFixed(2).replace(/\.00$/, "");
+  if (/put/i.test(c.type)) return `Wrong if ${item.ticker} closes below $${k} at expiry ${exp}`;
+  if (/call/i.test(c.type)) return `Wrong if ${item.ticker} finishes below $${k} at expiry ${exp} (premium lost)`;
+  return null;
 }
 
 function contractShort(c: NonNullable<ModelListItem["contract"]>) {
@@ -185,6 +196,7 @@ function ItemRow({
       ? `call tech score ${Math.round(item.score)} — not used as edge`
       : null;
   const bandWhy = (item.why ?? []).find((w) => /your (setting|fixed band)/i.test(w));
+  const falsifier = tradeFalsifier(item);
   const putAware =
     folderKey === "sell_puts"
       ? (() => {
@@ -195,7 +207,7 @@ function ItemRow({
   return (
     <div
       onClick={onSelect}
-      title={[VERDICT_LABELS[item.verdict] ?? VERDICT_LABELS[""], item.contract ? contractShort(item.contract) : "", otmTip, callScoreTip, repriceNote, bandWhy, ...(item.why.slice(0, 2))].filter(Boolean).join(" · ")}
+      title={[VERDICT_LABELS[item.verdict] ?? VERDICT_LABELS[""], falsifier, item.contract ? contractShort(item.contract) : "", otmTip, callScoreTip, repriceNote, bandWhy, ...new Set([...item.why.slice(0, 2), ...item.why.filter((why) => why.startsWith("caution:") || why.startsWith("Eligibility:"))])].filter(Boolean).join(" · ")}
       className={cn(
         WATCHLIST_ROW,
         "cursor-pointer relative group",
@@ -213,7 +225,8 @@ function ItemRow({
           {" — Fildi Model view (not your My List color tags)."}
         </TooltipContent>
       </Tooltip>
-      <span className="font-mono font-bold whitespace-nowrap overflow-hidden text-white">
+      <span className="font-mono font-bold whitespace-nowrap overflow-hidden text-white inline-flex items-center gap-1">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: VERDICT_COLORS[item.verdict] ?? "#a1a1aa" }} title={VERDICT_LABELS[item.verdict] ?? VERDICT_LABELS[""]} />
         {item.ticker}
       </span>
       <span
@@ -401,6 +414,9 @@ function FolderTable({
     folder.key === "sell_calls"
       ? `${folder.description} Different from Rankings › Structures covered-call study rows (S076 fail / research board) — Model List only shows calls on free shares that passed L1+L2 live checks.`
       : folder.description;
+  const noNew = folder.key === "sell_puts"
+    ? (folder.items[0]?.why?.[0]?.startsWith("No new put today") ? folder.items[0].why[0] : null)
+    : null;
   return (
     <section className="border-b border-[#d4af37]/20">
       <button
@@ -444,6 +460,12 @@ function FolderTable({
           )}
         </span>
       </button>
+      {open && noNew ? (
+        <p className="px-2 py-1.5 text-[13px] leading-snug text-white bg-black border-b border-[#d4af37]/30">
+          <span className="font-semibold text-[#d4af37]">No new put today. </span>
+          {noNew.replace(/^No new put today:\s*/, "")}
+        </p>
+      ) : null}
       {open && folder.key === "sell_puts" ? (
         <PutBandSelector className="border-b border-[#d4af37]/15 shrink-0" />
       ) : null}

@@ -11,7 +11,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis }
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { guideSubTabClass } from "@/lib/sub-tabs";
+import { SUB_TAB_BAR, guideSubTabClass } from "@/lib/sub-tabs";
 import { GRID_HEADER, GRID_TD, GRID_TH, GRID_WRAP, gridRow } from "@/lib/score-explain-format";
 
 type Id = "muse" | "claude" | "cursor" | "jamie" | "grok" | "codex";
@@ -43,6 +43,8 @@ type Limit = { pct: number | null; resetsAt: string | null };
 type Win = { out: number; inp: number; req: number };
   type Idea = {
     id: string; date: string; from: Id; to: Id; title: string; status: string; phase: string; quant: boolean; blurb: string;
+    /** What would prove this idea wrong (A373). */
+    falsifier?: string;
     /** Who owns work now — cube letter. Not last-touch. */
     assignee?: Id;
     reviews?: string;
@@ -495,6 +497,8 @@ function ZoomCanvas({ height, draw, hit, onPick, grid = true, tip, fit }: {
   const fitRef = useRef(fit);
   fitRef.current = fit;
   const fitted = useRef(false);
+  // Re-fit when bounds / height change (Ideas columns grow; Team map is static).
+  useEffect(() => { fitted.current = false; }, [fit?.x0, fit?.x1, fit?.y0, fit?.y1, height]);
   const gridRef = useRef(grid);
   gridRef.current = grid;
   // Jamie 10-18: default off so page/tab scroll works over the map; +/− buttons always work.
@@ -1015,33 +1019,33 @@ function Available({ id, d }: { id: Id; d: Data }) {
       leftCls(left),
     );
   }
-  if (id === "cursor") {
+  if (id === "cursor" || id === "grok") {
     const l = d.limits?.cursor;
+    const shared = id === "grok";
     if (!l || l.totalPct == null) {
-      return cell(l?.error ? "auth?" : "…", "Refreshing from Cursor’s billing API (scripts/cursor-usage-snap.mjs → ~/.fildi/cursor-limits.json). Same source as cursor.com/dashboard. Needs you signed into Cursor on this Mac.");
+      const err = (l?.error ?? "").toLowerCase();
+      const needsReauth = /^(reauth_required|no_access_token|no_refresh_token|(?:usage|refresh)_http_(?:401|403))$/.test(err);
+      const label = needsReauth ? "usage login" : err ? "usage error" : "…";
+      const tip = needsReauth
+        ? (shared
+          ? "Grok shares Cursor’s usage meter. That meter needs a fresh Cursor login; this does not mean Grok is unable to work. Owner: Cursor; reported at agent startup and in the ops digest."
+          : "The saved login for the usage meter failed. Sign in again in Cursor on this Mac; the meter retries within 5 minutes. This does not mean the working agent is stopped. Owner: Cursor; reported at agent startup and in the ops digest.")
+        : (shared
+          ? `Shares Cursor plan pool. Snap: ${l?.error ?? "pending"} (scripts/cursor-usage-snap.mjs).`
+          : `Refreshing from Cursor’s billing API (${l?.error ?? "pending"}). scripts/cursor-usage-snap.mjs → ~/.fildi/cursor-limits.json.`);
+      return cell(label, tip, needsReauth ? "text-amber-300 font-semibold" : "text-amber-100");
     }
     const used = Math.round(l.totalPct);
     const left = Math.max(0, 100 - used);
     return cell(
       <>{left}%</>,
-      <>
-        <div>Resets {day(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</div>
-        <div>{used}% of plan pool used{l.spendUsd != null ? ` · $${l.spendUsd.toFixed(0)} included` : ""}</div>
-        <div>Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"} · Grok shares this meter</div>
-      </>,
-      leftCls(left),
-    );
-  }
-  if (id === "grok") {
-    // Same Cursor plan pool — Grok Bot draws from it (Jamie 10-18). Show identical %.
-    const l = d.limits?.cursor;
-    if (!l || l.totalPct == null) {
-      return cell(l?.error ? "auth?" : "…", "Shares Cursor plan pool. Snap from cursor-usage-snap.mjs.");
-    }
-    const left = Math.max(0, 100 - Math.round(l.totalPct));
-    return cell(
-      <>{left}%</>,
-      <>Same pool as Cursor (Grok Bot included). Resets {day(l.resetsAt)}. Cu+G actions counted in Tokens tooltip.</>,
+      shared
+        ? <>Same pool as Cursor (Grok Bot included). Resets {day(l.resetsAt)}. Cu+G actions counted in Tokens tooltip.</>
+        : <>
+          <div>Resets {day(l.resetsAt)}{l.plan ? ` · ${l.plan}` : ""}</div>
+          <div>{used}% of plan pool used{l.spendUsd != null ? ` · $${l.spendUsd.toFixed(0)} included` : ""}</div>
+          <div>Auto {l.autoPct != null ? `${Math.round(l.autoPct)}%` : "—"} · API {l.apiPct != null ? `${Math.round(l.apiPct)}%` : "—"} · Grok shares this meter</div>
+        </>,
       leftCls(left),
     );
   }
@@ -1225,7 +1229,11 @@ function TeamPanel({ d, learn }: { d: Data; learn?: LearnData | null }) {
                         const used = Math.round(l.totalPct);
                         return tip(`${used}%`, `Shared Cursor plan (Cursor+Grok) · ${used}% used · ${Math.max(0, 100 - used)}% left${l.spendUsd != null ? ` · $${l.spendUsd.toFixed(0)}` : ""}.`);
                       }
-                      return tip("—", "Cursor plan snap pending.", "text-amber-100/80");
+                      const err = (l?.error ?? "").toLowerCase();
+                      if (/^(reauth_required|no_access_token|no_refresh_token|(?:usage|refresh)_http_(?:401|403))$/.test(err)) {
+                        return tip("usage login", "Usage meter needs a fresh Cursor login. Agent execution is separate. Owner: Cursor; the unresolved issue is reported at agent startup and in the ops digest.", "text-amber-300");
+                      }
+                      return tip("—", l?.error ? `Cursor plan snap: ${l.error}` : "Cursor plan snap pending.", "text-amber-100/80");
                     }
                     if (mu?.pct != null) return tip(`${Math.round(mu.pct)}%`, "Muse plan % used (heartbeat).");
                     return tip("—", "No usage reading.", "text-amber-100/80");
@@ -1406,15 +1414,23 @@ function IdeasPanel({
       || (i.status ?? "").toLowerCase().includes(qn)
       || `${i.from}→${i.to}`.includes(qn);
   };
-  // Open stages + done ≤ 7d + hot / in-progress / debt (amber ring on cube). Search includes parked.
+  // Open stages + parked (dimmed) + done ≤ 7d. Verified stays search-only.
+  // Parked chip focuses that column only; default board always shows PARKED.
   const recent = (d: string) => !!d && Date.now() - Date.parse(d) <= 7 * 864e5;
+  const parkedN = ideas.filter((i) => i.phase === "parked").length;
+  const showParked = qn === "parked";
   const shown = ideas.filter((i) => {
+    if (showParked) return i.phase === "parked";
     if (qn) return matches(i);
     if (isHot(i) || isProg(i) || isDebt(i)) return true;
-    return i.phase !== "parked" && i.phase !== "verified"
-      && (i.phase !== "done" || recent(i.date) || recent(i.touchedAt ?? ""));
+    if (i.phase === "verified") return false;
+    if (i.phase === "done") return recent(i.date) || recent(i.touchedAt ?? "");
+    return true; // needs you / inbox / ready / building / parked
   }).sort((a, b) => askSortKey(a.id) - askSortKey(b.id) || a.id.localeCompare(b.id));
-  const cols = PHASES.filter((p) => shown.some((i) => i.phase === p) || ["needs you", "filed", "reviewed", "building"].includes(p));
+  const cols = PHASES.filter((p) =>
+    shown.some((i) => i.phase === p)
+    || ["needs you", "filed", "reviewed", "building", "parked"].includes(p)
+  );
   const visible = shown.filter((i) => cols.includes(i.phase as (typeof PHASES)[number]));
   // Exact id like A148 → select it
   useEffect(() => {
@@ -1450,6 +1466,19 @@ function IdeasPanel({
     });
     return out;
   }, [shown.map((i) => `${i.id}:${i.phase}:${i.hot}:${i.inProgress}`).join(), cols.join(), qn]); // eslint-disable-line react-hooks/exhaustive-deps
+  const maxRows = Math.max(1, ...cols.map((ph) => Math.ceil(shown.filter((i) => i.phase === ph).length / PER) || 1));
+  const colBottom = -110 + (maxRows - 1) * ROWH + S * 2 + 28;
+  const ideasFit: Box = useMemo(() => {
+    const xMid = ((cols.length - 1) * COLW) / 2;
+    return {
+      x0: -xMid - COLW / 2 - 16,
+      x1: xMid + COLW / 2 + 16,
+      y0: -175,
+      y1: colBottom,
+    };
+  }, [cols.length, colBottom]);
+  // Tall enough to read cubes after fit; page still scrolls under the map.
+  const canvasH = Math.min(900, Math.max(640, Math.round(220 + maxRows * 42)));
   const draw = (ctx: CanvasRenderingContext2D, now: number, v: View) => {
     const x0 = -((cols.length - 1) * COLW) / 2;
     cols.forEach((ph, ci) => {
@@ -1458,7 +1487,7 @@ function IdeasPanel({
       const label = (PHASE_LABEL[ph] ?? ph).toUpperCase();
       ctx.fillText(`${label} · ${n}`, x0 + ci * COLW, -150);
       ctx.strokeStyle = PHASE_COLOR[ph] + "25"; ctx.lineWidth = 1 / v.z;
-      ctx.beginPath(); ctx.moveTo(x0 + ci * COLW + COLW / 2, -165); ctx.lineTo(x0 + ci * COLW + COLW / 2, 400); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0 + ci * COLW + COLW / 2, -165); ctx.lineTo(x0 + ci * COLW + COLW / 2, colBottom); ctx.stroke();
     });
     for (const { idea, x, y } of layout) {
       const hit = !!qn && matches(idea);
@@ -1498,6 +1527,7 @@ function IdeasPanel({
           {isDebt(i) && <span className="text-amber-300">debt</span>}
         </div>
         <div className="mt-0.5">{i.title}</div>
+        {i.status && <div className="mt-0.5 text-amber-100/80">{i.status}</div>}
         <div className="mt-1 text-[11px]" style={{ color: META[owner]?.color ?? "#e8d5a3" }}>
           {i.phase === "needs you" ? `${ownerL} · for you` : ownerL}
           {isProg(i) ? " · live" : ""}
@@ -1539,8 +1569,24 @@ function IdeasPanel({
           ))}
         </div>
         <span className="font-semibold text-white">Ideas ({visible.length})</span>
+        {parkedN > 0 && (
+          <button
+            type="button"
+            onClick={() => setQuery(showParked ? "" : "parked")}
+            className="text-[11px] border rounded-md px-2 py-0.5 font-semibold uppercase tracking-wide"
+            style={{
+              borderColor: PHASE_COLOR.parked + "80",
+              color: showParked ? "#000" : PHASE_COLOR.parked,
+              background: showParked ? PHASE_COLOR.parked : "transparent",
+            }}
+            title="Parked / declined / deferred — always on the board (dimmed). Click to focus that column."
+            aria-pressed={showParked}
+          >
+            Parked · {parkedN}
+          </button>
+        )}
         <InfoTip>Letter = owner now. Amber dashed ring = debt (stale / stuck Building). Teal glow = live claim.
-          Inbox pink = non-quant, violet = quant. Search finds done/parked.</InfoTip>
+          Inbox pink = non-quant, violet = quant. PARKED column = declined/deferred (dimmed). Chip focuses it.</InfoTip>
         <input
           type="search"
           value={query}
@@ -1557,7 +1603,7 @@ function IdeasPanel({
           </button>
         )}
       </div>
-      <ZoomCanvas height={380} draw={draw} hit={hit} tip={tip} onPick={setSel} />
+      <ZoomCanvas height={canvasH} fit={ideasFit} draw={draw} hit={hit} tip={tip} onPick={setSel} />
       {active && (() => {
         const owner = active.assignee ?? (active.phase === "needs you" ? active.from : active.to);
         const phaseC = PHASE_COLOR[active.phase] ?? "#e879f9";
@@ -1586,6 +1632,7 @@ function IdeasPanel({
               <span className="ml-auto text-[11px] text-amber-100/80">{active.date ? mdY(active.date) : ""}</span>
             </div>
             <p className="text-[15px] text-white font-semibold leading-snug">{active.title}</p>
+            {active.status && <p className="text-[13px] text-amber-100">{active.status}</p>}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-amber-100">
               {owner && META[owner] && (
                 <span className="inline-flex items-center gap-1">
@@ -1614,6 +1661,12 @@ function IdeasPanel({
             <div className="text-[13px] text-white leading-relaxed">
               <RichText text={active.blurb || "No Context yet."} />
             </div>
+            {!!active.falsifier?.trim() && (
+              <p className="text-[12px] text-amber-100/90 leading-snug">
+                <span className="text-[#d4af37] font-semibold uppercase text-[10px] tracking-wide mr-1">Wrong if</span>
+                {active.falsifier}
+              </p>
+            )}
             {!!active.reviews?.trim() && (
               <div className="space-y-1 pt-1.5 border-t border-[#d4af37]/20">
                 <div className="text-[10px] uppercase tracking-wider text-[#d4af37]">Reviews</div>
@@ -1976,7 +2029,7 @@ export function AgentsTab() {
   const needsYou = ideas.some((i) => i.phase === "needs you");
   return (
     <div className="space-y-3 min-w-0">
-      <div className="flex flex-wrap items-center gap-0.5">
+      <div className={SUB_TAB_BAR}>
         {SUB_TABS.map((t) => (
           <button
             key={t}
