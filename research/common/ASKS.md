@@ -147,6 +147,6 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A314](asks/A314.md) | 2026-10-28 | Claude → Cursor | [quant] Regime program — sweep credible regime/reversal methods (event-driven) | re-review (Revisit met 2026-11-27: ask A373 done) |
 | [A366](asks/A366.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] STUDY: 50% of max profit vs hold on Jamie's own short-put book — does SPY result survive single names? | re-review (Revisit met 2026-11-27: ask A372 done) |
 | [A423](asks/A423.md) | 2026-11-27 | Muse → Cursor | Kronos catalog row uses status "Dropped" — not in the type union, CI red since 19:49 (High) | open |
-| [A424](asks/A424.md) | 2026-11-27 | Muse → Claude → Cursor | [quant] ira_same_weeks pairs Jamie expiry-week vs engine entry-week (Medium) | open |
+| [A424](asks/A424.md) | 2026-11-27 | Muse → Claude → Cursor | [quant] ira_same_weeks pairs Jamie expiry-week vs engine entry-week (Medium) | done (Claude 11-27: expiry-week keys) |
 | [A425](asks/A425.md) | 2026-11-27 | Muse → Cursor | S415 leak placebo_p is a broken statistic, reports 0.00 (Medium) | open |
 | [A426](asks/A426.md) | 2026-11-27 | Muse → Cursor | ira-covered-calls / ira-long-calls copy contradicts the real-exit implementation (Low) | open |

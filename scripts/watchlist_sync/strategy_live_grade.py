@@ -97,10 +97,15 @@ def refresh_backtest(c, force=False) -> None:
     for e in A.rebuild_book(c):
         by.setdefault(monday(e["d"]), []).append(e)
     c.execute("DELETE FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = 'ENGINE'")
+    # A424: pick the top third per ENTRY week (how the engine trades), then book each pick in its EXPIRY week —
+    # the same key as Jamie's ira-puts and the live ENGINE row, so paired weeks hold the same market week.
+    picked = {}
     for w, g in sorted(by.items()):
         if len(g) < 20:
             continue
-        top = sorted(g, key=lambda e: (-e["score"], e["t"]))[: max(1, len(g) // 3)]
+        for e in sorted(g, key=lambda e: (-e["score"], e["t"]))[: max(1, len(g) // 3)]:
+            picked.setdefault(monday(e["expiry"]), []).append(e)
+    for w, top in sorted(picked.items()):
         bp = 1e4 * sum(e["pnl"] for e in top) / sum(max(e["dte"], 1) / 7 for e in top)
         c.execute("INSERT INTO watchlist_sync.strategy_backtest_weeks (rule_id, week, bp) VALUES ('ENGINE', %s, %s)", (w, bp))
     c.commit()
@@ -262,7 +267,7 @@ def ira_same_weeks(c):
                       for r in rows(c, """SELECT expiry e, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
                                           WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL"""))
     eng = {r["week"]: r["bp"] for r in rows(c, "SELECT week, bp FROM watchlist_sync.strategy_backtest_weeks WHERE rule_id = 'ENGINE'")}
-    live = _week_means((monday(r["as_of"]), per_week_bp(
+    live = _week_means((monday(r["e"]), per_week_bp(
         (r["bid"] + 0.23 * (r["ask"] - r["bid"]) - max(r["k"] - r["sc"], 0.0)) / r["k"], (r["e"] - r["as_of"]).days))
         for r in rows(c, """SELECT DISTINCT ON (d.ticker, d.payload->>'expiry', d.payload->>'strike')
                                    d.as_of, (d.payload->>'expiry')::date e, (d.payload->>'strike')::float8 k,
@@ -275,8 +280,8 @@ def ira_same_weeks(c):
         if r["s"] and abs(r["sc"] / r["s"] - 1) <= 0.35)
     for w, v in live.items():
         eng.setdefault(w, v)
-    sig = _week_means((monday(r["d0"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
-                      for r in rows(c, """SELECT entry_ts::date d0, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+    sig = _week_means((monday(r["e"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
+                      for r in rows(c, """SELECT expiry e, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
                                           WHERE strategy_id = 'index-1sigma-puts' AND ret_pct IS NOT NULL"""))
     px = [(r["date"], float(r["close"])) for r in rows(c, "SELECT date, close FROM prices_historical WHERE ticker = 'SPY' AND date >= '2025-12-01' ORDER BY date")]
     spy = {}
