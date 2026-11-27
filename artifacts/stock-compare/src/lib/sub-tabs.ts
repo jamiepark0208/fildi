@@ -1,42 +1,53 @@
 /**
- * Tab chrome hierarchy (Live / Rankings / Macro / Scorecard Guide):
+ * Sub-tabs — one segmented control (shadcn / Vercel dark tabs).
  *
- *   L1  page tabs     — `subTabClass(active, hue, "md")`  colored fill when on
- *   L2  section tabs  — `guideSubTabClass(active)`         gold fill when on
- *   L3  dig / row     — `subTabClass(active, hue, "sm")`   small colored pills
+ *   Track   `SUB_TAB_BAR`   one recessed group
+ *   Segment `subTabClass`   white text; selected segment is raised
  *
- * Idle = white (never zinc grey). Tables/headers: GRID_* in score-explain-format.
+ * Idle stays white. Tables/headers: GRID_* in score-explain-format.
  */
 import { cn } from "@/lib/utils";
 
-export type SubTabHue = "sky" | "violet" | "amber" | "orange" | "emerald" | "rose" | "gold";
+export type SubTabHue =
+  | "sky" | "violet" | "amber" | "orange" | "emerald" | "rose" | "gold"
+  | "cyan" | "fuchsia" | "lime" | "teal";
 
-/** Idle = white (never zinc grey). Also re-exported from score-explain-format when that lands. */
-export const SUB_TAB_IDLE = "text-white/80 hover:text-white hover:bg-white/10";
+/** The track. Slate, so it is not the page black or the nav. */
+export const SUB_TAB_BAR =
+  "inline-flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-lg bg-slate-800 p-1";
+
+const TAB_SEGMENT =
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-2.5 py-1 text-sm font-medium leading-none transition-colors";
+
+/** Idle segment: white, no box of its own. */
+export const SUB_TAB_IDLE = "bg-transparent text-white hover:bg-white/10";
+
+/** Selected segment when a row has no per-tab hue. */
+export const SUB_TAB_ON = "bg-[#d4af37] text-black shadow-sm";
 
 export function subTabOn(hue: SubTabHue): string {
   switch (hue) {
-    case "sky": return "bg-sky-400 text-black";
-    case "violet": return "bg-violet-400 text-black";
-    case "amber": return "bg-amber-300 text-black";
-    case "orange": return "bg-orange-400 text-black";
-    case "emerald": return "bg-emerald-400 text-black";
-    case "rose": return "bg-rose-400 text-black";
-    case "gold": return "bg-[#d4af37] text-black";
+    case "sky": return "bg-sky-400 text-black shadow-sm";
+    case "violet": return "bg-violet-400 text-black shadow-sm";
+    case "amber": return "bg-amber-300 text-black shadow-sm";
+    case "orange": return "bg-orange-400 text-black shadow-sm";
+    case "emerald": return "bg-emerald-400 text-black shadow-sm";
+    case "rose": return "bg-rose-400 text-black shadow-sm";
+    case "gold": return "bg-[#d4af37] text-black shadow-sm";
+    case "cyan": return "bg-cyan-400 text-black shadow-sm";
+    case "fuchsia": return "bg-fuchsia-400 text-black shadow-sm";
+    case "lime": return "bg-lime-400 text-black shadow-sm";
+    case "teal": return "bg-teal-400 text-black shadow-sm";
   }
 }
 
-export function subTabClass(active: boolean, hue: SubTabHue, size: "sm" | "md" = "sm"): string {
-  return cn(
-    size === "sm"
-      ? "text-[10px] font-bold px-2 py-0.5 rounded transition-colors"
-      : "text-[11px] font-semibold px-2.5 h-6 rounded transition-colors",
-    active ? subTabOn(hue) : SUB_TAB_IDLE,
-  );
+export function subTabClass(active: boolean, _hue: SubTabHue, _size: "sm" | "md" = "sm"): string {
+  return cn(TAB_SEGMENT, active ? SUB_TAB_ON : SUB_TAB_IDLE);
 }
 
 /** Rankings L1 — one hue each (match Live Market/Macro/News). */
 export const RANKINGS_TAB_HUE: Record<string, SubTabHue> = {
+  total: "gold",
   fundamental: "sky",
   technical: "violet",
   options: "amber",
@@ -81,10 +92,7 @@ export const LIVE_ALERTS_TAB_HUE: Record<string, SubTabHue> = {
  * Live Market (Sell Puts · Oversold…), Scorecard Fund·Tech·Options, Rankings scope pairs.
  */
 export function guideSubTabClass(active: boolean): string {
-  return cn(
-    "text-[11px] font-semibold px-2.5 h-6 rounded transition-colors",
-    active ? "bg-[#d4af37] text-black" : SUB_TAB_IDLE,
-  );
+  return cn(TAB_SEGMENT, active ? SUB_TAB_ON : SUB_TAB_IDLE);
 }
 
 /** L2 paired toggles (Watchlist|Overall, Sell Puts|Calls). Same chrome as Live L2. */
@@ -92,18 +100,36 @@ export function scopePairClass(active: boolean): string {
   return guideSubTabClass(active);
 }
 
-/** Radix TabsList shell — one row, gold border, no wrap (Scorecard / street panels). */
-export const RADIX_TAB_LIST =
-  "inline-flex h-7 items-center justify-start gap-0.5 p-0.5 w-full overflow-x-auto overflow-y-hidden whitespace-nowrap rounded bg-zinc-950 border border-[#d4af37]/20 text-white";
-
 /**
- * Radix TabsTrigger — L2 gold when active (data-state), white idle.
- * Prefer this over per-file TAB constants (A305).
+ * Settings chrome ladder (nav is TopNav near-black):
+ *   L1 settings tabs  — zinc-900 (lighter than nav)
+ *   L2 Fund/Tech/Opt  — zinc-800 (lighter than L1), full-bleed, flush under L1
+ * Both bars share the same height (h-9) so L1/L2 read as one ladder.
  */
+const SETTINGS_BAR_BASE =
+  "shrink-0 h-9 flex items-center border-b border-[#d4af37]/20 px-4";
+export const SETTINGS_L1_BAR = `${SETTINGS_BAR_BASE} bg-zinc-900`;
+export const SETTINGS_L2_BAR = `${SETTINGS_BAR_BASE} bg-zinc-800`;
+
+/** Radix TabsList shell — one row, gold border, no wrap (Scorecard / street panels). */
+export const RADIX_TAB_LIST = cn(SUB_TAB_BAR, "w-auto max-w-full justify-start overflow-x-auto");
+
+/** Same track, when the list sits on the settings L2 bar. */
+export const RADIX_TAB_LIST_ON_STRIP = cn(SUB_TAB_BAR, "max-w-full overflow-x-auto");
+
+/** Radix trigger — same segment as `subTabClass`. */
 export const RADIX_TAB_TRIGGER = cn(
-  "inline-flex items-center justify-center whitespace-nowrap rounded px-2.5 h-6 text-[11px] font-semibold transition-colors",
-  "text-white/80 hover:text-white hover:bg-white/10",
-  "data-[state=active]:bg-[#d4af37] data-[state=active]:text-black",
-  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]/50",
+  TAB_SEGMENT,
+  SUB_TAB_IDLE,
+  "data-[state=active]:text-black data-[state=active]:shadow-sm",
+  "[&:nth-child(5n+1)[data-state=active]]:bg-sky-400",
+  "[&:nth-child(5n+2)[data-state=active]]:bg-violet-400",
+  "[&:nth-child(5n+3)[data-state=active]]:bg-amber-300",
+  "[&:nth-child(5n+4)[data-state=active]]:bg-emerald-400",
+  "[&:nth-child(5n+5)[data-state=active]]:bg-rose-400",
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40",
   "disabled:pointer-events-none disabled:opacity-50",
 );
+
+/** Same segment. Kept so older call sites stay on this control. */
+export const RADIX_TAB_TRIGGER_STRIP = RADIX_TAB_TRIGGER;
