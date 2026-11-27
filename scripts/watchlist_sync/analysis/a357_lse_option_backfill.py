@@ -397,6 +397,8 @@ def fetch_one(conn, c: Contract) -> str:
     if status == 404 or "data-unavailable" in body.lower() or "not found" in body.lower():
         _log_fetch(conn, c.occ, "no_data", model_strike=c.model_strike, strike=c.strike)
         return "no_data"
+    if status == 429 and "rows-exhausted" in body.lower():
+        return "rows_exhausted"
     head = body.lstrip()[:40].lower()
     if status != 200 or '"time"' not in head:
         _log_fetch(conn, c.occ, f"http_{status}", model_strike=c.model_strike, strike=c.strike)
@@ -525,6 +527,9 @@ def main() -> None:
         if todo:
             for i, c in enumerate(todo, 1):
                 st = fetch_one(conn, c)
+                if st == "rows_exhausted":
+                    print("STOP rows_exhausted until UTC midnight (LSE day row cap)", flush=True)
+                    break
                 if status_is_ok(st):
                     ok_count += 1
                 if i == 1 or i % 25 == 0 or args.limit:

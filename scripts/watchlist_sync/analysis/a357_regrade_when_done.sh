@@ -10,7 +10,7 @@ TARGET_OCC=500
 
 while true; do
   if ! pgrep -f "a357_lse_option_backfill.py" >/dev/null 2>&1; then
-    n=$("$PY" -c "
+    n=$(cd "$ROOT/scripts/watchlist_sync" && "$PY" -c "
 from build_plan import connect
 with connect() as c:
     print(c.execute('SELECT COUNT(DISTINCT occ)::int FROM lse_option_daily').fetchone()[0])
