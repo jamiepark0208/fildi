@@ -231,6 +231,9 @@ def main():
             raise SystemExit("SANITY fail: vol_scaled path broken")
     stress = s109_stress(conn, px, atr_pct, smoke=smoke)
     conn.close()
+    if smoke:
+        print("SANITY pass", flush=True)
+        return
 
     lines = [
         "# A372 book layer (S047 replay + stress)",

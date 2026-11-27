@@ -22,7 +22,7 @@ bp/wk uses the same calendar span as the paired hold. FRED DTB3 accrues on
 collateral over that span for both sides (same bp/wk, so it does not move the gap).
 No vendor calls. No live scores.
 
-    scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/analysis/a372_exits.py
+    scripts/watchlist_sync/.venv/bin/python scripts/watchlist_sync/analysis/a372_exits.py [--smoke]
 """
 from __future__ import annotations
 
@@ -560,6 +560,7 @@ def fmt(x, nd=1, signed=True):
 
 
 def main():
+    smoke = "--smoke" in sys.argv
     atm = abs_delta(100.0, 100.0, 0.30, 7)
     if not 0.47 <= atm <= 0.51:
         raise SystemExit(f"delta self-check failed: {atm}")
@@ -579,6 +580,29 @@ def main():
     print(f"trades {len(trades)} s109 {len(ref)} symmetric_diff {sym}", flush=True)
     if len(ref_keys) == 0 or sym / len(ref_keys) > 0.02:
         raise SystemExit("S109 trade-set mismatch; not writing t-stats")
+    if smoke:
+        slice0, slice1 = trades[:120], trades[120:240]
+        b0 = run_set(slice0, accrual, False)
+        b1 = run_set(slice1, accrual, False)
+        c0 = next(x for x in b0 if x["label"] == "close_d50")
+        c1 = next(x for x in b1 if x["label"] == "close_d50")
+        print(f"SANITY trades={len(trades)} sym_diff={sym}", flush=True)
+        print(
+            f"SANITY slice CHANGES close_d50 diff {c0['diff']:+.1f}→{c1['diff']:+.1f} bp/wk "
+            f"(n {c0['n']}/{c1['n']})",
+            flush=True,
+        )
+        if c0["diff"] == c1["diff"]:
+            raise SystemExit("SANITY fail: slices identical — smoke not varying")
+        tr = next(t for t in trades if any(d.get("abs_d", 0) and d["abs_d"] >= 0.50 for d in t["days"]))
+        hot = next(d for d in tr["days"] if d.get("abs_d") is not None and d["abs_d"] >= 0.50)
+        print(
+            f"SANITY hand {tr['t']} {tr['d']} K={tr['K']:.2f} sell={tr['sell']:.3f} "
+            f"buy@{hot['d']}={hot['buy']:.3f} Δ={hot['abs_d']:.3f}",
+            flush=True,
+        )
+        print("SANITY pass", flush=True)
+        return
     rule = [r for r in trades if r["rule"]]
     print(f"jamie rule {len(rule)}", flush=True)
     shown = 0

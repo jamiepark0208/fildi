@@ -200,7 +200,13 @@ def main():
         e = ev[0]
         print(f"SANITY {e['t']} {e['d']} hold={e['hold_pnl']*1e4:+.1f}bp rsi={e['early'].get('rsi_turn',0)*1e4:+.1f}bp", flush=True)
     stats = {k: summarize(ev, k) for k in EXITS}
-    if not smoke and len(ev) < 100:
+    if smoke:
+        h = stats["hold"]["mean_bp"]
+        a = stats["any_atd"]["mean_bp"]
+        print(f"SANITY hold={h:+.1f} any_atd={a:+.1f} diff={a-h:+.1f} bp/wk", flush=True)
+        print("SANITY pass", flush=True)
+        return
+    if len(ev) < 100:
         print("UNDERPOWERED at full n", len(ev))
     lines = [
         "# A372 call exits (S046 lane)",
