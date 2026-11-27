@@ -40,6 +40,19 @@ function daysAgo(asOf: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(`${asOf}T12:00:00`).getTime()) / 86_400_000));
 }
 
+/** URLs in a note open in a new tab (S212 11-27: a note can point at a full due-diligence report). */
+function linkify(body: string) {
+  return body.split(/(https?:\/\/\S+)/g).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noreferrer" className="text-[#d4af37] underline hover:text-white">
+        open report
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 export function StockNotesPanel({ ticker, isAdmin }: { ticker: string; isAdmin: boolean }) {
   const qc = useQueryClient();
   const key = ["stock-notes", ticker];
@@ -125,7 +138,7 @@ export function StockNotesPanel({ ticker, isAdmin }: { ticker: string; isAdmin: 
                 </span>
                 <span className={cn("shrink-0 rounded border px-1 text-[9px] uppercase", KIND_CLASS[k] ?? "text-amber-100 border-amber-500/30")}>{k}</span>
                 <span className="text-white min-w-0">
-                  {n.body}
+                  {linkify(n.body)}
                   {src && <span className="text-amber-100"> · {src}</span>}
                   {n.author && <span className="text-amber-100"> · {n.author.replace(/^user:\d+$/, "Jamie")}</span>}
                 </span>
