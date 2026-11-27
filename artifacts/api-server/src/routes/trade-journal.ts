@@ -150,6 +150,15 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
     )[0];
     const vsEngine = vsEngineRow ? { ...vsEngineRow.card, updatedAt: vsEngineRow.updated_at } : null;
 
+    // A380: each BOARD Works rule, live record vs backtest claim (strategy_live_grade.py, daily) — latest week
+    const liveGrade = rowsOf<Record<string, unknown>>(
+      (await Promise.resolve(db.execute(sql`
+        SELECT rule_id AS "ruleId", label, claim, unit, fill, n_trades AS "nTrades", n_clusters AS "nWeeks",
+               live, ci_lo AS "ciLo", ci_hi AS "ciHi", flag, note, week::text AS week
+        FROM watchlist_sync.strategy_live_grade
+        WHERE week = (SELECT max(week) FROM watchlist_sync.strategy_live_grade) ORDER BY rule_id`)).catch(() => [])) as SqlRows<never>,
+    );
+
     const all = buildJournal(journalOrders, prices);
     const out = all.filter((r) => r.at.slice(0, 10) >= since || r.day >= since);
     const enriched = out.map((r) => {
@@ -187,6 +196,7 @@ router.get("/trade-journal", requireAdmin, async (req, res, next) => {
         enginePass: { n: engG.length, avgPct: mean(engG) },
         putOdds,
         vsEngine,
+        liveGrade,
       },
       rows: enriched.reverse(),
     });

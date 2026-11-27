@@ -54,6 +54,7 @@ interface Resp {
     enginePass: { n: number; avgPct: number | null };
     putOdds?: PutOdds | null;
     vsEngine?: VsEngine | null;
+    liveGrade?: LiveGradeRow[];
   };
   rows: Row[];
 }
@@ -123,6 +124,52 @@ function VsEngineCard({ v }: { v: VsEngine }) {
                 <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.vsEngineBp))}>
                   {r.vsEngineBp == null ? "—" : `${bpf(r.vsEngineBp)} (${r.t?.toFixed(1) ?? "—"})`}
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// A380 (Jamie 11-07: verdicts go stale; only live vs claim catches it). Producer scripts/watchlist_sync/strategy_live_grade.py.
+interface LiveGradeRow {
+  ruleId: string; label: string; claim: number | null; unit: string; fill: string; nTrades: number; nWeeks: number;
+  live: number | null; ciLo: number | null; ciHi: number | null; flag: string; note: string; week: string;
+}
+const FLAG_TONE: Record<string, string> = { drift: "text-rose-400", "on track": "text-emerald-400", underpowered: "text-amber-200", "no data": "text-white/60" };
+const num1 = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`);
+
+function LiveVsClaimCard({ rows }: { rows: LiveGradeRow[] }) {
+  return (
+    <div className="rounded border border-[#d4af37]/15 bg-zinc-950/80 px-2.5 py-2 space-y-1.5" data-testid="journal-live-vs-claim">
+      <DataTip tip={`Each 'Works' rule on the strategy board: its live record against the backtest number it was promoted on. n = expiry weeks (contracts in one week share one market draw). Drift = 30+ weeks and even the top of the 95% range is under half the claim. Underpowered = under 30 weeks: watch the sign, don't act on it. Week of ${rows[0]?.week ?? "—"}.`}>
+        <div className="text-[10px] uppercase tracking-wide text-white font-semibold">Live vs backtest — is each working rule still working?</div>
+      </DataTip>
+      <div className={GRID_WRAP}>
+        <table className="w-full">
+          <thead className={GRID_HEADER}>
+            <tr>
+              <th className={cn(GRID_TH, "text-left")}>Rule</th>
+              <th className={cn(GRID_TH, "text-right")}>Live</th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Backtest number from the strategy board, same unit.">Claim</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="95% range of the live mean over expiry weeks.">Range</DataTip></th>
+              <th className={cn(GRID_TH, "text-right")}><DataTip tip="Independent expiry weeks / contracts graded.">Weeks</DataTip></th>
+              <th className={cn(GRID_TH, "text-left")}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.ruleId} className={gridRow(i)}>
+                <td className={cn(GRID_TD, "text-left")}>
+                  <DataTip tip={`${r.ruleId} · ${r.fill}${r.note ? ` · ${r.note}` : ""}`}>{r.label}</DataTip>
+                </td>
+                <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.live))}>{num1(r.live)} <span className="text-white/50">{r.unit}</span></td>
+                <td className={cn(GRID_TD, "text-right tabular-nums")}>{num1(r.claim)}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums text-white/70")}>{r.ciLo == null ? "—" : `${num1(r.ciLo)} to ${num1(r.ciHi)}`}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums")}>{r.nWeeks} / {r.nTrades}</td>
+                <td className={cn(GRID_TD, "text-left", FLAG_TONE[r.flag] ?? "text-white")}>{r.flag}</td>
               </tr>
             ))}
           </tbody>
@@ -241,6 +288,7 @@ export function JournalTab() {
   return (
     <div className="space-y-2" data-testid="journal-tab">
       {s.vsEngine && <VsEngineCard v={s.vsEngine} />}
+      {s.liveGrade && s.liveGrade.length > 0 && <LiveVsClaimCard rows={s.liveGrade} />}
       {s.putOdds && <OddsGrid odds={s.putOdds} />}
       <div className="flex flex-wrap gap-1.5">
         <Stat label="Graded" value={String(s.trades)} sub={`${data.count} fills`} tip="Fills with a P&L: closes (realized, FIFO vs the matching open) and option opens still open or expired (premium − intrinsic at expiry, or last close)." />

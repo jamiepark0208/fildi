@@ -1,0 +1,221 @@
+"""A380: every BOARD "Works" rule graded on its live record vs its backtest claim; weekly row + drift flag.
+
+One line per rule per ISO week (cumulative since the rule's first live pick):
+  claim    the BOARD number, in the same unit the live number is graded in (bp/wk or % per trade)
+  live     mean over independent clusters (one cluster = one expiry week); contracts in one week share one market draw,
+           so n = clusters, not contracts (11-27: all 33 graded panic puts expired 11-20 = one draw, not 33)
+  ci       95 % t-interval over cluster means (needs ≥ 2 clusters)
+  flag     no data      0 graded (never green, Codex 11-09)
+           underpowered < 30 clusters
+           drift        ≥ 30 clusters and ci_hi < 0.5 × claim
+           on track     otherwise
+Fill basis is named per row: engine picks are graded at the price the ledger stored (bid / realistic L2 fill / mid);
+Jamie's IRA fills are his real RH fills. Expiry-hold P&L everywhere (the unit the studies used), not the 10-day
+assignment all-in that model_recs.pnl_pct holds.
+
+Usage: .venv/bin/python strategy_live_grade.py [--dry-run]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from datetime import date, timedelta
+from statistics import mean, stdev
+
+from build_plan import connect, rows
+
+MIN_CLUSTERS = 30
+DRIFT_FRAC = 0.5
+T975 = {1: 12.71, 2: 4.30, 3: 3.18, 4: 2.78, 5: 2.57, 6: 2.45, 7: 2.36, 8: 2.31, 9: 2.26, 10: 2.23, 15: 2.13, 20: 2.09, 30: 2.04}
+
+
+def t975(df: int) -> float:
+    for k in sorted(T975):
+        if df <= k:
+            return T975[k]
+    return 1.96
+
+
+def monday(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+def per_week_bp(ret_frac: float, days: float) -> float:
+    """Return on collateral → bp per week held; a trade shorter than a week still ties up that week (one pick/week)."""
+    return ret_frac * 1e4 / (max(days, 7.0) / 7.0)
+
+
+# ── sources: each returns list of (dedupe_key, cluster_week, value) ─────────────────────────────
+
+def src_model_puts(c):
+    """S088: Model List put recs (model_recs), expiry hold at the stored premium (bid)."""
+    out = {}
+    for r in rows(c, """SELECT ticker, expiry, strike::float8 k, dte::float8 dte, premium::float8 prem,
+                               settle_close::float8 sc, component_scores->'_settlement'->'hold'->>'pnlPct' hold
+                        FROM model_recs WHERE side = 'put' AND status IN ('WIN','LOSS','ASSIGNED') AND settle_close IS NOT NULL"""):
+        if r["hold"] is not None:
+            ret = float(r["hold"]) / 100.0
+        else:
+            ret = (r["prem"] - max(r["k"] - r["sc"], 0.0)) / r["k"]
+        out[(r["ticker"], r["expiry"], r["k"])] = (monday(r["expiry"]), per_week_bp(ret, r["dte"] or 7))
+    return [(k, w, v) for k, (w, v) in out.items()]
+
+
+def src_model_calls(c):
+    """S046: Model List covered-call recs (options-1.2.0+ call lane), expiry hold on spot."""
+    out = {}
+    for r in rows(c, """SELECT ticker, expiry, strike::float8 k, spot::float8 s, dte::float8 dte, premium::float8 prem,
+                               settle_close::float8 sc, component_scores->'_settlement'->'hold'->>'pnlPct' hold
+                        FROM model_recs WHERE side = 'call' AND status IN ('WIN','LOSS','ASSIGNED') AND settle_close IS NOT NULL"""):
+        ret = float(r["hold"]) / 100.0 if r["hold"] is not None else (r["prem"] - max(r["sc"] - r["k"], 0.0)) / r["s"]
+        out[(r["ticker"], r["expiry"], r["k"])] = (monday(r["expiry"]), per_week_bp(ret, r["dte"] or 7))
+    return [(k, w, v) for k, (w, v) in out.items()]
+
+
+def src_rich_puts(c):
+    """S109: rich-put lane (Model List folder rich_puts, shadow), graded at expiry at the realistic L2 fill; one row per contract."""
+    out = {}
+    for r in rows(c, """SELECT ticker, ret, detail FROM watchlist_sync.grades
+                        WHERE folder_key = 'rich_puts' AND horizon = 'expiry' AND ret IS NOT NULL ORDER BY graded_at"""):
+        d = r["detail"] if isinstance(r["detail"], dict) else json.loads(r["detail"] or "{}")
+        rich = d.get("rich") or {}
+        exp, k = rich.get("expiry"), rich.get("strike")
+        if not exp or k is None:
+            continue
+        e = date.fromisoformat(exp)
+        out[(r["ticker"], e, float(k))] = (monday(e), per_week_bp(float(r["ret"]), float(d.get("days") or rich.get("days") or 7)))
+    return [(k, w, v) for k, (w, v) in out.items()]
+
+
+def src_panic_puts(c):
+    """S054: panic-puts-hiv live signals (strategy_signals), sold at entry mid (paper), % of strike per trade."""
+    return [((r["ticker"], r["expiry"], r["strike"]), monday(r["expiry"]), float(r["ret"]) * 100.0)
+            for r in rows(c, """SELECT ticker, expiry, strike, ret FROM watchlist_sync.strategy_signals
+                                WHERE strategy_id = 'panic-puts-hiv' AND status = 'graded' AND ret IS NOT NULL""")]
+
+
+def src_ira_puts(c):
+    """S088 on Jamie's real fills: ira-puts strategy_trades (RH IRA), bp/wk per trade."""
+    return [((r["id"],), monday(r["d"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
+            for r in rows(c, """SELECT id, coalesce(expiry, exit_ts::date) d, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+                                WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL""")]
+
+
+def src_long_calls(c):
+    """S100: long-call paper ledger forward record (long_option_board, 'Revisions + 60-day strength')."""
+    r = rows(c, "SELECT payload FROM watchlist_sync.long_option_board ORDER BY as_of DESC LIMIT 1")
+    if not r:
+        return [], "no long_option_board row"
+    p = r[0]["payload"] if isinstance(r[0]["payload"], dict) else json.loads(r[0]["payload"])
+    for s in p.get("strategies") or []:
+        if "S100" in (s.get("name") or ""):
+            f = s.get("forward") or {}
+            return [], f"paper ledger: {f.get('n', 0)} graded, {f.get('open', 0)} open (per-trade rows not exposed yet)"
+    return [], "S100 strategy missing from long_option_board"
+
+
+RULES = [
+    # rule_id, label, claim, unit, source fn, fill basis
+    ("S088", "Model List puts (engine)", 77.0, "bp/wk", src_model_puts, "stored bid · expiry hold"),
+    ("S088-IRA", "Model List puts on Jamie's IRA fills", 77.0, "bp/wk", src_ira_puts, "RH real fills"),
+    ("S109", "Rich-put lane (shadow)", 101.0, "bp/wk", src_rich_puts, "L2 realistic fill · expiry"),
+    ("S054", "Panic puts, IV30 > 48.7", 4.05, "%/trade", src_panic_puts, "entry mid (paper) · expiry"),
+    ("S046", "Covered calls, call-lane tech", 42.9, "bp/wk", src_model_calls, "stored bid · expiry hold"),
+    ("S100", "Buy calls: revisions + 60d strength", 69.6, "%/trade", src_long_calls, "ask (paper ledger)"),
+    ("S101", "Sharp-drop regime → higher put Δ", None, "", None, "regime overlay, no own ledger"),
+]
+
+
+def grade_rule(obs, claim):
+    by = {}
+    for _, w, v in obs:
+        by.setdefault(w, []).append(v)
+    means = [mean(v) for _, v in sorted(by.items())]
+    k, n = len(means), len(obs)
+    if k == 0:
+        return dict(n_trades=0, n_clusters=0, live=None, ci_lo=None, ci_hi=None, flag="no data", span="")
+    live = mean(means)
+    lo = hi = None
+    if k >= 2:
+        h = t975(k - 1) * stdev(means) / math.sqrt(k)
+        lo, hi = live - h, live + h
+    if k < MIN_CLUSTERS:
+        flag = "underpowered"
+    elif claim is not None and hi is not None and hi < DRIFT_FRAC * claim:
+        flag = "drift"
+    else:
+        flag = "on track"
+    span = f"wk {min(by):%m-%d}→{max(by):%m-%d}"
+    return dict(n_trades=n, n_clusters=k, live=live, ci_lo=lo, ci_hi=hi, flag=flag, span=span)
+
+
+def ira_equity_note(c) -> str:
+    """Acceptance (a): the BOARD IRA number = ira-puts equity curve vs SPY over the same days."""
+    r = rows(c, """SELECT min(d) d0, max(d) d1, (array_agg(equity ORDER BY d DESC))[1] eq,
+                          (array_agg(spy_equity ORDER BY d DESC))[1] spy
+                   FROM watchlist_sync.strategy_equity WHERE strategy_id = 'ira-puts'""")
+    if not r or r[0]["eq"] is None:
+        return ""
+    x = r[0]
+    return f"equity {x['eq'] - 1:+.1%} vs SPY {x['spy'] - 1:+.1%} ({x['d0']:%m-%d}→{x['d1']:%m-%d}); fills stop {x['d1']:%m-%d}"
+
+
+def run(c):
+    out = []
+    for rid, label, claim, unit, fn, fill in RULES:
+        note = ""
+        obs = []
+        if fn is not None:
+            got = fn(c)
+            if isinstance(got, tuple):
+                obs, note = got
+            else:
+                obs = got
+        else:
+            note = fill
+        if rid == "S088-IRA":
+            note = ira_equity_note(c)
+        g = grade_rule(obs, claim)
+        span = g.pop("span")
+        note = " · ".join(x for x in (span, note) if x)
+        out.append(dict(rule_id=rid, label=label, claim=claim, unit=unit, fill=fill, note=note, **g))
+    return out
+
+
+DDL = """CREATE TABLE IF NOT EXISTS watchlist_sync.strategy_live_grade (
+  rule_id text NOT NULL, week date NOT NULL, label text, claim double precision, unit text, fill text,
+  n_trades int, n_clusters int, live double precision, ci_lo double precision, ci_hi double precision,
+  flag text, note text, computed_at timestamptz DEFAULT now(), PRIMARY KEY (rule_id, week))"""
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args()
+    c = connect()
+    res = run(c)
+    wk = monday(date.today())
+    for r in res:
+        live = "—" if r["live"] is None else f"{r['live']:+.1f}"
+        ci = "" if r["ci_lo"] is None else f" [{r['ci_lo']:+.1f}, {r['ci_hi']:+.1f}]"
+        claim = "—" if r["claim"] is None else f"{r['claim']:+.1f}"
+        print(f"{r['rule_id']:<9} {r['flag']:<12} live {live}{ci} vs claim {claim} {r['unit']} · "
+              f"{r['n_clusters']} wk / {r['n_trades']} trades · {r['fill']}{(' · ' + r['note']) if r['note'] else ''}")
+    if a.dry_run:
+        return
+    c.execute(DDL)
+    for r in res:
+        c.execute("""INSERT INTO watchlist_sync.strategy_live_grade
+                     (rule_id, week, label, claim, unit, fill, n_trades, n_clusters, live, ci_lo, ci_hi, flag, note)
+                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     ON CONFLICT (rule_id, week) DO UPDATE SET label=EXCLUDED.label, claim=EXCLUDED.claim, unit=EXCLUDED.unit,
+                       fill=EXCLUDED.fill, n_trades=EXCLUDED.n_trades, n_clusters=EXCLUDED.n_clusters, live=EXCLUDED.live,
+                       ci_lo=EXCLUDED.ci_lo, ci_hi=EXCLUDED.ci_hi, flag=EXCLUDED.flag, note=EXCLUDED.note, computed_at=now()""",
+                  (r["rule_id"], wk, r["label"], r["claim"], r["unit"], r["fill"], r["n_trades"], r["n_clusters"],
+                   r["live"], r["ci_lo"], r["ci_hi"], r["flag"], r["note"]))
+    c.commit()
+
+
+if __name__ == "__main__":
+    main()

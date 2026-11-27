@@ -98,7 +98,7 @@ Review loop: `AGENTS.md` § Review loop — Muse + Claude reviews go in the file
 | [A377](asks/A377.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] REVIEW: A367 fetch hygiene — lab_fund skip gate; frozen submissions signal (High) | done (H1 H2 M1, e25d3ba6) |
 | [A378](asks/A378.md) | 2026-11-07 | Muse → Claude → Cursor | [quant] S160 test-era centering flaw — subtract train-era base for both eras (Medium) | verified (via A369 fix2a + Claude inline, Claude 11-08) |
 | [A379](asks/A379.md) | 2026-11-07 | Muse → Claude → Cursor | agent-dispatch Gate 2 dead — smoke-gate refusal never fires (ASK is 0/1, never empty) (Medium) | done (Claude 11-07: gate fixed) |
-| [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | planned |
+| [A380](asks/A380.md) | 2026-11-07 | Jamie → Claude → Cursor | [quant] Live vs backtest: every BOARD Works rule graded weekly on real fills; drift flag | done (Claude 11-27: strategy_live_grade + Journal card; needs review) |
 | [A381](asks/A381.md) | 2026-11-07 | Jamie → Claude → Cursor | Repo + instruction diet: archive finished study scripts, split study engines, one rulebook | planned |
 | [A383](asks/A383.md) | 2026-11-08 | Jamie → Claude → Cursor | Stock-specific context layer: one nightly table → Breakdown tooltips/colours, option params, agents | planned |
 | [A384](asks/A384.md) | 2026-11-08 | Muse → Claude → Cursor | [quant] REVIEW: stock_surface lse_trades WLS weight 1/trades inverts reliability (Medium) | done |

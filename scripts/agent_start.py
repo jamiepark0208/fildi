@@ -165,6 +165,17 @@ def main() -> None:
         except subprocess.TimeoutExpired:
             bq = subprocess.CompletedProcess([], 1, "bars audit: timeout (90 s)", "")
         say("6j " + ((bq.stdout or bq.stderr).strip().splitlines() or ["bars audit: no output"])[-1][:300])
+        # A380 (Jamie 11-07): a Works rule whose live record fell below half its claim → owner opens a re-test row.
+        try:
+            lg = subprocess.run([str(ROOT / "scripts/watchlist_sync/.venv/bin/python"), "strategy_live_grade.py", "--dry-run"],
+                                cwd=ROOT / "scripts" / "watchlist_sync", capture_output=True, text=True, timeout=60, env=env)
+            lines = lg.stdout.strip().splitlines()
+            drift = [x[:160] for x in lines if " drift " in x]
+            say("6l live vs claim: " + ("DRIFT " + "; ".join(drift) + " → open a re-test row" if drift
+                                        else f"no drift ({len(lines)} rules; most underpowered < 30 expiry weeks)" if lines
+                                        else "no output: " + (lg.stderr or "")[-200:]))
+        except subprocess.TimeoutExpired:
+            say("6l live vs claim: timeout (60 s)")
         # 11-07 (Jamie): parked/declined rows and BOARD dead rows must not sit forever → triggers flip them back.
         rv = subprocess.run([sys.executable, "scripts/asks_revisit.py", "--apply"], cwd=ROOT, capture_output=True, text=True)
         say("6g " + ((rv.stdout or rv.stderr).strip().splitlines() or ["revisit: no output"])[-1][:300])
