@@ -156,6 +156,21 @@ def src_ira_puts(c):
                                 WHERE strategy_id = 'ira-puts' AND ret_pct IS NOT NULL""")]
 
 
+def src_ira_covered_calls(c):
+    """11-27: Jamie's IRA covered calls at his real exits (strategy_lib ira-covered-calls) — same unit as S046
+    (call-leg P&L ÷ share value), bp/wk per trade by entry week."""
+    return [((r["id"],), monday(r["d"]), per_week_bp(float(r["ret_pct"]), float(r["dte_at_entry"] or 7)))
+            for r in rows(c, """SELECT id, entry_ts::date d, ret_pct, dte_at_entry FROM watchlist_sync.strategy_trades
+                                WHERE strategy_id = 'ira-covered-calls' AND ret_pct IS NOT NULL""")]
+
+
+def src_ira_long_calls(c):
+    """11-27: Jamie's IRA long calls at his real exits, % of premium per trade (S100 unit)."""
+    return [((r["id"],), monday(r["d"]), float(r["ret_pct"]) * 100.0)
+            for r in rows(c, """SELECT id, entry_ts::date d, ret_pct FROM watchlist_sync.strategy_trades
+                                WHERE strategy_id = 'ira-long-calls' AND ret_pct IS NOT NULL""")]
+
+
 def src_long_calls(c):
     """S100: long-call paper ledger forward record (long_option_board, 'Revisions + 60-day strength')."""
     r = rows(c, "SELECT payload FROM watchlist_sync.long_option_board ORDER BY as_of DESC LIMIT 1")
@@ -178,6 +193,8 @@ RULES = [
     ("S054", "Panic puts, IV30 > 48.7", 4.05, "%/trade", src_panic_puts, "entry mid (paper) · expiry"),
     ("S046", "Covered calls, call-lane tech", 42.9, "bp/wk", src_model_calls, "stored bid · expiry hold"),
     ("S100", "Buy calls: revisions + 60d strength", 69.6, "%/trade", src_long_calls, "ask (paper ledger)"),
+    ("IRA-CC", "Your IRA covered calls (real exits) vs S046", 42.9, "bp/wk", src_ira_covered_calls, "RH real fills · your closes"),
+    ("IRA-LC", "Your IRA long calls (real exits) vs S100", 69.6, "%/trade", src_ira_long_calls, "RH real fills · your closes"),
     ("S101", "Sharp-drop regime → higher put Δ", None, "", None, "regime overlay, no own ledger"),
 ]
 

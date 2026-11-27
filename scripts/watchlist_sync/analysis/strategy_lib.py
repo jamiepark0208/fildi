@@ -65,6 +65,56 @@ def your_puts(account: str):
     return run
 
 
+RH_ACCOUNT = {"IRA": "772445425", "FILDI": "5QU47796"}   # pm_book.ACCOUNTS
+
+
+def your_calls(account: str, side: str):
+    """11-27: Jamie's call trades straight from portfolio_orders (optlab.trades is puts only), replayed to expiry on his fills.
+    side 'sell' = covered call: call-leg P&L ÷ share value at entry → what the overlay added vs just holding the shares.
+    side 'buy' = long call: P&L ÷ premium paid."""
+    def run(conn):
+        rows = conn.execute("""SELECT DISTINCT ON (order_id) symbol, (created_at AT TIME ZONE 'America/New_York')::date,
+                                      option_expiration, option_strike::float, avg_fill_price::float, quantity::float
+                               FROM portfolio_orders
+                               WHERE account = %s AND is_option AND option_side = 'call' AND leg_effect = 'open'
+                                 AND leg_side = %s AND state = 'filled' AND avg_fill_price > 0 AND option_strike > 0
+                                 AND option_expiration < current_date AND created_at >= %s
+                               ORDER BY order_id, snapshot_id DESC""", (RH_ACCOUNT[account], side, START)).fetchall()
+        # Real exits (11-27): IRA buy-backs cut the covered-call loss from −$25.4k (expiry replay) to −$6.1k, so unlike the
+        # puts (S017) the replay would misstate the calls. Closing fills are pooled per contract and used FIFO.
+        cl = defaultdict(lambda: [0.0, 0.0])   # (ticker, strike, expiry) → [qty left, avg px]
+        for t, k, e, px, n in conn.execute("""SELECT DISTINCT ON (order_id) symbol, option_strike::float, option_expiration,
+                                                     avg_fill_price::float, quantity::float FROM portfolio_orders
+                                              WHERE account = %s AND is_option AND option_side = 'call' AND leg_effect = 'close'
+                                                AND leg_side = %s AND state = 'filled' AND avg_fill_price IS NOT NULL
+                                              ORDER BY order_id, snapshot_id DESC""",
+                                           (RH_ACCOUNT[account], "buy" if side == "sell" else "sell")).fetchall():
+            a = cl[(t, k, e)]
+            a[1] = (a[0] * a[1] + n * px) / (a[0] + n)
+            a[0] += n
+        out = []
+        for t, d0, e, k, fill, n in sorted(rows, key=lambda r: r[1]):
+            st, s0 = settle_close(conn, t, e), settle_close(conn, t, d0)
+            if st is None or not s0:
+                continue
+            q, intr = n * 100, max(0.0, st - k)
+            a = cl[(t, k, e)]
+            m = min(n, a[0])
+            a[0] -= m
+            exit_px = (m * a[1] + (n - m) * intr) / n   # closed part at your fill, the rest at expiry intrinsic
+            short = side == "sell"
+            intr = exit_px
+            pnl = (fill - intr) * q if short else (intr - fill) * q
+            cap = s0 * q if short else fill * q
+            out.append(dict(entry_ts=ts(d0), exit_ts=ts(e), ticker=t, instrument="option",
+                            side="short" if short else "long", option_type="C", strike=k, expiry=e,
+                            dte_at_entry=(e - d0).days, qty=q, entry_px=fill, exit_px=intr, capital=cap, pnl=pnl,
+                            ret_pct=pnl / cap, trigger=f"{account} {'covered' if short else 'long'} call",
+                            exit_reason="your close" if m == n else "held to expiry" if m == 0 else "part closed, rest to expiry"))
+        return out
+    return run
+
+
 def index_1sigma_puts(conn):
     """Every week's first trading day: sell a put 1σ (iv30_put) below spot on SPY and QQQ, expiring that week's last
     trading day. Priced with Black-Scholes at LSEG iv30_put (no skew) → model price."""
@@ -112,6 +162,21 @@ STRATEGIES = [
          summary="Every short put in the FILDI account in 2026, replayed to expiry on your real fills.",
          rules_md="Same as the IRA replay, FILDI account.", caveats_md=PUT_CAVEATS, price_source="real_quote",
          holdout_start=None, run=your_puts("FILDI")),
+    dict(strategy_id="ira-covered-calls", version="1", name="Your IRA covered calls", family="options-income",
+         instrument="option", status="live", study_ref="S046",
+         summary="Every call you sold in the IRA in 2026, replayed to expiry on your real fills: what selling the call "
+                 "added (or cost) versus just holding the shares.",
+         rules_md="Each IRA sell-to-open call from `portfolio_orders`, premium = your fill, settled at the underlying's close "
+                  "on expiry day. Return = (premium − intrinsic at expiry) ÷ share value on the entry day.",
+         caveats_md="- Call leg only: the shares' own gain/loss is not counted (you'd have it either way).\n- Replayed to "
+                    "expiry; your early buy-backs and rolls are ignored.\n- Assignment: intrinsic = upside you gave up.",
+         price_source="real_quote", holdout_start=None, run=your_calls("IRA", "sell")),
+    dict(strategy_id="ira-long-calls", version="1", name="Your IRA long calls", family="options-directional",
+         instrument="option", status="live", study_ref="S100",
+         summary="Every call you bought in the IRA in 2026, held to expiry on your real fills.",
+         rules_md="Each IRA buy-to-open call from `portfolio_orders`; return = (intrinsic at expiry − premium) ÷ premium.",
+         caveats_md="- Replayed to expiry; your early sales are ignored (long calls are usually sold before expiry, so this "
+                    "is a harsh replay).", price_source="real_quote", holdout_start=None, run=your_calls("IRA", "buy")),
     dict(strategy_id="index-1sigma-puts", version="1", name="Index 1σ weekly puts (SPY + QQQ)", family="index",
          instrument="option", status="candidate", study_ref="A171",
          summary="Naive benchmark: every Monday sell a put 1σ below SPY and QQQ, expiring Friday.",
