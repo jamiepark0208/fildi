@@ -6,13 +6,13 @@ n_events=79250 independent entry weeks=348 span 2020-02-03 → 2026-10-01
 
 | exit | n | n_wk | mean bp/wk | hold | diff | t | t pre | t post | worst5 Δ bp | verdict |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| hold | 79250 | 348 | -11.7 | -11.7 | +0.0 | +nan | +nan | +nan | -496.8 | HOLD |
-| rsi_turn | 79250 | 348 | -10.3 | -11.7 | +1.5 | +3.8 | +0.9 | +3.9 | -484.0 | FAIL |
-| macd_shrink | 79250 | 348 | -6.0 | -11.7 | +5.7 | +8.9 | +1.6 | +9.3 | -386.3 | FAIL |
-| ema20_break | 79250 | 348 | -9.8 | -11.7 | +2.0 | +3.2 | -4.2 | +6.3 | -357.1 | FAIL |
-| any_atd | 79250 | 348 | +15.0 | -11.7 | +26.8 | +31.0 | +18.7 | +25.1 | -280.5 | WORKS |
+| hold | 79250 | 348 | -40.5 | -40.5 | +0.0 | +nan | +nan | +nan | -531.7 | HOLD |
+| rsi_turn | 79250 | 348 | -37.4 | -40.5 | +3.1 | +7.9 | +3.6 | +7.1 | -518.9 | FAIL |
+| macd_shrink | 79250 | 348 | -27.0 | -40.5 | +13.5 | +19.9 | +11.1 | +16.7 | -415.5 | WORKS |
+| ema20_break | 79250 | 348 | -27.6 | -40.5 | +12.9 | +18.7 | +8.9 | +16.5 | -368.7 | WORKS |
+| any_atd | 79250 | 348 | -8.8 | -40.5 | +31.7 | +36.2 | +23.2 | +28.6 | -298.1 | WORKS |
 
 ## Winner pass
-WORKS on any_atd at model prices — confirm on real call quotes before ship. Next: intraday exit minute + real call quotes (contract 13).
+WORKS on macd_shrink, ema20_break, any_atd at model prices — confirm on real call quotes before ship. Next: intraday exit minute + real call quotes (contract 13).
 RULE LIFT: any_atd exit × cover call × S046 (model only).
-Panel verdict: **any_atd** (priced_by=model; not for live without quote pass).
+Panel verdict: **macd_shrink** (priced_by=model; not for live without quote pass).
