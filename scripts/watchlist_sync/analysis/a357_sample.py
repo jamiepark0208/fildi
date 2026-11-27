@@ -13,6 +13,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SAMPLE_PATH = ROOT / "logs" / "a357-sample-selection.json"
+SNAPPED_PATH = ROOT / "logs" / "a357-sample-snapped.json"
 WEEK_FLOOR = date(2025, 10, 20)
 MIN_GROUP = 20
 

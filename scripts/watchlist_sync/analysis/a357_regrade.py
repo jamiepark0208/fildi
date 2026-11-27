@@ -24,7 +24,11 @@ sys.path.insert(0, str(SYNC))
 import a352_score_rank as A352  # noqa: E402
 import s045_put_retest as S045  # noqa: E402
 import s059_option_factors as S59  # noqa: E402
-from a357_lse_option_backfill import collect_contracts, collect_sample_contracts, strike_for_event  # noqa: E402
+from a357_lse_option_backfill import (  # noqa: E402
+    collect_contracts,
+    load_or_collect_sample_contracts,
+    strike_for_event,
+)
 from a357_sample import SAMPLE_PATH, SampleEvent, load_sample_plan  # noqa: E402
 from build_plan import connect  # noqa: E402
 
@@ -108,7 +112,7 @@ def _events_by_week_full(conn) -> tuple[dict[date, list[dict]], int, int]:
 
 
 def _events_by_week_sample(conn, plan: list[SampleEvent]) -> tuple[dict[date, list[dict]], int, int]:
-    contracts = collect_sample_contracts(conn, plan)
+    contracts = load_or_collect_sample_contracts(conn, plan)
     aligned = {(e["t"], e["d"], e["expiry"]): e for e in S59.aligned_events(conn)}
     out: dict[date, list[dict]] = defaultdict(list)
     for se in plan:

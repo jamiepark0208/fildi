@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
 from statistics import median
@@ -27,6 +28,7 @@ import s045_put_retest as S045  # noqa: E402
 import s059_option_factors as S59  # noqa: E402
 from a357_sample import (  # noqa: E402
     SAMPLE_PATH,
+    SNAPPED_PATH,
     SampleEvent,
     build_sample_plan,
     load_sample_plan,
@@ -263,6 +265,58 @@ def collect_contracts(conn) -> list[Contract]:
     return sorted(events, key=lambda c: (c.entry, c.ticker, c.occ, c.source))
 
 
+def _contract_dict(c: Contract) -> dict:
+    return {
+        "occ": c.occ,
+        "ticker": c.ticker,
+        "side": c.side,
+        "strike": c.strike,
+        "expiry": c.expiry.isoformat(),
+        "entry": c.entry.isoformat(),
+        "model_strike": c.model_strike,
+        "source": c.source,
+    }
+
+
+def _contract_from_dict(d: dict) -> Contract:
+    return Contract(
+        occ=d["occ"],
+        ticker=d["ticker"],
+        side=d["side"],
+        strike=float(d["strike"]),
+        expiry=date.fromisoformat(d["expiry"]),
+        entry=date.fromisoformat(d["entry"]),
+        model_strike=(float(d["model_strike"]) if d.get("model_strike") is not None else None),
+        source=d.get("source", "s059"),
+    )
+
+
+def load_or_collect_sample_contracts(conn, events: list[SampleEvent]) -> list[Contract]:
+    if SNAPPED_PATH.is_file() and SAMPLE_PATH.is_file():
+        try:
+            raw = json.loads(SNAPPED_PATH.read_text())
+            if raw.get("plan_n") == len(events) and raw.get("selection_mtime") == int(SAMPLE_PATH.stat().st_mtime):
+                out = [_contract_from_dict(x) for x in raw.get("contracts", [])]
+                if out:
+                    print(f"A357 sample · loaded {len(out)} snapped contracts from cache", flush=True)
+                    return out
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            pass
+    contracts = collect_sample_contracts(conn, events)
+    SNAPPED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SNAPPED_PATH.write_text(
+        json.dumps(
+            {
+                "plan_n": len(events),
+                "selection_mtime": int(SAMPLE_PATH.stat().st_mtime),
+                "contracts": [_contract_dict(c) for c in contracts],
+            }
+        )
+    )
+    print(f"A357 sample · wrote snapped cache → {SNAPPED_PATH}", flush=True)
+    return contracts
+
+
 def collect_sample_contracts(conn, events: list[SampleEvent]) -> list[Contract]:
     """Snap only sampled events (pairs called per unique ticker, expiry)."""
     print(f"pair cache warm {warm_pair_cache(conn)}", flush=True)
@@ -431,7 +485,7 @@ def main() -> None:
             )
             if args.dry_run:
                 return
-            contracts = collect_sample_contracts(conn, events)
+            contracts = load_or_collect_sample_contracts(conn, events)
             print(f"snapped {len(contracts)} events for sample", flush=True)
         elif smoke_sample:
             todo = collect_s059_sample(conn, args.limit)
@@ -473,7 +527,7 @@ def main() -> None:
                 st = fetch_one(conn, c)
                 if status_is_ok(st):
                     ok_count += 1
-                if i % 25 == 0 or args.limit:
+                if i == 1 or i % 25 == 0 or args.limit:
                     print(f"  [{i}/{len(todo)}] {c.ticker} {c.occ[-20:]} → {st}", flush=True)
 
         if args.min_ok and ok_count < args.min_ok:
