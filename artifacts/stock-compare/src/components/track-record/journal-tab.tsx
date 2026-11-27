@@ -138,7 +138,7 @@ interface LiveGradeRow {
   ruleId: string; label: string; claim: number | null; unit: string; fill: string; nTrades: number; nWeeks: number;
   live: number | null; ciLo: number | null; ciHi: number | null; flag: string; note: string; week: string;
 }
-const FLAG_TONE: Record<string, string> = { drift: "text-rose-400", "on track": "text-emerald-400", underpowered: "text-amber-200", "no data": "text-white/60" };
+const FLAG_TONE: Record<string, string> = { drift: "text-rose-400", "on track": "text-emerald-400", underpowered: "text-amber-200", "no data": "text-amber-100" };
 const num1 = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`);
 
 function LiveVsClaimCard({ rows }: { rows: LiveGradeRow[] }) {
@@ -165,9 +165,9 @@ function LiveVsClaimCard({ rows }: { rows: LiveGradeRow[] }) {
                 <td className={cn(GRID_TD, "text-left")}>
                   <DataTip tip={`${r.ruleId} · ${r.fill}${r.note ? ` · ${r.note}` : ""}`}>{r.label}</DataTip>
                 </td>
-                <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.live))}>{num1(r.live)} <span className="text-white/50">{r.unit}</span></td>
+                <td className={cn(GRID_TD, "text-right tabular-nums", tone(r.live))}>{num1(r.live)} <span className="text-amber-100">{r.unit}</span></td>
                 <td className={cn(GRID_TD, "text-right tabular-nums")}>{num1(r.claim)}</td>
-                <td className={cn(GRID_TD, "text-right tabular-nums text-white/70")}>{r.ciLo == null ? "—" : `${num1(r.ciLo)} to ${num1(r.ciHi)}`}</td>
+                <td className={cn(GRID_TD, "text-right tabular-nums text-amber-100")}>{r.ciLo == null ? "—" : `${num1(r.ciLo)} to ${num1(r.ciHi)}`}</td>
                 <td className={cn(GRID_TD, "text-right tabular-nums")}>{r.nWeeks} / {r.nTrades}</td>
                 <td className={cn(GRID_TD, "text-left", FLAG_TONE[r.flag] ?? "text-white")}>{r.flag}</td>
               </tr>
