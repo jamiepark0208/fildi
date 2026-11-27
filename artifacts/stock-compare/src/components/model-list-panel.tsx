@@ -102,7 +102,8 @@ function tradeFalsifier(item: ModelListItem): string | null {
   const exp = c.expiry.slice(0, 10);
   const k = c.strike.toFixed(2).replace(/\.00$/, "");
   if (/put/i.test(c.type)) return `Wrong if ${item.ticker} closes below $${k} at expiry ${exp}`;
-  if (/call/i.test(c.type)) return `Wrong if ${item.ticker} finishes below $${k} at expiry ${exp} (premium lost)`;
+  // Model List calls are sold covered calls (sell_calls): the miss is a close above the strike.
+  if (/call/i.test(c.type)) return `Wrong if ${item.ticker} closes above $${k} at expiry ${exp} (shares called away)`;
   return null;
 }
 
