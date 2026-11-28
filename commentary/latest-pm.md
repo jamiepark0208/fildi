@@ -1,93 +1,102 @@
-Evening recap — Thu, Nov 26, 2026 (Thanksgiving — US markets closed)
+Evening recap — Fri, Nov 27, 2026 (Black Friday — 1:00 PM ET close)
 
 Top stories
-- **Europe rallied +1.8% and S&P futures +0.6% to 7,239 as USTR put tariffs months away; wrong if the S&P closes below 7,183 Friday.**
-- **Oil jumped on Red Sea risk:** **Brent** +1.6% to $96.12 and **WTI** +2.1% to $85.47 as Saudi-Houthi fighting threatened shipping; **OPEC+** meets this weekend on 2027 baselines.
+- **S&P +1.60% to 7,297, Nasdaq +2.31% — AI rebound confirmed in a half session, best week since April 2025. Wrong if S&P closes below 7,183.**
+- **NVDA +0.80% to $150.49 lagged on the FT's export-halt report; the Blackwell-at-China headline lands 4 days before Huang faces the House Dec 1.**
+- **Yields rose with stocks: 10Y +7bp to 4.93%, Dec hike still 99% priced, yet the S&P gained 1.6% — the washout unwind moved the tape.**
 
 Morning check
-- **Morning #1 held, with a fade:** the brief called tariffs delayed and futures +0.9% vs Wednesday's close; futures ended +0.6% on the session, +0.8% vs Wednesday's close — the rebound held but eased ~0.3pt from the morning print.
-- **Morning #2 and #3 held:** no new **NVDA** headline with the market closed, and the yen sat ~159.2 with no carry unwind after Tokyo CPI and the **BOK** hike.
+- **Morning's #1 held: the AI rebound flagged in futures (+2.4% Nasdaq) closed +2.31% on the Nasdaq, +1.60% on the S&P.**
+- **What shifted: NVDA led the morning call, closed +0.80% after the FT export-halt report.**
 
 Overnight
-- **Asia:** **Nikkei** +0.86% to 57,499.16 and **KOSPI** +0.29% to 4,711.21 as chips recovered after Wednesday's slide; **KOSPI** gave back most of a ~2% early gain on ₩112B of foreign selling.
-- **Europe:** **STOXX 600** +1.75% to 636.98 and **FTSE 100** +1.75% to 10,609.30 — the second positive day in nine, with chips leading.
-- **Futures:** **S&P** futures 7,239 — -0.1% vs the morning print and +0.8% vs Wednesday's close; **Nasdaq** futures 26,251, +0.8% vs Wednesday's close.
+- **Asia: Nikkei +2.11% to 58,711, KOSPI +4.34% to 4,916 — Beijing pledged support, memory chips ripped.**
+- **Europe: STOXX 600 +1.1% to 643.85, FTSE +0.84% to 10,698.81 — tech and miners led on the metals rally.**
 
 Desk lines
-- **Gamma:** **SPY** 720.20, Nov 30 expiry (3 DTE) — no flip, net **GEX** negative; call wall 735, put wall 727, max pain 730. **QQQ** 636.86, walls 650/650, max pain 660 — dealers amplify moves both ways, trend day.
-- **Sectors:** No US session — Wednesday's rotation stands: best **XLB** +2.07%, **XLRE** +0.92%; worst **XLK** -0.83%, **XLV** -0.56% — materials and real estate led, tech and health lagged.
-- **Levels:** **S&P** 30-day range 6,910.39–7,757.17; close 7,182.78, -5.5% below its 50-day (~7,601).
-- **Credit:** HY OAS 3.72% (Nov 24, **FRED** latest); 2s10s +28bp (2Y 4.63% vs 10Y 4.91%, Nov 24) — no new widening; Nov 25–26 values not yet posted.
+- **Gamma: SPY 728.32, Nov 30 expiry (2 DTE) — no flip, net GEX negative everywhere; call wall 730, put wall 727, max pain 727. QQQ 650.62, walls 650/650, max pain 655 — dealers amplify moves both ways, trend day.**
+- **Sectors: best XLY +2.72%, XLK +2.23%; worst XLU +0.15%, XLV +0.21% — cyclicals led, defensives lagged, risk-on rotation.**
+- **Levels: S&P 30-day range 6,910.39–7,757.17; close 7,297.49 sits -3.9% below its 50-day (~7,594).**
+- **Credit: HY OAS 3.77% (Nov 26 FRED, +5bp vs Nov 24); 2s10s +22bp (2Y 4.71% vs 10Y 4.93%) — spreads steady, no credit warning behind the dip.**
 
 Moves
+
+Day % vs Wednesday's close; 1W vs Nov 20; 1M vs Oct 28.
+
 | Name | Close | Day % | 1W % | 1M % |
 |---|---|---|---|---|
-| **S&P 500** | 7,182.78 | -0.25% | -1.92% | -6.43% |
-| **Dow** | 50,182.95 | +0.33% | -0.03% | -4.16% |
-| **Nasdaq 100** | 26,046.90 | -0.64% | -3.94% | -11.02% |
-| **Russell 2000** | 2,704.06 | +0.71% | -0.38% | -2.96% |
-| **Nikkei 225** | 57,499.16 | +0.86% | -2.58% | -9.12% |
-| **KOSPI** | 4,711.21 | +0.29% | -8.30% | -16.44% |
-| **STOXX 600** | 636.98 | +1.75% | -0.23% | -1.04% |
-| **FTSE 100** | 10,609.30 | +1.75% | +1.50% | -0.73% |
-| 10Y yield | 4.85% | -6bp | -22bp | -14bp |
-| 30Y yield | 5.24% | -6bp | -18bp | -7bp |
-| **WTI** crude | $85.47 | +2.1% | +2.7% | -16.9% |
-| **Brent** crude | $96.12 | +1.6% | +4.5% | -16.6% |
-| Gold | $3,596.80 | +1.7% | -2.4% | -11.2% |
-| Bitcoin | $60,688 | +0.5% | +1.0% | -25.3% |
-| **VIX** | 26.80 | -5.3% | -5.8% | +53.0% |
+| **S&P 500** | 7,297.49 | +1.60% | +5.60% | -5.77% |
+| **Dow** | 50,774.94 | +1.18% | +5.46% | -3.24% |
+| **Nasdaq Composite** | 24,129.50 | +2.31% | +6.68% | -9.12% |
+| **Russell 2000** | 2,750.30 | +1.71% | +6.53% | -2.83% |
+| 10Y yield | 4.93% | +7bp | +1bp | -11bp |
+| 30Y yield | 5.32% | +7bp | +1bp | -4bp |
+| **WTI** crude | $83.08 | -0.72% | -1.07% | -19.17% |
+| **Brent** crude | $95.44 | -1.2% | +3.1% | -17.2% |
+| Gold | $3,679.00 | +3.21% | +4.36% | -9.46% |
+| Bitcoin | $60,068 | -0.8% | +2.2% | -26.1% |
+| **VIX** | 23.81 | -6.3% | -33.7% | +40.8% |
 
-- US index and yield rows are Wednesday closes; **WTI**, **Brent**, gold, bitcoin and **VIX** are Thanksgiving-evening prints on thin volume, not settlements.
+| Name | Close | Day % | 1W % | 1M % |
+|---|---|---|---|---|
+| **Nikkei 225** | 58,711.11 | +2.11% | +4.03% | -8.20% |
+| **KOSPI** | 4,915.68 | +4.34% | +0.94% | -18.24% |
+| **STOXX 600** | 643.85 | +1.1% | +2.91% | -0.05% |
+| **FTSE 100** | 10,698.81 | +0.84% | +3.41% | +0.04% |
 
 Names
 | Name | Day % | Why |
 |---|---|---|
-| **NVDA** | — (closed) | -31% in a month; CreditWatch Negative; Ives $250 target. |
+| **NVDA** | +0.80% | Lagged chips; FT export halt, Huang testifies Dec 1 |
+| **MU** | +7.60% | Memory led; Cramer club: "comically cheap" |
+| **SNDK** | +15.96% | Paced S&P gainers on memory rally |
+| **MRVL** | +7.34% | Reports Tue after close; ±16.7% implied |
+| **AMD** | +4.56% | Chips rallied; SOX +4.7% |
+| **ANT** | +10.98% | Back above $83 IPO price |
+| **KNTK** | +9.3% | TRGP weighing acquisition, deal possible next week |
+| **ALVO** | -12.4% | Court enjoined Simponi biosimilar; will appeal |
+| **VRTX** | -5.2% | FDA pushed povetacicept decision out 3 months |
 
-- **Thin volume cuts both ways:** futures +0.6% printed with the cash market shut, and no single theme fits — tariff relief, Red Sea oil, and gold each moved on their own driver.
-- **NVDA CDS widened 6bp Nov 25** as **S&P** put the AA rating on CreditWatch Negative — credit priced the governance risk the same day.
-- **Red Sea shipping is the oil driver:** Saudi-Houthi fighting threatened shipping lanes and lifted **Brent**; a ceasefire headline unwinds it fast.
+- **Best week in years: Dow +5.46%, best since October 2022; S&P +5.60%, best since April 2025 — most of the gain came Monday on Huang's return.**
+- **OPEC+ meets Sunday Nov 29, set to hold Q1 2027 output unchanged; Brent +3.1% on the week, its first November gain, on Hormuz attacks and Saudi energy strikes.**
 
 Data
 | Print | When | Actual | Consensus | Prior |
 |---|---|---|---|---|
-| Tokyo core CPI y/y, Nov | Nov 25 6:30p ET | +3.0% | +2.6% | — |
-| Bank of Korea rate decision | Nov 26, overnight | 3.25% | 3.25% | 3.00% |
+| Goods trade balance, Oct | Nov 27 8:30a ET | -$149.5B | -$133.0B | -$135.1B (rev) |
 
-- **No US prints — Thanksgiving.**
-
-- **Breadth:** No new US breadth — market closed; Wednesday: **NYSE** advancers led 2.55:1 and **Nasdaq** 1.46:1; equal-weight **S&P** beat cap-weight by 100bp+.
+- **Breadth: NYSE advancers 3.5:1, Nasdaq 3.0:1; S&P gainers beat decliners by more than 4:1.**
 
 Voices
-- **Ed Yardeni** (Yardeni Research, Hamilton ETFs webcast + Asharq Bloomberg, Nov 26): cut his year-end **S&P** target to 7,500 from 7,900; calls the selloff a correction, not a bear market, and 10Y yields near 5% "normal for longer." Constructive.
-- **Dan Ives** (Yorkville Ives, reported Nov 26): raised **NVDA** to $250 from $225 and kept a $300 bull case, calling the selloff a "gut check moment" for the AI trade; demand exceeds supply 10-to-1. Buy the dip.
-- **Jeffrey Gundlach** (DoubleLine, VettaFi newsletter, Nov 26): expects further hikes, with a December hike as his base case; holds 30% in equities and buys only if the **S&P's** P/E falls below 15. Cautious.
+- **Tom Lee** (Fundstrat, CNBC, Nov 27): bottom may already be in — "best entry point in the last 18 months" for "double-digit gains"; VIX near 40 echoes Dec 2018's 36. Buy the dip.
+- **Dan Ives** (Yorkville Ives, Nov 27): Anthropic "should have been priced near $1 trillion"; the Amodeis selling ~$560M of stock "sent a bad signal" in a nervous AI week. Cautious.
+- **Jim Cramer** (CNBC Mad Money, Nov 25): NVDA "always looks expensive" on earnings, then beats them so "the stock was selling at a remarkably low price" — $199 target, +33% vs Nov 25. Buy the dip.
 
 Book impact
-- **Friday is a 1:00 PM ET close on thin volume:** the Nov 27 **SPY**/**QQQ** expiry settles into a half session — keep short premium wide, and same-day expiry sales face gap risk at the open.
-- **Event-stack guard still flagged:** **VIX** 26.80 vs **VIX3M** 26.29 — backwardation narrowed to 0.5pt, with the Dec 9 **FOMC** and Dec 1 Huang testimony inside the window.
-- **NVDA weeklies stay off until Dec 1–3 pass:** Huang testifies to the House Dec 1 and Senate Banking Dec 3; **S&P's** CreditWatch review runs 90 days.
+- **Event-stack guard cleared: VIX 23.81 vs VIX3M 23.82 — back in contango after Thursday's backwardation (26.80 vs 26.29); Dec 9 FOMC and Dec 1 Huang testimony sit inside the window.**
+- **Nov 30 expiry is 2 DTE, no gamma flip: SPY call wall 730, put wall 727 — dealers amplify moves both ways, so keep short premium wide into Monday.**
+- **NVDA weeklies stay off until Dec 1–3 pass: Huang faces the House Tue, Senate Banking Thu; S&P Global's CreditWatch review on NVDA's AA rating runs 90 days.**
 
 Risk/events for tomorrow
-- **Fri Nov 27:** trade balance, Oct (8:30a ET); market closes 1:00 PM ET; **SPY**/**QQQ** Nov 27 expiry; **OPEC+** meets this weekend on 2027 baselines.
-- **Mon Nov 30:** December opens; Fed blackout in effect through the Dec 9 **FOMC**.
-- **Tue Dec 1:** ISM manufacturing (10:00a ET); Huang testifies to House committees; **MRVL** ±16.7% and **CRWD** ±10.1% report after the close.
-- **Wed Dec 2:** ADP employment (8:15a ET); **CRM** ±12.1% and **SNOW** ±16.7% report after the close.
-- **Thu Dec 3:** jobless claims (8:30a ET); Huang testifies at the Senate Banking hearing.
+- **Mon Nov 30:** December opens; Fed blackout through the Dec 9 FOMC; BOJ Gov Ueda speaks.
+- **Tue Dec 1:** ISM manufacturing 10:00a ET (exp 55.1 vs 55.5); JOLTS 10:00a ET (7.475M vs 7.523M); Huang House interviews; MRVL ±16.7% and CRWD ±10.1% after the close.
+- **Wed Dec 2:** ADP 8:15a ET; CRM ±12.1% and SNOW ±16.7% after the close.
+- **Thu Dec 3:** jobless claims 8:30a ET; ISM services 10:00a ET (54.5 vs 54.5); Huang Senate Banking testimony.
+- **Fri Dec 4:** nonfarm payrolls 8:30a ET (+90K exp vs +165K prior; unemployment 4.1%).
+- **Positioning: leveraged funds are net short 10Y futures by 2.48M contracts (-39.7% of open interest, Nov 17 COT) while asset managers sit near-record long (+3.27M) — a dovish Dec 9 surprise forces shorts to cover into it.**
 
 Sources
-- Closes, 1W/1M: Yahoo Finance via closes-1w1m.py (US rows Wed Nov 25 closes; Asia rows per morning brief AP closes).
-- Europe final closes: **STOXX** 636.98 +1.75%, **FTSE** 10,609.30 +1.75%, **DAX** 25,231 +2.1%, **CAC** 8,109 +1.6% (InvestingLive, Finwire, Fana News, Nov 26).
-- Futures: **S&P** 7,239 +0.60%, **Nasdaq** 26,251 +0.58%, **Dow** 50,457 +0.46%, **Russell** 2,720 +0.53% (Regards of Wall Street, 6:07 PM ET Nov 26).
-- Oil: **Brent** $96.12 +1.6% (Market Index via Swingfolio, Nov 27 AEDT); **WTI** $85.47 evening print (Yahoo CL=F live bar); Saudi-Houthi Red Sea risk (Morningstar, Nov 26 04:48 ET).
-- Gold/bitcoin/**VIX**: Yahoo GC=F/BTC-USD/^VIX live bars (Nov 26 evening prints).
-- Gamma: gex-levels.py (CBOE delayed chain, **SPY** + **QQQ**, Nov 30 expiry).
-- Levels: make-chart.py (**S&P** 30-day range 6,910.39–7,757.17, -5.5% vs 50-day).
-- Credit: **FRED** BAMLH0A0HYM2 (3.72%, Nov 24); **FRED** DGS2/DGS10 (2s10s +28bp, Nov 24).
-- Breadth: Wednesday **NYSE** 2.55:1, **Nasdaq** 1.46:1; equal-weight +100bp (morning brief).
-- Voices: Yardeni — Hamilton ETFs webcast summary (AdvisorAnalyst, Nov 26) + Asharq Bloomberg interview (Nov 26); also expects a Dec +25bp hike, sees yield danger only at 6–8%; Ives — BlockBeats/Gate (Nov 26 upgrade wave); Gundlach — VettaFi newsletter (Nov 26), drawing on his Nov 12 Yahoo Finance interview.
-- **NVDA**: CDS +6bp Nov 25 (Bloomberg via Summa Money); -31% in a month to $149.30 (Summa Money, Nov 26).
-- Desk: Gmail label tradedash-brief triage (Nov 26) — no new put-seller material; no Desk flagged section.
-- Earnings implied moves: EarningsWatcher (Nov 25 update) — carried from the morning brief.
-- Verification notes: **Brent** Yahoo BZ=F rolled contracts (front month ~$92.30 vs news Dec-contract ~$96.12) — used the news quote; **WTI** morning-brief $84.46 was the Nov 26 early print vs the Nov 25 Yahoo close $83.68; **VIX** printed 26.80 on a closed cash day — treat as indicative; Europe 1W/1M recomputed off the morning brief's implied Nov 18/Oct 26 baselines; **KOSPI** ₩112B foreign selling per COINOTAG; Ives $250 target reported Nov 26 (BlockBeats/Gate) — Summa Money dates the raise Nov 24; gamma feed rolled the nearest expiry from Nov 27 to Nov 30 — Friday's Nov 27 expiry still settles at the 1:00 PM close; A402 CEO-succession seed numbers NOT used; no TRIGGERS-step analogue fired today; no fildi snapshot — A413 planned, not built; no Desk flagged section.
+- Closes, 1W/1M: Yahoo Finance via closes-1w1m.py, verified Friday-to-Friday vs Nov 20 (the script's 1W base slipped to Nov 19 on the Thanksgiving gap — corrected by hand from Yahoo daily closes).
+- Asia/Europe closes: AP via Sharecast/mlq.ai (Nikkei 58,711.11, KOSPI 4,915.68); Sharecast/MT Newswires (STOXX 643.85, FTSE 10,698.81).
+- Session: FactSet StreetAccount U.S. Market Recap (Nov 27, 1:09 PM ET) — closes, sectors, breadth, yields, WTI $82.96, gold $3,679.
+- Names: Investopedia Markets News Nov 27; Calculated Degens closing pull (MU $646.95, SNDK $85.36, MRVL $140.54, NVDA $150.49, AMD $424.54); StreetAccount (KNTK, ALVO, VRTX, PANW, SAP, MO).
+- Gamma: gex-levels.py (CBOE delayed chain, SPY + QQQ, Nov 30 expiry).
+- Levels: make-chart.py (S&P 30-day range 6,910.39–7,757.17, -3.9% vs 50-day).
+- Credit: FRED BAMLH0A0HYM2 (3.77%, Nov 26); FRED DGS2/DGS10 (2s10s +22bp live).
+- Data: Reuters/Census (trade balance -$149.5B vs -$133.0B, Nov 27 8:30a ET).
+- Oil: Reuters via Morningstar (Brent $95.44 -1.2%, week +3.1%; OPEC+ Sun Nov 29, hold Q1 2027 in principle).
+- Voices: Lee — CNBC via TradingView/CoinMarketCap (Nov 27); Ives — Pivot and Flow (Nov 27); Cramer — CNBC Mad Money via TheStreet (Nov 25).
+- Week ahead: LSEG The Day Ahead (Nov 27) — payrolls +90K, ISM 55.1, JOLTS 7.475M, Huang schedule.
+- Positioning: CFTC COT via gov.house (Nov 17) — leveraged funds -2.48M 10Y contracts; Matterfact (Nov 25) — Treasury futures shorts $1.12tn.
+- Desk: Gmail label tradedash-brief triage (Nov 27) — StreetAccount recap + weekly recap + talking points; no Desk flagged section (all qualifying items already covered in Top stories/Names/Voices).
+- Verification notes: VIX day -6.3% vs Wednesday's close (25.40); Yahoo's -11.2% compares to Thursday's 26.80 print; Brent 1M -17.2% derived off the news series (Oct 28 ~$115.25, from the Nov 26 recap's -16.6% at $96.12); Yahoo single-name chart data lags (last Nov 25; SNDK Nov 19) so Names day % come from news closes; A402 CEO-succession seed numbers NOT used; no TRIGGERS analogue fired (no hot Japan PPI, no BOJ move, no CEO scandal); no fildi snapshot — A413 export folder absent from Drive, Mac Postgres local-only, so no Fildi says section.
