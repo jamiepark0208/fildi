@@ -15,6 +15,10 @@ type Row = { rank: number; ticker: string; spot: number; expiry: string; put: Le
 type Resp = { asOf: string | null; names: Row[]; etfs: Row[] };
 
 const REPORT = "https://claude.ai/artifact/6VfDVSzoVNfpmCbGUULGTF";
+// S213 (11-27): same-exposure replay 2019–2025 of this exact shape (0.12Δ put / 0.18Δ call, 7-week hold) ≈ shares (−1 pt, CI −3…+2), collateral 2.6× the cash.
+const S213 = "https://claude.ai/artifact/KwohjSz9JhL39FwUU6fFrL";
+const S213_TIP = "S213 replay 2019–2025, this shape (sell 0.12Δ put, buy 0.18Δ call, held 7 weeks), names ≥ 25 % off high, same starting exposure as shares:\n"
+  + "−1 pt vs owning the shares (95 % CI −3…+2, 70 months). Cash-secured it ties up 2.6× the cash of the same shares. Cash per lot = put strike × 100.";
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
 const TD = "px-1.5 py-0.5 font-mono text-[13px] whitespace-nowrap";
 const pct = (x: number | null | undefined, d = 0) => (x == null ? "—" : `${(x * 100).toFixed(d)}%`);
@@ -52,14 +56,18 @@ export function DeepRiskReversalCard() {
         </DataTip>
         {smh && <span className="text-[12px] text-amber-100">SMH same trade: Δ ratio {smh.delta_ratio.toFixed(2)}</span>}
         <span className="text-[12px] text-amber-100">quotes {data.asOf}</span>
-        <a href={REPORT} target="_blank" rel="noreferrer" className="ml-auto text-[12px] text-[#d4af37] underline">11-27 full report</a>
+        <DataTip tip={S213_TIP}>
+          <span className="text-[12px] text-amber-100">≈ owning the shares · needs margin</span>
+        </DataTip>
+        <a href={S213} target="_blank" rel="noreferrer" className="ml-auto text-[12px] text-[#d4af37] underline">vs shares / LEAPS / wheel</a>
+        <a href={REPORT} target="_blank" rel="noreferrer" className="text-[12px] text-[#d4af37] underline">11-27 full report</a>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-white">
           <thead>
             <tr>
               <th className={TH}>#</th><th className={TH}>Ticker</th><th className={TH}>Sell put</th><th className={TH}>Buy call</th>
-              <th className={TH}>Net</th><th className={TH}>Δ ratio</th><th className={TH}>Off high</th>
+              <th className={TH}>Net</th><th className={TH}>Cash / lot</th><th className={TH}>Δ ratio</th><th className={TH}>Off high</th>
               <th className={TH}>Worst crash / lot</th><th className={TH}>Earnings</th><th className={TH}>Legs</th>
             </tr>
           </thead>
@@ -74,6 +82,7 @@ export function DeepRiskReversalCard() {
                   <td className={TD} title={legTip("Sell put", r.put)}>{r.put.strike} <span className="text-amber-100">−{pct(r.put_otm)} · Δ{r.put.delta.toFixed(2)}</span></td>
                   <td className={TD} title={legTip("Buy call", r.call)}>{r.call.strike} <span className="text-amber-100">+{pct(r.call_otm)} · Δ{r.call.delta.toFixed(2)}</span></td>
                   <td className={TD} title={`at a realistic fill ${r.fill_net >= 0 ? "+" : ""}${r.fill_net.toFixed(2)}`}>{r.mid_net >= 0 ? "+" : ""}{r.mid_net.toFixed(2)}</td>
+                  <td className={TD} title="cash-secured: put strike × 100 (margin accounts need less, but the loss is the same)">${(r.put.strike * 100).toLocaleString()}</td>
                   <td className={cn(TD, beatsSmh ? "text-green-400" : "")}>{r.delta_ratio.toFixed(2)}</td>
                   <td className={TD}>{pct(r.dd52)}</td>
                   <td className={cn(TD, "text-red-400")}>{r.worst_crash_pnl == null ? "—" : `${Math.round(r.worst_crash_pnl).toLocaleString()}`}</td>

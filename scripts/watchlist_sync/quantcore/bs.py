@@ -11,11 +11,11 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from scipy.special import ndtr
+from scipy.special import ndtr, ndtri
 
 __all__ = [
     "norm_cdf", "years_from_days", "years_from_sessions", "bs_put", "bs_call",
-    "put_delta", "call_delta", "implied_vol", "check_iv", "iv_fraction",
+    "put_delta", "call_delta", "implied_vol", "check_iv", "iv_fraction", "strike_for_delta",
 ]
 
 MIN_YEARS = 1.0 / (365.0 * 24 * 60)   # one minute
@@ -91,6 +91,18 @@ def call_delta(*, spot, strike, iv, years, r: float = 0.0, q: float = 0.0):
     dl = np.exp(-q * t) * ndtr(d1)
     dead = (v <= 0) | (np.asarray(years, dtype=float) <= 0)
     return _out(np.where(dead, np.where(S > K, 1.0, 0.0), dl))
+
+
+def strike_for_delta(*, spot, delta, iv, years, side: str, r: float = 0.0, q: float = 0.0):
+    """Strike whose BS delta equals `delta` (call: 0..1, put: −1..0) at a flat `iv`. Closed form, arrays broadcast.
+    With a smile, call again with the IV at the returned strike (two passes converge to < 0.5 % for normal skews)."""
+    check_iv(iv)
+    S = np.asarray(spot, dtype=float)
+    v = np.asarray(iv, dtype=float)
+    t = np.maximum(np.asarray(years, dtype=float), MIN_YEARS)
+    d = np.asarray(delta, dtype=float) * np.exp(q * t)
+    d1 = ndtri(d) if side == "call" else ndtri(1.0 + d)
+    return _out(S * np.exp(-(d1 * v * np.sqrt(t)) + (r - q + 0.5 * v * v) * t))
 
 
 def implied_vol(*, price: float, spot: float, strike: float, years: float, side: str = "put",

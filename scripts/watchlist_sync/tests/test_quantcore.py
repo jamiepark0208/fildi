@@ -129,3 +129,8 @@ def test_check_intraday_rejects_wrong_resolution():
     with pytest.raises(bars.BarInvariantError, match="spacing"):
         bars.check_intraday(df, 5)
     bars.check_intraday(df, 30)
+def test_strike_for_delta_roundtrip():
+    from quantcore.bs import strike_for_delta, call_delta, put_delta
+    for side, dl, f in (("call", 0.8, call_delta), ("call", 0.25, call_delta), ("put", -0.25, put_delta), ("put", -0.10, put_delta)):
+        K = strike_for_delta(spot=100.0, delta=dl, iv=0.45, years=1.2, side=side, r=0.04)
+        assert abs(f(spot=100.0, strike=K, iv=0.45, years=1.2, r=0.04) - dl) < 1e-9
