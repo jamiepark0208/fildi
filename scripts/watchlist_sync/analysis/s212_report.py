@@ -10,6 +10,9 @@ import numpy as np
 
 OUT = Path(__file__).resolve().parent.parent / "out" / "rr"
 D = json.loads((OUT / "s212_ranked.json").read_text())
+DD = json.loads((OUT / "s212_dd.json").read_text()) if (OUT / "s212_dd.json").exists() else {"names": {}, "smh": None}
+RR = {o["ticker"]: o for o in json.loads((OUT / "s212_rr.json").read_text())["names"]}
+S1 = json.loads((OUT / "s212_stage1.json").read_text())
 TOP = D["ranked"][:20]
 REST = D["ranked"][20:]
 E = lambda x: html.escape(str(x))  # noqa: E731
@@ -67,7 +70,7 @@ def leg_row(name, o, px):
     fl = ", ".join(o["flags"]) or "clean"
     return (f"<tr><td>{name}</td><td>{o['strike']:g}</td><td>{num(o['bid'])}</td><td>{num(o['ask'])}</td><td>{num(o['mid'])}</td>"
             f"<td>{num(px)}</td><td>{pct(o['my_iv'], 1)}</td><td>{pct(o['iv'] if (o['iv'] or 0) < 3 else o['iv'] / 100, 1)}</td>"
-            f"<td>{o['delta']:+.3f}</td><td>{o['oi']:,}</td><td>{pct(o['spread_pct'])}</td><td>{E(fl)}</td></tr>")
+            f"<td>{pct(o.get('lse_iv'), 1)}</td><td>{o['delta']:+.3f}</td><td>{o['oi']:,}</td><td>{pct(o['spread_pct'])}</td><td>{E(fl)}</td></tr>")
 
 
 def section(r):
@@ -127,11 +130,11 @@ def section(r):
     <tr><th>Bad case (5th pct)</th><td>{pct(hc.get('p5_pct_spot'), 1, True)} of spot</td></tr>
    </table></div>
   </div>
-  <h3>Legs (Schwab, quotes at the 11-27 close, verified)</h3>
-  <div class=tw><table class=legs><thead><tr><th>Leg</th><th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Fill est.</th><th>IV (ours)</th><th>IV (Schwab)</th><th>Δ</th><th>OI</th><th>Spread</th><th>Checks</th></tr></thead>
+  <h3>Legs (Schwab quotes at the 11-27 close, cross-checked against real trades)</h3>
+  <div class=tw><table class=legs><thead><tr><th>Leg</th><th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>Fill est.</th><th>IV (ours)</th><th>IV (Schwab)</th><th>IV (LSE trades)</th><th>Δ</th><th>OI</th><th>Spread</th><th>Checks</th></tr></thead>
   <tbody>{leg_row('Sell put', p, s['credit'])}{leg_row('Buy call', c, s['debit'])}</tbody></table></div>
   <p class=note>Checks per leg: bid &gt; 0, ask &gt; bid, spread ≤ 30 % of mid, open interest ≥ 100, our IV (solved from mid, r = {D['rf']:.2%}) within
-  5 pts of Schwab's, IV within 4 pts of a smile fitted to that expiry's other clean strikes, no price inversion between strikes. Spot ${S:,.2f} vs our stored close: {pct(r.get('spot_check') or 0, 2)} apart.</p>
+  5 pts of Schwab's, smile shape within 5 pts of the IV at real OPRA trades (London Strategic Edge, last trades 25 Nov, same moneyness, read as leg IV minus ATM IV so a market-wide IV move between the two days does not count), IV within 4 pts of a smile fitted to that expiry's other clean strikes, no price inversion between strikes. Spot ${S:,.2f} vs our stored close: {pct(r.get('spot_check') or 0, 2)} apart.</p>
   <div class=grid3>
    <div><h3>Payoff at expiry, 1 lot</h3><table class=sc><thead><tr><th>Move</th><th>Price</th><th>P&amp;L</th></tr></thead><tbody>
    {''.join(f"<tr><td>{m:+.0%}</td><td>{st:,.2f}</td><td class={'pos' if v >= 0 else 'neg'}>{v:+,.0f}</td></tr>" for m, st, v in scen)}</tbody></table></div>
@@ -164,7 +167,77 @@ def section(r):
     {''.join(f"<tr><th>{k}</th><td>{v:.2f}</td></tr>" for k, v in (i.get('s1_parts') or {}).items())}
     {''.join(f"<tr><th>{k}</th><td>{v:.2f}</td></tr>" for k, v in r['opt_parts'].items())}</table></div>
   </div>
+  {dd_block(r)}
 </section>"""
+
+
+PEER_LABEL = {"fwd_pe": ("Forward P/E", 1, False), "rev_g": ("Revenue growth", None, True), "op_mgn": ("Operating margin", None, True),
+              "fcf_yield": ("FCF yield", None, True), "roic": ("ROIC", None, True)}
+
+
+def dd_block(r):
+    """Deeper due diligence (11-27 #10): earnings reactions vs the put cushion, stress replays, peers, vs SMH."""
+    t, d = r["ticker"], DD["names"].get(r["ticker"])
+    if not d:
+        return ""
+    cush = d["cushion"]
+    er = "".join(f"<tr><td>{E(x['date'])}</td><td class={'pos' if x['move'] >= 0 else 'neg'}>{x['move']:+.1%}</td>"
+                 f"<td>{'through the put' if x['move'] <= -cush else ''}</td></tr>" for x in d["earnings"])
+    er_note = (f"Median move {pct(d['er_abs_med'])} either way; worst {pct(d['er_big_down'], 0, True)}. "
+               f"{d['er_breach']} of {len(d['earnings'])} reports fell more than the put's {pct(cush)} cushion in one day."
+               + (" <b>Earnings land before expiry on this trade.</b>" if r["er_in"] else " Next report is after expiry."))
+    st = "".join(f"<tr><td>{E(x['window'])}</td>" + ("<td colspan=3 class=mut>no history (listed later)</td></tr>" if x.get("ret") is None else
+                 f"<td class=neg>{x['ret']:+.0%}</td><td>{x['price']:,.2f}</td><td class={'pos' if x['pnl'] >= 0 else 'neg'}>{x['pnl']:+,.0f}</td></tr>")
+                 for x in d["stress"])
+    pr = []
+    for k, (lab, dec, is_pct) in PEER_LABEL.items():
+        v = d["peers"].get(k) or {}
+        me, med = v.get("me"), v.get("median")
+        f = (lambda z: pct(z, 0)) if is_pct else (lambda z: num(z, 1))
+        better = None if me is None or med is None else ((me < med) if k == "fwd_pe" else (me > med))
+        pr.append(f"<tr><th>{lab}</th><td>{f(me) if me is not None else 'n/a'}</td><td>{f(med) if med is not None else 'n/a'}</td>"
+                  f"<td>{'' if better is None else ('better' if better else 'worse')}</td></tr>")
+    sm = DD.get("smh")
+    vs = ""
+    if sm:
+        s = r["s"]
+        vs = (f"<p class=note><b>Vs the same trade on SMH:</b> Δ ratio {s['delta_ratio']:.2f} vs {sm['delta_ratio']:.2f} · skew "
+              f"{(r['skew15'] or 0) * 100:.1f} vs {(sm['skew15'] or 0) * 100:.1f} pts · put cushion {pct(s['put_otm'])} vs {pct(sm['put_otm'])}. "
+              + ("This name buys more upside per unit of downside than SMH." if s["delta_ratio"] > sm["delta_ratio"] + 0.05 else
+                 "SMH gives about the same or better ratio without single-company risk; this name needs a company-specific reason.")
+              + "</p>")
+    return f"""<div class=grid3>
+   <div><h3>Earnings reactions, last {len(d['earnings'])}</h3><table class=sc><thead><tr><th>Report</th><th>1-day move</th><th></th></tr></thead><tbody>{er}</tbody></table>
+   <p class=note>{er_note} Move = the larger of the report day and the next session (the calendar does not say before or after the open).</p></div>
+   <div><h3>Stress replay: this trade in past crashes</h3><table class=sc><thead><tr><th>Window</th><th>Worst {d['h']}-session drop</th><th>Price</th><th>P&amp;L / lot</th></tr></thead><tbody>{st}</tbody></table>
+   <p class=note>The stock's own worst {d['h']}-session fall inside each window, applied to today's ${r['spot']:,.2f}, valued at expiry. Real paths can be worse before expiry (marks, margin calls).</p></div>
+   <div><h3>Against its peers ({E((r['info'].get('peer_name') or '')[:30])}, n {d['peer_n']})</h3><table class=sc><thead><tr><th></th><th>{E(t)}</th><th>Peer median</th><th></th></tr></thead><tbody>{''.join(pr)}</tbody></table>
+   {vs}</div>
+  </div>"""
+
+
+def excl_reasons():
+    """Why each excluded name is out, read from its raw January chain (same thresholds as the screen)."""
+    out = {"no 0.10–0.16Δ January put listed": [], "open interest under 100 at those strikes": [],
+           "after-close quotes too wide and not confirmed by trades": [], "no call the put's premium pays for (or call leg failed)": [],
+           "other": []}
+    exp = D["ranked"][0]["expiry"]
+    for t, why_ in D["excluded"]:
+        f = OUT / "chains" / f"{t}.json"
+        if not why_.startswith("no liquid") or not f.exists():
+            out["other"].append(t)
+            continue
+        legs = [o for o in json.loads(f.read_text())["rows"] if str(o["expiry"]).startswith(exp)]
+        P = [o for o in legs if o["side"] == "put" and o.get("delta") is not None and 0.10 <= abs(o["delta"]) <= 0.16]
+        if not P:
+            out["no 0.10–0.16Δ January put listed"].append(t)
+        elif max((o.get("oi") or 0) for o in P) < 100:
+            out["open interest under 100 at those strikes"].append(t)
+        elif all(((o["ask"] - o["bid"]) / ((o["ask"] + o["bid"]) / 2) if o.get("bid") and o.get("ask") else 9) > 0.35 for o in P if (o.get("oi") or 0) >= 100):
+            out["after-close quotes too wide and not confirmed by trades"].append(t)
+        else:
+            out["no call the put's premium pays for (or call leg failed)"].append(t)
+    return {k: v for k, v in out.items() if v}
 
 
 def main():
@@ -182,6 +255,10 @@ def main():
                   f"<td>{'n/a' if not r['skew15'] else f'{r[chr(115) + chr(107) + chr(101) + chr(119) + chr(49) + chr(53)] * 100:.1f}'}</td>"
                   f"<td>{pct(D['etf_state'].get(r['ticker'], {}).get('dd52'), 0, True)}</td></tr>" for r in D["etfs"])
     excl = len(D["excluded"])
+    fin_all = [r for r in S1["rows"] if "financ" in (r.get("peer") or "").lower()]
+    fin_gated = [r["ticker"] for r in fin_all if any("peer median" in g for g in (r.get("gate") or []))]
+    sm = DD.get("smh") or {}
+    n_lse = sum(1 for r in TOP for k in ("put", "call") if r["s"][k].get("verified_by") == "lse")
     piv = np.median([r["put_iv_rv"] for r in TOP if r["put_iv_rv"]])
     civ = np.median([r["call_iv_rv"] for r in TOP if r["call_iv_rv"]])
     sk = np.median([r["skew15"] for r in TOP if r["skew15"]])
@@ -208,6 +285,7 @@ But put IV is {piv:.2f}× 60-day realized vol and 20-day realized is running 1.4
 <tr><th>Market regime</th><td><b>Stress, not yet a bottom signal.</b> VIX 26.8 is above 3-month VIX 26.3 (inverted curve). High-yield spreads widened 3.14 → 3.77 % in 30 days. SMH is −34 % from its June high and has swung ±10–15 % in single days (20 → 23 Nov).
 In our tests, panic risk reversals lost money in the early weeks of a panic (S178: the 4 losers of 15). The better-timed entry comes when VIX drops back below VIX3M (S172).</td></tr>
 <tr><th>Past semis drawdowns of 30 %</th><td>2011, 2020, 2025: SOXX/SMH were up 15–48 % 63 trading days later. 2022: −13 % within 63 days and −13 % after six months. Four episodes: a guide, not proof. 2022 is the case the short puts must survive.</td></tr>
+<tr><th>Single names vs SMH</th><td><b>SMH wins on option pricing.</b> The same $0 trade on SMH buys {num(sm.get('delta_ratio'))}× call delta per put delta; {sum(r['s']['delta_ratio'] > (sm.get('delta_ratio') or 9) + 0.05 for r in TOP)} of the 20 names beat that. Pick a single name only for a company-specific reason (fundamentals, estimate revisions, a catalyst), and size it smaller than an SMH position.</td></tr>
 <tr><th>Is there a free lunch?</th><td><b>No.</b> At market prices the expected value is the fill cost (a few cents to $2 per share). The edge has to come from your view that these names recover, not from the options. The skew lets you express that view with more upside delta than downside delta.</td></tr>
 </tbody></table></section>
 
@@ -216,16 +294,18 @@ In our tests, panic risk reversals lost money in the early weeks of a panic (S17
 <tbody>{rows}</tbody></table></div></section>
 
 <section class=grid2><div><h2>Benchmarks: the same trade on ETFs</h2><div class=tw><table class=sc><thead><tr><th>ETF</th><th>Spot</th><th>Put</th><th>Call</th><th>Net</th><th>Δ ratio</th><th>Skew</th><th>Off high</th></tr></thead><tbody>{etf}</tbody></table></div>
-<p class=note>SMH gives a 1.65× delta ratio with 19 pts of skew, about the same as the median single name and with no single-company risk. A single name has to beat that on conviction, not on option pricing.</p></div>
+<p class=note>SMH gives a {num(sm.get('delta_ratio'))}× delta ratio with {(sm.get('skew15') or 0) * 100:.0f} pts of skew; the median top-20 name gives {dr:.2f}× with {sk * 100:.0f} pts, and {sum(r['s']['delta_ratio'] > (sm.get('delta_ratio') or 9) + 0.05 for r in TOP)} of 20 beat SMH's ratio. A single name has to beat SMH on conviction as well as on option pricing.</p></div>
 <div><h2>Ranked 21+ (close but out)</h2><div class=tw><table class=sc><thead><tr><th>#</th><th>Ticker</th><th>Score</th><th>Why lower</th></tr></thead><tbody>{rest}</tbody></table></div>
-<p class=note>{excl} more names had no tradeable 0.10–0.16Δ put with a liquid call in January after the close (open interest under 100, spreads over 30 %, or quotes off the smile): among them KLAC, AMAT, TXN, ADI and most banks. Bank options are too thin this far out of the money; that is why financials are scarce here.</p></div></section>
+<p class=note>{excl} more names had no tradeable 0.10–0.16Δ January put with a liquid call. Why, by count:</p>
+<ul class=meth>{''.join(f"<li><b>{len(v)}</b> {E(k)}: {E(', '.join(v[:14]))}{' …' if len(v) > 14 else ''}</li>" for k, v in excl_reasons().items())}</ul>
+<p class=note>Financials: {len(fin_gated)} of {len(fin_all)} names in our financial peer groups were cut before the options step because their fund score is below their peer median ({E(', '.join(fin_gated[:10]))} …). That is a fundamentals call, not a data gap.</p></div></section>
 
 <section><h2>How this was built</h2><ul class=meth>
 <li><b>Universe:</b> 305 names in our technology, semiconductor, fintech and financial peer groups. Gates: fund score at or above the peer-group median, price ≥ $15, at least 10 % below the 52-week high.</li>
 <li><b>Stock score (50 %):</b> fund score vs peers 35 %, 30-day EPS estimate change 15 %, drawdown + RSI 20 %, IV rank + IV÷RV 15 %, StarMine alpha 15 %.</li>
 <li><b>Options score (50 %):</b> skew at 0.15Δ, delta ratio at zero cost, call IV ÷ realized (cheaper is better), the structure's average P&amp;L over this name's own history on days it sat ≥ 20 % below its high, and fill cost. Earnings before expiry −0.10.</li>
 <li><b>Structure:</b> expiry 15 Jan 2027, before most late-January earnings. Short put |Δ| 0.10–0.16. Long call = the highest delta the put's mid pays for (net ≥ −0.3 % of spot). Fill estimate = sell at bid + 23 % of the spread, buy at ask − 23 %.</li>
-<li><b>Data:</b> Schwab option chains pulled after the 27 Nov half-day close (last bid/ask). After-hours spreads run wider than in-session, so legs pair on mid. Prices checked against Polygon. Weights and rules were written down before the ranked list was seen. Verify quotes live at Monday's open before trading.</li>
+<li><b>Data:</b> Schwab option chains pulled after the 27 Nov half-day close (last bid/ask). After-hours spreads run wider than in-session, so legs pair on mid. Every leg is cross-checked against real OPRA trades (London Strategic Edge, last trades 25 Nov): a leg whose after-close spread was too wide passes only if its mid sits on the traded smile, and its fill is then estimated at a 30 % in-session spread ({n_lse} of the 40 legs below). Prices checked against Polygon; LSEG history (2018→) for stress replays agrees with our price table within 2 % on every overlapping day. Weights and rules were written down before the ranked list was seen. Verify quotes live at Monday's open before trading.</li>
 <li><b>Not advice.</b> A short put can lose many times the premium; you may be assigned 100 shares per lot at the put strike.</li></ul></section>
 {''.join(section(r) for r in TOP)}
 <footer class=foot>Fildi research S212 · built 27 Nov 2026 · tables from Schwab, LSEG, Polygon, our fund scores.</footer>

@@ -9,6 +9,7 @@ import type { BookGroupAwareness } from "@/lib/model-list-awareness";
 import { GRID_WRAP, GRID_HEADER, GRID_TH } from "@/lib/score-explain-format";
 import { TodayTradesCard } from "@/components/live/today-trades-card";
 import { RiskReversalCard } from "@/components/live/risk-reversal-card";
+import { DeepRiskReversalCard } from "@/components/live/deep-rr-card";
 import { BookRiskCard } from "@/components/live/book-risk-card";
 
 const TH = cn(GRID_TH, "px-1.5 py-0.5");
@@ -241,6 +242,7 @@ export default function Today() {
       <TodayTradesCard n={20} />
       {data && <PutIdeas rows={data.puts} mark={mark} />}
       <RiskReversalCard />
+      <DeepRiskReversalCard />
       <LongCallOdds />
     </div>
   );

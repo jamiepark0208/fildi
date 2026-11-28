@@ -201,6 +201,30 @@ def chains(n: int):
     print(f"chains: {got}/{len(names)}")
 
 
+def lse_trades():
+    """Second source for every leg (11-27 #10): London Strategic Edge chain = IV at each contract's last OPRA trade
+    (trades, no quotes). Used to confirm a mid when the after-close Schwab spread is too wide to trust on its own."""
+    sys.path.insert(0, str(HERE.parent.parent))
+    import lse_client as L
+    ldir = OUT / "lse"
+    ldir.mkdir(parents=True, exist_ok=True)
+    conn = L.connect()
+    got = 0
+    for f in sorted((OUT / "chains").glob("*.json")):
+        t = f.stem
+        out = {}
+        for e in EXPIRIES:
+            d = L.get_json(conn, f"options/chain?underlying={t}&expiry={e}&limit=1000", cache_key=f"rr:{t}:{e}:{date.today()}")
+            for r in (d.get("rows") if isinstance(d.get("rows"), list) else []):
+                if r.get("iv") and r.get("last_trade_at"):
+                    out[f"{e}|{r['contract_type']}|{float(r['strike'])}"] = {
+                        "iv": r["iv"], "last": r.get("last_price"), "at": str(r["last_trade_at"])[:16],
+                        "und": r.get("greeks_underlying_price")}
+        (ldir / f"{t}.json").write_text(json.dumps({"fetched": datetime.now().isoformat(timespec="seconds"), "legs": out}))
+        got += bool(out)
+    print(f"lse: {got} names with traded legs")
+
+
 # ---------------------------------------------------------------- pricing helpers
 from quantcore.bs import bs_call, bs_put, norm_cdf as ncdf  # noqa: E402 — one home (copy ratchet)
 
@@ -288,6 +312,7 @@ def build():
                                   ORDER BY ticker, as_of"""):
             rr_hist[t].append(v)
         today = date.today()
+        lse = {f.stem: json.loads(f.read_text())["legs"] for f in (OUT / "lse").glob("*.json")} if (OUT / "lse").exists() else {}
         res = []
         for f in sorted((OUT / "chains").glob("*.json")):
             t = f.stem
@@ -311,6 +336,7 @@ def build():
                     ok, fl, my, sp = leg_checks(o, S, T, rf, qd)
                     o = {**o, "ok": ok, "flags": fl, "my_iv": my, "spread_pct": sp, "mid": ((o.get("bid") or 0) + (o.get("ask") or 0)) / 2}
                     checked.append(o)
+                lse_confirm(checked, lse.get(t) or {}, e, S)
                 puts = sorted((o for o in checked if o["side"] == "put" and o["strike"] < S), key=lambda o: o["strike"])
                 calls = sorted((o for o in checked if o["side"] == "call" and o["strike"] > S), key=lambda o: o["strike"])
                 # monotonic / no-arbitrage check over the OTM ladder (mids)
@@ -333,12 +359,12 @@ def build():
                 for p in puts:
                     if not p["ok"] or p.get("delta") is None or not (0.08 <= abs(p["delta"]) <= 0.20):
                         continue
-                    credit = p["bid"] + FILL * (p["ask"] - p["bid"])
+                    credit = p["mid"] - (0.5 - FILL) * eff_spread(p)
                     best = None
                     for c in calls:
                         if not c["ok"] or c.get("delta") is None:
                             continue
-                        debit = c["ask"] - FILL * (c["ask"] - c["bid"])
+                        debit = c["mid"] + (0.5 - FILL) * eff_spread(c)
                         net = credit - debit
                         # pair on MID (after-close spreads are wider than in session); the fill-adjusted net is reported beside it
                         if (p["mid"] - c["mid"]) >= -0.003 * S and (best is None or c["delta"] > best[0]["delta"]):
@@ -394,6 +420,57 @@ def build():
     print(f"built {len(res)} names → {OUT / 's212_rr.json'}")
 
 
+SPREAD_OK = 0.35     # leg_checks hard limit on an after-close quote
+SPREAD_LSE = 0.80    # wider quotes pass only when the LSE trade smile confirms the mid
+SPREAD_FILL = 0.30   # in-session spread assumed for those legs' fills (rank gate for clean legs)
+SHAPE_TOL = 0.05     # |(leg IV − ATM IV) Friday − (same moneyness IV − ATM IV) at the last trades| in vol pts
+LEVEL_TOL = 0.12     # ATM IV may move this much between the trades and the Friday quote
+
+
+def eff_spread(o):
+    """Dollar spread used for the fill: the quote's own, or SPREAD_FILL of mid for an LSE-confirmed wide quote."""
+    sp = (o.get("ask") or 0) - (o.get("bid") or 0)
+    return min(sp, SPREAD_FILL * o["mid"]) if o.get("verified_by") == "lse" else sp
+
+
+def lse_confirm(checked, legs_lse, e, S):
+    """Second source on every leg: interpolate LSE traded IV at the leg's log-moneyness (spot at those trades), then
+    compare smile SHAPE (leg − ATM) so a market-wide IV move between Wednesday's trades and Friday's quote does not
+    count as a mismatch. A leg whose only fault is a wide after-close spread (≤ SPREAD_LSE) passes when shape agrees."""
+    for side in ("put", "call"):
+        pts = sorted((math.log(float(k.split("|")[2]) / v["und"]), float(v["iv"])) for k, v in legs_lse.items()
+                     if k.startswith(f"{e}|{side}|") and v.get("und") and v.get("at", "") >= "2026-11-20" and 0.05 < v["iv"] < 3)
+        if len(pts) < 5:
+            continue
+        xs, ys = np.array([p[0] for p in pts]), np.array([p[1] for p in pts])
+        cf = np.polyfit(xs, ys, 2)     # smooth: single trades are noisy
+        lse_atm = float(np.polyval(cf, 0.0))
+        mine = [o for o in checked if o["side"] == side and o["ok"] and o["my_iv"] and abs(o["strike"] / S - 1) < 0.05]
+        fri_atm = float(np.median([o["my_iv"] for o in mine])) if mine else None
+        for o in checked:
+            if o["side"] != side or not o["my_iv"]:
+                continue
+            x = math.log(o["strike"] / S)
+            if not (xs.min() <= x <= xs.max()):
+                continue
+            o["lse_iv"] = float(np.polyval(cf, x))
+            o["lse_n"] = len(pts)
+            if fri_atm is None:
+                continue
+            o["lse_shape_diff"] = (o["my_iv"] - fri_atm) - (o["lse_iv"] - lse_atm)
+            agree = abs(o["lse_shape_diff"]) <= SHAPE_TOL and abs(fri_atm - lse_atm) <= LEVEL_TOL
+            soft = [f for f in o["flags"] if f.startswith("spread")]
+            hard = [f for f in o["flags"] if f in ("no bid", "ask ≤ bid", "mid below intrinsic")]
+            wide = (not o["ok"] and soft) or (o["ok"] and o["spread_pct"] > SPREAD_FILL)
+            if wide and not hard and agree and o["spread_pct"] <= SPREAD_LSE:
+                o["ok"] = True
+                o["verified_by"] = "lse"
+                o["flags"] = o["flags"] + [f"mid confirmed by {len(pts)} LSE trades (smile shape within {abs(o['lse_shape_diff']):.0%}); fill at {SPREAD_FILL:.0%} in-session spread — check live"]
+            elif o["ok"] and not agree:
+                o["flags"] = o["flags"] + [f"LSE trade smile disagrees by {o['lse_shape_diff']:+.0%}"]
+
+
+
 def smile_ok(x, s, tol=0.04):
     """Leg IV within tol of a quadratic smile fitted (by log-moneyness) to the other clean legs of that side and expiry."""
     return all(abs(leg["my_iv"] - fit) <= tol for leg, fit in ((s["put"], s.get("put_fit")), (s["call"], s.get("call_fit"))) if fit)
@@ -418,7 +495,7 @@ def rank():
             continue
         good = [s for s in x["structures"] if 0.10 <= abs(s["put"]["delta"]) <= 0.16
                 and min(s["put"]["oi"] or 0, s["call"]["oi"] or 0) >= 100
-                and max(s["put"]["spread_pct"], s["call"]["spread_pct"]) <= 0.30
+                and all(l["spread_pct"] <= SPREAD_FILL or l.get("verified_by") == "lse" for l in (s["put"], s["call"]))
                 and smile_ok(x, s)]
         if not good:
             excluded.append((t, "no liquid 0.10–0.16Δ put with a liquid call"))
@@ -469,13 +546,53 @@ def rank():
         print(f"ETF {r['ticker']:<5} P {s['put']['strike']} ({s['put_otm']:.0%}) C {s['call']['strike']} (+{s['call_otm']:.0%}) ratio {s['delta_ratio']:.2f} skew {r['skew15'] or 0:.3f} net {s['net']:+.2f}")
 
 
+def publish():
+    """Today › Risk reversals › Deep OTM $0 (11-27 #10): today's ranked list → watchlist_sync.rr_s212_daily (one row per
+    name, rank 0 = ETFs). The UI reads this table; the rules stay here (one home)."""
+    R = json.loads((OUT / "s212_ranked.json").read_text())
+    DD = json.loads((OUT / "s212_dd.json").read_text()) if (OUT / "s212_dd.json").exists() else {"names": {}, "smh": None}
+    def row(r, rank):
+        s, i, d = r["s"], r.get("info") or {}, DD["names"].get(r["ticker"]) or {}
+        leg = lambda o: {k: o.get(k) for k in ("strike", "bid", "ask", "mid", "delta", "oi", "my_iv", "lse_iv", "spread_pct", "verified_by", "flags")}
+        worst = min((x["pnl"] for x in d.get("stress", []) if x.get("pnl") is not None), default=None)
+        return {"rank": rank, "ticker": r["ticker"], "spot": r["spot"], "expiry": r["expiry"], "put": leg(s["put"]), "call": leg(s["call"]),
+                "mid_net": s["mid_net"], "fill_net": s["net"], "put_otm": s["put_otm"], "call_otm": s["call_otm"], "delta_ratio": s["delta_ratio"],
+                "skew15": r.get("skew15"), "er_in": r.get("er_in"), "next_er": r.get("next_er"), "final": r.get("final"),
+                "fund": i.get("fund_total"), "dd52": i.get("dd52"), "rsi14": i.get("rsi14"), "peer": i.get("peer_name"),
+                "worst_crash_pnl": worst, "er_breach": d.get("er_breach"), "er_n": len(d.get("earnings") or [])}
+    rows = [row(r, r["rank"]) for r in R["ranked"][:20]] + [row(r, 0) for r in R["etfs"]]
+    with connect() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_sync.rr_s212_daily (as_of date, ticker text, rank int, payload jsonb,
+                        computed_at timestamptz DEFAULT now(), PRIMARY KEY (as_of, ticker))""")
+        conn.execute("DELETE FROM watchlist_sync.rr_s212_daily WHERE as_of = %s", (R["asof"],))
+        for x in rows:
+            conn.execute("INSERT INTO watchlist_sync.rr_s212_daily (as_of, ticker, rank, payload) VALUES (%s, %s, %s, %s::jsonb)",
+                         (R["asof"], x["ticker"], x["rank"], json.dumps(x, default=str)))
+        conn.commit()
+    print(f"published {len(rows)} rows for {R['asof']}")
+
+
+def run_all():
+    """Daily (publish stage, LSE thread, in session): stage1 → chains → LSE trades → build → rank → DD → table."""
+    stage1(); chains(106); lse_trades(); build(); rank()
+    import s212_dd
+    s212_dd.main()
+    publish()
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "stage1"
     if cmd == "stage1":
         stage1()
     elif cmd == "chains":
         chains(int(sys.argv[sys.argv.index("--n") + 1]) if "--n" in sys.argv else 70)
+    elif cmd == "lse":
+        lse_trades()
     elif cmd == "build":
         build()
     elif cmd == "rank":
         rank()
+    elif cmd == "publish":
+        publish()
+    elif cmd == "all":
+        run_all()

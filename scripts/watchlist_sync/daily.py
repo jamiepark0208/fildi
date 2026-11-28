@@ -130,6 +130,7 @@ STAGES: dict[str, list[tuple[str, Path, Path, list[str]]]] = {
         ("sec staleness", PY, HERE, ["sec_staleness.py", "--quiet"]),   # 11-11: companyfacts lagging the newest filing → data_issues
         ("strategy signal backlog", LPY, HERE, ["strategy_signals.py", "--price-only", "--budget=1500"]),   # 11-11: drain shadow fires the 300 s in-build pass leaves open (soft; LSEG, sequential)
         ("options flow", PY, HERE, ["options_flow.py", "--max-minutes", "40"]),   # A396: LSE OPRA prints ≥ $25k → options_flow_* (Breakdown + Feed; display only; soft, last so nothing waits on it)
+        ("risk reversals S212", PY, HERE, ["analysis/s212_rr_screen.py", "all"]),   # 11-27: deep-OTM $0 risk reversals, legs checked vs LSE trades → rr_s212_daily (Today › Risk reversals › Deep OTM; soft, after options flow on the LSE thread)
     ],
 }
 ORDER = list(STAGES)
@@ -156,7 +157,7 @@ SOFT_MODEL = {
 # 11-27 pipeline audit: vendor-bound, display-only publish steps that no other step reads. Each chain runs in a background
 # thread (in order) from where its first step sits, joined at the end of the stage. Yahoo insights (1.2 s/name × 950 ≈ 21 min,
 # kept sequential for the Yahoo circuit) → DCF grades (reads it); LSE options flow (~20 min). Saves ~40 min of wall time.
-BACKGROUND = {"Yahoo insights (Trading Central)": "yahoo", "DCF grades": "yahoo", "options flow": "lse"}
+BACKGROUND = {"Yahoo insights (Trading Central)": "yahoo", "DCF grades": "yahoo", "options flow": "lse", "risk reversals S212": "lse"}
 
 
 def quotes_ingested() -> bool:

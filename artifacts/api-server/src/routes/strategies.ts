@@ -1051,6 +1051,20 @@ setInterval(() => {
   if (isMarketOpen()) void rrCache.getOrCompute("all", riskReversalsSaved).catch(() => undefined);   // ~45 ladder calls / 15 min
 }, 15 * 60 * 1000).unref();
 
+// 11-27 S212 deep-OTM $0 risk reversals: built daily by analysis/s212_rr_screen.py (rules live there) → rr_s212_daily.
+// One DB read of the latest day; no vendor calls here.
+router.get("/today/risk-reversals/deep", requireAdmin, async (_req, res, next) => {
+  try {
+    const rows = await safe<{ as_of: string; rank: number; payload: Record<string, unknown> }>(sql`
+      SELECT as_of::text AS as_of, rank, payload FROM watchlist_sync.rr_s212_daily
+      WHERE as_of = (SELECT MAX(as_of) FROM watchlist_sync.rr_s212_daily) ORDER BY rank = 0, rank, ticker`);
+    res.json({ asOf: rows[0]?.as_of ?? null, names: rows.filter((r) => r.rank > 0).map((r) => r.payload),
+               etfs: rows.filter((r) => r.rank === 0).map((r) => r.payload) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Jamie 11-20 "you are not looking at the unrealized losses" + "should I really turn margin off… at the low?": book-level
 // risk on the RH snapshot (lib/book-risk.ts). DB only (snapshot + prices_historical + fit history), no vendor calls.
 const bookCache = new TTLCache<unknown>(5 * 60 * 1000, "today-book-risk", 2);
