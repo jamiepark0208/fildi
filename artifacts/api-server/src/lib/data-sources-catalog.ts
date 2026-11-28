@@ -469,7 +469,7 @@ const RESEARCH_TOOLS: DataSourceCatalogRow[] = [
     tables: "See evidence in details",
     unusedAvailable: "Zero-shot OHLCV forecaster: do not wire. S184 rank arm: paper ledger only if Jamie asks.",
     dailyLimit: null,
-    detail: {"category": "Research", "status": "Dropped", "value": "Zero-shot daily forecast failed A347 P1 (S347: 0/3 horizons beat naive RMSE, n=60). Fine-tune has no level skill (S181); vol component fails (S182); cross-section rank UNDERPOWERED-promising (S184) — research paper only.", "consumers": [{"label": "Ideas / research", "href": "/agents"}], "overlap": "HAR/RV/IV baselines; Chronos/TimesFM overlap in forecasting.", "next": "No new Kronos runs unless Jamie re-opens S184 paper or posts external post-cost rank evidence.", "evidence": "A347; S347; S180–S184", "checkedAt": "2026-11-27"},
+    detail: {"category": "Research", "status": "Retired", "value": "Zero-shot daily forecast failed A347 P1 (S347: 0/3 horizons beat naive RMSE, n=60). Fine-tune has no level skill (S181); vol component fails (S182); cross-section rank UNDERPOWERED-promising (S184) — research paper only.", "consumers": [{"label": "Ideas / research", "href": "/agents"}], "overlap": "HAR/RV/IV baselines; Chronos/TimesFM overlap in forecasting.", "next": "No new Kronos runs unless Jamie re-opens S184 paper or posts external post-cost rank evidence.", "evidence": "A347; S347; S180–S184", "checkedAt": "2026-11-27"},
     budgetNote: "No separate request allowance measured here. Parent-provider quotas apply to subproducts; local research also costs compute/time.",
     meterNote: "No separate API meter. Research, proposals and reference tools are not counted as active vendor feeds.",
   },
